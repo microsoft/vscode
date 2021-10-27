@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { LanguageId } from 'vs/editor/common/modes';
+import { NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
@@ -90,7 +90,7 @@ class InsertSnippetAction extends EditorAction {
 		const clipboardService = accessor.get(IClipboardService);
 		const quickInputService = accessor.get(IQuickInputService);
 
-		const snippet = await new Promise<Snippet | undefined>(async (resolve) => {
+		const snippet = await new Promise<Snippet | undefined>((resolve, reject) => {
 
 			const { lineNumber, column } = editor.getPosition();
 			let { snippet, name, langId } = Args.fromUser(arg);
@@ -107,11 +107,11 @@ class InsertSnippetAction extends EditorAction {
 				));
 			}
 
-			let languageId = LanguageId.Null;
+			let languageId = NULL_MODE_ID;
 			if (langId) {
-				const otherLangId = modeService.getLanguageIdentifier(langId);
+				const otherLangId = modeService.validateLanguageId(langId);
 				if (otherLangId) {
-					languageId = otherLangId.id;
+					languageId = otherLangId;
 				}
 			} else {
 				editor.getModel().tokenizeIfCheap(lineNumber);
@@ -120,21 +120,20 @@ class InsertSnippetAction extends EditorAction {
 				// validate the `languageId` to ensure this is a user
 				// facing language with a name and the chance to have
 				// snippets, else fall back to the outer language
-				const otherLangId = modeService.getLanguageIdentifier(languageId);
-				if (otherLangId && !modeService.getLanguageName(otherLangId.language)) {
-					languageId = editor.getModel().getLanguageIdentifier().id;
+				if (!modeService.getLanguageName(languageId)) {
+					languageId = editor.getModel().getLanguageId();
 				}
 			}
 
 			if (name) {
 				// take selected snippet
-				const snippet = (await snippetService.getSnippets(languageId, { includeNoPrefixSnippets: true })).find(snippet => snippet.name === name);
-				resolve(snippet);
+				snippetService.getSnippets(languageId, { includeNoPrefixSnippets: true })
+					.then(snippets => snippets.find(snippet => snippet.name === name))
+					.then(resolve, reject);
 
 			} else {
 				// let user pick a snippet
-				const snippet = await this._pickSnippet(snippetService, quickInputService, languageId);
-				resolve(snippet);
+				resolve(this._pickSnippet(snippetService, quickInputService, languageId));
 			}
 		});
 
@@ -148,7 +147,7 @@ class InsertSnippetAction extends EditorAction {
 		SnippetController2.get(editor).insert(snippet.codeSnippet, { clipboardText });
 	}
 
-	private async _pickSnippet(snippetService: ISnippetsService, quickInputService: IQuickInputService, languageId: LanguageId): Promise<Snippet | undefined> {
+	private async _pickSnippet(snippetService: ISnippetsService, quickInputService: IQuickInputService, languageId: string): Promise<Snippet | undefined> {
 
 		interface ISnippetPick extends IQuickPickItem {
 			snippet: Snippet;
@@ -207,6 +206,7 @@ class InsertSnippetAction extends EditorAction {
 		picker.placeholder = nls.localize('pick.placeholder', "Select a snippet");
 		picker.matchOnDetail = true;
 		picker.ignoreFocusOut = false;
+		picker.keepScrollPosition = true;
 		picker.onDidTriggerItemButton(ctx => {
 			const isEnabled = snippetService.isEnabled(ctx.item.snippet);
 			snippetService.updateEnablement(ctx.item.snippet, !isEnabled);

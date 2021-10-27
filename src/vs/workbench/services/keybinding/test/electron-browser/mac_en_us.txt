@@ -345,9 +345,9 @@ isUSStandard: true
 |       HW Code combination      |  Key  |    KeyCode combination    | Pri |          UI label         |         User settings          |    Electron accelerator   |       Dispatching string       | WYSIWYG |
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |                          Minus |   -   |                         - |     |                         - |                              - |                         - |                        [Minus] |         |
-|                     Ctrl+Minus |   -   |                    Ctrl+- |     |                    Ctrl+- |                         ctrl+- |                      null |                   ctrl+[Minus] |         |
+|                     Ctrl+Minus |   -   |                    Ctrl+- |     |                    Ctrl+- |                         ctrl+- |                    Ctrl+- |                   ctrl+[Minus] |         |
 |                    Shift+Minus |   _   |                   Shift+- |     |                   Shift+- |                        shift+- |                   Shift+- |                  shift+[Minus] |         |
-|               Ctrl+Shift+Minus |   _   |              Ctrl+Shift+- |     |              Ctrl+Shift+- |                   ctrl+shift+- |                      null |             ctrl+shift+[Minus] |         |
+|               Ctrl+Shift+Minus |   _   |              Ctrl+Shift+- |     |              Ctrl+Shift+- |                   ctrl+shift+- |              Ctrl+Shift+- |             ctrl+shift+[Minus] |         |
 |                      Alt+Minus |   -   |                     Alt+- |     |                     Alt+- |                          alt+- |                     Alt+- |                    alt+[Minus] |         |
 |                 Ctrl+Alt+Minus |   –   |                Ctrl+Alt+- |     |                Ctrl+Alt+- |                     ctrl+alt+- |                Ctrl+Alt+- |               ctrl+alt+[Minus] |         |
 |                Shift+Alt+Minus |   _   |               Shift+Alt+- |     |               Shift+Alt+- |                    shift+alt+- |               Shift+Alt+- |              shift+alt+[Minus] |         |

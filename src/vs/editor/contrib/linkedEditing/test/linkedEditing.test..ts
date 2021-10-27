@@ -6,17 +6,17 @@
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Handler } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
+import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
 import * as modes from 'vs/editor/common/modes';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { LinkedEditingContribution } from 'vs/editor/contrib/linkedEditing/linkedEditing';
 import { createTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
-import { ITextModel } from 'vs/editor/common/model';
-import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 const mockFile = URI.parse('test:somefile.ttt');
 const mockFileSelector = { scheme: 'test' };
@@ -30,16 +30,16 @@ interface TestEditor {
 	redo(): void;
 }
 
-const languageIdentifier = new modes.LanguageIdentifier('linkedEditingTestLangage', 74);
-LanguageConfigurationRegistry.register(languageIdentifier, {
-	wordPattern: /[a-zA-Z]+/
-});
+const languageId = 'linkedEditingTestLangage';
 
 suite('linked editing', () => {
 	const disposables = new DisposableStore();
 
 	setup(() => {
 		disposables.clear();
+		disposables.add(LanguageConfigurationRegistry.register(languageId, {
+			wordPattern: /[a-zA-Z]+/
+		}));
 	});
 
 	teardown(() => {
@@ -48,8 +48,8 @@ suite('linked editing', () => {
 
 	function createMockEditor(text: string | string[]): ITestCodeEditor {
 		const model = typeof text === 'string'
-			? createTextModel(text, undefined, languageIdentifier, mockFile)
-			: createTextModel(text.join('\n'), undefined, languageIdentifier, mockFile);
+			? createTextModel(text, undefined, languageId, mockFile)
+			: createTextModel(text.join('\n'), undefined, languageId, mockFile);
 
 		const editor = createTestCodeEditor({ model });
 		disposables.add(model);
@@ -111,9 +111,9 @@ suite('linked editing', () => {
 			return new Promise<void>((resolve) => {
 				setTimeout(() => {
 					if (typeof expectedEndText === 'string') {
-						assert.equal(editor.getModel()!.getValue(), expectedEndText);
+						assert.strictEqual(editor.getModel()!.getValue(), expectedEndText);
 					} else {
-						assert.equal(editor.getModel()!.getValue(), expectedEndText.join('\n'));
+						assert.strictEqual(editor.getModel()!.getValue(), expectedEndText.join('\n'));
 					}
 					resolve();
 				}, timeout);

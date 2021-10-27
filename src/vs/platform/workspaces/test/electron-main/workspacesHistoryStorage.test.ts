@@ -6,9 +6,9 @@
 import * as assert from 'assert';
 import { tmpdir } from 'os';
 import { join } from 'vs/base/common/path';
-import { IWorkspaceIdentifier, IRecentlyOpened, isRecentFolder, IRecentFolder, IRecentWorkspace, toStoreData, restoreRecentlyOpened } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFolder, IWorkspaceIdentifier, restoreRecentlyOpened, toStoreData } from 'vs/platform/workspaces/common/workspaces';
 
 suite('History Storage', () => {
 

@@ -106,6 +106,7 @@ suite('Monarch', () => {
 		]);
 		innerModeTokenizationRegistration.dispose();
 		innerModeRegistration.dispose();
+		modeService.dispose();
 	});
 
 	test('microsoft/monaco-editor#1235: Empty Line Handling', () => {
@@ -161,6 +162,7 @@ suite('Monarch', () => {
 			[],
 			[new Token(0, 'source.test', 'test')]
 		]);
+		modeService.dispose();
 
 	});
 
@@ -209,6 +211,7 @@ suite('Monarch', () => {
 				new Token(18, 'number.test', 'test'),
 			]
 		]);
+		modeService.dispose();
 	});
 
 	test('issue #115662: monarchCompile function need an extra option which can control replacement', () => {
@@ -262,6 +265,35 @@ suite('Monarch', () => {
 				new Token(0, 'ham.test', 'test'),
 			]
 		]);
+		modeService.dispose();
+	});
+
+	test('microsoft/monaco-editor#2424: Allow to target @@', () => {
+		const modeService = new ModeServiceImpl();
+
+		const tokenizer = createMonarchTokenizer(modeService, 'test', {
+			ignoreCase: false,
+			tokenizer: {
+				root: [
+					{
+						regex: /@@@@/,
+						action: { token: 'ham' }
+					},
+				],
+			},
+		});
+
+		const lines = [
+			`@@`
+		];
+
+		const actualTokens = getTokens(tokenizer, lines);
+		assert.deepStrictEqual(actualTokens, [
+			[
+				new Token(0, 'ham.test', 'test'),
+			]
+		]);
+		modeService.dispose();
 	});
 
 });

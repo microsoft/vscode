@@ -17,6 +17,7 @@ function validateMacAddress(candidate: string): boolean {
 }
 
 export function getMac(): Promise<string> {
+	// eslint-disable-next-line no-async-promise-executor
 	return new Promise(async (resolve, reject) => {
 		const timeout = setTimeout(() => reject('Unable to retrieve mac address (timeout after 10s)'), 10000);
 
@@ -34,10 +35,13 @@ function doGetMac(): Promise<string> {
 	return new Promise((resolve, reject) => {
 		try {
 			const ifaces = networkInterfaces();
-			for (const [, infos] of Object.entries(ifaces)) {
-				for (const info of infos) {
-					if (validateMacAddress(info.mac)) {
-						return resolve(info.mac);
+			for (let name in ifaces) {
+				const networkInterface = ifaces[name];
+				if (networkInterface) {
+					for (const { mac } of networkInterface) {
+						if (validateMacAddress(mac)) {
+							return resolve(mac);
+						}
 					}
 				}
 			}

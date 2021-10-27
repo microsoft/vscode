@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isFalsyOrEmpty, isNonEmptyArray } from 'vs/base/common/arrays';
-import { Schemas } from 'vs/base/common/network';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IMarkerService, IMarkerData, IResourceMarker, IMarker, MarkerStatistics, MarkerSeverity } from './markers';
-import { ResourceMap } from 'vs/base/common/map';
+import { DebounceEmitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { ResourceMap } from 'vs/base/common/map';
+import { Schemas } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
+import { IMarker, IMarkerData, IMarkerService, IResourceMarker, MarkerSeverity, MarkerStatistics } from './markers';
 
 class DoubleResourceMap<V>{
 
@@ -141,8 +141,12 @@ export class MarkerService implements IMarkerService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onMarkerChanged = new Emitter<readonly URI[]>();
-	readonly onMarkerChanged: Event<readonly URI[]> = Event.debounce(this._onMarkerChanged.event, MarkerService._debouncer, 0);
+	private readonly _onMarkerChanged = new DebounceEmitter<readonly URI[]>({
+		delay: 0,
+		merge: MarkerService._merge
+	});
+
+	readonly onMarkerChanged = this._onMarkerChanged.event;
 
 	private readonly _data = new DoubleResourceMap<IMarker[]>();
 	private readonly _stats = new MarkerStats(this);
@@ -331,19 +335,13 @@ export class MarkerService implements IMarkerService {
 
 	// --- event debounce logic
 
-	private static _dedupeMap: ResourceMap<true>;
-
-	private static _debouncer(last: URI[] | undefined, event: readonly URI[]): URI[] {
-		if (!last) {
-			MarkerService._dedupeMap = new ResourceMap();
-			last = [];
-		}
-		for (const uri of event) {
-			if (!MarkerService._dedupeMap.has(uri)) {
-				MarkerService._dedupeMap.set(uri, true);
-				last.push(uri);
+	private static _merge(all: (readonly URI[])[]): URI[] {
+		const set = new ResourceMap<boolean>();
+		for (let array of all) {
+			for (let item of array) {
+				set.set(item, true);
 			}
 		}
-		return last;
+		return Array.from(set.keys());
 	}
 }

@@ -391,6 +391,11 @@
 		"editor.wordHighlightBackground": "#004454AA",
 		"editor.wordHighlightStrongBackground": "#005A6FAA",
 
+		// Editor: Colorized Bracket Highlighting
+		"editorBracketHighlight.foreground1": "#cdcdcdff",
+		"editorBracketHighlight.foreground2": "#b58900ff",
+		"editorBracketHighlight.foreground3": "#d33682ff",
+
 		// Editor: Suggest
 		// "editorSuggestWidget.background": "",
 		// "editorSuggestWidget.border": "",
@@ -462,6 +467,7 @@
 		"statusBar.debuggingBackground": "#00212B",
 		"statusBar.noFolderBackground": "#00212B",
 		"statusBarItem.remoteBackground": "#2AA19899",
+		"ports.iconRunningProcessForeground": "#369432",
 		"statusBarItem.prominentBackground": "#003847",
 		"statusBarItem.prominentHoverBackground": "#003847",
 		// "statusBarItem.activeBackground": "",

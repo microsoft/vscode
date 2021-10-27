@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { posix, normalize, win32, sep } from 'vs/base/common/path';
-import { startsWithIgnoreCase, rtrim } from 'vs/base/common/strings';
-import { Schemas } from 'vs/base/common/network';
-import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
-import { isEqual, basename, relativePath } from 'vs/base/common/resources';
 import { hasDriveLetter, isRootOrDriveLetter } from 'vs/base/common/extpath';
+import { Schemas } from 'vs/base/common/network';
+import { normalize, posix, sep, win32 } from 'vs/base/common/path';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { basename, isEqual, relativePath } from 'vs/base/common/resources';
+import { rtrim, startsWithIgnoreCase } from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
 
 export interface IWorkspaceFolderProvider {
 	getWorkspaceFolder(resource: URI): { uri: URI, name?: string; } | null;
@@ -233,7 +233,7 @@ export function shorten(paths: string[], pathSeparator: string = sep): string[] 
 						result = prefix + result;
 					}
 
-					// add ellipsis at the beginning if neeeded
+					// add ellipsis at the beginning if needed
 					if (start > 0) {
 						result = result + ellipsis + pathSeparator;
 					}
@@ -276,7 +276,7 @@ interface ISegment {
 /**
  * Helper to insert values for specific template variables into the string. E.g. "this $(is) a $(template)" can be
  * passed to this function together with an object that maps "is" and "template" to strings to have them replaced.
- * @param value string to which templating is applied
+ * @param value string to which template is applied
  * @param values the values of the templates to use
  */
 export function template(template: string, values: { [key: string]: string | ISeparator | undefined | null; } = Object.create(null)): string {

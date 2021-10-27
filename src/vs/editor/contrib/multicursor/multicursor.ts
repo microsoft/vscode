@@ -3,32 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { status } from 'vs/base/browser/ui/aria/aria';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { status } from 'vs/base/browser/ui/aria/aria';
+import { Constants } from 'vs/base/common/uint';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { CursorState } from 'vs/editor/common/controller/cursorCommon';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { CursorMoveCommands } from 'vs/editor/common/controller/cursorMoveCommands';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { Constants } from 'vs/base/common/uint';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { FindMatch, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { FindMatch, ITextModel, OverviewRulerLane, TrackedRangeStickiness, MinimapPosition } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
 import { CommonFindController } from 'vs/editor/contrib/find/findController';
 import { FindOptionOverride, INewFindReplaceState } from 'vs/editor/contrib/find/findState';
+import * as nls from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { CursorState } from 'vs/editor/common/controller/cursorCommon';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { overviewRulerSelectionHighlightForeground, minimapSelectionOccurrenceHighlight } from 'vs/platform/theme/common/colorRegistry';
+import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 
 function announceCursorChange(previousCursorState: CursorState[], cursorState: CursorState[]): void {
 	const cursorDiff = cursorState.filter(cs => !previousCursorState.find(pcs => pcs.equals(cs)));
@@ -149,7 +149,7 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_I,
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KeyI,
 				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
@@ -218,9 +218,12 @@ class InsertCursorAtEndOfLineSelected extends EditorAction {
 			newSelections.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
 		}
 
+		const viewModel = editor._getViewModel();
+		const previousCursorState = viewModel.getCursorStates();
 		if (newSelections.length > 0) {
 			editor.setSelections(newSelections);
 		}
+		announceCursorChange(previousCursorState, viewModel.getCursorStates());
 	}
 }
 
@@ -247,9 +250,12 @@ class InsertCursorAtTopOfLineSelected extends EditorAction {
 			newSelections.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
 		}
 
+		const viewModel = editor._getViewModel();
+		const previousCursorState = viewModel.getCursorStates();
 		if (newSelections.length > 0) {
 			editor.setSelections(newSelections);
 		}
+		announceCursorChange(previousCursorState, viewModel.getCursorStates());
 	}
 }
 
@@ -457,7 +463,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		this._session = null;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._endSession();
 		super.dispose();
 	}
@@ -687,7 +693,7 @@ export class AddSelectionToNextFindMatchAction extends MultiCursorSelectionContr
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_D,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyD,
 				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
@@ -732,7 +738,7 @@ export class MoveSelectionToNextFindMatchAction extends MultiCursorSelectionCont
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_D),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyD),
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -765,7 +771,7 @@ export class SelectHighlightsAction extends MultiCursorSelectionControllerAction
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_L,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL,
 				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
@@ -1041,8 +1047,13 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 	}
 
 	private static readonly _SELECTION_HIGHLIGHT_OVERVIEW = ModelDecorationOptions.register({
+		description: 'selection-highlight-overview',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'selectionHighlight',
+		minimap: {
+			color: themeColorFromId(minimapSelectionOccurrenceHighlight),
+			position: MinimapPosition.Inline
+		},
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerSelectionHighlightForeground),
 			position: OverviewRulerLane.Center
@@ -1050,11 +1061,12 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 	});
 
 	private static readonly _SELECTION_HIGHLIGHT = ModelDecorationOptions.register({
+		description: 'selection-highlight',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'selectionHighlight',
 	});
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._setState(null);
 		super.dispose();
 	}

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { getIconRegistry, IconContribution, IconFontContribution } from 'vs/platform/theme/common/iconRegistry';
 import { asCSSPropertyValue, asCSSUrl } from 'vs/base/browser/dom';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
+import { getIconRegistry, IconContribution, IconFontContribution } from 'vs/platform/theme/common/iconRegistry';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 
 export interface IIconsStyleSheet {
@@ -53,7 +53,7 @@ export function getIconsStyleSheet(): IIconsStyleSheet {
 			for (let id in usedFontIds) {
 				const fontContribution = usedFontIds[id];
 				const src = fontContribution.definition.src.map(l => `${asCSSUrl(l.location)} format('${l.format}')`).join(', ');
-				rules.push(`@font-face { src: ${src}; font-family: ${asCSSPropertyValue(id)}; }`);
+				rules.push(`@font-face { src: ${src}; font-family: ${asCSSPropertyValue(id)}; font-display: block; }`);
 			}
 			return rules.join('\n');
 		}

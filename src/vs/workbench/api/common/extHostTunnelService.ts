@@ -6,7 +6,7 @@
 import { ExtHostTunnelServiceShape } from 'vs/workbench/api/common/extHost.protocol';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import * as vscode from 'vscode';
-import { ProvidedPortAttributes, RemoteTunnel, TunnelCreationOptions, TunnelOptions } from 'vs/platform/remote/common/tunnel';
+import { ProvidedPortAttributes, RemoteTunnel, TunnelCreationOptions, TunnelOptions, TunnelPrivacyId } from 'vs/platform/remote/common/tunnel';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
@@ -17,11 +17,19 @@ export interface TunnelDto {
 	remoteAddress: { port: number, host: string };
 	localAddress: { port: number, host: string } | string;
 	public: boolean;
+	privacy: TunnelPrivacyId | string;
+	protocol: string | undefined;
 }
 
 export namespace TunnelDto {
 	export function fromApiTunnel(tunnel: vscode.Tunnel): TunnelDto {
-		return { remoteAddress: tunnel.remoteAddress, localAddress: tunnel.localAddress, public: !!tunnel.public };
+		return {
+			remoteAddress: tunnel.remoteAddress,
+			localAddress: tunnel.localAddress,
+			public: !!tunnel.public,
+			privacy: tunnel.privacy ?? (tunnel.public ? TunnelPrivacyId.Public : TunnelPrivacyId.Private),
+			protocol: tunnel.protocol
+		};
 	}
 	export function fromServiceTunnel(tunnel: RemoteTunnel): TunnelDto {
 		return {
@@ -30,7 +38,9 @@ export namespace TunnelDto {
 				port: tunnel.tunnelRemotePort
 			},
 			localAddress: tunnel.localAddress,
-			public: tunnel.public
+			public: tunnel.privacy !== TunnelPrivacyId.ConstantPrivate && tunnel.privacy !== TunnelPrivacyId.ConstantPrivate,
+			privacy: tunnel.privacy,
+			protocol: tunnel.protocol
 		};
 	}
 }
@@ -46,7 +56,7 @@ export interface IExtHostTunnelService extends ExtHostTunnelServiceShape {
 	getTunnels(): Promise<vscode.TunnelDescription[]>;
 	onDidChangeTunnels: vscode.Event<void>;
 	setTunnelExtensionFunctions(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable>;
-	registerPortsAttributesProvider(portSelector: { pid?: number, portRange?: [number, number] }, provider: vscode.PortAttributesProvider): IDisposable;
+	registerPortsAttributesProvider(portSelector: { pid?: number, portRange?: [number, number], commandMatcher?: RegExp }, provider: vscode.PortAttributesProvider): IDisposable;
 }
 
 export const IExtHostTunnelService = createDecorator<IExtHostTunnelService>('IExtHostTunnelService');

@@ -52,7 +52,7 @@ export abstract class Part extends Component implements ISerializableView {
 		layoutService.registerPart(this);
 	}
 
-	protected onThemeChange(theme: IColorTheme): void {
+	protected override onThemeChange(theme: IColorTheme): void {
 
 		// only call if our create() method has been called
 		if (this.parent) {
@@ -60,7 +60,7 @@ export abstract class Part extends Component implements ISerializableView {
 		}
 	}
 
-	updateStyles(): void {
+	override updateStyles(): void {
 		super.updateStyles();
 	}
 
@@ -136,7 +136,7 @@ export abstract class Part extends Component implements ISerializableView {
 	abstract minimumHeight: number;
 	abstract maximumHeight: number;
 
-	layout(width: number, height: number): void {
+	layout(width: number, height: number, _top: number, _left: number): void {
 		this._dimension = new Dimension(width, height);
 	}
 

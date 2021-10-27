@@ -49,6 +49,16 @@ export function registerCodicon(id: string, def: Codicon): Codicon {
 	return new Codicon(id, def);
 }
 
+// Selects all codicon names encapsulated in the `$()` syntax and wraps the
+// results with spaces so that screen readers can read the text better.
+export function getCodiconAriaLabel(text: string | undefined) {
+	if (!text) {
+		return '';
+	}
+
+	return text.replace(/\$\((.*?)\)/g, (_match, codiconName) => ` ${codiconName} `).trim();
+}
+
 export class Codicon implements CSSIcon {
 	constructor(public readonly id: string, public readonly definition: Codicon | IconDefinition, public description?: string) {
 		_registry.add(this);
@@ -114,9 +124,9 @@ export namespace Codicon {
 
 	// built-in icons, with image name
 	export const add = new Codicon('add', { fontCharacter: '\\ea60' });
-	export const plus = new Codicon('plus', { fontCharacter: '\\ea60' });
-	export const gistNew = new Codicon('gist-new', { fontCharacter: '\\ea60' });
-	export const repoCreate = new Codicon('repo-create', { fontCharacter: '\\ea60' });
+	export const plus = new Codicon('plus', Codicon.add.definition);
+	export const gistNew = new Codicon('gist-new', Codicon.add.definition);
+	export const repoCreate = new Codicon('repo-create', Codicon.add.definition);
 	export const lightbulb = new Codicon('lightbulb', { fontCharacter: '\\ea61' });
 	export const lightBulb = new Codicon('light-bulb', { fontCharacter: '\\ea61' });
 	export const repo = new Codicon('repo', { fontCharacter: '\\ea62' });
@@ -131,7 +141,6 @@ export namespace Codicon {
 	export const tagAdd = new Codicon('tag-add', { fontCharacter: '\\ea66' });
 	export const tagRemove = new Codicon('tag-remove', { fontCharacter: '\\ea66' });
 	export const person = new Codicon('person', { fontCharacter: '\\ea67' });
-	export const personAdd = new Codicon('person-add', { fontCharacter: '\\ea67' });
 	export const personFollow = new Codicon('person-follow', { fontCharacter: '\\ea67' });
 	export const personOutline = new Codicon('person-outline', { fontCharacter: '\\ea67' });
 	export const personFilled = new Codicon('person-filled', { fontCharacter: '\\ea67' });
@@ -275,6 +284,7 @@ export namespace Codicon {
 	export const check = new Codicon('check', { fontCharacter: '\\eab2' });
 	export const checklist = new Codicon('checklist', { fontCharacter: '\\eab3' });
 	export const chevronDown = new Codicon('chevron-down', { fontCharacter: '\\eab4' });
+	export const dropDownButton = new Codicon('drop-down-button', Codicon.chevronDown.definition);
 	export const chevronLeft = new Codicon('chevron-left', { fontCharacter: '\\eab5' });
 	export const chevronRight = new Codicon('chevron-right', { fontCharacter: '\\eab6' });
 	export const chevronUp = new Codicon('chevron-up', { fontCharacter: '\\eab7' });
@@ -359,7 +369,7 @@ export namespace Codicon {
 	export const horizontalRule = new Codicon('horizontal-rule', { fontCharacter: '\\eb07' });
 	export const hubot = new Codicon('hubot', { fontCharacter: '\\eb08' });
 	export const inbox = new Codicon('inbox', { fontCharacter: '\\eb09' });
-	export const issueClosed = new Codicon('issue-closed', { fontCharacter: '\\eb0a' });
+	export const issueClosed = new Codicon('issue-closed', { fontCharacter: '\\eba4' });
 	export const issueReopened = new Codicon('issue-reopened', { fontCharacter: '\\eb0b' });
 	export const issues = new Codicon('issues', { fontCharacter: '\\eb0c' });
 	export const italic = new Codicon('italic', { fontCharacter: '\\eb0d' });
@@ -550,8 +560,45 @@ export namespace Codicon {
 	export const debugRerun = new Codicon('debug-rerun', { fontCharacter: '\\ebc0' });
 	export const workspaceTrusted = new Codicon('workspace-trusted', { fontCharacter: '\\ebc1' });
 	export const workspaceUntrusted = new Codicon('workspace-untrusted', { fontCharacter: '\\ebc2' });
-	export const workspaceUnknown = new Codicon('workspace-unknown', { fontCharacter: '\\ebc3' });
-
-	export const dropDownButton = new Codicon('drop-down-button', Codicon.chevronDown.definition);
+	export const workspaceUnspecified = new Codicon('workspace-unspecified', { fontCharacter: '\\ebc3' });
+	export const terminalCmd = new Codicon('terminal-cmd', { fontCharacter: '\\ebc4' });
+	export const terminalDebian = new Codicon('terminal-debian', { fontCharacter: '\\ebc5' });
+	export const terminalLinux = new Codicon('terminal-linux', { fontCharacter: '\\ebc6' });
+	export const terminalPowershell = new Codicon('terminal-powershell', { fontCharacter: '\\ebc7' });
+	export const terminalTmux = new Codicon('terminal-tmux', { fontCharacter: '\\ebc8' });
+	export const terminalUbuntu = new Codicon('terminal-ubuntu', { fontCharacter: '\\ebc9' });
+	export const terminalBash = new Codicon('terminal-bash', { fontCharacter: '\\ebca' });
+	export const arrowSwap = new Codicon('arrow-swap', { fontCharacter: '\\ebcb' });
+	export const copy = new Codicon('copy', { fontCharacter: '\\ebcc' });
+	export const personAdd = new Codicon('person-add', { fontCharacter: '\\ebcd' });
+	export const filterFilled = new Codicon('filter-filled', { fontCharacter: '\\ebce' });
+	export const wand = new Codicon('wand', { fontCharacter: '\\ebcf' });
+	export const debugLineByLine = new Codicon('debug-line-by-line', { fontCharacter: '\\ebd0' });
+	export const inspect = new Codicon('inspect', { fontCharacter: '\\ebd1' });
+	export const layers = new Codicon('layers', { fontCharacter: '\\ebd2' });
+	export const layersDot = new Codicon('layers-dot', { fontCharacter: '\\ebd3' });
+	export const layersActive = new Codicon('layers-active', { fontCharacter: '\\ebd4' });
+	export const compass = new Codicon('compass', { fontCharacter: '\\ebd5' });
+	export const compassDot = new Codicon('compass-dot', { fontCharacter: '\\ebd6' });
+	export const compassActive = new Codicon('compass-active', { fontCharacter: '\\ebd7' });
+	export const azure = new Codicon('azure', { fontCharacter: '\\ebd8' });
+	export const issueDraft = new Codicon('issue-draft', { fontCharacter: '\\ebd9' });
+	export const gitPullRequestClosed = new Codicon('git-pull-request-closed', { fontCharacter: '\\ebda' });
+	export const gitPullRequestDraft = new Codicon('git-pull-request-draft', { fontCharacter: '\\ebdb' });
+	export const debugAll = new Codicon('debug-all', { fontCharacter: '\\ebdc' });
+	export const debugCoverage = new Codicon('debug-coverage', { fontCharacter: '\\ebdd' });
+	export const runErrors = new Codicon('run-errors', { fontCharacter: '\\ebde' });
+	export const folderLibrary = new Codicon('folder-library', { fontCharacter: '\\ebdf' });
+	export const debugContinueSmall = new Codicon('debug-continue-small', { fontCharacter: '\\ebe0' });
+	export const beakerStop = new Codicon('beaker-stop', { fontCharacter: '\\ebe1' });
+	export const graphLine = new Codicon('graph-line', { fontCharacter: '\\ebe2' });
+	export const graphScatter = new Codicon('graph-scatter', { fontCharacter: '\\ebe3' });
+	export const pieChart = new Codicon('pie-chart', { fontCharacter: '\\ebe4' });
+	export const bracket = new Codicon('bracket', Codicon.json.definition);
+	export const bracketDot = new Codicon('bracket-dot', { fontCharacter: '\\ebe5' });
+	export const bracketError = new Codicon('bracket-error', { fontCharacter: '\\ebe6' });
+	export const lockSmall = new Codicon('lock-small', { fontCharacter: '\\ebe7' });
+	export const azureDevops = new Codicon('azure-devops', { fontCharacter: '\\ebe8' });
+	export const verifiedFilled = new Codicon('verified-filled', { fontCharacter: '\\ebe9' });
 }
 

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import BaseSeverity from 'vs/base/common/severity';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import BaseSeverity from 'vs/base/common/severity';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export import Severity = BaseSeverity;
 
@@ -73,6 +73,13 @@ export interface INeverShowAgainOptions {
 export interface INotification extends INotificationProperties {
 
 	/**
+	 * The id of the notification. If provided, will be used to compare
+	 * notifications with others to decide whether a notification is
+	 * duplicate or not.
+	 */
+	readonly id?: string;
+
+	/**
 	 * The severity of the notification. Either `Info`, `Warning` or `Error`.
 	 */
 	readonly severity: Severity;
@@ -117,14 +124,14 @@ export interface INotificationActions {
 	 *
 	 * Pass `ActionWithMenuAction` for an action that has additional menu actions.
 	 */
-	readonly primary?: ReadonlyArray<IAction>;
+	readonly primary?: readonly IAction[];
 
 	/**
 	 * Secondary actions are meant to provide additional configuration or context
 	 * for the notification and will show up less prominent. A notification does not
 	 * close automatically when invoking a secondary action.
 	 */
-	readonly secondary?: ReadonlyArray<IAction>;
+	readonly secondary?: readonly IAction[];
 }
 
 export interface INotificationProgressProperties {

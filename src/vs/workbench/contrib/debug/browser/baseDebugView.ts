@@ -103,7 +103,8 @@ export function renderVariable(variable: Variable, data: IVariableTemplateData, 
 			text += ':';
 		}
 		data.label.set(text, highlights, variable.type ? variable.type : variable.name);
-		data.name.classList.toggle('virtual', !!variable.presentationHint && variable.presentationHint.kind === 'virtual');
+		data.name.classList.toggle('virtual', variable.presentationHint?.kind === 'virtual');
+		data.name.classList.toggle('internal', variable.presentationHint?.visibility === 'internal');
 	} else if (variable.value && typeof variable.name === 'string' && variable.name) {
 		data.label.set(':');
 	}
@@ -160,8 +161,9 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 		data.toDispose = Disposable.None;
 		const { element } = node;
 		this.renderExpression(element, data, createMatches(node.filterData));
-		if (element === this.debugService.getViewModel().getSelectedExpression() || (element instanceof Variable && element.errorMessage)) {
-			const options = this.getInputBoxOptions(element);
+		const selectedExpression = this.debugService.getViewModel().getSelectedExpression();
+		if (element === selectedExpression?.expression || (element instanceof Variable && element.errorMessage)) {
+			const options = this.getInputBoxOptions(element, !!selectedExpression?.settingWatch);
 			if (options) {
 				data.toDispose = this.renderInputBox(data.name, data.value, data.inputBoxContainer, options);
 				return;
@@ -189,7 +191,7 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 			dispose(toDispose);
 
 			if (finishEditing) {
-				this.debugService.getViewModel().setSelectedExpression(undefined);
+				this.debugService.getViewModel().setSelectedExpression(undefined, false);
 				options.onFinish(value, success);
 			}
 		});
@@ -222,7 +224,7 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 	}
 
 	protected abstract renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void;
-	protected abstract getInputBoxOptions(expression: IExpression): IInputBoxOptions | undefined;
+	protected abstract getInputBoxOptions(expression: IExpression, settingValue: boolean): IInputBoxOptions | undefined;
 
 	disposeElement(node: ITreeNode<IExpression, FuzzyScore>, index: number, templateData: IExpressionTemplateData): void {
 		templateData.toDispose.dispose();

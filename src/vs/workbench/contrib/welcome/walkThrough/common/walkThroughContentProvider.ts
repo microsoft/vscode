@@ -14,8 +14,9 @@ import { Schemas } from 'vs/base/common/network';
 import { Range } from 'vs/editor/common/core/range';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { assertIsDefined } from 'vs/base/common/types';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
-export function requireToContent(resource: URI): Promise<string> {
+export function requireToContent(instantiationService: IInstantiationService, resource: URI): Promise<string> {
 	if (!resource.query) {
 		throw new Error('Welcome: invalid resource');
 	}
@@ -28,7 +29,7 @@ export function requireToContent(resource: URI): Promise<string> {
 	const content: Promise<string> = new Promise<string>((resolve, reject) => {
 		require([query.moduleId], content => {
 			try {
-				resolve(content.default());
+				resolve(instantiationService.invokeFunction(content.default));
 			} catch (err) {
 				reject(err);
 			}
@@ -45,6 +46,7 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IModeService private readonly modeService: IModeService,
 		@IModelService private readonly modelService: IModelService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		this.textModelResolverService.registerTextModelContentProvider(Schemas.walkThroughSnippet, this);
 	}
@@ -52,10 +54,9 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 	private async textBufferFactoryFromResource(resource: URI): Promise<ITextBufferFactory> {
 		let ongoing = this.loads.get(resource.toString());
 		if (!ongoing) {
-			ongoing = new Promise(async c => {
-				c(createTextBufferFactory(await requireToContent(resource)));
-				this.loads.delete(resource.toString());
-			});
+			ongoing = requireToContent(this.instantiationService, resource)
+				.then(content => createTextBufferFactory(content))
+				.finally(() => this.loads.delete(resource.toString()));
 			this.loads.set(resource.toString(), ongoing);
 		}
 		return ongoing;

@@ -10,8 +10,6 @@ import { getEditorLineNumberForPageOffset, scrollToRevealSourceLine, getLineElem
 import { getSettings, getData } from './settings';
 import throttle = require('lodash.throttle');
 
-declare let acquireVsCodeApi: any;
-
 let scrollDisabledCount = 0;
 const marker = new ActiveLineMarker();
 const settings = getSettings();
@@ -41,7 +39,7 @@ window.onload = () => {
 function doAfterImagesLoaded(cb: () => void) {
 	const imgElements = document.getElementsByTagName('img');
 	if (imgElements.length > 0) {
-		const ps = Array.from(imgElements).map(e => {
+		const ps = Array.from(imgElements, e => {
 			if (e.complete) {
 				return Promise.resolve();
 			} else {
@@ -51,9 +49,9 @@ function doAfterImagesLoaded(cb: () => void) {
 				});
 			}
 		});
-		Promise.all(ps).then(() => setImmediate(cb));
+		Promise.all(ps).then(() => setTimeout(cb, 0));
 	} else {
-		setImmediate(cb);
+		setTimeout(cb, 0);
 	}
 }
 

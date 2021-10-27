@@ -281,7 +281,7 @@ abstract class EditorOrNativeTextInputCommand {
 
 	constructor(target: MultiCommand) {
 		// 1. handle case when focus is in editor.
-		target.addImplementation(10000, (accessor: ServicesAccessor, args: any) => {
+		target.addImplementation(10000, 'code-editor', (accessor: ServicesAccessor, args: any) => {
 			// Only if editor text focus (i.e. not if editor has widget focus).
 			const focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 			if (focusedEditor && focusedEditor.hasTextFocus()) {
@@ -291,7 +291,7 @@ abstract class EditorOrNativeTextInputCommand {
 		});
 
 		// 2. handle case when focus is in some other `input` / `textarea`.
-		target.addImplementation(1000, (accessor: ServicesAccessor, args: any) => {
+		target.addImplementation(1000, 'generic-dom-input-textarea', (accessor: ServicesAccessor, args: any) => {
 			// Only if focused on an element that allows for entering text
 			const activeElement = <HTMLElement>document.activeElement;
 			if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
@@ -302,7 +302,7 @@ abstract class EditorOrNativeTextInputCommand {
 		});
 
 		// 3. (default) handle case when focus is somewhere else.
-		target.addImplementation(0, (accessor: ServicesAccessor, args: any) => {
+		target.addImplementation(0, 'generic-dom', (accessor: ServicesAccessor, args: any) => {
 			// Redirecting to active editor
 			const activeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor();
 			if (activeEditor) {
@@ -625,7 +625,7 @@ export namespace CoreNavigationCommands {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyCode.LeftArrow,
-			mac: { primary: KeyCode.LeftArrow, secondary: [KeyMod.WinCtrl | KeyCode.KEY_B] }
+			mac: { primary: KeyCode.LeftArrow, secondary: [KeyMod.WinCtrl | KeyCode.KeyB] }
 		}
 	}));
 
@@ -658,7 +658,7 @@ export namespace CoreNavigationCommands {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyCode.RightArrow,
-			mac: { primary: KeyCode.RightArrow, secondary: [KeyMod.WinCtrl | KeyCode.KEY_F] }
+			mac: { primary: KeyCode.RightArrow, secondary: [KeyMod.WinCtrl | KeyCode.KeyF] }
 		}
 	}));
 
@@ -691,7 +691,7 @@ export namespace CoreNavigationCommands {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyCode.UpArrow,
-			mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.WinCtrl | KeyCode.KEY_P] }
+			mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.WinCtrl | KeyCode.KeyP] }
 		}
 	}));
 
@@ -759,7 +759,7 @@ export namespace CoreNavigationCommands {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyCode.DownArrow,
-			mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.WinCtrl | KeyCode.KEY_N] }
+			mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.WinCtrl | KeyCode.KeyN] }
 		}
 	}));
 
@@ -979,7 +979,7 @@ export namespace CoreNavigationCommands {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: 0,
-			mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_A }
+			mac: { primary: KeyMod.WinCtrl | KeyCode.KeyA }
 		}
 	}));
 
@@ -991,7 +991,7 @@ export namespace CoreNavigationCommands {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: 0,
-			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_A }
+			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyA }
 		}
 	}));
 
@@ -1112,7 +1112,7 @@ export namespace CoreNavigationCommands {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: 0,
-			mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_E }
+			mac: { primary: KeyMod.WinCtrl | KeyCode.KeyE }
 		}
 	}));
 
@@ -1124,7 +1124,7 @@ export namespace CoreNavigationCommands {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: 0,
-			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_E }
+			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyE }
 		}
 	}));
 
@@ -1526,7 +1526,7 @@ export namespace CoreNavigationCommands {
 				kbOpts: {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
-					primary: KeyMod.CtrlCmd | KeyCode.KEY_L
+					primary: KeyMod.CtrlCmd | KeyCode.KeyL
 				}
 			});
 		}
@@ -1749,7 +1749,7 @@ export namespace CoreEditingCommands {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
 					primary: 0,
-					mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_O }
+					mac: { primary: KeyMod.WinCtrl | KeyCode.KeyO }
 				}
 			});
 		}
@@ -1816,13 +1816,13 @@ export namespace CoreEditingCommands {
 					kbExpr: EditorContextKeys.textInputFocus,
 					primary: KeyCode.Backspace,
 					secondary: [KeyMod.Shift | KeyCode.Backspace],
-					mac: { primary: KeyCode.Backspace, secondary: [KeyMod.Shift | KeyCode.Backspace, KeyMod.WinCtrl | KeyCode.KEY_H, KeyMod.WinCtrl | KeyCode.Backspace] }
+					mac: { primary: KeyCode.Backspace, secondary: [KeyMod.Shift | KeyCode.Backspace, KeyMod.WinCtrl | KeyCode.KeyH, KeyMod.WinCtrl | KeyCode.Backspace] }
 				}
 			});
 		}
 
 		public runCoreEditingCommand(editor: ICodeEditor, viewModel: IViewModel, args: any): void {
-			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteLeft(viewModel.getPrevEditOperationType(), viewModel.cursorConfig, viewModel.model, viewModel.getCursorStates().map(s => s.modelState.selection));
+			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteLeft(viewModel.getPrevEditOperationType(), viewModel.cursorConfig, viewModel.model, viewModel.getCursorStates().map(s => s.modelState.selection), viewModel.getCursorAutoClosedCharacters());
 			if (shouldPushStackElementBefore) {
 				editor.pushUndoStop();
 			}
@@ -1840,7 +1840,7 @@ export namespace CoreEditingCommands {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
 					primary: KeyCode.Delete,
-					mac: { primary: KeyCode.Delete, secondary: [KeyMod.WinCtrl | KeyCode.KEY_D, KeyMod.WinCtrl | KeyCode.Delete] }
+					mac: { primary: KeyCode.Delete, secondary: [KeyMod.WinCtrl | KeyCode.KeyD, KeyMod.WinCtrl | KeyCode.Delete] }
 				}
 			});
 		}

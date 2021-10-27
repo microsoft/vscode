@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { KeyChord, KeyCode, KeyMod, SimpleKeybinding, createKeybinding, createSimpleKeybinding } from 'vs/base/common/keyCodes';
+import { KeyChord, KeyCode, KeyMod, ScanCode, ScanCodeUtils } from 'vs/base/common/keyCodes';
+import { SimpleKeybinding, createKeybinding, createSimpleKeybinding, ScanCodeBinding } from 'vs/base/common/keybindings';
 import { UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { ScanCode, ScanCodeBinding, ScanCodeUtils } from 'vs/base/common/scanCode';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { MacLinuxKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { IResolvedKeybinding, assertMapping, assertResolveKeybinding, assertResolveKeyboardEvent, assertResolveUserBinding, readRawMapping } from 'vs/workbench/services/keybinding/test/electron-browser/keyboardMapperTestUtils';
@@ -43,22 +43,22 @@ suite('keyboardMapper - MAC de_ch', () => {
 
 	test('kb => hw', () => {
 		// unchanged
-		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_1, 'cmd+Digit1');
-		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_B, 'cmd+KeyB');
-		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_B, 'shift+cmd+KeyB');
-		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_B, 'ctrl+shift+alt+cmd+KeyB');
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.Digit1, 'cmd+Digit1');
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KeyB, 'cmd+KeyB');
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyB, 'shift+cmd+KeyB');
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KeyB, 'ctrl+shift+alt+cmd+KeyB');
 
 		// flips Y and Z
-		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_Z, 'cmd+KeyY');
-		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_Y, 'cmd+KeyZ');
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KeyZ, 'cmd+KeyY');
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KeyY, 'cmd+KeyZ');
 
 		// Ctrl+/
-		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.US_SLASH, 'shift+cmd+Digit7');
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.Slash, 'shift+cmd+Digit7');
 	});
 
 	test('resolveKeybinding Cmd+A', () => {
 		_assertResolveKeybinding(
-			KeyMod.CtrlCmd | KeyCode.KEY_A,
+			KeyMod.CtrlCmd | KeyCode.KeyA,
 			[{
 				label: '⌘A',
 				ariaLabel: 'Command+A',
@@ -74,7 +74,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 
 	test('resolveKeybinding Cmd+B', () => {
 		_assertResolveKeybinding(
-			KeyMod.CtrlCmd | KeyCode.KEY_B,
+			KeyMod.CtrlCmd | KeyCode.KeyB,
 			[{
 				label: '⌘B',
 				ariaLabel: 'Command+B',
@@ -90,7 +90,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 
 	test('resolveKeybinding Cmd+Z', () => {
 		_assertResolveKeybinding(
-			KeyMod.CtrlCmd | KeyCode.KEY_Z,
+			KeyMod.CtrlCmd | KeyCode.KeyZ,
 			[{
 				label: '⌘Z',
 				ariaLabel: 'Command+Z',
@@ -131,7 +131,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 
 	test('resolveKeybinding Cmd+]', () => {
 		_assertResolveKeybinding(
-			KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET,
+			KeyMod.CtrlCmd | KeyCode.BracketRight,
 			[{
 				label: '⌃⌥⌘6',
 				ariaLabel: 'Control+Alt+Command+6',
@@ -172,7 +172,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 
 	test('resolveKeybinding Shift+]', () => {
 		_assertResolveKeybinding(
-			KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET,
+			KeyMod.Shift | KeyCode.BracketRight,
 			[{
 				label: '⌃⌥9',
 				ariaLabel: 'Control+Alt+9',
@@ -188,7 +188,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 
 	test('resolveKeybinding Cmd+/', () => {
 		_assertResolveKeybinding(
-			KeyMod.CtrlCmd | KeyCode.US_SLASH,
+			KeyMod.CtrlCmd | KeyCode.Slash,
 			[{
 				label: '⇧⌘7',
 				ariaLabel: 'Shift+Command+7',
@@ -204,7 +204,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 
 	test('resolveKeybinding Cmd+Shift+/', () => {
 		_assertResolveKeybinding(
-			KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_SLASH,
+			KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Slash,
 			[{
 				label: '⇧⌘\'',
 				ariaLabel: 'Shift+Command+\'',
@@ -220,7 +220,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 
 	test('resolveKeybinding Cmd+K Cmd+\\', () => {
 		_assertResolveKeybinding(
-			KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_BACKSLASH),
+			KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.Backslash),
 			[{
 				label: '⌘K ⌃⇧⌥⌘7',
 				ariaLabel: 'Command+K Control+Shift+Alt+Command+7',
@@ -236,7 +236,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 
 	test('resolveKeybinding Cmd+K Cmd+=', () => {
 		_assertResolveKeybinding(
-			KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_EQUAL),
+			KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.Equal),
 			[{
 				label: '⌘K ⇧⌘0',
 				ariaLabel: 'Command+K Shift+Command+0',
@@ -268,7 +268,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 
 	test('resolveKeybinding Cmd+NUMPAD_0', () => {
 		_assertResolveKeybinding(
-			KeyMod.CtrlCmd | KeyCode.NUMPAD_0,
+			KeyMod.CtrlCmd | KeyCode.Numpad0,
 			[{
 				label: '⌘NumPad0',
 				ariaLabel: 'Command+NumPad0',
@@ -332,7 +332,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 			mapper,
 			[
 				new ScanCodeBinding(false, false, false, true, ScanCode.Comma),
-				new SimpleKeybinding(false, false, false, true, KeyCode.US_SLASH),
+				new SimpleKeybinding(false, false, false, true, KeyCode.Slash),
 			],
 			[{
 				label: '⌘, ⇧⌘7',
@@ -416,7 +416,7 @@ suite('keyboardMapper - MAC en_us', () => {
 			mapper,
 			[
 				new ScanCodeBinding(false, false, false, true, ScanCode.Comma),
-				new SimpleKeybinding(false, false, false, true, KeyCode.US_SLASH),
+				new SimpleKeybinding(false, false, false, true, KeyCode.Slash),
 			],
 			[{
 				label: '⌘, ⌘/',
@@ -505,22 +505,22 @@ suite('keyboardMapper - LINUX de_ch', () => {
 
 	test('kb => hw', () => {
 		// unchanged
-		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_1, 'ctrl+Digit1');
-		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_B, 'ctrl+KeyB');
-		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_B, 'ctrl+shift+KeyB');
-		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_B, 'ctrl+shift+alt+meta+KeyB');
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.Digit1, 'ctrl+Digit1');
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KeyB, 'ctrl+KeyB');
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyB, 'ctrl+shift+KeyB');
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KeyB, 'ctrl+shift+alt+meta+KeyB');
 
 		// flips Y and Z
-		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_Z, 'ctrl+KeyY');
-		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_Y, 'ctrl+KeyZ');
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KeyZ, 'ctrl+KeyY');
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KeyY, 'ctrl+KeyZ');
 
 		// Ctrl+/
-		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.US_SLASH, 'ctrl+shift+Digit7');
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.Slash, 'ctrl+shift+Digit7');
 	});
 
 	test('resolveKeybinding Ctrl+A', () => {
 		_assertResolveKeybinding(
-			KeyMod.CtrlCmd | KeyCode.KEY_A,
+			KeyMod.CtrlCmd | KeyCode.KeyA,
 			[{
 				label: 'Ctrl+A',
 				ariaLabel: 'Control+A',
@@ -536,7 +536,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 
 	test('resolveKeybinding Ctrl+Z', () => {
 		_assertResolveKeybinding(
-			KeyMod.CtrlCmd | KeyCode.KEY_Z,
+			KeyMod.CtrlCmd | KeyCode.KeyZ,
 			[{
 				label: 'Ctrl+Z',
 				ariaLabel: 'Control+Z',
@@ -577,7 +577,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 
 	test('resolveKeybinding Ctrl+]', () => {
 		_assertResolveKeybinding(
-			KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET,
+			KeyMod.CtrlCmd | KeyCode.BracketRight,
 			[]
 		);
 	});
@@ -609,7 +609,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 
 	test('resolveKeybinding Shift+]', () => {
 		_assertResolveKeybinding(
-			KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET,
+			KeyMod.Shift | KeyCode.BracketRight,
 			[{
 				label: 'Ctrl+Alt+0',
 				ariaLabel: 'Control+Alt+0',
@@ -634,7 +634,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 
 	test('resolveKeybinding Ctrl+/', () => {
 		_assertResolveKeybinding(
-			KeyMod.CtrlCmd | KeyCode.US_SLASH,
+			KeyMod.CtrlCmd | KeyCode.Slash,
 			[{
 				label: 'Ctrl+Shift+7',
 				ariaLabel: 'Control+Shift+7',
@@ -650,7 +650,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 
 	test('resolveKeybinding Ctrl+Shift+/', () => {
 		_assertResolveKeybinding(
-			KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_SLASH,
+			KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Slash,
 			[{
 				label: 'Ctrl+Shift+\'',
 				ariaLabel: 'Control+Shift+\'',
@@ -666,14 +666,14 @@ suite('keyboardMapper - LINUX de_ch', () => {
 
 	test('resolveKeybinding Ctrl+K Ctrl+\\', () => {
 		_assertResolveKeybinding(
-			KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_BACKSLASH),
+			KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.Backslash),
 			[]
 		);
 	});
 
 	test('resolveKeybinding Ctrl+K Ctrl+=', () => {
 		_assertResolveKeybinding(
-			KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_EQUAL),
+			KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.Equal),
 			[{
 				label: 'Ctrl+K Ctrl+Shift+0',
 				ariaLabel: 'Control+K Control+Shift+0',
@@ -705,7 +705,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 
 	test('resolveKeybinding Ctrl+NUMPAD_0', () => {
 		_assertResolveKeybinding(
-			KeyMod.CtrlCmd | KeyCode.NUMPAD_0,
+			KeyMod.CtrlCmd | KeyCode.Numpad0,
 			[{
 				label: 'Ctrl+NumPad0',
 				ariaLabel: 'Control+NumPad0',
@@ -789,7 +789,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 		assertResolveUserBinding(
 			mapper, [
 			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
-			new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
+			new SimpleKeybinding(true, false, false, false, KeyCode.Slash),
 		],
 			[{
 				label: 'Ctrl+, Ctrl+Shift+7',
@@ -874,7 +874,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 
 	test('resolveKeybinding Ctrl+A', () => {
 		_assertResolveKeybinding(
-			KeyMod.CtrlCmd | KeyCode.KEY_A,
+			KeyMod.CtrlCmd | KeyCode.KeyA,
 			[{
 				label: 'Ctrl+A',
 				ariaLabel: 'Control+A',
@@ -890,7 +890,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 
 	test('resolveKeybinding Ctrl+Z', () => {
 		_assertResolveKeybinding(
-			KeyMod.CtrlCmd | KeyCode.KEY_Z,
+			KeyMod.CtrlCmd | KeyCode.KeyZ,
 			[{
 				label: 'Ctrl+Z',
 				ariaLabel: 'Control+Z',
@@ -931,7 +931,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 
 	test('resolveKeybinding Ctrl+]', () => {
 		_assertResolveKeybinding(
-			KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET,
+			KeyMod.CtrlCmd | KeyCode.BracketRight,
 			[{
 				label: 'Ctrl+]',
 				ariaLabel: 'Control+]',
@@ -972,7 +972,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 
 	test('resolveKeybinding Shift+]', () => {
 		_assertResolveKeybinding(
-			KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET,
+			KeyMod.Shift | KeyCode.BracketRight,
 			[{
 				label: 'Shift+]',
 				ariaLabel: 'Shift+]',
@@ -988,7 +988,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 
 	test('resolveKeybinding Ctrl+/', () => {
 		_assertResolveKeybinding(
-			KeyMod.CtrlCmd | KeyCode.US_SLASH,
+			KeyMod.CtrlCmd | KeyCode.Slash,
 			[{
 				label: 'Ctrl+/',
 				ariaLabel: 'Control+/',
@@ -1004,7 +1004,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 
 	test('resolveKeybinding Ctrl+Shift+/', () => {
 		_assertResolveKeybinding(
-			KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_SLASH,
+			KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Slash,
 			[{
 				label: 'Ctrl+Shift+/',
 				ariaLabel: 'Control+Shift+/',
@@ -1020,7 +1020,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 
 	test('resolveKeybinding Ctrl+K Ctrl+\\', () => {
 		_assertResolveKeybinding(
-			KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_BACKSLASH),
+			KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.Backslash),
 			[{
 				label: 'Ctrl+K Ctrl+\\',
 				ariaLabel: 'Control+K Control+\\',
@@ -1036,7 +1036,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 
 	test('resolveKeybinding Ctrl+K Ctrl+=', () => {
 		_assertResolveKeybinding(
-			KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_EQUAL),
+			KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.Equal),
 			[{
 				label: 'Ctrl+K Ctrl+=',
 				ariaLabel: 'Control+K Control+=',
@@ -1068,7 +1068,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 
 	test('resolveKeybinding Ctrl+NUMPAD_0', () => {
 		_assertResolveKeybinding(
-			KeyMod.CtrlCmd | KeyCode.NUMPAD_0,
+			KeyMod.CtrlCmd | KeyCode.Numpad0,
 			[{
 				label: 'Ctrl+NumPad0',
 				ariaLabel: 'Control+NumPad0',
@@ -1125,7 +1125,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 
 	test('resolveKeybinding Ctrl+Shift+,', () => {
 		_assertResolveKeybinding(
-			KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_COMMA,
+			KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Comma,
 			[{
 				label: 'Ctrl+Shift+,',
 				ariaLabel: 'Control+Shift+,',
@@ -1193,7 +1193,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 		assertResolveUserBinding(
 			mapper, [
 			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
-			new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
+			new SimpleKeybinding(true, false, false, false, KeyCode.Slash),
 		],
 			[{
 				label: 'Ctrl+, Ctrl+/',
@@ -1602,7 +1602,7 @@ suite('keyboardMapper - LINUX ru', () => {
 
 	test('resolveKeybinding Ctrl+S', () => {
 		_assertResolveKeybinding(
-			KeyMod.CtrlCmd | KeyCode.KEY_S,
+			KeyMod.CtrlCmd | KeyCode.KeyS,
 			[{
 				label: 'Ctrl+S',
 				ariaLabel: 'Control+S',
@@ -1675,7 +1675,7 @@ suite('keyboardMapper - MAC zh_hant', () => {
 
 	test('issue #28237 resolveKeybinding Cmd+C', () => {
 		_assertResolveKeybinding(
-			KeyMod.CtrlCmd | KeyCode.KEY_C,
+			KeyMod.CtrlCmd | KeyCode.KeyC,
 			[{
 				label: '⌘C',
 				ariaLabel: 'Command+C',
@@ -1687,6 +1687,20 @@ suite('keyboardMapper - MAC zh_hant', () => {
 				singleModifierDispatchParts: [null],
 			}]
 		);
+	});
+});
+
+suite('keyboardMapper - MAC zh_hant2', () => {
+
+	let mapper: MacLinuxKeyboardMapper;
+
+	suiteSetup(async () => {
+		const _mapper = await createKeyboardMapper(false, 'mac_zh_hant2', OperatingSystem.Macintosh);
+		mapper = _mapper;
+	});
+
+	test('mapping', () => {
+		return assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'mac_zh_hant2.txt');
 	});
 });
 

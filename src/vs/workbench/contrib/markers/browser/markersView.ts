@@ -36,7 +36,6 @@ import { ActionBar, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionb
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { domEvent } from 'vs/base/browser/event';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
 import { IMarker, IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { withUndefinedAsNull } from 'vs/base/common/types';
@@ -146,7 +145,7 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		}));
 	}
 
-	public renderBody(parent: HTMLElement): void {
+	public override renderBody(parent: HTMLElement): void {
 		super.renderBody(parent);
 
 		parent.classList.add('markers-panel');
@@ -168,7 +167,7 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		return Messages.MARKERS_PANEL_TITLE_PROBLEMS;
 	}
 
-	public layoutBody(height: number, width: number): void {
+	public override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		const wasSmallLayout = this.smallLayout;
 		this.smallLayout = width < 600 && height > 100;
@@ -187,7 +186,7 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		this.filters.layout = new dom.Dimension(this.smallLayout ? width : width - 200, height);
 	}
 
-	public focus(): void {
+	public override focus(): void {
 		if (this.tree && this.tree.getHTMLElement() === document.activeElement) {
 			return;
 		}
@@ -405,7 +404,8 @@ export class MarkersView extends ViewPane implements IMarkersView {
 				overrideStyles: {
 					listBackground: this.getBackgroundColor()
 				},
-				selectionNavigation: true
+				selectionNavigation: true,
+				multipleSelectionSupport: true,
 			},
 		));
 
@@ -443,7 +443,7 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		}));
 
 		// move focus to input, whenever a key is pressed in the panel container
-		this._register(domEvent(parent, 'keydown')(e => {
+		this._register(dom.addDisposableListener(parent, 'keydown', e => {
 			if (this.keybindingService.mightProducePrintableCharacter(new StandardKeyboardEvent(e))) {
 				this.focusFilter();
 			}
@@ -485,6 +485,8 @@ export class MarkersView extends ViewPane implements IMarkersView {
 				this.onVisibleDisposables.add(disposable);
 			}
 			this.refreshPanel();
+		} else if (this.tree) {
+			this.tree.toggleVisibility(true);
 		}
 	}
 
@@ -758,17 +760,12 @@ export class MarkersView extends ViewPane implements IMarkersView {
 	}
 
 	private onContextMenu(e: ITreeContextMenuEvent<MarkerElement | null>): void {
-		const element = e.element;
-		if (!element) {
-			return;
-		}
-
 		e.browserEvent.preventDefault();
 		e.browserEvent.stopPropagation();
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor!,
-			getActions: () => this.getMenuActions(element),
+			getActions: () => this.getMenuActions(e.element),
 			getActionViewItem: (action) => {
 				const keybinding = this.keybindingService.lookupKeybinding(action.id);
 				if (keybinding) {
@@ -784,7 +781,7 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		});
 	}
 
-	private getMenuActions(element: MarkerElement): IAction[] {
+	private getMenuActions(element: MarkerElement | null): IAction[] {
 		const result: IAction[] = [];
 
 		if (element instanceof Marker) {
@@ -808,7 +805,30 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		return this.tree?.getFocus()[0] || undefined;
 	}
 
-	public getActionViewItem(action: IAction): IActionViewItem | undefined {
+	public getFocusedSelectedElements(): MarkerElement[] | null {
+		const focus = this.getFocusElement();
+		if (!focus) {
+			return null;
+		}
+		const selection = this.tree!.getSelection();
+		if (selection.includes(focus)) {
+			const result: MarkerElement[] = [];
+			for (const selected of selection) {
+				if (selected) {
+					result.push(selected);
+				}
+			}
+			return result;
+		} else {
+			return [focus];
+		}
+	}
+
+	public getAllResourceMarkers(): ResourceMarkers[] {
+		return this.markersModel.resourceMarkers;
+	}
+
+	public override getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (action.id === `workbench.actions.treeView.${this.id}.filter`) {
 			return this.instantiationService.createInstance(MarkersFilterActionViewItem, action, this);
 		}
@@ -864,7 +884,7 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		this.telemetryService.publicLog('problems.filter', data);
 	}
 
-	saveState(): void {
+	override saveState(): void {
 		this.panelState['filter'] = this.filters.filterText;
 		this.panelState['filterHistory'] = this.filters.filterHistory;
 		this.panelState['showErrors'] = this.filters.showErrors;
@@ -877,13 +897,15 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		super.saveState();
 	}
 
-	dispose() {
+	override dispose() {
 		super.dispose();
 	}
 
 }
 
 class MarkersTree extends WorkbenchObjectTree<MarkerElement, FilterData> {
+
+	private readonly visibilityContextKey: IContextKey<boolean>;
 
 	constructor(
 		user: string,
@@ -899,14 +921,16 @@ class MarkersTree extends WorkbenchObjectTree<MarkerElement, FilterData> {
 		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
 		super(user, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, keybindingService, accessibilityService);
+		this.visibilityContextKey = Constants.MarkersTreeVisibilityContextKey.bindTo(contextKeyService);
 	}
 
-	layout(height: number, width: number): void {
+	override layout(height: number, width: number): void {
 		this.container.style.height = `${height}px`;
 		super.layout(height, width);
 	}
 
 	toggleVisibility(hide: boolean): void {
+		this.visibilityContextKey.set(!hide);
 		this.container.classList.toggle('hidden', hide);
 	}
 

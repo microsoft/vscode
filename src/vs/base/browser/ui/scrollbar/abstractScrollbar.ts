@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
 import { IMouseEvent, StandardWheelEvent } from 'vs/base/browser/mouseEvent';
 import { ScrollbarArrow, ScrollbarArrowOptions } from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
@@ -48,7 +48,7 @@ export abstract class AbstractScrollbar extends Widget {
 	protected _scrollByPage: boolean;
 	private _lazyRender: boolean;
 	protected _scrollbarState: ScrollbarState;
-	private _visibilityController: ScrollbarVisibilityController;
+	protected _visibilityController: ScrollbarVisibilityController;
 	private _mouseMoveMonitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>;
 
 	public domNode: FastDomNode<HTMLElement>;

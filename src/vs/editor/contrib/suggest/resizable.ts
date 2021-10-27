@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Dimension } from 'vs/base/browser/dom';
 import { Orientation, OrthogonalEdge, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
+import { Emitter, Event } from 'vs/base/common/event';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 
 export interface IResizeEvent {
@@ -121,6 +121,8 @@ export class ResizableHTMLElement {
 		this._eastSash.dispose();
 		this._westSash.dispose();
 		this._sashListener.dispose();
+		this._onDidResize.dispose();
+		this._onDidWillResize.dispose();
 		this.domNode.remove();
 	}
 
@@ -149,6 +151,13 @@ export class ResizableHTMLElement {
 			this._southSash.layout();
 			this._westSash.layout();
 		}
+	}
+
+	clearSashHoverState(): void {
+		this._eastSash.clearSashHoverState();
+		this._westSash.clearSashHoverState();
+		this._northSash.clearSashHoverState();
+		this._southSash.clearSashHoverState();
 	}
 
 	get size() {

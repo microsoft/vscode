@@ -23,6 +23,7 @@ import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneCont
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { localize } from 'vs/nls';
+import { MarshalledId } from 'vs/base/common/marshalling';
 
 
 export class MainThreadCommentThread implements modes.CommentThread {
@@ -154,7 +155,7 @@ export class MainThreadCommentThread implements modes.CommentThread {
 
 	toJSON(): any {
 		return {
-			$mid: 7,
+			$mid: MarshalledId.CommentThread,
 			commentControlHandle: this.controllerHandle,
 			commentThreadHandle: this.commentThreadHandle,
 		};
@@ -289,6 +290,10 @@ export class MainThreadCommentController {
 		}
 	}
 
+	updateCommentingRanges() {
+		this._commentService.updateCommentingRanges(this._uniqueId);
+	}
+
 	private getKnownThread(commentThreadHandle: number): MainThreadCommentThread {
 		const thread = this._threads.get(commentThreadHandle);
 		if (!thread) {
@@ -347,7 +352,7 @@ export class MainThreadCommentController {
 
 	toJSON(): any {
 		return {
-			$mid: 6,
+			$mid: MarshalledId.CommentController,
 			handle: this.handle
 		};
 	}
@@ -411,12 +416,15 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 	$unregisterCommentController(handle: number): void {
 		const providerId = this._handlers.get(handle);
-		if (typeof providerId !== 'string') {
-			throw new Error('unknown handler');
-		}
-		this._commentService.unregisterCommentController(providerId);
 		this._handlers.delete(handle);
 		this._commentControllers.delete(handle);
+
+		if (typeof providerId !== 'string') {
+			return;
+			// throw new Error('unknown handler');
+		} else {
+			this._commentService.unregisterCommentController(providerId);
+		}
 	}
 
 	$updateCommentControllerFeatures(handle: number, features: CommentProviderFeatures): void {
@@ -467,6 +475,16 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		}
 
 		return provider.deleteCommentThread(commentThreadHandle);
+	}
+
+	$updateCommentingRanges(handle: number) {
+		let provider = this._commentControllers.get(handle);
+
+		if (!provider) {
+			return;
+		}
+
+		provider.updateCommentingRanges();
 	}
 
 	private registerView(commentsViewAlreadyRegistered: boolean) {
@@ -535,7 +553,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		this._commentService.updateComments(providerId, event);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		this._workspaceProviders.forEach(value => dispose(value));
 		this._workspaceProviders.clear();

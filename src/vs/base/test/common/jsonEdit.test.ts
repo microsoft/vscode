@@ -2,9 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { FormattingOptions, Edit } from 'vs/base/common/jsonFormatter';
-import { setProperty, removeProperty } from 'vs/base/common/jsonEdit';
 import * as assert from 'assert';
+import { removeProperty, setProperty } from 'vs/base/common/jsonEdit';
+import { Edit, FormattingOptions } from 'vs/base/common/jsonFormatter';
 
 suite('JSON - edits', () => {
 
@@ -19,7 +19,7 @@ suite('JSON - edits', () => {
 			lastEditOffset = edit.offset;
 			content = content.substring(0, edit.offset) + edit.content + content.substring(edit.offset + edit.length);
 		}
-		assert.equal(content, expected);
+		assert.strictEqual(content, expected);
 	}
 
 	let formatterOptions: FormattingOptions = {

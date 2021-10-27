@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDiskFileChange, normalizeFileChanges, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { SymlinkSupport } from 'vs/base/node/pfs';
-import { realpath } from 'vs/base/node/extpath';
-import { watchFolder, watchFile, CHANGE_BUFFER_DELAY } from 'vs/base/node/watcher';
-import { FileChangeType } from 'vs/platform/files/common/files';
 import { ThrottledDelayer } from 'vs/base/common/async';
-import { join, basename } from 'vs/base/common/path';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { basename, join } from 'vs/base/common/path';
+import { realpath } from 'vs/base/node/extpath';
+import { SymlinkSupport } from 'vs/base/node/pfs';
+import { CHANGE_BUFFER_DELAY, watchFile, watchFolder } from 'vs/base/node/watcher';
+import { FileChangeType } from 'vs/platform/files/common/files';
+import { IDiskFileChange, ILogMessage, normalizeFileChanges } from 'vs/platform/files/common/watcher';
 
 export class FileWatcher extends Disposable {
 	private isDisposed: boolean | undefined;
 
-	private fileChangesDelayer: ThrottledDelayer<void> = this._register(new ThrottledDelayer<void>(CHANGE_BUFFER_DELAY * 2 /* sync on delay from underlying library */));
+	private readonly fileChangesDelayer: ThrottledDelayer<void> = this._register(new ThrottledDelayer<void>(CHANGE_BUFFER_DELAY * 2 /* sync on delay from underlying library */));
 	private fileChangesBuffer: IDiskFileChange[] = [];
 
 	constructor(
@@ -100,9 +100,9 @@ export class FileWatcher extends Disposable {
 
 			// Logging
 			if (this.verboseLogging) {
-				normalizedFileChanges.forEach(event => {
+				for (const event of normalizedFileChanges) {
 					this.onVerbose(`>> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
-				});
+				}
 			}
 
 			// Fire
@@ -124,7 +124,7 @@ export class FileWatcher extends Disposable {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.isDisposed = true;
 
 		super.dispose();

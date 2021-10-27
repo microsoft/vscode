@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { isPromiseCanceledError, onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import BaseErrorTelemetry from 'vs/platform/telemetry/common/errorTelemetry';
 
 export default class ErrorTelemetry extends BaseErrorTelemetry {
-	protected installErrorListeners(): void {
+	protected override installErrorListeners(): void {
 		setUnexpectedErrorHandler(err => console.error(err));
 
 		// Print a console message when rejection isn't handled within N seconds. For details:
@@ -21,11 +21,13 @@ export default class ErrorTelemetry extends BaseErrorTelemetry {
 				if (idx >= 0) {
 					promise.catch(e => {
 						unhandledPromises.splice(idx, 1);
-						console.warn(`rejected promise not handled within 1 second: ${e}`);
-						if (e.stack) {
-							console.warn(`stack trace: ${e.stack}`);
+						if (!isPromiseCanceledError(e)) {
+							console.warn(`rejected promise not handled within 1 second: ${e}`);
+							if (e.stack) {
+								console.warn(`stack trace: ${e.stack}`);
+							}
+							onUnexpectedError(reason);
 						}
-						onUnexpectedError(reason);
 					});
 				}
 			}, 1000);

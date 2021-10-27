@@ -233,7 +233,7 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 			this._updateCSS();
 		});
 
-		window.matchMedia('(forced-colors: active)').addEventListener('change', () => {
+		dom.addMatchMediaChangeListener('(forced-colors: active)', () => {
 			this._updateActualTheme();
 		});
 	}

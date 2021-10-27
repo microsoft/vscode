@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { AddressInfo, createServer } from 'net';
 import { IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
-import { IProcessEnvironment } from 'vs/base/common/platform';
-import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
-import { createServer, AddressInfo } from 'net';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
+import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
 import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 
 export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends ExtensionHostDebugBroadcastChannel<TContext> {
@@ -16,36 +15,35 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 		super();
 	}
 
-	call(ctx: TContext, command: string, arg?: any): Promise<any> {
+	override call(ctx: TContext, command: string, arg?: any): Promise<any> {
 		if (command === 'openExtensionDevelopmentHostWindow') {
-			return this.openExtensionDevelopmentHostWindow(arg[0], arg[1], arg[2]);
+			return this.openExtensionDevelopmentHostWindow(arg[0], arg[1]);
 		} else {
 			return super.call(ctx, command, arg);
 		}
 	}
 
-	private async openExtensionDevelopmentHostWindow(args: string[], env: IProcessEnvironment, debugRenderer: boolean): Promise<IOpenExtensionWindowResult> {
+	private async openExtensionDevelopmentHostWindow(args: string[], debugRenderer: boolean): Promise<IOpenExtensionWindowResult> {
 		const pargs = parseArgs(args, OPTIONS);
 		pargs.debugRenderer = debugRenderer;
 
 		const extDevPaths = pargs.extensionDevelopmentPath;
 		if (!extDevPaths) {
-			return {};
+			return { success: false };
 		}
 
 		const [codeWindow] = this.windowsMainService.openExtensionDevelopmentHostWindow(extDevPaths, {
 			context: OpenContext.API,
 			cli: pargs,
-			userEnv: Object.keys(env).length > 0 ? env : undefined
 		});
 
 		if (!debugRenderer) {
-			return {};
+			return { success: true };
 		}
 
 		const win = codeWindow.win;
 		if (!win) {
-			return {};
+			return { success: true };
 		}
 
 		const debug = win.webContents.debugger;
@@ -110,6 +108,6 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 		await new Promise<void>(r => server.listen(0, r));
 		win.on('close', () => server.close());
 
-		return { rendererDebugPort: (server.address() as AddressInfo).port };
+		return { rendererDebugPort: (server.address() as AddressInfo).port, success: true };
 	}
 }

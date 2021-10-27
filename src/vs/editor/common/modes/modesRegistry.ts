@@ -5,11 +5,11 @@
 
 import * as nls from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
-import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { Mimes } from 'vs/base/common/mime';
 
 // Define extension point ids
 export const Extensions = {
@@ -59,15 +59,14 @@ Registry.add(Extensions.ModesRegistry, ModesRegistry);
 
 export const PLAINTEXT_MODE_ID = 'plaintext';
 export const PLAINTEXT_EXTENSION = '.txt';
-export const PLAINTEXT_LANGUAGE_IDENTIFIER = new LanguageIdentifier(PLAINTEXT_MODE_ID, LanguageId.PlainText);
 
 ModesRegistry.registerLanguage({
 	id: PLAINTEXT_MODE_ID,
 	extensions: [PLAINTEXT_EXTENSION],
 	aliases: [nls.localize('plainText.alias', "Plain Text"), 'text'],
-	mimetypes: ['text/plain']
+	mimetypes: [Mimes.text]
 });
-LanguageConfigurationRegistry.register(PLAINTEXT_LANGUAGE_IDENTIFIER, {
+LanguageConfigurationRegistry.register(PLAINTEXT_MODE_ID, {
 	brackets: [
 		['(', ')'],
 		['[', ']'],
@@ -82,6 +81,7 @@ LanguageConfigurationRegistry.register(PLAINTEXT_LANGUAGE_IDENTIFIER, {
 		{ open: '\'', close: '\'' },
 		{ open: '`', close: '`' },
 	],
+	colorizedBracketPairs: [],
 	folding: {
 		offSide: true
 	}

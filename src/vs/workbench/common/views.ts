@@ -37,13 +37,17 @@ export namespace Extensions {
 
 export const enum ViewContainerLocation {
 	Sidebar,
-	Panel
+	Panel,
+	AuxiliaryBar
 }
+
+export const ViewContainerLocations = [ViewContainerLocation.Sidebar, ViewContainerLocation.Panel, ViewContainerLocation.AuxiliaryBar];
 
 export function ViewContainerLocationToString(viewContainerLocation: ViewContainerLocation) {
 	switch (viewContainerLocation) {
 		case ViewContainerLocation.Sidebar: return 'sidebar';
 		case ViewContainerLocation.Panel: return 'panel';
+		case ViewContainerLocation.AuxiliaryBar: return 'auxiliarybar';
 	}
 }
 
@@ -293,6 +297,18 @@ export interface IViewDescriptor {
 
 	readonly openCommandActionDescriptor?: OpenCommandActionDescriptor
 }
+
+export interface ICustomTreeViewDescriptor extends ITreeViewDescriptor {
+	readonly extensionId: ExtensionIdentifier;
+	readonly originalContainerId: string;
+}
+
+export interface ICustomWebviewViewDescriptor extends IViewDescriptor {
+	readonly extensionId: ExtensionIdentifier;
+	readonly originalContainerId: string;
+}
+
+export type ICustomViewDescriptor = ICustomTreeViewDescriptor | ICustomWebviewViewDescriptor;
 
 export interface IViewDescriptorRef {
 	viewDescriptor: IViewDescriptor;
@@ -626,9 +642,19 @@ export interface IViewDescriptorService {
 
 // Custom views
 
+export interface ITreeDataTransferItem {
+	asString(): Thenable<string>;
+}
+
+export interface ITreeDataTransfer {
+	items: Map<string, ITreeDataTransferItem>;
+}
+
 export interface ITreeView extends IDisposable {
 
 	dataProvider: ITreeViewDataProvider | undefined;
+
+	dragAndDropController?: ITreeViewDragAndDropController;
 
 	showCollapseAllAction: boolean;
 
@@ -809,8 +835,12 @@ export class ResolvableTreeItem implements ITreeItem {
 export interface ITreeViewDataProvider {
 	readonly isTreeEmpty?: boolean;
 	onDidChangeEmpty?: Event<void>;
-	getChildren(element?: ITreeItem): Promise<ITreeItem[]>;
+	getChildren(element?: ITreeItem): Promise<ITreeItem[] | undefined>;
+}
 
+export const TREE_ITEM_DATA_TRANSFER_TYPE = 'text/treeitems';
+export interface ITreeViewDragAndDropController {
+	onDrop(elements: ITreeDataTransfer, target: ITreeItem): Promise<void>;
 }
 
 export interface IEditableData {

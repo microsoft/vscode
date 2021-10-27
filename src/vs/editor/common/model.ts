@@ -11,12 +11,14 @@ import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelRawContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelInjectedTextChangedEvent, ModelRawContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
-import { LanguageId, LanguageIdentifier, FormattingOptions } from 'vs/editor/common/modes';
+import { FormattingOptions } from 'vs/editor/common/modes';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { MultilineTokens, MultilineTokens2 } from 'vs/editor/common/model/tokensStore';
 import { TextChange } from 'vs/editor/common/model/textChange';
+import { equals } from 'vs/base/common/objects';
+import { IBracketPairs } from 'vs/editor/common/model/bracketPairs/bracketPairs';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -74,6 +76,11 @@ export interface IModelDecorationMinimapOptions extends IDecorationOptions {
  */
 export interface IModelDecorationOptions {
 	/**
+	 * A debug description that can be used for inspecting model decorations.
+	 * @internal
+	 */
+	description: string;
+	/**
 	 * Customize the growing behavior of the decoration when typing at the edges of the decoration.
 	 * Defaults to TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
 	 */
@@ -106,7 +113,8 @@ export interface IModelDecorationOptions {
 	collapseOnReplaceEdit?: boolean;
 	/**
 	 * Specifies the stack order of a decoration.
-	 * A decoration with greater stack order is always in front of a decoration with a lower stack order.
+	 * A decoration with greater stack order is always in front of a decoration with
+	 * a lower stack order when the decorations are on the same line.
 	 */
 	zIndex?: number;
 	/**
@@ -151,6 +159,35 @@ export interface IModelDecorationOptions {
 	 * If set, the decoration will be rendered after the text with this CSS class name.
 	 */
 	afterContentClassName?: string | null;
+	/**
+	 * If set, text will be injected in the view after the range.
+	 */
+	after?: InjectedTextOptions | null;
+
+	/**
+	 * If set, text will be injected in the view before the range.
+	 */
+	before?: InjectedTextOptions | null;
+}
+
+/**
+ * Configures text that is injected into the view without changing the underlying document.
+*/
+export interface InjectedTextOptions {
+	/**
+	 * Sets the text to inject. Must be a single line.
+	 */
+	readonly content: string;
+
+	/**
+	 * If set, the decoration will be rendered inline with the text with this CSS class name.
+	 */
+	readonly inlineClassName?: string | null;
+
+	/**
+	 * If there is an `inlineClassName` which affects letter spacing.
+	 */
+	readonly inlineClassNameAffectsLetterSpacing?: boolean;
 }
 
 /**
@@ -395,13 +432,14 @@ export interface ICursorStateComputer {
 }
 
 export class TextModelResolvedOptions {
-	_textModelResolvedOptionsBrand: void;
+	_textModelResolvedOptionsBrand: void = undefined;
 
 	readonly tabSize: number;
 	readonly indentSize: number;
 	readonly insertSpaces: boolean;
 	readonly defaultEOL: DefaultEndOfLine;
 	readonly trimAutoWhitespace: boolean;
+	readonly bracketPairColorizationOptions: BracketPairColorizationOptions;
 
 	/**
 	 * @internal
@@ -412,12 +450,14 @@ export class TextModelResolvedOptions {
 		insertSpaces: boolean;
 		defaultEOL: DefaultEndOfLine;
 		trimAutoWhitespace: boolean;
+		bracketPairColorizationOptions: BracketPairColorizationOptions;
 	}) {
 		this.tabSize = Math.max(1, src.tabSize | 0);
 		this.indentSize = src.tabSize | 0;
 		this.insertSpaces = Boolean(src.insertSpaces);
 		this.defaultEOL = src.defaultEOL | 0;
 		this.trimAutoWhitespace = Boolean(src.trimAutoWhitespace);
+		this.bracketPairColorizationOptions = src.bracketPairColorizationOptions;
 	}
 
 	/**
@@ -430,6 +470,7 @@ export class TextModelResolvedOptions {
 			&& this.insertSpaces === other.insertSpaces
 			&& this.defaultEOL === other.defaultEOL
 			&& this.trimAutoWhitespace === other.trimAutoWhitespace
+			&& equals(this.bracketPairColorizationOptions, other.bracketPairColorizationOptions)
 		);
 	}
 
@@ -458,6 +499,11 @@ export interface ITextModelCreationOptions {
 	defaultEOL: DefaultEndOfLine;
 	isForSimpleWidget: boolean;
 	largeFileOptimizations: boolean;
+	bracketPairColorizationOptions: BracketPairColorizationOptions;
+}
+
+export interface BracketPairColorizationOptions {
+	enabled: boolean;
 }
 
 export interface ITextModelUpdateOptions {
@@ -465,10 +511,11 @@ export interface ITextModelUpdateOptions {
 	indentSize?: number;
 	insertSpaces?: boolean;
 	trimAutoWhitespace?: boolean;
+	bracketColorizationOptions?: BracketPairColorizationOptions;
 }
 
 export class FindMatch {
-	_findMatchBrand: void;
+	_findMatchBrand: void = undefined;
 
 	public readonly range: Range;
 	public readonly matches: string[] | null;
@@ -891,27 +938,21 @@ export interface ITextModel {
 
 	/**
 	 * Get the language associated with this model.
-	 * @internal
 	 */
-	getLanguageIdentifier(): LanguageIdentifier;
-
-	/**
-	 * Get the language associated with this model.
-	 */
-	getModeId(): string;
+	getLanguageId(): string;
 
 	/**
 	 * Set the current language mode associated with the model.
 	 * @internal
 	 */
-	setMode(languageIdentifier: LanguageIdentifier): void;
+	setMode(languageId: string): void;
 
 	/**
 	 * Returns the real (inner-most) language mode at a given position.
 	 * The result might be inaccurate. Use `forceTokenization` to ensure accurate tokens.
 	 * @internal
 	 */
-	getLanguageIdAtPosition(lineNumber: number, column: number): LanguageId;
+	getLanguageIdAtPosition(lineNumber: number, column: number): string;
 
 	/**
 	 * Get the word under or besides `position`.
@@ -976,6 +1017,11 @@ export interface ITextModel {
 	 * @internal
 	 */
 	getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[];
+
+	/**
+	 * @internal
+	 */
+	getLinesBracketGuides(startLineNumber: number, endLineNumber: number, activePosition: IPosition | null, options: BracketGuideOptions): IndentGuide[][];
 
 	/**
 	 * Change the decorations. The callback will be called with a change accessor
@@ -1062,6 +1108,12 @@ export interface ITextModel {
 	 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
 	 */
 	getOverviewRulerDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
+
+	/**
+	 * Gets all the decorations that contain injected text.
+	 * @param ownerId If set, it will ignore decorations belonging to other owners.
+	 */
+	getInjectedTextDecorations(ownerId?: number): IModelDecoration[];
 
 	/**
 	 * @internal
@@ -1178,7 +1230,7 @@ export interface ITextModel {
 	 * @internal
 	 * @event
 	 */
-	onDidChangeRawContentFast(listener: (e: ModelRawContentChangedEvent) => void): IDisposable;
+	onDidChangeContentOrInjectedText(listener: (e: ModelRawContentChangedEvent | ModelInjectedTextChangedEvent) => void): IDisposable;
 	/**
 	 * @deprecated Please use `onDidChangeContent` instead.
 	 * An event emitted when the contents of the model have changed.
@@ -1220,7 +1272,6 @@ export interface ITextModel {
 	/**
 	 * An event emitted when the model has been attached to the first editor or detached from the last editor.
 	 * @event
-	 * @internal
 	 */
 	onDidChangeAttached(listener: () => void): IDisposable;
 	/**
@@ -1230,8 +1281,7 @@ export interface ITextModel {
 	onWillDispose(listener: () => void): IDisposable;
 
 	/**
-	 * Destroy this model. This will unbind the model from the mode
-	 * and make all necessary clean-up to release this object to the GC.
+	 * Destroy this model.
 	 */
 	dispose(): void;
 
@@ -1247,7 +1297,6 @@ export interface ITextModel {
 
 	/**
 	 * Returns if this model is attached to an editor or not.
-	 * @internal
 	 */
 	isAttachedToEditor(): boolean;
 
@@ -1256,6 +1305,95 @@ export interface ITextModel {
 	 * @internal
 	 */
 	getAttachedEditorCount(): number;
+
+	/**
+	 * Among all positions that are projected to the same position in the underlying text model as
+	 * the given position, select a unique position as indicated by the affinity.
+	 *
+	 * PositionAffinity.Left:
+	 * The normalized position must be equal or left to the requested position.
+	 *
+	 * PositionAffinity.Right:
+	 * The normalized position must be equal or right to the requested position.
+	 *
+	 * @internal
+	 */
+	normalizePosition(position: Position, affinity: PositionAffinity): Position;
+
+	/**
+	 * Gets the column at which indentation stops at a given line.
+	 * @internal
+	*/
+	getLineIndentColumn(lineNumber: number): number;
+
+	/**
+	 * Returns an object that can be used to query brackets.
+	 * @internal
+	*/
+	get bracketPairs(): IBracketPairs;
+}
+
+/**
+ * @internal
+ */
+export enum HorizontalGuidesState {
+	Disabled,
+	EnabledForActive,
+	Enabled
+}
+
+/**
+ * @internal
+ */
+export interface BracketGuideOptions {
+	includeInactive: boolean,
+	horizontalGuides: HorizontalGuidesState,
+	highlightActive: boolean,
+}
+
+/**
+ * @internal
+ */
+export class IndentGuide {
+	constructor(
+		public readonly visibleColumn: number,
+		public readonly className: string,
+		/**
+		 * If set, this indent guide is a horizontal guide (no vertical part).
+		 * It starts at visibleColumn and continues until endColumn.
+		*/
+		public readonly horizontalLine: IndentGuideHorizontalLine | null,
+	) { }
+}
+
+/**
+ * @internal
+ */
+export class IndentGuideHorizontalLine {
+	constructor(
+		public readonly top: boolean,
+		public readonly endColumn: number,
+	) { }
+}
+
+/**
+ * @internal
+ */
+export const enum PositionAffinity {
+	/**
+	 * Prefers the left most position.
+	*/
+	Left = 0,
+
+	/**
+	 * Prefers the right most position.
+	*/
+	Right = 1,
+
+	/**
+	 * No preference.
+	*/
+	None = 2,
 }
 
 /**

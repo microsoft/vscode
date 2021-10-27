@@ -21,12 +21,15 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 suite('Search - Viewlet', () => {
 	let instantiation: TestInstantiationService;
 
 	setup(() => {
 		instantiation = new TestInstantiationService();
+		instantiation.stub(ILanguageConfigurationService, TestLanguageConfigurationService);
 		instantiation.stub(IModelService, stubModelService(instantiation));
 		instantiation.set(IWorkspaceContextService, new TestContextService(TestWorkspace));
 		instantiation.stub(IUriIdentityService, new UriIdentityService(new FileService(new NullLogService())));
@@ -66,8 +69,8 @@ suite('Search - Viewlet', () => {
 		const fileMatch = result.matches()[0];
 		const lineMatch = fileMatch.matches()[0];
 
-		assert.equal(fileMatch.id(), 'file:///c%3A/foo');
-		assert.equal(lineMatch.id(), 'file:///c%3A/foo>[2,1 -> 2,2]b');
+		assert.strictEqual(fileMatch.id(), 'file:///c%3A/foo');
+		assert.strictEqual(lineMatch.id(), 'file:///c%3A/foo>[2,1 -> 2,2]b');
 	});
 
 	test('Comparer', () => {

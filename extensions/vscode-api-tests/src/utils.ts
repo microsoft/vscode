@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { TestFS } from './memfs';
-import * as assert from 'assert';
 
 export function rndName() {
 	return Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10);
@@ -122,7 +122,7 @@ export function assertNoRpcFromEntry(entry: [obj: any, name: string]) {
 	assert.strictEqual(proxyPaths.length, 0, proxyPaths.join('\n')); // happens...
 }
 
-export async function asPromise<T>(event: vscode.Event<T>, timeout = 5000): Promise<T> {
+export async function asPromise<T>(event: vscode.Event<T>, timeout = vscode.env.uiKind === vscode.UIKind.Desktop ? 5000 : 15000): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
 
 		const handle = setTimeout(() => {
@@ -136,4 +136,16 @@ export async function asPromise<T>(event: vscode.Event<T>, timeout = 5000): Prom
 			resolve(e);
 		});
 	});
+}
+
+export function testRepeat(n: number, description: string, callback: (this: any) => any): void {
+	for (let i = 0; i < n; i++) {
+		test(`${description} (iteration ${i})`, callback);
+	}
+}
+
+export function suiteRepeat(n: number, description: string, callback: (this: any) => any): void {
+	for (let i = 0; i < n; i++) {
+		suite(`${description} (iteration ${i})`, callback);
+	}
 }

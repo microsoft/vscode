@@ -21,11 +21,17 @@ import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ISelection } from 'vs/editor/common/core/selection';
+import { TestItemImpl } from 'vs/workbench/api/common/extHostTestingPrivateApi';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 interface CommandHandler {
 	callback: Function;
 	thisArg: any;
 	description?: ICommandHandlerDescription;
+	extension?: IExtensionDescription;
 }
 
 export interface ArgumentProcessor {
@@ -83,6 +89,9 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 						if (Range.isIRange((obj as modes.Location).range) && URI.isUri((obj as modes.Location).uri)) {
 							return extHostTypeConverter.location.to(obj);
 						}
+						if (obj instanceof VSBuffer) {
+							return obj.buffer.buffer;
+						}
 						if (!Array.isArray(obj)) {
 							return obj;
 						}
@@ -124,7 +133,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		});
 	}
 
-	registerCommand(global: boolean, id: string, callback: <T>(...args: any[]) => T | Thenable<T>, thisArg?: any, description?: ICommandHandlerDescription): extHostTypes.Disposable {
+	registerCommand(global: boolean, id: string, callback: <T>(...args: any[]) => T | Thenable<T>, thisArg?: any, description?: ICommandHandlerDescription, extension?: IExtensionDescription): extHostTypes.Disposable {
 		this._logService.trace('ExtHostCommands#registerCommand', id);
 
 		if (!id.trim().length) {
@@ -135,7 +144,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			throw new Error(`command '${id}' already exists`);
 		}
 
-		this._commands.set(id, { callback, thisArg, description });
+		this._commands.set(id, { callback, thisArg, description, extension });
 		if (global) {
 			this._proxy.$registerCommand(id);
 		}
@@ -159,19 +168,26 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		if (this._commands.has(id)) {
 			// we stay inside the extension host and support
 			// to pass any kind of parameters around
-			return this._executeContributedCommand<T>(id, args);
+			return this._executeContributedCommand<T>(id, args, false);
 
 		} else {
 			// automagically convert some argument types
+			let hasBuffers = false;
 			const toArgs = cloneAndChange(args, function (value) {
 				if (value instanceof extHostTypes.Position) {
 					return extHostTypeConverter.Position.from(value);
-				}
-				if (value instanceof extHostTypes.Range) {
+				} else if (value instanceof extHostTypes.Range) {
 					return extHostTypeConverter.Range.from(value);
-				}
-				if (value instanceof extHostTypes.Location) {
+				} else if (value instanceof extHostTypes.Location) {
 					return extHostTypeConverter.location.from(value);
+				} else if (extHostTypes.NotebookRange.isNotebookRange(value)) {
+					return extHostTypeConverter.NotebookRange.from(value);
+				} else if (value instanceof ArrayBuffer) {
+					hasBuffers = true;
+					return VSBuffer.wrap(new Uint8Array(value));
+				} else if (value instanceof Uint8Array) {
+					hasBuffers = true;
+					return VSBuffer.wrap(value);
 				}
 				if (!Array.isArray(value)) {
 					return value;
@@ -179,7 +195,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			});
 
 			try {
-				const result = await this._proxy.$executeCommand<T>(id, toArgs, retry);
+				const result = await this._proxy.$executeCommand<T>(id, hasBuffers ? new SerializableObjectWithBuffers(toArgs) : toArgs, retry);
 				return revive<any>(result);
 			} catch (e) {
 				// Rerun the command when it wasn't known, had arguments, and when retry
@@ -194,7 +210,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		}
 	}
 
-	private async _executeContributedCommand<T>(id: string, args: any[]): Promise<T> {
+	private async _executeContributedCommand<T>(id: string, args: any[], annotateError: boolean): Promise<T> {
 		const command = this._commands.get(id);
 		if (!command) {
 			throw new Error('Unknown command');
@@ -221,8 +237,19 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 					id = actual.command;
 				}
 			}
-			this._logService.error(err, id);
-			throw new Error(`Running the contributed command: '${id}' failed.`);
+			this._logService.error(err, id, command.extension?.identifier);
+
+			if (!annotateError) {
+				throw err;
+			}
+
+			throw new class CommandError extends Error {
+				readonly id = id;
+				readonly source = command!.extension?.displayName ?? command!.extension?.name;
+				constructor() {
+					super(toErrorMessage(err));
+				}
+			};
 		}
 	}
 
@@ -233,7 +260,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			return Promise.reject(new Error(`Contributed command '${id}' does not exist.`));
 		} else {
 			args = args.map(arg => this._argumentProcessors.reduce((r, p) => p.processArgument(r), arg));
-			return this._executeContributedCommand(id, args);
+			return this._executeContributedCommand(id, args, true);
 		}
 	}
 
@@ -369,7 +396,9 @@ export class ApiCommandArgument<V, O = V> {
 	static readonly Number = new ApiCommandArgument<number>('number', '', v => typeof v === 'number', v => v);
 	static readonly String = new ApiCommandArgument<string>('string', '', v => typeof v === 'string', v => v);
 
-	static readonly CallHierarchyItem = new ApiCommandArgument('item', 'A call hierarchy item', v => v instanceof extHostTypes.CallHierarchyItem, extHostTypeConverter.CallHierarchyItem.to);
+	static readonly CallHierarchyItem = new ApiCommandArgument('item', 'A call hierarchy item', v => v instanceof extHostTypes.CallHierarchyItem, extHostTypeConverter.CallHierarchyItem.from);
+	static readonly TypeHierarchyItem = new ApiCommandArgument('item', 'A type hierarchy item', v => v instanceof extHostTypes.TypeHierarchyItem, extHostTypeConverter.TypeHierarchyItem.from);
+	static readonly TestItem = new ApiCommandArgument('testItem', 'A VS Code TestItem', v => v instanceof TestItemImpl, extHostTypeConverter.TestItem.from);
 
 	constructor(
 		readonly name: string,

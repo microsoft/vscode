@@ -42,7 +42,9 @@ export interface IRemoteAgentEnvironmentDTO {
 	workspaceStorageHome: UriComponents;
 	userHome: UriComponents;
 	os: platform.OperatingSystem;
-	marks: performance.PerformanceMark[]
+	arch: string;
+	marks: performance.PerformanceMark[];
+	useHostProxy: boolean;
 }
 
 export class RemoteExtensionEnvironmentChannelClient {
@@ -66,7 +68,9 @@ export class RemoteExtensionEnvironmentChannelClient {
 			workspaceStorageHome: URI.revive(data.workspaceStorageHome),
 			userHome: URI.revive(data.userHome),
 			os: data.os,
-			marks: data.marks
+			arch: data.arch,
+			marks: data.marks,
+			useHostProxy: data.useHostProxy
 		};
 	}
 

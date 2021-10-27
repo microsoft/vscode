@@ -24,7 +24,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService, WorkbenchDataTree, WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { ColorIdentifier, ColorFunction } from 'vs/platform/theme/common/colorRegistry';
+import { ColorIdentifier, ColorTransform } from 'vs/platform/theme/common/colorRegistry';
 import { attachBreadcrumbsStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
@@ -54,7 +54,7 @@ class OutlineItem extends BreadcrumbsItem {
 		super();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._disposables.dispose();
 	}
 
@@ -62,7 +62,7 @@ class OutlineItem extends BreadcrumbsItem {
 		if (!(other instanceof OutlineItem)) {
 			return false;
 		}
-		return this.element === other.element &&
+		return this.element.element === other.element.element &&
 			this.options.showFileIcons === other.options.showFileIcons &&
 			this.options.showSymbolIcons === other.options.showSymbolIcons;
 	}
@@ -114,7 +114,7 @@ class FileItem extends BreadcrumbsItem {
 		super();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._disposables.dispose();
 	}
 
@@ -146,7 +146,8 @@ export interface IBreadcrumbsControlOptions {
 	showFileIcons: boolean;
 	showSymbolIcons: boolean;
 	showDecorationColors: boolean;
-	breadcrumbsBackground: ColorIdentifier | ColorFunction;
+	breadcrumbsBackground: ColorIdentifier | ColorTransform;
+	showPlaceholder: boolean;
 }
 
 export class BreadcrumbsControl {
@@ -218,6 +219,7 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsActive = BreadcrumbsControl.CK_BreadcrumbsActive.bindTo(this._contextKeyService);
 
 		this._disposables.add(breadcrumbsService.register(this._editorGroup.id, this._widget));
+		this.hide();
 	}
 
 	dispose(): void {
@@ -253,7 +255,7 @@ export class BreadcrumbsControl {
 		const uri = EditorResourceAccessor.getCanonicalUri(this._editorGroup.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		const wasHidden = this.isHidden();
 
-		if (!uri || !this._fileService.canHandleResource(uri)) {
+		if (!uri || !this._fileService.hasProvider(uri)) {
 			// cleanup and return when there is no input or when
 			// we cannot handle this input
 			this._ckBreadcrumbsPossible.set(false);
@@ -288,8 +290,21 @@ export class BreadcrumbsControl {
 				showSymbolIcons: this._options.showSymbolIcons && showIcons
 			};
 			const items = model.getElements().map(element => element instanceof FileElement ? new FileItem(model, element, options, this._instantiationService) : new OutlineItem(model, element, options));
-			this._widget.setItems(items);
-			this._widget.reveal(items[items.length - 1]);
+			if (items.length === 0) {
+				this._widget.setEnabled(false);
+				this._widget.setItems([new class extends BreadcrumbsItem {
+					render(container: HTMLElement): void {
+						container.innerText = localize('empty', "no elements");
+					}
+					equals(other: BreadcrumbsItem): boolean {
+						return other === this;
+					}
+				}]);
+			} else {
+				this._widget.setEnabled(true);
+				this._widget.setItems(items);
+				this._widget.reveal(items[items.length - 1]);
+			}
 		};
 		const listener = model.onDidUpdate(updateBreadcrumbs);
 		const configListener = this._cfShowIcons.onDidChange(updateBreadcrumbs);
@@ -298,6 +313,7 @@ export class BreadcrumbsControl {
 		this._breadcrumbsDisposables.add(model);
 		this._breadcrumbsDisposables.add(listener);
 		this._breadcrumbsDisposables.add(configListener);
+		this._breadcrumbsDisposables.add(toDisposable(() => this._widget.setItems([])));
 
 		const updateScrollbarSizing = () => {
 			const sizing = this._cfTitleScrollbarSizing.getValue() ?? 'default';
@@ -526,14 +542,14 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.focusAndSelect',
 	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Period,
 	when: BreadcrumbsControl.CK_BreadcrumbsPossible,
 	handler: accessor => focusAndSelectHandler(accessor, true)
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.focus',
 	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_SEMICOLON,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Semicolon,
 	when: BreadcrumbsControl.CK_BreadcrumbsPossible,
 	handler: accessor => focusAndSelectHandler(accessor, false)
 });
@@ -543,7 +559,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.toggleToOn',
 	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Period,
 	when: ContextKeyExpr.not('config.breadcrumbs.enabled'),
 	handler: async accessor => {
 		const instant = accessor.get(IInstantiationService);

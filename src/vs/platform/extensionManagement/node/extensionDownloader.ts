@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { promises } from 'fs';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
-import { IExtensionGalleryService, IGalleryExtension, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { URI } from 'vs/base/common/uri';
-import { joinPath } from 'vs/base/common/resources';
-import { ExtensionIdentifierWithVersion, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ILogService } from 'vs/platform/log/common/log';
-import { generateUuid } from 'vs/base/common/uuid';
-import * as semver from 'vs/base/common/semver/semver';
-import { isWindows } from 'vs/base/common/platform';
 import { Promises } from 'vs/base/common/async';
+import { getErrorMessage } from 'vs/base/common/errors';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { isWindows } from 'vs/base/common/platform';
+import { joinPath } from 'vs/base/common/resources';
+import * as semver from 'vs/base/common/semver/semver';
+import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
+import { Promises as FSPromises } from 'vs/base/node/pfs';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IExtensionGalleryService, IGalleryExtension, InstallOperation, TargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionIdentifierWithVersion, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { ILogService } from 'vs/platform/log/common/log';
 
 const ExtensionIdVersionRegex = /^([^.]+\..+)-(\d+\.\d+\.\d+)$/;
 
@@ -45,25 +46,39 @@ export class ExtensionsDownloader extends Disposable {
 		// Download only if vsix does not exist
 		if (!await this.fileService.exists(location)) {
 			// Download to temporary location first only if vsix does not exist
-			const tempLocation = joinPath(this.extensionsDownloadDir, `.${vsixName}`);
+			const tempLocation = joinPath(this.extensionsDownloadDir, `.${generateUuid()}`);
 			if (!await this.fileService.exists(tempLocation)) {
 				await this.extensionGalleryService.download(extension, tempLocation, operation);
 			}
 
-			// Rename temp location to original
-			await this.rename(tempLocation, location, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */);
+			try {
+				// Rename temp location to original
+				await this.rename(tempLocation, location, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */);
+			} catch (error) {
+				try {
+					await this.fileService.del(tempLocation);
+				} catch (e) { /* ignore */ }
+				if (error.code === 'ENOTEMPTY') {
+					this.logService.info(`Rename failed because vsix was downloaded by another source. So ignoring renaming.`, extension.identifier.id);
+				} else {
+					this.logService.info(`Rename failed because of ${getErrorMessage(error)}. Deleted the vsix from downloaded location`, tempLocation.path);
+					throw error;
+				}
+			}
+
 		}
 
 		return location;
 	}
 
 	async delete(location: URI): Promise<void> {
-		// noop as caching is enabled always
+		await this.cleanUpPromise;
+		await this.fileService.del(location);
 	}
 
 	private async rename(from: URI, to: URI, retryUntil: number): Promise<void> {
 		try {
-			await promises.rename(from.fsPath, to.fsPath);
+			await FSPromises.rename(from.fsPath, to.fsPath);
 		} catch (error) {
 			if (isWindows && error && error.code === 'EPERM' && Date.now() < retryUntil) {
 				this.logService.info(`Failed renaming ${from} to ${to} with 'EPERM' error. Trying again...`);
@@ -109,7 +124,7 @@ export class ExtensionsDownloader extends Disposable {
 	}
 
 	private getName(extension: IGalleryExtension): string {
-		return this.cache ? new ExtensionIdentifierWithVersion(extension.identifier, extension.version).key().toLowerCase() : generateUuid();
+		return this.cache ? `${new ExtensionIdentifierWithVersion(extension.identifier, extension.version).key().toLowerCase()}${extension.properties.targetPlatform !== TargetPlatform.UNDEFINED ? `-${extension.properties.targetPlatform}` : ''}` : generateUuid();
 	}
 
 	private parse(name: string): ExtensionIdentifierWithVersion | null {

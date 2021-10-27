@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorInput, IEditorInputFactoryRegistry, IEditorIdentifier, GroupIdentifier, Extensions, IEditorPartOptionsChangeEvent, EditorsOrder, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
+import { IEditorFactoryRegistry, IEditorIdentifier, GroupIdentifier, EditorExtensions, IEditorPartOptionsChangeEvent, EditorsOrder } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -12,6 +14,7 @@ import { IEditorGroupsService, IEditorGroup, GroupChangeKind, GroupsOrder } from
 import { coalesce } from 'vs/base/common/arrays';
 import { LinkedMap, Touch, ResourceMap } from 'vs/base/common/map';
 import { equals } from 'vs/base/common/objects';
+import { IResourceEditorInputIdentifier } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
 
 interface ISerializedEditorsList {
@@ -36,9 +39,9 @@ export class EditorsObserver extends Disposable {
 
 	private static readonly STORAGE_KEY = 'editors.mru';
 
-	private readonly keyMap = new Map<GroupIdentifier, Map<IEditorInput, IEditorIdentifier>>();
+	private readonly keyMap = new Map<GroupIdentifier, Map<EditorInput, IEditorIdentifier>>();
 	private readonly mostRecentEditorsMap = new LinkedMap<IEditorIdentifier, IEditorIdentifier>();
-	private readonly editorResourcesMap = new ResourceMap<number>();
+	private readonly editorsPerResourceCounter = new ResourceMap<Map<string /* typeId/editorId */, number /* counter */>>();
 
 	private readonly _onDidMostRecentlyActiveEditorsChange = this._register(new Emitter<void>());
 	readonly onDidMostRecentlyActiveEditorsChange = this._onDidMostRecentlyActiveEditorsChange.event;
@@ -51,8 +54,28 @@ export class EditorsObserver extends Disposable {
 		return [...this.mostRecentEditorsMap.values()];
 	}
 
-	hasEditor(resource: URI): boolean {
-		return this.editorResourcesMap.has(resource);
+	hasEditor(editor: IResourceEditorInputIdentifier): boolean {
+		const editors = this.editorsPerResourceCounter.get(editor.resource);
+
+		return editors?.has(this.toIdentifier(editor)) ?? false;
+	}
+
+	hasEditors(resource: URI): boolean {
+		return this.editorsPerResourceCounter.has(resource);
+	}
+
+	private toIdentifier(typeId: string, editorId: string | undefined): string;
+	private toIdentifier(editor: IResourceEditorInputIdentifier): string;
+	private toIdentifier(arg1: string | IResourceEditorInputIdentifier, editorId?: string | undefined): string {
+		if (typeof arg1 !== 'string') {
+			return this.toIdentifier(arg1.typeId, arg1.editorId);
+		}
+
+		if (editorId) {
+			return `${arg1}/${editorId}`;
+		}
+
+		return arg1;
 	}
 
 	constructor(
@@ -69,7 +92,7 @@ export class EditorsObserver extends Disposable {
 		this._register(this.editorGroupsService.onDidAddGroup(group => this.onGroupAdded(group)));
 		this._register(this.editorGroupsService.onDidChangeEditorPartOptions(e => this.onDidChangeEditorPartOptions(e)));
 
-		this.editorGroupsService.whenRestored.then(() => this.loadState());
+		this.editorGroupsService.whenReady.then(() => this.loadState());
 	}
 
 	private onGroupAdded(group: IEditorGroup): void {
@@ -154,7 +177,7 @@ export class EditorsObserver extends Disposable {
 		}
 	}
 
-	private addMostRecentEditor(group: IEditorGroup, editor: IEditorInput, isActive: boolean, isNew: boolean): void {
+	private addMostRecentEditor(group: IEditorGroup, editor: EditorInput, isActive: boolean, isNew: boolean): void {
 		const key = this.ensureKey(group, editor);
 		const mostRecentEditor = this.mostRecentEditorsMap.first;
 
@@ -184,25 +207,59 @@ export class EditorsObserver extends Disposable {
 		this._onDidMostRecentlyActiveEditorsChange.fire();
 	}
 
-	private updateEditorResourcesMap(editor: IEditorInput, add: boolean): void {
-		const resource = EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+	private updateEditorResourcesMap(editor: EditorInput, add: boolean): void {
+
+		// Distill the editor resource and type id with support
+		// for side by side editor's primary side too.
+		let resource: URI | undefined = undefined;
+		let typeId: string | undefined = undefined;
+		let editorId: string | undefined = undefined;
+		if (editor instanceof SideBySideEditorInput) {
+			resource = editor.primary.resource;
+			typeId = editor.primary.typeId;
+			editorId = editor.primary.editorId;
+		} else {
+			resource = editor.resource;
+			typeId = editor.typeId;
+			editorId = editor.editorId;
+		}
+
 		if (!resource) {
 			return; // require a resource
 		}
 
+		const identifier = this.toIdentifier(typeId, editorId);
+
+		// Add entry
 		if (add) {
-			this.editorResourcesMap.set(resource, (this.editorResourcesMap.get(resource) ?? 0) + 1);
-		} else {
-			const counter = this.editorResourcesMap.get(resource) ?? 0;
-			if (counter > 1) {
-				this.editorResourcesMap.set(resource, counter - 1);
-			} else {
-				this.editorResourcesMap.delete(resource);
+			let editorsPerResource = this.editorsPerResourceCounter.get(resource);
+			if (!editorsPerResource) {
+				editorsPerResource = new Map<string, number>();
+				this.editorsPerResourceCounter.set(resource, editorsPerResource);
+			}
+
+			editorsPerResource.set(identifier, (editorsPerResource.get(identifier) ?? 0) + 1);
+		}
+
+		// Remove entry
+		else {
+			const editorsPerResource = this.editorsPerResourceCounter.get(resource);
+			if (editorsPerResource) {
+				const counter = editorsPerResource.get(identifier) ?? 0;
+				if (counter > 1) {
+					editorsPerResource.set(identifier, counter - 1);
+				} else {
+					editorsPerResource.delete(identifier);
+
+					if (editorsPerResource.size === 0) {
+						this.editorsPerResourceCounter.delete(resource);
+					}
+				}
 			}
 		}
 	}
 
-	private removeMostRecentEditor(group: IEditorGroup, editor: IEditorInput): void {
+	private removeMostRecentEditor(group: IEditorGroup, editor: EditorInput): void {
 
 		// Update in resource map
 		this.updateEditorResourcesMap(editor, false);
@@ -225,7 +282,7 @@ export class EditorsObserver extends Disposable {
 		}
 	}
 
-	private findKey(group: IEditorGroup, editor: IEditorInput): IEditorIdentifier | undefined {
+	private findKey(group: IEditorGroup, editor: EditorInput): IEditorIdentifier | undefined {
 		const groupMap = this.keyMap.get(group.id);
 		if (!groupMap) {
 			return undefined;
@@ -234,7 +291,7 @@ export class EditorsObserver extends Disposable {
 		return groupMap.get(editor);
 	}
 
-	private ensureKey(group: IEditorGroup, editor: IEditorInput): IEditorIdentifier {
+	private ensureKey(group: IEditorGroup, editor: EditorInput): IEditorIdentifier {
 		let groupMap = this.keyMap.get(group.id);
 		if (!groupMap) {
 			groupMap = new Map();
@@ -311,7 +368,7 @@ export class EditorsObserver extends Disposable {
 
 		// Close editors until we reached the limit again
 		let editorsToCloseCount = mostRecentEditors.length - limit;
-		const mapGroupToEditorsToClose = new Map<GroupIdentifier, IEditorInput[]>();
+		const mapGroupToEditorsToClose = new Map<GroupIdentifier, EditorInput[]>();
 		for (const { groupId, editor } of leastRecentlyClosableEditors) {
 			let editorsInGroupToClose = mapGroupToEditorsToClose.get(groupId);
 			if (!editorsInGroupToClose) {
@@ -344,10 +401,10 @@ export class EditorsObserver extends Disposable {
 	}
 
 	private serialize(): ISerializedEditorsList {
-		const registry = Registry.as<IEditorInputFactoryRegistry>(Extensions.EditorInputFactories);
+		const registry = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory);
 
 		const entries = [...this.mostRecentEditorsMap.values()];
-		const mapGroupToSerializableEditorsOfGroup = new Map<IEditorGroup, IEditorInput[]>();
+		const mapGroupToSerializableEditorsOfGroup = new Map<IEditorGroup, EditorInput[]>();
 
 		return {
 			entries: coalesce(entries.map(({ editor, groupId }) => {
@@ -362,9 +419,9 @@ export class EditorsObserver extends Disposable {
 				let serializableEditorsOfGroup = mapGroupToSerializableEditorsOfGroup.get(group);
 				if (!serializableEditorsOfGroup) {
 					serializableEditorsOfGroup = group.getEditors(EditorsOrder.SEQUENTIAL).filter(editor => {
-						const factory = registry.getEditorInputFactory(editor.getTypeId());
+						const editorSerializer = registry.getEditorSerializer(editor);
 
-						return factory?.canSerialize(editor);
+						return editorSerializer?.canSerialize(editor);
 					});
 					mapGroupToSerializableEditorsOfGroup.set(group, serializableEditorsOfGroup);
 				}
@@ -384,10 +441,8 @@ export class EditorsObserver extends Disposable {
 	private loadState(): void {
 		const serialized = this.storageService.get(EditorsObserver.STORAGE_KEY, StorageScope.WORKSPACE);
 
-		// Previous state:
+		// Previous state: Load editors map from persisted state
 		if (serialized) {
-
-			// Load editors map from persisted state
 			this.deserialize(JSON.parse(serialized));
 		}
 

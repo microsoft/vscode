@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./progressbar';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Color } from 'vs/base/common/color';
-import { mixin } from 'vs/base/common/objects';
 import { hide, show } from 'vs/base/browser/dom';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { Color } from 'vs/base/common/color';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { mixin } from 'vs/base/common/objects';
 import { isNumber } from 'vs/base/common/types';
+import 'vs/css!./progressbar';
 
 const CSS_DONE = 'done';
 const CSS_ACTIVE = 'active';

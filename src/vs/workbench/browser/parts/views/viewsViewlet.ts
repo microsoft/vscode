@@ -16,8 +16,10 @@ import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/vie
 import { Event } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export interface IViewletViewOptions extends IViewPaneOptions {
+	fromExtensionId?: ExtensionIdentifier;
 }
 
 export abstract class FilterViewPaneContainer extends ViewPaneContainer {
@@ -68,7 +70,7 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 				this.allViews.set(filterOnValue, new Map());
 			}
 			this.allViews.get(filterOnValue)!.set(descriptor.id, descriptor);
-			if (this.filterValue && !this.filterValue.includes(filterOnValue)) {
+			if (this.filterValue && !this.filterValue.includes(filterOnValue) && this.panes.find(pane => pane.id === descriptor.id)) {
 				this.viewContainerModel.setVisible(descriptor.id, false);
 			}
 		});
@@ -121,7 +123,7 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 		return views;
 	}
 
-	onDidAddViewDescriptors(added: IAddedViewDescriptorRef[]): ViewPane[] {
+	override onDidAddViewDescriptors(added: IAddedViewDescriptorRef[]): ViewPane[] {
 		const panes: ViewPane[] = super.onDidAddViewDescriptors(added);
 		for (let i = 0; i < added.length; i++) {
 			if (this.constantViewDescriptors.has(added[i].viewDescriptor.id)) {
@@ -135,6 +137,6 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 		return panes;
 	}
 
-	abstract getTitle(): string;
+	abstract override getTitle(): string;
 
 }

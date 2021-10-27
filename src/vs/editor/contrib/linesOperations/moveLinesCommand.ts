@@ -5,6 +5,7 @@
 
 import * as strings from 'vs/base/common/strings';
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
+import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
@@ -13,7 +14,6 @@ import { CompleteEnterAction, IndentAction } from 'vs/editor/common/modes/langua
 import { IIndentConverter, LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { IndentConsts } from 'vs/editor/common/modes/supports/indentRules';
 import * as indentUtils from 'vs/editor/contrib/indentation/indentUtils';
-import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 
 export class MoveLinesCommand implements ICommand {
 
@@ -60,8 +60,8 @@ export class MoveLinesCommand implements ICommand {
 			getLineTokens: (lineNumber: number) => {
 				return model.getLineTokens(lineNumber);
 			},
-			getLanguageIdentifier: () => {
-				return model.getLanguageIdentifier();
+			getLanguageId: () => {
+				return model.getLanguageId();
 			},
 			getLanguageIdAtPosition: (lineNumber: number, column: number) => {
 				return model.getLanguageIdAtPosition(lineNumber, column);

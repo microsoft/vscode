@@ -7,7 +7,8 @@
 	},
 	"plugins": [
 		"@typescript-eslint",
-		"jsdoc"
+		"jsdoc",
+		"header"
 	],
 	"rules": {
 		"constructor-super": "warn",
@@ -19,6 +20,7 @@
 		"no-duplicate-case": "warn",
 		"no-duplicate-imports": "warn",
 		"no-eval": "warn",
+		"no-async-promise-executor": "warn",
 		"no-extra-semi": "warn",
 		"no-new-wrappers": "warn",
 		"no-redeclare": "off",
@@ -104,6 +106,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/common/**",
 					"**/vs/base/test/common/**"
@@ -130,7 +133,7 @@
 				"restrictions": [
 					"vs/nls",
 					"**/vs/base/{common,node}/**",
-					"*" // node modules
+					"@vscode/*", "@parcel/*", "*" // node modules
 				]
 			},
 			{
@@ -139,6 +142,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/base/test/{common,browser}/**"
@@ -167,7 +171,7 @@
 					"vs/nls",
 					"**/vs/base/{common,node}/**",
 					"**/vs/base/parts/*/{common,node}/**",
-					"*" // node modules
+					"@vscode/*", "@parcel/*", "*" // node modules
 				]
 			},
 			{
@@ -186,7 +190,7 @@
 					"vs/css!./**/*",
 					"**/vs/base/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"**/vs/base/parts/*/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"*" // node modules
+					"@vscode/*", "@parcel/*", "*" // node modules
 				]
 			},
 			{
@@ -195,7 +199,7 @@
 					"vs/nls",
 					"**/vs/base/{common,node,electron-main}/**",
 					"**/vs/base/parts/*/{common,node,electron-main}/**",
-					"*" // node modules
+					"@vscode/*", "@parcel/*", "*" // node modules
 				]
 			},
 			{
@@ -212,12 +216,27 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/common/**",
 					"**/vs/base/parts/*/common/**",
 					"**/vs/base/test/common/**",
 					"**/vs/platform/*/common/**",
 					"**/vs/platform/*/test/common/**"
+				]
+			},
+			{
+				"target": "**/vs/platform/*/test/browser/**",
+				"restrictions": [
+					"assert",
+					"sinon",
+					"sinon-test",
+					"vs/nls",
+					"**/vs/base/{common,browser}/**",
+					"**/vs/base/parts/*/{common,browser}/**",
+					"**/vs/base/test/{common,browser}/**",
+					"**/vs/platform/*/{common,browser}/**",
+					"**/vs/platform/*/test/{common,browser}/**"
 				]
 			},
 			{
@@ -237,7 +256,7 @@
 					"**/vs/base/{common,node}/**",
 					"**/vs/base/parts/*/{common,node}/**",
 					"**/vs/platform/*/{common,node}/**",
-					"*" // node modules
+					"@vscode/*", "@parcel/*", "*" // node modules
 				]
 			},
 			{
@@ -258,7 +277,7 @@
 					"**/vs/base/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"**/vs/base/parts/*/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"**/vs/platform/*/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"*" // node modules
+					"@vscode/*", "@parcel/*", "*" // node modules
 				]
 			},
 			{
@@ -268,7 +287,7 @@
 					"**/vs/base/{common,node,electron-main}/**",
 					"**/vs/base/parts/*/{common,node,electron-main}/**",
 					"**/vs/platform/*/{common,node,electron-main}/**",
-					"*" // node modules
+					"@vscode/*", "@parcel/*", "*" // node modules
 				]
 			},
 			{
@@ -276,6 +295,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/base/parts/*/{common,browser}/**",
@@ -298,6 +318,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/common/**",
 					"**/vs/platform/*/common/**",
@@ -321,6 +342,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/platform/*/{common,browser}/**",
@@ -344,6 +366,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/common/**",
 					"**/vs/platform/*/common/**",
@@ -370,6 +393,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/platform/*/{common,browser}/**",
@@ -384,6 +408,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/base/test/{common,browser}/**",
@@ -489,7 +514,7 @@
 					"**/vs/workbench/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"**/vs/workbench/api/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"**/vs/workbench/services/*/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"*" // node modules
+					"@vscode/*", "@parcel/*", "*" // node modules
 				]
 			},
 			{
@@ -501,10 +526,10 @@
 					"**/vs/platform/**",
 					"**/vs/editor/**",
 					"**/vs/workbench/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"vs/workbench/contrib/files/common/editors/fileEditorInput",
+					"vs/workbench/contrib/files/browser/editors/fileEditorInput",
 					"**/vs/workbench/services/**",
 					"**/vs/workbench/test/**",
-					"*" // node modules
+					"@vscode/*", "@parcel/*", "*" // node modules
 				]
 			},
 			{
@@ -553,7 +578,9 @@
 					"vscode-textmate",
 					"vscode-oniguruma",
 					"iconv-lite-umd",
-					"jschardet"
+					"jschardet",
+					"@vscode/vscode-languagedetection",
+					"@microsoft/applicationinsights-web"
 				]
 			},
 			{
@@ -566,7 +593,7 @@
 					"**/vs/workbench/{common,node}/**",
 					"**/vs/workbench/api/{common,node}/**",
 					"**/vs/workbench/services/**/{common,node}/**",
-					"*" // node modules
+					"@vscode/*", "@parcel/*", "*" // node modules
 				]
 			},
 			{
@@ -597,7 +624,7 @@
 					"**/vs/workbench/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"**/vs/workbench/api/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"**/vs/workbench/services/**/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"*" // node modules
+					"@vscode/*", "@parcel/*", "*" // node modules
 				]
 			},
 			{
@@ -716,7 +743,7 @@
 					"**/vs/workbench/api/{common,node}/**",
 					"**/vs/workbench/services/**/{common,node}/**",
 					"**/vs/workbench/contrib/**/{common,node}/**",
-					"*" // node modules
+					"@vscode/*", "@parcel/*", "*" // node modules
 				]
 			},
 			{
@@ -749,7 +776,7 @@
 					"**/vs/workbench/api/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"**/vs/workbench/services/**/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"**/vs/workbench/contrib/**/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"*" // node modules
+					"@vscode/*", "@parcel/*", "*" // node modules
 				]
 			},
 			{
@@ -772,7 +799,7 @@
 					"**/vs/base/parts/**/{common,node}/**",
 					"**/vs/platform/**/{common,node}/**",
 					"**/vs/code/**/{common,node}/**",
-					"*" // node modules
+					"@vscode/*", "@parcel/*", "*" // node modules
 				]
 			},
 			{
@@ -784,7 +811,7 @@
 					"**/vs/base/parts/**/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"**/vs/platform/**/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"**/vs/code/**/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"*" // node modules
+					"@vscode/*", "@parcel/*", "*" // node modules
 				]
 			},
 			{
@@ -795,7 +822,7 @@
 					"**/vs/base/parts/**/{common,node,electron-main}/**",
 					"**/vs/platform/**/{common,node,electron-main}/**",
 					"**/vs/code/**/{common,node,electron-main}/**",
-					"*" // node modules
+					"@vscode/*", "@parcel/*", "*" // node modules
 				]
 			},
 			{
@@ -807,7 +834,7 @@
 					"**/vs/platform/**/{common,node}/**",
 					"**/vs/workbench/**/{common,node}/**",
 					"**/vs/server/**",
-					"*" // node modules
+					"@vscode/*", "@parcel/*", "*" // node modules
 				]
 			},
 			{
@@ -878,28 +905,28 @@
 				"target": "**/test/smoke/**",
 				"restrictions": [
 					"**/test/smoke/**",
-					"*" // node modules
+					"@vscode/*", "@parcel/*", "*" // node modules
 				]
 			},
 			{
 				"target": "**/test/automation/**",
 				"restrictions": [
 					"**/test/automation/**",
-					"*" // node modules
+					"@vscode/*", "@parcel/*", "*" // node modules
 				]
 			},
 			{
 				"target": "**/test/integration/**",
 				"restrictions": [
 					"**/test/integration/**",
-					"*" // node modules
+					"@vscode/*", "@parcel/*", "*" // node modules
 				]
 			},
 			{
 				"target": "**/test/monaco/**",
 				"restrictions": [
 					"**/test/monaco/**",
-					"*" // node modules
+					"@vscode/*", "@parcel/*", "*" // node modules
 				]
 			},
 			{
@@ -908,6 +935,7 @@
 					"**/vs/**",
 					"assert",
 					"sinon",
+					"sinon-test",
 					"crypto",
 					"vscode"
 				]
@@ -916,21 +944,21 @@
 				"target": "**/{node,electron-browser,electron-main}/**/*.test.ts",
 				"restrictions": [
 					"**/vs/**",
-					"*" // node modules
+					"@vscode/*", "@parcel/*", "*" // node modules
 				]
 			},
 			{
 				"target": "**/{node,electron-browser,electron-main}/**/test/**",
 				"restrictions": [
 					"**/vs/**",
-					"*" // node modules
+					"@vscode/*", "@parcel/*", "*" // node modules
 				]
 			},
 			{
 				"target": "**/test/{node,electron-browser,electron-main}/**",
 				"restrictions": [
 					"**/vs/**",
-					"*" // node modules
+					"@vscode/*", "@parcel/*", "*" // node modules
 				]
 			},
 			{
@@ -939,6 +967,7 @@
 					"**/vs/**",
 					"assert",
 					"sinon",
+					"sinon-test",
 					"crypto",
 					"xterm*"
 				]
@@ -949,10 +978,21 @@
 					"**/vs/**",
 					"assert",
 					"sinon",
+					"sinon-test",
 					"crypto",
 					"xterm*"
 				]
 			}
+		],
+		"header/header": [
+			2,
+			"block",
+			[
+				"---------------------------------------------------------------------------------------------",
+				" *  Copyright (c) Microsoft Corporation. All rights reserved.",
+				" *  Licensed under the MIT License. See License.txt in the project root for license information.",
+				" *--------------------------------------------------------------------------------------------"
+			]
 		]
 	},
 	"overrides": [
@@ -976,12 +1016,14 @@
 				"vscode-dts-cancellation": "warn",
 				"vscode-dts-use-thenable": "warn",
 				"vscode-dts-region-comments": "warn",
+				"vscode-dts-vscode-in-comments": "warn",
 				"vscode-dts-provider-naming": [
 					"warn",
 					{
 						"allowed": [
 							"FileSystemProvider",
 							"TreeDataProvider",
+							"TestProvider",
 							"CustomEditorProvider",
 							"CustomReadonlyEditorProvider",
 							"TerminalLinkProvider",
@@ -1009,12 +1051,14 @@
 							"edit",
 							"end",
 							"expand",
+							"grant",
 							"hide",
 							"invalidate",
 							"open",
 							"override",
 							"receive",
 							"register",
+							"remove",
 							"rename",
 							"save",
 							"send",

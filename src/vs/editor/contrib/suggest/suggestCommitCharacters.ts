@@ -6,9 +6,9 @@
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
-import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
+import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
 
 export class CommitCharacterController {
 

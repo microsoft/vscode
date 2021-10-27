@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-
 import { Command } from '../commandManager';
 
 export class MoveCursorToPositionCommand implements Command {

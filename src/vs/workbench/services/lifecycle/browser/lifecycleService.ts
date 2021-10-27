@@ -10,18 +10,18 @@ import { localize } from 'vs/nls';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { addDisposableListener } from 'vs/base/browser/dom';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class BrowserLifecycleService extends AbstractLifecycleService {
 
-	declare readonly _serviceBrand: undefined;
-
 	private beforeUnloadDisposable: IDisposable | undefined = undefined;
-	private expectedUnload = false;
+	private disableUnloadHandling = false;
 
 	constructor(
-		@ILogService readonly logService: ILogService
+		@ILogService logService: ILogService,
+		@IStorageService storageService: IStorageService
 	) {
-		super(logService);
+		super(logService, storageService);
 
 		this.registerListeners();
 	}
@@ -33,12 +33,12 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 	}
 
 	private onBeforeUnload(event: BeforeUnloadEvent): void {
-		if (this.expectedUnload) {
-			this.logService.info('[lifecycle] onBeforeUnload expected, ignoring once');
+		if (this.disableUnloadHandling) {
+			this.logService.info('[lifecycle] onBeforeUnload disabled, ignoring once');
 
-			this.expectedUnload = false;
+			this.disableUnloadHandling = false;
 
-			return; // ignore expected unload only once
+			return; // ignore unload handling only once
 		}
 
 		this.logService.info('[lifecycle] onBeforeUnload triggered');
@@ -51,12 +51,23 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 		});
 	}
 
-	withExpectedUnload(callback: Function): void {
-		this.expectedUnload = true;
-		try {
-			callback();
-		} finally {
-			this.expectedUnload = false;
+	withExpectedShutdown(reason: ShutdownReason): void;
+	withExpectedShutdown(reason: { disableShutdownHandling: true }, callback: Function): void;
+	withExpectedShutdown(reason: ShutdownReason | { disableShutdownHandling: true }, callback?: Function): void {
+
+		// Standard shutdown
+		if (typeof reason === 'number') {
+			this.shutdownReason = reason;
+		}
+
+		// Shutdown handling disabled for duration of callback
+		else {
+			this.disableUnloadHandling = true;
+			try {
+				callback?.();
+			} finally {
+				this.disableUnloadHandling = false;
+			}
 		}
 	}
 
@@ -102,7 +113,7 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 			return;
 		}
 
-		// No Veto: continue with Will Shutdown
+		// No Veto: continue with willShutdown
 		this._onWillShutdown.fire({
 			join(promise, id) {
 				logService.error(`[lifecycle] Long running operations during shutdown are unsupported in the web (id: ${id})`);
@@ -110,8 +121,8 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 			reason: ShutdownReason.QUIT
 		});
 
-		// Finally end with Shutdown event
-		this._onShutdown.fire();
+		// Finally end with didShutdown
+		this._onDidShutdown.fire();
 	}
 }
 

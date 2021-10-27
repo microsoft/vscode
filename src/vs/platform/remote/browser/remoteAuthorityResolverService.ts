@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ResolvedAuthority, IRemoteAuthorityResolverService, ResolverResult, IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { RemoteAuthorities } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { RemoteAuthorities } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
+import { IRemoteAuthorityResolverService, IRemoteConnectionData, ResolvedAuthority, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 export class RemoteAuthorityResolverService extends Disposable implements IRemoteAuthorityResolverService {
 
@@ -38,6 +38,10 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 			this._onDidChangeConnectionData.fire();
 		}
 		return this._cache.get(authority)!;
+	}
+
+	async getCanonicalURI(uri: URI): Promise<URI> {
+		return uri;
 	}
 
 	getConnectionData(authority: string): IRemoteConnectionData | null {
@@ -75,5 +79,8 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 		this._connectionTokens.set(authority, connectionToken);
 		RemoteAuthorities.setConnectionToken(authority, connectionToken);
 		this._onDidChangeConnectionData.fire();
+	}
+
+	_setCanonicalURIProvider(provider: (uri: URI) => Promise<URI>): void {
 	}
 }

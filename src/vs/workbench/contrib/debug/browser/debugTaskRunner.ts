@@ -13,7 +13,7 @@ import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/works
 import { TaskEvent, TaskEventKind, TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { withUndefinedAsNull } from 'vs/base/common/types';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
 import { createErrorWithActions } from 'vs/base/common/errors';
 import { IViewsService } from 'vs/workbench/common/views';
@@ -64,7 +64,7 @@ export class DebugTaskRunner {
 				return TaskRunResult.Failure;
 			}
 
-			const errorCount = taskId ? this.markerService.getStatistics().errors : 0;
+			const errorCount = taskId ? this.markerService.read({ severities: MarkerSeverity.Error, take: 2 }).length : 0;
 			const successExitCode = taskSummary && taskSummary.exitCode === 0;
 			const failureExitCode = taskSummary && taskSummary.exitCode !== 0;
 			const onTaskErrors = this.configurationService.getValue<IDebugConfiguration>('debug').onTaskErrors;
@@ -200,6 +200,7 @@ export class DebugTaskRunner {
 			return taskPromise.then(withUndefinedAsNull);
 		});
 
+		// eslint-disable-next-line no-async-promise-executor
 		return new Promise(async (c, e) => {
 			const waitForInput = new Promise<void>(resolve => once(e => (e.kind === TaskEventKind.AcquiredInput) && e.taskId === task._id, this.taskService.onDidStateChange)(() => {
 				resolve();

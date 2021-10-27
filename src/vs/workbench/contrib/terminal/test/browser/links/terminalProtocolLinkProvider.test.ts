@@ -9,8 +9,9 @@ import { Terminal, ILink } from 'xterm';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { URI } from 'vs/base/common/uri';
 
-suite('Workbench - TerminalWebLinkProvider', () => {
+suite('Workbench - TerminalProtocolLinkProvider', () => {
 	let instantiationService: TestInstantiationService;
 
 	setup(() => {
@@ -20,14 +21,16 @@ suite('Workbench - TerminalWebLinkProvider', () => {
 
 	async function assertLink(text: string, expected: { text: string, range: [number, number][] }[]) {
 		const xterm = new Terminal();
-		const provider = instantiationService.createInstance(TerminalProtocolLinkProvider, xterm, () => { }, () => { });
+		const provider = instantiationService.createInstance(TerminalProtocolLinkProvider, xterm, () => { }, () => { }, () => { }, (text: string, cb: (result: { uri: URI, isDirectory: boolean } | undefined) => void) => {
+			cb({ uri: URI.parse(text), isDirectory: false });
+		});
 
 		// Write the text and wait for the parser to finish
 		await new Promise<void>(r => xterm.write(text, r));
 
 		// Ensure all links are provided
 		const links = (await new Promise<ILink[] | undefined>(r => provider.provideLinks(1, r)))!;
-		assert.equal(links.length, expected.length);
+		assert.strictEqual(links.length, expected.length);
 		const actual = links.map(e => ({
 			text: e.text,
 			range: e.range
@@ -39,7 +42,7 @@ suite('Workbench - TerminalWebLinkProvider', () => {
 				end: { x: e.range[1][0], y: e.range[1][1] },
 			}
 		}));
-		assert.deepEqual(actual, expectedVerbose);
+		assert.deepStrictEqual(actual, expectedVerbose);
 	}
 
 	// These tests are based on LinkComputer.test.ts

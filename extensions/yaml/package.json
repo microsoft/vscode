@@ -39,7 +39,8 @@
           ".yml",
           ".eyaml",
           ".eyml",
-          ".yaml"
+          ".yaml",
+          ".cff"
         ],
         "firstLine": "^#cloud-config",
         "configuration": "./language-configuration.json"
@@ -59,6 +60,11 @@
     ],
     "configurationDefaults": {
       "[yaml]": {
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2,
+        "editor.autoIndent": "advanced"
+      },
+      "[dockercompose]": {
         "editor.insertSpaces": true,
         "editor.tabSize": 2,
         "editor.autoIndent": "advanced"

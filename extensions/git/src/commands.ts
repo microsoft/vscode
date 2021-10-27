@@ -43,18 +43,18 @@ class CheckoutItem implements QuickPickItem {
 
 class CheckoutTagItem extends CheckoutItem {
 
-	get description(): string {
+	override get description(): string {
 		return localize('tag at', "Tag at {0}", this.shortCommit);
 	}
 }
 
 class CheckoutRemoteHeadItem extends CheckoutItem {
 
-	get description(): string {
+	override get description(): string {
 		return localize('remote branch at', "Remote branch at {0}", this.shortCommit);
 	}
 
-	async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
+	override async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
 		if (!this.ref.name) {
 			return;
 		}
@@ -694,27 +694,26 @@ export class CommandCenter {
 				viewColumn: ViewColumn.Active
 			};
 
-			let document;
-			try {
-				document = await workspace.openTextDocument(uri);
-			} catch (error) {
-				await commands.executeCommand('vscode.open', uri, {
-					...opts,
-					override: arg instanceof Resource && arg.type === Status.BOTH_MODIFIED ? false : undefined
-				});
+			await commands.executeCommand('vscode.open', uri, {
+				...opts,
+				override: arg instanceof Resource && arg.type === Status.BOTH_MODIFIED ? false : undefined
+			});
+
+			const document = window.activeTextEditor?.document;
+
+			// If the document doesn't match what we opened then don't attempt to select the range
+			if (document?.uri.toString() !== uri.toString()) {
 				continue;
 			}
 
 			// Check if active text editor has same path as other editor. we cannot compare via
 			// URI.toString() here because the schemas can be different. Instead we just go by path.
-			if (activeTextEditor && activeTextEditor.document.uri.path === uri.path) {
+			if (activeTextEditor && activeTextEditor.document.uri.path === uri.path && document) {
 				// preserve not only selection but also visible range
 				opts.selection = activeTextEditor.selection;
 				const previousVisibleRanges = activeTextEditor.visibleRanges;
 				const editor = await window.showTextDocument(document, opts);
 				editor.revealRange(previousVisibleRanges[0]);
-			} else {
-				await commands.executeCommand('vscode.open', uri, opts);
 			}
 		}
 	}
@@ -797,7 +796,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const from = path.relative(repository.root, fromUri.path);
+		const from = path.relative(repository.root, fromUri.fsPath);
 		let to = await window.showInputBox({
 			value: from,
 			valueSelection: [from.length - path.basename(from).length, from.length]
@@ -2246,7 +2245,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await repository.addRemote(name, url);
+		await repository.addRemote(name, url.trim());
 		await repository.fetch({ remote: name });
 		return name;
 	}

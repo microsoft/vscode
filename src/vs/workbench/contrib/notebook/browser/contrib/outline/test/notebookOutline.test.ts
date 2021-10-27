@@ -15,19 +15,29 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { CellKind, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 
 
 suite('Notebook Outline', function () {
 
-	const instantiationService = setupInstantiationService();
-	instantiationService.set(IEditorService, new class extends mock<IEditorService>() { });
-	instantiationService.set(IMarkerService, new MarkerService());
-	instantiationService.set(IThemeService, new class extends mock<IThemeService>() {
-		onDidFileIconThemeChange = Event.None;
-		getFileIconTheme(): IFileIconTheme {
-			return { hasFileIcons: true, hasFolderIcons: true, hidesExplorerArrows: false };
-		}
+	let disposables: DisposableStore;
+	let instantiationService: TestInstantiationService;
+
+	suiteSetup(() => {
+		disposables = new DisposableStore();
+		instantiationService = setupInstantiationService(disposables);
+		instantiationService.set(IEditorService, new class extends mock<IEditorService>() { });
+		instantiationService.set(IMarkerService, new MarkerService());
+		instantiationService.set(IThemeService, new class extends mock<IThemeService>() {
+			override onDidFileIconThemeChange = Event.None;
+			override getFileIconTheme(): IFileIconTheme {
+				return { hasFileIcons: true, hasFolderIcons: true, hidesExplorerArrows: false };
+			}
+		});
 	});
+
+	suiteTeardown(() => disposables.dispose());
 
 	function withNotebookOutline<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (outline: NotebookCellOutline, editor: IActiveNotebookEditor) => R): Promise<R> {
 		return withTestNotebook(cells, (editor) => {
@@ -49,7 +59,7 @@ suite('Notebook Outline', function () {
 
 	test('special characters in heading', async function () {
 		await withNotebookOutline([
-			['# Hellö & Hällo', 'md', CellKind.Markdown]
+			['# Hellö & Hällo', 'md', CellKind.Markup]
 		], outline => {
 			assert.ok(outline instanceof NotebookCellOutline);
 			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
@@ -57,7 +67,7 @@ suite('Notebook Outline', function () {
 		});
 
 		await withNotebookOutline([
-			['# bo<i>ld</i>', 'md', CellKind.Markdown]
+			['# bo<i>ld</i>', 'md', CellKind.Markup]
 		], outline => {
 			assert.ok(outline instanceof NotebookCellOutline);
 			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
@@ -65,9 +75,51 @@ suite('Notebook Outline', function () {
 		});
 	});
 
+	test('Notebook falsely detects "empty cells"', async function () {
+		await withNotebookOutline([
+			['  的时代   ', 'md', CellKind.Markup]
+		], outline => {
+			assert.ok(outline instanceof NotebookCellOutline);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, '的时代');
+		});
+
+		await withNotebookOutline([
+			['   ', 'md', CellKind.Markup]
+		], outline => {
+			assert.ok(outline instanceof NotebookCellOutline);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'empty cell');
+		});
+
+		await withNotebookOutline([
+			['+++++[]{}--)(0  ', 'md', CellKind.Markup]
+		], outline => {
+			assert.ok(outline instanceof NotebookCellOutline);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, '+++++[]{}--)(0');
+		});
+
+		await withNotebookOutline([
+			['+++++[]{}--)(0 Hello **&^ ', 'md', CellKind.Markup]
+		], outline => {
+			assert.ok(outline instanceof NotebookCellOutline);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, '+++++[]{}--)(0 Hello **&^');
+		});
+
+		await withNotebookOutline([
+			['!@#$\n Überschrïft', 'md', CellKind.Markup]
+		], outline => {
+			assert.ok(outline instanceof NotebookCellOutline);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, '!@#$\n Überschrïft');
+		});
+	});
+
 	test('Heading text defines entry label', async function () {
 		return await withNotebookOutline([
-			['foo\n # h1', 'md', CellKind.Markdown]
+			['foo\n # h1', 'md', CellKind.Markup]
 		], outline => {
 			assert.ok(outline instanceof NotebookCellOutline);
 			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
@@ -77,7 +129,7 @@ suite('Notebook Outline', function () {
 
 	test('Notebook outline ignores markdown headings #115200', async function () {
 		await withNotebookOutline([
-			['## h2 \n# h1', 'md', CellKind.Markdown]
+			['## h2 \n# h1', 'md', CellKind.Markup]
 		], outline => {
 			assert.ok(outline instanceof NotebookCellOutline);
 			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 2);
@@ -86,8 +138,8 @@ suite('Notebook Outline', function () {
 		});
 
 		await withNotebookOutline([
-			['## h2', 'md', CellKind.Markdown],
-			['# h1', 'md', CellKind.Markdown]
+			['## h2', 'md', CellKind.Markup],
+			['# h1', 'md', CellKind.Markup]
 		], outline => {
 			assert.ok(outline instanceof NotebookCellOutline);
 			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 2);

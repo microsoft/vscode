@@ -10,7 +10,7 @@ import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 
-export const minSize = 4;
+export const minSize = 1;
 export const maxSize = 20; // see also https://ux.stackexchange.com/questions/39023/what-is-the-optimum-button-size-of-touch-screen-applications
 
 export class SashSettingsController implements IWorkbenchContribution, IDisposable {
@@ -30,8 +30,12 @@ export class SashSettingsController implements IWorkbenchContribution, IDisposab
 	}
 
 	private onDidChangeSize(): void {
-		const size = clamp(this.configurationService.getValue<number>('workbench.sash.size') ?? minSize, minSize, maxSize);
+		const configuredSize = this.configurationService.getValue<number>('workbench.sash.size');
+		const size = clamp(configuredSize, 4, 20);
+		const hoverSize = clamp(configuredSize, 1, 8);
+
 		document.documentElement.style.setProperty('--sash-size', size + 'px');
+		document.documentElement.style.setProperty('--sash-hover-size', hoverSize + 'px');
 		setGlobalSashSize(size);
 	}
 

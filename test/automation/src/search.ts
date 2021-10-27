@@ -43,6 +43,11 @@ export class Search extends Viewlet {
 		await this.waitForInputFocus(INPUT);
 	}
 
+	async getSearchTooltip(): Promise<any> {
+		const icon = await this.code.waitForElement(`.activitybar .action-label.codicon.codicon-search-view-icon`, (el) => !!el?.attributes?.['title']);
+		return icon.attributes['title'];
+	}
+
 	async searchFor(text: string): Promise<void> {
 		await this.waitForInputFocus(INPUT);
 		await this.code.waitForSetValue(INPUT, text);

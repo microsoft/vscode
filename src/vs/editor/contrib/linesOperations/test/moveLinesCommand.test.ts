@@ -2,14 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { Selection } from 'vs/editor/common/core/selection';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { IndentationRule } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { MoveLinesCommand } from 'vs/editor/contrib/linesOperations/moveLinesCommand';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
-import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 
 function testMoveLinesDownCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 	testCommand(lines, null, selection, (sel) => new MoveLinesCommand(sel, true, EditorAutoIndentStrategy.Advanced), expectedLines, expectedSelection);
@@ -19,11 +18,11 @@ function testMoveLinesUpCommand(lines: string[], selection: Selection, expectedL
 	testCommand(lines, null, selection, (sel) => new MoveLinesCommand(sel, false, EditorAutoIndentStrategy.Advanced), expectedLines, expectedSelection);
 }
 
-function testMoveLinesDownWithIndentCommand(languageId: LanguageIdentifier, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
+function testMoveLinesDownWithIndentCommand(languageId: string, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 	testCommand(lines, languageId, selection, (sel) => new MoveLinesCommand(sel, true, EditorAutoIndentStrategy.Full), expectedLines, expectedSelection);
 }
 
-function testMoveLinesUpWithIndentCommand(languageId: LanguageIdentifier, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
+function testMoveLinesUpWithIndentCommand(languageId: string, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 	testCommand(lines, languageId, selection, (sel) => new MoveLinesCommand(sel, false, EditorAutoIndentStrategy.Full), expectedLines, expectedSelection);
 }
 
@@ -260,10 +259,10 @@ suite('Editor Contrib - Move Lines Command', () => {
 });
 
 class IndentRulesMode extends MockMode {
-	private static readonly _id = new LanguageIdentifier('moveLinesIndentMode', 7);
+	private static readonly _id = 'moveLinesIndentMode';
 	constructor(indentationRules: IndentationRule) {
 		super(IndentRulesMode._id);
-		this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+		this._register(LanguageConfigurationRegistry.register(this.languageId, {
 			indentationRules: indentationRules
 		}));
 	}
@@ -282,7 +281,7 @@ suite('Editor contrib - Move Lines Command honors Indentation Rules', () => {
 		let mode = new IndentRulesMode(indentRules);
 
 		testMoveLinesUpWithIndentCommand(
-			mode.getLanguageIdentifier(),
+			mode.languageId,
 			[
 				'class X {',
 				'\tz = 2',
@@ -305,7 +304,7 @@ suite('Editor contrib - Move Lines Command honors Indentation Rules', () => {
 		let mode = new IndentRulesMode(indentRules);
 
 		testMoveLinesDownWithIndentCommand(
-			mode.getLanguageIdentifier(),
+			mode.languageId,
 			[
 				'const value = 2;',
 				'const standardLanguageDescriptions = [',
@@ -354,10 +353,10 @@ suite('Editor contrib - Move Lines Command honors Indentation Rules', () => {
 });
 
 class EnterRulesMode extends MockMode {
-	private static readonly _id = new LanguageIdentifier('moveLinesEnterMode', 8);
+	private static readonly _id = 'moveLinesEnterMode';
 	constructor() {
 		super(EnterRulesMode._id);
-		this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+		this._register(LanguageConfigurationRegistry.register(this.languageId, {
 			indentationRules: {
 				decreaseIndentPattern: /^\s*\[$/,
 				increaseIndentPattern: /^\s*\]$/,
@@ -375,7 +374,7 @@ suite('Editor - contrib - Move Lines Command honors onEnter Rules', () => {
 		let mode = new EnterRulesMode();
 
 		testMoveLinesDownWithIndentCommand(
-			mode.getLanguageIdentifier(),
+			mode.languageId,
 
 			[
 				'if (true) {',

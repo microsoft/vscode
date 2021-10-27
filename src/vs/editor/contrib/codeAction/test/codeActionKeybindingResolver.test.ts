@@ -4,27 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ChordKeybinding, KeyCode, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { ChordKeybinding, SimpleKeybinding } from 'vs/base/common/keybindings';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { refactorCommandId, organizeImportsCommandId } from 'vs/editor/contrib/codeAction/codeAction';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
+import { organizeImportsCommandId, refactorCommandId } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionKeybindingResolver } from 'vs/editor/contrib/codeAction/codeActionMenu';
+import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 
 suite('CodeActionKeybindingResolver', () => {
 	const refactorKeybinding = createCodeActionKeybinding(
-		KeyCode.KEY_A,
+		KeyCode.KeyA,
 		refactorCommandId,
 		{ kind: CodeActionKind.Refactor.value });
 
 	const refactorExtractKeybinding = createCodeActionKeybinding(
-		KeyCode.KEY_B,
+		KeyCode.KeyB,
 		refactorCommandId,
 		{ kind: CodeActionKind.Refactor.append('extract').value });
 
 	const organizeImportsKeybinding = createCodeActionKeybinding(
-		KeyCode.KEY_C,
+		KeyCode.KeyC,
 		organizeImportsCommandId,
 		undefined);
 
@@ -35,19 +36,19 @@ suite('CodeActionKeybindingResolver', () => {
 			},
 		}).getResolver();
 
-		assert.equal(
+		assert.strictEqual(
 			resolver({ title: '' }),
 			undefined);
 
-		assert.equal(
+		assert.strictEqual(
 			resolver({ title: '', kind: CodeActionKind.Refactor.value }),
 			refactorKeybinding.resolvedKeybinding);
 
-		assert.equal(
+		assert.strictEqual(
 			resolver({ title: '', kind: CodeActionKind.Refactor.append('extract').value }),
 			refactorKeybinding.resolvedKeybinding);
 
-		assert.equal(
+		assert.strictEqual(
 			resolver({ title: '', kind: CodeActionKind.QuickFix.value }),
 			undefined);
 	});
@@ -59,11 +60,11 @@ suite('CodeActionKeybindingResolver', () => {
 			},
 		}).getResolver();
 
-		assert.equal(
+		assert.strictEqual(
 			resolver({ title: '', kind: CodeActionKind.Refactor.value }),
 			refactorKeybinding.resolvedKeybinding);
 
-		assert.equal(
+		assert.strictEqual(
 			resolver({ title: '', kind: CodeActionKind.Refactor.append('extract').value }),
 			refactorExtractKeybinding.resolvedKeybinding);
 	});
@@ -75,7 +76,7 @@ suite('CodeActionKeybindingResolver', () => {
 			},
 		}).getResolver();
 
-		assert.equal(
+		assert.strictEqual(
 			resolver({ title: '', kind: CodeActionKind.SourceOrganizeImports.value }),
 			organizeImportsKeybinding.resolvedKeybinding);
 	});

@@ -23,9 +23,21 @@ export interface IModelChangedEvent {
 	 * The new version id the model has transitioned to.
 	 */
 	readonly versionId: number;
+	/**
+	 * Flag that indicates that this event was generated while undoing.
+	 */
+	readonly isUndoing: boolean;
+	/**
+	 * Flag that indicates that this event was generated while redoing.
+	 */
+	readonly isRedoing: boolean;
 }
 
-export class MirrorTextModel {
+export interface IMirrorTextModel {
+	readonly version: number;
+}
+
+export class MirrorTextModel implements IMirrorTextModel {
 
 	protected _uri: URI;
 	protected _lines: string[];

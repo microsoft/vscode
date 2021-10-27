@@ -70,7 +70,7 @@ class ReplacePreviewModel extends Disposable {
 		const fileMatch = <FileMatch>this.searchWorkbenchService.searchModel.searchResult.matches().filter(match => match.resource.toString() === fileResource.toString())[0];
 		const ref = this._register(await this.textModelResolverService.createModelReference(fileResource));
 		const sourceModel = ref.object.textEditorModel;
-		const sourceModelModeId = sourceModel.getLanguageIdentifier().language;
+		const sourceModelModeId = sourceModel.getLanguageId();
 		const replacePreviewModel = this.modelService.createModel(createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()), this.modeService.create(sourceModelModeId), replacePreviewUri);
 		this._register(fileMatch.onChange(({ forceUpdateModel }) => this.update(sourceModel, replacePreviewModel, fileMatch, forceUpdateModel)));
 		this._register(this.searchWorkbenchService.searchModel.onReplaceTermChanged(() => this.update(sourceModel, replacePreviewModel, fileMatch)));
@@ -113,8 +113,8 @@ export class ReplaceService implements IReplaceService {
 		const fileMatch = element instanceof Match ? element.parent() : element;
 
 		const editor = await this.editorService.openEditor({
-			leftResource: fileMatch.resource,
-			rightResource: toReplaceResource(fileMatch.resource),
+			original: { resource: fileMatch.resource },
+			modified: { resource: toReplaceResource(fileMatch.resource) },
 			label: nls.localize('fileReplaceChanges', "{0} ↔ {1} (Replace Preview)", fileMatch.name(), fileMatch.name()),
 			description: this.labelService.getUriLabel(dirname(fileMatch.resource), { relative: true }),
 			options: {

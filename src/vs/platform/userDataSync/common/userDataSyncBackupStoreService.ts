@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, } from 'vs/base/common/lifecycle';
-import { IUserDataSyncLogService, ALL_SYNC_RESOURCES, IUserDataSyncBackupStoreService, IResourceRefHandle, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { Promises } from 'vs/base/common/async';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { toLocalISOString } from 'vs/base/common/date';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { toLocalISOString } from 'vs/base/common/date';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Promises } from 'vs/base/common/async';
+import { IFileService, IFileStat } from 'vs/platform/files/common/files';
+import { ALL_SYNC_RESOURCES, IResourceRefHandle, IUserDataSyncBackupStoreService, IUserDataSyncLogService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 
 export class UserDataSyncBackupStoreService extends Disposable implements IUserDataSyncBackupStoreService {
 

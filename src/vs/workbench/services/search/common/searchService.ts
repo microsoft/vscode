@@ -145,13 +145,15 @@ export class SearchService extends Disposable implements ISearchService {
 			if (!completes.length) {
 				return {
 					limitHit: false,
-					results: []
+					results: [],
+					messages: [],
 				};
 			}
 
-			return <ISearchComplete>{
+			return {
 				limitHit: completes[0] && completes[0].limitHit,
 				stats: completes[0].stats,
+				messages: arrays.coalesce(arrays.flatten(completes.map(i => i.messages))).filter(arrays.uniqueFilter(message => message.type + message.text + message.trusted)),
 				results: arrays.flatten(completes.map((c: ISearchComplete) => c.results))
 			};
 		})();
@@ -453,13 +455,13 @@ export class SearchService extends Disposable implements ISearchService {
 				}
 
 				// Skip search results
-				if (model.getModeId() === 'search-result' && !(query.includePattern && query.includePattern['**/*.code-search'])) {
+				if (model.getLanguageId() === 'search-result' && !(query.includePattern && query.includePattern['**/*.code-search'])) {
 					// TODO: untitled search editors will be excluded from search even when include *.code-search is specified
 					return;
 				}
 
 				// Block walkthrough, webview, etc.
-				if (originalResource.scheme !== Schemas.untitled && !this.fileService.canHandleResource(originalResource)) {
+				if (originalResource.scheme !== Schemas.untitled && !this.fileService.hasProvider(originalResource)) {
 					return;
 				}
 

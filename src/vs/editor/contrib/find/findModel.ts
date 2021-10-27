@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { findFirstInSorted } from 'vs/base/common/arrays';
 import { RunOnceScheduler, TimeoutTimer } from 'vs/base/common/async';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { Constants } from 'vs/base/common/uint';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { Constants } from 'vs/base/common/uint';
-import { ScrollType, ICommand } from 'vs/editor/common/editorCommon';
+import { ICommand, ScrollType } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, FindMatch, ITextModel } from 'vs/editor/common/model';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { FindDecorations } from 'vs/editor/contrib/find/findDecorations';
 import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/findState';
 import { ReplaceAllCommand } from 'vs/editor/contrib/find/replaceAllCommand';
-import { ReplacePattern, parseReplaceString } from 'vs/editor/contrib/find/replacePattern';
+import { parseReplaceString, ReplacePattern } from 'vs/editor/contrib/find/replacePattern';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { findFirstInSorted } from 'vs/base/common/arrays';
 
 export const CONTEXT_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('findWidgetVisible', false);
 export const CONTEXT_FIND_WIDGET_NOT_VISIBLE = CONTEXT_FIND_WIDGET_VISIBLE.toNegated();
@@ -32,24 +32,24 @@ export const CONTEXT_FIND_INPUT_FOCUSED = new RawContextKey<boolean>('findInputF
 export const CONTEXT_REPLACE_INPUT_FOCUSED = new RawContextKey<boolean>('replaceInputFocussed', false);
 
 export const ToggleCaseSensitiveKeybinding: IKeybindings = {
-	primary: KeyMod.Alt | KeyCode.KEY_C,
-	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C }
+	primary: KeyMod.Alt | KeyCode.KeyC,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyC }
 };
 export const ToggleWholeWordKeybinding: IKeybindings = {
-	primary: KeyMod.Alt | KeyCode.KEY_W,
-	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_W }
+	primary: KeyMod.Alt | KeyCode.KeyW,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyW }
 };
 export const ToggleRegexKeybinding: IKeybindings = {
-	primary: KeyMod.Alt | KeyCode.KEY_R,
-	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R }
+	primary: KeyMod.Alt | KeyCode.KeyR,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyR }
 };
 export const ToggleSearchScopeKeybinding: IKeybindings = {
-	primary: KeyMod.Alt | KeyCode.KEY_L,
-	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_L }
+	primary: KeyMod.Alt | KeyCode.KeyL,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyL }
 };
 export const TogglePreserveCaseKeybinding: IKeybindings = {
-	primary: KeyMod.Alt | KeyCode.KEY_P,
-	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_P }
+	primary: KeyMod.Alt | KeyCode.KeyP,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyP }
 };
 
 export const FIND_IDS = {

@@ -22,24 +22,26 @@ import { UriComponents, URI } from 'vs/base/common/uri';
 import { MultilineTokensBuilder } from 'vs/editor/common/model/tokensStore';
 import { TMGrammarFactory } from 'vs/workbench/services/textMate/common/TMGrammarFactory';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { FileAccess } from 'vs/base/common/network';
+import { ILanguageIdCodec } from 'vs/editor/common/modes';
 
 const RUN_TEXTMATE_IN_WORKER = false;
 
 class ModelWorkerTextMateTokenizer extends Disposable {
 
 	private readonly _worker: TextMateWorker;
+	private readonly _languageIdCodec: ILanguageIdCodec;
 	private readonly _model: ITextModel;
 	private _isSynced: boolean;
 	private _pendingChanges: IModelContentChangedEvent[] = [];
 
-	constructor(worker: TextMateWorker, model: ITextModel) {
+	constructor(worker: TextMateWorker, languageIdCodec: ILanguageIdCodec, model: ITextModel) {
 		super();
 		this._worker = worker;
+		this._languageIdCodec = languageIdCodec;
 		this._model = model;
 		this._isSynced = false;
 
@@ -55,7 +57,9 @@ class ModelWorkerTextMateTokenizer extends Disposable {
 
 		this._register(this._model.onDidChangeLanguage((e) => {
 			if (this._isSynced) {
-				this._worker.acceptModelLanguageChanged(this._model.uri.toString(), this._model.getLanguageIdentifier().id);
+				const languageId = this._model.getLanguageId();
+				const encodedLanguageId = this._languageIdCodec.encodeLanguageId(languageId);
+				this._worker.acceptModelLanguageChanged(this._model.uri.toString(), languageId, encodedLanguageId);
 			}
 		}));
 	}
@@ -74,12 +78,15 @@ class ModelWorkerTextMateTokenizer extends Disposable {
 
 	private _beginSync(): void {
 		this._isSynced = true;
+		const languageId = this._model.getLanguageId();
+		const encodedLanguageId = this._languageIdCodec.encodeLanguageId(languageId);
 		this._worker.acceptNewModel({
 			uri: this._model.uri,
 			versionId: this._model.getVersionId(),
 			lines: this._model.getLinesContent(),
 			EOL: this._model.getEOL(),
-			languageId: this._model.getLanguageIdentifier().id,
+			languageId,
+			encodedLanguageId
 		});
 	}
 
@@ -88,7 +95,7 @@ class ModelWorkerTextMateTokenizer extends Disposable {
 		this._worker.acceptRemovedModel(this._model.uri.toString());
 	}
 
-	public dispose() {
+	public override dispose() {
 		super.dispose();
 		this._endSync();
 	}
@@ -148,12 +155,11 @@ export class TextMateService extends AbstractTextMateService {
 		@INotificationService notificationService: INotificationService,
 		@ILogService logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IStorageService storageService: IStorageService,
 		@IProgressService progressService: IProgressService,
 		@IModelService private readonly _modelService: IModelService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
-		super(modeService, themeService, extensionResourceLoaderService, notificationService, logService, configurationService, storageService, progressService);
+		super(modeService, themeService, extensionResourceLoaderService, notificationService, logService, configurationService, progressService);
 		this._worker = null;
 		this._workerProxy = null;
 		this._tokenizers = Object.create(null);
@@ -170,7 +176,7 @@ export class TextMateService extends AbstractTextMateService {
 			return;
 		}
 		const key = model.uri.toString();
-		const tokenizer = new ModelWorkerTextMateTokenizer(this._workerProxy, model);
+		const tokenizer = new ModelWorkerTextMateTokenizer(this._workerProxy, this._modeService.languageIdCodec, model);
 		this._tokenizers[key] = tokenizer;
 	}
 
@@ -189,7 +195,7 @@ export class TextMateService extends AbstractTextMateService {
 		return response;
 	}
 
-	protected _onDidCreateGrammarFactory(grammarDefinitions: IValidGrammarDefinition[]): void {
+	protected override _onDidCreateGrammarFactory(grammarDefinitions: IValidGrammarDefinition[]): void {
 		this._killWorker();
 
 		if (RUN_TEXTMATE_IN_WORKER) {
@@ -218,14 +224,14 @@ export class TextMateService extends AbstractTextMateService {
 		}
 	}
 
-	protected _doUpdateTheme(grammarFactory: TMGrammarFactory, theme: IRawTheme, colorMap: string[]): void {
+	protected override _doUpdateTheme(grammarFactory: TMGrammarFactory, theme: IRawTheme, colorMap: string[]): void {
 		super._doUpdateTheme(grammarFactory, theme, colorMap);
 		if (this._currentTheme && this._currentTokenColorMap && this._workerProxy) {
 			this._workerProxy.acceptTheme(this._currentTheme, this._currentTokenColorMap);
 		}
 	}
 
-	protected _onDidDisposeGrammarFactory(): void {
+	protected override _onDidDisposeGrammarFactory(): void {
 		this._killWorker();
 	}
 

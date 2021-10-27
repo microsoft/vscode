@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IMode, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
+import { ILanguageIdCodec } from 'vs/editor/common/modes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IModeService = createDecorator<IModeService>('modeService');
@@ -22,15 +21,17 @@ export interface ILanguageExtensionPoint {
 	configuration?: URI;
 }
 
-export interface ILanguageSelection extends IDisposable {
-	readonly languageIdentifier: LanguageIdentifier;
-	readonly onDidChange: Event<LanguageIdentifier>;
+export interface ILanguageSelection {
+	readonly languageId: string;
+	readonly onDidChange: Event<string>;
 }
 
 export interface IModeService {
 	readonly _serviceBrand: undefined;
 
-	onDidCreateMode: Event<IMode>;
+	readonly languageIdCodec: ILanguageIdCodec;
+
+	onDidEncounterLanguage: Event<string>;
 	onLanguagesMaybeChanged: Event<void>;
 
 	// --- reading
@@ -39,13 +40,13 @@ export interface IModeService {
 	getRegisteredLanguageNames(): string[];
 	getExtensions(alias: string): string[];
 	getFilenames(alias: string): string[];
-	getMimeForMode(modeId: string): string | null;
-	getLanguageName(modeId: string): string | null;
+	getMimeForMode(languageId: string): string | null;
+	getLanguageName(languageId: string): string | null;
 	getModeIdForLanguageName(alias: string): string | null;
 	getModeIdByFilepathOrFirstLine(resource: URI, firstLine?: string): string | null;
 	getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string): string | null;
-	getLanguageIdentifier(modeId: string | LanguageId): LanguageIdentifier | null;
-	getConfigurationFiles(modeId: string): URI[];
+	validateLanguageId(languageId: string): string | null;
+	getConfigurationFiles(languageId: string): URI[];
 
 	// --- instantiation
 	create(commaSeparatedMimetypesOrCommaSeparatedIds: string | undefined): ILanguageSelection;

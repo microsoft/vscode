@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import * as nls from 'vs/nls';
 
 class ForceRetokenizeAction extends EditorAction {
 	constructor() {

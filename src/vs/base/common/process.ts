@@ -3,29 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isWindows, isMacintosh, setImmediate, globals, INodeProcess } from 'vs/base/common/platform';
+import { globals, INodeProcess, isMacintosh, isWindows, setImmediate } from 'vs/base/common/platform';
 
-let safeProcess: INodeProcess & { nextTick: (callback: (...args: any[]) => void) => void; };
-
-// Native node.js environment
+let safeProcess: Omit<INodeProcess, 'arch'> & { nextTick: (callback: (...args: any[]) => void) => void; arch: string | undefined; };
 declare const process: INodeProcess;
-if (typeof process !== 'undefined') {
-	safeProcess = {
-		get platform() { return process.platform; },
-		get env() { return process.env; },
-		cwd() { return process.env['VSCODE_CWD'] || process.cwd(); },
-		nextTick(callback: (...args: any[]) => void): void { return process.nextTick!(callback); }
-	};
-}
 
 // Native sandbox environment
-else if (typeof globals.vscode !== 'undefined') {
+if (typeof globals.vscode !== 'undefined' && typeof globals.vscode.process !== 'undefined') {
 	const sandboxProcess: INodeProcess = globals.vscode.process;
 	safeProcess = {
 		get platform() { return sandboxProcess.platform; },
+		get arch() { return sandboxProcess.arch; },
 		get env() { return sandboxProcess.env; },
 		cwd() { return sandboxProcess.cwd(); },
 		nextTick(callback: (...args: any[]) => void): void { return setImmediate(callback); }
+	};
+}
+
+// Native node.js environment
+else if (typeof process !== 'undefined') {
+	safeProcess = {
+		get platform() { return process.platform; },
+		get arch() { return process.arch; },
+		get env() { return process.env; },
+		cwd() { return process.env['VSCODE_CWD'] || process.cwd(); },
+		nextTick(callback: (...args: any[]) => void): void { return process.nextTick!(callback); }
 	};
 }
 
@@ -35,10 +37,11 @@ else {
 
 		// Supported
 		get platform() { return isWindows ? 'win32' : isMacintosh ? 'darwin' : 'linux'; },
+		get arch() { return undefined; /* arch is undefined in web */ },
 		nextTick(callback: (...args: any[]) => void): void { return setImmediate(callback); },
 
 		// Unsupported
-		get env() { return Object.create(null); },
+		get env() { return {}; },
 		cwd() { return '/'; }
 	};
 }
@@ -70,3 +73,10 @@ export const platform = safeProcess.platform;
  * environments.
  */
 export const nextTick = safeProcess.nextTick;
+
+/**
+ * Provides safe access to the `arch` method in node.js, sandboxed or web
+ * environments.
+ * Note: `arch` is `undefined` in web
+ */
+export const arch = safeProcess.arch;

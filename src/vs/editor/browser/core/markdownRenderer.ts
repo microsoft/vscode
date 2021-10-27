@@ -12,9 +12,10 @@ import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
+import { ILanguageIdCodec, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { URI } from 'vs/base/common/uri';
+import { Configuration } from 'vs/editor/browser/config/configuration';
 
 export interface IMarkdownRenderResult extends IDisposable {
 	element: HTMLElement;
@@ -33,8 +34,8 @@ export interface IMarkdownRendererOptions {
 export class MarkdownRenderer {
 
 	private static _ttpTokenizer = window.trustedTypes?.createPolicy('tokenizeToString', {
-		createHTML(value: string, tokenizer: ITokenizationSupport | undefined) {
-			return tokenizeToString(value, tokenizer);
+		createHTML(value: string, languageIdCodec: ILanguageIdCodec, tokenizer: ITokenizationSupport | undefined) {
+			return tokenizeToString(value, languageIdCodec, tokenizer);
 		}
 	});
 
@@ -52,59 +53,56 @@ export class MarkdownRenderer {
 	}
 
 	render(markdown: IMarkdownString | undefined, options?: MarkdownRenderOptions, markedOptions?: MarkedOptions): IMarkdownRenderResult {
-		const disposeables = new DisposableStore();
-
-		let element: HTMLElement;
 		if (!markdown) {
-			element = document.createElement('span');
-		} else {
-			element = renderMarkdown(markdown, { ...this._getRenderOptions(disposeables), ...options }, markedOptions);
+			const element = document.createElement('span');
+			return { element, dispose: () => { } };
 		}
 
+		const disposables = new DisposableStore();
+		const rendered = disposables.add(renderMarkdown(markdown, { ...this._getRenderOptions(markdown, disposables), ...options }, markedOptions));
 		return {
-			element,
-			dispose: () => disposeables.dispose()
+			element: rendered.element,
+			dispose: () => disposables.dispose()
 		};
 	}
 
-	protected _getRenderOptions(disposeables: DisposableStore): MarkdownRenderOptions {
+	protected _getRenderOptions(markdown: IMarkdownString, disposeables: DisposableStore): MarkdownRenderOptions {
 		return {
 			baseUrl: this._options.baseUrl,
 			codeBlockRenderer: async (languageAlias, value) => {
 				// In markdown,
 				// it is possible that we stumble upon language aliases (e.g.js instead of javascript)
 				// it is possible no alias is given in which case we fall back to the current editor lang
-				let modeId: string | undefined | null;
+				let languageId: string | undefined | null;
 				if (languageAlias) {
-					modeId = this._modeService.getModeIdForLanguageName(languageAlias);
+					languageId = this._modeService.getModeIdForLanguageName(languageAlias);
 				} else if (this._options.editor) {
-					modeId = this._options.editor.getModel()?.getLanguageIdentifier().language;
+					languageId = this._options.editor.getModel()?.getLanguageId();
 				}
-				if (!modeId) {
-					modeId = 'plaintext';
+				if (!languageId) {
+					languageId = 'plaintext';
 				}
-				this._modeService.triggerMode(modeId);
-				const tokenization = await TokenizationRegistry.getPromise(modeId) ?? undefined;
+				this._modeService.triggerMode(languageId);
+				const tokenization = await TokenizationRegistry.getPromise(languageId) ?? undefined;
 
 				const element = document.createElement('span');
 
-				element.innerHTML = (MarkdownRenderer._ttpTokenizer?.createHTML(value, tokenization) ?? tokenizeToString(value, tokenization)) as string;
+				element.innerHTML = (MarkdownRenderer._ttpTokenizer?.createHTML(value, this._modeService.languageIdCodec, tokenization) ?? tokenizeToString(value, this._modeService.languageIdCodec, tokenization)) as string;
 
 				// use "good" font
-				let fontFamily = this._options.codeBlockFontFamily;
 				if (this._options.editor) {
-					fontFamily = this._options.editor.getOption(EditorOption.fontInfo).fontFamily;
-				}
-				if (fontFamily) {
-					element.style.fontFamily = fontFamily;
+					const fontInfo = this._options.editor.getOption(EditorOption.fontInfo);
+					Configuration.applyFontInfoSlow(element, fontInfo);
+				} else if (this._options.codeBlockFontFamily) {
+					element.style.fontFamily = this._options.codeBlockFontFamily;
 				}
 
 				return element;
 			},
 			asyncRenderCallback: () => this._onDidRenderAsync.fire(),
 			actionHandler: {
-				callback: (content) => this._openerService.open(content, { fromUserGesture: true, allowContributedOpeners: true }).catch(onUnexpectedError),
-				disposeables
+				callback: (content) => this._openerService.open(content, { fromUserGesture: true, allowContributedOpeners: true, allowCommands: markdown.isTrusted }).catch(onUnexpectedError),
+				disposables: disposeables
 			}
 		};
 	}

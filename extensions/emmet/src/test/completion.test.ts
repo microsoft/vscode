@@ -12,10 +12,7 @@ import { closeAllEditors, withRandomFileEditor } from './testUtils';
 const completionProvider = new DefaultCompletionItemProvider();
 
 suite('Tests for completion in CSS embedded in HTML', () => {
-	teardown(() => {
-		// close all editors
-		return closeAllEditors;
-	});
+	teardown(closeAllEditors);
 
 	test('style attribute & attribute value in html', async () => {
 		await testHtmlCompletionProvider('<div style="|"', [{ label: 'padding: ;' }]);
@@ -64,7 +61,7 @@ function testHtmlCompletionProvider(contents: string, expectedItems: TestComplet
 			editor.document,
 			editor.selection.active,
 			cancelSrc.token,
-			{ triggerKind: CompletionTriggerKind.Invoke }
+			{ triggerKind: CompletionTriggerKind.Invoke, triggerCharacter: undefined }
 		);
 		if (!completionPromise) {
 			return Promise.resolve();
@@ -81,10 +78,10 @@ function testHtmlCompletionProvider(contents: string, expectedItems: TestComplet
 			assert.ok(match, `Didn't find completion item with label ${eItem.label}`);
 
 			if (match) {
-				assert.equal(match.detail, 'Emmet Abbreviation', `Match needs to come from Emmet`);
+				assert.strictEqual(match.detail, 'Emmet Abbreviation', `Match needs to come from Emmet`);
 
 				if (eItem.documentation) {
-					assert.equal(match.documentation, eItem.documentation, `Emmet completion Documentation doesn't match`);
+					assert.strictEqual(match.documentation, eItem.documentation, `Emmet completion Documentation doesn't match`);
 				}
 			}
 		});
@@ -105,7 +102,7 @@ function testCssCompletionProvider(contents: string, expectedItems: TestCompleti
 			editor.document,
 			editor.selection.active,
 			cancelSrc.token,
-			{ triggerKind: CompletionTriggerKind.Invoke }
+			{ triggerKind: CompletionTriggerKind.Invoke, triggerCharacter: undefined }
 		);
 		if (!completionPromise) {
 			return Promise.resolve();
@@ -122,10 +119,10 @@ function testCssCompletionProvider(contents: string, expectedItems: TestCompleti
 			assert.ok(match, `Didn't find completion item with label ${eItem.label}`);
 
 			if (match) {
-				assert.equal(match.detail, 'Emmet Abbreviation', `Match needs to come from Emmet`);
+				assert.strictEqual(match.detail, 'Emmet Abbreviation', `Match needs to come from Emmet`);
 
 				if (eItem.documentation) {
-					assert.equal(match.documentation, eItem.documentation, `Emmet completion Documentation doesn't match`);
+					assert.strictEqual(match.documentation, eItem.documentation, `Emmet completion Documentation doesn't match`);
 				}
 			}
 		});

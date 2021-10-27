@@ -74,9 +74,9 @@ viewsRegistry.registerViews([{
 		mnemonicTitle: localize({ key: 'miViewSCM', comment: ['&& denotes a mnemonic'] }, "S&&CM"),
 		keybindings: {
 			primary: 0,
-			win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
-			linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
-			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_G },
+			win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG },
+			linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG },
+			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyG },
 		},
 		order: 2,
 	}
@@ -193,6 +193,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			markdownDescription: localize('inputFontFamily', "Controls the font for the input message. Use `default` for the workbench user interface font family, `editor` for the `#editor.fontFamily#`'s value, or a custom font family."),
 			default: 'default'
 		},
+		'scm.inputFontSize': {
+			type: 'number',
+			markdownDescription: localize('inputFontSize', "Controls the font size for the input message in pixels."),
+			default: 13
+		},
 		'scm.alwaysShowRepositories': {
 			type: 'boolean',
 			markdownDescription: localize('alwaysShowRepository', "Controls whether repositories should always be visible in the SCM view."),
@@ -202,6 +207,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'number',
 			description: localize('providersVisible', "Controls how many repositories are visible in the Source Control Repositories section. Set to `0` to be able to manually resize the view."),
 			default: 10
+		},
+		'scm.showActionButton': {
+			type: 'boolean',
+			markdownDescription: localize('showActionButton', "Controls whether an action button can be shown in the SCM view."),
+			default: true
 		}
 	}
 });

@@ -15,7 +15,7 @@ class EditorContributionRegistry {
 		this.editorContributions = [];
 	}
 
-	public registerEditorContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: INotebookEditor, ...services: Services): INotebookEditorContribution }): void {
+	public registerEditorContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: INotebookEditor, ...services: Services): INotebookEditorContribution; }): void {
 		this.editorContributions.push({ id, ctor: ctor as INotebookEditorContributionCtor });
 	}
 
@@ -24,7 +24,7 @@ class EditorContributionRegistry {
 	}
 }
 
-export function registerNotebookContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: INotebookEditor, ...services: Services): INotebookEditorContribution }): void {
+export function registerNotebookContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: INotebookEditor, ...services: Services): INotebookEditorContribution; }): void {
 	EditorContributionRegistry.INSTANCE.registerEditorContribution(id, ctor);
 }
 
@@ -32,5 +32,9 @@ export namespace NotebookEditorExtensionsRegistry {
 
 	export function getEditorContributions(): INotebookEditorContributionDescription[] {
 		return EditorContributionRegistry.INSTANCE.getEditorContributions();
+	}
+
+	export function getSomeEditorContributions(ids: string[]): INotebookEditorContributionDescription[] {
+		return EditorContributionRegistry.INSTANCE.getEditorContributions().filter(c => ids.indexOf(c.id) >= 0);
 	}
 }

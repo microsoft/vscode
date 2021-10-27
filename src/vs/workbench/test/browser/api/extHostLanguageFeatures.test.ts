@@ -49,29 +49,30 @@ import { dispose } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { Progress } from 'vs/platform/progress/common/progress';
-
-const defaultSelector = { scheme: 'far' };
-const model: ITextModel = createTextModel(
-	[
-		'This is the first line',
-		'This is the second line',
-		'This is the third line',
-	].join('\n'),
-	undefined,
-	undefined,
-	URI.parse('far://testing/file.a'));
-
-let extHost: ExtHostLanguageFeatures;
-let mainThread: MainThreadLanguageFeatures;
-let disposables: vscode.Disposable[] = [];
-let rpcProtocol: TestRPCProtocol;
-let originalErrorHandler: (e: any) => any;
-
-
+import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
+import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 
 suite('ExtHostLanguageFeatures', function () {
 
+	const defaultSelector = { scheme: 'far' };
+	let model: ITextModel;
+	let extHost: ExtHostLanguageFeatures;
+	let mainThread: MainThreadLanguageFeatures;
+	let disposables: vscode.Disposable[] = [];
+	let rpcProtocol: TestRPCProtocol;
+	let originalErrorHandler: (e: any) => any;
+
 	suiteSetup(() => {
+
+		model = createTextModel(
+			[
+				'This is the first line',
+				'This is the second line',
+				'This is the third line',
+			].join('\n'),
+			undefined,
+			undefined,
+			URI.parse('far://testing/file.a'));
 
 		rpcProtocol = new TestRPCProtocol();
 
@@ -91,7 +92,7 @@ suite('ExtHostLanguageFeatures', function () {
 			addedDocuments: [{
 				isDirty: false,
 				versionId: model.getVersionId(),
-				modeId: model.getLanguageIdentifier().language,
+				languageId: model.getLanguageId(),
 				uri: model.uri,
 				lines: model.getValue().split(model.getEOL()),
 				EOL: model.getEOL(),
@@ -104,10 +105,10 @@ suite('ExtHostLanguageFeatures', function () {
 		rpcProtocol.set(ExtHostContext.ExtHostCommands, commands);
 		rpcProtocol.set(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, rpcProtocol));
 
-		const diagnostics = new ExtHostDiagnostics(rpcProtocol, new NullLogService());
+		const diagnostics = new ExtHostDiagnostics(rpcProtocol, new NullLogService(), new class extends mock<IExtHostFileSystemInfo>() { });
 		rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(rpcProtocol, null, extHostDocuments, commands, diagnostics, new NullLogService(), NullApiDeprecationService);
+		extHost = new ExtHostLanguageFeatures(rpcProtocol, new URITransformerService(null), extHostDocuments, commands, diagnostics, new NullLogService(), NullApiDeprecationService);
 		rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
 		mainThread = rpcProtocol.set(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, rpcProtocol));
@@ -268,7 +269,7 @@ suite('ExtHostLanguageFeatures', function () {
 		assert.strictEqual(value.length, 2);
 	});
 
-	test('Definition, registration order ignored (results are sorted)', async () => {
+	test('Definition, registration order', async () => {
 
 		disposables.push(extHost.registerDefinitionProvider(defaultExtension, defaultSelector, new class implements vscode.DefinitionProvider {
 			provideDefinition(): any {
@@ -286,8 +287,8 @@ suite('ExtHostLanguageFeatures', function () {
 		const value = await getDefinitionsAtPosition(model, new EditorPosition(1, 1), CancellationToken.None);
 		assert.strictEqual(value.length, 2);
 		// let [first, second] = value;
-		assert.strictEqual(value[0].uri.authority, 'first');
-		assert.strictEqual(value[1].uri.authority, 'second');
+		assert.strictEqual(value[0].uri.authority, 'second');
+		assert.strictEqual(value[1].uri.authority, 'first');
 	});
 
 	test('Definition, evil provider', async () => {
@@ -521,7 +522,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 	// --- references
 
-	test('References, registration order ignored (results are sorted)', async () => {
+	test('References, registration order', async () => {
 
 		disposables.push(extHost.registerReferenceProvider(defaultExtension, defaultSelector, new class implements vscode.ReferenceProvider {
 			provideReferences(): any {
@@ -539,8 +540,8 @@ suite('ExtHostLanguageFeatures', function () {
 		let value = await getReferencesAtPosition(model, new EditorPosition(1, 2), false, CancellationToken.None);
 		assert.strictEqual(value.length, 2);
 		let [first, second] = value;
-		assert.strictEqual(first.uri.path, '/first');
-		assert.strictEqual(second.uri.path, '/second');
+		assert.strictEqual(first.uri.path, '/second');
+		assert.strictEqual(second.uri.path, '/first');
 	});
 
 	test('References, data conversion', async () => {
@@ -966,7 +967,7 @@ suite('ExtHostLanguageFeatures', function () {
 	// --- format
 
 	const NullWorkerService = new class extends mock<IEditorWorkerService>() {
-		computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[] | null | undefined): Promise<modes.TextEdit[] | undefined> {
+		override computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[] | null | undefined): Promise<modes.TextEdit[] | undefined> {
 			return Promise.resolve(withNullAsUndefined(edits));
 		}
 	};

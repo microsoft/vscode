@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Client as TelemetryClient } from 'vs/base/parts/ipc/node/ipc.cp';
-import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { FileAccess } from 'vs/base/common/network';
-import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
+import { Client as TelemetryClient } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ILoggerService } from 'vs/platform/log/common/log';
 import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-
+import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
+import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
+import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 export class CustomEndpointTelemetryService implements ICustomEndpointTelemetryService {
 	declare readonly _serviceBrand: undefined;
 
@@ -17,7 +19,9 @@ export class CustomEndpointTelemetryService implements ICustomEndpointTelemetryS
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILoggerService private readonly loggerService: ILoggerService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 	) { }
 
 	private async getCustomTelemetryService(endpoint: ITelemetryEndpoint): Promise<ITelemetryService> {
@@ -42,10 +46,13 @@ export class CustomEndpointTelemetryService implements ICustomEndpointTelemetryS
 			);
 
 			const channel = client.getChannel('telemetryAppender');
-			const appender = new TelemetryAppenderClient(channel);
+			const appenders = [
+				new TelemetryAppenderClient(channel),
+				new TelemetryLogAppender(this.loggerService, this.environmentService, `[${endpoint.id}] `),
+			];
 
 			this.customTelemetryServices.set(endpoint.id, new TelemetryService({
-				appender,
+				appenders,
 				sendErrorTelemetry: endpoint.sendErrorTelemetry
 			}, this.configurationService));
 		}

@@ -20,7 +20,7 @@ export class UserDataSyncResourceEnablementService extends BaseUserDataSyncResou
 		super(storageService, telemetryService);
 	}
 
-	getResourceSyncStateVersion(resource: SyncResource): string | undefined {
+	override getResourceSyncStateVersion(resource: SyncResource): string | undefined {
 		return resource === SyncResource.Extensions ? this.environmentService.options?.settingsSyncOptions?.extensionsSyncStateVersion : undefined;
 	}
 

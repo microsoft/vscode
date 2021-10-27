@@ -4,17 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChildProcess, fork, ForkOptions } from 'child_process';
-import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Delayer, createCancelablePromise } from 'vs/base/common/async';
-import { deepClone } from 'vs/base/common/objects';
-import { Emitter, Event } from 'vs/base/common/event';
-import { createQueuedSender } from 'vs/base/node/processes';
-import { IChannel, ChannelServer as IPCServer, ChannelClient as IPCClient, IChannelClient } from 'vs/base/parts/ipc/common/ipc';
-import { isRemoteConsoleLog, log } from 'vs/base/common/console';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import * as errors from 'vs/base/common/errors';
+import { createCancelablePromise, Delayer } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { isMacintosh } from 'vs/base/common/platform';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { isRemoteConsoleLog, log } from 'vs/base/common/console';
+import * as errors from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { deepClone } from 'vs/base/common/objects';
+import { createQueuedSender, removeDangerousEnvVariables } from 'vs/base/node/processes';
+import { ChannelClient as IPCClient, ChannelServer as IPCServer, IChannel, IChannelClient } from 'vs/base/parts/ipc/common/ipc';
 
 /**
  * This implementation doesn't perform well since it uses base64 encoding for buffers.
@@ -71,7 +70,7 @@ export interface IIPCOptions {
 	debugBrk?: number;
 
 	/**
-	 * If set, starts the fork with empty execArgv. If not set, execArgv from the parent proces are inherited,
+	 * If set, starts the fork with empty execArgv. If not set, execArgv from the parent process are inherited,
 	 * except --inspect= and --inspect-brk= which are filtered as they would result in a port conflict.
 	 */
 	freshExecArgv?: boolean;
@@ -202,11 +201,7 @@ export class Client implements IChannelClient, IDisposable {
 				forkOpts.execArgv = process.execArgv.filter(a => !/^--inspect(-brk)?=/.test(a)); // remove
 			}
 
-			if (isMacintosh && forkOpts.env) {
-				// Unset `DYLD_LIBRARY_PATH`, as it leads to process crashes
-				// See https://github.com/microsoft/vscode/issues/105848
-				delete forkOpts.env['DYLD_LIBRARY_PATH'];
-			}
+			removeDangerousEnvVariables(forkOpts.env);
 
 			this.child = fork(this.modulePath, args, forkOpts);
 

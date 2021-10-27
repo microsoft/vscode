@@ -6,206 +6,276 @@
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
-import { FileWorkingCopyManager, IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
-import { IFileWorkingCopy, IFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
+import { workbenchInstantiationService, TestServiceAccessor, TestInMemoryFileSystemProvider } from 'vs/workbench/test/browser/workbenchTestServices';
+import { StoredFileWorkingCopy, IStoredFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
-import { FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
-import { timeout } from 'vs/base/common/async';
-import { TestFileWorkingCopyModel, TestFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/fileWorkingCopy.test';
+import { TestStoredFileWorkingCopyModel, TestStoredFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/storedFileWorkingCopy.test';
+import { Schemas } from 'vs/base/common/network';
+import { IFileWorkingCopyManager, FileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
+import { TestUntitledFileWorkingCopyModel, TestUntitledFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/untitledFileWorkingCopy.test';
+import { UntitledFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('FileWorkingCopyManager', () => {
 
+	let disposables: DisposableStore;
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
-	let manager: IFileWorkingCopyManager<TestFileWorkingCopyModel>;
+	let manager: IFileWorkingCopyManager<TestStoredFileWorkingCopyModel, TestUntitledFileWorkingCopyModel>;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
+		disposables = new DisposableStore();
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
-		const factory = new TestFileWorkingCopyModelFactory();
-		manager = new FileWorkingCopyManager<TestFileWorkingCopyModel>(factory, accessor.fileService, accessor.lifecycleService, accessor.labelService, instantiationService, accessor.logService);
+		accessor.fileService.registerProvider(Schemas.file, new TestInMemoryFileSystemProvider());
+		accessor.fileService.registerProvider(Schemas.vscodeRemote, new TestInMemoryFileSystemProvider());
+
+		manager = new FileWorkingCopyManager(
+			'testFileWorkingCopyType',
+			new TestStoredFileWorkingCopyModelFactory(),
+			new TestUntitledFileWorkingCopyModelFactory(),
+			accessor.fileService, accessor.lifecycleService, accessor.labelService, accessor.logService,
+			accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
+			accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
+			accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.pathService,
+			accessor.environmentService, accessor.dialogService, accessor.decorationsService
+		);
 	});
 
 	teardown(() => {
 		manager.dispose();
+		disposables.dispose();
+	});
+
+	test('onDidCreate, get, workingCopies', async () => {
+		let createCounter = 0;
+		manager.onDidCreate(e => {
+			createCounter++;
+		});
+
+		const fileUri = URI.file('/test.html');
+
+		assert.strictEqual(manager.workingCopies.length, 0);
+		assert.strictEqual(manager.get(fileUri), undefined);
+
+		const fileWorkingCopy = await manager.resolve(fileUri);
+		const untitledFileWorkingCopy = await manager.resolve();
+
+		assert.strictEqual(manager.workingCopies.length, 2);
+		assert.strictEqual(createCounter, 2);
+		assert.strictEqual(manager.get(fileWorkingCopy.resource), fileWorkingCopy);
+		assert.strictEqual(manager.get(untitledFileWorkingCopy.resource), untitledFileWorkingCopy);
+
+		const sameFileWorkingCopy = await manager.resolve(fileUri);
+		const sameUntitledFileWorkingCopy = await manager.resolve({ untitledResource: untitledFileWorkingCopy.resource });
+		assert.strictEqual(sameFileWorkingCopy, fileWorkingCopy);
+		assert.strictEqual(sameUntitledFileWorkingCopy, untitledFileWorkingCopy);
+		assert.strictEqual(manager.workingCopies.length, 2);
+		assert.strictEqual(createCounter, 2);
+
+		fileWorkingCopy.dispose();
+		untitledFileWorkingCopy.dispose();
 	});
 
 	test('resolve', async () => {
-		const resource = URI.file('/test.html');
+		const fileWorkingCopy = await manager.resolve(URI.file('/test.html'));
+		assert.ok(fileWorkingCopy instanceof StoredFileWorkingCopy);
+		assert.strictEqual(await manager.stored.resolve(fileWorkingCopy.resource), fileWorkingCopy);
 
-		const events: IFileWorkingCopy<IFileWorkingCopyModel>[] = [];
-		const listener = manager.onDidCreate(workingCopy => {
-			events.push(workingCopy);
-		});
+		const untitledFileWorkingCopy = await manager.resolve();
+		assert.ok(untitledFileWorkingCopy instanceof UntitledFileWorkingCopy);
+		assert.strictEqual(await manager.untitled.resolve({ untitledResource: untitledFileWorkingCopy.resource }), untitledFileWorkingCopy);
+		assert.strictEqual(await manager.resolve(untitledFileWorkingCopy.resource), untitledFileWorkingCopy);
 
-		const resolvePromise = manager.resolve(resource);
-		assert.ok(manager.get(resource)); // working copy known even before resolved()
-
-		const workingCopy1 = await resolvePromise;
-		assert.ok(workingCopy1);
-		assert.ok(workingCopy1.model);
-		assert.strictEqual(manager.get(resource), workingCopy1);
-
-		const workingCopy2 = await manager.resolve(resource);
-		assert.strictEqual(workingCopy2, workingCopy1);
-		workingCopy1.dispose();
-
-		const workingCopy3 = await manager.resolve(resource);
-		assert.notStrictEqual(workingCopy3, workingCopy2);
-		assert.strictEqual(manager.get(resource), workingCopy3);
-		workingCopy3.dispose();
-
-		assert.strictEqual(events.length, 2);
-		assert.strictEqual(events[0].resource.toString(), workingCopy1.resource.toString());
-		assert.strictEqual(events[1].resource.toString(), workingCopy2.resource.toString());
-
-		listener.dispose();
-
-		workingCopy1.dispose();
-		workingCopy2.dispose();
-		workingCopy3.dispose();
+		fileWorkingCopy.dispose();
+		untitledFileWorkingCopy.dispose();
 	});
 
-	test('resolve with initial contents', async () => {
-		const resource = URI.file('/test.html');
+	test('destroy', async () => {
+		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 0);
 
-		const workingCopy = await manager.resolve(resource, { contents: bufferToStream(VSBuffer.fromString('Hello World')) });
-		assert.strictEqual(workingCopy.model?.contents, 'Hello World');
-		assert.strictEqual(workingCopy.isDirty(), true);
+		await manager.resolve(URI.file('/test.html'));
+		await manager.resolve({ contents: { value: bufferToStream(VSBuffer.fromString('Hello Untitled')) } });
 
-		await manager.resolve(resource, { contents: bufferToStream(VSBuffer.fromString('More Changes')) });
-		assert.strictEqual(workingCopy.model?.contents, 'More Changes');
-		assert.strictEqual(workingCopy.isDirty(), true);
+		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 2);
+		assert.strictEqual(manager.stored.workingCopies.length, 1);
+		assert.strictEqual(manager.untitled.workingCopies.length, 1);
 
-		workingCopy.dispose();
+		await manager.destroy();
+
+		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 0);
+		assert.strictEqual(manager.stored.workingCopies.length, 0);
+		assert.strictEqual(manager.untitled.workingCopies.length, 0);
 	});
 
-	test('multiple resolves execute in sequence', async () => {
-		const resource = URI.file('/test.html');
+	test('saveAs - file (same target, unresolved source, unresolved target)', () => {
+		const source = URI.file('/path/source.txt');
 
-		const firstPromise = manager.resolve(resource);
-		const secondPromise = manager.resolve(resource, { contents: bufferToStream(VSBuffer.fromString('Hello World')) });
-		const thirdPromise = manager.resolve(resource, { contents: bufferToStream(VSBuffer.fromString('More Changes')) });
-
-		await firstPromise;
-		await secondPromise;
-		const workingCopy = await thirdPromise;
-
-		assert.strictEqual(workingCopy.model?.contents, 'More Changes');
-		assert.strictEqual(workingCopy.isDirty(), true);
-
-		workingCopy.dispose();
+		return testSaveAsFile(source, source, false, false);
 	});
 
-	test('removed from cache when working copy or model gets disposed', async () => {
-		const resource = URI.file('/test.html');
+	test('saveAs - file (same target, different case, unresolved source, unresolved target)', async () => {
+		const source = URI.file('/path/source.txt');
+		const target = URI.file('/path/SOURCE.txt');
 
-		let workingCopy = await manager.resolve(resource, { contents: bufferToStream(VSBuffer.fromString('Hello World')) });
-
-		assert.strictEqual(manager.get(URI.file('/test.html')), workingCopy);
-
-		workingCopy.dispose();
-		assert(!manager.get(URI.file('/test.html')));
-
-		workingCopy = await manager.resolve(resource, { contents: bufferToStream(VSBuffer.fromString('Hello World')) });
-
-		assert.strictEqual(manager.get(URI.file('/test.html')), workingCopy);
-
-		workingCopy.model?.dispose();
-		assert(!manager.get(URI.file('/test.html')));
+		return testSaveAsFile(source, target, false, false);
 	});
 
-	test('events', async () => {
-		const resource1 = URI.file('/path/index.txt');
-		const resource2 = URI.file('/path/other.txt');
+	test('saveAs - file (different target, unresolved source, unresolved target)', async () => {
+		const source = URI.file('/path/source.txt');
+		const target = URI.file('/path/target.txt');
 
-		let loadedCounter = 0;
-		let gotDirtyCounter = 0;
-		let gotNonDirtyCounter = 0;
-		let revertedCounter = 0;
-		let savedCounter = 0;
+		return testSaveAsFile(source, target, false, false);
+	});
 
-		manager.onDidResolve(workingCopy => {
-			if (workingCopy.resource.toString() === resource1.toString()) {
-				loadedCounter++;
-			}
-		});
+	test('saveAs - file (same target, resolved source, unresolved target)', () => {
+		const source = URI.file('/path/source.txt');
 
-		manager.onDidChangeDirty(workingCopy => {
-			if (workingCopy.resource.toString() === resource1.toString()) {
-				if (workingCopy.isDirty()) {
-					gotDirtyCounter++;
+		return testSaveAsFile(source, source, true, false);
+	});
+
+	test('saveAs - file (same target, different case, resolved source, unresolved target)', async () => {
+		const source = URI.file('/path/source.txt');
+		const target = URI.file('/path/SOURCE.txt');
+
+		return testSaveAsFile(source, target, true, false);
+	});
+
+	test('saveAs - file (different target, resolved source, unresolved target)', async () => {
+		const source = URI.file('/path/source.txt');
+		const target = URI.file('/path/target.txt');
+
+		return testSaveAsFile(source, target, true, false);
+	});
+
+	test('saveAs - file (same target, unresolved source, resolved target)', () => {
+		const source = URI.file('/path/source.txt');
+
+		return testSaveAsFile(source, source, false, true);
+	});
+
+	test('saveAs - file (same target, different case, unresolved source, resolved target)', async () => {
+		const source = URI.file('/path/source.txt');
+		const target = URI.file('/path/SOURCE.txt');
+
+		return testSaveAsFile(source, target, false, true);
+	});
+
+	test('saveAs - file (different target, unresolved source, resolved target)', async () => {
+		const source = URI.file('/path/source.txt');
+		const target = URI.file('/path/target.txt');
+
+		return testSaveAsFile(source, target, false, true);
+	});
+
+	test('saveAs - file (same target, resolved source, resolved target)', () => {
+		const source = URI.file('/path/source.txt');
+
+		return testSaveAsFile(source, source, true, true);
+	});
+
+	test('saveAs - file (different target, resolved source, resolved target)', async () => {
+		const source = URI.file('/path/source.txt');
+		const target = URI.file('/path/target.txt');
+
+		return testSaveAsFile(source, target, true, true);
+	});
+
+	async function testSaveAsFile(source: URI, target: URI, resolveSource: boolean, resolveTarget: boolean) {
+		let sourceWorkingCopy: IStoredFileWorkingCopy<TestStoredFileWorkingCopyModel> | undefined = undefined;
+		if (resolveSource) {
+			sourceWorkingCopy = await manager.resolve(source);
+			sourceWorkingCopy.model?.updateContents('hello world');
+			assert.ok(sourceWorkingCopy.isDirty());
+		}
+
+		let targetWorkingCopy: IStoredFileWorkingCopy<TestStoredFileWorkingCopyModel> | undefined = undefined;
+		if (resolveTarget) {
+			targetWorkingCopy = await manager.resolve(target);
+			targetWorkingCopy.model?.updateContents('hello world');
+			assert.ok(targetWorkingCopy.isDirty());
+		}
+
+		const result = await manager.saveAs(source, target);
+		if (accessor.uriIdentityService.extUri.isEqual(source, target) && resolveSource) {
+			// if the uris are considered equal (different case on macOS/Windows)
+			// and the source is to be resolved, the resulting working copy resource
+			// will be the source resource because we consider file working copies
+			// the same in that case
+			assert.strictEqual(source.toString(), result?.resource.toString());
+		} else {
+			if (resolveSource || resolveTarget) {
+				assert.strictEqual(target.toString(), result?.resource.toString());
+			} else {
+				if (accessor.uriIdentityService.extUri.isEqual(source, target)) {
+					assert.strictEqual(undefined, result);
 				} else {
-					gotNonDirtyCounter++;
+					assert.strictEqual(target.toString(), result?.resource.toString());
 				}
 			}
-		});
+		}
 
-		manager.onDidRevert(workingCopy => {
-			if (workingCopy.resource.toString() === resource1.toString()) {
-				revertedCounter++;
-			}
-		});
+		if (resolveSource) {
+			assert.strictEqual(sourceWorkingCopy?.isDirty(), false);
+		}
 
-		manager.onDidSave(({ workingCopy }) => {
-			if (workingCopy.resource.toString() === resource1.toString()) {
-				savedCounter++;
-			}
-		});
+		if (resolveTarget) {
+			assert.strictEqual(targetWorkingCopy?.isDirty(), false);
+		}
+	}
 
-		const workingCopy1 = await manager.resolve(resource1);
-		assert.strictEqual(loadedCounter, 1);
+	test('saveAs - untitled (without associated resource)', async () => {
+		const workingCopy = await manager.resolve();
+		workingCopy.model?.updateContents('Simple Save As');
 
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.DELETED }], false));
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.ADDED }], false));
+		const target = URI.file('simple/file.txt');
+		accessor.fileDialogService.setPickFileToSave(target);
 
-		const workingCopy2 = await manager.resolve(resource2);
-		assert.strictEqual(loadedCounter, 2);
+		const result = await manager.saveAs(workingCopy.resource, undefined);
+		assert.strictEqual(result?.resource.toString(), target.toString());
 
-		workingCopy1.model?.updateContents('changed');
+		assert.strictEqual((result?.model as TestStoredFileWorkingCopyModel).contents, 'Simple Save As');
 
-		await workingCopy1.revert();
-		workingCopy1.model?.updateContents('changed again');
+		assert.strictEqual(manager.untitled.get(workingCopy.resource), undefined);
 
-		await workingCopy1.save();
-		workingCopy1.dispose();
-		workingCopy2.dispose();
-
-		await workingCopy1.revert();
-		assert.strictEqual(gotDirtyCounter, 2);
-		assert.strictEqual(gotNonDirtyCounter, 2);
-		assert.strictEqual(revertedCounter, 1);
-		assert.strictEqual(savedCounter, 1);
-
-		workingCopy1.dispose();
-		workingCopy2.dispose();
+		workingCopy.dispose();
 	});
 
-	test('canDispose with dirty model', async function () {
-		const resource = URI.file('/path/index_something.txt');
+	test('saveAs - untitled (with associated resource)', async () => {
+		const workingCopy = await manager.resolve({ associatedResource: { path: '/some/associated.txt' } });
+		workingCopy.model?.updateContents('Simple Save As with associated resource');
 
-		const workingCopy = await manager.resolve(resource);
-		workingCopy.model?.updateContents('make dirty');
+		const target = URI.from({ scheme: Schemas.vscodeRemote, path: '/some/associated.txt' });
 
-		let canDisposePromise = manager.canDispose(workingCopy);
-		assert.ok(canDisposePromise instanceof Promise);
+		accessor.fileService.notExistsSet.set(target, true);
 
-		let canDispose = false;
-		(async () => {
-			canDispose = await canDisposePromise;
-		})();
+		const result = await manager.saveAs(workingCopy.resource, undefined);
+		assert.strictEqual(result?.resource.toString(), target.toString());
 
-		assert.strictEqual(canDispose, false);
-		workingCopy.revert({ soft: true });
+		assert.strictEqual((result?.model as TestStoredFileWorkingCopyModel).contents, 'Simple Save As with associated resource');
 
-		await timeout(0);
+		assert.strictEqual(manager.untitled.get(workingCopy.resource), undefined);
 
-		assert.strictEqual(canDispose, true);
+		workingCopy.dispose();
+	});
 
-		let canDispose2 = manager.canDispose(workingCopy);
-		assert.strictEqual(canDispose2, true);
+	test('saveAs - untitled (target exists and is resolved)', async () => {
+		const workingCopy = await manager.resolve();
+		workingCopy.model?.updateContents('Simple Save As');
+
+		const target = URI.file('simple/file.txt');
+		const targetFileWorkingCopy = await manager.resolve(target);
+		accessor.fileDialogService.setPickFileToSave(target);
+
+		const result = await manager.saveAs(workingCopy.resource, undefined);
+		assert.strictEqual(result, targetFileWorkingCopy);
+
+		assert.strictEqual((result?.model as TestStoredFileWorkingCopyModel).contents, 'Simple Save As');
+
+		assert.strictEqual(manager.untitled.get(workingCopy.resource), undefined);
+
+		workingCopy.dispose();
 	});
 });

@@ -14,7 +14,7 @@ import * as modes from 'vs/editor/common/modes';
 import { LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
+import { ILanguageExtensionPoint, IModeService } from 'vs/editor/common/services/modeService';
 import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
 import { StaticServices } from 'vs/editor/standalone/browser/standaloneServices';
 import { compile } from 'vs/editor/standalone/common/monarch/monarchCompile';
@@ -40,8 +40,8 @@ export function getLanguages(): ILanguageExtensionPoint[] {
 }
 
 export function getEncodedLanguageId(languageId: string): number {
-	let lid = StaticServices.modeService.get().getLanguageIdentifier(languageId);
-	return lid ? lid.id : 0;
+	const modeService = StaticServices.modeService.get();
+	return modeService.languageIdCodec.encodeLanguageId(languageId);
 }
 
 /**
@@ -49,8 +49,8 @@ export function getEncodedLanguageId(languageId: string): number {
  * @event
  */
 export function onLanguage(languageId: string, callback: () => void): IDisposable {
-	let disposable = StaticServices.modeService.get().onDidCreateMode((mode) => {
-		if (mode.getId() === languageId) {
+	let disposable = StaticServices.modeService.get().onDidEncounterLanguage((languageId) => {
+		if (languageId === languageId) {
 			// stop listening
 			disposable.dispose();
 			// invoke actual listener
@@ -64,11 +64,11 @@ export function onLanguage(languageId: string, callback: () => void): IDisposabl
  * Set the editing configuration for a language.
  */
 export function setLanguageConfiguration(languageId: string, configuration: LanguageConfiguration): IDisposable {
-	let languageIdentifier = StaticServices.modeService.get().getLanguageIdentifier(languageId);
-	if (!languageIdentifier) {
+	const validLanguageId = StaticServices.modeService.get().validateLanguageId(languageId);
+	if (!validLanguageId) {
 		throw new Error(`Cannot set configuration for unknown language ${languageId}`);
 	}
-	return LanguageConfigurationRegistry.register(languageIdentifier, configuration, 100);
+	return LanguageConfigurationRegistry.register(validLanguageId, configuration, 100);
 }
 
 /**
@@ -76,11 +76,11 @@ export function setLanguageConfiguration(languageId: string, configuration: Lang
  */
 export class EncodedTokenizationSupport2Adapter implements modes.ITokenizationSupport {
 
-	private readonly _languageIdentifier: modes.LanguageIdentifier;
+	private readonly _languageId: string;
 	private readonly _actual: EncodedTokensProvider;
 
-	constructor(languageIdentifier: modes.LanguageIdentifier, actual: EncodedTokensProvider) {
-		this._languageIdentifier = languageIdentifier;
+	constructor(languageId: string, actual: EncodedTokensProvider) {
+		this._languageId = languageId;
 		this._actual = actual;
 	}
 
@@ -90,7 +90,7 @@ export class EncodedTokenizationSupport2Adapter implements modes.ITokenizationSu
 
 	public tokenize(line: string, hasEOL: boolean, state: modes.IState, offsetDelta: number): TokenizationResult {
 		if (typeof this._actual.tokenize === 'function') {
-			return TokenizationSupport2Adapter.adaptTokenize(this._languageIdentifier.language, <{ tokenize(line: string, state: modes.IState): ILineTokens; }>this._actual, line, state, offsetDelta);
+			return TokenizationSupport2Adapter.adaptTokenize(this._languageId, <{ tokenize(line: string, state: modes.IState): ILineTokens; }>this._actual, line, state, offsetDelta);
 		}
 		throw new Error('Not supported!');
 	}
@@ -106,14 +106,12 @@ export class EncodedTokenizationSupport2Adapter implements modes.ITokenizationSu
  */
 export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 
-	private readonly _standaloneThemeService: IStandaloneThemeService;
-	private readonly _languageIdentifier: modes.LanguageIdentifier;
-	private readonly _actual: TokensProvider;
-
-	constructor(standaloneThemeService: IStandaloneThemeService, languageIdentifier: modes.LanguageIdentifier, actual: TokensProvider) {
-		this._standaloneThemeService = standaloneThemeService;
-		this._languageIdentifier = languageIdentifier;
-		this._actual = actual;
+	constructor(
+		private readonly _languageId: string,
+		private readonly _actual: TokensProvider,
+		private readonly _modeService: IModeService,
+		private readonly _standaloneThemeService: IStandaloneThemeService,
+	) {
 	}
 
 	public getInitialState(): modes.IState {
@@ -159,11 +157,11 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 	}
 
 	public tokenize(line: string, hasEOL: boolean, state: modes.IState, offsetDelta: number): TokenizationResult {
-		return TokenizationSupport2Adapter.adaptTokenize(this._languageIdentifier.language, this._actual, line, state, offsetDelta);
+		return TokenizationSupport2Adapter.adaptTokenize(this._languageId, this._actual, line, state, offsetDelta);
 	}
 
-	private _toBinaryTokens(tokens: IToken[], offsetDelta: number): Uint32Array {
-		const languageId = this._languageIdentifier.id;
+	private _toBinaryTokens(languageIdCodec: modes.ILanguageIdCodec, tokens: IToken[], offsetDelta: number): Uint32Array {
+		const languageId = languageIdCodec.encodeLanguageId(this._languageId);
 		const tokenTheme = this._standaloneThemeService.getColorTheme().tokenTheme;
 
 		let result: number[] = [], resultLen = 0;
@@ -202,7 +200,7 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 
 	public tokenize2(line: string, hasEOL: boolean, state: modes.IState, offsetDelta: number): TokenizationResult2 {
 		let actualResult = this._actual.tokenize(line, state);
-		let tokens = this._toBinaryTokens(actualResult.tokens, offsetDelta);
+		let tokens = this._toBinaryTokens(this._modeService.languageIdCodec, actualResult.tokens, offsetDelta);
 
 		let endState: modes.IState;
 		// try to save an object if possible
@@ -331,15 +329,20 @@ export function setColorMap(colorMap: string[] | null): void {
  * Set the tokens provider for a language (manual implementation).
  */
 export function setTokensProvider(languageId: string, provider: TokensProvider | EncodedTokensProvider | Thenable<TokensProvider | EncodedTokensProvider>): IDisposable {
-	let languageIdentifier = StaticServices.modeService.get().getLanguageIdentifier(languageId);
-	if (!languageIdentifier) {
+	const validLanguageId = StaticServices.modeService.get().validateLanguageId(languageId);
+	if (!validLanguageId) {
 		throw new Error(`Cannot set tokens provider for unknown language ${languageId}`);
 	}
 	const create = (provider: TokensProvider | EncodedTokensProvider) => {
 		if (isEncodedTokensProvider(provider)) {
-			return new EncodedTokenizationSupport2Adapter(languageIdentifier!, provider);
+			return new EncodedTokenizationSupport2Adapter(validLanguageId, provider);
 		} else {
-			return new TokenizationSupport2Adapter(StaticServices.standaloneThemeService.get(), languageIdentifier!, provider);
+			return new TokenizationSupport2Adapter(
+				validLanguageId,
+				provider,
+				StaticServices.modeService.get(),
+				StaticServices.standaloneThemeService.get(),
+			);
 		}
 	};
 	if (isThenable<TokensProvider | EncodedTokensProvider>(provider)) {
@@ -459,14 +462,16 @@ export function registerCodeLensProvider(languageId: string, provider: modes.Cod
 /**
  * Register a code action provider (used by e.g. quick fix).
  */
-export function registerCodeActionProvider(languageId: string, provider: CodeActionProvider): IDisposable {
+export function registerCodeActionProvider(languageId: string, provider: CodeActionProvider, metadata?: CodeActionProviderMetadata): IDisposable {
 	return modes.CodeActionProviderRegistry.register(languageId, {
+		providedCodeActionKinds: metadata?.providedCodeActionKinds,
 		provideCodeActions: (model: model.ITextModel, range: Range, context: modes.CodeActionContext, token: CancellationToken): modes.ProviderResult<modes.CodeActionList> => {
 			let markers = StaticServices.markerService.get().read({ resource: model.uri }).filter(m => {
 				return Range.areIntersectingOrTouching(m, range);
 			});
 			return provider.provideCodeActions(model, range, { markers, only: context.only }, token);
-		}
+		},
+		resolveCodeAction: provider.resolveCodeAction
 	});
 }
 
@@ -548,6 +553,20 @@ export function registerDocumentRangeSemanticTokensProvider(languageId: string, 
 }
 
 /**
+ * Register an inline completions provider.
+ */
+export function registerInlineCompletionsProvider(languageId: string, provider: modes.InlineCompletionsProvider): IDisposable {
+	return modes.InlineCompletionsProviderRegistry.register(languageId, provider);
+}
+
+/**
+ * Register an inlay hints provider.
+ */
+export function registerInlayHintsProvider(languageId: string, provider: modes.InlayHintsProvider): IDisposable {
+	return modes.InlayHintsProviderRegistry.register(languageId, provider);
+}
+
+/**
  * Contains additional diagnostic information about the context in which
  * a [code action](#CodeActionProvider.provideCodeActions) is run.
  */
@@ -573,6 +592,28 @@ export interface CodeActionProvider {
 	 * Provide commands for the given document and range.
 	 */
 	provideCodeActions(model: model.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): modes.ProviderResult<modes.CodeActionList>;
+
+	/**
+	 * Given a code action fill in the edit. Will only invoked when missing.
+	 */
+	resolveCodeAction?(codeAction: modes.CodeAction, token: CancellationToken): modes.ProviderResult<modes.CodeAction>;
+}
+
+
+
+/**
+ * Metadata about the type of code actions that a {@link CodeActionProvider} provides.
+ */
+export interface CodeActionProviderMetadata {
+	/**
+	 * List of code action kinds that a {@link CodeActionProvider} may return.
+	 *
+	 * This list is used to determine if a given `CodeActionProvider` should be invoked or not.
+	 * To avoid unnecessary computation, every `CodeActionProvider` should list use `providedCodeActionKinds`. The
+	 * list of kinds may either be generic, such as `["quickfix", "refactor", "source"]`, or list out every kind provided,
+	 * such as `["quickfix.removeLine", "source.fixAll" ...]`.
+	 */
+	readonly providedCodeActionKinds?: readonly string[];
 }
 
 /**
@@ -613,6 +654,8 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		registerSelectionRangeProvider: <any>registerSelectionRangeProvider,
 		registerDocumentSemanticTokensProvider: <any>registerDocumentSemanticTokensProvider,
 		registerDocumentRangeSemanticTokensProvider: <any>registerDocumentRangeSemanticTokensProvider,
+		registerInlineCompletionsProvider: <any>registerInlineCompletionsProvider,
+		registerInlayHintsProvider: <any>registerInlayHintsProvider,
 
 		// enums
 		DocumentHighlightKind: standaloneEnums.DocumentHighlightKind,
@@ -624,7 +667,8 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		IndentAction: standaloneEnums.IndentAction,
 		CompletionTriggerKind: standaloneEnums.CompletionTriggerKind,
 		SignatureHelpTriggerKind: standaloneEnums.SignatureHelpTriggerKind,
-		InlineHintKind: standaloneEnums.InlineHintKind,
+		InlayHintKind: standaloneEnums.InlayHintKind,
+		InlineCompletionTriggerKind: standaloneEnums.InlineCompletionTriggerKind,
 
 		// classes
 		FoldingRangeKind: modes.FoldingRangeKind,

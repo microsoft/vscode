@@ -3,29 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/quickInput';
-import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import * as dom from 'vs/base/browser/dom';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator } from 'vs/base/parts/quickinput/common/quickInput';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
+import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IListAccessibilityProvider, IListOptions, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
+import { Action } from 'vs/base/common/actions';
+import { range } from 'vs/base/common/arrays';
+import { getCodiconAriaLabel } from 'vs/base/common/codicons';
+import { compareAnything } from 'vs/base/common/comparers';
+import { memoize } from 'vs/base/common/decorators';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IMatch } from 'vs/base/common/filters';
 import { matchesFuzzyIconAware, parseLabelWithIcons } from 'vs/base/common/iconLabels';
-import { compareAnything } from 'vs/base/common/comparers';
-import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { memoize } from 'vs/base/common/decorators';
-import { range } from 'vs/base/common/arrays';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Action } from 'vs/base/common/actions';
-import { getIconClass } from 'vs/base/parts/quickinput/browser/quickInputUtils';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IQuickInputOptions } from 'vs/base/parts/quickinput/browser/quickInput';
-import { IListOptions, List, IListStyles, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
+import { getIconClass } from 'vs/base/parts/quickinput/browser/quickInputUtils';
+import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator } from 'vs/base/parts/quickinput/common/quickInput';
+import 'vs/css!./media/quickInput';
 import { localize } from 'vs/nls';
 
 const $ = dom.$;
@@ -293,7 +294,7 @@ export class QuickInputList {
 				case KeyCode.Space:
 					this.toggleCheckbox();
 					break;
-				case KeyCode.KEY_A:
+				case KeyCode.KeyA:
 					if (platform.isMacintosh ? e.metaKey : e.ctrlKey) {
 						this.list.setFocus(range(this.list.length));
 					}
@@ -359,6 +360,14 @@ export class QuickInputList {
 	@memoize
 	get onDidChangeSelection() {
 		return Event.map(this.list.onDidChangeSelection, e => ({ items: e.elements.map(e => e.item), event: e.browserEvent }));
+	}
+
+	get scrollTop() {
+		return this.list.scrollTop;
+	}
+
+	set scrollTop(scrollTop: number) {
+		this.list.scrollTop = scrollTop;
 	}
 
 	getAllVisibleChecked() {
@@ -427,7 +436,7 @@ export class QuickInputList {
 				const saneDescription = item.description && item.description.replace(/\r?\n/g, ' ');
 				const saneDetail = item.detail && item.detail.replace(/\r?\n/g, ' ');
 				const saneAriaLabel = item.ariaLabel || [saneLabel, saneDescription, saneDetail]
-					.map(s => s && parseLabelWithIcons(s).text)
+					.map(s => getCodiconAriaLabel(s))
 					.filter(s => !!s)
 					.join(', ');
 
@@ -603,6 +612,7 @@ export class QuickInputList {
 
 		// Filter by value (since we support icons in labels, use $(..) aware fuzzy matching)
 		else {
+			let currentSeparator: IQuickPickSeparator | undefined;
 			this.elements.forEach(element => {
 				const labelHighlights = this.matchOnLabel ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneLabel))) : undefined;
 				const descriptionHighlights = this.matchOnDescription ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneDescription || ''))) : undefined;
@@ -621,6 +631,16 @@ export class QuickInputList {
 					element.hidden = !element.item.alwaysShow;
 				}
 				element.separator = undefined;
+
+				// we can show the separator unless the list gets sorted by match
+				if (!this.sortByLabel) {
+					const previous = element.index && this.inputElements[element.index - 1];
+					currentSeparator = previous && previous.type === 'separator' ? previous : currentSeparator;
+					if (currentSeparator && !element.hidden) {
+						element.separator = currentSeparator;
+						currentSeparator = undefined;
+					}
+				}
 			});
 		}
 

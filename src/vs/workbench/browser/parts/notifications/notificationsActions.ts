@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/notificationsActions';
-import { INotificationViewItem } from 'vs/workbench/common/notifications';
+import { INotificationViewItem, isNotificationViewItem } from 'vs/workbench/common/notifications';
 import { localize } from 'vs/nls';
 import { Action, IAction, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -37,7 +37,7 @@ export class ClearNotificationAction extends Action {
 		super(id, label, ThemeIcon.asClassName(clearIcon));
 	}
 
-	async run(notification: INotificationViewItem): Promise<void> {
+	override async run(notification: INotificationViewItem): Promise<void> {
 		this.commandService.executeCommand(CLEAR_NOTIFICATION, notification);
 	}
 }
@@ -55,7 +55,7 @@ export class ClearAllNotificationsAction extends Action {
 		super(id, label, ThemeIcon.asClassName(clearAllIcon));
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.commandService.executeCommand(CLEAR_ALL_NOTIFICATIONS);
 	}
 }
@@ -73,7 +73,7 @@ export class HideNotificationsCenterAction extends Action {
 		super(id, label, ThemeIcon.asClassName(hideIcon));
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.commandService.executeCommand(HIDE_NOTIFICATIONS_CENTER);
 	}
 }
@@ -91,7 +91,7 @@ export class ExpandNotificationAction extends Action {
 		super(id, label, ThemeIcon.asClassName(expandIcon));
 	}
 
-	async run(notification: INotificationViewItem): Promise<void> {
+	override async run(notification: INotificationViewItem): Promise<void> {
 		this.commandService.executeCommand(EXPAND_NOTIFICATION, notification);
 	}
 }
@@ -109,7 +109,7 @@ export class CollapseNotificationAction extends Action {
 		super(id, label, ThemeIcon.asClassName(collapseIcon));
 	}
 
-	async run(notification: INotificationViewItem): Promise<void> {
+	override async run(notification: INotificationViewItem): Promise<void> {
 		this.commandService.executeCommand(COLLAPSE_NOTIFICATION, notification);
 	}
 }
@@ -122,7 +122,7 @@ export class ConfigureNotificationAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		public readonly configurationActions: ReadonlyArray<IAction>
+		readonly configurationActions: readonly IAction[]
 	) {
 		super(id, label, ThemeIcon.asClassName(configureIcon));
 	}
@@ -141,20 +141,23 @@ export class CopyNotificationMessageAction extends Action {
 		super(id, label);
 	}
 
-	run(notification: INotificationViewItem): Promise<void> {
+	override run(notification: INotificationViewItem): Promise<void> {
 		return this.clipboardService.writeText(notification.message.raw);
 	}
 }
 
 interface NotificationActionMetrics {
-	id: number;
+	id: string;
 	actionLabel: string;
-	source: string | undefined;
+	source: string;
+	silent: boolean;
 }
+
 type NotificationActionMetricsClassification = {
 	id: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 	actionLabel: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	silent: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 };
 
 export class NotificationActionRunner extends ActionRunner {
@@ -166,11 +169,18 @@ export class NotificationActionRunner extends ActionRunner {
 		super();
 	}
 
-	protected async runAction(action: IAction, context: INotificationViewItem | undefined): Promise<void> {
+	protected override async runAction(action: IAction, context: unknown): Promise<void> {
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: action.id, from: 'message' });
-		if (context) {
-			// If the context is not present it is a "global" notification action. Will be captured by other events
-			this.telemetryService.publicLog2<NotificationActionMetrics, NotificationActionMetricsClassification>('notification:actionExecuted', { id: hash(context.message.original.toString()), actionLabel: action.label, source: context.sourceId });
+
+		if (isNotificationViewItem(context)) {
+			// Log some additional telemetry specifically for actions
+			// that are triggered from within notifications.
+			this.telemetryService.publicLog2<NotificationActionMetrics, NotificationActionMetricsClassification>('notification:actionExecuted', {
+				id: hash(context.message.original.toString()).toString(),
+				actionLabel: action.label,
+				source: context.sourceId || 'core',
+				silent: context.silent
+			});
 		}
 
 		// Run and make sure to notify on any error again

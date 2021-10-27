@@ -14,6 +14,7 @@ import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import type * as vscode from 'vscode';
 import { assertIsDefined } from 'vs/base/common/types';
 import { deepFreeze } from 'vs/base/common/objects';
+import { TextDocumentChangeReason } from 'vs/workbench/api/common/extHostTypes';
 
 export class ExtHostDocuments implements ExtHostDocumentsShape {
 
@@ -134,7 +135,8 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		data._acceptIsDirty(isDirty);
 		this._onDidChangeDocument.fire({
 			document: data.document,
-			contentChanges: []
+			contentChanges: [],
+			reason: undefined
 		});
 	}
 
@@ -146,6 +148,14 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		}
 		data._acceptIsDirty(isDirty);
 		data.onEvents(events);
+
+		let reason: vscode.TextDocumentChangeReason | undefined = undefined;
+		if (events.isUndoing) {
+			reason = TextDocumentChangeReason.Undo;
+		} else if (events.isRedoing) {
+			reason = TextDocumentChangeReason.Redo;
+		}
+
 		this._onDidChangeDocument.fire(deepFreeze({
 			document: data.document,
 			contentChanges: events.changes.map((change) => {
@@ -155,11 +165,12 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 					rangeLength: change.rangeLength,
 					text: change.text
 				};
-			})
+			}),
+			reason
 		}));
 	}
 
-	public setWordDefinitionFor(modeId: string, wordDefinition: RegExp | undefined): void {
-		setWordDefinitionFor(modeId, wordDefinition);
+	public setWordDefinitionFor(languageId: string, wordDefinition: RegExp | undefined): void {
+		setWordDefinitionFor(languageId, wordDefinition);
 	}
 }

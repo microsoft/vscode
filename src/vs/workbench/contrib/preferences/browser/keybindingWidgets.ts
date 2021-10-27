@@ -10,7 +10,8 @@ import { Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecy
 import { Event, Emitter } from 'vs/base/common/event';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { Widget } from 'vs/base/browser/ui/widget';
-import { ResolvedKeybinding, KeyCode } from 'vs/base/common/keyCodes';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
@@ -18,13 +19,13 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler, attachKeybindingLabelStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorWidgetBackground, editorWidgetForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { SearchWidget, SearchOptions } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { timeout } from 'vs/base/common/async';
+import { Promises, timeout } from 'vs/base/common/async';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export interface KeybindingsSearchOptions extends SearchOptions {
@@ -54,12 +55,12 @@ export class KeybindingsSearchWidget extends SearchWidget {
 
 	constructor(parent: HTMLElement, options: KeybindingsSearchOptions,
 		@IContextViewService contextViewService: IContextViewService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super(parent, options, contextViewService, instantiationService, themeService, contextKeyService);
+		super(parent, options, contextViewService, instantiationService, themeService, contextKeyService, keybindingService);
 		this._register(attachInputBoxStyler(this.inputBox, themeService));
 		this._register(toDisposable(() => this.stopRecordingKeys()));
 		this._firstPart = null;
@@ -69,7 +70,7 @@ export class KeybindingsSearchWidget extends SearchWidget {
 		this._reset();
 	}
 
-	clear(): void {
+	override clear(): void {
 		this._reset();
 		super.clear();
 	}
@@ -166,6 +167,9 @@ export class DefineKeybindingWidget extends Widget {
 	private _onShowExistingKeybindings = this._register(new Emitter<string | null>());
 	readonly onShowExistingKeybidings: Event<string | null> = this._onShowExistingKeybindings.event;
 
+	private disposables = this._register(new DisposableStore());
+	private keybindingLabelStylers = this.disposables.add(new DisposableStore());
+
 	constructor(
 		parent: HTMLElement | null,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -222,7 +226,7 @@ export class DefineKeybindingWidget extends Widget {
 
 	define(): Promise<string | null> {
 		this._keybindingInputWidget.clear();
-		return new Promise<string | null>(async (c) => {
+		return Promises.withAsyncBody<string | null>(async (c) => {
 			if (!this._isVisible) {
 				this._isVisible = true;
 				this._domNode.setDisplay('block');
@@ -272,11 +276,20 @@ export class DefineKeybindingWidget extends Widget {
 		this._chordPart = chordPart;
 		dom.clearNode(this._outputNode);
 		dom.clearNode(this._showExistingKeybindingsNode);
-		new KeybindingLabel(this._outputNode, OS).set(withNullAsUndefined(this._firstPart));
+
+		this.keybindingLabelStylers.clear();
+
+		const firstLabel = new KeybindingLabel(this._outputNode, OS);
+		firstLabel.set(withNullAsUndefined(this._firstPart));
+		this.keybindingLabelStylers.add(attachKeybindingLabelStyler(firstLabel, this.themeService));
+
 		if (this._chordPart) {
 			this._outputNode.appendChild(document.createTextNode(nls.localize('defineKeybinding.chordsTo', "chord to")));
-			new KeybindingLabel(this._outputNode, OS).set(this._chordPart);
+			const chordLabel = new KeybindingLabel(this._outputNode, OS);
+			chordLabel.set(this._chordPart);
+			this.keybindingLabelStylers.add(attachKeybindingLabelStyler(chordLabel, this.themeService));
 		}
+
 		const label = this.getUserSettingsLabel();
 		if (label) {
 			this._onDidChange.fire(label);
@@ -336,7 +349,7 @@ export class DefineKeybindingOverlayWidget extends Disposable implements IOverla
 		};
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._editor.removeOverlayWidget(this);
 		super.dispose();
 	}

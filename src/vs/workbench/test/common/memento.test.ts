@@ -14,6 +14,8 @@ suite('Memento', () => {
 
 	setup(() => {
 		storage = new TestStorageService();
+		Memento.clear(StorageScope.GLOBAL);
+		Memento.clear(StorageScope.WORKSPACE);
 	});
 
 	test('Loading and Saving Memento with Scopes', () => {
@@ -175,5 +177,31 @@ suite('Memento', () => {
 
 		memento = myMemento2.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		assert.deepStrictEqual(memento, { foo: 'Hello World', bar: 'Hello World' });
+	});
+
+	test('Clear Memento', () => {
+		let myMemento = new Memento('memento.test', storage);
+
+		// Global
+		let globalMemento = myMemento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
+		globalMemento.foo = 'Hello World';
+
+		// Workspace
+		let workspaceMemento = myMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		workspaceMemento.bar = 'Hello World';
+
+		myMemento.saveMemento();
+
+		// Clear
+		storage = new TestStorageService();
+		Memento.clear(StorageScope.GLOBAL);
+		Memento.clear(StorageScope.WORKSPACE);
+
+		myMemento = new Memento('memento.test', storage);
+		globalMemento = myMemento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
+		workspaceMemento = myMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
+
+		assert.deepStrictEqual(globalMemento, {});
+		assert.deepStrictEqual(workspaceMemento, {});
 	});
 });

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator as createServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { isWindows } from 'vs/base/common/platform';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { URI } from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { isWindows } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { createDecorator as createServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const ILogService = createServiceDecorator<ILogService>('logService');
 export const ILoggerService = createServiceDecorator<ILoggerService>('loggerService');
@@ -79,9 +79,14 @@ export interface ILoggerService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Creates a logger
+	 * Creates a logger, or gets one if it already exists.
 	 */
 	createLogger(file: URI, options?: ILoggerOptions): ILogger;
+
+	/**
+	 * Gets an existing logger, if any.
+	 */
+	getLogger(file: URI): ILogger | undefined;
 }
 
 export abstract class AbstractLogger extends Disposable {
@@ -250,7 +255,7 @@ export class ConsoleMainLogger extends AbstractLogger implements ILogger {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		// noop
 	}
 
@@ -303,7 +308,7 @@ export class ConsoleLogger extends AbstractLogger implements ILogger {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		// noop
 	}
 
@@ -363,7 +368,7 @@ export class AdapterLogger extends AbstractLogger implements ILogger {
 		return toErrorMessage(msg, this.getLevel() <= LogLevel.Trace);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		// noop
 	}
 
@@ -382,7 +387,7 @@ export class MultiplexLogService extends AbstractLogger implements ILogService {
 		}
 	}
 
-	setLevel(level: LogLevel): void {
+	override setLevel(level: LogLevel): void {
 		for (const logService of this.logServices) {
 			logService.setLevel(level);
 		}
@@ -431,7 +436,7 @@ export class MultiplexLogService extends AbstractLogger implements ILogService {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		for (const logService of this.logServices) {
 			logService.dispose();
 		}
@@ -485,6 +490,50 @@ export class LogService extends Disposable implements ILogService {
 	flush(): void {
 		this.logger.flush();
 	}
+}
+
+export abstract class AbstractLoggerService extends Disposable implements ILoggerService {
+
+	declare readonly _serviceBrand: undefined;
+
+	private readonly loggers = new Map<string, ILogger>();
+	private readonly logLevelChangeableLoggers: ILogger[] = [];
+
+	constructor(
+		private logLevel: LogLevel,
+		onDidChangeLogLevel: Event<LogLevel>,
+	) {
+		super();
+		this._register(onDidChangeLogLevel(logLevel => {
+			this.logLevel = logLevel;
+			this.logLevelChangeableLoggers.forEach(logger => logger.setLevel(logLevel));
+		}));
+	}
+
+	getLogger(resource: URI) {
+		return this.loggers.get(resource.toString());
+	}
+
+	createLogger(resource: URI, options?: ILoggerOptions): ILogger {
+		let logger = this.loggers.get(resource.toString());
+		if (!logger) {
+			logger = this.doCreateLogger(resource, options?.always ? LogLevel.Trace : this.logLevel, options);
+			this.loggers.set(resource.toString(), logger);
+			if (!options?.always) {
+				this.logLevelChangeableLoggers.push(logger);
+			}
+		}
+		return logger;
+	}
+
+	override dispose(): void {
+		this.logLevelChangeableLoggers.splice(0, this.logLevelChangeableLoggers.length);
+		this.loggers.forEach(logger => logger.dispose());
+		this.loggers.clear();
+		super.dispose();
+	}
+
+	protected abstract doCreateLogger(resource: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger;
 }
 
 export class NullLogService implements ILogService {
@@ -546,4 +595,3 @@ export function LogLevelToString(logLevel: LogLevel): string {
 		case LogLevel.Off: return 'off';
 	}
 }
-

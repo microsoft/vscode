@@ -11,6 +11,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Mimes } from 'vs/base/common/mime';
 import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { ITextAreaWrapper, ITypeData, TextAreaState, _debugComposition } from 'vs/editor/browser/controller/textAreaState';
@@ -524,7 +525,7 @@ export class TextAreaInput extends Disposable {
 		});
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		super.dispose();
 		if (this._selectionChangeListener) {
 			this._selectionChangeListener.dispose();
@@ -643,9 +644,6 @@ class ClipboardEventUtils {
 		if (e.clipboardData) {
 			return true;
 		}
-		if ((<any>window).clipboardData) {
-			return true;
-		}
 		return false;
 	}
 
@@ -653,7 +651,7 @@ class ClipboardEventUtils {
 		if (e.clipboardData) {
 			e.preventDefault();
 
-			const text = e.clipboardData.getData('text/plain');
+			const text = e.clipboardData.getData(Mimes.text);
 			let metadata: ClipboardStoredMetadata | null = null;
 			const rawmetadata = e.clipboardData.getData('vscode-editor-data');
 			if (typeof rawmetadata === 'string') {
@@ -670,28 +668,16 @@ class ClipboardEventUtils {
 			return [text, metadata];
 		}
 
-		if ((<any>window).clipboardData) {
-			e.preventDefault();
-			const text: string = (<any>window).clipboardData.getData('Text');
-			return [text, null];
-		}
-
 		throw new Error('ClipboardEventUtils.getTextData: Cannot use text data!');
 	}
 
 	public static setTextData(e: ClipboardEvent, text: string, html: string | null | undefined, metadata: ClipboardStoredMetadata): void {
 		if (e.clipboardData) {
-			e.clipboardData.setData('text/plain', text);
+			e.clipboardData.setData(Mimes.text, text);
 			if (typeof html === 'string') {
 				e.clipboardData.setData('text/html', html);
 			}
 			e.clipboardData.setData('vscode-editor-data', JSON.stringify(metadata));
-			e.preventDefault();
-			return;
-		}
-
-		if ((<any>window).clipboardData) {
-			(<any>window).clipboardData.setData('Text', text);
 			e.preventDefault();
 			return;
 		}

@@ -8,7 +8,7 @@ import { compare, compareSubstring } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, LanguageId, CompletionItemInsertTextRule, CompletionContext, CompletionTriggerKind, CompletionItemLabel } from 'vs/editor/common/modes';
+import { CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, CompletionItemInsertTextRule, CompletionContext, CompletionTriggerKind, CompletionItemLabel } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { localize } from 'vs/nls';
@@ -33,7 +33,7 @@ export class SnippetCompletion implements CompletionItem {
 		readonly snippet: Snippet,
 		range: IRange | { insert: IRange, replace: IRange }
 	) {
-		this.label = { name: snippet.prefix, type: snippet.name };
+		this.label = { label: snippet.prefix, description: snippet.name };
 		this.detail = localize('detail.snippet', "{0} ({1})", snippet.description || snippet.name, snippet.source);
 		this.insertText = snippet.codeSnippet;
 		this.range = range;
@@ -48,7 +48,7 @@ export class SnippetCompletion implements CompletionItem {
 	}
 
 	static compareByLabel(a: SnippetCompletion, b: SnippetCompletion): number {
-		return compare(a.label.name, b.label.name);
+		return compare(a.label.label, b.label.label);
 	}
 }
 
@@ -156,10 +156,10 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 			let item = suggestions[i];
 			let to = i + 1;
 			for (; to < suggestions.length && item.label === suggestions[to].label; to++) {
-				suggestions[to].label.name = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[to].label.name, suggestions[to].snippet.name);
+				suggestions[to].label.label = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[to].label.label, suggestions[to].snippet.name);
 			}
 			if (to > i + 1) {
-				suggestions[i].label.name = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[i].label.name, suggestions[i].snippet.name);
+				suggestions[i].label.label = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[i].label.label, suggestions[i].snippet.name);
 				i = to;
 			}
 		}
@@ -174,15 +174,15 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		return (item instanceof SnippetCompletion) ? item.resolve() : item;
 	}
 
-	private _getLanguageIdAtPosition(model: ITextModel, position: Position): LanguageId {
+	private _getLanguageIdAtPosition(model: ITextModel, position: Position): string {
 		// validate the `languageId` to ensure this is a user
 		// facing language with a name and the chance to have
 		// snippets, else fall back to the outer language
 		model.tokenizeIfCheap(position.lineNumber);
-		let languageId = model.getLanguageIdAtPosition(position.lineNumber, position.column);
-		const languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
-		if (languageIdentifier && !this._modeService.getLanguageName(languageIdentifier.language)) {
-			languageId = model.getLanguageIdentifier().id;
+		let languageId: string | null = model.getLanguageIdAtPosition(position.lineNumber, position.column);
+		languageId = this._modeService.validateLanguageId(languageId);
+		if (!languageId || !this._modeService.getLanguageName(languageId)) {
+			languageId = model.getLanguageId();
 		}
 		return languageId;
 	}

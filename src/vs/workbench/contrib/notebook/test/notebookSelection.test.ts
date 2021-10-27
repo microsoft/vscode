@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
+import { runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { NotebookCellSelectionCollection } from 'vs/workbench/contrib/notebook/browser/viewModel/cellSelectionCollection';
 import { CellEditType, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { createNotebookCellList, setupInstantiationService, TestCell, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
@@ -21,8 +24,18 @@ suite('NotebookSelection', () => {
 });
 
 suite('NotebookCellList focus/selection', () => {
-	const instantiationService = setupInstantiationService();
-	const textModelService = instantiationService.get(ITextModelService);
+
+	let disposables: DisposableStore;
+	let instantiationService: TestInstantiationService;
+	let modeService: IModeService;
+
+	suiteSetup(() => {
+		disposables = new DisposableStore();
+		instantiationService = setupInstantiationService(disposables);
+		modeService = instantiationService.get(IModeService);
+	});
+
+	suiteTeardown(() => disposables.dispose());
 
 	test('notebook cell list setFocus', async function () {
 		await withTestNotebook(
@@ -30,8 +43,7 @@ suite('NotebookCellList focus/selection', () => {
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}]
 			],
-			(editor) => {
-				const viewModel = editor.viewModel;
+			(editor, viewModel) => {
 				const cellList = createNotebookCellList(instantiationService);
 				cellList.attachViewModel(viewModel);
 
@@ -51,8 +63,7 @@ suite('NotebookCellList focus/selection', () => {
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}]
 			],
-			(editor) => {
-				const viewModel = editor.viewModel;
+			(editor, viewModel) => {
 				const cellList = createNotebookCellList(instantiationService);
 				cellList.attachViewModel(viewModel);
 
@@ -73,8 +84,7 @@ suite('NotebookCellList focus/selection', () => {
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}]
 			],
-			(editor) => {
-				const viewModel = editor.viewModel;
+			(editor, viewModel) => {
 				const cellList = createNotebookCellList(instantiationService);
 				cellList.attachViewModel(viewModel);
 
@@ -94,14 +104,13 @@ suite('NotebookCellList focus/selection', () => {
 	test('notebook cell list focus/selection from UI', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['# header c', 'markdown', CellKind.Markdown, [], {}]
+				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
-			(editor) => {
-				const viewModel = editor.viewModel;
+			(editor, viewModel) => {
 				const cellList = createNotebookCellList(instantiationService);
 				cellList.attachViewModel(viewModel);
 				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
@@ -130,14 +139,13 @@ suite('NotebookCellList focus/selection', () => {
 	test('notebook cell list focus/selection with folding regions', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['# header c', 'markdown', CellKind.Markdown, [], {}]
+				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
-			(editor) => {
-				const viewModel = editor.viewModel;
+			(editor, viewModel) => {
 				const foldingModel = new FoldingModel();
 				foldingModel.attachViewModel(viewModel);
 
@@ -175,16 +183,15 @@ suite('NotebookCellList focus/selection', () => {
 	test('notebook cell list focus/selection with folding regions and applyEdits', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3', 'javascript', CellKind.Markdown, [], {}],
-				['# header d', 'markdown', CellKind.Markdown, [], {}],
+				['var c = 3', 'javascript', CellKind.Markup, [], {}],
+				['# header d', 'markdown', CellKind.Markup, [], {}],
 				['var e = 4;', 'javascript', CellKind.Code, [], {}],
 			],
-			(editor) => {
-				const viewModel = editor.viewModel;
+			(editor, viewModel) => {
 				const foldingModel = new FoldingModel();
 				foldingModel.attachViewModel(viewModel);
 
@@ -200,7 +207,7 @@ suite('NotebookCellList focus/selection', () => {
 				assert.strictEqual(cellList.getModelIndex2(0), 0);
 				assert.strictEqual(cellList.getModelIndex2(1), 2);
 
-				viewModel.notebookDocument.applyEdits([{
+				editor.textModel.applyEdits([{
 					editType: CellEditType.Replace, index: 0, count: 2, cells: []
 				}], true, undefined, () => undefined, undefined, false);
 				viewModel.updateFoldingRanges(foldingModel.regions);
@@ -210,10 +217,10 @@ suite('NotebookCellList focus/selection', () => {
 				assert.strictEqual(cellList.getModelIndex2(1), 3);
 
 				// mimic undo
-				viewModel.notebookDocument.applyEdits([{
+				editor.textModel.applyEdits([{
 					editType: CellEditType.Replace, index: 0, count: 0, cells: [
-						new TestCell(viewModel.viewType, 7, '# header f', 'markdown', CellKind.Code, [], textModelService),
-						new TestCell(viewModel.viewType, 8, 'var g = 5;', 'javascript', CellKind.Code, [], textModelService)
+						new TestCell(viewModel.viewType, 7, '# header f', 'markdown', CellKind.Code, [], modeService),
+						new TestCell(viewModel.viewType, 8, 'var g = 5;', 'javascript', CellKind.Code, [], modeService)
 					]
 				}], true, undefined, () => undefined, undefined, false);
 				viewModel.updateFoldingRanges(foldingModel.regions);
@@ -229,14 +236,13 @@ suite('NotebookCellList focus/selection', () => {
 	test('notebook cell list getModelIndex', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['# header c', 'markdown', CellKind.Markdown, [], {}]
+				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
-			(editor) => {
-				const viewModel = editor.viewModel;
+			(editor, viewModel) => {
 				const foldingModel = new FoldingModel();
 				foldingModel.attachViewModel(viewModel);
 
@@ -259,11 +265,10 @@ suite('NotebookCellList focus/selection', () => {
 	test('notebook validate range', async () => {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}]
 			],
-			(editor) => {
-				const viewModel = editor.viewModel;
+			(editor, viewModel) => {
 				assert.deepStrictEqual(viewModel.validateRange(null), null);
 				assert.deepStrictEqual(viewModel.validateRange(undefined), null);
 				assert.deepStrictEqual(viewModel.validateRange({ start: 0, end: 0 }), null);
@@ -279,11 +284,10 @@ suite('NotebookCellList focus/selection', () => {
 	test('notebook updateSelectionState', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}]
 			],
-			(editor) => {
-				const viewModel = editor.viewModel;
+			(editor, viewModel) => {
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 1, end: 2 }, { start: -1, end: 0 }] });
 				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 1, end: 2 }]);
 			});
@@ -292,15 +296,35 @@ suite('NotebookCellList focus/selection', () => {
 	test('notebook cell selection w/ cell deletion', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}]
 			],
-			(editor) => {
-				const viewModel = editor.viewModel;
+			(editor, viewModel) => {
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 1, end: 2 }] });
-				viewModel.deleteCell(1, true, false);
+				runDeleteAction(editor, viewModel.cellAt(1)!);
+				// viewModel.deleteCell(1, true, false);
 				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
-				assert.deepStrictEqual(viewModel.getSelections(), []);
+				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 0, end: 1 }]);
+			});
+	});
+
+	test('notebook cell selection w/ cell deletion from applyEdits', async function () {
+		await withTestNotebook(
+			[
+				['# header a', 'markdown', CellKind.Markup, [], {}],
+				['var b = 1;', 'javascript', CellKind.Code, [], {}],
+				['var c = 2;', 'javascript', CellKind.Code, [], {}]
+			],
+			async (editor, viewModel) => {
+				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 1, end: 2 }] });
+				editor.textModel.applyEdits([{
+					editType: CellEditType.Replace,
+					index: 1,
+					count: 1,
+					cells: []
+				}], true, undefined, () => undefined, undefined, true);
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 1, end: 2 });
+				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 1, end: 2 }]);
 			});
 	});
 });

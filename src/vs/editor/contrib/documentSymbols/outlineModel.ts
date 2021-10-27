@@ -6,16 +6,16 @@
 import { binarySearch, coalesceInPlace, equals } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { Iterable } from 'vs/base/common/iterator';
 import { LRUCache } from 'vs/base/common/map';
 import { commonPrefixLength } from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { DocumentSymbol, DocumentSymbolProvider, DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
-import { MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { Iterable } from 'vs/base/common/iterator';
 import { LanguageFeatureRequestDelays } from 'vs/editor/common/modes/languageFeatureRegistry';
-import { URI } from 'vs/base/common/uri';
+import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 
 export abstract class TreeElement {
 

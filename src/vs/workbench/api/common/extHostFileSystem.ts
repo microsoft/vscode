@@ -205,12 +205,12 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	}
 
 	private static _asIStat(stat: vscode.FileStat): files.IStat {
-		const { type, ctime, mtime, size } = stat;
-		return { type, ctime, mtime, size };
+		const { type, ctime, mtime, size, permissions } = stat;
+		return { type, ctime, mtime, size, permissions };
 	}
 
 	$stat(handle: number, resource: UriComponents): Promise<files.IStat> {
-		return Promise.resolve(this._getFsProvider(handle).stat(URI.revive(resource))).then(ExtHostFileSystem._asIStat);
+		return Promise.resolve(this._getFsProvider(handle).stat(URI.revive(resource))).then(stat => ExtHostFileSystem._asIStat(stat));
 	}
 
 	$readdir(handle: number, resource: UriComponents): Promise<[string, files.FileType][]> {

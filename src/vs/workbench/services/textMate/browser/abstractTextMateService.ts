@@ -13,13 +13,12 @@ import * as types from 'vs/base/common/types';
 import { equals as equalArray } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
 import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
-import { IState, ITokenizationSupport, LanguageId, TokenMetadata, TokenizationRegistry, StandardTokenType, LanguageIdentifier } from 'vs/editor/common/modes';
+import { IState, ITokenizationSupport, LanguageId, TokenMetadata, TokenizationRegistry, StandardTokenType } from 'vs/editor/common/modes';
 import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ITMSyntaxExtensionPoint, grammarsExtPoint } from 'vs/workbench/services/textMate/common/TMGrammars';
 import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
@@ -35,8 +34,8 @@ import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/
 export abstract class AbstractTextMateService extends Disposable implements ITextMateService {
 	public _serviceBrand: undefined;
 
-	private readonly _onDidEncounterLanguage: Emitter<LanguageId> = this._register(new Emitter<LanguageId>());
-	public readonly onDidEncounterLanguage: Event<LanguageId> = this._onDidEncounterLanguage.event;
+	private readonly _onDidEncounterLanguage: Emitter<string> = this._register(new Emitter<string>());
+	public readonly onDidEncounterLanguage: Event<string> = this._onDidEncounterLanguage.event;
 
 	private readonly _styleElement: HTMLStyleElement;
 	private readonly _createdModes: string[];
@@ -52,13 +51,12 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 	protected _currentTokenColorMap: string[] | null;
 
 	constructor(
-		@IModeService private readonly _modeService: IModeService,
+		@IModeService protected readonly _modeService: IModeService,
 		@IWorkbenchThemeService private readonly _themeService: IWorkbenchThemeService,
 		@IExtensionResourceLoaderService protected readonly _extensionResourceLoaderService: IExtensionResourceLoaderService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IStorageService private readonly _storageService: IStorageService,
 		@IProgressService private readonly _progressService: IProgressService
 	) {
 		super();
@@ -105,9 +103,9 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 								// never hurts to be too careful
 								continue;
 							}
-							let languageIdentifier = this._modeService.getLanguageIdentifier(language);
-							if (languageIdentifier) {
-								embeddedLanguages[scope] = languageIdentifier.id;
+							const validLanguageId = this._modeService.validateLanguageId(language);
+							if (validLanguageId) {
+								embeddedLanguages[scope] = this._modeService.languageIdCodec.encodeLanguageId(validLanguageId);
 							}
 						}
 					}
@@ -131,14 +129,14 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 						}
 					}
 
-					let languageIdentifier: LanguageIdentifier | null = null;
+					let validLanguageId: string | null = null;
 					if (grammar.language) {
-						languageIdentifier = this._modeService.getLanguageIdentifier(grammar.language);
+						validLanguageId = this._modeService.validateLanguageId(grammar.language);
 					}
 
 					this._grammarDefinitions.push({
 						location: grammarLocation,
-						language: languageIdentifier ? languageIdentifier.id : undefined,
+						language: validLanguageId ? validLanguageId : undefined,
 						scopeName: grammar.scopeName,
 						embeddedLanguages: embeddedLanguages,
 						tokenTypes: tokenTypes,
@@ -175,10 +173,9 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 		}
 		TokenizationRegistry.setColorMap([null!, defaultForeground, defaultBackground]);
 
-		this._modeService.onDidCreateMode((mode) => {
-			let modeId = mode.getId();
-			this._createdModes.push(modeId);
-			this._registerDefinitionIfAvailable(modeId);
+		this._modeService.onDidEncounterLanguage((languageId) => {
+			this._createdModes.push(languageId);
+			this._registerDefinitionIfAvailable(languageId);
 		});
 	}
 
@@ -255,35 +252,35 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 		return this._grammarFactory;
 	}
 
-	private _registerDefinitionIfAvailable(modeId: string): void {
-		const languageIdentifier = this._modeService.getLanguageIdentifier(modeId);
-		if (!languageIdentifier) {
+	private _registerDefinitionIfAvailable(languageId: string): void {
+		if (!this._modeService.validateLanguageId(languageId)) {
 			return;
 		}
 		if (!this._canCreateGrammarFactory()) {
 			return;
 		}
-		const languageId = languageIdentifier.id;
+		const encodedLanguageId = this._modeService.languageIdCodec.encodeLanguageId(languageId);
 
 		// Here we must register the promise ASAP (without yielding!)
-		this._tokenizersRegistrations.push(TokenizationRegistry.registerPromise(modeId, (async () => {
+		this._tokenizersRegistrations.push(TokenizationRegistry.registerPromise(languageId, (async () => {
 			try {
 				const grammarFactory = await this._getOrCreateGrammarFactory();
 				if (!grammarFactory.has(languageId)) {
 					return null;
 				}
-				const r = await grammarFactory.createGrammar(languageId);
+				const r = await grammarFactory.createGrammar(languageId, encodedLanguageId);
 				if (!r.grammar) {
 					return null;
 				}
 				const tokenization = new TMTokenization(r.grammar, r.initialState, r.containsEmbeddedLanguages);
-				tokenization.onDidEncounterLanguage((languageId) => {
-					if (!this._encounteredLanguages[languageId]) {
-						this._encounteredLanguages[languageId] = true;
+				tokenization.onDidEncounterLanguage((encodedLanguageId) => {
+					if (!this._encounteredLanguages[encodedLanguageId]) {
+						const languageId = this._modeService.languageIdCodec.decodeLanguageId(encodedLanguageId);
+						this._encounteredLanguages[encodedLanguageId] = true;
 						this._onDidEncounterLanguage.fire(languageId);
 					}
 				});
-				return new TMTokenizationSupport(r.languageId, tokenization, this._notificationService, this._configurationService, this._storageService);
+				return new TMTokenizationSupport(languageId, encodedLanguageId, tokenization, this._configurationService);
 			} catch (err) {
 				onUnexpectedError(err);
 				return null;
@@ -373,16 +370,16 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 		return true;
 	}
 
-	public async createGrammar(modeId: string): Promise<IGrammar | null> {
-		const languageId = this._modeService.getLanguageIdentifier(modeId);
-		if (!languageId) {
+	public async createGrammar(languageId: string): Promise<IGrammar | null> {
+		if (!this._modeService.validateLanguageId(languageId)) {
 			return null;
 		}
 		const grammarFactory = await this._getOrCreateGrammarFactory();
-		if (!grammarFactory.has(languageId.id)) {
+		if (!grammarFactory.has(languageId)) {
 			return null;
 		}
-		const { grammar } = await grammarFactory.createGrammar(languageId.id);
+		const encodedLanguageId = this._modeService.languageIdCodec.encodeLanguageId(languageId);
+		const { grammar } = await grammarFactory.createGrammar(languageId, encodedLanguageId);
 		return grammar;
 	}
 
@@ -415,28 +412,29 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 	protected abstract _loadVSCodeOnigurumWASM(): Promise<Response | ArrayBuffer>;
 }
 
-const donotAskUpdateKey = 'editor.maxTokenizationLineLength.donotask';
-
 class TMTokenizationSupport implements ITokenizationSupport {
-	private readonly _languageId: LanguageId;
+	private readonly _languageId: string;
+	private readonly _encodedLanguageId: LanguageId;
 	private readonly _actual: TMTokenization;
-	private _tokenizationWarningAlreadyShown: boolean;
 	private _maxTokenizationLineLength: number;
 
 	constructor(
-		languageId: LanguageId,
+		languageId: string,
+		encodedLanguageId: LanguageId,
 		actual: TMTokenization,
-		@INotificationService private readonly _notificationService: INotificationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IStorageService private readonly _storageService: IStorageService
 	) {
 		this._languageId = languageId;
+		this._encodedLanguageId = encodedLanguageId;
 		this._actual = actual;
-		this._tokenizationWarningAlreadyShown = !!(this._storageService.getBoolean(donotAskUpdateKey, StorageScope.GLOBAL));
-		this._maxTokenizationLineLength = this._configurationService.getValue<number>('editor.maxTokenizationLineLength');
+		this._maxTokenizationLineLength = this._configurationService.getValue<number>('editor.maxTokenizationLineLength', {
+			overrideIdentifier: this._languageId
+		});
 		this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor.maxTokenizationLineLength')) {
-				this._maxTokenizationLineLength = this._configurationService.getValue<number>('editor.maxTokenizationLineLength');
+				this._maxTokenizationLineLength = this._configurationService.getValue<number>('editor.maxTokenizationLineLength', {
+					overrideIdentifier: this._languageId
+				});
 			}
 		});
 	}
@@ -456,20 +454,7 @@ class TMTokenizationSupport implements ITokenizationSupport {
 
 		// Do not attempt to tokenize if a line is too long
 		if (line.length >= this._maxTokenizationLineLength) {
-			if (!this._tokenizationWarningAlreadyShown) {
-				this._tokenizationWarningAlreadyShown = true;
-				this._notificationService.prompt(
-					Severity.Warning,
-					nls.localize('too many characters', "Tokenization is skipped for long lines for performance reasons. The length of a long line can be configured via `editor.maxTokenizationLineLength`."),
-					[{
-						label: nls.localize('neverAgain', "Don't Show Again"),
-						isSecondary: true,
-						run: () => this._storageService.store(donotAskUpdateKey, true, StorageScope.GLOBAL, StorageTarget.USER)
-					}]
-				);
-			}
-			console.log(`Line (${line.substr(0, 15)}...): longer than ${this._maxTokenizationLineLength} characters, tokenization skipped.`);
-			return nullTokenize2(this._languageId, line, state, offsetDelta);
+			return nullTokenize2(this._encodedLanguageId, line, state, offsetDelta);
 		}
 
 		return this._actual.tokenize2(line, state);

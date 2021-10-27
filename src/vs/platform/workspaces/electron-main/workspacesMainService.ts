@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AddFirstParameterToFunctions } from 'vs/base/common/types';
-import { IWorkspacesService, IEnterWorkspaceResult, IWorkspaceFolderCreationData, IWorkspaceIdentifier, IRecentlyOpened, IRecent } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
-import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
+import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+import { IEnterWorkspaceResult, IRecent, IRecentlyOpened, IWorkspaceFolderCreationData, IWorkspaceIdentifier, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
+import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 
 export class WorkspacesMainService implements AddFirstParameterToFunctions<IWorkspacesService, Promise<unknown> /* only methods, not events */, number /* window ID */> {
 
@@ -25,13 +25,13 @@ export class WorkspacesMainService implements AddFirstParameterToFunctions<IWork
 
 	//#region Workspace Management
 
-	async enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult | null> {
+	async enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult | undefined> {
 		const window = this.windowsMainService.getWindowById(windowId);
 		if (window) {
 			return this.workspacesManagementMainService.enterWorkspace(window, this.windowsMainService.getWindows(), path);
 		}
 
-		return null;
+		return undefined;
 	}
 
 	createUntitledWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier> {

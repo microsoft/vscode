@@ -19,6 +19,7 @@ export interface TaskPresentationOptionsDTO {
 	showReuseMessage?: boolean;
 	clear?: boolean;
 	group?: string;
+	close?: boolean;
 }
 
 export interface RunOptionsDTO {
@@ -81,6 +82,11 @@ export interface TaskHandleDTO {
 	workspaceFolder: UriComponents | string;
 }
 
+export interface TaskGroupDTO {
+	isDefault?: boolean;
+	_id: string;
+}
+
 export interface TaskDTO {
 	_id: string;
 	name?: string;
@@ -88,7 +94,7 @@ export interface TaskDTO {
 	definition: TaskDefinitionDTO;
 	isBackground?: boolean;
 	source: TaskSourceDTO;
-	group?: string;
+	group?: TaskGroupDTO;
 	detail?: string;
 	presentationOptions?: TaskPresentationOptionsDTO;
 	problemMatchers: string[];

@@ -15,6 +15,7 @@ import { IExtensionManifest, ExtensionType } from 'vs/platform/extensions/common
 import { URI } from 'vs/base/common/uri';
 import { IView, IViewPaneContainer } from 'vs/workbench/common/views';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IExtensionsStatus } from 'vs/workbench/services/extensions/common/extensions';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
 
@@ -44,6 +45,7 @@ export interface IExtension {
 	readonly identifier: IExtensionIdentifier;
 	readonly publisher: string;
 	readonly publisherDisplayName: string;
+	readonly publisherDomain?: { link: string, verified: boolean };
 	readonly version: string;
 	readonly latestVersion: string;
 	readonly description: string;
@@ -57,6 +59,8 @@ export interface IExtension {
 	readonly ratingCount?: number;
 	readonly outdated: boolean;
 	readonly enablementState: EnablementState;
+	readonly tags: readonly string[];
+	readonly categories: readonly string[];
 	readonly dependencies: string[];
 	readonly extensionPack: string[];
 	readonly telemetryData: any;
@@ -85,19 +89,29 @@ export interface IExtensionsWorkbenchService {
 	queryLocal(server?: IExtensionManagementServer): Promise<IExtension[]>;
 	queryGallery(token: CancellationToken): Promise<IPager<IExtension>>;
 	queryGallery(options: IQueryOptions, token: CancellationToken): Promise<IPager<IExtension>>;
-	canInstall(extension: IExtension): boolean;
+	canInstall(extension: IExtension): Promise<boolean>;
 	install(vsix: URI): Promise<IExtension>;
 	install(extension: IExtension, installOptins?: InstallOptions): Promise<IExtension>;
 	uninstall(extension: IExtension): Promise<void>;
 	installVersion(extension: IExtension, version: string): Promise<IExtension>;
 	reinstall(extension: IExtension): Promise<IExtension>;
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;
-	open(extension: IExtension, options?: { sideByside?: boolean, preserveFocus?: boolean, pinned?: boolean }): Promise<any>;
+	open(extension: IExtension, options?: { sideByside?: boolean, preserveFocus?: boolean, pinned?: boolean, tab?: string }): Promise<void>;
 	checkForUpdates(): Promise<void>;
+	getExtensionStatus(extension: IExtension): IExtensionsStatus | undefined;
 
 	// Sync APIs
 	isExtensionIgnoredToSync(extension: IExtension): boolean;
 	toggleExtensionIgnoredToSync(extension: IExtension): Promise<void>;
+}
+
+export const enum ExtensionEditorTab {
+	Readme = 'readme',
+	Contributions = 'contributions',
+	Changelog = 'changelog',
+	Dependencies = 'dependencies',
+	ExtensionPack = 'extensionPack',
+	RuntimeStatus = 'runtimeStatus',
 }
 
 export const ConfigurationKey = 'extensions';
@@ -155,6 +169,8 @@ export const WORKSPACE_RECOMMENDATIONS_VIEW_ID = 'workbench.views.extensions.wor
 export const TOGGLE_IGNORE_EXTENSION_ACTION_ID = 'workbench.extensions.action.toggleIgnoreExtension';
 export const SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID = 'workbench.extensions.action.installVSIX';
 export const INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID = 'workbench.extensions.command.installFromVSIX';
+
+export const LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID = 'workbench.extensions.action.listWorkspaceUnsupportedExtensions';
 
 // Context Keys
 export const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);

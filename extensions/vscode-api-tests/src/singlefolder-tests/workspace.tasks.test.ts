@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomExecution, Pseudoterminal, TaskScope, commands, env, UIKind, ShellExecution, TaskExecution, Terminal, Event, workspace, ConfigurationTarget, TaskProcessStartEvent } from 'vscode';
+import { commands, ConfigurationTarget, CustomExecution, Disposable, env, Event, EventEmitter, Pseudoterminal, ShellExecution, Task, TaskDefinition, TaskExecution, TaskProcessStartEvent, tasks, TaskScope, Terminal, UIKind, window, workspace } from 'vscode';
 import { assertNoRpc } from '../utils';
 
 // Disable tasks tests:
@@ -18,7 +18,7 @@ import { assertNoRpc } from '../utils';
 		// Disable exit alerts as tests may trigger then and we're not testing the notifications
 		await config.update('showExitAlert', false, ConfigurationTarget.Global);
 		// Canvas may cause problems when running in a container
-		await config.update('rendererType', 'dom', ConfigurationTarget.Global);
+		await config.update('gpuAcceleration', 'off', ConfigurationTarget.Global);
 		// Disable env var relaunch for tests to prevent terminals relaunching themselves
 		await config.update('environmentChangesRelaunch', false, ConfigurationTarget.Global);
 	});
@@ -131,6 +131,7 @@ import { assertNoRpc } from '../utils';
 
 		suite('CustomExecution', () => {
 			test('task should start and shutdown successfully', async () => {
+				window.terminals.forEach(terminal => terminal.dispose());
 				interface CustomTestingTaskDefinition extends TaskDefinition {
 					/**
 					 * One of the task properties. This can be used to customize the task in the tasks.json
@@ -203,7 +204,10 @@ import { assertNoRpc } from '../utils';
 
 				// Dispose the terminal
 				await new Promise<void>(r => {
-					disposables.push(window.onDidCloseTerminal(() => {
+					disposables.push(window.onDidCloseTerminal((e) => {
+						if (e !== terminal) {
+							return;
+						}
 						assert.strictEqual(testOrder, TestOrder.TerminalWritten);
 						testOrder = TestOrder.TerminalClosed;
 						// Pseudoterminal.close should have fired by now, additionally we want
@@ -325,6 +329,38 @@ import { assertNoRpc } from '../utils';
 					} else {
 						reject('fetched task can\'t be undefined');
 					}
+				});
+			});
+
+			test('A task can be fetched with default task group information', () => {
+				return new Promise<void>(async (resolve, reject) => {
+					// Add default to tasks.json since this is not possible using an API yet.
+					const tasksConfig = workspace.getConfiguration('tasks');
+					await tasksConfig.update('version', '2.0.0', ConfigurationTarget.Workspace);
+					await tasksConfig.update('tasks', [
+						{
+							label: 'Run this task',
+							type: 'shell',
+							command: 'sleep 1',
+							problemMatcher: [],
+							group: {
+								kind: 'build',
+								isDefault: 'true'
+							}
+						}
+					], ConfigurationTarget.Workspace);
+
+					const task = <Task[]>(await tasks.fetchTasks());
+
+					if (task && task.length > 0) {
+						const grp = task[0].group;
+						assert.strictEqual(grp?.isDefault, true);
+						resolve();
+					} else {
+						reject('fetched task can\'t be undefined');
+					}
+					// Reset tasks.json
+					await tasksConfig.update('tasks', []);
 				});
 			});
 		});

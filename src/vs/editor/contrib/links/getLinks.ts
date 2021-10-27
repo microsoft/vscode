@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { DisposableStore, isDisposable } from 'vs/base/common/lifecycle';
+import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { ILink, LinkProvider, LinkProviderRegistry, ILinksList } from 'vs/editor/common/modes';
+import { ILink, ILinksList, LinkProvider, LinkProviderRegistry } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { isDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { coalesce } from 'vs/base/common/arrays';
-import { assertType } from 'vs/base/common/types';
 
 export class Link implements ILink {
 

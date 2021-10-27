@@ -3,21 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import * as strings from 'vs/base/common/strings';
-import { EditorAutoClosingStrategy, EditorAutoSurroundStrategy, ConfigurationChangedEvent, EditorAutoClosingOvertypeStrategy, EditorOption, EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, EditorAutoClosingEditStrategy, EditorAutoClosingStrategy, EditorAutoIndentStrategy, EditorAutoSurroundStrategy, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { ICommand, IConfiguration } from 'vs/editor/common/editorCommon';
-import { ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
+import { ITextModel, PositionAffinity, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { AutoClosingPairs, IAutoClosingPair } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
-import { Constants } from 'vs/base/common/uint';
+export { CursorColumns } from './cursorColumns';
 
 export interface IColumnSelectData {
 	isReal: boolean;
@@ -39,9 +36,11 @@ export const enum RevealTarget {
  */
 export const enum EditOperationType {
 	Other = 0,
-	Typing = 1,
 	DeletingLeft = 2,
-	DeletingRight = 3
+	DeletingRight = 3,
+	TypingOther = 4,
+	TypingFirstSpace = 5,
+	TypingConsecutiveSpace = 6,
 }
 
 export interface CharacterMap {
@@ -56,7 +55,7 @@ const autoCloseNever = () => false;
 const autoCloseBeforeWhitespace = (chr: string) => (chr === ' ' || chr === '\t');
 
 export class CursorConfiguration {
-	_cursorMoveConfigurationBrand: void;
+	_cursorMoveConfigurationBrand: void = undefined;
 
 	public readonly readOnly: boolean;
 	public readonly tabSize: number;
@@ -73,14 +72,15 @@ export class CursorConfiguration {
 	public readonly multiCursorPaste: 'spread' | 'full';
 	public readonly autoClosingBrackets: EditorAutoClosingStrategy;
 	public readonly autoClosingQuotes: EditorAutoClosingStrategy;
-	public readonly autoClosingOvertype: EditorAutoClosingOvertypeStrategy;
+	public readonly autoClosingDelete: EditorAutoClosingEditStrategy;
+	public readonly autoClosingOvertype: EditorAutoClosingEditStrategy;
 	public readonly autoSurround: EditorAutoSurroundStrategy;
 	public readonly autoIndent: EditorAutoIndentStrategy;
 	public readonly autoClosingPairs: AutoClosingPairs;
 	public readonly surroundingPairs: CharacterMap;
 	public readonly shouldAutoCloseBefore: { quote: (ch: string) => boolean, bracket: (ch: string) => boolean };
 
-	private readonly _languageIdentifier: LanguageIdentifier;
+	private readonly _languageId: string;
 	private _electricChars: { [key: string]: boolean; } | null;
 
 	public static shouldRecreate(e: ConfigurationChangedEvent): boolean {
@@ -92,6 +92,7 @@ export class CursorConfiguration {
 			|| e.hasChanged(EditorOption.multiCursorPaste)
 			|| e.hasChanged(EditorOption.autoClosingBrackets)
 			|| e.hasChanged(EditorOption.autoClosingQuotes)
+			|| e.hasChanged(EditorOption.autoClosingDelete)
 			|| e.hasChanged(EditorOption.autoClosingOvertype)
 			|| e.hasChanged(EditorOption.autoSurround)
 			|| e.hasChanged(EditorOption.useTabStops)
@@ -101,11 +102,11 @@ export class CursorConfiguration {
 	}
 
 	constructor(
-		languageIdentifier: LanguageIdentifier,
+		languageId: string,
 		modelOptions: TextModelResolvedOptions,
 		configuration: IConfiguration
 	) {
-		this._languageIdentifier = languageIdentifier;
+		this._languageId = languageId;
 
 		const options = configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
@@ -125,6 +126,7 @@ export class CursorConfiguration {
 		this.multiCursorPaste = options.get(EditorOption.multiCursorPaste);
 		this.autoClosingBrackets = options.get(EditorOption.autoClosingBrackets);
 		this.autoClosingQuotes = options.get(EditorOption.autoClosingQuotes);
+		this.autoClosingDelete = options.get(EditorOption.autoClosingDelete);
 		this.autoClosingOvertype = options.get(EditorOption.autoClosingOvertype);
 		this.autoSurround = options.get(EditorOption.autoSurround);
 		this.autoIndent = options.get(EditorOption.autoIndent);
@@ -133,13 +135,13 @@ export class CursorConfiguration {
 		this._electricChars = null;
 
 		this.shouldAutoCloseBefore = {
-			quote: CursorConfiguration._getShouldAutoClose(languageIdentifier, this.autoClosingQuotes),
-			bracket: CursorConfiguration._getShouldAutoClose(languageIdentifier, this.autoClosingBrackets)
+			quote: CursorConfiguration._getShouldAutoClose(languageId, this.autoClosingQuotes),
+			bracket: CursorConfiguration._getShouldAutoClose(languageId, this.autoClosingBrackets)
 		};
 
-		this.autoClosingPairs = LanguageConfigurationRegistry.getAutoClosingPairs(languageIdentifier.id);
+		this.autoClosingPairs = LanguageConfigurationRegistry.getAutoClosingPairs(languageId);
 
-		let surroundingPairs = CursorConfiguration._getSurroundingPairs(languageIdentifier);
+		let surroundingPairs = CursorConfiguration._getSurroundingPairs(languageId);
 		if (surroundingPairs) {
 			for (const pair of surroundingPairs) {
 				this.surroundingPairs[pair.open] = pair.close;
@@ -150,7 +152,7 @@ export class CursorConfiguration {
 	public get electricChars() {
 		if (!this._electricChars) {
 			this._electricChars = {};
-			let electricChars = CursorConfiguration._getElectricCharacters(this._languageIdentifier);
+			let electricChars = CursorConfiguration._getElectricCharacters(this._languageId);
 			if (electricChars) {
 				for (const char of electricChars) {
 					this._electricChars[char] = true;
@@ -164,21 +166,21 @@ export class CursorConfiguration {
 		return TextModel.normalizeIndentation(str, this.indentSize, this.insertSpaces);
 	}
 
-	private static _getElectricCharacters(languageIdentifier: LanguageIdentifier): string[] | null {
+	private static _getElectricCharacters(languageId: string): string[] | null {
 		try {
-			return LanguageConfigurationRegistry.getElectricCharacters(languageIdentifier.id);
+			return LanguageConfigurationRegistry.getElectricCharacters(languageId);
 		} catch (e) {
 			onUnexpectedError(e);
 			return null;
 		}
 	}
 
-	private static _getShouldAutoClose(languageIdentifier: LanguageIdentifier, autoCloseConfig: EditorAutoClosingStrategy): (ch: string) => boolean {
+	private static _getShouldAutoClose(languageId: string, autoCloseConfig: EditorAutoClosingStrategy): (ch: string) => boolean {
 		switch (autoCloseConfig) {
 			case 'beforeWhitespace':
 				return autoCloseBeforeWhitespace;
 			case 'languageDefined':
-				return CursorConfiguration._getLanguageDefinedShouldAutoClose(languageIdentifier);
+				return CursorConfiguration._getLanguageDefinedShouldAutoClose(languageId);
 			case 'always':
 				return autoCloseAlways;
 			case 'never':
@@ -186,9 +188,9 @@ export class CursorConfiguration {
 		}
 	}
 
-	private static _getLanguageDefinedShouldAutoClose(languageIdentifier: LanguageIdentifier): (ch: string) => boolean {
+	private static _getLanguageDefinedShouldAutoClose(languageId: string): (ch: string) => boolean {
 		try {
-			const autoCloseBeforeSet = LanguageConfigurationRegistry.getAutoCloseBeforeSet(languageIdentifier.id);
+			const autoCloseBeforeSet = LanguageConfigurationRegistry.getAutoCloseBeforeSet(languageId);
 			return c => autoCloseBeforeSet.indexOf(c) !== -1;
 		} catch (e) {
 			onUnexpectedError(e);
@@ -196,9 +198,9 @@ export class CursorConfiguration {
 		}
 	}
 
-	private static _getSurroundingPairs(languageIdentifier: LanguageIdentifier): IAutoClosingPair[] | null {
+	private static _getSurroundingPairs(languageId: string): IAutoClosingPair[] | null {
 		try {
-			return LanguageConfigurationRegistry.getSurroundingPairs(languageIdentifier.id);
+			return LanguageConfigurationRegistry.getSurroundingPairs(languageId);
 		} catch (e) {
 			onUnexpectedError(e);
 			return null;
@@ -216,13 +218,20 @@ export interface ICursorSimpleModel {
 	getLineMaxColumn(lineNumber: number): number;
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
+	normalizePosition(position: Position, affinity: PositionAffinity): Position;
+
+	/**
+	 * Gets the column at which indentation stops at a given line.
+	 * @internal
+	 */
+	getLineIndentColumn(lineNumber: number): number;
 }
 
 /**
  * Represents the cursor state on either the model or on the view model.
  */
 export class SingleCursorState {
-	_singleCursorStateBrand: void;
+	_singleCursorStateBrand: void = undefined;
 
 	// --- selection can start as a range (think double click and drag)
 	public readonly selectionStart: Range;
@@ -307,14 +316,16 @@ export class SingleCursorState {
 }
 
 export class CursorContext {
-	_cursorContextBrand: void;
+	_cursorContextBrand: void = undefined;
 
 	public readonly model: ITextModel;
+	public readonly viewModel: ICursorSimpleModel;
 	public readonly coordinatesConverter: ICoordinatesConverter;
 	public readonly cursorConfig: CursorConfiguration;
 
-	constructor(model: ITextModel, coordinatesConverter: ICoordinatesConverter, cursorConfig: CursorConfiguration) {
+	constructor(model: ITextModel, viewModel: ICursorSimpleModel, coordinatesConverter: ICoordinatesConverter, cursorConfig: CursorConfiguration) {
 		this.model = model;
+		this.viewModel = viewModel;
 		this.coordinatesConverter = coordinatesConverter;
 		this.cursorConfig = cursorConfig;
 	}
@@ -343,7 +354,7 @@ export class PartialViewCursorState {
 export type PartialCursorState = CursorState | PartialModelCursorState | PartialViewCursorState;
 
 export class CursorState {
-	_cursorStateBrand: void;
+	_cursorStateBrand: void = undefined;
 
 	public static fromModelState(modelState: SingleCursorState): PartialModelCursorState {
 		return new PartialModelCursorState(modelState);
@@ -387,7 +398,7 @@ export class CursorState {
 }
 
 export class EditOperationResult {
-	_editOperationResultBrand: void;
+	_editOperationResultBrand: void = undefined;
 
 	readonly type: EditOperationType;
 	readonly commands: Array<ICommand | null>;
@@ -406,167 +417,6 @@ export class EditOperationResult {
 		this.commands = commands;
 		this.shouldPushStackElementBefore = opts.shouldPushStackElementBefore;
 		this.shouldPushStackElementAfter = opts.shouldPushStackElementAfter;
-	}
-}
-
-/**
- * Common operations that work and make sense both on the model and on the view model.
- */
-export class CursorColumns {
-
-	public static visibleColumnFromColumn(lineContent: string, column: number, tabSize: number): number {
-		const lineContentLength = lineContent.length;
-		const endOffset = column - 1 < lineContentLength ? column - 1 : lineContentLength;
-
-		let result = 0;
-		let i = 0;
-		while (i < endOffset) {
-			const codePoint = strings.getNextCodePoint(lineContent, endOffset, i);
-			i += (codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
-
-			if (codePoint === CharCode.Tab) {
-				result = CursorColumns.nextRenderTabStop(result, tabSize);
-			} else {
-				let graphemeBreakType = strings.getGraphemeBreakType(codePoint);
-				while (i < endOffset) {
-					const nextCodePoint = strings.getNextCodePoint(lineContent, endOffset, i);
-					const nextGraphemeBreakType = strings.getGraphemeBreakType(nextCodePoint);
-					if (strings.breakBetweenGraphemeBreakType(graphemeBreakType, nextGraphemeBreakType)) {
-						break;
-					}
-					i += (nextCodePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
-					graphemeBreakType = nextGraphemeBreakType;
-				}
-				if (strings.isFullWidthCharacter(codePoint) || strings.isEmojiImprecise(codePoint)) {
-					result = result + 2;
-				} else {
-					result = result + 1;
-				}
-			}
-		}
-		return result;
-	}
-
-	public static toStatusbarColumn(lineContent: string, column: number, tabSize: number): number {
-		const lineContentLength = lineContent.length;
-		const endOffset = column - 1 < lineContentLength ? column - 1 : lineContentLength;
-
-		let result = 0;
-		let i = 0;
-		while (i < endOffset) {
-			const codePoint = strings.getNextCodePoint(lineContent, endOffset, i);
-			i += (codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
-
-			if (codePoint === CharCode.Tab) {
-				result = CursorColumns.nextRenderTabStop(result, tabSize);
-			} else {
-				result = result + 1;
-			}
-		}
-
-		return result + 1;
-	}
-
-	public static visibleColumnFromColumn2(config: CursorConfiguration, model: ICursorSimpleModel, position: Position): number {
-		return this.visibleColumnFromColumn(model.getLineContent(position.lineNumber), position.column, config.tabSize);
-	}
-
-	public static columnFromVisibleColumn(lineContent: string, visibleColumn: number, tabSize: number): number {
-		if (visibleColumn <= 0) {
-			return 1;
-		}
-
-		const lineLength = lineContent.length;
-
-		let beforeVisibleColumn = 0;
-		let beforeColumn = 1;
-		let i = 0;
-		while (i < lineLength) {
-			const codePoint = strings.getNextCodePoint(lineContent, lineLength, i);
-			i += (codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
-
-			let afterVisibleColumn: number;
-			if (codePoint === CharCode.Tab) {
-				afterVisibleColumn = CursorColumns.nextRenderTabStop(beforeVisibleColumn, tabSize);
-			} else {
-				let graphemeBreakType = strings.getGraphemeBreakType(codePoint);
-				while (i < lineLength) {
-					const nextCodePoint = strings.getNextCodePoint(lineContent, lineLength, i);
-					const nextGraphemeBreakType = strings.getGraphemeBreakType(nextCodePoint);
-					if (strings.breakBetweenGraphemeBreakType(graphemeBreakType, nextGraphemeBreakType)) {
-						break;
-					}
-					i += (nextCodePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
-					graphemeBreakType = nextGraphemeBreakType;
-				}
-				if (strings.isFullWidthCharacter(codePoint) || strings.isEmojiImprecise(codePoint)) {
-					afterVisibleColumn = beforeVisibleColumn + 2;
-				} else {
-					afterVisibleColumn = beforeVisibleColumn + 1;
-				}
-			}
-			const afterColumn = i + 1;
-
-			if (afterVisibleColumn >= visibleColumn) {
-				const beforeDelta = visibleColumn - beforeVisibleColumn;
-				const afterDelta = afterVisibleColumn - visibleColumn;
-				if (afterDelta < beforeDelta) {
-					return afterColumn;
-				} else {
-					return beforeColumn;
-				}
-			}
-
-			beforeVisibleColumn = afterVisibleColumn;
-			beforeColumn = afterColumn;
-		}
-
-		// walked the entire string
-		return lineLength + 1;
-	}
-
-	public static columnFromVisibleColumn2(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, visibleColumn: number): number {
-		let result = this.columnFromVisibleColumn(model.getLineContent(lineNumber), visibleColumn, config.tabSize);
-
-		let minColumn = model.getLineMinColumn(lineNumber);
-		if (result < minColumn) {
-			return minColumn;
-		}
-
-		let maxColumn = model.getLineMaxColumn(lineNumber);
-		if (result > maxColumn) {
-			return maxColumn;
-		}
-
-		return result;
-	}
-
-	/**
-	 * ATTENTION: This works with 0-based columns (as oposed to the regular 1-based columns)
-	 */
-	public static nextRenderTabStop(visibleColumn: number, tabSize: number): number {
-		return visibleColumn + tabSize - visibleColumn % tabSize;
-	}
-
-	/**
-	 * ATTENTION: This works with 0-based columns (as oposed to the regular 1-based columns)
-	 */
-	public static nextIndentTabStop(visibleColumn: number, indentSize: number): number {
-		return visibleColumn + indentSize - visibleColumn % indentSize;
-	}
-
-	/**
-	 * ATTENTION: This works with 0-based columns (as opposed to the regular 1-based columns)
-	 */
-	public static prevRenderTabStop(column: number, tabSize: number): number {
-		return column - 1 - (column - 1) % tabSize;
-	}
-
-	/**
-	 * ATTENTION: This works with 0-based columns (as opposed to the regular 1-based columns)
-	 */
-	public static prevIndentTabStop(column: number, indentSize: number): number {
-		return column - 1 - (column - 1) % indentSize;
 	}
 }
 

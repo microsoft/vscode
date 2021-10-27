@@ -10,7 +10,6 @@ import { Action } from 'vs/base/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor, MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions, CATEGORIES } from 'vs/workbench/common/actions';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchLayoutService, Parts, Position, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 import { ActivityAction, ToggleCompositePinnedAction, ICompositeBar } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IActivity } from 'vs/workbench/common/activity';
@@ -20,6 +19,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ViewContainerLocationToString, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 const maximizeIcon = registerIcon('panel-maximize', Codicon.chevronUp, localize('maximizeIcon', 'Icon to maximize a panel.'));
 const restoreIcon = registerIcon('panel-restore', Codicon.chevronDown, localize('restoreIcon', 'Icon to restore a panel.'));
@@ -38,8 +38,8 @@ export class TogglePanelAction extends Action {
 		super(id, name, layoutService.isVisible(Parts.PANEL_PART) ? 'panel expanded' : 'panel');
 	}
 
-	async run(): Promise<void> {
-		this.layoutService.setPanelHidden(this.layoutService.isVisible(Parts.PANEL_PART));
+	override async run(): Promise<void> {
+		this.layoutService.setPartHidden(this.layoutService.isVisible(Parts.PANEL_PART), Parts.PANEL_PART);
 	}
 }
 
@@ -51,21 +51,21 @@ class FocusPanelAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPanelService private readonly panelService: IPanelService,
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 
 		// Show panel
 		if (!this.layoutService.isVisible(Parts.PANEL_PART)) {
-			this.layoutService.setPanelHidden(false);
+			this.layoutService.setPartHidden(false, Parts.PANEL_PART);
 		}
 
 		// Focus into active panel
-		let panel = this.panelService.getActivePanel();
+		let panel = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
 		if (panel) {
 			panel.focus();
 		}
@@ -113,7 +113,7 @@ export class SetPanelPositionAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		const position = positionByActionId.get(this.id);
 		this.layoutService.setPanelPosition(position === undefined ? Position.BOTTOM : position);
 	}
@@ -123,13 +123,14 @@ export class PanelActivityAction extends ActivityAction {
 
 	constructor(
 		activity: IActivity,
-		@IPanelService private readonly panelService: IPanelService
+		private readonly viewContainerLocation: ViewContainerLocation,
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService
 	) {
 		super(activity);
 	}
 
-	async run(): Promise<void> {
-		await this.panelService.openPanel(this.activity.id, true);
+	override async run(): Promise<void> {
+		await this.paneCompositeService.openPaneComposite(this.activity.id, this.viewContainerLocation, true);
 		this.activate();
 	}
 
@@ -142,9 +143,10 @@ export class PlaceHolderPanelActivityAction extends PanelActivityAction {
 
 	constructor(
 		id: string,
-		@IPanelService panelService: IPanelService
+		viewContainerLocation: ViewContainerLocation,
+		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService
 	) {
-		super({ id, name: id }, panelService);
+		super({ id, name: id }, viewContainerLocation, paneCompositeService);
 	}
 }
 
@@ -164,26 +166,26 @@ export class SwitchPanelViewAction extends Action {
 	constructor(
 		id: string,
 		name: string,
-		@IPanelService private readonly panelService: IPanelService
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService
 	) {
 		super(id, name);
 	}
 
-	async run(offset: number): Promise<void> {
-		const pinnedPanels = this.panelService.getPinnedPanels();
-		const activePanel = this.panelService.getActivePanel();
+	override async run(offset: number): Promise<void> {
+		const pinnedPanels = this.paneCompositeService.getPinnedPaneCompositeIds(ViewContainerLocation.Panel);
+		const activePanel = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
 		if (!activePanel) {
 			return;
 		}
 		let targetPanelId: string | undefined;
 		for (let i = 0; i < pinnedPanels.length; i++) {
-			if (pinnedPanels[i].id === activePanel.getId()) {
-				targetPanelId = pinnedPanels[(i + pinnedPanels.length + offset) % pinnedPanels.length].id;
+			if (pinnedPanels[i] === activePanel.getId()) {
+				targetPanelId = pinnedPanels[(i + pinnedPanels.length + offset) % pinnedPanels.length];
 				break;
 			}
 		}
 		if (typeof targetPanelId === 'string') {
-			await this.panelService.openPanel(targetPanelId, true);
+			await this.paneCompositeService.openPaneComposite(targetPanelId, ViewContainerLocation.Panel, true);
 		}
 	}
 }
@@ -196,12 +198,12 @@ export class PreviousPanelViewAction extends SwitchPanelViewAction {
 	constructor(
 		id: string,
 		name: string,
-		@IPanelService panelService: IPanelService
+		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService
 	) {
-		super(id, name, panelService);
+		super(id, name, paneCompositeService);
 	}
 
-	run(): Promise<void> {
+	override run(): Promise<void> {
 		return super.run(-1);
 	}
 }
@@ -214,18 +216,18 @@ export class NextPanelViewAction extends SwitchPanelViewAction {
 	constructor(
 		id: string,
 		name: string,
-		@IPanelService panelService: IPanelService
+		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService
 	) {
-		super(id, name, panelService);
+		super(id, name, paneCompositeService);
 	}
 
-	run(): Promise<void> {
+	override run(): Promise<void> {
 		return super.run(1);
 	}
 }
 
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchExtensions.WorkbenchActions);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(TogglePanelAction, { primary: KeyMod.CtrlCmd | KeyCode.KEY_J }), 'View: Toggle Panel', CATEGORIES.View.value);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(TogglePanelAction, { primary: KeyMod.CtrlCmd | KeyCode.KeyJ }), 'View: Toggle Panel', CATEGORIES.View.value);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(FocusPanelAction), 'View: Focus into Panel', CATEGORIES.View.value);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(PreviousPanelViewAction), 'View: Previous Panel View', CATEGORIES.View.value);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(NextPanelViewAction), 'View: Next Panel View', CATEGORIES.View.value);
@@ -250,7 +252,7 @@ registerAction2(class extends Action2 {
 	run(accessor: ServicesAccessor) {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		if (!layoutService.isVisible(Parts.PANEL_PART)) {
-			layoutService.setPanelHidden(false);
+			layoutService.setPartHidden(false, Parts.PANEL_PART);
 			// If the panel is not already maximized, maximize it
 			if (!layoutService.isPanelMaximized()) {
 				layoutService.toggleMaximizedPanel();
@@ -280,7 +282,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 	run(accessor: ServicesAccessor) {
-		accessor.get(IWorkbenchLayoutService).setPanelHidden(true);
+		accessor.get(IWorkbenchLayoutService).setPartHidden(true, Parts.PANEL_PART);
 	}
 });
 

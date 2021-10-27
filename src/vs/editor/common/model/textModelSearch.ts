@@ -85,7 +85,7 @@ export function isMultilineRegexSource(searchString: string): boolean {
 			}
 
 			const nextChCode = searchString.charCodeAt(i);
-			if (nextChCode === CharCode.n || nextChCode === CharCode.r || nextChCode === CharCode.W || nextChCode === CharCode.w) {
+			if (nextChCode === CharCode.n || nextChCode === CharCode.r || nextChCode === CharCode.W) {
 				return true;
 			}
 		}

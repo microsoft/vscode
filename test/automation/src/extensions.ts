@@ -28,6 +28,7 @@ export class Extensions extends Viewlet {
 		await this.code.waitAndClick(SEARCH_BOX);
 		await this.code.waitForActiveElement(SEARCH_BOX);
 		await this.code.waitForTypeInEditor(SEARCH_BOX, `@id:${id}`);
+		await this.code.waitForTextContent(`div.part.sidebar div.composite.title h2`, 'Extensions: Marketplace');
 		await this.code.waitForElement(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[data-extension-id="${id}"]`);
 	}
 

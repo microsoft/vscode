@@ -4,8 +4,7 @@
   "description": "%description%",
   "extensionKind": [
     "ui",
-    "workspace",
-    "web"
+    "workspace"
   ],
   "version": "1.0.0",
   "publisher": "vscode",
@@ -26,6 +25,12 @@
     "onCommand:imagePreview.zoomIn",
     "onCommand:imagePreview.zoomOut"
   ],
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "contributes": {
     "customEditors": [
       {
@@ -75,8 +80,8 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
-    "vscode-extension-telemetry": "0.1.1",
-    "vscode-nls": "^4.0.0"
+    "vscode-extension-telemetry": "0.4.2",
+    "vscode-nls": "^5.0.0"
   },
   "repository": {
     "type": "git",

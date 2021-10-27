@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CSSIcon } from 'vs/base/common/codicons';
-import { matchesFuzzy, IMatch } from 'vs/base/common/filters';
+import { IMatch, matchesFuzzy } from 'vs/base/common/filters';
 import { ltrim } from 'vs/base/common/strings';
 
 export const iconStartMarker = '$(';

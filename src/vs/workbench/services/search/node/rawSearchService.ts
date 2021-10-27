@@ -30,6 +30,8 @@ export class SearchService implements IRawSearchService {
 
 	private caches: { [cacheKey: string]: Cache; } = Object.create(null);
 
+	constructor(private readonly processType: IFileSearchStats['type'] = 'searchProcess') { }
+
 	fileSearch(config: IRawFileQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
 		let promise: CancelablePromise<ISerializedSearchSuccess>;
 
@@ -124,7 +126,7 @@ export class SearchService implements IRawSearchService {
 				type: 'success',
 				stats: {
 					detailStats: complete.stats,
-					type: 'searchProcess',
+					type: this.processType,
 					fromCache: false,
 					resultCount,
 					sortingTime: undefined
@@ -191,10 +193,11 @@ export class SearchService implements IRawSearchService {
 							detailStats: result.stats,
 							sortingTime,
 							fromCache: false,
-							type: 'searchProcess',
+							type: this.processType,
 							workspaceFolderCount: config.folderQueries.length,
 							resultCount: sortedResults.length
 						},
+						messages: result.messages,
 						limitHit: result.limitHit || typeof config.maxResults === 'number' && results.length > config.maxResults
 					} as ISerializedSearchSuccess, sortedResults];
 				});
@@ -225,7 +228,7 @@ export class SearchService implements IRawSearchService {
 						const stats: IFileSearchStats = {
 							fromCache: true,
 							detailStats: cacheStats,
-							type: 'searchProcess',
+							type: this.processType,
 							resultCount: results.length,
 							sortingTime
 						};

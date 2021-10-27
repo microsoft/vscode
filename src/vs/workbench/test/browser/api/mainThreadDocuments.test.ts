@@ -5,27 +5,30 @@
 
 import * as assert from 'assert';
 import { BoundModelReferenceCollection } from 'vs/workbench/api/browser/mainThreadDocuments';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { timeout } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { extUri } from 'vs/base/common/resources';
 
-suite('BoundModelReferenceCollection', () => {
+suite('BoundModelReferenceCollection', function () {
 
-	let col = new BoundModelReferenceCollection(extUri, 15, 75);
+	let col: BoundModelReferenceCollection;
 
-	teardown(() => {
+	setup(function () {
+		col = new BoundModelReferenceCollection(extUri, 15, 75);
+	});
+
+	teardown(function () {
 		col.dispose();
 	});
 
-	test('max age', async () => {
+	test('max age', async function () {
 
 		let didDispose = false;
 
 		col.add(
 			URI.parse('test://farboo'),
 			{
-				object: <any>{ textEditorModel: createTextModel('farboo') },
+				object: {},
 				dispose() {
 					didDispose = true;
 				}
@@ -35,14 +38,14 @@ suite('BoundModelReferenceCollection', () => {
 		assert.strictEqual(didDispose, true);
 	});
 
-	test('max size', () => {
+	test('max size', function () {
 
 		let disposed: number[] = [];
 
 		col.add(
 			URI.parse('test://farboo'),
 			{
-				object: <any>{ textEditorModel: createTextModel('farboo') },
+				object: {},
 				dispose() {
 					disposed.push(0);
 				}
@@ -51,7 +54,7 @@ suite('BoundModelReferenceCollection', () => {
 		col.add(
 			URI.parse('test://boofar'),
 			{
-				object: <any>{ textEditorModel: createTextModel('boofar') },
+				object: {},
 				dispose() {
 					disposed.push(1);
 				}
@@ -60,7 +63,7 @@ suite('BoundModelReferenceCollection', () => {
 		col.add(
 			URI.parse('test://xxxxxxx'),
 			{
-				object: <any>{ textEditorModel: createTextModel(new Array(71).join('x')) },
+				object: {},
 				dispose() {
 					disposed.push(2);
 				}
@@ -69,14 +72,51 @@ suite('BoundModelReferenceCollection', () => {
 		assert.deepStrictEqual(disposed, [0, 1]);
 	});
 
-	test('dispose uri', () => {
+	test('max count', function () {
+		col.dispose();
+		col = new BoundModelReferenceCollection(extUri, 10000, 10000, 2);
+
+		let disposed: number[] = [];
+
+		col.add(
+			URI.parse('test://xxxxxxx'),
+			{
+				object: {},
+				dispose() {
+					disposed.push(0);
+				}
+			}
+		);
+		col.add(
+			URI.parse('test://xxxxxxx'),
+			{
+				object: {},
+				dispose() {
+					disposed.push(1);
+				}
+			}
+		);
+		col.add(
+			URI.parse('test://xxxxxxx'),
+			{
+				object: {},
+				dispose() {
+					disposed.push(2);
+				}
+			}
+		);
+
+		assert.deepStrictEqual(disposed, [0]);
+	});
+
+	test('dispose uri', function () {
 
 		let disposed: number[] = [];
 
 		col.add(
 			URI.parse('test:///farboo'),
 			{
-				object: <any>{ textEditorModel: createTextModel('farboo') },
+				object: {},
 				dispose() {
 					disposed.push(0);
 				}
@@ -85,7 +125,7 @@ suite('BoundModelReferenceCollection', () => {
 		col.add(
 			URI.parse('test:///boofar'),
 			{
-				object: <any>{ textEditorModel: createTextModel('boofar') },
+				object: {},
 				dispose() {
 					disposed.push(1);
 				}
@@ -94,7 +134,7 @@ suite('BoundModelReferenceCollection', () => {
 		col.add(
 			URI.parse('test:///boo/far1'),
 			{
-				object: <any>{ textEditorModel: createTextModel('boo/far1') },
+				object: {},
 				dispose() {
 					disposed.push(2);
 				}
@@ -103,7 +143,7 @@ suite('BoundModelReferenceCollection', () => {
 		col.add(
 			URI.parse('test:///boo/far2'),
 			{
-				object: <any>{ textEditorModel: createTextModel('boo/far2') },
+				object: {},
 				dispose() {
 					disposed.push(3);
 				}
@@ -112,7 +152,7 @@ suite('BoundModelReferenceCollection', () => {
 		col.add(
 			URI.parse('test:///boo1/far'),
 			{
-				object: <any>{ textEditorModel: createTextModel('boo1/far') },
+				object: {},
 				dispose() {
 					disposed.push(4);
 				}

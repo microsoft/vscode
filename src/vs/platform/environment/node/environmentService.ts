@@ -5,8 +5,8 @@
 
 import { homedir, tmpdir } from 'os';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { getUserDataPath } from 'vs/platform/environment/node/userDataPath';
 import { AbstractNativeEnvironmentService } from 'vs/platform/environment/common/environmentService';
+import { getUserDataPath } from 'vs/platform/environment/node/userDataPath';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 export class NativeEnvironmentService extends AbstractNativeEnvironmentService {

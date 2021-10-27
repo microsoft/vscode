@@ -20,12 +20,11 @@ import { FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Severity } from 'vs/platform/notification/common/notification';
-import { WorkspaceTrustStateChangeEvent } from 'vs/platform/workspace/common/workspaceTrust';
 import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { Range, RelativePattern, WorkspaceTrustState } from 'vs/workbench/api/common/extHostTypes';
+import { Range, RelativePattern } from 'vs/workbench/api/common/extHostTypes';
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { IRawFileMatch2, resultIsMatch } from 'vs/workbench/services/search/common/search';
 import * as vscode from 'vscode';
@@ -78,7 +77,7 @@ class ExtHostWorkspaceImpl extends Workspace {
 			return { workspace: null, added: [], removed: [] };
 		}
 
-		const { id, name, folders, configuration, isUntitled } = data;
+		const { id, name, folders, configuration, transient, isUntitled } = data;
 		const newWorkspaceFolders: vscode.WorkspaceFolder[] = [];
 
 		// If we have an existing workspace, we try to find the folders that match our
@@ -106,7 +105,7 @@ class ExtHostWorkspaceImpl extends Workspace {
 		// make sure to restore sort order based on index
 		newWorkspaceFolders.sort((f1, f2) => f1.index < f2.index ? -1 : 1);
 
-		const workspace = new ExtHostWorkspaceImpl(id, name, newWorkspaceFolders, configuration ? URI.revive(configuration) : null, !!isUntitled, uri => ignorePathCasing(uri, extHostFileSystemInfo));
+		const workspace = new ExtHostWorkspaceImpl(id, name, newWorkspaceFolders, !!transient, configuration ? URI.revive(configuration) : null, !!isUntitled, uri => ignorePathCasing(uri, extHostFileSystemInfo));
 		const { added, removed } = delta(oldWorkspace ? oldWorkspace.workspaceFolders : [], workspace.workspaceFolders, compareWorkspaceFolderByUri, extHostFileSystemInfo);
 
 		return { workspace, added, removed };
@@ -126,8 +125,8 @@ class ExtHostWorkspaceImpl extends Workspace {
 	private readonly _workspaceFolders: vscode.WorkspaceFolder[] = [];
 	private readonly _structure: TernarySearchTree<URI, vscode.WorkspaceFolder>;
 
-	constructor(id: string, private _name: string, folders: vscode.WorkspaceFolder[], configuration: URI | null, private _isUntitled: boolean, ignorePathCasing: (key: URI) => boolean) {
-		super(id, folders.map(f => new WorkspaceFolder(f)), configuration, ignorePathCasing);
+	constructor(id: string, private _name: string, folders: vscode.WorkspaceFolder[], transient: boolean, configuration: URI | null, private _isUntitled: boolean, ignorePathCasing: (key: URI) => boolean) {
+		super(id, folders.map(f => new WorkspaceFolder(f)), transient, configuration, ignorePathCasing);
 		this._structure = TernarySearchTree.forUris<vscode.WorkspaceFolder>(ignorePathCasing);
 
 		// setup the workspace folder data structure
@@ -169,8 +168,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	private readonly _onDidChangeWorkspace = new Emitter<vscode.WorkspaceFoldersChangeEvent>();
 	readonly onDidChangeWorkspace: Event<vscode.WorkspaceFoldersChangeEvent> = this._onDidChangeWorkspace.event;
 
-	private readonly _onDidChangeWorkspaceTrustState = new Emitter<vscode.WorkspaceTrustStateChangeEvent>();
-	readonly onDidChangeWorkspaceTrustState: Event<vscode.WorkspaceTrustStateChangeEvent> = this._onDidChangeWorkspaceTrustState.event;
+	private readonly _onDidGrantWorkspaceTrust = new Emitter<void>();
+	readonly onDidGrantWorkspaceTrust: Event<void> = this._onDidGrantWorkspaceTrust.event;
 
 	private readonly _logService: ILogService;
 	private readonly _requestIdProvider: Counter;
@@ -185,7 +184,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 	private readonly _activeSearchCallbacks: ((match: IRawFileMatch2) => any)[] = [];
 
-	private _workspaceTrustState: WorkspaceTrustState = WorkspaceTrustState.Unknown;
+	private _trusted: boolean = false;
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -201,11 +200,11 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadWorkspace);
 		this._messageService = extHostRpc.getProxy(MainContext.MainThreadMessageService);
 		const data = initData.workspace;
-		this._confirmedWorkspace = data ? new ExtHostWorkspaceImpl(data.id, data.name, [], data.configuration ? URI.revive(data.configuration) : null, !!data.isUntitled, uri => ignorePathCasing(uri, extHostFileSystemInfo)) : undefined;
+		this._confirmedWorkspace = data ? new ExtHostWorkspaceImpl(data.id, data.name, [], !!data.transient, data.configuration ? URI.revive(data.configuration) : null, !!data.isUntitled, uri => ignorePathCasing(uri, extHostFileSystemInfo)) : undefined;
 	}
 
-	$initializeWorkspace(data: IWorkspaceData | null, trustState: WorkspaceTrustState): void {
-		this._workspaceTrustState = trustState;
+	$initializeWorkspace(data: IWorkspaceData | null, trusted: boolean): void {
+		this._trusted = trusted;
 		this.$acceptWorkspaceData(data);
 		this._barrier.open();
 	}
@@ -559,17 +558,19 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 	// --- trust ---
 
-	get trustState(): WorkspaceTrustState {
-		return this._workspaceTrustState;
+	get trusted(): boolean {
+		return this._trusted;
 	}
 
-	requireWorkspaceTrust(request?: vscode.WorkspaceTrustRequest): Promise<WorkspaceTrustState> {
-		return this._proxy.$requireWorkspaceTrust(request);
+	requestWorkspaceTrust(options?: vscode.WorkspaceTrustRequestOptions): Promise<boolean | undefined> {
+		return this._proxy.$requestWorkspaceTrust(options);
 	}
 
-	$onDidChangeWorkspaceTrustState(state: WorkspaceTrustStateChangeEvent): void {
-		this._workspaceTrustState = state.currentTrustState;
-		this._onDidChangeWorkspaceTrustState.fire(Object.freeze(state));
+	$onDidGrantWorkspaceTrust(): void {
+		if (!this._trusted) {
+			this._trusted = true;
+			this._onDidGrantWorkspaceTrust.fire();
+		}
 	}
 }
 

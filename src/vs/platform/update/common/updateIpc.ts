@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Emitter, Event } from 'vs/base/common/event';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IUpdateService, State } from 'vs/platform/update/common/update';
 
 export class UpdateChannel implements IServerChannel {
@@ -52,8 +52,8 @@ export class UpdateChannelClient implements IUpdateService {
 		this.channel.call<State>('_getInitialState').then(state => this.state = state);
 	}
 
-	checkForUpdates(context: any): Promise<void> {
-		return this.channel.call('checkForUpdates', context);
+	checkForUpdates(explicit: boolean): Promise<void> {
+		return this.channel.call('checkForUpdates', explicit);
 	}
 
 	downloadUpdate(): Promise<void> {
