@@ -110,7 +110,7 @@ Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegis
 		openCommandActionDescriptor: {
 			id: VIEWLET_ID,
 			mnemonicTitle: localize({ key: 'miViewExtensions', comment: ['&& denotes a mnemonic'] }, "E&&xtensions"),
-			keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_X },
+			keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyX },
 			order: 4,
 		},
 		ctorDescriptor: new SyncDescriptor(ExtensionsViewPaneContainer),

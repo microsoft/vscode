@@ -168,7 +168,7 @@ suite('EditorPane', () => {
 		disposables.add(registerTestResourceEditor());
 		disposables.add(editorRegistry.registerEditorPane(d1, [new SyncDescriptor(TestResourceEditorInput)]));
 
-		const inst = workbenchInstantiationService();
+		const inst = workbenchInstantiationService(undefined, disposables);
 
 		const editor = editorRegistry.getEditorPane(inst.createInstance(TestResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined))!.instantiate(inst);
 		assert.strictEqual(editor.getId(), 'testEditor');
@@ -180,9 +180,9 @@ suite('EditorPane', () => {
 	});
 
 	test('Editor Pane Lookup favors specific class over superclass (match on super class)', function () {
-		const inst = workbenchInstantiationService();
-
 		const disposables = new DisposableStore();
+
+		const inst = workbenchInstantiationService(undefined, disposables);
 
 		disposables.add(registerTestResourceEditor());
 		const editor = editorRegistry.getEditorPane(inst.createInstance(TestResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined))!.instantiate(inst);
@@ -193,9 +193,10 @@ suite('EditorPane', () => {
 	});
 
 	test('Editor Input Serializer', function () {
+		const disposables = new DisposableStore();
 		const testInput = new TestEditorInput(URI.file('/fake'), 'testTypeId');
-		workbenchInstantiationService().invokeFunction(accessor => editorInputRegistry.start(accessor));
-		const disposable = editorInputRegistry.registerEditorSerializer(testInput.typeId, TestInputSerializer);
+		workbenchInstantiationService(undefined, disposables).invokeFunction(accessor => editorInputRegistry.start(accessor));
+		disposables.add(editorInputRegistry.registerEditorSerializer(testInput.typeId, TestInputSerializer));
 
 		let factory = editorInputRegistry.getEditorSerializer('testTypeId');
 		assert(factory);
@@ -206,7 +207,7 @@ suite('EditorPane', () => {
 		// throws when registering serializer for same type
 		assert.throws(() => editorInputRegistry.registerEditorSerializer(testInput.typeId, TestInputSerializer));
 
-		disposable.dispose();
+		disposables.dispose();
 	});
 
 	test('EditorMemento - basics', function () {
@@ -485,7 +486,7 @@ suite('EditorPane', () => {
 
 		const disposables = new DisposableStore();
 
-		const instantiationService = workbenchInstantiationService();
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const workspaceTrustService = instantiationService.createInstance(TestWorkspaceTrustManagementService);
 		instantiationService.stub(IWorkspaceTrustManagementService, workspaceTrustService);
 		workspaceTrustService.setWorkspaceTrust(false);

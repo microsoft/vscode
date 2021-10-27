@@ -36,7 +36,7 @@ flakySuite('Files - NativeTextFileService i/o', function () {
 
 	createSuite({
 		setup: async () => {
-			const instantiationService = workbenchInstantiationService();
+			const instantiationService = workbenchInstantiationService(disposables);
 
 			const logService = new NullLogService();
 			const fileService = new FileService(logService);

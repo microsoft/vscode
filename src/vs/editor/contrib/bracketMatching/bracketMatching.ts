@@ -35,7 +35,7 @@ class JumpToBracketAction extends EditorAction {
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKSLASH,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backslash,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});

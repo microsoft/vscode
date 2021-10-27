@@ -5,7 +5,7 @@
 
 import { illegalArgument } from 'vs/base/common/errors';
 import { AriaLabelProvider, ElectronAcceleratorLabelProvider, UILabelProvider, UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
-import { IBaseKeybinding, KeybindingModifier, ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keyCodes';
+import { IBaseKeybinding, KeybindingModifier, ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keybindings';
 import { OperatingSystem } from 'vs/base/common/platform';
 
 export abstract class BaseResolvedKeybinding<T extends IBaseKeybinding> extends ResolvedKeybinding {

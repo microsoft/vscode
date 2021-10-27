@@ -727,16 +727,14 @@ export class IFrameWebview extends Disposable implements Webview {
 			return;
 		}
 
-		// Clear the existing focus first if not already on the webview.
-		// This is required because the next part where we set the focus is async.
-		if (document.activeElement && document.activeElement instanceof HTMLElement && document.activeElement !== this.element) {
-			// Don't blur if on the webview because this will also happen async and may unset the focus
-			// after the focus trigger fires below.
-			document.activeElement.blur();
+		try {
+			this.element.contentWindow?.focus();
+		} catch {
+			// noop
 		}
 
 		// Workaround for https://github.com/microsoft/vscode/issues/75209
-		// Electron's webview.focus is async so for a sequence of actions such as:
+		// Focusing the inner webview is async so for a sequence of actions such as:
 		//
 		// 1. Open webview
 		// 1. Show quick pick from command palette
@@ -750,14 +748,11 @@ export class IFrameWebview extends Disposable implements Webview {
 			if (!this.isFocused || !this.element) {
 				return;
 			}
-			if (document.activeElement && document.activeElement?.tagName !== 'BODY') {
+
+			if (document.activeElement && document.activeElement !== this.element && document.activeElement?.tagName !== 'BODY') {
 				return;
 			}
-			try {
-				this.element?.contentWindow?.focus();
-			} catch {
-				// noop
-			}
+
 			this._send('focus');
 		});
 	}

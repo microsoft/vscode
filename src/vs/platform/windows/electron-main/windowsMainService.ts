@@ -17,9 +17,10 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basename, join, normalize, posix } from 'vs/base/common/path';
 import { getMarks, mark } from 'vs/base/common/performance';
-import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
+import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { cwd } from 'vs/base/common/process';
 import { extUriBiasedIgnorePathCase, normalizePath, originalFSPath, removeTrailingPathSeparator } from 'vs/base/common/resources';
+import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -448,7 +449,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			const fileToCheck = filesToOpen.filesToOpenOrCreate[0] || filesToOpen.filesToDiff[0];
 
 			// only look at the windows with correct authority
-			const windows = this.getWindows().filter(window => filesToOpen && window.remoteAuthority === filesToOpen.remoteAuthority);
+			const windows = this.getWindows().filter(window => filesToOpen && isEqualAuthority(window.remoteAuthority, filesToOpen.remoteAuthority));
 
 			// figure out a good window to open the files in if any
 			// with a fallback to the last active window.
@@ -507,7 +508,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			const windowsOnWorkspace = coalesce(allWorkspacesToOpen.map(workspaceToOpen => findWindowOnWorkspaceOrFolder(this.getWindows(), workspaceToOpen.workspace.configPath)));
 			if (windowsOnWorkspace.length > 0) {
 				const windowOnWorkspace = windowsOnWorkspace[0];
-				const filesToOpenInWindow = (filesToOpen?.remoteAuthority === windowOnWorkspace.remoteAuthority) ? filesToOpen : undefined;
+				const filesToOpenInWindow = isEqualAuthority(filesToOpen?.remoteAuthority, windowOnWorkspace.remoteAuthority) ? filesToOpen : undefined;
 
 				// Do open files
 				addUsedWindow(this.doOpenFilesInExistingWindow(openConfig, windowOnWorkspace, filesToOpenInWindow), !!filesToOpenInWindow);
@@ -522,7 +523,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				}
 
 				const remoteAuthority = workspaceToOpen.remoteAuthority;
-				const filesToOpenInWindow = (filesToOpen?.remoteAuthority === remoteAuthority) ? filesToOpen : undefined;
+				const filesToOpenInWindow = isEqualAuthority(filesToOpen?.remoteAuthority, remoteAuthority) ? filesToOpen : undefined;
 
 				// Do open folder
 				addUsedWindow(this.doOpenFolderOrWorkspace(openConfig, workspaceToOpen, openFolderInNewWindow, filesToOpenInWindow), !!filesToOpenInWindow);
@@ -539,7 +540,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			const windowsOnFolderPath = coalesce(allFoldersToOpen.map(folderToOpen => findWindowOnWorkspaceOrFolder(this.getWindows(), folderToOpen.workspace.uri)));
 			if (windowsOnFolderPath.length > 0) {
 				const windowOnFolderPath = windowsOnFolderPath[0];
-				const filesToOpenInWindow = filesToOpen?.remoteAuthority === windowOnFolderPath.remoteAuthority ? filesToOpen : undefined;
+				const filesToOpenInWindow = isEqualAuthority(filesToOpen?.remoteAuthority, windowOnFolderPath.remoteAuthority) ? filesToOpen : undefined;
 
 				// Do open files
 				addUsedWindow(this.doOpenFilesInExistingWindow(openConfig, windowOnFolderPath, filesToOpenInWindow), !!filesToOpenInWindow);
@@ -554,7 +555,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				}
 
 				const remoteAuthority = folderToOpen.remoteAuthority;
-				const filesToOpenInWindow = (filesToOpen?.remoteAuthority === remoteAuthority) ? filesToOpen : undefined;
+				const filesToOpenInWindow = isEqualAuthority(filesToOpen?.remoteAuthority, remoteAuthority) ? filesToOpen : undefined;
 
 				// Do open folder
 				addUsedWindow(this.doOpenFolderOrWorkspace(openConfig, folderToOpen, openFolderInNewWindow, filesToOpenInWindow), !!filesToOpenInWindow);
@@ -568,7 +569,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		if (allEmptyToRestore.length > 0) {
 			allEmptyToRestore.forEach(emptyWindowBackupInfo => {
 				const remoteAuthority = emptyWindowBackupInfo.remoteAuthority;
-				const filesToOpenInWindow = (filesToOpen?.remoteAuthority === remoteAuthority) ? filesToOpen : undefined;
+				const filesToOpenInWindow = isEqualAuthority(filesToOpen?.remoteAuthority, remoteAuthority) ? filesToOpen : undefined;
 
 				addUsedWindow(this.openInBrowserWindow({
 					userEnv: openConfig.userEnv,
@@ -710,7 +711,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			const foldersToOpen = pathsToOpen.filter(path => isSingleFolderWorkspacePathToOpen(path)) as ISingleFolderWorkspacePathToOpen[];
 			if (foldersToOpen.length > 1) {
 				const remoteAuthority = foldersToOpen[0].remoteAuthority;
-				if (foldersToOpen.every(folderToOpen => folderToOpen.remoteAuthority === remoteAuthority)) { // only if all folder have the same authority
+				if (foldersToOpen.every(folderToOpen => isEqualAuthority(folderToOpen.remoteAuthority, remoteAuthority))) { // only if all folder have the same authority
 					const workspace = this.workspacesManagementMainService.createUntitledWorkspaceSync(foldersToOpen.map(folder => ({ uri: folder.workspace.uri })));
 
 					// Add workspace and remove folders thereby
@@ -973,6 +974,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		try {
 			const pathStat = statSync(path);
+
+			// File
 			if (pathStat.isFile()) {
 
 				// Workspace (unless disabled via flag)
@@ -990,7 +993,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					}
 				}
 
-				// File
 				return {
 					fileUri: URI.file(path),
 					selection: lineNumber ? { startLineNumber: lineNumber, startColumn: columnNumber || 1 } : undefined,
@@ -998,11 +1000,23 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				};
 			}
 
-			// Folder (we check for isDirectory() because e.g. paths like /dev/null
-			// are neither file nor folder but some external tools might pass them
-			// over to us)
+			// Folder
 			else if (pathStat.isDirectory()) {
-				return { workspace: getSingleFolderWorkspaceIdentifier(URI.file(path), pathStat), exists: true };
+				return {
+					workspace: getSingleFolderWorkspaceIdentifier(URI.file(path), pathStat),
+					exists: true
+				};
+			}
+
+			// Special device: in POSIX environments, we may get /dev/null passed
+			// in (for example git uses it to signal one side of a diff does not
+			// exist). In that special case, treat it like a file to support this
+			// scenario ()
+			else if (!isWindows && path === '/dev/null') {
+				return {
+					fileUri: URI.file(path),
+					exists: true
+				};
 			}
 		} catch (error) {
 			const fileUri = URI.file(path);
@@ -1012,7 +1026,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			// assume this is a file that does not yet exist
 			if (options.ignoreFileNotFound) {
-				return { fileUri, exists: false };
+				return {
+					fileUri,
+					exists: false
+				};
 			}
 		}
 
@@ -1410,7 +1427,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	}
 
 	private getLastActiveWindowForAuthority(remoteAuthority: string | undefined): ICodeWindow | undefined {
-		return this.doGetLastActiveWindow(this.getWindows().filter(window => window.remoteAuthority === remoteAuthority));
+		return this.doGetLastActiveWindow(this.getWindows().filter(window => isEqualAuthority(window.remoteAuthority, remoteAuthority)));
 	}
 
 	private doGetLastActiveWindow(windows: ICodeWindow[]): ICodeWindow | undefined {
@@ -1459,4 +1476,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		return this.getWindowById(browserWindow.id);
 	}
+}
+
+function isEqualAuthority(a1: string | undefined, a2: string | undefined) {
+	return a1 === a2 || (a1 !== undefined && a2 !== undefined && equalsIgnoreCase(a1, a2));
 }

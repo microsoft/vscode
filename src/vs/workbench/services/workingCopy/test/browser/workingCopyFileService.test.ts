@@ -16,19 +16,23 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { ICopyOperation } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { timeout } from 'vs/base/common/async';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('WorkingCopyFileService', () => {
 
+	let disposables: DisposableStore;
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
+		disposables = new DisposableStore();
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 	});
 
 	teardown(() => {
 		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
+		disposables.dispose();
 	});
 
 	test('create - dirty file', async function () {

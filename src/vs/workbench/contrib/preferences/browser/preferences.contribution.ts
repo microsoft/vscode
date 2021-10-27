@@ -166,7 +166,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					keybinding: {
 						weight: KeybindingWeight.WorkbenchContrib,
 						when: null,
-						primary: KeyMod.CtrlCmd | KeyCode.US_COMMA,
+						primary: KeyMod.CtrlCmd | KeyCode.Comma,
 					},
 					menu: {
 						id: MenuId.GlobalActivity,
@@ -554,7 +554,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					id: SETTINGS_EDITOR_COMMAND_SEARCH,
 					precondition: CONTEXT_SETTINGS_EDITOR,
 					keybinding: {
-						primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
+						primary: KeyMod.CtrlCmd | KeyCode.KeyF,
 						weight: KeybindingWeight.EditorContrib,
 						when: null
 					},
@@ -775,7 +775,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					keybinding: {
 						when: null,
 						weight: KeybindingWeight.WorkbenchContrib,
-						primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_S)
+						primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyS)
 					},
 					menu: [
 						{ id: MenuId.CommandPalette },
@@ -947,7 +947,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			id: KEYBINDINGS_EDITOR_COMMAND_ADD,
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
-			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_A),
+			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyA),
 			handler: (accessor, args: any) => {
 				const editorPane = accessor.get(IEditorService).activeEditorPane;
 				if (editorPane instanceof KeybindingsEditor) {
@@ -960,7 +960,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			id: KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN,
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
-			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_E),
+			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyE),
 			handler: (accessor, args: any) => {
 				const editorPane = accessor.get(IEditorService).activeEditorPane;
 				if (editorPane instanceof KeybindingsEditor && editorPane.activeKeybindingEntry!.keybindingItem.keybinding) {
@@ -1002,7 +1002,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			id: KEYBINDINGS_EDITOR_COMMAND_SEARCH,
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
+			primary: KeyMod.CtrlCmd | KeyCode.KeyF,
 			handler: (accessor, args: any) => {
 				const editorPane = accessor.get(IEditorService).activeEditorPane;
 				if (editorPane instanceof KeybindingsEditor) {
@@ -1015,8 +1015,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			id: KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS,
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS),
-			primary: KeyMod.Alt | KeyCode.KEY_K,
-			mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_K },
+			primary: KeyMod.Alt | KeyCode.KeyK,
+			mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyK },
 			handler: (accessor, args: any) => {
 				const editorPane = accessor.get(IEditorService).activeEditorPane;
 				if (editorPane instanceof KeybindingsEditor) {
@@ -1029,8 +1029,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			id: KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE,
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
-			primary: KeyMod.Alt | KeyCode.KEY_P,
-			mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_P },
+			primary: KeyMod.Alt | KeyCode.KeyP,
+			mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyP },
 			handler: (accessor, args: any) => {
 				const editorPane = accessor.get(IEditorService).activeEditorPane;
 				if (editorPane instanceof KeybindingsEditor) {
@@ -1056,7 +1056,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			id: KEYBINDINGS_EDITOR_COMMAND_COPY,
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
+			primary: KeyMod.CtrlCmd | KeyCode.KeyC,
 			handler: async (accessor, args: any) => {
 				const editorPane = accessor.get(IEditorService).activeEditorPane;
 				if (editorPane instanceof KeybindingsEditor) {

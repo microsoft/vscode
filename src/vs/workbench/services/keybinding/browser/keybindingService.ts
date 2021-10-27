@@ -9,7 +9,8 @@ import * as dom from 'vs/base/browser/dom';
 import { printKeyboardEvent, printStandardKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Keybinding, ResolvedKeybinding, KeyCode, KeyMod, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod, ScanCode, ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/base/common/keyCodes';
+import { Keybinding, ResolvedKeybinding, SimpleKeybinding, ScanCodeBinding } from 'vs/base/common/keybindings';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { OS, OperatingSystem, isMacintosh } from 'vs/base/common/platform';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -44,7 +45,6 @@ import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboa
 import { getDispatchConfig } from 'vs/platform/keyboardLayout/common/dispatchConfig';
 import { isArray } from 'vs/base/common/types';
 import { INavigatorWithKeyboard, IKeyboard } from 'vs/workbench/services/keybinding/browser/navigatorKeyboard';
-import { ScanCode, ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, ScanCodeBinding } from 'vs/base/common/scanCode';
 import { flatten } from 'vs/base/common/arrays';
 import { BrowserFeatures, KeyboardSupport } from 'vs/base/browser/canIUse';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -166,16 +166,16 @@ const NUMPAD_PRINTABLE_SCANCODES = [
 ];
 
 const otherMacNumpadMapping = new Map<ScanCode, KeyCode>();
-otherMacNumpadMapping.set(ScanCode.Numpad1, KeyCode.KEY_1);
-otherMacNumpadMapping.set(ScanCode.Numpad2, KeyCode.KEY_2);
-otherMacNumpadMapping.set(ScanCode.Numpad3, KeyCode.KEY_3);
-otherMacNumpadMapping.set(ScanCode.Numpad4, KeyCode.KEY_4);
-otherMacNumpadMapping.set(ScanCode.Numpad5, KeyCode.KEY_5);
-otherMacNumpadMapping.set(ScanCode.Numpad6, KeyCode.KEY_6);
-otherMacNumpadMapping.set(ScanCode.Numpad7, KeyCode.KEY_7);
-otherMacNumpadMapping.set(ScanCode.Numpad8, KeyCode.KEY_8);
-otherMacNumpadMapping.set(ScanCode.Numpad9, KeyCode.KEY_9);
-otherMacNumpadMapping.set(ScanCode.Numpad0, KeyCode.KEY_0);
+otherMacNumpadMapping.set(ScanCode.Numpad1, KeyCode.Digit1);
+otherMacNumpadMapping.set(ScanCode.Numpad2, KeyCode.Digit2);
+otherMacNumpadMapping.set(ScanCode.Numpad3, KeyCode.Digit3);
+otherMacNumpadMapping.set(ScanCode.Numpad4, KeyCode.Digit4);
+otherMacNumpadMapping.set(ScanCode.Numpad5, KeyCode.Digit5);
+otherMacNumpadMapping.set(ScanCode.Numpad6, KeyCode.Digit6);
+otherMacNumpadMapping.set(ScanCode.Numpad7, KeyCode.Digit7);
+otherMacNumpadMapping.set(ScanCode.Numpad8, KeyCode.Digit8);
+otherMacNumpadMapping.set(ScanCode.Numpad9, KeyCode.Digit9);
+otherMacNumpadMapping.set(ScanCode.Numpad0, KeyCode.Digit0);
 
 export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
@@ -472,7 +472,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 					// console.warn('Ctrl/Cmd+Num keybindings should not be used by default in web. Offender: ', kb.getHashCode(), ' for ', commandId);
 					return true;
 				}
-				if (part instanceof SimpleKeybinding && (part.keyCode >= KeyCode.KEY_0 && part.keyCode <= KeyCode.KEY_9)) {
+				if (part instanceof SimpleKeybinding && (part.keyCode >= KeyCode.Digit0 && part.keyCode <= KeyCode.Digit9)) {
 					// console.warn('Ctrl/Cmd+Num keybindings should not be used by default in web. Offender: ', kb.getHashCode(), ' for ', commandId);
 					return true;
 				}

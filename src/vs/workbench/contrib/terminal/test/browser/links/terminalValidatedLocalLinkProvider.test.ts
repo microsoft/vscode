@@ -17,6 +17,7 @@ const unixLinks = [
 	'/foo',
 	'~/foo',
 	'./foo',
+	'./$foo',
 	'../foo',
 	'/foo/bar',
 	'/foo/bar+more',
@@ -30,6 +31,7 @@ const windowsLinks = [
 	'c:/foo',
 	'.\\foo',
 	'./foo',
+	'./$foo',
 	'..\\foo',
 	'~\\foo',
 	'~/foo',
@@ -69,7 +71,8 @@ const supportedLinkFormats: LinkFormatInfo[] = [
 	{ urlFormat: '{0} [{1},{2}]', line: '5', column: '3' },
 	{ urlFormat: '{0}[{1}, {2}]', line: '5', column: '3' },
 	{ urlFormat: '{0} [{1}, {2}]', line: '5', column: '3' },
-	{ urlFormat: '{0}",{1}', line: '5' }
+	{ urlFormat: '{0}",{1}', line: '5' },
+	{ urlFormat: '{0}\',{1}', line: '5' }
 ];
 
 suite('Workbench - TerminalValidatedLocalLinkProvider', () => {

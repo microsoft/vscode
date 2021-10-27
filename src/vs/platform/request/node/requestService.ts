@@ -6,6 +6,7 @@
 import * as http from 'http';
 import * as https from 'https';
 import { parse as parseUrl } from 'url';
+import { Promises } from 'vs/base/common/async';
 import { streamToBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
@@ -98,8 +99,7 @@ export class RequestService extends Disposable implements IRequestService {
 
 	private _request(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 
-		// eslint-disable-next-line no-async-promise-executor
-		return new Promise<IRequestContext>(async (c, e) => {
+		return Promises.withAsyncBody<IRequestContext>(async (c, e) => {
 			let req: http.ClientRequest;
 
 			const endpoint = parseUrl(options.url!);

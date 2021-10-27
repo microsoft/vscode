@@ -38,6 +38,7 @@ suite('OutlineModel', function () {
 		assert.strictEqual(count, 2);
 
 		reg.dispose();
+		model.dispose();
 	});
 
 	test('OutlineModel#create, cached/cancel', async function () {
@@ -69,6 +70,7 @@ suite('OutlineModel', function () {
 		assert.strictEqual(isCancelled, true);
 
 		reg.dispose();
+		model.dispose();
 	});
 
 	function fakeSymbolInformation(range: Range, name: string = 'foo'): DocumentSymbol {

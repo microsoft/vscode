@@ -14,17 +14,13 @@ import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import {
 	DidUninstallExtensionEvent, ExtensionManagementError, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementParticipant, IExtensionManagementService, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallExtensionEvent, InstallExtensionResult, InstallOperation, InstallOptions,
-	InstallVSIXOptions, INSTALL_ERROR_INCOMPATIBLE, INSTALL_ERROR_MALICIOUS, IReportedExtension, StatisticType, UninstallOptions, TargetPlatform, isTargetPlatformCompatible, TargetPlatformToString
+	InstallVSIXOptions, IReportedExtension, StatisticType, UninstallOptions, TargetPlatform, isTargetPlatformCompatible, TargetPlatformToString, ExtensionManagementErrorCode
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, ExtensionIdentifierWithVersion, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-
-export const INSTALL_ERROR_VALIDATING = 'validating';
-export const ERROR_UNKNOWN = 'unknown';
-export const INSTALL_ERROR_LOCAL = 'local';
 
 export interface IInstallExtensionTask {
 	readonly identifier: IExtensionIdentifier;
@@ -71,6 +67,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		@IExtensionGalleryService protected readonly galleryService: IExtensionGalleryService,
 		@ITelemetryService protected readonly telemetryService: ITelemetryService,
 		@ILogService protected readonly logService: ILogService,
+		@IProductService protected readonly productService: IProductService
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -88,12 +85,12 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 	async installFromGallery(extension: IGalleryExtension, options: InstallOptions = {}): Promise<ILocalExtension> {
 		if (!this.galleryService.isEnabled()) {
-			throw new Error(nls.localize('MarketPlaceDisabled', "Marketplace is not enabled"));
+			throw new ExtensionManagementError(nls.localize('MarketPlaceDisabled', "Marketplace is not enabled"), ExtensionManagementErrorCode.Internal);
 		}
 
 		if (!await this.canInstall(extension)) {
 			const targetPlatform = await this.getTargetPlatform();
-			const error = new ExtensionManagementError(nls.localize('incompatible platform', "The '{0}' extension is not available in {1} for {2}.", extension.identifier.id, product.nameLong, TargetPlatformToString(targetPlatform)), INSTALL_ERROR_VALIDATING);
+			const error = new ExtensionManagementError(nls.localize('incompatible platform', "The '{0}' extension is not available in {1} for {2}.", extension.identifier.id, this.productService.nameLong, TargetPlatformToString(targetPlatform)), ExtensionManagementErrorCode.Incompatible);
 			this.logService.error(`Cannot install extension.`, extension.identifier.id, error.message);
 			reportTelemetry(this.telemetryService, 'extensionGallery:install', getGalleryExtensionTelemetryData(extension), undefined, error);
 			throw error;
@@ -109,14 +106,14 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 		const manifest = await this.galleryService.getManifest(extension, CancellationToken.None);
 		if (manifest === null) {
-			const error = new ExtensionManagementError(`Missing manifest for extension ${extension.identifier.id}`, INSTALL_ERROR_VALIDATING);
+			const error = new ExtensionManagementError(`Missing manifest for extension ${extension.identifier.id}`, ExtensionManagementErrorCode.Invalid);
 			this.logService.error(`Failed to install extension:`, extension.identifier.id, error.message);
 			reportTelemetry(this.telemetryService, 'extensionGallery:install', getGalleryExtensionTelemetryData(extension), undefined, error);
 			throw error;
 		}
 
 		if (manifest.version !== extension.version) {
-			const error = new ExtensionManagementError(`Cannot install '${extension.identifier.id}' extension because of version mismatch in Marketplace`, INSTALL_ERROR_VALIDATING);
+			const error = new ExtensionManagementError(`Cannot install '${extension.identifier.id}' extension because of version mismatch in Marketplace`, ExtensionManagementErrorCode.Invalid);
 			this.logService.error(error.message);
 			reportTelemetry(this.telemetryService, 'extensionGallery:install', getGalleryExtensionTelemetryData(extension), undefined, error);
 			throw error;
@@ -294,7 +291,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			this._onDidInstallExtensions.fire(allInstallExtensionTasks.map(({ task }) => ({ identifier: task.identifier, operation: InstallOperation.Install, source: task.source })));
 
 			if (error instanceof Error) {
-				error.name = error && (<ExtensionManagementError>error).code ? (<ExtensionManagementError>error).code : ERROR_UNKNOWN;
+				error.name = error && (<ExtensionManagementError>error).code ? (<ExtensionManagementError>error).code : ExtensionManagementErrorCode.Internal;
 			}
 			throw error;
 		} finally {
@@ -368,7 +365,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 						const compatibleExtension = await this.checkAndGetCompatibleVersion(galleryExtension, true);
 						const manifest = await this.galleryService.getManifest(compatibleExtension, CancellationToken.None);
 						if (manifest === null) {
-							throw new ExtensionManagementError(`Missing manifest for extension ${compatibleExtension.identifier.id}`, INSTALL_ERROR_VALIDATING);
+							throw new ExtensionManagementError(`Missing manifest for extension ${compatibleExtension.identifier.id}`, ExtensionManagementErrorCode.Invalid);
 						}
 						allDependenciesAndPacks.push({ gallery: compatibleExtension, manifest });
 						await collectDependenciesAndPackExtensionsToInstall(compatibleExtension.identifier, manifest);
@@ -384,12 +381,12 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 	private async checkAndGetCompatibleVersion(extension: IGalleryExtension, fetchCompatibleVersion: boolean): Promise<IGalleryExtension> {
 		if (await this.isMalicious(extension)) {
-			throw new ExtensionManagementError(nls.localize('malicious extension', "Can't install '{0}' extension since it was reported to be problematic.", extension.identifier.id), INSTALL_ERROR_MALICIOUS);
+			throw new ExtensionManagementError(nls.localize('malicious extension', "Can't install '{0}' extension since it was reported to be problematic.", extension.identifier.id), ExtensionManagementErrorCode.Malicious);
 		}
 
 		const compatibleExtension = await this.getCompatibleVersion(extension, fetchCompatibleVersion);
 		if (!compatibleExtension) {
-			throw new ExtensionManagementError(nls.localize('notFoundCompatibleDependency', "Can't install '{0}' extension because it is not compatible with the current version of VS Code (version {1}).", extension.identifier.id, product.version), INSTALL_ERROR_INCOMPATIBLE);
+			throw new ExtensionManagementError(nls.localize('notFoundCompatibleDependency', "Can't install '{0}' extension because it is not compatible with the current version of {1} (version {2}).", extension.identifier.id, this.productService.nameLong, this.productService.version), ExtensionManagementErrorCode.Incompatible);
 		}
 
 		return compatibleExtension;
@@ -478,7 +475,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 					}
 					postUninstallExtension(task.extension);
 				} catch (e) {
-					const error = e instanceof ExtensionManagementError ? e : new ExtensionManagementError(getErrorMessage(e), ERROR_UNKNOWN);
+					const error = e instanceof ExtensionManagementError ? e : new ExtensionManagementError(getErrorMessage(e), ExtensionManagementErrorCode.Internal);
 					postUninstallExtension(task.extension, error);
 					throw error;
 				} finally {
@@ -487,7 +484,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			}));
 
 		} catch (e) {
-			const error = e instanceof ExtensionManagementError ? e : new ExtensionManagementError(getErrorMessage(e), ERROR_UNKNOWN);
+			const error = e instanceof ExtensionManagementError ? e : new ExtensionManagementError(getErrorMessage(e), ExtensionManagementErrorCode.Internal);
 			for (const task of allTasks) {
 				// cancel the tasks
 				try { task.cancel(); } catch (error) { /* ignore */ }
@@ -623,7 +620,7 @@ export function joinErrors(errorOrErrors: (Error | string) | (Array<Error | stri
 }
 
 export function reportTelemetry(telemetryService: ITelemetryService, eventName: string, extensionData: any, duration?: number, error?: Error): void {
-	const errorcode = error ? error instanceof ExtensionManagementError ? error.code : ERROR_UNKNOWN : undefined;
+	const errorcode = error ? error instanceof ExtensionManagementError ? error.code : ExtensionManagementErrorCode.Internal : undefined;
 	/* __GDPR__
 		"extensionGallery:install" : {
 			"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },

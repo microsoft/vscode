@@ -55,7 +55,9 @@ abstract class BaseNavigationAction extends Action {
 		}
 
 		if (neighborPart === Parts.EDITOR_PART) {
-			this.navigateToEditorGroup(this.direction === Direction.Right ? GroupLocation.FIRST : GroupLocation.LAST);
+			if (!this.navigateBackToEditorGroup(this.toGroupDirection(this.direction))) {
+				this.navigateToEditorGroup(this.direction === Direction.Right ? GroupLocation.FIRST : GroupLocation.LAST);
+			}
 		} else if (neighborPart === Parts.SIDEBAR_PART) {
 			this.navigateToSidebar();
 		} else if (neighborPart === Parts.PANEL_PART) {
@@ -106,12 +108,39 @@ abstract class BaseNavigationAction extends Action {
 		return this.doNavigateToEditorGroup({ location });
 	}
 
+	private navigateBackToEditorGroup(direction: GroupDirection): boolean {
+		if (!this.editorGroupService.activeGroup) {
+			return false;
+		}
+
+		const oppositeDirection = this.toOppositeDirection(direction);
+
+		// Check to see if there is a group in between the last active group and the direction of movement
+		const groupInBetween = this.editorGroupService.findGroup({ direction: oppositeDirection }, this.editorGroupService.activeGroup);
+		if (!groupInBetween) {
+			// No group in between means we can return focus to the last active editor group
+			this.editorGroupService.activeGroup.focus();
+			return true;
+		}
+
+		return false;
+	}
+
 	private toGroupDirection(direction: Direction): GroupDirection {
 		switch (direction) {
 			case Direction.Down: return GroupDirection.DOWN;
 			case Direction.Left: return GroupDirection.LEFT;
 			case Direction.Right: return GroupDirection.RIGHT;
 			case Direction.Up: return GroupDirection.UP;
+		}
+	}
+
+	private toOppositeDirection(direction: GroupDirection): GroupDirection {
+		switch (direction) {
+			case GroupDirection.UP: return GroupDirection.DOWN;
+			case GroupDirection.RIGHT: return GroupDirection.LEFT;
+			case GroupDirection.LEFT: return GroupDirection.RIGHT;
+			case GroupDirection.DOWN: return GroupDirection.UP;
 		}
 	}
 

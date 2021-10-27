@@ -13,11 +13,6 @@
     "update-grammar": "node ./build/update-grammars.js"
   },
   "contributes": {
-    "configurationDefaults": {
-      "[typescript]": {
-        "editor.maxTokenizationLineLength": 2500
-      }
-    },
     "languages": [
       {
         "id": "typescript",

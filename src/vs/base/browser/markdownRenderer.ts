@@ -30,7 +30,7 @@ export interface MarkedOptions extends marked.MarkedOptions {
 }
 
 export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
-	codeBlockRenderer?: (modeId: string, value: string) => Promise<HTMLElement>;
+	codeBlockRenderer?: (languageId: string, value: string) => Promise<HTMLElement>;
 	asyncRenderCallback?: () => void;
 	baseUrl?: URI;
 }

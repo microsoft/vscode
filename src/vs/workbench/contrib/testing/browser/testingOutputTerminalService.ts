@@ -10,9 +10,9 @@ import { listenStream } from 'vs/base/common/stream';
 import { isDefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ProcessCapability, ProcessPropertyType, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ProcessCapability, ProcessPropertyType, TerminalLocation, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IViewsService } from 'vs/workbench/common/views';
-import { ITerminalGroupService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { testingViewIcon } from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
@@ -51,6 +51,7 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 	constructor(
 		@ITerminalService private readonly terminalService: ITerminalService,
 		@ITerminalGroupService private readonly terminalGroupService: ITerminalGroupService,
+		@ITerminalEditorService private readonly terminalEditorService: ITerminalEditorService,
 		@ITestResultService resultService: ITestResultService,
 		@IViewsService private viewsService: IViewsService,
 	) {
@@ -89,7 +90,11 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 		const existing = testOutputPtys.find(([, o]) => o.resultId === result?.id);
 		if (existing) {
 			this.terminalService.setActiveInstance(existing[0]);
-			this.terminalGroupService.showPanel();
+			if (existing[0].target === TerminalLocation.Editor) {
+				this.terminalEditorService.revealActiveEditor();
+			} else {
+				this.terminalGroupService.showPanel();
+			}
 			return;
 		}
 
@@ -116,7 +121,11 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 		this.outputTerminals.set(terminal, output);
 		output.resetFor(result?.id, getTitle(result));
 		this.terminalService.setActiveInstance(terminal);
-		this.terminalGroupService.showPanel();
+		if (terminal.target === TerminalLocation.Editor) {
+			this.terminalEditorService.revealActiveEditor();
+		} else {
+			this.terminalGroupService.showPanel();
+		}
 
 		if (!result) {
 			// seems like it takes a tick for listeners to be registered

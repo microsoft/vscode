@@ -5,8 +5,9 @@
 
 import * as assert from 'assert';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { ColorId, FontStyle, IState, LanguageIdentifier, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
+import { ColorId, FontStyle, IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
 import { tokenizeLineToHTML, tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
 import { ViewLineToken, ViewLineTokens } from 'vs/editor/test/common/core/viewLineToken';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 
@@ -18,9 +19,9 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 
 	test('TextToHtmlTokenizer 1', () => {
 		let mode = new Mode();
-		let support = TokenizationRegistry.get(mode.getId())!;
+		let support = TokenizationRegistry.get(mode.languageId)!;
 
-		let actual = tokenizeToString('.abc..def...gh', support);
+		let actual = tokenizeToString('.abc..def...gh', new LanguageIdCodec(), support);
 		let expected = [
 			{ className: 'mtk7', text: '.' },
 			{ className: 'mtk9', text: 'abc' },
@@ -38,9 +39,9 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 
 	test('TextToHtmlTokenizer 2', () => {
 		let mode = new Mode();
-		let support = TokenizationRegistry.get(mode.getId())!;
+		let support = TokenizationRegistry.get(mode.languageId)!;
 
-		let actual = tokenizeToString('.abc..def...gh\n.abc..def...gh', support);
+		let actual = tokenizeToString('.abc..def...gh\n.abc..def...gh', new LanguageIdCodec(), support);
 		let expected1 = [
 			{ className: 'mtk7', text: '.' },
 			{ className: 'mtk9', text: 'abc' },
@@ -280,11 +281,11 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 
 class Mode extends MockMode {
 
-	private static readonly _id = new LanguageIdentifier('textToHtmlTokenizerMode', 3);
+	private static readonly _id = 'textToHtmlTokenizerMode';
 
 	constructor() {
 		super(Mode._id);
-		this._register(TokenizationRegistry.register(this.getId(), {
+		this._register(TokenizationRegistry.register(this.languageId, {
 			getInitialState: (): IState => null!,
 			tokenize: undefined!,
 			tokenize2: (line: string, hasEOL: boolean, state: IState): TokenizationResult2 => {

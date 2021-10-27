@@ -151,7 +151,7 @@ registerAction2(class extends NotebookCellAction {
 				icon: icons.splitCellIcon,
 				keybinding: {
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
-					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKSLASH),
+					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backslash),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
 			});
@@ -215,7 +215,7 @@ registerAction2(class extends NotebookCellAction {
 				title: localize('notebookActions.joinCellAbove', "Join With Previous Cell"),
 				keybinding: {
 					when: NOTEBOOK_EDITOR_FOCUSED,
-					primary: KeyMod.WinCtrl | KeyMod.Alt | KeyMod.Shift | KeyCode.KEY_J,
+					primary: KeyMod.WinCtrl | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyJ,
 					weight: KeybindingWeight.WorkbenchContrib
 				},
 				menu: {
@@ -241,7 +241,7 @@ registerAction2(class extends NotebookCellAction {
 				title: localize('notebookActions.joinCellBelow', "Join With Next Cell"),
 				keybinding: {
 					when: NOTEBOOK_EDITOR_FOCUSED,
-					primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KEY_J,
+					primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KeyJ,
 					weight: KeybindingWeight.WorkbenchContrib
 				},
 				menu: {
@@ -273,7 +273,7 @@ registerAction2(class ChangeCellToCodeAction extends NotebookMultiCellAction {
 			title: localize('notebookActions.changeCellToCode', "Change Cell to Code"),
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
-				primary: KeyCode.KEY_Y,
+				primary: KeyCode.KeyY,
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_CELL_TYPE.isEqualTo('markup')),
@@ -297,7 +297,7 @@ registerAction2(class ChangeCellToMarkdownAction extends NotebookMultiCellAction
 			title: localize('notebookActions.changeCellToMarkdown', "Change Cell to Markdown"),
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
-				primary: KeyCode.KEY_M,
+				primary: KeyCode.KeyM,
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_CELL_TYPE.isEqualTo('code')),
@@ -352,7 +352,7 @@ registerAction2(class CollapseCellInputAction extends ChangeNotebookCellMetadata
 			title: localize('notebookActions.collapseCellInput', "Collapse Cell Input"),
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_INPUT_COLLAPSED.toNegated(), InputFocusedContext.toNegated()),
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyC),
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			menu: {
@@ -376,7 +376,7 @@ registerAction2(class ExpandCellInputAction extends ChangeNotebookCellMetadataAc
 			title: localize('notebookActions.expandCellInput', "Expand Cell Input"),
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_INPUT_COLLAPSED),
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyC),
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			menu: {
@@ -400,7 +400,7 @@ registerAction2(class CollapseCellOutputAction extends ChangeNotebookCellMetadat
 			title: localize('notebookActions.collapseCellOutput', "Collapse Cell Output"),
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED.toNegated(), InputFocusedContext.toNegated(), NOTEBOOK_CELL_HAS_OUTPUTS),
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_T),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyT),
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			menu: {
@@ -424,7 +424,7 @@ registerAction2(class ExpandCellOuputAction extends ChangeNotebookCellMetadataAc
 			title: localize('notebookActions.expandCellOutput', "Expand Cell Output"),
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED),
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_T),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyT),
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			menu: {

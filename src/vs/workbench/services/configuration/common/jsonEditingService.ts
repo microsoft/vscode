@@ -134,7 +134,7 @@ export class JSONEditingService implements IJSONEditingService {
 				return nls.localize('errorInvalidFile', "Unable to write into the file. Please open the file to correct errors/warnings in the file and try again.");
 			}
 			case JSONEditingErrorCode.ERROR_FILE_DIRTY: {
-				return nls.localize('errorFileDirty', "Unable to write into the file because the file is dirty. Please save the file and try again.");
+				return nls.localize('errorFileDirty', "Unable to write into the file because the file has unsaved changes. Please save the file and try again.");
 			}
 		}
 	}

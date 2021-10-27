@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { IMatch } from 'vs/base/common/filters';
 import { IItemAccessor } from 'vs/base/common/fuzzyScorer';
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';

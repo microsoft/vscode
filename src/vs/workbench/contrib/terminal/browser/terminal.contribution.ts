@@ -105,8 +105,8 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 		id: TerminalCommandId.Toggle,
 		mnemonicTitle: nls.localize({ key: 'miToggleIntegratedTerminal', comment: ['&& denotes a mnemonic'] }, "&&Terminal"),
 		keybindings: {
-			primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK,
-			mac: { primary: KeyMod.WinCtrl | KeyCode.US_BACKTICK }
+			primary: KeyMod.CtrlCmd | KeyCode.Backquote,
+			mac: { primary: KeyMod.WinCtrl | KeyCode.Backquote }
 		},
 		order: 3
 	}
@@ -139,7 +139,7 @@ const CTRL_LETTER_OFFSET = 64;
 if (isWindows) {
 	registerSendSequenceKeybinding(String.fromCharCode('V'.charCodeAt(0) - CTRL_LETTER_OFFSET), { // ctrl+v
 		when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, WindowsShellType.PowerShell), CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_V
+		primary: KeyMod.CtrlCmd | KeyCode.KeyV
 	});
 }
 
@@ -147,7 +147,7 @@ if (isWindows) {
 if (isIOS) {
 	registerSendSequenceKeybinding(String.fromCharCode('C'.charCodeAt(0) - CTRL_LETTER_OFFSET), { // ctrl+c
 		when: ContextKeyExpr.and(TerminalContextKeys.focus),
-		primary: KeyMod.WinCtrl | KeyCode.KEY_C
+		primary: KeyMod.WinCtrl | KeyCode.KeyC
 	});
 }
 
@@ -165,7 +165,7 @@ if (isWindows) {
 	});
 }
 // Delete word right: alt+d
-registerSendSequenceKeybinding('\x1bd', {
+registerSendSequenceKeybinding('\u000d', {
 	primary: KeyMod.CtrlCmd | KeyCode.Delete,
 	mac: { primary: KeyMod.Alt | KeyCode.Delete }
 });
@@ -183,7 +183,22 @@ registerSendSequenceKeybinding(String.fromCharCode('E'.charCodeAt(0) - 64), {
 });
 // Break: ctrl+C
 registerSendSequenceKeybinding(String.fromCharCode('C'.charCodeAt(0) - 64), {
-	mac: { primary: KeyMod.CtrlCmd | KeyCode.US_DOT }
+	mac: { primary: KeyMod.CtrlCmd | KeyCode.Period }
+});
+// NUL: ctrl+shift+2
+registerSendSequenceKeybinding('\u0000', {
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Digit2,
+	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Digit2 }
+});
+// RS: ctrl+shift+6
+registerSendSequenceKeybinding('\u001e', {
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Digit6,
+	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Digit6 }
+});
+// US (Undo): ctrl+/
+registerSendSequenceKeybinding('\u001f', {
+	primary: KeyMod.CtrlCmd | KeyCode.Slash,
+	mac: { primary: KeyMod.WinCtrl | KeyCode.Slash }
 });
 
 setupTerminalCommands();

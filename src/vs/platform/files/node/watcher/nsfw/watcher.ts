@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IDiskFileChange, ILogMessage, IWatchRequest } from 'vs/platform/files/node/watcher/watcher';
+import { IDiskFileChange, ILogMessage, IWatchRequest } from 'vs/platform/files/common/watcher';
 
 export interface IWatcherService {
 

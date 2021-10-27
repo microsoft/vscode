@@ -170,7 +170,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		}));
 	}
 
-	public setWordDefinitionFor(modeId: string, wordDefinition: RegExp | undefined): void {
-		setWordDefinitionFor(modeId, wordDefinition);
+	public setWordDefinitionFor(languageId: string, wordDefinition: RegExp | undefined): void {
+		setWordDefinitionFor(languageId, wordDefinition);
 	}
 }

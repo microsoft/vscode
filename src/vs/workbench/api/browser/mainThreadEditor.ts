@@ -349,7 +349,7 @@ export class MainThreadTextEditor {
 	}
 
 	private _setIndentConfiguration(newConfiguration: ITextEditorConfigurationUpdate): void {
-		const creationOpts = this._modelService.getCreationOptions(this._model.getLanguageIdentifier().language, this._model.uri, this._model.isForSimpleWidget);
+		const creationOpts = this._modelService.getCreationOptions(this._model.getLanguageId(), this._model.uri, this._model.isForSimpleWidget);
 
 		if (newConfiguration.tabSize === 'auto' || newConfiguration.insertSpaces === 'auto') {
 			// one of the options was set to 'auto' => detect indentation

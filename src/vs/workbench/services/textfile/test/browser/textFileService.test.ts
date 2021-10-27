@@ -10,21 +10,25 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { FileOperation } from 'vs/platform/files/common/files';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('Files - TextFileService', () => {
 
+	let disposables: DisposableStore;
 	let instantiationService: IInstantiationService;
 	let model: TextFileEditorModel;
 	let accessor: TestServiceAccessor;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
+		disposables = new DisposableStore();
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 	});
 
 	teardown(() => {
 		model?.dispose();
 		(<TestTextFileEditorModelManager>accessor.textFileService.files).dispose();
+		disposables.dispose();
 	});
 
 	test('isDirty/getDirty - files and untitled', async function () {

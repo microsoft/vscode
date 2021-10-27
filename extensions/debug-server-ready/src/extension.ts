@@ -22,12 +22,24 @@ interface ServerReadyAction {
 	name?: string;
 }
 
+class Trigger {
+	private _fired = false;
+
+	public get hasFired() {
+		return this._fired;
+	}
+
+	public fire() {
+		this._fired = true;
+	}
+}
+
 class ServerReadyDetector extends vscode.Disposable {
 
 	private static detectors = new Map<vscode.DebugSession, ServerReadyDetector>();
 	private static terminalDataListener: vscode.Disposable | undefined;
 
-	private hasFired = false;
+	private trigger: Trigger;
 	private shellPid?: number;
 	private regexp: RegExp;
 	private disposables: vscode.Disposable[] = [];
@@ -85,6 +97,13 @@ class ServerReadyDetector extends vscode.Disposable {
 	private constructor(private session: vscode.DebugSession) {
 		super(() => this.internalDispose());
 
+		// Re-used the triggered of the parent session, if one exists
+		if (session.parentSession) {
+			this.trigger = ServerReadyDetector.start(session.parentSession)?.trigger ?? new Trigger();
+		} else {
+			this.trigger = new Trigger();
+		}
+
 		this.regexp = new RegExp(session.configuration.serverReadyAction.pattern || PATTERN, 'i');
 	}
 
@@ -94,11 +113,11 @@ class ServerReadyDetector extends vscode.Disposable {
 	}
 
 	detectPattern(s: string): boolean {
-		if (!this.hasFired) {
+		if (!this.trigger.hasFired) {
 			const matches = this.regexp.exec(s);
 			if (matches && matches.length >= 1) {
 				this.openExternalWithString(this.session, matches.length > 1 ? matches[1] : '');
-				this.hasFired = true;
+				this.trigger.fire();
 				this.internalDispose();
 				return true;
 			}

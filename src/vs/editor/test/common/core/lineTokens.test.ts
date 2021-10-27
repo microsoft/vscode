@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { IViewLineTokens, LineTokens } from 'vs/editor/common/core/lineTokens';
 import { MetadataConsts } from 'vs/editor/common/modes';
+import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
 
 suite('LineTokens', () => {
 
@@ -24,7 +25,7 @@ suite('LineTokens', () => {
 			) >>> 0;
 		}
 
-		return new LineTokens(binTokens, text);
+		return new LineTokens(binTokens, text, new LanguageIdCodec());
 	}
 
 	function createTestLineTokens(): LineTokens {

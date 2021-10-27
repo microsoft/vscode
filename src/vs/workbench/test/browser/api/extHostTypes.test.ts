@@ -692,4 +692,20 @@ suite('ExtHostTypes', function () {
 		assert.strictEqual(item.mime, 'foo/bar');
 		assert.deepStrictEqual(item.data, new TextEncoder().encode('Hęłlö'));
 	});
+
+	test('FileDecoration#validate', function () {
+
+		assert.ok(types.FileDecoration.validate({ badge: 'u' }));
+		assert.ok(types.FileDecoration.validate({ badge: 'ü' }));
+		assert.ok(types.FileDecoration.validate({ badge: '1' }));
+		assert.ok(types.FileDecoration.validate({ badge: 'ãã' }));
+		assert.ok(types.FileDecoration.validate({ badge: '👋' }));
+		assert.ok(types.FileDecoration.validate({ badge: '👋👋' }));
+		assert.ok(types.FileDecoration.validate({ badge: '👩‍👩‍👧‍👧' }));
+		assert.ok(types.FileDecoration.validate({ badge: 'போ' }));
+		assert.throws(() => types.FileDecoration.validate({ badge: 'hel' }));
+		assert.throws(() => types.FileDecoration.validate({ badge: '👋👋👋' }));
+		assert.throws(() => types.FileDecoration.validate({ badge: 'புன்சிரிப்போடு' }));
+		assert.throws(() => types.FileDecoration.validate({ badge: 'ããã' }));
+	});
 });

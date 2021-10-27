@@ -194,9 +194,8 @@ export class SuggestModel implements IDisposable {
 			editorIsComposing = true;
 		}));
 		this._toDispose.add(this._editor.onDidCompositionEnd(() => {
-			// refilter when composition ends
 			editorIsComposing = false;
-			this._refilterCompletionItems();
+			this._onCompositionEnd();
 		}));
 		this._toDispose.add(this._editor.onDidChangeModelContent(() => {
 			// only filter completions when the editor isn't
@@ -333,7 +332,6 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		const model = this._editor.getModel();
 		const prevSelection = this._currentSelection;
 		this._currentSelection = this._editor.getSelection();
 
@@ -347,77 +345,88 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		if (!CompletionProviderRegistry.has(model)) {
-			return;
-		}
 
 		if (this._state === State.Idle && e.reason === CursorChangeReason.NotSet) {
-
-			if (this._editor.getOption(EditorOption.quickSuggestions) === false) {
-				// not enabled
-				return;
+			if (prevSelection.containsRange(this._currentSelection) || prevSelection.getEndPosition().isBeforeOrEqual(this._currentSelection.getPosition())) {
+				// cursor did move RIGHT due to typing -> trigger quick suggest
+				this._doTriggerQuickSuggest();
 			}
-
-			if (!prevSelection.containsRange(this._currentSelection) && !prevSelection.getEndPosition().isBeforeOrEqual(this._currentSelection.getPosition())) {
-				// cursor didn't move RIGHT
-				return;
-			}
-
-			if (this._editor.getOption(EditorOption.suggest).snippetsPreventQuickSuggestions && SnippetController2.get(this._editor).isInSnippet()) {
-				// no quick suggestion when in snippet mode
-				return;
-			}
-
-			this.cancel();
-
-			this._triggerQuickSuggest.cancelAndSet(() => {
-				if (this._state !== State.Idle) {
-					return;
-				}
-				if (!LineContext.shouldAutoTrigger(this._editor)) {
-					return;
-				}
-				if (!this._editor.hasModel()) {
-					return;
-				}
-				const model = this._editor.getModel();
-				const pos = this._editor.getPosition();
-				// validate enabled now
-				const quickSuggestions = this._editor.getOption(EditorOption.quickSuggestions);
-				if (quickSuggestions === false) {
-					return;
-				} else if (quickSuggestions === true) {
-					// all good
-				} else {
-					// Check the type of the token that triggered this
-					model.tokenizeIfCheap(pos.lineNumber);
-					const lineTokens = model.getLineTokens(pos.lineNumber);
-					const tokenType = lineTokens.getStandardTokenType(lineTokens.findTokenIndexAtOffset(Math.max(pos.column - 1 - 1, 0)));
-					const inValidScope = quickSuggestions.other && tokenType === StandardTokenType.Other
-						|| quickSuggestions.comments && tokenType === StandardTokenType.Comment
-						|| quickSuggestions.strings && tokenType === StandardTokenType.String;
-
-					if (!inValidScope) {
-						return;
-					}
-				}
-
-				if (!canShowQuickSuggest(this._editor, this._contextKeyService, this._configurationService)) {
-					// do not trigger quick suggestions if inline suggestions are shown
-					return;
-				}
-
-				// we made it till here -> trigger now
-				this.trigger({ auto: true, shy: false });
-
-			}, this._quickSuggestDelay);
-
 
 		} else if (this._state !== State.Idle && e.reason === CursorChangeReason.Explicit) {
 			// suggest is active and something like cursor keys are used to move
 			// the cursor. this means we can refilter at the new position
 			this._refilterCompletionItems();
 		}
+	}
+
+	private _onCompositionEnd(): void {
+		// trigger or refilter when composition ends
+		if (this._state === State.Idle) {
+			this._doTriggerQuickSuggest();
+		} else {
+			this._refilterCompletionItems();
+		}
+	}
+
+	private _doTriggerQuickSuggest(): void {
+
+		if (this._editor.getOption(EditorOption.quickSuggestions) === false) {
+			// not enabled
+			return;
+		}
+
+		if (this._editor.getOption(EditorOption.suggest).snippetsPreventQuickSuggestions && SnippetController2.get(this._editor).isInSnippet()) {
+			// no quick suggestion when in snippet mode
+			return;
+		}
+
+		this.cancel();
+
+		this._triggerQuickSuggest.cancelAndSet(() => {
+			if (this._state !== State.Idle) {
+				return;
+			}
+			if (!LineContext.shouldAutoTrigger(this._editor)) {
+				return;
+			}
+			if (!this._editor.hasModel()) {
+				return;
+			}
+			const model = this._editor.getModel();
+			const pos = this._editor.getPosition();
+			// validate enabled now
+			const quickSuggestions = this._editor.getOption(EditorOption.quickSuggestions);
+			if (quickSuggestions === false) {
+				return;
+			} else if (quickSuggestions === true) {
+				// all good
+			} else {
+				// Check the type of the token that triggered this
+				model.tokenizeIfCheap(pos.lineNumber);
+				const lineTokens = model.getLineTokens(pos.lineNumber);
+				const tokenType = lineTokens.getStandardTokenType(lineTokens.findTokenIndexAtOffset(Math.max(pos.column - 1 - 1, 0)));
+				const inValidScope = quickSuggestions.other && tokenType === StandardTokenType.Other
+					|| quickSuggestions.comments && tokenType === StandardTokenType.Comment
+					|| quickSuggestions.strings && tokenType === StandardTokenType.String;
+
+				if (!inValidScope) {
+					return;
+				}
+			}
+
+			if (!canShowQuickSuggest(this._editor, this._contextKeyService, this._configurationService)) {
+				// do not trigger quick suggestions if inline suggestions are shown
+				return;
+			}
+
+			if (!CompletionProviderRegistry.has(model)) {
+				return;
+			}
+
+			// we made it till here -> trigger now
+			this.trigger({ auto: true, shy: false });
+
+		}, this._quickSuggestDelay);
 	}
 
 	private _refilterCompletionItems(): void {

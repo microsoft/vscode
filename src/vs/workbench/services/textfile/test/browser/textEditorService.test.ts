@@ -49,7 +49,7 @@ suite('TextEditorService', () => {
 	});
 
 	test('createTextEditor - basics', async function () {
-		const instantiationService = workbenchInstantiationService();
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const service = instantiationService.createInstance(TextEditorService);
 
 		const mode = 'create-input-test';
@@ -90,7 +90,7 @@ suite('TextEditorService', () => {
 		contentInput = <FileEditorInput>input;
 		assert.strictEqual(contentInput.getPreferredMode(), mode);
 		let fileModel = (await contentInput.resolve() as ITextFileEditorModel);
-		assert.strictEqual(fileModel.textEditorModel?.getModeId(), mode);
+		assert.strictEqual(fileModel.textEditorModel?.getLanguageId(), mode);
 
 		// Untyped Input (file, contents)
 		input = service.createTextEditor({ resource: toResource.call(this, '/index.html'), contents: 'My contents' });
@@ -185,7 +185,7 @@ suite('TextEditorService', () => {
 	});
 
 	test('createTextEditor- caching', function () {
-		const instantiationService = workbenchInstantiationService();
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const service = instantiationService.createInstance(TextEditorService);
 
 		// Cached Input (Files)

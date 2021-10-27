@@ -314,7 +314,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			text: item.label,
 			ariaLabel: item.accessibilityInfo?.label ?? item.label,
 			role: item.accessibilityInfo?.role,
-			tooltip: new MarkdownString(item.detail, true),
+			tooltip: item.command?.tooltip || new MarkdownString(item.detail, true),
 			color,
 			backgroundColor,
 			command: item.command

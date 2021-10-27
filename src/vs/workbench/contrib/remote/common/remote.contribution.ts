@@ -98,7 +98,8 @@ class RemoteInvalidWorkspaceDetector extends Disposable implements IWorkbenchCon
 		@IDialogService private readonly dialogService: IDialogService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IFileDialogService private readonly fileDialogService: IFileDialogService
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService
 	) {
 		super();
 
@@ -108,7 +109,14 @@ class RemoteInvalidWorkspaceDetector extends Disposable implements IWorkbenchCon
 		// the user to a valid workspace.
 		// (see https://github.com/microsoft/vscode/issues/133872)
 		if (this.environmentService.remoteAuthority) {
-			this.validateRemoteWorkspace();
+			remoteAgentService.getEnvironment().then(remoteEnv => {
+				if (remoteEnv) {
+					// we use the presence of `remoteEnv` to figure out
+					// if we got a healthy remote connection
+					// (see https://github.com/microsoft/vscode/issues/135331)
+					this.validateRemoteWorkspace();
+				}
+			});
 		}
 	}
 

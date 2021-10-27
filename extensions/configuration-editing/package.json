@@ -51,7 +51,8 @@
           ".devcontainer.json"
         ],
         "filenamePatterns": [
-					"**/.devcontainer/devcontainer.json"
+					"**/.devcontainer/devcontainer.json",
+          "**/User/snippets/*.json"
 				]
       }
     ],

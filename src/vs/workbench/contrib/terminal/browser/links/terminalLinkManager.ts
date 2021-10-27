@@ -45,7 +45,7 @@ export class TerminalLinkManager extends DisposableStore {
 	private _widgetManager: TerminalWidgetManager | undefined;
 	private _processCwd: string | undefined;
 	private _standardLinkProviders: ILinkProvider[] = [];
-	private _standardLinkProvidersDisposables: IDisposable[] = [];
+	private _linkProvidersDisposables: IDisposable[] = [];
 
 	constructor(
 		private _xterm: Terminal,
@@ -137,18 +137,23 @@ export class TerminalLinkManager extends DisposableStore {
 		this._processCwd = processCwd;
 	}
 
+	private _clearLinkProviders(): void {
+		dispose(this._linkProvidersDisposables);
+		this._linkProvidersDisposables = [];
+	}
+
 	private _registerStandardLinkProviders(): void {
-		dispose(this._standardLinkProvidersDisposables);
-		this._standardLinkProvidersDisposables = [];
 		for (const p of this._standardLinkProviders) {
-			this._standardLinkProvidersDisposables.push(this._xterm.registerLinkProvider(p));
+			this._linkProvidersDisposables.push(this._xterm.registerLinkProvider(p));
 		}
 	}
 
 	registerExternalLinkProvider(instance: ITerminalInstance, linkProvider: ITerminalExternalLinkProvider): IDisposable {
+		// Clear and re-register the standard link providers so they are a lower priority that the new one
+		this._clearLinkProviders();
 		const wrappedLinkProvider = this._instantiationService.createInstance(TerminalExternalLinkProviderAdapter, this._xterm, instance, linkProvider, this._wrapLinkHandler.bind(this), this._tooltipCallback.bind(this));
 		const newLinkProvider = this._xterm.registerLinkProvider(wrappedLinkProvider);
-		// Re-register the standard link providers so they are a lower priority that the new one
+		this._linkProvidersDisposables.push(newLinkProvider);
 		this._registerStandardLinkProviders();
 		return newLinkProvider;
 	}

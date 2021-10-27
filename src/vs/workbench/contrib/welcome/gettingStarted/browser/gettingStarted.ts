@@ -15,7 +15,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { hiddenEntriesConfigurationKey, IResolvedWalkthrough, IResolvedWalkthroughStep, IWalkthroughsService } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedService';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { welcomePageBackground, welcomePageProgressBackground, welcomePageProgressForeground, welcomePageTileBackground, welcomePageTileHoverBackground, welcomePageTileShadow } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedColors';
-import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, descriptionForeground, focusBorder, foreground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, descriptionForeground, focusBorder, foreground, simpleCheckboxBackground, simpleCheckboxBorder, simpleCheckboxForeground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { firstSessionDateStorageKey, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -70,6 +70,8 @@ import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
 import { IsIOSContext } from 'vs/platform/contextkey/common/contextkeys';
 import { AddRootFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
+import { Codicon } from 'vs/base/common/codicons';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -150,6 +152,7 @@ export class GettingStartedPage extends EditorPane {
 	private layoutMarkdown: (() => void) | undefined;
 
 	private webviewID = generateUuid();
+	private categoriesSlideDisposables: DisposableStore;
 
 	constructor(
 		@ICommandService private readonly commandService: ICommandService,
@@ -186,6 +189,8 @@ export class GettingStartedPage extends EditorPane {
 			});
 		this.stepMediaComponent = $('.getting-started-media');
 		this.stepMediaComponent.id = generateUuid();
+
+		this.categoriesSlideDisposables = this._register(new DisposableStore());
 
 		this.contextService = this._register(contextService.createScoped(this.container));
 		inWelcomeContext.bindTo(this.contextService).set(true);
@@ -466,7 +471,7 @@ export class GettingStartedPage extends EditorPane {
 						return new Promise<string>(resolve => {
 							require([moduleId], content => {
 								const markdown = content.default();
-								resolve(renderMarkdownDocument(markdown, this.extensionService, this.modeService));
+								resolve(renderMarkdownDocument(markdown, this.extensionService, this.modeService, true, true));
 							});
 						});
 					}
@@ -495,7 +500,7 @@ export class GettingStartedPage extends EditorPane {
 								: path);
 
 					const markdown = bytes.value.toString();
-					return renderMarkdownDocument(markdown, this.extensionService, this.modeService);
+					return renderMarkdownDocument(markdown, this.extensionService, this.modeService, true, true);
 				} catch (e) {
 					this.notificationService.error('Error reading markdown document at `' + path + '`: ' + e);
 					return '';
@@ -752,11 +757,15 @@ export class GettingStartedPage extends EditorPane {
 		});
 
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
+
+		const inDev = document.location.protocol === 'http:';
+		const imgSrcCsp = inDev ? 'img-src https: data: http:' : 'img-src https: data:';
+
 		return `<!DOCTYPE html>
 		<html>
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}';">
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; ${imgSrcCsp}; media-src https:; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}';">
 				<style nonce="${nonce}">
 					${DEFAULT_MARKDOWN_STYLES}
 					${css}
@@ -857,10 +866,17 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private async buildCategoriesSlide() {
-		const showOnStartupCheckbox = $('input.checkbox', { id: 'showOnStartup', type: 'checkbox' }) as HTMLInputElement;
+		this.categoriesSlideDisposables.clear();
+		const showOnStartupCheckbox = new Checkbox({
+			icon: Codicon.check,
+			actionClassName: 'getting-started-checkbox',
+			isChecked: this.configurationService.getValue(configurationKey) === 'welcomePage',
+			title: localize('checkboxTitle', "When checked, this page will be shown on startup."),
+		});
+		showOnStartupCheckbox.domNode.id = 'showOnStartup';
 
-		showOnStartupCheckbox.checked = this.configurationService.getValue(configurationKey) === 'welcomePage';
-		this._register(addDisposableListener(showOnStartupCheckbox, 'click', () => {
+		this.categoriesSlideDisposables.add(showOnStartupCheckbox);
+		this.categoriesSlideDisposables.add(showOnStartupCheckbox.onChange(() => {
 			if (showOnStartupCheckbox.checked) {
 				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'showOnStartupChecked', argument: undefined });
 				this.configurationService.updateValue(configurationKey, 'welcomePage');
@@ -885,7 +901,7 @@ export class GettingStartedPage extends EditorPane {
 
 		const footer = $('.footer', {},
 			$('p.showOnStartup', {},
-				showOnStartupCheckbox,
+				showOnStartupCheckbox.domNode,
 				$('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show welcome page on startup"))
 			));
 
@@ -1075,7 +1091,7 @@ export class GettingStartedPage extends EditorPane {
 			if (category.newEntry) {
 				reset(newBadge, $('.new-category', {}, localize('new', "New")));
 			} else if (category.newItems) {
-				reset(newBadge, $('.new-items', {}, localize('newItems', "New Items")));
+				reset(newBadge, $('.new-items', {}, localize({ key: 'newItems', comment: ['Shown when a list of items has changed based on an update from a remote source'] }, "Updated")));
 			}
 
 			const featuredBadge = $('.featured-badge', {});
@@ -1630,5 +1646,20 @@ registerThemingParticipant((theme, collector) => {
 	if (newBadgeBackground) {
 		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .new-badge { background-color: ${newBadgeBackground}; }`);
 		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured { border-top-color: ${newBadgeBackground}; }`);
+	}
+
+	const checkboxBackground = theme.getColor(simpleCheckboxBackground);
+	if (checkboxBackground) {
+		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox { background-color: ${checkboxBackground} !important; }`);
+	}
+
+	const checkboxForeground = theme.getColor(simpleCheckboxForeground);
+	if (checkboxForeground) {
+		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox { color: ${checkboxForeground} !important; }`);
+	}
+
+	const checkboxBorder = theme.getColor(simpleCheckboxBorder);
+	if (checkboxBorder) {
+		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox { border-color: ${checkboxBorder} !important; }`);
 	}
 });

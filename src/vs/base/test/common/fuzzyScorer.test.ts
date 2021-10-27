@@ -403,6 +403,13 @@ suite('Fuzzy Scorer', () => {
 		}
 	});
 
+	test('scoreItem - ensure upper case bonus only applies on non-consecutive matches (bug #134723)', function () {
+		const resourceWithUpper = URI.file('ASDFasdfasdf');
+		const resourceAllLower = URI.file('asdfasdfasdf');
+
+		assert.ok(scoreItem(resourceAllLower, 'asdf', true, ResourceAccessor).score > scoreItem(resourceWithUpper, 'asdf', true, ResourceAccessor).score);
+	});
+
 	test('compareItemsByScore - identity', function () {
 		const resourceA = URI.file('/some/path/fileA.txt');
 		const resourceB = URI.file('/some/path/other/fileB.txt');

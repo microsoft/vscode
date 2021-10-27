@@ -7,7 +7,7 @@ import { OperatingSystem } from 'vs/base/common/platform';
 import { IPCFileSystemProvider } from 'vs/platform/files/common/ipcFileSystemProvider';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
-export const REMOTE_FILE_SYSTEM_CHANNEL_NAME = 'remotefilesystem';
+export const REMOTE_FILE_SYSTEM_CHANNEL_NAME = 'remoteFilesystem';
 
 export class RemoteFileSystemProvider extends IPCFileSystemProvider {
 

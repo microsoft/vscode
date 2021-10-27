@@ -593,7 +593,7 @@ export const UndoCommand = registerCommand(new MultiCommand({
 	precondition: undefined,
 	kbOpts: {
 		weight: KeybindingWeight.EditorCore,
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_Z
+		primary: KeyMod.CtrlCmd | KeyCode.KeyZ
 	},
 	menuOpts: [{
 		menuId: MenuId.MenubarEditMenu,
@@ -615,9 +615,9 @@ export const RedoCommand = registerCommand(new MultiCommand({
 	precondition: undefined,
 	kbOpts: {
 		weight: KeybindingWeight.EditorCore,
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_Y,
-		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z],
-		mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z }
+		primary: KeyMod.CtrlCmd | KeyCode.KeyY,
+		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyZ],
+		mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyZ }
 	},
 	menuOpts: [{
 		menuId: MenuId.MenubarEditMenu,
@@ -640,7 +640,7 @@ export const SelectAllCommand = registerCommand(new MultiCommand({
 	kbOpts: {
 		weight: KeybindingWeight.EditorCore,
 		kbExpr: null,
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_A
+		primary: KeyMod.CtrlCmd | KeyCode.KeyA
 	},
 	menuOpts: [{
 		menuId: MenuId.MenubarSelectionMenu,

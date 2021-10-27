@@ -312,7 +312,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'never'
 		},
 		[TerminalSettingId.ConfirmOnKill]: {
-			description: localize('terminal.integrated.confirmOnKill', "Controls whether to confirm killing terminals when they have child processes. When set to editor, terminals in the editor area will be marked as dirty when they have child processes. Note that child process detection may not work well for shells like Git Bash which don't run their processes as child processes of the shell."),
+			description: localize('terminal.integrated.confirmOnKill', "Controls whether to confirm killing terminals when they have child processes. When set to editor, terminals in the editor area will be marked as changed when they have child processes. Note that child process detection may not work well for shells like Git Bash which don't run their processes as child processes of the shell."),
 			type: 'string',
 			enum: ['never', 'editor', 'panel', 'always'],
 			enumDescriptions: [
@@ -418,7 +418,7 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.WordSeparators]: {
 			description: localize('terminal.integrated.wordSeparators', "A string containing all characters to be considered word separators by the double click to select word feature."),
 			type: 'string',
-			default: ' ()[]{}\',"`─'
+			default: ' ()[]{}\',"`─‘’'
 		},
 		[TerminalSettingId.EnableFileLinks]: {
 			description: localize('terminal.integrated.enableFileLinks', "Whether to enable file links in the terminal. Links can be slow when working on a network drive in particular because each file link is verified against the file system. Changing this will take effect only in new terminals."),

@@ -85,7 +85,7 @@ function detectModeId(modelService: IModelService, modeService: IModeService, re
 	else {
 		const model = modelService.getModel(resource);
 		if (model) {
-			modeId = model.getModeId();
+			modeId = model.getLanguageId();
 		}
 	}
 

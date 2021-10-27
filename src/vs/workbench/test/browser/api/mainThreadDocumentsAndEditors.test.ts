@@ -30,8 +30,12 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { TextModel } from 'vs/editor/common/model/textModel';
+import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('MainThreadDocumentsAndEditors', () => {
+
+	let disposables: DisposableStore;
 
 	let modelService: ModelServiceImpl;
 	let codeEditorService: TestCodeEditorService;
@@ -49,6 +53,8 @@ suite('MainThreadDocumentsAndEditors', () => {
 	}
 
 	setup(() => {
+		disposables = new DisposableStore();
+
 		deltas.length = 0;
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('editor', { 'detectIndentation': false });
@@ -61,6 +67,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 			new TestThemeService(),
 			new NullLogService(),
 			undoRedoService,
+			disposables.add(new ModeServiceImpl()),
 			new TestLanguageConfigurationService()
 		);
 		codeEditorService = new TestCodeEditorService();
@@ -112,6 +119,9 @@ suite('MainThreadDocumentsAndEditors', () => {
 		);
 	});
 
+	teardown(() => {
+		disposables.dispose();
+	});
 
 	test('Model#add', () => {
 		deltas.length = 0;

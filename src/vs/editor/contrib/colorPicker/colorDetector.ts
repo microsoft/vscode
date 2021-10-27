@@ -75,9 +75,9 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		if (!model) {
 			return false;
 		}
-		const languageId = model.getLanguageIdentifier();
+		const languageId = model.getLanguageId();
 		// handle deprecated settings. [languageId].colorDecorators.enable
-		const deprecatedConfig = this._configurationService.getValue(languageId.language);
+		const deprecatedConfig = this._configurationService.getValue(languageId);
 		if (deprecatedConfig && typeof deprecatedConfig === 'object') {
 			const colorDecorators = (deprecatedConfig as any)['colorDecorators']; // deprecatedConfig.valueOf('.colorDecorators.enable');
 			if (colorDecorators && colorDecorators['enable'] !== undefined && !colorDecorators['enable']) {

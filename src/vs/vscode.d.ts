@@ -766,8 +766,9 @@ declare module 'vscode' {
 		preserveFocus?: boolean;
 
 		/**
-		 * An optional flag that controls if an {@link TextEditor editor}-tab will be replaced
-		 * with the next editor or if it will be kept.
+		 * An optional flag that controls if an {@link TextEditor editor}-tab shows as preview. Preview tabs will
+		 * be replaced and reused until set to stay - either explicitly or through editing. The default behaviour depends
+		 * on the `workbench.editor.enablePreview`-setting.
 		 */
 		preview?: boolean;
 
@@ -2566,11 +2567,12 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The MarkdownString represents human-readable text that supports formatting via the
-	 * markdown syntax. Standard markdown is supported, also tables, but no embedded html.
+	 * Human-readable text that supports formatting via the [markdown syntax](https://commonmark.org).
 	 *
 	 * Rendering of {@link ThemeIcon theme icons} via the `$(<name>)`-syntax is supported
-	 * when the {@linkcode MarkdownString.supportThemeIcons supportThemeIcons} is set to `true`.
+	 * when the {@linkcode supportThemeIcons} is set to `true`.
+	 *
+	 * Rendering of embedded html is supported when {@linkcode supportHtml} is set to `true`.
 	 */
 	export class MarkdownString {
 
@@ -2591,7 +2593,7 @@ declare module 'vscode' {
 		supportThemeIcons?: boolean;
 
 		/**
-		 * Indicates that this markdown string can contain raw html tags. Defaults to false.
+		 * Indicates that this markdown string can contain raw html tags. Defaults to `false`.
 		 *
 		 * When `supportHtml` is false, the markdown renderer will strip out any raw html tags
 		 * that appear in the markdown text. This means you can only use markdown syntax for rendering.
@@ -3550,7 +3552,7 @@ declare module 'vscode' {
 		 *
 		 * This is the id that will be passed to `DocumentSemanticTokensProvider.provideDocumentSemanticTokensEdits` (if implemented).
 		 */
-		readonly resultId?: string;
+		readonly resultId: string | undefined;
 		/**
 		 * The actual tokens data.
 		 * @see {@link DocumentSemanticTokensProvider.provideDocumentSemanticTokens provideDocumentSemanticTokens} for an explanation of the format.
@@ -3570,7 +3572,7 @@ declare module 'vscode' {
 		 *
 		 * This is the id that will be passed to `DocumentSemanticTokensProvider.provideDocumentSemanticTokensEdits` (if implemented).
 		 */
-		readonly resultId?: string;
+		readonly resultId: string | undefined;
 		/**
 		 * The edits to the tokens data.
 		 * All edits refer to the initial data state.
@@ -3596,7 +3598,7 @@ declare module 'vscode' {
 		/**
 		 * The elements to insert.
 		 */
-		readonly data?: Uint32Array;
+		readonly data: Uint32Array | undefined;
 
 		constructor(start: number, deleteCount: number, data?: Uint32Array);
 	}
@@ -5745,7 +5747,7 @@ declare module 'vscode' {
 		 * The priority of this item. Higher value means the item should
 		 * be shown more to the left.
 		 */
-		readonly priority?: number;
+		readonly priority: number | undefined;
 
 		/**
 		 * The name of the entry, like 'Python Language Indicator', 'Git Status' etc.
@@ -5801,7 +5803,7 @@ declare module 'vscode' {
 		/**
 		 * Accessibility information used when a screen reader interacts with this StatusBar item
 		 */
-		accessibilityInformation?: AccessibilityInformation;
+		accessibilityInformation: AccessibilityInformation | undefined;
 
 		/**
 		 * Shows the entry in the status bar.
@@ -8421,7 +8423,7 @@ declare module 'vscode' {
 
 		/**
 		 * The detected default shell for the extension host, this is overridden by the
-		 * `terminal.integrated.shell` setting for the extension host's platform. Note that in
+		 * `terminal.integrated.defaultProfile` setting for the extension host's platform. Note that in
 		 * environments that do not support a shell the value is the empty string.
 		 */
 		export const shell: string;
@@ -9723,6 +9725,8 @@ declare module 'vscode' {
 		 * Note writing `\n` will just move the cursor down 1 row, you need to write `\r` as well
 		 * to move the cursor to the left-most cell.
 		 *
+		 * Events fired before {@link Pseudoterminal.open} is called will be be ignored.
+		 *
 		 * **Example:** Write red text to the terminal
 		 * ```typescript
 		 * const writeEmitter = new vscode.EventEmitter<string>();
@@ -9748,6 +9752,8 @@ declare module 'vscode' {
 		 * bar). Set to `undefined` for the terminal to go back to the regular dimensions (fit to
 		 * the size of the panel).
 		 *
+		 * Events fired before {@link Pseudoterminal.open} is called will be be ignored.
+		 *
 		 * **Example:** Override the dimensions of a terminal to 20 columns and 10 rows
 		 * ```typescript
 		 * const dimensionsEmitter = new vscode.EventEmitter<vscode.TerminalDimensions>();
@@ -9769,6 +9775,8 @@ declare module 'vscode' {
 
 		/**
 		 * An event that when fired will signal that the pty is closed and dispose of the terminal.
+		 *
+		 * Events fired before {@link Pseudoterminal.open} is called will be be ignored.
 		 *
 		 * A number can be used to provide an exit code for the terminal. Exit codes must be
 		 * positive and a non-zero exit codes signals failure which shows a notification for a
@@ -9798,6 +9806,8 @@ declare module 'vscode' {
 
 		/**
 		 * An event that when fired allows changing the name of the terminal.
+		 *
+		 * Events fired before {@link Pseudoterminal.open} is called will be be ignored.
 		 *
 		 * **Example:** Change the terminal name to "My new terminal".
 		 * ```typescript
@@ -10835,8 +10845,8 @@ declare module 'vscode' {
 		 * will be matched against the file paths of resulting matches relative to their workspace. Use a {@link RelativePattern relative pattern}
 		 * to restrict the search results to a {@link WorkspaceFolder workspace folder}.
 		 * @param exclude  A {@link GlobPattern glob pattern} that defines files and folders to exclude. The glob pattern
-		 * will be matched against the file paths of resulting matches relative to their workspace. When `undefined`, default excludes and the user's
-		 * configured excludes will apply. When `null`, no excludes will apply.
+		 * will be matched against the file paths of resulting matches relative to their workspace. When `undefined`, default file-excludes (e.g. the `files.exclude`-setting
+		 * but not `search.exclude`) will apply. When `null`, no excludes will apply.
 		 * @param maxResults An upper-bound for the result.
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
 		 * @return A thenable that resolves to an array of resource identifiers. Will return no results if no
@@ -12733,8 +12743,9 @@ declare module 'vscode' {
 		 * The UI-visible count of {@link SourceControlResourceState resource states} of
 		 * this source control.
 		 *
-		 * Equals to the total number of {@link SourceControlResourceState resource state}
-		 * of this source control, if undefined.
+		 * If undefined, this source control will
+		 * - display its UI-visible count as zero, and
+		 * - contribute the count of its {@link SourceControlResourceState resource states} to the UI-visible aggregated count for all source controls
 		 */
 		count?: number;
 
@@ -14101,7 +14112,7 @@ declare module 'vscode' {
 		 * Associated tag for the profile. If this is set, only {@link TestItem}
 		 * instances with the same tag will be eligible to execute in this profile.
 		 */
-		tag?: TestTag;
+		tag: TestTag | undefined;
 
 		/**
 		 * If this method is present, a configuration gear will be present in the
@@ -14109,7 +14120,7 @@ declare module 'vscode' {
 		 * you can take other editor actions, such as showing a quick pick or
 		 * opening a configuration file.
 		 */
-		configureHandler?: () => void;
+		configureHandler: (() => void) | undefined;
 
 		/**
 		 * Handler called to start a test run. When invoked, the function should call
@@ -14258,7 +14269,7 @@ declare module 'vscode' {
 		 * The process of running tests should resolve the children of any test
 		 * items who have not yet been resolved.
 		 */
-		readonly include?: TestItem[];
+		readonly include: TestItem[] | undefined;
 
 		/**
 		 * An array of tests the user has marked as excluded from the test included
@@ -14267,14 +14278,14 @@ declare module 'vscode' {
 		 * May be omitted if no exclusions were requested. Test controllers should
 		 * not run excluded tests or any children of excluded tests.
 		 */
-		readonly exclude?: TestItem[];
+		readonly exclude: TestItem[] | undefined;
 
 		/**
 		 * The profile used for this request. This will always be defined
 		 * for requests issued from the editor UI, though extensions may
 		 * programmatically create requests not associated with any profile.
 		 */
-		readonly profile?: TestRunProfile;
+		readonly profile: TestRunProfile | undefined;
 
 		/**
 		 * @param tests Array of specific tests to run, or undefined to run all tests
@@ -14293,7 +14304,7 @@ declare module 'vscode' {
 		 * disambiguate multiple sets of results in a test run. It is useful if
 		 * tests are run across multiple platforms, for example.
 		 */
-		readonly name?: string;
+		readonly name: string | undefined;
 
 		/**
 		 * A cancellation token which will be triggered when the test run is
@@ -14433,7 +14444,7 @@ declare module 'vscode' {
 		/**
 		 * URI this `TestItem` is associated with. May be a file or directory.
 		 */
-		readonly uri?: Uri;
+		readonly uri: Uri | undefined;
 
 		/**
 		 * The children of this test item. For a test suite, this may contain the
@@ -14446,7 +14457,7 @@ declare module 'vscode' {
 		 * top-level items in the {@link TestController.items} and for items that
 		 * aren't yet included in another item's {@link children}.
 		 */
-		readonly parent?: TestItem;
+		readonly parent: TestItem | undefined;
 
 		/**
 		 * Tags associated with this test item. May be used in combination with
@@ -14488,7 +14499,7 @@ declare module 'vscode' {
 		 *
 		 * This is only meaningful if the `uri` points to a file.
 		 */
-		range?: Range;
+		range: Range | undefined;
 
 		/**
 		 * Optional error encountered while loading the test.
@@ -14496,7 +14507,7 @@ declare module 'vscode' {
 		 * Note that this is not a test result and should only be used to represent errors in
 		 * test discovery, such as syntax errors.
 		 */
-		error?: string | MarkdownString;
+		error: string | MarkdownString | undefined;
 	}
 
 	/**

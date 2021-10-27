@@ -63,7 +63,7 @@ registerAction2(class extends NotebookCellAction {
 			return;
 		}
 
-		if (idx >= editor.getLength()) {
+		if (idx >= editor.getLength() - 1) {
 			// last one
 			return;
 		}
@@ -220,9 +220,9 @@ registerAction2(class CenterActiveCellAction extends NotebookCellAction {
 			title: localize('notebookActions.centerActiveCell', "Center Active Cell"),
 			keybinding: {
 				when: NOTEBOOK_EDITOR_FOCUSED,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_L,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyL,
 				mac: {
-					primary: KeyMod.WinCtrl | KeyCode.KEY_L,
+					primary: KeyMod.WinCtrl | KeyCode.KeyL,
 				},
 				weight: KeybindingWeight.WorkbenchContrib
 			},

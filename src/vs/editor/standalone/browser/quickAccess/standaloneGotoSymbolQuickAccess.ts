@@ -51,7 +51,7 @@ export class GotoLineAction extends EditorAction {
 			precondition: EditorContextKeys.hasDocumentSymbolProvider,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
 				weight: KeybindingWeight.EditorContrib
 			},
 			contextMenuOpts: {

@@ -68,6 +68,10 @@ body.web {
 	border-radius: 5px;
 }
 
+.monaco-workbench.border.mac.macos-bigsur-or-newer {
+	border-radius: 10px; /* macOS Big Sur increased rounded corners size */
+}
+
 .monaco-workbench img {
 	border: 0;
 }

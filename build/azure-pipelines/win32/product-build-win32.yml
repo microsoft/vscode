@@ -255,7 +255,7 @@ steps:
 
   - task: UseDotNet@2
     inputs:
-      version: 2.x
+      version: 3.x
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - task: EsrpClientTool@1

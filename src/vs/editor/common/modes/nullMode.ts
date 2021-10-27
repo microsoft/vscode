@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
-import { ColorId, FontStyle, IState, LanguageId, LanguageIdentifier, MetadataConsts, StandardTokenType } from 'vs/editor/common/modes';
+import { ColorId, FontStyle, IState, LanguageId, MetadataConsts, StandardTokenType } from 'vs/editor/common/modes';
 
 class NullStateImpl implements IState {
 
@@ -21,10 +21,8 @@ export const NULL_STATE: IState = new NullStateImpl();
 
 export const NULL_MODE_ID = 'vs.editor.nullMode';
 
-export const NULL_LANGUAGE_IDENTIFIER = new LanguageIdentifier(NULL_MODE_ID, LanguageId.Null);
-
-export function nullTokenize(modeId: string, buffer: string, state: IState, deltaOffset: number): TokenizationResult {
-	return new TokenizationResult([new Token(deltaOffset, '', modeId)], state);
+export function nullTokenize(languageId: string, buffer: string, state: IState, deltaOffset: number): TokenizationResult {
+	return new TokenizationResult([new Token(deltaOffset, '', languageId)], state);
 }
 
 export function nullTokenize2(languageId: LanguageId, buffer: string, state: IState | null, deltaOffset: number): TokenizationResult2 {

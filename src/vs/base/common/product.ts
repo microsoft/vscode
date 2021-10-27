@@ -53,6 +53,7 @@ export interface IProductConfiguration {
 	readonly updateUrl?: string;
 	readonly webEndpointUrl?: string;
 	readonly webEndpointUrlTemplate?: string;
+	readonly webviewContentExternalBaseUrlTemplate?: string;
 	readonly target?: string;
 
 	readonly settingsSearchBuildId?: number;
@@ -118,6 +119,8 @@ export interface IProductConfiguration {
 	readonly privacyStatementUrl?: string;
 	readonly showTelemetryOptOut?: boolean;
 
+	readonly serverGreeting: string[];
+
 	readonly npsSurveyUrl?: string;
 	readonly cesSurveyUrl?: string;
 	readonly surveys?: readonly ISurveyData[];
@@ -142,8 +145,6 @@ export interface IProductConfiguration {
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
 
 	readonly darwinUniversalAssetId?: string;
-
-	readonly webviewContentExternalBaseUrlTemplate?: string;
 }
 
 export type ImportantExtensionTip = { name: string; languages?: string[]; pattern?: string; isExtensionPack?: boolean };

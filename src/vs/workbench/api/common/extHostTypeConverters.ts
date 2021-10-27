@@ -1728,6 +1728,8 @@ export namespace TestItem {
 
 	export function toPlain(item: ITestItem): Omit<vscode.TestItem, 'children' | 'invalidate' | 'discoverChildren'> {
 		return {
+			parent: undefined,
+			error: undefined,
 			id: TestId.fromString(item.extId).localId,
 			label: item.label,
 			uri: URI.revive(item.uri),

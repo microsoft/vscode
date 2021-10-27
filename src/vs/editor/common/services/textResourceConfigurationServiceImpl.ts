@@ -109,7 +109,7 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 	private getLanguage(resource: URI, position: IPosition | null): string | null {
 		const model = this.modelService.getModel(resource);
 		if (model) {
-			return position ? this.modeService.getLanguageIdentifier(model.getLanguageIdAtPosition(position.lineNumber, position.column))!.language : model.getLanguageIdentifier().language;
+			return position ? model.getLanguageIdAtPosition(position.lineNumber, position.column) : model.getLanguageId();
 		}
 		return this.modeService.getModeIdByFilepathOrFirstLine(resource);
 	}

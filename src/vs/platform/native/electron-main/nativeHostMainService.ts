@@ -653,7 +653,13 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region macOS Touchbar
 
 	async newWindowTab(): Promise<void> {
-		this.windowsMainService.open({ context: OpenContext.API, cli: this.environmentMainService.args, forceNewTabbedWindow: true, forceEmpty: true, remoteAuthority: this.environmentMainService.args.remote || undefined });
+		this.windowsMainService.open({
+			context: OpenContext.API,
+			cli: this.environmentMainService.args,
+			forceNewTabbedWindow: true,
+			forceEmpty: true,
+			remoteAuthority: this.environmentMainService.args.remote || undefined
+		});
 	}
 
 	async showPreviousWindowTab(): Promise<void> {

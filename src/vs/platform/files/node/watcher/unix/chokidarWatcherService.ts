@@ -17,7 +17,7 @@ import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { realcaseSync } from 'vs/base/node/extpath';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { IWatcherOptions, IWatcherService } from 'vs/platform/files/node/watcher/unix/watcher';
-import { IDiskFileChange, ILogMessage, IWatchRequest, normalizeFileChanges } from 'vs/platform/files/node/watcher/watcher';
+import { IDiskFileChange, ILogMessage, IWatchRequest, normalizeFileChanges } from 'vs/platform/files/common/watcher';
 
 gracefulFs.gracefulify(fs); // enable gracefulFs
 

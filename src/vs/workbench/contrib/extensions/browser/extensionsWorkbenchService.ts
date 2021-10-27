@@ -112,6 +112,10 @@ class Extension implements IExtension {
 		return this.local!.manifest.publisher;
 	}
 
+	get publisherDomain(): { link: string, verified: boolean } | undefined {
+		return this.gallery?.publisherDomain;
+	}
+
 	get version(): string {
 		return this.local ? this.local.manifest.version : this.latestVersion;
 	}
@@ -730,8 +734,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				const keywords = lookup[ext] || [];
 
 				// Get mode name
-				const modeId = this.modeService.getModeIdByFilepathOrFirstLine(URI.file(`.${ext}`));
-				const languageName = modeId && this.modeService.getLanguageName(modeId);
+				const languageId = this.modeService.getModeIdByFilepathOrFirstLine(URI.file(`.${ext}`));
+				const languageName = languageId && this.modeService.getLanguageName(languageId);
 				const languageTag = languageName ? ` tag:"${languageName}"` : '';
 
 				// Construct a rich query

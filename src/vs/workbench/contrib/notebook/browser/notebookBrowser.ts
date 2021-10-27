@@ -345,6 +345,7 @@ export interface INotebookEditorCreationOptions {
 		cellInsertToolbar: MenuId;
 		cellTopInsertToolbar: MenuId;
 		cellExecuteToolbar: MenuId;
+		cellExecutePrimary?: MenuId;
 	};
 	readonly options?: NotebookOptions;
 }

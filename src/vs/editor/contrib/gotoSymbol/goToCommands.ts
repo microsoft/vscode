@@ -286,7 +286,7 @@ registerGoToAction(class OpenDefinitionToSideAction extends DefinitionAction {
 				EditorContextKeys.isInWalkThroughSnippet.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, goToDefinitionKb),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, goToDefinitionKb),
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -672,8 +672,8 @@ class GenericGoToLocationAction extends SymbolNavigationAction {
 	) {
 		super(config, {
 			id: 'editor.action.goToLocation',
-			label: nls.localize('label.generic', "Go To Any Symbol"),
-			alias: 'Go To Any Symbol',
+			label: nls.localize('label.generic', "Go to Any Symbol"),
+			alias: 'Go to Any Symbol',
 			precondition: ContextKeyExpr.and(
 				PeekContext.notInPeekEditor,
 				EditorContextKeys.isInWalkThroughSnippet.toNegated()

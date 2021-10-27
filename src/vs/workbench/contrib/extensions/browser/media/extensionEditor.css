@@ -115,7 +115,16 @@
 }
 
 .extension-editor > .header > .details > .subtitle .publisher {
-	font-size: 18px;
+	display: flex;
+	align-items: center;
+}
+
+.extension-editor > .header > .details > .subtitle .publisher .codicon {
+	margin-right: 2px;
+}
+
+.extension-editor > .header > .details > .subtitle .publisher-name:not(:first-child) {
+	padding-left: 1px;
 }
 
 .extension-editor > .header > .details > .subtitle,
@@ -656,6 +665,13 @@
 .extension-editor .extensions-grid-view > .extension-container:focus > .extension-list-item > .details .header > .name,
 .extension-editor .extensions-grid-view > .extension-container:hover > .extension-list-item > .details .header > .name {
 	text-decoration: underline;
+}
+
+.monaco-workbench.vs .extension-editor .extensions-grid-view > .extension-container.disabled > .extension-list-item > .icon-container > .icon,
+.monaco-workbench.vs-dark .extension-editor .extensions-grid-view > .extension-container.disabled > .extension-list-item > .icon-container > .icon,
+.monaco-workbench.vs .extension-editor .extensions-grid-view > .extension-container.disabled > .extension-list-item > .details > .header-container .codicon,
+.monaco-workbench.vs-dark .extension-editor .extensions-grid-view > .extension-container.disabled > .extension-list-item > .details > .header-container .codicon {
+	opacity: 0.5;
 }
 
 .extension-editor > .body > .content .runtime-status .no-status-message,

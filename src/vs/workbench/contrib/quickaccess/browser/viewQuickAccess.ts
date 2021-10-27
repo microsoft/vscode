@@ -211,8 +211,8 @@ export class QuickAccessViewPickerAction extends Action2 {
 
 	static readonly ID = 'workbench.action.quickOpenView';
 	static readonly KEYBINDING = {
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_Q,
-		mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_Q },
+		primary: KeyMod.CtrlCmd | KeyCode.KeyQ,
+		mac: { primary: KeyMod.WinCtrl | KeyCode.KeyQ },
 		linux: { primary: 0 }
 	};
 

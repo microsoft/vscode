@@ -345,9 +345,9 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 			return undefined;
 		}
 
-		const handleId = resource.path;
+		const handleId = resource.path.replace(/\/$/, ''); // remove potential slash from the end of the path
+		const handle = this.files.get(handleId) ?? this.directories.get(handleId);
 
-		const handle = this.files.get(handleId) || this.directories.get(handleId);
 		if (!handle) {
 			throw this.createFileSystemProviderError(resource, 'No file system handle registered', FileSystemProviderErrorCode.Unavailable);
 		}

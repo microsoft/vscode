@@ -89,6 +89,7 @@ export interface ICoordinatesConverter {
 	convertModelRangeToViewRange(modelRange: Range, affinity?: PositionAffinity): Range;
 	modelPositionIsVisible(modelPosition: Position): boolean;
 	getModelLineViewLineCount(modelLineNumber: number): number;
+	getViewLineNumberOfModelPosition(modelLineNumber: number, modelColumn: number): number;
 }
 
 export class OutputPosition {
@@ -338,7 +339,7 @@ export interface IViewModel extends ICursorSimpleModel {
 	getLineMaxColumn(lineNumber: number): number;
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
-	getAllOverviewRulerDecorations(theme: EditorTheme): IOverviewRulerDecorations;
+	getAllOverviewRulerDecorations(theme: EditorTheme): OverviewRulerDecorationsGroup[];
 	invalidateOverviewRulerColorCache(): void;
 	invalidateMinimapColorCache(): void;
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
@@ -587,12 +588,30 @@ export class ViewModelDecoration {
 	}
 }
 
-/**
- * Decorations are encoded in a number array using the following scheme:
- *  - 3*i = lane
- *  - 3*i+1 = startLineNumber
- *  - 3*i+2 = endLineNumber
- */
-export interface IOverviewRulerDecorations {
-	[color: string]: number[];
+export class OverviewRulerDecorationsGroup {
+
+	constructor(
+		public readonly color: string,
+		public readonly zIndex: number,
+		/**
+		 * Decorations are encoded in a number array using the following scheme:
+		 *  - 3*i = lane
+		 *  - 3*i+1 = startLineNumber
+		 *  - 3*i+2 = endLineNumber
+		 */
+		public readonly data: number[]
+	) { }
+
+	public static cmp(a: OverviewRulerDecorationsGroup, b: OverviewRulerDecorationsGroup): number {
+		if (a.zIndex === b.zIndex) {
+			if (a.color < b.color) {
+				return -1;
+			}
+			if (a.color > b.color) {
+				return 1;
+			}
+			return 0;
+		}
+		return a.zIndex - b.zIndex;
+	}
 }
