@@ -1076,43 +1076,6 @@ export class LowerCaseAction extends AbstractCaseAction {
 	}
 }
 
-export class TitleCaseAction extends AbstractCaseAction {
-	constructor() {
-		super({
-			id: 'editor.action.transformToTitlecase',
-			label: nls.localize('editor.transformToTitlecase', "Transform to Title Case"),
-			alias: 'Transform to Title Case',
-			precondition: EditorContextKeys.writable
-		});
-	}
-
-	protected _modifyText(text: string, wordSeparators: string): string {
-		const separators = '\r\n\t ' + wordSeparators;
-		const excludedChars = separators.split('');
-
-		let title = '';
-		let startUpperCase = true;
-
-		for (let i = 0; i < text.length; i++) {
-			let currentChar = text[i];
-
-			if (excludedChars.indexOf(currentChar) >= 0) {
-				startUpperCase = true;
-
-				title += currentChar;
-			} else if (startUpperCase) {
-				startUpperCase = false;
-
-				title += currentChar.toLocaleUpperCase();
-			} else {
-				title += currentChar.toLocaleLowerCase();
-			}
-		}
-
-		return title;
-	}
-}
-
 class BackwardsCompatibleRegExp {
 
 	private _actual: RegExp | null;
@@ -1143,10 +1106,35 @@ class BackwardsCompatibleRegExp {
 	}
 }
 
+export class TitleCaseAction extends AbstractCaseAction {
+
+	public static titleBoundary = new BackwardsCompatibleRegExp('(^|[^\\p{L}\\p{N}\']|((^|\\P{L})\'))\\p{L}', 'gmu');
+
+	constructor() {
+		super({
+			id: 'editor.action.transformToTitlecase',
+			label: nls.localize('editor.transformToTitlecase', "Transform to Title Case"),
+			alias: 'Transform to Title Case',
+			precondition: EditorContextKeys.writable
+		});
+	}
+
+	protected _modifyText(text: string, wordSeparators: string): string {
+		const titleBoundary = TitleCaseAction.titleBoundary.get();
+		if (!titleBoundary) {
+			// cannot support this
+			return text;
+		}
+		return text
+			.toLocaleLowerCase()
+			.replace(titleBoundary, (b) => b.toLocaleUpperCase());
+	}
+}
+
 export class SnakeCaseAction extends AbstractCaseAction {
 
-	public static regExp1 = new BackwardsCompatibleRegExp('(\\p{Ll})(\\p{Lu})', 'gmu');
-	public static regExp2 = new BackwardsCompatibleRegExp('(\\p{Lu}|\\p{N})(\\p{Lu})(\\p{Ll})', 'gmu');
+	public static caseBoundary = new BackwardsCompatibleRegExp('(\\p{Ll})(\\p{Lu})', 'gmu');
+	public static singleLetters = new BackwardsCompatibleRegExp('(\\p{Lu}|\\p{N})(\\p{Lu})(\\p{Ll})', 'gmu');
 
 	constructor() {
 		super({
@@ -1158,15 +1146,15 @@ export class SnakeCaseAction extends AbstractCaseAction {
 	}
 
 	protected _modifyText(text: string, wordSeparators: string): string {
-		const regExp1 = SnakeCaseAction.regExp1.get();
-		const regExp2 = SnakeCaseAction.regExp2.get();
-		if (!regExp1 || !regExp2) {
+		const caseBoundary = SnakeCaseAction.caseBoundary.get();
+		const singleLetters = SnakeCaseAction.singleLetters.get();
+		if (!caseBoundary || !singleLetters) {
 			// cannot support this
 			return text;
 		}
 		return (text
-			.replace(regExp1, '$1_$2')
-			.replace(regExp2, '$1_$2$3')
+			.replace(caseBoundary, '$1_$2')
+			.replace(singleLetters, '$1_$2$3')
 			.toLocaleLowerCase()
 		);
 	}
@@ -1192,8 +1180,10 @@ registerEditorAction(JoinLinesAction);
 registerEditorAction(TransposeAction);
 registerEditorAction(UpperCaseAction);
 registerEditorAction(LowerCaseAction);
-registerEditorAction(TitleCaseAction);
 
-if (SnakeCaseAction.regExp1.isSupported() && SnakeCaseAction.regExp2.isSupported()) {
+if (SnakeCaseAction.caseBoundary.isSupported() && SnakeCaseAction.singleLetters.isSupported()) {
 	registerEditorAction(SnakeCaseAction);
+}
+if (TitleCaseAction.titleBoundary.isSupported()) {
+	registerEditorAction(TitleCaseAction);
 }

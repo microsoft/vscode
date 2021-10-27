@@ -748,7 +748,8 @@ suite('Editor Contrib - Line Operations', () => {
 				'foO[baR]BaZ',
 				'foO`baR~BaZ',
 				'foO^baR%BaZ',
-				'foO$baR!BaZ'
+				'foO$baR!BaZ',
+				'\'physician\'s assistant\''
 			], {}, (editor) => {
 				let model = editor.getModel()!;
 				let titlecaseAction = new TitleCaseAction();
@@ -759,7 +760,7 @@ suite('Editor Contrib - Line Operations', () => {
 
 				editor.setSelection(new Selection(2, 1, 2, 12));
 				executeAction(titlecaseAction, editor);
-				assert.strictEqual(model.getLineContent(2), 'Foo\'Bar\'Baz');
+				assert.strictEqual(model.getLineContent(2), 'Foo\'bar\'baz');
 
 				editor.setSelection(new Selection(3, 1, 3, 12));
 				executeAction(titlecaseAction, editor);
@@ -776,6 +777,10 @@ suite('Editor Contrib - Line Operations', () => {
 				editor.setSelection(new Selection(6, 1, 6, 12));
 				executeAction(titlecaseAction, editor);
 				assert.strictEqual(model.getLineContent(6), 'Foo$Bar!Baz');
+
+				editor.setSelection(new Selection(7, 1, 7, 23));
+				executeAction(titlecaseAction, editor);
+				assert.strictEqual(model.getLineContent(7), '\'Physician\'s Assistant\'');
 			}
 		);
 
