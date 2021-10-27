@@ -73,6 +73,7 @@ import { ISeparator, template } from 'vs/base/common/labels';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/addons/lineDataEventAddon';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -645,6 +646,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 		this._xterm = xterm;
 		this._xtermCore = (xterm as any)._core as XTermCore;
+		const lineDataEventAddon = new LineDataEventAddon();
+		this._xterm.loadAddon(lineDataEventAddon);
 		this._updateUnicodeVersion();
 		this.updateAccessibilitySupport();
 		this._terminalInstanceService.getXtermSearchConstructor().then(addonCtor => {
@@ -655,10 +658,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// onLineData events containing initialText
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText, () => {
-				xterm.onLineFeed(() => this._onLineFeed());
+				lineDataEventAddon.onLineData(e => this._onLineData.fire(e));
 			});
 		} else {
-			this._xterm.onLineFeed(() => this._onLineFeed());
+			lineDataEventAddon.onLineData(e => this._onLineData.fire(e));
 		}
 		// Delay the creation of the bell listener to avoid showing the bell when the terminal
 		// starts up or reconnects
@@ -697,15 +700,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				return;
 			}
 
+			if (this._processManager.os) {
+				lineDataEventAddon.setOperatingSystem(this._processManager.os);
+			}
 			if (this._processManager.os === OperatingSystem.Windows) {
 				xterm.setOption('windowsMode', processTraits.requiresWindowsMode || false);
-				// Force line data to be sent when the cursor is moved, the main purpose for
-				// this is because ConPTY will often not do a line feed but instead move the
-				// cursor, in which case we still want to send the current line's data to tasks.
-				xterm.parser.registerCsiHandler({ final: 'H' }, () => {
-					this._onCursorMove();
-					return false;
-				});
 			}
 			this._linkManager = this._instantiationService.createInstance(TerminalLinkManager, xterm, this._processManager!);
 			this._areLinksReady = true;
@@ -1075,11 +1074,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._horizontalScrollbar = undefined;
 			}
 		}
-		if (this._xterm) {
-			const buffer = this._xterm.buffer;
-			this._sendLineData(buffer.active, buffer.active.baseY + buffer.active.cursorY);
-			this._xterm.dispose();
-		}
+		this._xterm?.dispose();
 
 		if (this._pressAnyKeyToCloseListener) {
 			this._pressAnyKeyToCloseListener.dispose();
@@ -1525,39 +1520,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this.reuseTerminal(this._shellLaunchConfig, true);
 	}
 
-	private _onLineFeed(): void {
-		const buffer = this._xterm!.buffer;
-		const newLine = buffer.active.getLine(buffer.active.baseY + buffer.active.cursorY);
-		if (newLine && !newLine.isWrapped) {
-			this._sendLineData(buffer.active, buffer.active.baseY + buffer.active.cursorY - 1);
-		}
-	}
-
-	private _onCursorMove(): void {
-		const buffer = this._xterm!.buffer;
-		this._sendLineData(buffer.active, buffer.active.baseY + buffer.active.cursorY);
-	}
-
 	private _onTitleChange(title: string): void {
 		if (this.isTitleSetByProcess) {
 			this.refreshTabLabels(title, TitleEventSource.Sequence);
 		}
-	}
-
-	private _sendLineData(buffer: IBuffer, lineIndex: number): void {
-		let line = buffer.getLine(lineIndex);
-		if (!line) {
-			return;
-		}
-		let lineData = line.translateToString(true);
-		while (lineIndex > 0 && line.isWrapped) {
-			line = buffer.getLine(--lineIndex);
-			if (!line) {
-				break;
-			}
-			lineData = line.translateToString(false) + lineData;
-		}
-		this._onLineData.fire(lineData);
 	}
 
 	private _onKey(key: string, ev: KeyboardEvent): void {
