@@ -342,7 +342,7 @@ export class NotebookOutputRendererInfoStore {
 
 		if (mimeTypeSupportedByCore(mimeType)) {
 			renderers.push({
-				score: ReuseOrder.BuiltIn << 8,
+				score: ReuseOrder.BuiltIn,
 				ordered: {
 					mimeType,
 					rendererId: BUILTIN_RENDERER_ID,
