@@ -88,8 +88,8 @@ import { IExtensionHostStarter, ipcExtensionHostStarterChannelName } from 'vs/pl
 import { ExtensionHostStarter } from 'vs/platform/extensions/node/extensionHostStarter';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/node/signService';
-import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { TunnelService } from 'vs/platform/remote/node/tunnelService';
+import { ISharedTunnelsService } from 'vs/platform/remote/common/tunnel';
+import { SharedTunnelsService } from 'vs/platform/remote/node/tunnelService';
 import { ipcSharedProcessTunnelChannelName, ISharedProcessTunnelService } from 'vs/platform/remote/common/sharedProcessTunnelService';
 import { SharedProcessTunnelService } from 'vs/platform/remote/node/sharedProcessTunnelService';
 import { ipcSharedProcessWorkerChannelName, ISharedProcessWorkerConfiguration, ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
@@ -326,7 +326,7 @@ class SharedProcessMain extends Disposable {
 		services.set(ISignService, new SyncDescriptor(SignService));
 
 		// Tunnel
-		services.set(ITunnelService, new SyncDescriptor(TunnelService));
+		services.set(ISharedTunnelsService, new SyncDescriptor(SharedTunnelsService));
 		services.set(ISharedProcessTunnelService, new SyncDescriptor(SharedProcessTunnelService));
 
 		return new InstantiationService(services);

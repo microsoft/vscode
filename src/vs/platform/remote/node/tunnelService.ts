@@ -14,7 +14,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { connectRemoteAgentTunnel, IAddressProvider, IConnectionOptions, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
-import { AbstractTunnelService, isAllInterfaces, isLocalhost, RemoteTunnel, TunnelPrivacyId } from 'vs/platform/remote/common/tunnel';
+import { AbstractTunnelService, isAllInterfaces, ISharedTunnelsService as ISharedTunnelsService, isLocalhost, ITunnelService, RemoteTunnel, TunnelPrivacyId } from 'vs/platform/remote/common/tunnel';
 import { ISignService } from 'vs/platform/sign/common/sign';
 
 async function createRemoteTunnel(options: IConnectionOptions, defaultTunnelHost: string, tunnelRemoteHost: string, tunnelRemotePort: number, tunnelLocalPort?: number): Promise<RemoteTunnel> {
@@ -187,5 +187,35 @@ export class TunnelService extends BaseTunnelService {
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(nodeSocketFactory, logService, signService, productService, configurationService);
+	}
+}
+
+export class SharedTunnelsService extends Disposable implements ISharedTunnelsService {
+	declare readonly _serviceBrand: undefined;
+	private readonly _tunnelServices: Map<string, ITunnelService> = new Map();
+
+	public constructor(
+		@ILogService protected readonly logService: ILogService,
+		@IProductService private readonly productService: IProductService,
+		@ISignService private readonly signService: ISignService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+	) {
+		super();
+	}
+
+	async openTunnel(authority: string, addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localPort?: number, elevateIfNeeded?: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> {
+		this.logService.trace(`ForwardedPorts: (SharedTunnelService) openTunnel request for ${remoteHost}:${remotePort} on local port ${localPort}.`);
+		if (!this._tunnelServices.has(authority)) {
+			const tunnelService = new TunnelService(this.logService, this.signService, this.productService, this.configurationService);
+			this._register(tunnelService);
+			this._tunnelServices.set(authority, tunnelService);
+			tunnelService.onTunnelClosed(async () => {
+				if ((await tunnelService.tunnels).length === 0) {
+					tunnelService.dispose();
+					this._tunnelServices.delete(authority);
+				}
+			});
+		}
+		return this._tunnelServices.get(authority)!.openTunnel(addressProvider, remoteHost, remotePort, localPort, elevateIfNeeded, privacy, protocol);
 	}
 }
