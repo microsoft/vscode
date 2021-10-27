@@ -1011,6 +1011,7 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 						return activeEditor.document.uri;
 					}
 				}
+
 				return undefined;
 			},
 			getSelectedText: (): string | undefined => {
