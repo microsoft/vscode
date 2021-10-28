@@ -23,10 +23,8 @@ import { readFileIntoStream } from 'vs/platform/files/common/io';
 import { FileWatcher as NodeJSWatcherService } from 'vs/platform/files/node/watcher/nodejs/watcherService';
 import { FileWatcher as NsfwWatcherService } from 'vs/platform/files/node/watcher/nsfw/watcherService';
 import { FileWatcher as ParcelWatcherService } from 'vs/platform/files/node/watcher/parcel/watcherService';
-import { FileWatcher as UnixWatcherService } from 'vs/platform/files/node/watcher/unix/watcherService';
 import { IDiskFileChange, ILogMessage, IWatchRequest, WatcherService } from 'vs/platform/files/common/watcher';
 import { ILogService } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/common/product';
 import { AbstractDiskFileSystemProvider } from 'vs/platform/files/common/diskFileSystemProvider';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 
@@ -570,25 +568,13 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 		let enableLegacyWatcher = false;
 		if (this.options?.watcher?.usePolling) {
-			enableLegacyWatcher = false; // can use Parcel watcher for when polling is required
+			enableLegacyWatcher = false; // must use Parcel watcher for when polling is required
 		} else {
-			if (this.options?.legacyWatcher === 'on' || this.options?.legacyWatcher === 'off') {
-				enableLegacyWatcher = this.options.legacyWatcher === 'on'; // setting always wins
-			} else {
-				if (product.quality === 'stable') {
-					// in stable use legacy for single folder workspaces
-					// TODO@bpasero remove me eventually
-					enableLegacyWatcher = folders === 1;
-				}
-			}
+			enableLegacyWatcher = this.options?.legacyWatcher === 'on'; // setting always wins
 		}
 
 		if (enableLegacyWatcher) {
-			if (isLinux) {
-				watcherImpl = UnixWatcherService;
-			} else {
-				watcherImpl = NsfwWatcherService;
-			}
+			watcherImpl = NsfwWatcherService;
 		} else {
 			watcherImpl = ParcelWatcherService;
 		}

@@ -266,7 +266,7 @@ configurationRegistry.registerConfiguration({
 			'markdownEnumDescriptions': [
 				nls.localize('files.legacyWatcher.on', "Enable the legacy file watcher in case you see issues with the new file watcher."),
 				nls.localize('files.legacyWatcher.off', "Disable the legacy file watcher and enable the new file watcher to benefit from its capabilities."),
-				nls.localize('files.legacyWatcher.default', "The new file watcher will be enabled if you are using insiders version or whenever you open multi-root workspaces."),
+				nls.localize('files.legacyWatcher.default', "The new file watcher will be enabled."),
 			],
 			'default': 'default',
 			'description': nls.localize('legacyWatcher', "Controls the mechanism used for file watching. Only change this when you see issues related to file watching."),
