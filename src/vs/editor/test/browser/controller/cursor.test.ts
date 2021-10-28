@@ -4897,7 +4897,7 @@ suite('autoClosingPairs', () => {
 			languageId: mode.languageId
 		}, (editor, model, viewModel) => {
 			model.forceTokenization(1);
-			assertType(editor, model, viewModel, 1, 22, '`', '`', `does not auto close \` @ (1, 26)`);
+			assertType(editor, model, viewModel, 1, 22, '`', '`', `does not auto close \` @ (1, 22)`);
 		});
 		mode.dispose();
 	});
