@@ -6885,10 +6885,10 @@ native-is-elevated@0.4.3:
   resolved "https://registry.yarnpkg.com/native-is-elevated/-/native-is-elevated-0.4.3.tgz#f1071c4a821acc71d43f36ff8051d3816d832e1c"
   integrity sha512-bHS3sCoh+raqFGIxmL/plER3eBQ+IEBy4RH/4uahhToZneTvqNKQrL0PgOTtnpL55XjBd3dy0pNtZMkCk0J48g==
 
-native-keymap@3.0.0:
-  version "3.0.0"
-  resolved "https://registry.yarnpkg.com/native-keymap/-/native-keymap-3.0.0.tgz#1228f22a4c6c9cf25b25fa8b0f67ee2ad2ee00fc"
-  integrity sha512-J2IoYW6ICqg5URxfVMa0bdCo2mLJhXoI6RQmeGtfE2Tv2dOpYvT4FnU11dJd/PB5V91QroAOwWQf2ngpeKm5/g==
+native-keymap@3.0.1:
+  version "3.0.1"
+  resolved "https://registry.yarnpkg.com/native-keymap/-/native-keymap-3.0.1.tgz#7cc2d30da1e60cbb7d599423e05cb84845d20a8f"
+  integrity sha512-IeHaz5NM1mF3AKIwBxf4YhgrB/hcctVwIqOXaMrR8Hz8v45dCa364YDvEN0004zSycRyhrXh6cNgCQ/v6QUHkA==
 
 native-watchdog@1.3.0:
   version "1.3.0"
@@ -10483,10 +10483,10 @@ vscode-telemetry-extractor@^1.8.0:
     ts-morph "^11.0.0"
     vscode-ripgrep "^1.11.3"
 
-vscode-textmate@5.4.0:
-  version "5.4.0"
-  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-5.4.0.tgz#4b25ffc1f14ac3a90faf9a388c67a01d24257cd7"
-  integrity sha512-c0Q4zYZkcLizeYJ3hNyaVUM2AA8KDhNCA3JvXY8CeZSJuBdAy3bAvSbv46RClC4P3dSO9BdwhnKEx2zOo6vP/w==
+vscode-textmate@5.4.1:
+  version "5.4.1"
+  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-5.4.1.tgz#09d566724fc76b60b3ad9791eebf1f0b50f29e5a"
+  integrity sha512-4CvPHmfuZQaXrcCpathdh6jo7myuR+MU8BvscgQADuponpbqfmu2rwTOtCXhGwwEgStvJF8V4s9FwMKRVLNmKQ==
 
 vscode-windows-ca-certs@^0.3.0:
   version "0.3.0"
