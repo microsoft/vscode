@@ -235,15 +235,29 @@ export class SearchEditor extends BaseTextEditor<SearchEditorViewState> {
 
 	private registerEditorListeners() {
 		this.searchResultEditor = super.getControl() as CodeEditorWidget;
-		this.searchResultEditor.onMouseUp(e => {
+		this.searchResultEditor.onMouseUp(async e => {
 			if (e.event.detail === 2) {
 				const behaviour = this.searchConfig.searchEditor.doubleClickBehaviour;
 				const position = e.target.position;
 				if (position && behaviour !== 'selectWord') {
 					const line = this.searchResultEditor.getModel()?.getLineContent(position.lineNumber) ?? '';
-					if (line.match(RESULT_LINE_REGEX)) {
+					const lineMatch = line.match(RESULT_LINE_REGEX);
+					if (lineMatch) {
 						this.searchResultEditor.setSelection(Range.fromPositions(position));
-						this.commandService.executeCommand(behaviour === 'goToLocation' ? 'editor.action.goToDeclaration' : 'editor.action.openDeclarationToTheSide');
+						const cmd = this.commandService.executeCommand(behaviour === 'goToLocation' ? 'editor.action.goToDeclaration' : 'editor.action.openDeclarationToTheSide');
+						// Check if we should select the first match.
+						if (this.searchConfig.searchEditor.openLocationToMatch) {
+							const searchMatchDecoration = this.searchResultEditor.getModel()?.getLineDecorations(position.lineNumber).find(ld => ld.options.description === 'search-editor-find-match');
+							if (searchMatchDecoration) {
+								const matchRange = searchMatchDecoration.range;
+								const offset = lineMatch[1].length + lineMatch[2].length + lineMatch[3].length;
+								const matchLine = parseInt(lineMatch[2], 10);
+								const selectionRange = new Range(matchLine, matchRange.startColumn - offset, matchLine, matchRange.endColumn - offset);
+								// Wait for the editor to open, then set selection.
+								await cmd;
+								this.editorService.activeTextEditorControl?.setSelection(selectionRange);
+							}
+						}
 					} else if (line.match(FILE_LINE_REGEX)) {
 						this.searchResultEditor.setSelection(Range.fromPositions(position));
 						this.commandService.executeCommand('editor.action.peekDefinition');
