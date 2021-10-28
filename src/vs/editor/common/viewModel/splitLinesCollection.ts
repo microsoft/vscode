@@ -562,7 +562,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 
 	// #region ViewLineInfo
 
-	public getViewLineInfo(viewLineNumber: number): ViewLineInfo {
+	private getViewLineInfo(viewLineNumber: number): ViewLineInfo {
 		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
 		let r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
 		let lineIndex = r.index;
@@ -767,48 +767,28 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 	}
 
 	public getViewLineContent(viewLineNumber: number): string {
-		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
-		let r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
-		let lineIndex = r.index;
-		let remainder = r.remainder;
-
-		return this.lines[lineIndex].getViewLineContent(this.model, lineIndex + 1, remainder);
+		const info = this.getViewLineInfo(viewLineNumber);
+		return this.lines[info.modelLineNumber - 1].getViewLineContent(this.model, info.modelLineNumber, info.modelLineWrappedLineIdx);
 	}
 
 	public getViewLineLength(viewLineNumber: number): number {
-		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
-		let r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
-		let lineIndex = r.index;
-		let remainder = r.remainder;
-
-		return this.lines[lineIndex].getViewLineLength(this.model, lineIndex + 1, remainder);
+		const info = this.getViewLineInfo(viewLineNumber);
+		return this.lines[info.modelLineNumber - 1].getViewLineLength(this.model, info.modelLineNumber, info.modelLineWrappedLineIdx);
 	}
 
 	public getViewLineMinColumn(viewLineNumber: number): number {
-		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
-		let r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
-		let lineIndex = r.index;
-		let remainder = r.remainder;
-
-		return this.lines[lineIndex].getViewLineMinColumn(this.model, lineIndex + 1, remainder);
+		const info = this.getViewLineInfo(viewLineNumber);
+		return this.lines[info.modelLineNumber - 1].getViewLineMinColumn(this.model, info.modelLineNumber, info.modelLineWrappedLineIdx);
 	}
 
 	public getViewLineMaxColumn(viewLineNumber: number): number {
-		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
-		let r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
-		let lineIndex = r.index;
-		let remainder = r.remainder;
-
-		return this.lines[lineIndex].getViewLineMaxColumn(this.model, lineIndex + 1, remainder);
+		const info = this.getViewLineInfo(viewLineNumber);
+		return this.lines[info.modelLineNumber - 1].getViewLineMaxColumn(this.model, info.modelLineNumber, info.modelLineWrappedLineIdx);
 	}
 
 	public getViewLineData(viewLineNumber: number): ViewLineData {
-		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
-		let r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
-		let lineIndex = r.index;
-		let remainder = r.remainder;
-
-		return this.lines[lineIndex].getViewLineData(this.model, lineIndex + 1, remainder);
+		const info = this.getViewLineInfo(viewLineNumber);
+		return this.lines[info.modelLineNumber - 1].getViewLineData(this.model, info.modelLineNumber, info.modelLineWrappedLineIdx);
 	}
 
 	public getViewLinesData(viewStartLineNumber: number, viewEndLineNumber: number, needed: boolean[]): ViewLineData[] {
@@ -884,15 +864,11 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 	}
 
 	public convertViewPositionToModelPosition(viewLineNumber: number, viewColumn: number): Position {
-		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
+		const info = this.getViewLineInfo(viewLineNumber);
 
-		let r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
-		let lineIndex = r.index;
-		let remainder = r.remainder;
-
-		let inputColumn = this.lines[lineIndex].getModelColumnOfViewPosition(remainder, viewColumn);
+		let inputColumn = this.lines[info.modelLineNumber - 1].getModelColumnOfViewPosition(info.modelLineWrappedLineIdx, viewColumn);
 		// console.log('out -> in ' + viewLineNumber + ',' + viewColumn + ' ===> ' + (lineIndex+1) + ',' + inputColumn);
-		return this.model.validatePosition(new Position(lineIndex + 1, inputColumn));
+		return this.model.validatePosition(new Position(info.modelLineNumber, inputColumn));
 	}
 
 	public convertViewRangeToModelRange(viewRange: Range): Range {
@@ -944,12 +920,12 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		}
 	}
 
-	public getViewLineNumberOfModelPosition(inputLineNumber: number, inputColumn: number): number {
-		let lineIndex = inputLineNumber - 1;
+	public getViewLineNumberOfModelPosition(modelLineNumber: number, modelColumn: number): number {
+		let lineIndex = modelLineNumber - 1;
 		if (this.lines[lineIndex].isVisible()) {
 			// this model line is visible
 			const deltaLineNumber = 1 + (lineIndex === 0 ? 0 : this.prefixSumComputer.getPrefixSum(lineIndex - 1));
-			return this.lines[lineIndex].getViewLineNumberOfModelPosition(deltaLineNumber, inputColumn);
+			return this.lines[lineIndex].getViewLineNumberOfModelPosition(deltaLineNumber, modelColumn);
 		}
 
 		// this model line is not visible
@@ -1032,31 +1008,19 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 	}
 
 	public getInjectedTextAt(position: Position): InjectedText | null {
-		const viewLineNumber = this._toValidViewLineNumber(position.lineNumber);
-		const r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
-		const lineIndex = r.index;
-		const remainder = r.remainder;
-
-		return this.lines[lineIndex].getInjectedTextAt(remainder, position.column);
+		const info = this.getViewLineInfo(position.lineNumber);
+		return this.lines[info.modelLineNumber - 1].getInjectedTextAt(info.modelLineWrappedLineIdx, position.column);
 	}
 
 	normalizePosition(position: Position, affinity: PositionAffinity): Position {
-		const viewLineNumber = this._toValidViewLineNumber(position.lineNumber);
-		const r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
-		const lineIndex = r.index;
-		const remainder = r.remainder;
-
-		return this.lines[lineIndex].normalizePosition(this.model, lineIndex + 1, remainder, position, affinity);
+		const info = this.getViewLineInfo(position.lineNumber);
+		return this.lines[info.modelLineNumber - 1].normalizePosition(this.model, info.modelLineNumber, info.modelLineWrappedLineIdx, position, affinity);
 	}
 
 	public getLineIndentColumn(lineNumber: number): number {
-		const viewLineNumber = this._toValidViewLineNumber(lineNumber);
-		const r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
-		const lineIndex = r.index;
-		const remainder = r.remainder;
-
-		if (remainder === 0) {
-			return this.model.getLineIndentColumn(lineIndex + 1);
+		const info = this.getViewLineInfo(lineNumber);
+		if (info.modelLineWrappedLineIdx === 0) {
+			return this.model.getLineIndentColumn(info.modelLineNumber);
 		}
 
 		// wrapped lines have no indentation.
