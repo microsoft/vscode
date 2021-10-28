@@ -4890,6 +4890,18 @@ suite('autoClosingPairs', () => {
 		mode.dispose();
 	});
 
+	test('issue #132912: backtick (`) should not auto-close after a string expression', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: ['const sql = sql`test ${n}'],
+			languageId: mode.languageId
+		}, (editor, model, viewModel) => {
+			model.forceTokenization(1);
+			assertType(editor, model, viewModel, 1, 26, '`', '`', `does not auto close \` @ (1, 26)`);
+		});
+		mode.dispose();
+	});
+
 	test('open parens: default', () => {
 		let mode = new AutoClosingMode();
 		usingCursor({
@@ -5255,8 +5267,8 @@ suite('autoClosingPairs', () => {
 				'var d |=| "asd"|;|',
 				'var e |=| /*3*/|	3;|',
 				'var f |=| /**| 3 */3;|',
-				'var g |=| (3+5)|;|',
-				'var h |=| {| a:| \'value\'| |}|;|',
+				'var g |=| (3+5);|',
+				'var h |=| {| a:| \'value\'| |};|',
 			];
 			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
 				const lineNumber = i + 1;

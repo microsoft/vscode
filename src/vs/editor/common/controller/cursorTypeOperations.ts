@@ -597,13 +597,16 @@ export class TypeOperations {
 				return null;
 			}
 
-			// Do not auto-close ' or " after a word character
-			if (autoClosingPair.open.length === 1 && (ch === '\'' || ch === '"') && autoCloseConfig !== 'always') {
+			// Do not auto-close ' or " after a word character or any quotes after ) or }
+			if (autoClosingPair.open.length === 1 && chIsQuote && autoCloseConfig !== 'always') {
 				const wordSeparators = getMapForWordSeparators(config.wordSeparators);
-				if (insertOpenCharacter && position.column > 1 && wordSeparators.get(lineText.charCodeAt(position.column - 2)) === WordCharacterClass.Regular) {
-					return null;
-				}
-				if (!insertOpenCharacter && position.column > 2 && wordSeparators.get(lineText.charCodeAt(position.column - 3)) === WordCharacterClass.Regular) {
+				const prevChar = lineText.charCodeAt(position.column - (insertOpenCharacter ? 2 : 3));
+
+				const isAfterClosingChar = prevChar === CharCode.CloseCurlyBrace || prevChar === CharCode.CloseParen;
+				const isAfterWord = wordSeparators.get(prevChar) === WordCharacterClass.Regular;
+				const isNotStart = position.column > (insertOpenCharacter ? 1 : 2);
+
+				if (isNotStart && ((isAfterWord && ch !== '`') || isAfterClosingChar)) {
 					return null;
 				}
 			}
