@@ -4893,7 +4893,7 @@ suite('autoClosingPairs', () => {
 	test('issue #132912: backtick (`) should not auto-close after a string expression', () => {
 		let mode = new AutoClosingMode();
 		usingCursor({
-			text: ['const sql = sql`test ${n}'],
+			text: ['const t1 = `test ${n}'],
 			languageId: mode.languageId
 		}, (editor, model, viewModel) => {
 			model.forceTokenization(1);
