@@ -30,10 +30,9 @@ import { distinct } from 'vs/base/common/arrays';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { disposableTimeout } from 'vs/base/common/async';
-import { isWeb } from 'vs/base/common/platform';
-import { IFileService } from 'vs/platform/files/common/files';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 type FileExtensionSuggestionClassification = {
 	userReaction: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
@@ -103,8 +102,8 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionRecommendationNotificationService private readonly extensionRecommendationNotificationService: IExtensionRecommendationNotificationService,
 		@IExtensionIgnoredRecommendationsService private readonly extensionIgnoredRecommendationsService: IExtensionIgnoredRecommendationsService,
-		@IFileService private readonly fileService: IFileService,
 		@ITASExperimentService private tasExperimentService: ITASExperimentService,
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 
@@ -166,18 +165,9 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			return;
 		}
 
-		/* In Web, recommend only when the file can be handled */
-		if (isWeb) {
-			if (!this.fileService.hasProvider(uri)) {
-				return;
-			}
-		}
-
-		/* In Desktop, recommend only for files with these schemes */
-		else {
-			if (![Schemas.untitled, Schemas.file, Schemas.vscodeRemote].includes(uri.scheme)) {
-				return;
-			}
+		const supportedSchemes = distinct([Schemas.untitled, Schemas.file, Schemas.vscodeRemote, ...this.workspaceContextService.getWorkspace().folders.map(folder => folder.uri.scheme)]);
+		if (!uri || !supportedSchemes.includes(uri.scheme)) {
+			return;
 		}
 
 		this.promptRecommendationsForModel(model);
