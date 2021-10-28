@@ -11,11 +11,11 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { BracketGuideOptions, EndOfLinePreference, IActiveIndentGuideInfo, IModelDecoration, IModelDeltaDecoration, IndentGuide, IndentGuideHorizontalLine, ITextModel, PositionAffinity } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { PrefixSumIndexOfResult } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { ICoordinatesConverter, InjectedText, ILineBreaksComputer, LineBreakData, SingleLineInlineDecoration, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { LineInjectedText } from 'vs/editor/common/model/textModelEvents';
+import { ConstantTimePrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 
 export interface ILineBreaksComputerFactory {
 	createLineBreaksComputer(fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent): ILineBreaksComputer;
@@ -144,89 +144,6 @@ const enum IndentGuideRepeatOption {
 	BlockAll = 2
 }
 
-class LineNumberMapper {
-
-	private _counts: number[];
-	private _isValid: boolean;
-	private _validEndIndex: number;
-
-	private _modelToView: number[];
-	private _viewToModel: number[];
-
-	constructor(viewLineCounts: number[]) {
-		this._counts = viewLineCounts;
-		this._isValid = false;
-		this._validEndIndex = -1;
-		this._modelToView = [];
-		this._viewToModel = [];
-	}
-
-	private _invalidate(index: number): void {
-		this._isValid = false;
-		this._validEndIndex = Math.min(this._validEndIndex, index - 1);
-	}
-
-	private _ensureValid(): void {
-		if (this._isValid) {
-			return;
-		}
-
-		for (let i = this._validEndIndex + 1, len = this._counts.length; i < len; i++) {
-			const viewLineCount = this._counts[i];
-			const viewLinesAbove = (i > 0 ? this._modelToView[i - 1] : 0);
-
-			this._modelToView[i] = viewLinesAbove + viewLineCount;
-			for (let j = 0; j < viewLineCount; j++) {
-				this._viewToModel[viewLinesAbove + j] = i;
-			}
-		}
-
-		// trim things
-		this._modelToView.length = this._counts.length;
-		this._viewToModel.length = this._modelToView[this._modelToView.length - 1];
-
-		// mark as valid
-		this._isValid = true;
-		this._validEndIndex = this._counts.length - 1;
-	}
-
-	public changeValue(index: number, value: number): void {
-		if (this._counts[index] === value) {
-			// no change
-			return;
-		}
-		this._counts[index] = value;
-		this._invalidate(index);
-	}
-
-	public removeValues(start: number, deleteCount: number): void {
-		this._counts.splice(start, deleteCount);
-		this._invalidate(start);
-	}
-
-	public insertValues(insertIndex: number, insertArr: number[]): void {
-		this._counts = arrays.arrayInsert(this._counts, insertIndex, insertArr);
-		this._invalidate(insertIndex);
-	}
-
-	public getTotalValue(): number {
-		this._ensureValid();
-		return this._viewToModel.length;
-	}
-
-	public getAccumulatedValue(index: number): number {
-		this._ensureValid();
-		return this._modelToView[index];
-	}
-
-	public getIndexOf(accumulatedValue: number): PrefixSumIndexOfResult {
-		this._ensureValid();
-		const modelLineIndex = this._viewToModel[accumulatedValue];
-		const viewLinesAbove = (modelLineIndex > 0 ? this._modelToView[modelLineIndex - 1] : 0);
-		return new PrefixSumIndexOfResult(modelLineIndex, accumulatedValue - viewLinesAbove);
-	}
-}
-
 export class SplitLinesCollection implements IViewModelLinesCollection {
 
 	private readonly _editorId: number;
@@ -243,7 +160,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 	private wrappingStrategy: 'simple' | 'advanced';
 	private lines!: ISplitLine[];
 
-	private prefixSumComputer!: LineNumberMapper;
+	private prefixSumComputer!: ConstantTimePrefixSumComputer;
 
 	private hiddenAreasIds!: string[];
 
@@ -324,7 +241,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 
 		this._validModelVersionId = this.model.getVersionId();
 
-		this.prefixSumComputer = new LineNumberMapper(values);
+		this.prefixSumComputer = new ConstantTimePrefixSumComputer(values);
 	}
 
 	public getHiddenAreas(): Range[] {
@@ -422,7 +339,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 			}
 			if (lineChanged) {
 				let newOutputLineCount = this.lines[i].getViewLineCount();
-				this.prefixSumComputer.changeValue(i, newOutputLineCount);
+				this.prefixSumComputer.setValue(i, newOutputLineCount);
 			}
 		}
 
@@ -510,8 +427,8 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 			return null;
 		}
 
-		let outputFromLineNumber = (fromLineNumber === 1 ? 1 : this.prefixSumComputer.getAccumulatedValue(fromLineNumber - 2) + 1);
-		let outputToLineNumber = this.prefixSumComputer.getAccumulatedValue(toLineNumber - 1);
+		let outputFromLineNumber = (fromLineNumber === 1 ? 1 : this.prefixSumComputer.getPrefixSum(fromLineNumber - 2) + 1);
+		let outputToLineNumber = this.prefixSumComputer.getPrefixSum(toLineNumber - 1);
 
 		this.lines.splice(fromLineNumber - 1, toLineNumber - fromLineNumber + 1);
 		this.prefixSumComputer.removeValues(fromLineNumber - 1, toLineNumber - fromLineNumber + 1);
@@ -529,7 +446,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		// cannot use this.getHiddenAreas() because those decorations have already seen the effect of this model change
 		const isInHiddenArea = (fromLineNumber > 2 && !this.lines[fromLineNumber - 2].isVisible());
 
-		let outputFromLineNumber = (fromLineNumber === 1 ? 1 : this.prefixSumComputer.getAccumulatedValue(fromLineNumber - 2) + 1);
+		let outputFromLineNumber = (fromLineNumber === 1 ? 1 : this.prefixSumComputer.getPrefixSum(fromLineNumber - 2) + 1);
 
 		let totalOutputLineCount = 0;
 		let insertLines: ISplitLine[] = [];
@@ -576,23 +493,23 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		let deleteTo = -1;
 
 		if (oldOutputLineCount > newOutputLineCount) {
-			changeFrom = (lineNumber === 1 ? 1 : this.prefixSumComputer.getAccumulatedValue(lineNumber - 2) + 1);
+			changeFrom = (lineNumber === 1 ? 1 : this.prefixSumComputer.getPrefixSum(lineNumber - 2) + 1);
 			changeTo = changeFrom + newOutputLineCount - 1;
 			deleteFrom = changeTo + 1;
 			deleteTo = deleteFrom + (oldOutputLineCount - newOutputLineCount) - 1;
 			lineMappingChanged = true;
 		} else if (oldOutputLineCount < newOutputLineCount) {
-			changeFrom = (lineNumber === 1 ? 1 : this.prefixSumComputer.getAccumulatedValue(lineNumber - 2) + 1);
+			changeFrom = (lineNumber === 1 ? 1 : this.prefixSumComputer.getPrefixSum(lineNumber - 2) + 1);
 			changeTo = changeFrom + oldOutputLineCount - 1;
 			insertFrom = changeTo + 1;
 			insertTo = insertFrom + (newOutputLineCount - oldOutputLineCount) - 1;
 			lineMappingChanged = true;
 		} else {
-			changeFrom = (lineNumber === 1 ? 1 : this.prefixSumComputer.getAccumulatedValue(lineNumber - 2) + 1);
+			changeFrom = (lineNumber === 1 ? 1 : this.prefixSumComputer.getPrefixSum(lineNumber - 2) + 1);
 			changeTo = changeFrom + newOutputLineCount - 1;
 		}
 
-		this.prefixSumComputer.changeValue(lineIndex, newOutputLineCount);
+		this.prefixSumComputer.setValue(lineIndex, newOutputLineCount);
 
 		const viewLinesChangedEvent = (changeFrom <= changeTo ? new viewEvents.ViewLinesChangedEvent(changeFrom, changeTo) : null);
 		const viewLinesInsertedEvent = (insertFrom <= insertTo ? new viewEvents.ViewLinesInsertedEvent(insertFrom, insertTo) : null);
@@ -610,7 +527,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 	}
 
 	public getViewLineCount(): number {
-		return this.prefixSumComputer.getTotalValue();
+		return this.prefixSumComputer.getTotalSum();
 	}
 
 	private _toValidViewLineNumber(viewLineNumber: number): number {
@@ -1000,7 +917,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 			// console.log('in -> out ' + inputLineNumber + ',' + inputColumn + ' ===> ' + 1 + ',' + 1);
 			return new Position(1, 1);
 		}
-		const deltaLineNumber = 1 + (lineIndex === 0 ? 0 : this.prefixSumComputer.getAccumulatedValue(lineIndex - 1));
+		const deltaLineNumber = 1 + (lineIndex === 0 ? 0 : this.prefixSumComputer.getPrefixSum(lineIndex - 1));
 
 		let r: Position;
 		if (lineIndexChanged) {
@@ -1031,7 +948,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		let lineIndex = inputLineNumber - 1;
 		if (this.lines[lineIndex].isVisible()) {
 			// this model line is visible
-			const deltaLineNumber = 1 + (lineIndex === 0 ? 0 : this.prefixSumComputer.getAccumulatedValue(lineIndex - 1));
+			const deltaLineNumber = 1 + (lineIndex === 0 ? 0 : this.prefixSumComputer.getPrefixSum(lineIndex - 1));
 			return this.lines[lineIndex].getViewLineNumberOfModelPosition(deltaLineNumber, inputColumn);
 		}
 
@@ -1043,7 +960,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 			// Could not reach a real line
 			return 1;
 		}
-		const deltaLineNumber = 1 + (lineIndex === 0 ? 0 : this.prefixSumComputer.getAccumulatedValue(lineIndex - 1));
+		const deltaLineNumber = 1 + (lineIndex === 0 ? 0 : this.prefixSumComputer.getPrefixSum(lineIndex - 1));
 		return this.lines[lineIndex].getViewLineNumberOfModelPosition(deltaLineNumber, this.model.getLineMaxColumn(lineIndex + 1));
 	}
 
