@@ -1110,6 +1110,12 @@
           "default": "allOpenProjects",
           "markdownDescription": "%typescript.workspaceSymbols.scope%",
           "scope": "window"
+        },
+        "typescript.suggest.includeCompletionsWithClassMemberSnippets": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.includeCompletionsWithClassMemberSnippets%",
+          "scope": "resource"
         }
       }
     },
