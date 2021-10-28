@@ -227,6 +227,7 @@ export function main(desc: ProductDescription, args: string[]): void {
 		} else {
 			const cliCwd = dirname(cliCommand);
 			const env = { ...process.env, ELECTRON_RUN_AS_NODE: '1' };
+			newCommandline.unshift('--ms-enable-electron-run-as-node');
 			newCommandline.unshift('resources/app/out/cli.js');
 			if (parsedArgs['verbose']) {
 				console.log(`Invoking: ${cliCommand} ${newCommandline.join(' ')} in ${cliCwd}`);
