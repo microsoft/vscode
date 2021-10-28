@@ -1684,7 +1684,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private setAuxiliaryBarHidden(hidden: boolean, skipLayout?: boolean): void {
-		if (!this.configurationService.getValue(Settings.AUXILIARYBAR_ENABLED)) {
+		if (!this.configurationService || !this.configurationService.getValue(Settings.AUXILIARYBAR_ENABLED)) {
 			return;
 		}
 
