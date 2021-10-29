@@ -96,47 +96,56 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	const themeClass = document.body.classList[0];
 	return {
 		renderOutputItem: (outputInfo, element) => {
-			let previewNode: HTMLElement;
-			if (!element.shadowRoot) {
-				const previewRoot = element.attachShadow({ mode: 'open' });
-				// Insert styles into markdown preview shadow dom so that they are applied.
-				// First add default webview style
-				const defaultStyles = document.getElementById('_defaultStyles') as HTMLStyleElement;
-				previewRoot.appendChild(defaultStyles.cloneNode(true));
-				// Add default markdown styles
-				const mdCss = document.createElement('link');
-				mdCss.rel = 'stylesheet';
-				mdCss.href = mdStyleHref;
-				previewRoot.appendChild(mdCss);
-				// And then contributed styles
-				for (const element of document.getElementsByClassName('markdown-style')) {
-					if (element instanceof HTMLTemplateElement) {
-						previewRoot.appendChild(element.content.cloneNode(true));
-					} else {
-						previewRoot.appendChild(element.cloneNode(true));
+			if (!ctx.postMessage) {
+				return;
+			}
+			ctx.postMessage({
+				request: 'getMarkdownConfig'
+			});
+			ctx.onDidReceiveMessage(({ data }: any) => {
+				let previewNode: HTMLElement;
+				if (!element.shadowRoot) {
+					const previewRoot = element.attachShadow({ mode: 'open' });
+					const markdownVars = getMarkdownStyleVars(data.preview);
+					// Insert styles into markdown preview shadow dom so that they are applied.
+					// First add default webview style
+					const defaultStyles = document.getElementById('_defaultStyles') as HTMLStyleElement;
+					previewRoot.appendChild(defaultStyles.cloneNode(true));
+					// Add default markdown styles
+					const mdCss = document.createElement('link');
+					mdCss.rel = 'stylesheet';
+					mdCss.href = mdStyleHref;
+					previewRoot.appendChild(mdCss);
+					// And then contributed styles
+					for (const element of document.getElementsByClassName('markdown-style')) {
+						if (element instanceof HTMLTemplateElement) {
+							previewRoot.appendChild(element.content.cloneNode(true));
+						} else {
+							previewRoot.appendChild(element.cloneNode(true));
+						}
 					}
+					previewNode = document.createElement('body');
+					previewNode.setAttribute('style', markdownVars);
+					previewNode.className = themeClass;
+					previewNode.id = 'preview';
+					previewRoot.appendChild(previewNode);
+				} else {
+					previewNode = element.shadowRoot.getElementById('preview')!;
 				}
 
-				previewNode = document.createElement('body');
-				previewNode.className = themeClass;
-				previewNode.id = 'preview';
-				previewRoot.appendChild(previewNode);
-			} else {
-				previewNode = element.shadowRoot.getElementById('preview')!;
-			}
+				const text = outputInfo.text();
+				if (text.trim().length === 0) {
+					previewNode.innerText = '';
+					previewNode.classList.add('emptyMarkdownCell');
+				} else {
+					previewNode.classList.remove('emptyMarkdownCell');
 
-			const text = outputInfo.text();
-			if (text.trim().length === 0) {
-				previewNode.innerText = '';
-				previewNode.classList.add('emptyMarkdownCell');
-			} else {
-				previewNode.classList.remove('emptyMarkdownCell');
-
-				const unsanitizedRenderedMarkdown = markdownIt.render(text);
-				previewNode.innerHTML = ctx.workspace.isTrusted
-					? unsanitizedRenderedMarkdown
-					: DOMPurify.sanitize(unsanitizedRenderedMarkdown, sanitizerOptions);
-			}
+					const unsanitizedRenderedMarkdown = markdownIt.render(text);
+					previewNode.innerHTML = ctx.workspace.isTrusted
+						? unsanitizedRenderedMarkdown
+						: DOMPurify.sanitize(unsanitizedRenderedMarkdown, sanitizerOptions);
+				}
+			});
 		},
 		extendMarkdownIt: (f: (md: typeof markdownIt) => void) => {
 			f(markdownIt);
@@ -144,6 +153,14 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	};
 };
 
+function getMarkdownStyleVars(config: any): string {
+	console.log(config);
+	return [
+		config.fontFamily ? `--markdown-font-family: ${config.fontFamily};` : '',
+		isNaN(config.fontSize) ? '' : `--markdown-font-size: ${config.fontSize}px;`,
+		isNaN(config.lineHeight) ? '' : `--markdown-line-height: ${config.lineHeight};`,
+	].join(' ');
+}
 
 function addNamedHeaderRendering(md: InstanceType<typeof MarkdownIt>): void {
 	const slugCounter = new Map<string, number>();

@@ -35,6 +35,17 @@ export function activate(context: vscode.ExtensionContext) {
 	const contentProvider = new MarkdownContentProvider(engine, context, cspArbiter, contributions, logger);
 	const symbolProvider = new MDDocumentSymbolProvider(engine);
 	const previewManager = new MarkdownPreviewManager(contentProvider, logger, contributions, engine);
+
+	const messageChannel = vscode.notebooks.createRendererMessaging('markdownItRenderer');
+	messageChannel.onDidReceiveMessage((e: any) => {
+		if (e.message.request === 'getMarkdownConfig') {
+			messageChannel.postMessage({
+				request: 'markdownConfig',
+				data: vscode.workspace.getConfiguration('markdown')
+			});
+		}
+	});
+
 	context.subscriptions.push(previewManager);
 
 	context.subscriptions.push(registerMarkdownLanguageFeatures(symbolProvider, engine));
