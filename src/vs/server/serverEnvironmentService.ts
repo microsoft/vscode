@@ -8,6 +8,8 @@ import { NativeEnvironmentService } from 'vs/platform/environment/node/environme
 import { OPTIONS, OptionDescriptions } from 'vs/platform/environment/node/argv';
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { memoize } from 'vs/base/common/decorators';
+import { FileAccess } from 'vs/base/common/network';
 
 export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	'port': { type: 'string' },
@@ -119,8 +121,24 @@ export const IServerEnvironmentService = refineServiceDecorator<IEnvironmentServ
 
 export interface IServerEnvironmentService extends INativeEnvironmentService {
 	readonly args: ServerParsedArgs;
+	readonly serviceWorkerFileName: string;
+	readonly serviceWorkerPath: string;
+	readonly proxyUri: string;
 }
 
 export class ServerEnvironmentService extends NativeEnvironmentService implements IServerEnvironmentService {
 	override get args(): ServerParsedArgs { return super.args as ServerParsedArgs; }
+
+	public get serviceWorkerFileName(): string {
+		return 'service-worker.js';
+	}
+
+	@memoize
+	public get serviceWorkerPath(): string {
+		return FileAccess.asFileUri(`vs/code/browser/workbench/${this.serviceWorkerFileName}`, require).fsPath;
+	}
+
+	public get proxyUri(): string {
+		return '/proxy/{port}';
+	}
 }

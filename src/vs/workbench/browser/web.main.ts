@@ -67,6 +67,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { safeStringify } from 'vs/base/common/objects';
 import { ICredentialsService } from 'vs/workbench/services/credentials/common/credentials';
 import { IndexedDB } from 'vs/base/browser/indexedDB';
+import { CodeServerClientAdditions } from 'vs/workbench/browser/client';
 
 class BrowserMain extends Disposable {
 
@@ -100,6 +101,15 @@ class BrowserMain extends Disposable {
 
 		// Startup
 		const instantiationService = workbench.startup();
+
+		/** @coder Initialize our own client-side additions. */
+		if (!this.configuration.productConfiguration) {
+			throw new Error('`productConfiguration` not present in workbench config');
+		}
+
+		const codeServerClientAdditions = this._register(instantiationService.createInstance(CodeServerClientAdditions, this.configuration.productConfiguration));
+
+		await codeServerClientAdditions.startup();
 
 		// Window
 		this._register(instantiationService.createInstance(BrowserWindow));
@@ -306,7 +316,7 @@ class BrowserMain extends Disposable {
 
 	private registerDeveloperActions(provider: IndexedDBFileSystemProvider): void {
 		registerAction2(class ResetUserDataAction extends Action2 {
-			constructor() {
+			constructor () {
 				super({
 					id: 'workbench.action.resetUserData',
 					title: { original: 'Reset User Data', value: localize('reset', "Reset User Data") },

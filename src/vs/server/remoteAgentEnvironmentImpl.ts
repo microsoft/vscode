@@ -367,7 +367,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		}
 	}
 
-	private async _scanExtensions(language: string, extensionDevelopmentPath?: string[]): Promise<IExtensionDescription[]> {
+	public async _scanExtensions(language: string, extensionDevelopmentPath?: string[]): Promise<IExtensionDescription[]> {
 		// Ensure that the language packs are available
 		const translations = await this._getTranslations(language);
 

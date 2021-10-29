@@ -10,11 +10,11 @@ fi
 function code() {
 	cd $ROOT
 
-	# Sync built-in extensions
-	yarn download-builtin-extensions
+	# # Sync built-in extensions
+	# yarn download-builtin-extensions
 
-	# Load remote node
-	yarn gulp node
+	# # Load remote node
+	# yarn gulp node
 
 	NODE=$(node build/lib/node.js)
 

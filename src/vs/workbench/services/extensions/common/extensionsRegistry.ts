@@ -65,6 +65,7 @@ export interface IExtensionPoint<T> {
 	readonly name: string;
 	setHandler(handler: IExtensionPointHandler<T>): void;
 	readonly defaultExtensionKind: ExtensionKind[] | undefined;
+	acceptUsers(users: IExtensionPointUser<T>[]): void 
 }
 
 export class ExtensionPointUserDelta<T> {

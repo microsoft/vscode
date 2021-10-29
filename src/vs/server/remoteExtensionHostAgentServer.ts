@@ -63,7 +63,7 @@ import ErrorTelemetry from 'vs/platform/telemetry/node/errorTelemetry';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 import { LogLevelChannel } from 'vs/platform/log/common/logIpc';
 import { IURITransformer } from 'vs/base/common/uriIpc';
-import { WebClientServer, serveError, serveFile } from 'vs/server/webClientServer';
+import { WebClientServer, serveFile } from 'vs/server/webClientServer';
 import { URI } from 'vs/base/common/uri';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { IServerEnvironmentService, ServerEnvironmentService, ServerParsedArgs } from 'vs/server/serverEnvironmentService';
@@ -79,6 +79,8 @@ import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
 import { IRemoteTelemetryService, RemoteNullTelemetryService, RemoteTelemetryService } from 'vs/server/remoteTelemetryService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { IServerThemeService, ServerThemeService, ExtensionResourceLoaderService } from 'vs/server/serverThemeService';
+import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 
 const SHUTDOWN_TIMEOUT = 5 * 60 * 1000;
 
@@ -214,7 +216,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 	private readonly _extHostConnections: { [reconnectionToken: string]: ExtensionHostConnection; };
 	private readonly _managementConnections: { [reconnectionToken: string]: ManagementConnection; };
 	private readonly _allReconnectionTokens: Set<string>;
-	private readonly _webClientServer: WebClientServer | null;
+	private _webClientServer: WebClientServer | null = null;
 
 	private shutdownTimer: NodeJS.Timer | undefined;
 
@@ -223,7 +225,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		private readonly _productService: IProductService,
 		private readonly _connectionToken: string,
 		private readonly _connectionTokenIsMandatory: boolean,
-		hasWebClient: boolean,
+		private readonly hasWebClient: boolean,
 		REMOTE_DATA_FOLDER: string
 	) {
 		super();
@@ -243,11 +245,6 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		this._managementConnections = Object.create(null);
 		this._allReconnectionTokens = new Set<string>();
 
-		if (hasWebClient) {
-			this._webClientServer = new WebClientServer(this._connectionToken, this._environmentService, this._logService, this._productService);
-		} else {
-			this._webClientServer = null;
-		}
 		this._logService.info(`Extension host agent started.`);
 	}
 
@@ -279,6 +276,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		fileService.registerProvider(Schemas.file, this._register(new DiskFileSystemProvider(this._logService)));
 
 		const configurationService = new ConfigurationService(this._environmentService.machineSettingsResource, fileService);
+		await configurationService.initialize();
 		services.set(IConfigurationService, configurationService);
 
 		// URI Identity
@@ -319,6 +317,9 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		const extensionManagementCLIService = instantiationService.createInstance(ExtensionManagementCLIService);
 		services.set(IExtensionManagementCLIService, extensionManagementCLIService);
 
+		const extensionResourceLoaderService = new ExtensionResourceLoaderService(fileService);
+		services.set(IExtensionResourceLoaderService, extensionResourceLoaderService);
+
 		const ptyService = instantiationService.createInstance(
 			PtyHostService,
 			{
@@ -349,6 +350,22 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 
 			this._register(new ErrorTelemetry(accessor.get(ITelemetryService)));
 
+			// Themes
+			const themeService = new ServerThemeService(
+				this._logService,
+				configurationService,
+				remoteExtensionEnvironmentChannel,
+				extensionResourceLoaderService,
+			);
+
+			services.set(IServerThemeService, themeService);
+
+			if (this.hasWebClient) {
+				this._webClientServer = new WebClientServer(this._connectionToken, this._environmentService, this._logService, themeService, this._productService);
+			} else {
+				this._webClientServer = null;
+			}
+
 			return {
 				telemetryService: accessor.get(ITelemetryService)
 			};
@@ -363,20 +380,24 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 	}
 
 	public async handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
+		if (!this._webClientServer) {
+			throw new Error('Web client server not initialized');
+		}
+
 		// Only serve GET requests
 		if (req.method !== 'GET') {
-			return serveError(req, res, 405, `Unsupported method ${req.method}`);
+			return this._webClientServer.serveError(req, res, 405, `Unsupported method ${req.method}`);
 		}
 
 		if (!req.url) {
-			return serveError(req, res, 400, `Bad request.`);
+			return this._webClientServer.serveError(req, res, 400, `Bad request.`);
 		}
 
 		const parsedUrl = url.parse(req.url, true);
 		const pathname = parsedUrl.pathname;
 
 		if (!pathname) {
-			return serveError(req, res, 400, `Bad request.`);
+			return this._webClientServer.serveError(req, res, 400, `Bad request.`);
 		}
 
 		// Version
@@ -396,19 +417,19 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 			// Handle HTTP requests for resources rendered in the rich client (images, fonts, etc.)
 			// These resources could be files shipped with extensions or even workspace files.
 			if (parsedUrl.query['tkn'] !== this._connectionToken) {
-				return serveError(req, res, 403, `Forbidden.`);
+				return this._webClientServer.serveError(req, res, 403, `Forbidden.`);
 			}
 
 			const desiredPath = parsedUrl.query['path'];
 			if (typeof desiredPath !== 'string') {
-				return serveError(req, res, 400, `Bad request.`);
+				return this._webClientServer.serveError(req, res, 400, `Bad request.`);
 			}
 
 			let filePath: string;
 			try {
 				filePath = URI.from({ scheme: Schemas.file, path: desiredPath }).fsPath;
 			} catch (err) {
-				return serveError(req, res, 400, `Bad request.`);
+				return this._webClientServer.serveError(req, res, 400, `Bad request.`);
 			}
 
 			const responseHeaders: Record<string, string> = Object.create(null);
@@ -423,13 +444,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		}
 
 		// workbench web UI
-		if (this._webClientServer) {
-			this._webClientServer.handle(req, res, parsedUrl);
-			return;
-		}
-
-		res.writeHead(404, { 'Content-Type': 'text/plain' });
-		return res.end('Not found');
+		return this._webClientServer.handle(req, res, parsedUrl);
 	}
 
 	public handleUpgrade(req: http.IncomingMessage, socket: net.Socket) {

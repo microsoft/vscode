@@ -125,7 +125,10 @@ const serverWithWebEntryPoints = [
 	...vscodeWebEntryPoints
 ];
 
-function getNodeVersion() {
+function getNodeVersion () {
+	// NOTE@coder: Fix version due to .yarnrc removal.
+	return process.versions.node;
+
 	const yarnrc = fs.readFileSync(path.join(REPO_ROOT, 'remote', '.yarnrc'), 'utf8');
 	const target = /^target "(.*)"$/m.exec(yarnrc)[1];
 	return target;

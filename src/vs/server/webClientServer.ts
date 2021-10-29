@@ -5,6 +5,7 @@
 
 import * as fs from 'fs';
 import * as http from 'http';
+import * as path from 'path';
 import * as url from 'url';
 import * as util from 'util';
 import * as cookie from 'cookie';
@@ -21,6 +22,12 @@ import { FileAccess } from 'vs/base/common/network';
 import { generateUuid } from 'vs/base/common/uuid';
 import { cwd } from 'vs/base/common/process';
 import { IProductService } from 'vs/platform/product/common/productService';
+// eslint-disable-next-line code-import-patterns
+import type { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
+import { editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { ClientTheme, getPathPrefix, WebManifest } from 'vs/server/common/net';
+import { IServerThemeService } from 'vs/server/serverThemeService';
+import { FileSystemError } from 'vs/workbench/api/common/extHostTypes';
 
 const textMimeType = {
 	'.html': 'text/html',
@@ -29,14 +36,6 @@ const textMimeType = {
 	'.css': 'text/css',
 	'.svg': 'image/svg+xml',
 } as { [ext: string]: string | undefined };
-
-/**
- * Return an error to the client.
- */
-export async function serveError(req: http.IncomingMessage, res: http.ServerResponse, errorCode: number, errorMessage: string): Promise<void> {
-	res.writeHead(errorCode, { 'Content-Type': 'text/plain' });
-	res.end(errorMessage);
-}
 
 /**
  * Serve a file at a given path or 404 if the file is missing.
@@ -77,21 +76,34 @@ export class WebClientServer {
 
 	private _mapCallbackUriToRequestId: Map<string, UriComponents> = new Map();
 
-	constructor(
+	constructor (
 		private readonly _connectionToken: string,
 		private readonly _environmentService: IServerEnvironmentService,
 		private readonly _logService: ILogService,
+		private readonly _themeService: IServerThemeService,
 		private readonly _productService: IProductService
 	) { }
 
 	async handle(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
 		try {
 			const pathname = parsedUrl.pathname!;
+			const pathPrefix = getPathPrefix(pathname);
 
-			if (pathname === '/favicon.ico' || pathname === '/manifest.json' || pathname === '/code-192.png' || pathname === '/code-512.png') {
+			if (pathname === '/manifest.json' || pathname === '/webmanifest.json') {
+				return this._handleManifest(req, res, parsedUrl);
+			}
+
+			if (pathname === '/favicon.ico' || pathname === '/code-192.png' || pathname === '/code-512.png') {
 				// always serve icons/manifest, even without a token
 				return serveFile(this._logService, req, res, join(APP_ROOT, 'resources', 'server', pathname.substr(1)));
 			}
+
+			if (pathname === `/${this._environmentService.serviceWorkerFileName}`) {
+				return serveFile(this._logService, req, res, this._environmentService.serviceWorkerPath, {
+					'Service-Worker-Allowed': pathPrefix,
+				});
+			}
+
 			if (/^\/static\//.test(pathname)) {
 				// always serve static requests, even without a token
 				return this._handleStatic(req, res, parsedUrl);
@@ -109,18 +121,74 @@ export class WebClientServer {
 				return this._handleFetchCallback(req, res, parsedUrl);
 			}
 
-			return serveError(req, res, 404, 'Not found.');
+			const message = `"${parsedUrl.pathname}" not found.`;
+			const error = FileSystemError.FileNotFound(message);
+			req.emit('error', error);
+			return;
 		} catch (error) {
+			console.log('VS CODE ERRORED');
 			this._logService.error(error);
 			console.error(error.toString());
 
-			return serveError(req, res, 500, 'Internal Server Error.');
+			return this.serveError(req, res, 500, 'Internal Server Error.', parsedUrl);
 		}
 	}
 
 	private _hasCorrectTokenCookie(req: http.IncomingMessage): boolean {
 		const cookies = cookie.parse(req.headers.cookie || '');
 		return (cookies['vscode-tkn'] === this._connectionToken);
+	}
+
+	private async fetchClientTheme(): Promise<ClientTheme> {
+		await this._themeService.readyPromise;
+		const theme = await this._themeService.fetchColorThemeData();
+
+		return {
+			backgroundColor: theme.getColor(editorBackground, true)!.toString(),
+			foregroundColor: theme.getColor(editorForeground, true)!.toString(),
+		};
+	}
+
+	/**
+	 * A convenience method which creates a URL prefixed with a relative path.
+	 */
+	private createRequestUrl(req: http.IncomingMessage, parsedUrl: url.UrlWithParsedQuery, pathname: string): URL {
+		const pathPrefix = getPathPrefix(parsedUrl.pathname!);
+
+		// TODO: there isn't a good way for to determine the protocol. Defaulting to `http` for now.
+		return new URL(path.join('/', pathPrefix, pathname), `http://${req.headers.host}`);
+	}
+
+	private _iconSizes = [192, 512];
+
+	/**
+	 * PWA manifest file. This informs the browser that the app may be installed.
+	 */
+	private async _handleManifest(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
+		const pathPrefix = getPathPrefix(parsedUrl.pathname!);
+		const clientTheme = await this.fetchClientTheme();
+		const startUrl = pathPrefix.substring(
+			0,
+			pathPrefix.lastIndexOf('/') + 1
+		);
+
+		const webManifest: WebManifest = {
+			name: this._productService.nameLong,
+			short_name: this._productService.nameShort,
+			start_url: normalize(startUrl),
+			display: 'fullscreen',
+			'background-color': clientTheme.backgroundColor,
+			description: 'Run editors on a remote server.',
+			icons: this._iconSizes.map((size => ({
+				src: this.createRequestUrl(req, parsedUrl, `/static/resources/server/code-${size}.png`).toString(),
+				type: 'image/png',
+				sizes: `${size}x${size}`,
+			})))
+		};
+
+		res.writeHead(200, { 'Content-Type': 'application/manifest+json' });
+
+		return res.end(JSON.stringify(webManifest, null, 2));
 	}
 
 	/**
@@ -135,7 +203,7 @@ export class WebClientServer {
 
 		const filePath = join(APP_ROOT, relativeFilePath);
 		if (!isEqualOrParent(filePath, APP_ROOT, !isLinux)) {
-			return serveError(req, res, 400, `Bad request.`);
+			return this.serveError(req, res, 400, `Bad request.`, parsedUrl);
 		}
 
 		return serveFile(this._logService, req, res, filePath, headers);
@@ -146,8 +214,10 @@ export class WebClientServer {
 	 */
 	private async _handleRoot(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
 		if (!req.headers.host) {
-			return serveError(req, res, 400, `Bad request.`);
+			return this.serveError(req, res, 400, `Bad request.`, parsedUrl);
 		}
+
+		const { backgroundColor, foregroundColor } = await this.fetchClientTheme();
 
 		const queryTkn = parsedUrl.query['tkn'];
 		if (typeof queryTkn === 'string') {
@@ -170,7 +240,7 @@ export class WebClientServer {
 		}
 
 		if (this._environmentService.isBuilt && !this._hasCorrectTokenCookie(req)) {
-			return serveError(req, res, 403, `Forbidden.`);
+			return this.serveError(req, res, 403, `Forbidden.`, parsedUrl);
 		}
 
 		const remoteAuthority = req.headers.host;
@@ -195,8 +265,18 @@ export class WebClientServer {
 			accessToken: this._environmentService.args['github-auth'],
 			scopes: [['user:email'], ['repo']]
 		} : undefined;
+
+		const pathPrefix = getPathPrefix(parsedUrl.pathname!);
+
 		const data = (await util.promisify(fs.readFile)(filePath)).toString()
-			.replace('{{WORKBENCH_WEB_CONFIGURATION}}', escapeAttribute(JSON.stringify({
+			.replace('{{WORKBENCH_WEB_CONFIGURATION}}', escapeAttribute(JSON.stringify(<IWorkbenchConstructionOptions>{
+				productConfiguration: {
+					updateUrl: './update/check',
+					serviceWorker: {
+						scope: pathPrefix,
+						url: `./${this._environmentService.serviceWorkerFileName}`
+					}
+				},
 				folderUri: (workspacePath && isFolder) ? transformer.transformOutgoing(URI.file(workspacePath)) : undefined,
 				workspaceUri: (workspacePath && !isFolder) ? transformer.transformOutgoing(URI.file(workspacePath)) : undefined,
 				remoteAuthority,
@@ -204,6 +284,8 @@ export class WebClientServer {
 				developmentOptions: { enableSmokeTestDriver: this._environmentService.driverHandle === 'web' ? true : undefined },
 				settingsSyncOptions: !this._environmentService.isBuilt && this._environmentService.args['enable-sync'] ? { enabled: true } : undefined,
 			})))
+			.replace(/{{CLIENT_BACKGROUND_COLOR}}/g, () => backgroundColor)
+			.replace(/{{CLIENT_FOREGROUND_COLOR}}/g, () => foregroundColor)
 			.replace('{{WORKBENCH_AUTH_SESSION}}', () => authSessionInfo ? escapeAttribute(JSON.stringify(authSessionInfo)) : '');
 
 		const cspDirectives = [
@@ -351,4 +433,37 @@ export class WebClientServer {
 		res.writeHead(200, { 'Content-Type': 'text/json' });
 		return res.end(JSON.stringify(knownCallbackUri));
 	}
+
+	serveError = async (_req: http.IncomingMessage, res: http.ServerResponse, code: number, message: string, parsedUrl?: url.UrlWithParsedQuery): Promise<void> => {
+		const { applicationName, commit = 'development', version } = this._productService;
+
+		res.statusCode = code;
+		res.statusMessage = message;
+
+		if (parsedUrl) {
+			this._logService.debug(`[${parsedUrl.toString()}] ${code}: ${message}`);
+
+			if (parsedUrl.pathname?.endsWith('.json')) {
+				res.setHeader('Content-Type', 'application/json');
+
+				res.end(JSON.stringify({ code, message, commit }));
+				return;
+			}
+		}
+
+		const clientTheme = await this.fetchClientTheme();
+
+		res.setHeader('Content-Type', 'text/html');
+
+		const filePath = FileAccess.asFileUri('vs/code/browser/workbench/workbench-error.html', require).fsPath;
+		const data = (await util.promisify(fs.readFile)(filePath)).toString()
+			.replace(/{{ERROR_HEADER}}/g, () => `${applicationName}`)
+			.replace(/{{ERROR_CODE}}/g, () => code.toString())
+			.replace(/{{ERROR_MESSAGE}}/g, () => message)
+			.replace(/{{ERROR_FOOTER}}/g, () => `${version} — ${commit}`)
+			.replace(/{{CLIENT_BACKGROUND_COLOR}}/g, () => clientTheme.backgroundColor)
+			.replace(/{{CLIENT_FOREGROUND_COLOR}}/g, () => clientTheme.foregroundColor);
+
+		res.end(data);
+	};
 }
