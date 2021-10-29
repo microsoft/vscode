@@ -37,7 +37,7 @@ import type { Unicode11Addon } from 'xterm-addon-unicode11';
 import type { WebglAddon } from 'xterm-addon-webgl';
 import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/addons/commandTrackerAddon';
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/addons/navigationModeAddon';
-import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
+import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { EnvironmentVariableInfoWidget } from 'vs/workbench/contrib/terminal/browser/widgets/environmentVariableInfoWidget';
@@ -74,6 +74,7 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/addons/lineDataEventAddon';
+import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/addons/xtermTerminal';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -135,8 +136,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _titleSource: TitleEventSource = TitleEventSource.Process;
 	private _container: HTMLElement | undefined;
 	private _wrapperElement: (HTMLElement & { xterm?: XTermTerminal }) | undefined;
-	private _xterm: XTermTerminal | undefined;
-	private _xtermCore: XTermCore | undefined;
+	private _xterm: XtermTerminal | undefined;
+	// private _xterm: XTermTerminal | undefined;
+	private _xtermCore: IXtermCore | undefined;
 	private _xtermTypeAhead: TypeAheadAddon | undefined;
 	private _xtermSearch: SearchAddon | undefined;
 	private _xtermUnicode11: Unicode11Addon | undefined;
@@ -613,51 +615,23 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	 */
 	protected async _createXterm(): Promise<XTermTerminal> {
 		const Terminal = await this._getXtermConstructor();
-		const font = this._configHelper.getFont(undefined, true);
-		const config = this._configHelper.config;
-		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
 
-		const xterm = new Terminal({
-			cols: this._cols || Constants.DefaultCols,
-			rows: this._rows || Constants.DefaultRows,
-			altClickMovesCursor: config.altClickMovesCursor && editorOptions.multiCursorModifier === 'alt',
-			scrollback: config.scrollback,
-			theme: this._getXtermTheme(),
-			drawBoldTextInBrightColors: config.drawBoldTextInBrightColors,
-			fontFamily: font.fontFamily,
-			fontWeight: config.fontWeight,
-			fontWeightBold: config.fontWeightBold,
-			fontSize: font.fontSize,
-			letterSpacing: font.letterSpacing,
-			lineHeight: font.lineHeight,
-			minimumContrastRatio: config.minimumContrastRatio,
-			cursorBlink: config.cursorBlinking,
-			cursorStyle: config.cursorStyle === 'line' ? 'bar' : config.cursorStyle,
-			cursorWidth: config.cursorWidth,
-			bellStyle: 'none',
-			macOptionIsMeta: config.macOptionIsMeta,
-			macOptionClickForcesSelection: config.macOptionClickForcesSelection,
-			rightClickSelectsWord: config.rightClickBehavior === 'selectWord',
-			fastScrollModifier: 'alt',
-			fastScrollSensitivity: editorOptions.fastScrollSensitivity,
-			scrollSensitivity: editorOptions.mouseWheelScrollSensitivity,
-			rendererType: this._getBuiltInXtermRenderer(config.gpuAcceleration, TerminalInstance._suggestedRendererType),
-			wordSeparator: config.wordSeparators
-		});
+		// TODO: Move cols/rows over to XtermTerminal
+		const xterm = this._instantiationService.createInstance(XtermTerminal, Terminal, this._configHelper);
 		this._xterm = xterm;
-		this._xtermCore = (xterm as any)._core as XTermCore;
+		this._xtermCore = (xterm as any)._core as IXtermCore;
 		const lineDataEventAddon = new LineDataEventAddon();
-		this._xterm.loadAddon(lineDataEventAddon);
+		this._xterm.raw.loadAddon(lineDataEventAddon);
 		this._updateUnicodeVersion();
 		this.updateAccessibilitySupport();
 		this._terminalInstanceService.getXtermSearchConstructor().then(addonCtor => {
 			this._xtermSearch = new addonCtor();
-			xterm.loadAddon(this._xtermSearch);
+			xterm.raw.loadAddon(this._xtermSearch);
 		});
 		// Write initial text, deferring onLineFeed listener when applicable to avoid firing
 		// onLineData events containing initialText
 		if (this._shellLaunchConfig.initialText) {
-			this._xterm.writeln(this._shellLaunchConfig.initialText, () => {
+			this._xterm.raw.writeln(this._shellLaunchConfig.initialText, () => {
 				lineDataEventAddon.onLineData(e => this._onLineData.fire(e));
 			});
 		} else {
@@ -666,7 +640,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Delay the creation of the bell listener to avoid showing the bell when the terminal
 		// starts up or reconnects
 		setTimeout(() => {
-			this._xterm?.onBell(() => {
+			xterm.raw.onBell(() => {
 				if (this._configHelper.config.enableBell) {
 					this.statusList.add({
 						id: TerminalStatus.Bell,
@@ -677,16 +651,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 			});
 		}, 1000);
-		this._xterm.onKey(e => this._onKey(e.key, e.domEvent));
-		this._xterm.onSelectionChange(async () => this._onSelectionChange());
-		this._xterm.buffer.onBufferChange(() => this._refreshAltBufferContextKey());
+		xterm.raw.onKey(e => this._onKey(e.key, e.domEvent));
+		xterm.raw.onSelectionChange(async () => this._onSelectionChange());
+		xterm.raw.buffer.onBufferChange(() => this._refreshAltBufferContextKey());
 
 		this._processManager.onProcessData(e => this._onProcessData(e));
-		this._xterm.onData(async data => {
+		xterm.raw.onData(async data => {
 			await this._processManager.write(data);
 			this._onDidInputData.fire(this);
 		});
-		this._xterm.onBinary(data => this._processManager.processBinary(data));
+		xterm.raw.onBinary(data => this._processManager.processBinary(data));
 		this.processReady.then(async () => {
 			if (this._linkManager) {
 				this._linkManager.processCwd = await this._processManager.getInitialCwd();
@@ -704,28 +678,28 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				lineDataEventAddon.setOperatingSystem(this._processManager.os);
 			}
 			if (this._processManager.os === OperatingSystem.Windows) {
-				xterm.setOption('windowsMode', processTraits.requiresWindowsMode || false);
+				xterm.raw.setOption('windowsMode', processTraits.requiresWindowsMode || false);
 			}
-			this._linkManager = this._instantiationService.createInstance(TerminalLinkManager, xterm, this._processManager!);
+			this._linkManager = this._instantiationService.createInstance(TerminalLinkManager, xterm.raw, this._processManager!);
 			this._areLinksReady = true;
 			this._onLinksReady.fire(this);
 		});
 
 		this._commandTrackerAddon = new CommandTrackerAddon();
-		this._xterm.loadAddon(this._commandTrackerAddon);
-		this._register(this._themeService.onDidColorThemeChange(theme => this._updateTheme(xterm, theme)));
+		xterm.raw.loadAddon(this._commandTrackerAddon);
+		this._register(this._themeService.onDidColorThemeChange(theme => this._updateTheme(xterm.raw, theme)));
 		this._register(this._viewDescriptorService.onDidChangeLocation(({ views }) => {
 			if (views.some(v => v.id === TERMINAL_VIEW_ID)) {
-				this._updateTheme(xterm);
+				this._updateTheme(xterm.raw);
 			}
 		}));
 
 		this._xtermTypeAhead = this._register(this._instantiationService.createInstance(TypeAheadAddon, this._processManager, this._configHelper));
-		this._xterm.loadAddon(this._xtermTypeAhead);
+		xterm.raw.loadAddon(this._xtermTypeAhead);
 		this._pathService.userHome().then(userHome => {
 			this._userHome = userHome.fsPath;
 		});
-		return xterm;
+		return xterm.raw;
 	}
 
 	detachFromElement(): void {
@@ -749,7 +723,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Update the theme when attaching as the terminal location could have changed
 		if (this._xterm) {
-			this._updateTheme(this._xterm);
+			this._updateTheme(this._xterm.raw);
 		}
 
 		// The container changed, reattach
@@ -1002,7 +976,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	hasSelection(): boolean {
-		return this._xterm ? this._xterm.hasSelection() : false;
+		return this._xterm ? this._xterm.raw.hasSelection() : false;
 	}
 
 	async copySelection(): Promise<void> {
@@ -1015,17 +989,17 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	get selection(): string | undefined {
-		return this._xterm && this.hasSelection() ? this._xterm.getSelection() : undefined;
+		return this._xterm && this.hasSelection() ? this._xterm.raw.getSelection() : undefined;
 	}
 
 	clearSelection(): void {
-		this._xterm?.clearSelection();
+		this._xterm?.raw.clearSelection();
 	}
 
 	selectAll(): void {
 		// Focus here to ensure the terminal context key is set
-		this._xterm?.focus();
-		this._xterm?.selectAll();
+		this._xterm?.raw.focus();
+		this._xterm?.raw.selectAll();
 	}
 
 	findNext(term: string, searchOptions: ISearchOptions): boolean {
@@ -1046,12 +1020,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this._xterm) {
 			return;
 		}
-		const terminalFocused = !isFocused && (document.activeElement === this._xterm.textarea || document.activeElement === this._xterm.element);
+		const terminalFocused = !isFocused && (document.activeElement === this._xterm.raw.textarea || document.activeElement === this._xterm.raw.element);
 		this._terminalFocusContextKey.set(terminalFocused);
 	}
 
 	private _refreshAltBufferContextKey() {
-		this._terminalAltBufferActiveContextKey.set(!!(this._xterm && this._xterm.buffer.active === this._xterm.buffer.alternate));
+		this._terminalAltBufferActiveContextKey.set(!!(this._xterm && this._xterm.raw.buffer.active === this._xterm.raw.buffer.alternate));
 	}
 
 	override dispose(immediate?: boolean): void {
@@ -1062,7 +1036,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._commandTrackerAddon = undefined;
 		dispose(this._widgetManager);
 
-		if (this._xterm && this._xterm.element) {
+		if (this._xterm?.raw.element) {
 			this._hadFocusOnExit = this.hasFocus;
 		}
 		if (this._wrapperElement) {
@@ -1102,7 +1076,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		this._webglAddon?.clearTextureAtlas();
-		this._xterm?.clearTextureAtlas();
+		this._xterm?.raw.clearTextureAtlas();
 	}
 
 	focus(force?: boolean): void {
@@ -1116,7 +1090,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		const text = selection.toString();
 		if (!text || force) {
-			this._xterm.focus();
+			this._xterm.raw.focus();
 		}
 	}
 
@@ -1131,7 +1105,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		this.focus();
-		this._xterm.paste(await this._clipboardService.readText());
+		this._xterm.raw.paste(await this._clipboardService.readText());
 	}
 
 	async pasteSelection(): Promise<void> {
@@ -1139,7 +1113,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		this.focus();
-		this._xterm.paste(await this._clipboardService.readText('selection'));
+		this._xterm.raw.paste(await this._clipboardService.readText('selection'));
 	}
 
 	async sendText(text: string, addNewLine: boolean): Promise<void> {
@@ -1176,31 +1150,31 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	scrollDownLine(): void {
-		this._xterm?.scrollLines(1);
+		this._xterm?.raw.scrollLines(1);
 	}
 
 	scrollDownPage(): void {
-		this._xterm?.scrollPages(1);
+		this._xterm?.raw.scrollPages(1);
 	}
 
 	scrollToBottom(): void {
-		this._xterm?.scrollToBottom();
+		this._xterm?.raw.scrollToBottom();
 	}
 
 	scrollUpLine(): void {
-		this._xterm?.scrollLines(-1);
+		this._xterm?.raw.scrollLines(-1);
 	}
 
 	scrollUpPage(): void {
-		this._xterm?.scrollPages(-1);
+		this._xterm?.raw.scrollPages(-1);
 	}
 
 	scrollToTop(): void {
-		this._xterm?.scrollToTop();
+		this._xterm?.raw.scrollToTop();
 	}
 
 	clear(): void {
-		this._xterm?.clear();
+		this._xterm?.raw.clear();
 	}
 
 	private _refreshSelectionContextKey() {
@@ -1286,7 +1260,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Re-evaluate dimensions if the container has been set since the xterm instance was created
 		if (this._container && this._cols === 0 && this._rows === 0) {
 			this._initDimensions();
-			this._xterm?.resize(this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows);
+			this._xterm?.raw.resize(this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows);
 		}
 
 		const hadIcon = !!this.shellLaunchConfig.icon;
@@ -1304,14 +1278,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const messageId = ++this._latestXtermWriteData;
 		if (ev.trackCommit) {
 			ev.writePromise = new Promise<void>(r => {
-				this._xterm?.write(ev.data, () => {
+				this._xterm?.raw.write(ev.data, () => {
 					this._latestXtermParseData = messageId;
 					this._processManager.acknowledgeDataEvent(ev.data.length);
 					r();
 				});
 			});
 		} else {
-			this._xterm?.write(ev.data, () => {
+			this._xterm?.raw.write(ev.data, () => {
 				this._latestXtermParseData = messageId;
 				this._processManager.acknowledgeDataEvent(ev.data.length);
 			});
@@ -1479,17 +1453,17 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this._xterm) {
 			if (!reset) {
 				// Ensure new processes' output starts at start of new line
-				await new Promise<void>(r => this._xterm!.write('\n\x1b[G', r));
+				await new Promise<void>(r => this._xterm!.raw.write('\n\x1b[G', r));
 			}
 
 			// Print initialText if specified
 			if (shell.initialText) {
-				await new Promise<void>(r => this._xterm!.writeln(shell.initialText!, r));
+				await new Promise<void>(r => this._xterm!.raw.writeln(shell.initialText!, r));
 			}
 
 			// Clean up waitOnExit state
 			if (this._isExiting && this._shellLaunchConfig.waitOnExit) {
-				this._xterm.setOption('disableStdin', false);
+				this._xterm.raw.setOption('disableStdin', false);
 				this._isExiting = false;
 			}
 		}
@@ -1594,13 +1568,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private async _enableWebglRenderer(): Promise<void> {
-		if (!this._xterm?.element || this._webglAddon) {
+		if (!this._xterm?.raw.element || this._webglAddon) {
 			return;
 		}
 		const Addon = await this._terminalInstanceService.getXtermWebglConstructor();
 		this._webglAddon = new Addon();
 		try {
-			this._xterm.loadAddon(this._webglAddon);
+			this._xterm.raw.loadAddon(this._webglAddon);
 			this._webglAddon.onContextLoss(() => {
 				this._logService.info(`Webgl lost context, disposing of webgl renderer`);
 				this._disposeOfWebglRenderer();
@@ -1635,10 +1609,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this._xtermUnicode11 && this._configHelper.config.unicodeVersion === '11') {
 			const Addon = await this._terminalInstanceService.getXtermUnicode11Constructor();
 			this._xtermUnicode11 = new Addon();
-			this._xterm.loadAddon(this._xtermUnicode11);
+			this._xterm.raw.loadAddon(this._xtermUnicode11);
 		}
-		if (this._xterm.unicode.activeVersion !== this._configHelper.config.unicodeVersion) {
-			this._xterm.unicode.activeVersion = this._configHelper.config.unicodeVersion;
+		if (this._xterm.raw.unicode.activeVersion !== this._configHelper.config.unicodeVersion) {
+			this._xterm.raw.unicode.activeVersion = this._configHelper.config.unicodeVersion;
 			this._processManager.setUnicodeVersion(this._configHelper.config.unicodeVersion);
 		}
 	}
@@ -1647,32 +1621,32 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const isEnabled = this._accessibilityService.isScreenReaderOptimized();
 		if (isEnabled) {
 			this._navigationModeAddon = new NavigationModeAddon(this._terminalA11yTreeFocusContextKey);
-			this._xterm!.loadAddon(this._navigationModeAddon);
+			this._xterm!.raw.loadAddon(this._navigationModeAddon);
 		} else {
 			this._navigationModeAddon?.dispose();
 			this._navigationModeAddon = undefined;
 		}
-		this._xterm!.setOption('screenReaderMode', isEnabled);
+		this._xterm!.raw.setOption('screenReaderMode', isEnabled);
 	}
 
 	private _setCursorBlink(blink: boolean): void {
-		if (this._xterm && this._xterm.getOption('cursorBlink') !== blink) {
-			this._xterm.setOption('cursorBlink', blink);
-			this._xterm.refresh(0, this._xterm.rows - 1);
+		if (this._xterm && this._xterm.raw.getOption('cursorBlink') !== blink) {
+			this._xterm.raw.setOption('cursorBlink', blink);
+			this._xterm.raw.refresh(0, this._xterm.raw.rows - 1);
 		}
 	}
 
 	private _setCursorStyle(style: string): void {
-		if (this._xterm && this._xterm.getOption('cursorStyle') !== style) {
+		if (this._xterm && this._xterm.raw.getOption('cursorStyle') !== style) {
 			// 'line' is used instead of bar in VS Code to be consistent with editor.cursorStyle
 			const xtermOption = style === 'line' ? 'bar' : style;
-			this._xterm.setOption('cursorStyle', xtermOption);
+			this._xterm.raw.setOption('cursorStyle', xtermOption);
 		}
 	}
 
 	private _setCursorWidth(width: number): void {
-		if (this._xterm && this._xterm.getOption('cursorWidth') !== width) {
-			this._xterm.setOption('cursorWidth', width);
+		if (this._xterm && this._xterm.raw.getOption('cursorWidth') !== width) {
+			this._xterm.raw.setOption('cursorWidth', width);
 		}
 	}
 
@@ -1688,8 +1662,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 
-		if (this._xterm.getOption(key) !== value) {
-			this._xterm.setOption(key, value);
+		if (this._xterm.raw.getOption(key) !== value) {
+			this._xterm.raw.setOption(key, value);
 		}
 	}
 
@@ -1749,14 +1723,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				return;
 			}
 
-			if (cols !== this._xterm.cols || rows !== this._xterm.rows) {
+			if (cols !== this._xterm.raw.cols || rows !== this._xterm.raw.rows) {
 				if (this._fixedRows || this._fixedCols) {
 					await this.updateProperty(ProcessPropertyType.FixedDimensions, { cols: this._fixedCols, rows: this._fixedRows });
 				}
 				this._onDimensionsChanged.fire();
 			}
 
-			this._xterm.resize(cols, rows);
+			this._xterm.raw.resize(cols, rows);
 			TerminalInstance._lastKnownGridDimensions = { cols, rows };
 
 			if (this._isVisible) {
@@ -1764,11 +1738,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				// This is to fix an issue where dragging the windpow to the top of the screen to
 				// maximize on Windows/Linux would fire an event saying that the terminal was not
 				// visible.
-				if (this._xterm.getOption('rendererType') === 'canvas') {
+				if (this._xterm.raw.getOption('rendererType') === 'canvas') {
 					this._xtermCore._renderService?._onIntersectionChange({ intersectionRatio: 1 });
 					// HACK: Force a refresh of the screen to ensure links are refresh corrected.
 					// This can probably be removed when the above hack is fixed in Chromium.
-					this._xterm.refresh(0, this._xterm.rows - 1);
+					this._xterm.raw.refresh(0, this._xterm.raw.rows - 1);
 				}
 			}
 		}
@@ -1807,7 +1781,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const titleChanged = title !== this._title;
 		this._title = title;
 		this._labelComputer?.refreshLabel();
-		this._setAriaLabel(this._xterm, this._instanceId, this._title);
+		this._setAriaLabel(this._xterm?.raw, this._instanceId, this._title);
 
 		if (this._titleReadyComplete) {
 			this._titleReadyComplete(title);
@@ -1919,7 +1893,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async toggleSizeToContentWidth(): Promise<void> {
-		if (!this._xterm?.buffer.active) {
+		if (!this._xterm?.raw.buffer.active) {
 			return;
 		}
 		if (this._hasScrollBar) {
@@ -1932,12 +1906,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._horizontalScrollbar?.setScrollDimensions({ scrollWidth: 0 });
 		} else {
 			let maxCols = 0;
-			if (!this._xterm.buffer.active.getLine(0)) {
+			if (!this._xterm.raw.buffer.active.getLine(0)) {
 				return;
 			}
-			const lineWidth = this._xterm.buffer.active.getLine(0)!.length;
-			for (let i = this._xterm.buffer.active.length - 1; i >= this._xterm.buffer.active.viewportY; i--) {
-				const lineInfo = this._getWrappedLineCount(i, this._xterm.buffer.active);
+			const lineWidth = this._xterm.raw.buffer.active.getLine(0)!.length;
+			for (let i = this._xterm.raw.buffer.active.length - 1; i >= this._xterm.raw.buffer.active.viewportY; i--) {
+				const lineInfo = this._getWrappedLineCount(i, this._xterm.raw.buffer.active);
 				maxCols = Math.max(maxCols, ((lineInfo.lineCount * lineWidth) - lineInfo.endSpaces) || 0);
 				i = lineInfo.currentIndex;
 			}
@@ -1950,10 +1924,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private async _addScrollbar(): Promise<void> {
 		const charWidth = this._configHelper?.getFont(this._xtermCore).charWidth;
-		if (!this._xterm?.element || !this._wrapperElement || !this._container || !charWidth || !this._fixedCols) {
+		if (!this._xterm?.raw.element || !this._wrapperElement || !this._container || !charWidth || !this._fixedCols) {
 			return;
 		}
-		if (this._fixedCols < this._xterm.buffer.active.getLine(0)!.length) {
+		if (this._fixedCols < this._xterm.raw.buffer.active.getLine(0)!.length) {
 			// no scrollbar needed
 			return;
 		}
@@ -1974,14 +1948,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		this._horizontalScrollbar.setScrollDimensions(
 			{
-				width: this._xterm.element.clientWidth,
+				width: this._xterm.raw.element.clientWidth,
 				scrollWidth: this._fixedCols * charWidth
 			});
 		this._horizontalScrollbar!.getDomNode().style.paddingBottom = '16px';
 
 		// work around for https://github.com/xtermjs/xterm.js/issues/3482
-		for (let i = this._xterm.buffer.active.viewportY; i < this._xterm.buffer.active.length; i++) {
-			let line = this._xterm.buffer.active.getLine(i);
+		for (let i = this._xterm.raw.buffer.active.viewportY; i < this._xterm.raw.buffer.active.length; i++) {
+			let line = this._xterm.raw.buffer.active.getLine(i);
 			(line as any)._line.isWrapped = false;
 		}
 	}
@@ -2022,7 +1996,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _onEnvironmentVariableInfoChanged(info: IEnvironmentVariableInfo): void {
 		if (info.requiresAction) {
-			this._xterm?.textarea?.setAttribute('aria-label', nls.localize('terminalStaleTextBoxAriaLabel', "Terminal {0} environment is stale, run the 'Show Environment Information' command for more information", this._instanceId));
+			this._xterm?.raw.textarea?.setAttribute('aria-label', nls.localize('terminalStaleTextBoxAriaLabel', "Terminal {0} environment is stale, run the 'Show Environment Information' command for more information", this._instanceId));
 		}
 		this._refreshEnvironmentVariableInfoWidgetState(info);
 	}
