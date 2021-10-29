@@ -181,7 +181,12 @@ export const IPtyService = createDecorator<IPtyService>('ptyService');
 export const enum ProcessPropertyType {
 	Cwd = 'cwd',
 	InitialCwd = 'initialCwd',
-	FixedDimensions = 'fixedDimensions'
+	FixedDimensions = 'fixedDimensions',
+	Title = 'title',
+	ShellType = 'shellType',
+	HasChildProcesses = 'hasChildProcesses',
+	ResolvedShellLaunchConfig = 'resolvedShellLaunchConfig',
+	OverrideDimensions = 'overrideDimensions'
 }
 
 export interface IProcessProperty<T extends ProcessPropertyType> {
@@ -192,7 +197,12 @@ export interface IProcessProperty<T extends ProcessPropertyType> {
 export interface IProcessPropertyMap {
 	[ProcessPropertyType.Cwd]: string,
 	[ProcessPropertyType.InitialCwd]: string,
-	[ProcessPropertyType.FixedDimensions]: IFixedTerminalDimensions
+	[ProcessPropertyType.FixedDimensions]: IFixedTerminalDimensions,
+	[ProcessPropertyType.Title]: string
+	[ProcessPropertyType.ShellType]: TerminalShellType | undefined,
+	[ProcessPropertyType.HasChildProcesses]: boolean,
+	[ProcessPropertyType.ResolvedShellLaunchConfig]: IShellLaunchConfig,
+	[ProcessPropertyType.OverrideDimensions]: ITerminalDimensionsOverride | undefined
 }
 
 export interface IFixedTerminalDimensions {
@@ -218,17 +228,12 @@ export interface IPtyService {
 	readonly onPtyHostRequestResolveVariables?: Event<IRequestResolveVariablesEvent>;
 
 	readonly onProcessData: Event<{ id: number, event: IProcessDataEvent | string }>;
-	readonly onProcessExit: Event<{ id: number, event: number | undefined }>;
-	readonly onProcessReady: Event<{ id: number, event: { pid: number, cwd: string, capabilities: ProcessCapability[] } }>;
-	readonly onProcessTitleChanged: Event<{ id: number, event: string }>;
-	readonly onProcessShellTypeChanged: Event<{ id: number, event: TerminalShellType }>;
-	readonly onProcessOverrideDimensions: Event<{ id: number, event: ITerminalDimensionsOverride | undefined }>;
-	readonly onProcessResolvedShellLaunchConfig: Event<{ id: number, event: IShellLaunchConfig }>;
+	readonly onProcessReady: Event<{ id: number, event: IProcessReadyEvent }>;
 	readonly onProcessReplay: Event<{ id: number, event: IPtyHostProcessReplayEvent }>;
 	readonly onProcessOrphanQuestion: Event<{ id: number }>;
 	readonly onDidRequestDetach: Event<{ requestId: number, workspaceId: string, instanceId: number }>;
-	readonly onProcessDidChangeHasChildProcesses: Event<{ id: number, event: boolean }>;
 	readonly onDidChangeProperty: Event<{ id: number, property: IProcessProperty<any> }>
+	readonly onProcessExit: Event<{ id: number, event: number | undefined }>;
 
 	restartPtyHost?(): Promise<void>;
 	shutdownAll?(): Promise<void>;
@@ -527,14 +532,9 @@ export interface ITerminalChildProcess {
 	capabilities: ProcessCapability[];
 
 	onProcessData: Event<IProcessDataEvent | string>;
-	onProcessExit: Event<number | undefined>;
 	onProcessReady: Event<IProcessReadyEvent>;
-	onProcessTitleChanged: Event<string>;
-	onProcessShellTypeChanged: Event<TerminalShellType>;
-	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined>;
-	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig>;
-	onDidChangeHasChildProcesses?: Event<boolean>;
 	onDidChangeProperty: Event<IProcessProperty<any>>;
+	onProcessExit: Event<number | undefined>;
 
 	/**
 	 * Starts the process.

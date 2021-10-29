@@ -57,6 +57,7 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 
 		// Attach process listeners
 		this._localPtyService.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
+		this._localPtyService.onDidChangeProperty(e => this._ptys.get(e.id)?.handleDidChangeProperty(e.property));
 		this._localPtyService.onProcessExit(e => {
 			const pty = this._ptys.get(e.id);
 			if (pty) {
@@ -65,11 +66,6 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 			}
 		});
 		this._localPtyService.onProcessReady(e => this._ptys.get(e.id)?.handleReady(e.event));
-		this._localPtyService.onProcessTitleChanged(e => this._ptys.get(e.id)?.handleTitleChanged(e.event));
-		this._localPtyService.onProcessOverrideDimensions(e => this._ptys.get(e.id)?.handleOverrideDimensions(e.event));
-		this._localPtyService.onProcessResolvedShellLaunchConfig(e => this._ptys.get(e.id)?.handleResolvedShellLaunchConfig(e.event));
-		this._localPtyService.onProcessDidChangeHasChildProcesses(e => this._ptys.get(e.id)?.handleDidChangeHasChildProcesses(e.event));
-		this._localPtyService.onDidChangeProperty(e => this._ptys.get(e.id)?.handleDidChangeProperty(e.property));
 		this._localPtyService.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));
 		this._localPtyService.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());
 		this._localPtyService.onDidRequestDetach(e => this._onDidRequestDetach.fire(e));
