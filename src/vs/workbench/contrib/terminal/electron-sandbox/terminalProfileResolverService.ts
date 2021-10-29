@@ -5,6 +5,8 @@
 
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IRemoteTerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { BaseTerminalProfileResolverService } from 'vs/workbench/contrib/terminal/browser/terminalProfileResolverService';
@@ -24,7 +26,9 @@ export class ElectronTerminalProfileResolverService extends BaseTerminalProfileR
 		@ILocalTerminalService localTerminalService: ILocalTerminalService,
 		@IRemoteTerminalService remoteTerminalService: IRemoteTerminalService,
 		@ITerminalProfileService terminalProfileService: ITerminalProfileService,
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@IStorageService storageService: IStorageService,
+		@INotificationService notificationService: INotificationService
 	) {
 		super(
 			{
@@ -46,7 +50,9 @@ export class ElectronTerminalProfileResolverService extends BaseTerminalProfileR
 			logService,
 			terminalProfileService,
 			workspaceContextService,
-			remoteAgentService
+			remoteAgentService,
+			storageService,
+			notificationService
 		);
 	}
 }

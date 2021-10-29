@@ -13,7 +13,7 @@ import { IRemoteTerminalService } from 'vs/workbench/contrib/terminal/browser/te
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IProcessEnvironment, OperatingSystem, OS } from 'vs/base/common/platform';
-import { IShellLaunchConfig, ITerminalProfile, TerminalIcon, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalProfile, ITerminalProfileObject, TerminalIcon, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
 import { IShellLaunchConfigResolveOptions, ITerminalProfileResolverService, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as path from 'vs/base/common/path';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
@@ -22,6 +22,10 @@ import { debounce } from 'vs/base/common/decorators';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { equals } from 'vs/base/common/arrays';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import Severity from 'vs/base/common/severity';
+import { INotificationService, IPromptChoice, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
+import { localize } from 'vs/nls';
 
 export interface IProfileContextProvider {
 	getDefaultSystemShell: (remoteAuthority: string | undefined, os: OperatingSystem) => Promise<string>;
@@ -35,6 +39,11 @@ const generatedProfileName = 'Generated';
 * profiles for the given operating system,
 * environment, and user configuration
 */
+
+const SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY = 'terminals.integrated.profile-migration';
+
+let migrationMessageShown = false;
+
 export abstract class BaseTerminalProfileResolverService implements ITerminalProfileResolverService {
 	declare _serviceBrand: undefined;
 
@@ -51,7 +60,9 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		private readonly _logService: ILogService,
 		private readonly _terminalProfileService: ITerminalProfileService,
 		private readonly _workspaceContextService: IWorkspaceContextService,
-		private readonly _remoteAgentService: IRemoteAgentService
+		private readonly _remoteAgentService: IRemoteAgentService,
+		private readonly _storageService: IStorageService,
+		private readonly _notificationService: INotificationService
 	) {
 		if (this._remoteAgentService.getConnection()) {
 			this._remoteAgentService.getEnvironment().then(env => this._primaryBackendOs = env?.os || OS);
@@ -66,6 +77,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			}
 		});
 		this._terminalProfileService.onDidChangeAvailableProfiles(() => this._refreshDefaultProfileName());
+		this.showProfileMigrationNotification();
 	}
 
 	@debounce(200)
@@ -136,7 +148,6 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			shellLaunchConfig.useShellEnvironment = this._configurationService.getValue(TerminalSettingId.InheritEnv);
 		}
 	}
-
 
 	async getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string> {
 		return (await this.getDefaultProfile(options)).path;
@@ -445,6 +456,48 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		}
 		return false;
 	}
+
+	async showProfileMigrationNotification(): Promise<void> {
+		const shouldMigrateToProfile = (!!this._configurationService.getValue(TerminalSettingPrefix.Shell + this._primaryBackendOs) ||
+			!!this._configurationService.inspect(TerminalSettingPrefix.ShellArgs + this._primaryBackendOs).userValue) &&
+			!!this._configurationService.getValue(TerminalSettingPrefix.DefaultProfile + this._primaryBackendOs);
+		if (shouldMigrateToProfile && this._storageService.getBoolean(SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY, StorageScope.WORKSPACE, true) && !migrationMessageShown) {
+			this._notificationService.prompt(
+				Severity.Info,
+				localize('terminalProfileMigration', "The terminal is using deprecated shell/shellArgs settings, do you want to migrate it to a profile?"),
+				[
+					{
+						label: localize('migrateToProfile', "Migrate"),
+						run: async () => {
+							const shell = this._configurationService.getValue(TerminalSettingPrefix.Shell + this._primaryBackendOs);
+							const shellArgs = this._configurationService.getValue(TerminalSettingPrefix.ShellArgs + this._primaryBackendOs);
+							const profile = await this.createProfileFromShellAndShellArgs(shell, shellArgs);
+							if (typeof profile === 'string') {
+								await this._configurationService.updateValue(TerminalSettingPrefix.DefaultProfile + this._primaryBackendOs, profile);
+								this._logService.trace(`migrated from shell/shellArgs, using existing profile ${profile}`);
+							} else {
+								const profiles = { ...this._configurationService.inspect<Readonly<{ [key: string]: ITerminalProfileObject }>>(TerminalSettingPrefix.Profiles + this._primaryBackendOs).userValue } || {};
+								const profileConfig: ITerminalProfileObject = { path: profile.path };
+								if (profile.args) {
+									profileConfig.args = profile.args;
+								}
+								profiles[profile.profileName] = profileConfig;
+								await this._configurationService.updateValue(TerminalSettingPrefix.Profiles + this._primaryBackendOs, profiles);
+								await this._configurationService.updateValue(TerminalSettingPrefix.DefaultProfile + this._primaryBackendOs, profile.profileName);
+								this._logService.trace(`migrated from shell/shellArgs, ${shell} ${shellArgs} to profile ${JSON.stringify(profile)}`);
+							}
+							await this._configurationService.updateValue(TerminalSettingPrefix.Shell + this._primaryBackendOs, undefined);
+							await this._configurationService.updateValue(TerminalSettingPrefix.ShellArgs + this._primaryBackendOs, undefined);
+						}
+					} as IPromptChoice,
+				],
+				{
+					neverShowAgain: { id: SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY, scope: NeverShowAgainScope.WORKSPACE }
+				}
+			);
+			migrationMessageShown = true;
+		}
+	}
 }
 
 export class BrowserTerminalProfileResolverService extends BaseTerminalProfileResolverService {
@@ -457,7 +510,9 @@ export class BrowserTerminalProfileResolverService extends BaseTerminalProfileRe
 		@IRemoteTerminalService remoteTerminalService: IRemoteTerminalService,
 		@ITerminalProfileService terminalProfileService: ITerminalProfileService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@IStorageService storageService: IStorageService,
+		@INotificationService notificationService: INotificationService
 	) {
 		super(
 			{
@@ -481,7 +536,9 @@ export class BrowserTerminalProfileResolverService extends BaseTerminalProfileRe
 			logService,
 			terminalProfileService,
 			workspaceContextService,
-			remoteAgentService
+			remoteAgentService,
+			storageService,
+			notificationService
 		);
 	}
 }

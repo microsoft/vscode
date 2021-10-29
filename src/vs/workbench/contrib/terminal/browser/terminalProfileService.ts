@@ -17,13 +17,12 @@ import { ITerminalProfile, IExtensionTerminalProfile, TerminalSettingPrefix, Ter
 import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { IRemoteTerminalService, ITerminalGroupService, ITerminalProfileProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { refreshTerminalActions } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { ILocalTerminalService, IOffProcessTerminalService, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ILocalTerminalService, IOffProcessTerminalService, ITerminalConfigHelper, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-
 
 /*
 * Links TerminalService with TerminalProfileResolverService
@@ -66,7 +65,6 @@ export class TerminalProfileService implements ITerminalProfileService {
 		// that contributes a profile
 		this._extensionService.onDidChangeExtensions(() => this.refreshAvailableProfiles());
 
-		this._webExtensionContributedProfileContextKey = TerminalContextKeys.webExtensionContributedProfile.bindTo(this._contextKeyService);
 		this._configurationService.onDidChangeConfiguration(async e => {
 			const platformKey = await this._getPlatformKey();
 			if (e.affectsConfiguration(TerminalSettingPrefix.DefaultProfile + platformKey) ||
@@ -75,6 +73,8 @@ export class TerminalProfileService implements ITerminalProfileService {
 				await this.refreshAvailableProfiles();
 			}
 		});
+		this._webExtensionContributedProfileContextKey = TerminalContextKeys.webExtensionContributedProfile.bindTo(this._contextKeyService);
+
 		this._primaryOffProcessTerminalService = !!this._environmentService.remoteAuthority ? this._remoteTerminalService : (this._localTerminalService || this._remoteTerminalService);
 		// Wait up to 5 seconds for profiles to be ready so it's assured that we know the actual
 		// default terminal before launching the first terminal. This isn't expected to ever take
@@ -137,7 +137,6 @@ export class TerminalProfileService implements ITerminalProfileService {
 		this._defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${platform}`);
 		return this._primaryOffProcessTerminalService?.getProfiles(this._configurationService.getValue(`${TerminalSettingPrefix.Profiles}${platform}`), this._defaultProfileName, includeDetectedProfiles);
 	}
-
 
 	private _updateWebContextKey(): void {
 		this._webExtensionContributedProfileContextKey.set(isWeb && this._contributedProfiles.length > 0);
@@ -213,5 +212,4 @@ export class TerminalProfileService implements ITerminalProfileService {
 		}
 		return undefined;
 	}
-
 }
