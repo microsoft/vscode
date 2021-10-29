@@ -529,7 +529,6 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 
 		// Instruction
 		const instruction = append(container, $('.instruction'));
-		instruction.style.float = 'left';
 
 		disposables.push(
 			this._disassemblyView.onDidChangeStackFrame(() => this.rerenderBackground(instruction, sourcecode, currentElement.element)),
@@ -597,7 +596,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 						const breakpointSpace = append(templateData.sourcecode, $('.breakpoint-space'));
 						this.setBreakpointContainerStyle(breakpointSpace);
 						const sourceLine = append(templateData.sourcecode, $('.source-line'));
-						sourceLine.innerText = `\u00A0\u00A0${lineNumber}:\u00A0${lineContent.replace(/[ ]/g, '\u00A0')}`;
+						sourceLine.innerText = `  ${lineNumber}: ${lineContent}`;
 
 						if (instruction.endLine && lineNumber < instruction.endLine) {
 							lineNumber++;
