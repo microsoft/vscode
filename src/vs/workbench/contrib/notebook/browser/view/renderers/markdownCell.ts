@@ -70,14 +70,6 @@ export class StatefulMarkdownCell extends Disposable {
 
 		this._register(toDisposable(() => renderedEditors.delete(this.viewCell)));
 
-		this._register(viewCell.onDidChangeState((e) => {
-			if (e.editStateChanged) {
-				this.viewUpdate();
-			} else if (e.contentChanged) {
-				this.viewUpdate();
-			}
-		}));
-
 		this._register(viewCell.model.onDidChangeMetadata(() => {
 			this.viewUpdate();
 		}));
@@ -89,15 +81,27 @@ export class StatefulMarkdownCell extends Disposable {
 
 			templateData.container.classList.toggle('cell-editor-focus', viewCell.focusMode === CellFocusMode.Editor);
 		};
+
 		this._register(viewCell.onDidChangeState((e) => {
-			if (!e.focusModeChanged) {
-				return;
+			if (e.editStateChanged || e.contentChanged) {
+				this.viewUpdate();
 			}
 
-			updateForFocusMode();
-		}));
-		updateForFocusMode();
+			if (e.focusModeChanged) {
+				updateForFocusMode();
+			}
 
+			if (e.foldingStateChanged) {
+				const foldingState = viewCell.foldingState;
+
+				if (foldingState !== this.foldingState) {
+					this.foldingState = foldingState;
+					this.setFoldingIndicator();
+				}
+			}
+		}));
+
+		updateForFocusMode();
 		this.foldingState = viewCell.foldingState;
 		this.setFoldingIndicator();
 		this.updateFoldingIconShowClass();
@@ -105,19 +109,6 @@ export class StatefulMarkdownCell extends Disposable {
 		this._register(this.notebookEditor.notebookOptions.onDidChangeOptions(e => {
 			if (e.showFoldingControls) {
 				this.updateFoldingIconShowClass();
-			}
-		}));
-
-		this._register(viewCell.onDidChangeState((e) => {
-			if (!e.foldingStateChanged) {
-				return;
-			}
-
-			const foldingState = viewCell.foldingState;
-
-			if (foldingState !== this.foldingState) {
-				this.foldingState = foldingState;
-				this.setFoldingIndicator();
 			}
 		}));
 
