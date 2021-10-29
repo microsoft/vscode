@@ -22,7 +22,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { EnvironmentVariableInfoChangesActive, EnvironmentVariableInfoStale } from 'vs/workbench/contrib/terminal/browser/environmentVariableInfo';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IEnvironmentVariableInfo, IEnvironmentVariableService, IMergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, TerminalShellType, ITerminalDimensions, TerminalSettingId, IProcessReadyEvent, IProcessProperty, ProcessPropertyType, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, ITerminalDimensions, TerminalSettingId, IProcessReadyEvent, IProcessProperty, ProcessPropertyType, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { localize } from 'vs/nls';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
@@ -94,22 +94,12 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	readonly onBeforeProcessData = this._onBeforeProcessData.event;
 	private readonly _onProcessData = this._register(new Emitter<IProcessDataEvent>());
 	readonly onProcessData = this._onProcessData.event;
-	private readonly _onProcessTitle = this._register(new Emitter<string>());
-	readonly onProcessTitle = this._onProcessTitle.event;
 	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
-	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
-	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
-	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
-	readonly onProcessExit = this._onProcessExit.event;
-	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensionsOverride | undefined>());
-	readonly onProcessOverrideDimensions = this._onProcessOverrideDimensions.event;
-	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());
-	readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
-	private readonly _onProcessDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
-	readonly onProcessDidChangeHasChildProcesses = this._onProcessDidChangeHasChildProcesses.event;
 	private readonly _onEnvironmentVariableInfoChange = this._register(new Emitter<IEnvironmentVariableInfo>());
 	readonly onEnvironmentVariableInfoChanged = this._onEnvironmentVariableInfoChange.event;
+	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
+	readonly onProcessExit = this._onProcessExit.event;
 
 	get persistentProcessId(): number | undefined { return this._process?.id; }
 	get shouldPersist(): boolean { return this._process ? this._process.shouldPersist : false; }
@@ -324,23 +314,16 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					this._preLaunchInputQueue.length = 0;
 				}
 			}),
-			newProcess.onProcessTitleChanged(title => this._onProcessTitle.fire(title)),
-			newProcess.onProcessShellTypeChanged(type => this._onProcessShellTypeChanged.fire(type)),
 			newProcess.onProcessExit(exitCode => this._onExit(exitCode)),
-			newProcess.onDidChangeProperty(property => this._onDidChangeProperty.fire(property))
+			newProcess.onDidChangeProperty(({ type, value }) => {
+				switch (type) {
+					case ProcessPropertyType.HasChildProcesses:
+						this._hasChildProcesses = value;
+						break;
+				}
+				this._onDidChangeProperty.fire({ type, value });
+			})
 		];
-		if (newProcess.onProcessOverrideDimensions) {
-			this._processListeners.push(newProcess.onProcessOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e)));
-		}
-		if (newProcess.onProcessResolvedShellLaunchConfig) {
-			this._processListeners.push(newProcess.onProcessResolvedShellLaunchConfig(e => this._onProcessResolvedShellLaunchConfig.fire(e)));
-		}
-		if (newProcess.onDidChangeHasChildProcesses) {
-			this._processListeners.push(newProcess.onDidChangeHasChildProcesses(e => {
-				this._hasChildProcesses = e;
-				this._onProcessDidChangeHasChildProcesses.fire(e);
-			}));
-		}
 
 		setTimeout(() => {
 			if (this.processState === ProcessState.Launching) {
@@ -580,7 +563,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 	private _onExit(exitCode: number | undefined): void {
 		this._process = null;
-
 		// If the process is marked as launching then mark the process as killed
 		// during launch. This typically means that there is a problem with the
 		// shell and args.

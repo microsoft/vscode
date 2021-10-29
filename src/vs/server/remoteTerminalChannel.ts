@@ -148,15 +148,10 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			case '$onPtyHostResponsiveEvent': return this._ptyService.onPtyHostResponsive || Event.None;
 			case '$onPtyHostRequestResolveVariablesEvent': return this._ptyService.onPtyHostRequestResolveVariables || Event.None;
 			case '$onProcessDataEvent': return this._ptyService.onProcessData;
-			case '$onProcessExitEvent': return this._ptyService.onProcessExit;
 			case '$onProcessReadyEvent': return this._ptyService.onProcessReady;
+			case '$onProcessExitEvent': return this._ptyService.onProcessExit;
 			case '$onProcessReplayEvent': return this._ptyService.onProcessReplay;
-			case '$onProcessTitleChangedEvent': return this._ptyService.onProcessTitleChanged;
-			case '$onProcessShellTypeChangedEvent': return this._ptyService.onProcessShellTypeChanged;
-			case '$onProcessOverrideDimensionsEvent': return this._ptyService.onProcessOverrideDimensions;
-			case '$onProcessResolvedShellLaunchConfigEvent': return this._ptyService.onProcessResolvedShellLaunchConfig;
 			case '$onProcessOrphanQuestion': return this._ptyService.onProcessOrphanQuestion;
-			case '$onProcessDidChangeHasChildProcesses': return this._ptyService.onProcessDidChangeHasChildProcesses;
 			case '$onExecuteCommand': return this.onExecuteCommand;
 			case '$onDidRequestDetach': return this._ptyService.onDidRequestDetach || Event.None;
 			case '$onDidChangeProperty': return this._ptyService.onDidChangeProperty;
