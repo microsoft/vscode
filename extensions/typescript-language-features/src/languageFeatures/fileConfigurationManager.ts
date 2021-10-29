@@ -13,20 +13,6 @@ import { isTypeScriptDocument } from '../utils/languageModeIds';
 import { equals } from '../utils/objects';
 import { ResourceMap } from '../utils/resourceMap';
 
-namespace ExperimentalProto {
-	export interface UserPreferences extends Proto.UserPreferences {
-		displayPartsForJSDoc: true
-
-		includeInlayParameterNameHints?: 'none' | 'literals' | 'all';
-		includeInlayParameterNameHintsWhenArgumentMatchesName?: boolean;
-		includeInlayFunctionParameterTypeHints?: boolean;
-		includeInlayVariableTypeHints?: boolean;
-		includeInlayPropertyDeclarationTypeHints?: boolean;
-		includeInlayFunctionLikeReturnTypeHints?: boolean;
-		includeInlayEnumMemberValueHints?: boolean;
-	}
-}
-
 interface FileConfiguration {
 	readonly formatOptions: Proto.FormatCodeSettings;
 	readonly preferences: Proto.UserPreferences;
@@ -187,7 +173,7 @@ export default class FileConfigurationManager extends Disposable {
 			isTypeScriptDocument(document) ? 'typescript.preferences' : 'javascript.preferences',
 			document.uri);
 
-		const preferences: ExperimentalProto.UserPreferences = {
+		const preferences: Proto.UserPreferences = {
 			quotePreference: this.getQuoteStylePreference(preferencesConfig),
 			importModuleSpecifierPreference: getImportModuleSpecifierPreference(preferencesConfig),
 			importModuleSpecifierEnding: getImportModuleSpecifierEndingPreference(preferencesConfig),
