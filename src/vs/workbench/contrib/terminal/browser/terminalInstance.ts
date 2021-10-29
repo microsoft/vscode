@@ -13,32 +13,28 @@ import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/l
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import * as nls from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService, IPromptChoice, NeverShowAgainScope, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { activeContrastBorder, editorBackground, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessManager, ProcessState, TERMINAL_VIEW_ID, INavigationMode, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, ITerminalProfileResolverService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalInstanceService, ITerminalInstance, ITerminalExternalLinkProvider, IRequestAddInstanceToGroupEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
-import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon, RendererType, ITheme } from 'xterm';
+import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from 'xterm';
 import type { SearchAddon, ISearchOptions } from 'xterm-addon-search';
 import type { Unicode11Addon } from 'xterm-addon-unicode11';
-import type { WebglAddon } from 'xterm-addon-webgl';
 import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/addons/commandTrackerAddon';
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/addons/navigationModeAddon';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { EnvironmentVariableInfoWidget } from 'vs/workbench/contrib/terminal/browser/widgets/environmentVariableInfoWidget';
 import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
@@ -61,25 +57,17 @@ import { CodeDataTransfers, containsDragType, DragAndDropObserver, IDragAndDropO
 import { getColorClass, getColorStyleElement, getStandardColors } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
-import { Color } from 'vs/base/common/color';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { getTerminalResourcesFromDragEvent, getTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
-import { isSafari } from 'vs/base/browser/browser';
 import { ISeparator, template } from 'vs/base/common/labels';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/addons/lineDataEventAddon';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/addons/xtermTerminal';
-
-// How long in milliseconds should an average frame take to render for a notification to appear
-// which suggests the fallback DOM-based renderer
-const SLOW_CANVAS_RENDER_THRESHOLD = 50;
-const NUMBER_OF_FRAMES_TO_MEASURE = 20;
 
 const SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY = 'terminals.integrated.profile-migration';
 
@@ -117,7 +105,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private static _lastKnownCanvasDimensions: ICanvasDimensions | undefined;
 	private static _lastKnownGridDimensions: IGridDimensions | undefined;
 	private static _instanceIdCounter = 1;
-	private static _suggestedRendererType: 'canvas' | 'dom' | undefined = undefined;
 
 	private _processManager!: ITerminalProcessManager;
 	private _pressAnyKeyToCloseListener: IDisposable | undefined;
@@ -153,7 +140,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _cwd: string | undefined = undefined;
 	private _initialCwd: string | undefined = undefined;
 	private _dimensionsOverride: ITerminalDimensionsOverride | undefined;
-	private _xtermReadyPromise: Promise<XTermTerminal>;
+	private _xtermReadyPromise: Promise<XtermTerminal>;
 	private _titleReadyPromise: Promise<string>;
 	private _titleReadyComplete: ((title: string) => any) | undefined;
 	private _areLinksReady: boolean = false;
@@ -166,7 +153,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _widgetManager: TerminalWidgetManager = this._instantiationService.createInstance(TerminalWidgetManager);
 	private _linkManager: TerminalLinkManager | undefined;
 	private _environmentInfo: { widget: EnvironmentVariableInfoWidget, disposable: IDisposable } | undefined;
-	private _webglAddon: WebglAddon | undefined;
 	private _commandTrackerAddon: CommandTrackerAddon | undefined;
 	private _navigationModeAddon: INavigationMode & ITerminalAddon | undefined;
 	private _dndObserver: IDisposable | undefined;
@@ -316,7 +302,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@ILogService private readonly _logService: ILogService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
 		@IProductService private readonly _productService: IProductService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
@@ -387,9 +372,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 
 		this.addDisposable(this._configurationService.onDidChangeConfiguration(async e => {
-			if (e.affectsConfiguration(TerminalSettingId.GpuAcceleration)) {
-				TerminalInstance._suggestedRendererType = undefined;
-			}
 			if (e.affectsConfiguration('terminal.integrated') || e.affectsConfiguration('editor.fastScrollSensitivity') || e.affectsConfiguration('editor.mouseWheelScrollSensitivity') || e.affectsConfiguration('editor.multiCursorModifier')) {
 				this.updateConfig();
 				this.setVisible(this._isVisible);
@@ -613,7 +595,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	/**
 	 * Create xterm.js instance and attach data listeners.
 	 */
-	protected async _createXterm(): Promise<XTermTerminal> {
+	protected async _createXterm(): Promise<XtermTerminal> {
 		const Terminal = await this._getXtermConstructor();
 
 		// TODO: Move cols/rows over to XtermTerminal
@@ -687,19 +669,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._commandTrackerAddon = new CommandTrackerAddon();
 		xterm.raw.loadAddon(this._commandTrackerAddon);
-		this._register(this._themeService.onDidColorThemeChange(theme => this._updateTheme(xterm.raw, theme)));
-		this._register(this._viewDescriptorService.onDidChangeLocation(({ views }) => {
-			if (views.some(v => v.id === TERMINAL_VIEW_ID)) {
-				this._updateTheme(xterm.raw);
-			}
-		}));
 
 		this._xtermTypeAhead = this._register(this._instantiationService.createInstance(TypeAheadAddon, this._processManager, this._configHelper));
 		xterm.raw.loadAddon(this._xtermTypeAhead);
 		this._pathService.userHome().then(userHome => {
 			this._userHome = userHome.fsPath;
 		});
-		return xterm.raw;
+		return xterm;
 	}
 
 	detachFromElement(): void {
@@ -716,14 +692,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._attachBarrier.open();
 
+		this._xterm?.attachToElement(container);
+
 		// Attach has not occurred yet
 		if (!this._wrapperElement) {
 			return this._attachToElement(container);
-		}
-
-		// Update the theme when attaching as the terminal location could have changed
-		if (this._xterm) {
-			this._updateTheme(this._xterm.raw);
 		}
 
 		// The container changed, reattach
@@ -748,19 +721,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const xterm = await this._xtermReadyPromise;
 
 		// Attach the xterm object to the DOM, exposing it to the smoke tests
-		this._wrapperElement.xterm = xterm;
+		this._wrapperElement.xterm = xterm.raw;
 
-		this._updateTheme(xterm);
-		xterm.open(this._xtermElement);
+		xterm.attachToElement(this._xtermElement);
 
-		if (!xterm.element || !xterm.textarea) {
+		if (!xterm.raw.element || !xterm.raw.textarea) {
 			throw new Error('xterm elements not set after open');
 		}
 
 
-		this._setAriaLabel(xterm, this._instanceId, this._title);
+		this._setAriaLabel(xterm.raw, this._instanceId, this._title);
 
-		xterm.attachCustomKeyEventHandler((event: KeyboardEvent): boolean => {
+		xterm.raw.attachCustomKeyEventHandler((event: KeyboardEvent): boolean => {
 			// Disable all input if the terminal is exiting
 			if (this._isExiting) {
 				return false;
@@ -839,7 +811,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			return true;
 		});
-		this._register(dom.addDisposableListener(xterm.element, 'mousedown', () => {
+		this._register(dom.addDisposableListener(xterm.raw.element, 'mousedown', () => {
 			// We need to listen to the mouseup event on the document since the user may release
 			// the mouse button anywhere outside of _xterm.element.
 			const listener = dom.addDisposableListener(document, 'mouseup', () => {
@@ -849,11 +821,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				listener.dispose();
 			});
 		}));
-		this._register(dom.addDisposableListener(xterm.element, 'touchstart', () => {
-			xterm.focus();
+		this._register(dom.addDisposableListener(xterm.raw.element, 'touchstart', () => {
+			xterm.raw.focus();
 		}));
 
-		this._register(dom.addDisposableListener(xterm.element, 'wheel', (e) => {
+		this._register(dom.addDisposableListener(xterm.raw.element, 'wheel', (e) => {
 			if (this._hasScrollBar && e.shiftKey) {
 				e.stopImmediatePropagation();
 				e.preventDefault();
@@ -861,13 +833,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}));
 
 		// xterm.js currently drops selection on keyup as we need to handle this case.
-		this._register(dom.addDisposableListener(xterm.element, 'keyup', () => {
+		this._register(dom.addDisposableListener(xterm.raw.element, 'keyup', () => {
 			// Wait until keyup has propagated through the DOM before evaluating
 			// the new selection state.
 			setTimeout(() => this._refreshSelectionContextKey(), 0);
 		}));
 
-		this._register(dom.addDisposableListener(xterm.textarea, 'focus', () => {
+		this._register(dom.addDisposableListener(xterm.raw.textarea, 'focus', () => {
 			this._terminalFocusContextKey.set(true);
 			if (this.shellType) {
 				this._terminalShellTypeContextKey.set(this.shellType.toString());
@@ -877,7 +849,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._onDidFocus.fire(this);
 		}));
 
-		this._register(dom.addDisposableListener(xterm.textarea, 'blur', () => {
+		this._register(dom.addDisposableListener(xterm.raw.textarea, 'blur', () => {
 			this._terminalFocusContextKey.reset();
 			this._onDidBlur.fire(this);
 			this._refreshSelectionContextKey();
@@ -885,7 +857,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._initDragAndDrop(container);
 
-		this._widgetManager.attachToElement(xterm.element);
+		this._widgetManager.attachToElement(xterm.raw.element);
 		this._processManager.onProcessReady((e) => {
 			this._linkManager?.setWidgetManager(this._widgetManager);
 			this._capabilities = e.capabilities;
@@ -904,8 +876,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// If IShellLaunchConfig.waitOnExit was true and the process finished before the terminal
 		// panel was initialized.
-		if (xterm.getOption('disableStdin')) {
-			this._attachPressAnyKeyToCloseListener(xterm);
+		if (xterm.raw.getOption('disableStdin')) {
+			this._attachPressAnyKeyToCloseListener(xterm.raw);
 		}
 	}
 
@@ -921,60 +893,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._dndObserver = new DragAndDropObserver(container, dndController);
 	}
 
-	private async _measureRenderTime(): Promise<void> {
-		await this._xtermReadyPromise;
-		const frameTimes: number[] = [];
-		if (!this._xtermCore?._renderService) {
-			return;
-		}
-		const textRenderLayer = this._xtermCore!._renderService?._renderer._renderLayers[0];
-		const originalOnGridChanged = textRenderLayer?.onGridChanged;
-		const evaluateCanvasRenderer = () => {
-			// Discard first frame time as it's normal to take longer
-			frameTimes.shift();
-
-			const medianTime = frameTimes.sort((a, b) => a - b)[Math.floor(frameTimes.length / 2)];
-			if (medianTime > SLOW_CANVAS_RENDER_THRESHOLD) {
-				if (this._configHelper.config.gpuAcceleration === 'auto') {
-					TerminalInstance._suggestedRendererType = 'dom';
-					this.updateConfig();
-				} else {
-					const promptChoices: IPromptChoice[] = [
-						{
-							label: nls.localize('yes', "Yes"),
-							run: () => this._configurationService.updateValue(TerminalSettingId.GpuAcceleration, 'off', ConfigurationTarget.USER)
-						} as IPromptChoice,
-						{
-							label: nls.localize('no', "No"),
-							run: () => { }
-						} as IPromptChoice,
-						{
-							label: nls.localize('dontShowAgain', "Don't Show Again"),
-							isSecondary: true,
-							run: () => this._storageService.store(TerminalStorageKeys.NeverMeasureRenderTime, true, StorageScope.GLOBAL, StorageTarget.MACHINE)
-						} as IPromptChoice
-					];
-					this._notificationService.prompt(
-						Severity.Warning,
-						nls.localize('terminal.slowRendering', 'Terminal GPU acceleration appears to be slow on your computer. Would you like to switch to disable it which may improve performance? [Read more about terminal settings](https://code.visualstudio.com/docs/editor/integrated-terminal#_changing-how-the-terminal-is-rendered).'),
-						promptChoices
-					);
-				}
-			}
-		};
-
-		textRenderLayer.onGridChanged = (terminal: XTermTerminal, firstRow: number, lastRow: number) => {
-			const startTime = performance.now();
-			originalOnGridChanged.call(textRenderLayer, terminal, firstRow, lastRow);
-			frameTimes.push(performance.now() - startTime);
-			if (frameTimes.length === NUMBER_OF_FRAMES_TO_MEASURE) {
-				evaluateCanvasRenderer();
-				// Restore original function
-				textRenderLayer.onGridChanged = originalOnGridChanged;
-			}
-		};
-	}
-
 	hasSelection(): boolean {
 		return this._xterm ? this._xterm.raw.hasSelection() : false;
 	}
@@ -982,7 +900,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	async copySelection(): Promise<void> {
 		const xterm = await this._xtermReadyPromise;
 		if (this.hasSelection()) {
-			await this._clipboardService.writeText(xterm.getSelection());
+			await this._clipboardService.writeText(xterm.raw.getSelection());
 		} else {
 			this._notificationService.warn(nls.localize('terminal.integrated.copySelection.noSelection', 'The terminal has no selection to copy'));
 		}
@@ -1072,11 +990,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	forceRedraw(): void {
-		if (!this._xterm) {
-			return;
-		}
-		this._webglAddon?.clearTextureAtlas();
-		this._xterm?.raw.clearTextureAtlas();
+		this._xterm?.forceRedraw();
 	}
 
 	focus(force?: boolean): void {
@@ -1220,7 +1134,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				// _xtermReadyPromise is ready constructed since this is called from the ctor
 				setTimeout(() => {
 					this._xtermReadyPromise.then(xterm => {
-						this._messageTitleDisposable = xterm.onTitleChange(e => this._onTitleChange(e));
+						this._messageTitleDisposable = xterm.raw.onTitleChange(e => this._onTitleChange(e));
 					});
 				});
 				this.refreshTabLabels(this._shellLaunchConfig.executable, TitleEventSource.Process);
@@ -1375,15 +1289,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this._shellLaunchConfig.waitOnExit && this._processManager.processState !== ProcessState.KilledByUser) {
 			this._xtermReadyPromise.then(xterm => {
 				if (exitCodeMessage) {
-					xterm.writeln(exitCodeMessage);
+					xterm.raw.writeln(exitCodeMessage);
 				}
 				if (typeof this._shellLaunchConfig.waitOnExit === 'string') {
-					xterm.write(formatMessageForTerminal(this._shellLaunchConfig.waitOnExit));
+					xterm.raw.write(formatMessageForTerminal(this._shellLaunchConfig.waitOnExit));
 				}
 				// Disable all input if the terminal is exiting and listen for next keypress
-				xterm.setOption('disableStdin', true);
-				if (xterm.textarea) {
-					this._attachPressAnyKeyToCloseListener(xterm);
+				xterm.raw.setOption('disableStdin', true);
+				if (xterm.raw.textarea) {
+					this._attachPressAnyKeyToCloseListener(xterm.raw);
 				}
 			});
 		} else {
@@ -1531,75 +1445,33 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	updateConfig(): void {
 		const config = this._configHelper.config;
-		this._safeSetOption('altClickMovesCursor', config.altClickMovesCursor);
-		this._setCursorBlink(config.cursorBlinking);
-		this._setCursorStyle(config.cursorStyle);
-		this._setCursorWidth(config.cursorWidth);
 		this._setCommandsToSkipShell(config.commandsToSkipShell);
-		this._safeSetOption('scrollback', config.scrollback);
-		this._safeSetOption('drawBoldTextInBrightColors', config.drawBoldTextInBrightColors);
-		this._safeSetOption('minimumContrastRatio', config.minimumContrastRatio);
-		this._safeSetOption('fastScrollSensitivity', config.fastScrollSensitivity);
-		this._safeSetOption('scrollSensitivity', config.mouseWheelScrollSensitivity);
-		this._safeSetOption('macOptionIsMeta', config.macOptionIsMeta);
-		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
-		this._safeSetOption('altClickMovesCursor', config.altClickMovesCursor && editorOptions.multiCursorModifier === 'alt');
-		this._safeSetOption('macOptionClickForcesSelection', config.macOptionClickForcesSelection);
-		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
-		this._safeSetOption('wordSeparator', config.wordSeparators);
-		this._safeSetOption('customGlyphs', config.customGlyphs);
-		const suggestedRendererType = TerminalInstance._suggestedRendererType;
-		// @meganrogge @Tyriar remove if the issue related to iPads and webgl is resolved
-		if ((!isSafari && config.gpuAcceleration === 'auto' && suggestedRendererType === undefined) || config.gpuAcceleration === 'on') {
-			this._enableWebglRenderer();
-		} else {
-			this._disposeOfWebglRenderer();
-			this._safeSetOption('rendererType', this._getBuiltInXtermRenderer(config.gpuAcceleration, suggestedRendererType));
-		}
+		// this._safeSetOption('altClickMovesCursor', config.altClickMovesCursor);
+		// this._setCursorBlink(config.cursorBlinking);
+		// this._setCursorStyle(config.cursorStyle);
+		// this._setCursorWidth(config.cursorWidth);
+		// this._setCommandsToSkipShell(config.commandsToSkipShell);
+		// this._safeSetOption('scrollback', config.scrollback);
+		// this._safeSetOption('drawBoldTextInBrightColors', config.drawBoldTextInBrightColors);
+		// this._safeSetOption('minimumContrastRatio', config.minimumContrastRatio);
+		// this._safeSetOption('fastScrollSensitivity', config.fastScrollSensitivity);
+		// this._safeSetOption('scrollSensitivity', config.mouseWheelScrollSensitivity);
+		// this._safeSetOption('macOptionIsMeta', config.macOptionIsMeta);
+		// const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
+		// this._safeSetOption('altClickMovesCursor', config.altClickMovesCursor && editorOptions.multiCursorModifier === 'alt');
+		// this._safeSetOption('macOptionClickForcesSelection', config.macOptionClickForcesSelection);
+		// this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
+		// this._safeSetOption('wordSeparator', config.wordSeparators);
+		// this._safeSetOption('customGlyphs', config.customGlyphs);
+		// const suggestedRendererType = TerminalInstance._suggestedRendererType;
+		// // @meganrogge @Tyriar remove if the issue related to iPads and webgl is resolved
+		// if ((!isSafari && config.gpuAcceleration === 'auto' && suggestedRendererType === undefined) || config.gpuAcceleration === 'on') {
+		// 	this._enableWebglRenderer();
+		// } else {
+		// 	this._disposeOfWebglRenderer();
+		// 	this._safeSetOption('rendererType', this._getBuiltInXtermRenderer(config.gpuAcceleration, suggestedRendererType));
+		// }
 		this._refreshEnvironmentVariableInfoWidgetState(this._processManager.environmentVariableInfo);
-	}
-
-	private _getBuiltInXtermRenderer(gpuAcceleration: string, suggestedRendererType?: string): RendererType {
-		let rendererType: RendererType = 'canvas';
-		if (gpuAcceleration === 'off' || (gpuAcceleration === 'auto' && suggestedRendererType === 'dom')) {
-			rendererType = 'dom';
-		}
-		return rendererType;
-	}
-
-	private async _enableWebglRenderer(): Promise<void> {
-		if (!this._xterm?.raw.element || this._webglAddon) {
-			return;
-		}
-		const Addon = await this._terminalInstanceService.getXtermWebglConstructor();
-		this._webglAddon = new Addon();
-		try {
-			this._xterm.raw.loadAddon(this._webglAddon);
-			this._webglAddon.onContextLoss(() => {
-				this._logService.info(`Webgl lost context, disposing of webgl renderer`);
-				this._disposeOfWebglRenderer();
-				this._safeSetOption('rendererType', 'dom');
-			});
-		} catch (e) {
-			this._logService.warn(`Webgl could not be loaded. Falling back to the canvas renderer type.`, e);
-			const neverMeasureRenderTime = this._storageService.getBoolean(TerminalStorageKeys.NeverMeasureRenderTime, StorageScope.GLOBAL, false);
-			// if it's already set to dom, no need to measure render time
-			if (!neverMeasureRenderTime && this._configHelper.config.gpuAcceleration !== 'off') {
-				this._measureRenderTime();
-			}
-			this._safeSetOption('rendererType', 'canvas');
-			TerminalInstance._suggestedRendererType = 'canvas';
-			this._disposeOfWebglRenderer();
-		}
-	}
-
-	private _disposeOfWebglRenderer(): void {
-		try {
-			this._webglAddon?.dispose();
-		} catch {
-			// ignore
-		}
-		this._webglAddon = undefined;
 	}
 
 	private async _updateUnicodeVersion(): Promise<void> {
@@ -1627,27 +1499,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._navigationModeAddon = undefined;
 		}
 		this._xterm!.raw.setOption('screenReaderMode', isEnabled);
-	}
-
-	private _setCursorBlink(blink: boolean): void {
-		if (this._xterm && this._xterm.raw.getOption('cursorBlink') !== blink) {
-			this._xterm.raw.setOption('cursorBlink', blink);
-			this._xterm.raw.refresh(0, this._xterm.raw.rows - 1);
-		}
-	}
-
-	private _setCursorStyle(style: string): void {
-		if (this._xterm && this._xterm.raw.getOption('cursorStyle') !== style) {
-			// 'line' is used instead of bar in VS Code to be consistent with editor.cursorStyle
-			const xtermOption = style === 'line' ? 'bar' : style;
-			this._xterm.raw.setOption('cursorStyle', xtermOption);
-		}
-	}
-
-	private _setCursorWidth(width: number): void {
-		if (this._xterm && this._xterm.raw.getOption('cursorWidth') !== width) {
-			this._xterm.raw.setOption('cursorWidth', width);
-		}
 	}
 
 	private _setCommandsToSkipShell(commands: string[]): void {
@@ -2047,56 +1898,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	private _getXtermTheme(theme?: IColorTheme): ITheme {
-		if (!theme) {
-			theme = this._themeService.getColorTheme();
-		}
-
-		const location = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
-		const foregroundColor = theme.getColor(TERMINAL_FOREGROUND_COLOR);
-		let backgroundColor: Color | undefined;
-		if (this.target === TerminalLocation.Editor) {
-			backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(editorBackground);
-		} else {
-			backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || (location === ViewContainerLocation.Panel ? theme.getColor(PANEL_BACKGROUND) : theme.getColor(SIDE_BAR_BACKGROUND));
-		}
-		const cursorColor = theme.getColor(TERMINAL_CURSOR_FOREGROUND_COLOR) || foregroundColor;
-		const cursorAccentColor = theme.getColor(TERMINAL_CURSOR_BACKGROUND_COLOR) || backgroundColor;
-		const selectionColor = theme.getColor(TERMINAL_SELECTION_BACKGROUND_COLOR);
-
-		return {
-			background: backgroundColor ? backgroundColor.toString() : undefined,
-			foreground: foregroundColor ? foregroundColor.toString() : undefined,
-			cursor: cursorColor ? cursorColor.toString() : undefined,
-			cursorAccent: cursorAccentColor ? cursorAccentColor.toString() : undefined,
-			selection: selectionColor ? selectionColor.toString() : undefined,
-			black: theme.getColor(ansiColorIdentifiers[0])!.toString(),
-			red: theme.getColor(ansiColorIdentifiers[1])!.toString(),
-			green: theme.getColor(ansiColorIdentifiers[2])!.toString(),
-			yellow: theme.getColor(ansiColorIdentifiers[3])!.toString(),
-			blue: theme.getColor(ansiColorIdentifiers[4])!.toString(),
-			magenta: theme.getColor(ansiColorIdentifiers[5])!.toString(),
-			cyan: theme.getColor(ansiColorIdentifiers[6])!.toString(),
-			white: theme.getColor(ansiColorIdentifiers[7])!.toString(),
-			brightBlack: theme.getColor(ansiColorIdentifiers[8])!.toString(),
-			brightRed: theme.getColor(ansiColorIdentifiers[9])!.toString(),
-			brightGreen: theme.getColor(ansiColorIdentifiers[10])!.toString(),
-			brightYellow: theme.getColor(ansiColorIdentifiers[11])!.toString(),
-			brightBlue: theme.getColor(ansiColorIdentifiers[12])!.toString(),
-			brightMagenta: theme.getColor(ansiColorIdentifiers[13])!.toString(),
-			brightCyan: theme.getColor(ansiColorIdentifiers[14])!.toString(),
-			brightWhite: theme.getColor(ansiColorIdentifiers[15])!.toString()
-		};
-	}
-
-	private _updateTheme(xterm: XTermTerminal, theme?: IColorTheme): void {
-		xterm.setOption('theme', this._getXtermTheme(theme));
-	}
-
 	async toggleEscapeSequenceLogging(): Promise<void> {
 		const xterm = await this._xtermReadyPromise;
-		const isDebug = xterm.getOption('logLevel') === 'debug';
-		xterm.setOption('logLevel', isDebug ? 'info' : 'debug');
+		const isDebug = xterm.raw.getOption('logLevel') === 'debug';
+		xterm.raw.setOption('logLevel', isDebug ? 'info' : 'debug');
 	}
 
 	async getInitialCwd(): Promise<string> {
