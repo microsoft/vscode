@@ -17,7 +17,7 @@ import { ITerminalProfile, IExtensionTerminalProfile, TerminalSettingPrefix, Ter
 import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { IRemoteTerminalService, ITerminalGroupService, ITerminalProfileProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { refreshTerminalActions } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { ILocalTerminalService, IOffProcessTerminalService, ITerminalConfigHelper, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ILocalTerminalService, IOffProcessTerminalService, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
