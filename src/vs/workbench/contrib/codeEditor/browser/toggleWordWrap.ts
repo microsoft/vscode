@@ -31,7 +31,7 @@ const EDITOR_WORD_WRAP = new RawContextKey<boolean>('editorWordWrap', false, nls
 /**
  * State written/read by the toggle word wrap action and associated with a particular model.
  */
-interface IWordWrapTransientState {
+export interface IWordWrapTransientState {
 	readonly wordWrapOverride: 'on' | 'off';
 }
 
@@ -45,7 +45,7 @@ export function writeTransientState(model: ITextModel, state: IWordWrapTransient
 /**
  * Read (in memory) the word wrap state for a particular model.
  */
-function readTransientState(model: ITextModel, codeEditorService: ICodeEditorService): IWordWrapTransientState | null {
+export function readTransientState(model: ITextModel, codeEditorService: ICodeEditorService): IWordWrapTransientState | null {
 	return codeEditorService.getTransientModelProperty(model, transientWordWrapState);
 }
 
