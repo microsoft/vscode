@@ -287,7 +287,7 @@ export class NotebookEditor extends EditorPane {
 					editorLoaded: editorLoaded - startTime
 				});
 			} else {
-				console.warn('notebook file open perf marks are broken');
+				console.warn(`notebook file open perf marks are broken: startTime ${startTime}, extensionActiviated ${extensionActivated}, inputLoaded ${inputLoaded}, customMarkdownLoaded ${customMarkdownLoaded}, editorLoaded ${editorLoaded}`);
 			}
 		}
 	}
