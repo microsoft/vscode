@@ -13,7 +13,6 @@ import { ICommandTracker, INavigationMode, IOffProcessTerminalService, IRemoteTe
 import type { Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
-import type { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { ICompleteTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
@@ -41,7 +40,6 @@ export interface ITerminalInstanceService {
 	getXtermConstructor(): Promise<typeof XTermTerminal>;
 	getXtermSearchConstructor(): Promise<typeof XTermSearchAddon>;
 	getXtermUnicode11Constructor(): Promise<typeof XTermUnicode11Addon>;
-	getXtermWebglConstructor(): Promise<typeof XTermWebglAddon>;
 
 	/**
 	 * Takes a path and returns the properly escaped path to send to the terminal.

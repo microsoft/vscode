@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Terminal } from 'xterm';
-import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/addons/lineDataEventAddon';
+import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/lineDataEventAddon';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { deepStrictEqual } from 'assert';
 

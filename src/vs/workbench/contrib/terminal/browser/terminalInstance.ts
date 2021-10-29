@@ -32,8 +32,8 @@ import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/te
 import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from 'xterm';
 import type { SearchAddon, ISearchOptions } from 'xterm-addon-search';
 import type { Unicode11Addon } from 'xterm-addon-unicode11';
-import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/addons/commandTrackerAddon';
-import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/addons/navigationModeAddon';
+import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandTrackerAddon';
+import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/xterm/navigationModeAddon';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { EnvironmentVariableInfoWidget } from 'vs/workbench/contrib/terminal/browser/widgets/environmentVariableInfoWidget';
@@ -66,8 +66,8 @@ import { ISeparator, template } from 'vs/base/common/labels';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/addons/lineDataEventAddon';
-import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/addons/xtermTerminal';
+import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/lineDataEventAddon';
+import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 
 const SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY = 'terminals.integrated.profile-migration';
 
