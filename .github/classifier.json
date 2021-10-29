@@ -2,7 +2,7 @@
 	"$schema": "https://raw.githubusercontent.com/microsoft/vscode-github-triage-actions/master/classifier-deep/apply/apply-labels/deep-classifier-config.schema.json",
 	"vacation": ["RMacfarlane", "eamodio"],
 	"assignees": {
-		"JacksonKearl": {"accuracy": 0.5}
+		"nameToOverrideAccuracyOf": {"accuracy": 0.8}
 	},
 	"labels": {
 		"L10N": {"assign": ["TylerLeonhardt", "csigs"]},
