@@ -9,12 +9,12 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IRemoteTerminalService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRemoteTerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IProcessEnvironment, OperatingSystem, OS } from 'vs/base/common/platform';
 import { IShellLaunchConfig, ITerminalProfile, TerminalIcon, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
-import { IShellLaunchConfigResolveOptions, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfigResolveOptions, ITerminalProfileResolverService, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as path from 'vs/base/common/path';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -30,6 +30,11 @@ export interface IProfileContextProvider {
 
 const generatedProfileName = 'Generated';
 
+/*
+* Resolves terminal shell launch config and terminal
+* profiles for the given operating system,
+* environment, and user configuration
+*/
 export abstract class BaseTerminalProfileResolverService implements ITerminalProfileResolverService {
 	declare _serviceBrand: undefined;
 
@@ -44,7 +49,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		private readonly _configurationResolverService: IConfigurationResolverService,
 		private readonly _historyService: IHistoryService,
 		private readonly _logService: ILogService,
-		private readonly _terminalService: ITerminalService,
+		private readonly _terminalProfileService: ITerminalProfileService,
 		private readonly _workspaceContextService: IWorkspaceContextService,
 		private readonly _remoteAgentService: IRemoteAgentService
 	) {
@@ -60,7 +65,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 				this._refreshDefaultProfileName();
 			}
 		});
-		this._terminalService.onDidChangeAvailableProfiles(() => this._refreshDefaultProfileName());
+		this._terminalProfileService.onDidChangeAvailableProfiles(() => this._refreshDefaultProfileName());
 	}
 
 	@debounce(200)
@@ -197,7 +202,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 
 		// Return the real default profile if it exists and is valid, wait for profiles to be ready
 		// if the window just opened
-		await this._terminalService.profilesReady;
+		await this._terminalProfileService.profilesReady;
 		const defaultProfile = this._getUnresolvedRealDefaultProfile(options.os);
 		if (defaultProfile) {
 			return defaultProfile;
@@ -211,7 +216,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	private _getUnresolvedRealDefaultProfile(os: OperatingSystem): ITerminalProfile | undefined {
 		const defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${this._getOsKey(os)}`);
 		if (defaultProfileName && typeof defaultProfileName === 'string') {
-			return this._terminalService.availableProfiles.find(e => e.profileName === defaultProfileName);
+			return this._terminalProfileService.availableProfiles.find(e => e.profileName === defaultProfileName);
 		}
 		return undefined;
 	}
@@ -260,7 +265,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		const executable = await this._context.getDefaultSystemShell(options.remoteAuthority, options.os);
 
 		// Try select an existing profile to fallback to, based on the default system shell
-		const existingProfile = this._terminalService.availableProfiles.find(e => path.parse(e.path).name === path.parse(executable).name);
+		const existingProfile = this._terminalProfileService.availableProfiles.find(e => path.parse(e.path).name === path.parse(executable).name);
 		if (existingProfile) {
 			return existingProfile;
 		}
@@ -394,7 +399,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	}
 
 	async createProfileFromShellAndShellArgs(shell?: unknown, shellArgs?: unknown): Promise<ITerminalProfile | string> {
-		const detectedProfile = this._terminalService.availableProfiles?.find(p => {
+		const detectedProfile = this._terminalProfileService.availableProfiles?.find(p => {
 			if (p.path !== shell) {
 				return false;
 			}
@@ -450,7 +455,7 @@ export class BrowserTerminalProfileResolverService extends BaseTerminalProfileRe
 		@IHistoryService historyService: IHistoryService,
 		@ILogService logService: ILogService,
 		@IRemoteTerminalService remoteTerminalService: IRemoteTerminalService,
-		@ITerminalService terminalService: ITerminalService,
+		@ITerminalProfileService terminalProfileService: ITerminalProfileService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService
 	) {
@@ -474,7 +479,7 @@ export class BrowserTerminalProfileResolverService extends BaseTerminalProfileRe
 			configurationResolverService,
 			historyService,
 			logService,
-			terminalService,
+			terminalProfileService,
 			workspaceContextService,
 			remoteAgentService
 		);

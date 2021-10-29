@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, TerminalLocationString, IProcessProperty, TerminalShellType, TitleEventSource, ProcessPropertyType, IFixedTerminalDimensions } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, TerminalLocationString, IProcessProperty, TerminalShellType, TitleEventSource, ProcessPropertyType, IFixedTerminalDimensions, IExtensionTerminalProfile, ICreateContributedTerminalProfileOptions } from 'vs/platform/terminal/common/terminal';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
@@ -54,6 +54,23 @@ export interface ITerminalProfileResolverService {
 	getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]>;
 	getEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment>;
 	createProfileFromShellAndShellArgs(shell?: unknown, shellArgs?: unknown): Promise<ITerminalProfile | string>;
+}
+
+export const ITerminalProfileService = createDecorator<ITerminalProfileService>('terminalProfileService');
+export interface ITerminalProfileService {
+	readonly _serviceBrand: undefined;
+	readonly availableProfiles: ITerminalProfile[];
+	readonly contributedProfiles: IExtensionTerminalProfile[];
+	readonly profilesReady: Promise<void>;
+	refreshAvailableProfiles(): void;
+	getDefaultProfileName(): string;
+	onDidChangeAvailableProfiles: Event<ITerminalProfile[]>;
+	registerContributedProfile(extensionIdentifier: string, id: string, title: string, options: ICreateContributedTerminalProfileOptions): Promise<void>;
+	registerTerminalProfileProvider(extensionIdentifierenfifier: string, id: string, profileProvider: {
+		createContributedTerminalProfile(options: ICreateContributedTerminalProfileOptions): Promise<void>;
+	}): IDisposable;
+	createContributedTerminalProfile(extensionIdentifier: string, id: string, options: ICreateContributedTerminalProfileOptions): Promise<void>;
+	getContributedDefaultProfile(shellLaunchConfig: IShellLaunchConfig): Promise<IExtensionTerminalProfile | undefined>;
 }
 
 export interface IShellLaunchConfigResolveOptions {

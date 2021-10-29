@@ -108,9 +108,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	configHelper: ITerminalConfigHelper;
 	isProcessSupportRegistered: boolean;
 	readonly connectionState: TerminalConnectionState;
-	readonly availableProfiles: ITerminalProfile[];
-	readonly contributedProfiles: IExtensionTerminalProfile[];
-	readonly profilesReady: Promise<void>;
 	readonly defaultLocation: TerminalLocation;
 
 	initializeTerminals(): Promise<void>;
@@ -171,8 +168,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 */
 	registerLinkProvider(linkProvider: ITerminalExternalLinkProvider): IDisposable;
 
-	registerTerminalProfileProvider(extensionIdenfifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable;
-
 	showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined>;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
@@ -187,7 +182,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	getInstanceHost(target: ITerminalLocationOptions | undefined): ITerminalInstanceHost;
 	getFindHost(instance?: ITerminalInstance): ITerminalFindHost;
 
-	getDefaultProfileName(): string;
 	resolveLocation(location?: ITerminalLocationOptions): TerminalLocation | undefined
 	setNativeDelegate(nativeCalls: ITerminalServiceNativeDelegate): void;
 }
