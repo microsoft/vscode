@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ITheme, RendererType, Terminal as RawXtermTerminal } from 'xterm';
+import type { ISearchOptions, SearchAddon as SearchAddonType } from 'xterm-addon-search';
 import type { WebglAddon as WebglAddonType } from 'xterm-addon-webgl';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -38,6 +39,7 @@ export const enum XtermTerminalConstants {
 const SLOW_CANVAS_RENDER_THRESHOLD = 50;
 const NUMBER_OF_FRAMES_TO_MEASURE = 20;
 
+let SearchAddon: typeof SearchAddonType;
 let WebglAddon: typeof WebglAddonType;
 
 /**
@@ -55,6 +57,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	private _rows: number = 0;
 	private _container?: HTMLElement;
 
+	private _searchAddon: SearchAddonType | undefined;
 	private _webglAddon?: WebglAddonType;
 
 	/**
@@ -120,6 +123,11 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 				this._updateTheme();
 			}
 		}));
+
+		this._getSearchAddonConstructor().then(addonCtor => {
+			this._searchAddon = new addonCtor();
+			this.raw.loadAddon(this._searchAddon);
+		});
 	}
 
 	attachToElement(container: HTMLElement) {
@@ -161,6 +169,20 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	forceRedraw() {
 		this._webglAddon?.clearTextureAtlas();
 		this.raw.clearTextureAtlas();
+	}
+
+	findNext(term: string, searchOptions: ISearchOptions): boolean {
+		if (!this._searchAddon) {
+			return false;
+		}
+		return this._searchAddon.findNext(term, searchOptions);
+	}
+
+	findPrevious(term: string, searchOptions: ISearchOptions): boolean {
+		if (!this._searchAddon) {
+			return false;
+		}
+		return this._searchAddon.findPrevious(term, searchOptions);
 	}
 
 	private _safeSetOption(key: string, value: any): void {
@@ -222,6 +244,13 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			XtermTerminal._suggestedRendererType = 'canvas';
 			this._disposeOfWebglRenderer();
 		}
+	}
+
+	protected async _getSearchAddonConstructor(): Promise<typeof SearchAddonType> {
+		if (!SearchAddon) {
+			SearchAddon = (await import('xterm-addon-search')).SearchAddon;
+		}
+		return SearchAddon;
 	}
 
 	protected async _getWebglAddonConstructor(): Promise<typeof WebglAddonType> {

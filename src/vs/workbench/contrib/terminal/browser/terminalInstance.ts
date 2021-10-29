@@ -30,7 +30,6 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { ITerminalInstanceService, ITerminalInstance, ITerminalExternalLinkProvider, IRequestAddInstanceToGroupEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from 'xterm';
-import type { SearchAddon, ISearchOptions } from 'xterm-addon-search';
 import type { Unicode11Addon } from 'xterm-addon-unicode11';
 import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandTrackerAddon';
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/xterm/navigationModeAddon';
@@ -123,10 +122,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _titleSource: TitleEventSource = TitleEventSource.Process;
 	private _container: HTMLElement | undefined;
 	private _wrapperElement: (HTMLElement & { xterm?: XTermTerminal }) | undefined;
-	// private _xterm: XTermTerminal | undefined;
 	private _xtermCore: IXtermCore | undefined;
 	private _xtermTypeAhead: TypeAheadAddon | undefined;
-	private _xtermSearch: SearchAddon | undefined;
 	private _xtermUnicode11: Unicode11Addon | undefined;
 	private _xtermElement: HTMLDivElement | undefined;
 	private _horizontalScrollbar: DomScrollableElement | undefined;
@@ -607,10 +604,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this.xterm.raw.loadAddon(lineDataEventAddon);
 		this._updateUnicodeVersion();
 		this.updateAccessibilitySupport();
-		this._terminalInstanceService.getXtermSearchConstructor().then(addonCtor => {
-			this._xtermSearch = new addonCtor();
-			xterm.raw.loadAddon(this._xtermSearch);
-		});
 		// Write initial text, deferring onLineFeed listener when applicable to avoid firing
 		// onLineData events containing initialText
 		if (this._shellLaunchConfig.initialText) {
@@ -919,20 +912,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Focus here to ensure the terminal context key is set
 		this.xterm?.raw.focus();
 		this.xterm?.raw.selectAll();
-	}
-
-	findNext(term: string, searchOptions: ISearchOptions): boolean {
-		if (!this._xtermSearch) {
-			return false;
-		}
-		return this._xtermSearch.findNext(term, searchOptions);
-	}
-
-	findPrevious(term: string, searchOptions: ISearchOptions): boolean {
-		if (!this._xtermSearch) {
-			return false;
-		}
-		return this._xtermSearch.findPrevious(term, searchOptions);
 	}
 
 	notifyFindWidgetFocusChanged(isFocused: boolean): void {

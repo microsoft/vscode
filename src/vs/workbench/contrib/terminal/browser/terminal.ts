@@ -628,16 +628,6 @@ export interface ITerminalInstance {
 	selectAll(): void;
 
 	/**
-	 * Find the next instance of the term
-	*/
-	findNext(term: string, searchOptions: ISearchOptions): boolean;
-
-	/**
-	 * Find the previous instance of the term
-	 */
-	findPrevious(term: string, searchOptions: ISearchOptions): boolean;
-
-	/**
 	 * Notifies the terminal that the find widget's focus state has been changed.
 	 */
 	notifyFindWidgetFocusChanged(isFocused: boolean): void;
@@ -791,6 +781,16 @@ export interface ITerminalInstance {
 }
 
 export interface IXtermTerminal {
+	/**
+	 * Find the next instance of the term
+	*/
+	findNext(term: string, searchOptions: ISearchOptions): boolean;
+
+	/**
+	 * Find the previous instance of the term
+	 */
+	findPrevious(term: string, searchOptions: ISearchOptions): boolean;
+
 	/**
 	 * Forces the terminal to redraw its viewport.
 	 */
