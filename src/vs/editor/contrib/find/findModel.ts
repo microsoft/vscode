@@ -18,9 +18,10 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand, ScrollType } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, FindMatch, ITextModel } from 'vs/editor/common/model';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
-import { FindDecorations } from 'vs/editor/contrib/find/findDecorations';
+import { FindDecorations, FindDecorationsForSwap } from 'vs/editor/contrib/find/findDecorations';
 import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/findState';
 import { ReplaceAllCommand } from 'vs/editor/contrib/find/replaceAllCommand';
+import { SwapAllCommand } from 'vs/editor/contrib/find/swapAllCommand';
 import { parseReplaceString, ReplacePattern } from 'vs/editor/contrib/find/replacePattern';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -30,6 +31,7 @@ export const CONTEXT_FIND_WIDGET_NOT_VISIBLE = CONTEXT_FIND_WIDGET_VISIBLE.toNeg
 // Keep ContextKey use of 'Focussed' to not break when clauses
 export const CONTEXT_FIND_INPUT_FOCUSED = new RawContextKey<boolean>('findInputFocussed', false);
 export const CONTEXT_REPLACE_INPUT_FOCUSED = new RawContextKey<boolean>('replaceInputFocussed', false);
+export const CONTEXT_SWAP_INPUT_FOCUSED = new RawContextKey<boolean>('swapInputFocussed', false);
 
 export const ToggleCaseSensitiveKeybinding: IKeybindings = {
 	primary: KeyMod.Alt | KeyCode.KeyC,
@@ -68,6 +70,7 @@ export const FIND_IDS = {
 	TogglePreserveCaseCommand: 'togglePreserveCase',
 	ReplaceOneAction: 'editor.action.replaceOne',
 	ReplaceAllAction: 'editor.action.replaceAll',
+	SwapAllAction: 'editor.action.swapAll',
 	SelectAllMatchesAction: 'editor.action.selectAllMatches'
 };
 
@@ -80,6 +83,7 @@ export class FindModelBoundToEditorModel {
 	private readonly _state: FindReplaceState;
 	private readonly _toDispose = new DisposableStore();
 	private readonly _decorations: FindDecorations;
+	private readonly _decorationsForSwap: FindDecorationsForSwap;
 	private _ignoreModelContentChanged: boolean;
 	private readonly _startSearchingTimer: TimeoutTimer;
 
@@ -93,7 +97,9 @@ export class FindModelBoundToEditorModel {
 		this._startSearchingTimer = new TimeoutTimer();
 
 		this._decorations = new FindDecorations(editor);
+		this._decorationsForSwap = new FindDecorationsForSwap(editor);
 		this._toDispose.add(this._decorations);
+		this._toDispose.add(this._decorationsForSwap);
 
 		this._updateDecorationsScheduler = new RunOnceScheduler(() => this.research(false), 100);
 		this._toDispose.add(this._updateDecorationsScheduler);
@@ -141,7 +147,8 @@ export class FindModelBoundToEditorModel {
 			// The find model will be disposed momentarily
 			return;
 		}
-		if (e.searchString || e.isReplaceRevealed || e.isRegex || e.wholeWord || e.matchCase || e.searchScope) {
+
+		if (e.searchString || e.isReplaceRevealed || e.isRegex || e.wholeWord || e.matchCase || e.searchScope || e.swapString || e.wholeWordForSwap) {
 			let model = this._editor.getModel();
 
 			if (model.isTooLargeForSyncing()) {
@@ -203,6 +210,8 @@ export class FindModelBoundToEditorModel {
 
 		let findMatches = this._findMatches(findScopes, false, MATCHES_LIMIT);
 		this._decorations.set(findMatches, findScopes);
+		let findMatchesForSwap = this._findMatchesForSwap(findScopes, false, MATCHES_LIMIT);
+		this._decorationsForSwap.set(findMatchesForSwap, findScopes);
 
 		const editorSelection = this._editor.getSelection();
 		let currentMatchesPosition = this._decorations.getCurrentMatchesPosition(editorSelection);
@@ -226,6 +235,10 @@ export class FindModelBoundToEditorModel {
 
 	private _hasMatches(): boolean {
 		return (this._state.matchesCount > 0);
+	}
+
+	private _hasMatchesForSwap(): boolean {
+		return (this._decorationsForSwap.getCount() > 0);
 	}
 
 	private _cannotFind(): boolean {
@@ -455,6 +468,20 @@ export class FindModelBoundToEditorModel {
 		return ReplacePattern.fromStaticValue(this._state.replaceString);
 	}
 
+	private _getSearchPattern(): ReplacePattern {
+		if (this._state.isRegex) {
+			return parseReplaceString(this._state.searchString);
+		}
+		return ReplacePattern.fromStaticValue(this._state.searchString);
+	}
+
+	private _getSwapPattern(): ReplacePattern {
+		if (this._state.isRegex) {
+			return parseReplaceString(this._state.swapString);
+		}
+		return ReplacePattern.fromStaticValue(this._state.swapString);
+	}
+
 	public replace(): void {
 		if (!this._hasMatches()) {
 			return;
@@ -487,6 +514,14 @@ export class FindModelBoundToEditorModel {
 		);
 
 		return this._editor.getModel().findMatches(this._state.searchString, searchRanges, this._state.isRegex, this._state.matchCase, this._state.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, captureMatches, limitResultCount);
+	}
+
+	private _findMatchesForSwap(findScopes: Range[] | null, captureMatches: boolean, limitResultCount: number): FindMatch[] {
+		const searchRanges = (findScopes as [] || [null]).map((scope: Range | null) =>
+			FindModelBoundToEditorModel._getSearchRange(this._editor.getModel(), scope)
+		);
+
+		return this._editor.getModel().findMatches(this._state.swapString, searchRanges, false, true, this._state.wholeWordForSwap ? this._editor.getOption(EditorOption.wordSeparators) : null, captureMatches, limitResultCount);
 	}
 
 	public replaceAll(): void {
@@ -557,6 +592,46 @@ export class FindModelBoundToEditorModel {
 
 		let command = new ReplaceAllCommand(this._editor.getSelection(), matches.map(m => m.range), replaceStrings);
 		this._executeEditorCommand('replaceAll', command);
+	}
+
+	public swapAll(): void {
+		if (this._state.isRegex || !this._state.matchCase) {
+			return;
+		}
+		if (!(this._hasMatches() && this._hasMatchesForSwap())) {
+			return;
+		}
+
+		const findScopes = this._decorations.getFindScopes();
+
+		if (findScopes === null && this._state.matchesCount >= MATCHES_LIMIT) {
+			// Doing a replace on the entire file that is over ${MATCHES_LIMIT} matches
+			return;
+		} else {
+			this._regularSwapAll(findScopes);
+		}
+
+		this.research(false);
+	}
+
+	private _regularSwapAll(findScopes: Range[] | null): void {
+		const swapPattern = this._getSwapPattern();
+		const searchPattern = this._getSearchPattern();
+		// Get all the ranges (even more than the highlighted ones)
+		let matchesForFindInput = this._findMatches(findScopes, swapPattern.hasReplacementPatterns || this._state.preserveCase, Constants.MAX_SAFE_SMALL_INTEGER);
+		let matchesForSwapInput = this._findMatchesForSwap(findScopes, searchPattern.hasReplacementPatterns || this._state.preserveCase, Constants.MAX_SAFE_SMALL_INTEGER);
+
+		let swapStringsForFindInput: string[] = [];
+		for (let i = 0, len = matchesForFindInput.length; i < len; i++) {
+			swapStringsForFindInput[i] = swapPattern.buildReplaceString(matchesForFindInput[i].matches, this._state.preserveCase);
+		}
+
+		let swapStringsForSwapInput: string[] = [];
+		for (let i = 0, len = matchesForSwapInput.length; i < len; i++) {
+			swapStringsForSwapInput[i] = searchPattern.buildReplaceString(matchesForSwapInput[i].matches, this._state.preserveCase);
+		}
+		let command = new SwapAllCommand(this._editor.getSelection(), matchesForFindInput.map(m => m.range), swapStringsForFindInput, matchesForSwapInput.map(m => m.range), swapStringsForSwapInput);
+		this._executeEditorCommand('swapAll', command);
 	}
 
 	public selectAllMatches(): void {

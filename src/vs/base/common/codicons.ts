@@ -421,6 +421,7 @@ export namespace Codicon {
 	export const remote = new Codicon('remote', { fontCharacter: '\\eb3a' });
 	export const remove = new Codicon('remove', { fontCharacter: '\\eb3b' });
 	export const replaceAll = new Codicon('replace-all', { fontCharacter: '\\eb3c' });
+	export const swapAll = new Codicon('swap-all', { fontCharacter: '\\eb3c' });
 	export const replace = new Codicon('replace', { fontCharacter: '\\eb3d' });
 	export const repoClone = new Codicon('repo-clone', { fontCharacter: '\\eb3e' });
 	export const repoForcePush = new Codicon('repo-force-push', { fontCharacter: '\\eb3f' });

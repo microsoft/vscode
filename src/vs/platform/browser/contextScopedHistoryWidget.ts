@@ -7,6 +7,7 @@ import { IHistoryNavigationWidget } from 'vs/base/browser/history';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { FindInput, IFindInputOptions } from 'vs/base/browser/ui/findinput/findInput';
 import { IReplaceInputOptions, ReplaceInput } from 'vs/base/browser/ui/findinput/replaceInput';
+import { ISwapInputOptions, SwapInput } from 'vs/base/browser/ui/findinput/swapInput';
 import { HistoryInputBox, IHistoryInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr, IContextKey, IContextKeyService, IContextKeyServiceTarget, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -82,6 +83,17 @@ export class ContextScopedReplaceInput extends ReplaceInput {
 		@IContextKeyService contextKeyService: IContextKeyService, showReplaceOptions: boolean = false
 	) {
 		super(container, contextViewProvider, showReplaceOptions, options);
+		this._register(createAndBindHistoryNavigationWidgetScopedContextKeyService(contextKeyService, <IContextScopedHistoryNavigationWidget>{ target: this.inputBox.element, historyNavigator: this.inputBox }).scopedContextKeyService);
+	}
+
+}
+
+export class ContextScopedSwapInput extends SwapInput {
+
+	constructor(container: HTMLElement | null, contextViewProvider: IContextViewProvider | undefined, options: ISwapInputOptions,
+		@IContextKeyService contextKeyService: IContextKeyService, showSwapOptions: boolean = false
+	) {
+		super(container, contextViewProvider, showSwapOptions, options);
 		this._register(createAndBindHistoryNavigationWidgetScopedContextKeyService(contextKeyService, <IContextScopedHistoryNavigationWidget>{ target: this.inputBox.element, historyNavigator: this.inputBox }).scopedContextKeyService);
 	}
 
