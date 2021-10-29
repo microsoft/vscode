@@ -1023,48 +1023,47 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this._wrapperElement) {
 			this._wrapperElement.classList.toggle('active', visible);
 		}
-		if (visible && this.xterm && this._xtermCore) {
+		if (visible && this.xterm) {
 			// Resize to re-evaluate dimensions, this will ensure when switching to a terminal it is
 			// using the most up to date dimensions (eg. when terminal is created in the background
 			// using cached dimensions of a split terminal).
 			this._resize();
-
 			// Trigger a forced refresh of the viewport to sync the viewport and scroll bar. This is
 			// necessary if the number of rows in the terminal has decreased while it was in the
 			// background since scrollTop changes take no effect but the terminal's position does
 			// change since the number of visible rows decreases.
 			// This can likely be removed after https://github.com/xtermjs/xterm.js/issues/291 is
 			// fixed upstream.
-			this._xtermCore.viewport?._innerRefresh();
+			this.xterm.forceRefresh();
 		}
 	}
 
 	scrollDownLine(): void {
-		this.xterm?.raw.scrollLines(1);
+		this.xterm?.scrollDownLine();
 	}
 
 	scrollDownPage(): void {
-		this.xterm?.raw.scrollPages(1);
+		this.xterm?.scrollDownPage();
 	}
 
 	scrollToBottom(): void {
-		this.xterm?.raw.scrollToBottom();
+		this.xterm?.scrollToBottom();
 	}
 
 	scrollUpLine(): void {
-		this.xterm?.raw.scrollLines(-1);
+		this.xterm?.scrollUpLine();
 	}
 
 	scrollUpPage(): void {
-		this.xterm?.raw.scrollPages(-1);
+		this.xterm?.scrollUpPage();
 	}
 
 	scrollToTop(): void {
-		this.xterm?.raw.scrollToTop();
+		this.xterm?.scrollToTop();
 	}
 
-	clear(): void {
-		this.xterm?.raw.clear();
+	clearBuffer(): void {
+		this.xterm?.clearBuffer();
 	}
 
 	private _refreshSelectionContextKey() {

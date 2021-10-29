@@ -171,6 +171,11 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this.raw.clearTextureAtlas();
 	}
 
+
+	forceRefresh() {
+		this._core.viewport?._innerRefresh();
+	}
+
 	findNext(term: string, searchOptions: ISearchOptions): boolean {
 		if (!this._searchAddon) {
 			return false;
@@ -183,6 +188,34 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			return false;
 		}
 		return this._searchAddon.findPrevious(term, searchOptions);
+	}
+
+	scrollDownLine(): void {
+		this.raw.scrollLines(1);
+	}
+
+	scrollDownPage(): void {
+		this.raw.scrollPages(1);
+	}
+
+	scrollToBottom(): void {
+		this.raw.scrollToBottom();
+	}
+
+	scrollUpLine(): void {
+		this.raw.scrollLines(-1);
+	}
+
+	scrollUpPage(): void {
+		this.raw.scrollPages(-1);
+	}
+
+	scrollToTop(): void {
+		this.raw.scrollToTop();
+	}
+
+	clearBuffer(): void {
+		this.raw.clear();
 	}
 
 	private _safeSetOption(key: string, value: any): void {

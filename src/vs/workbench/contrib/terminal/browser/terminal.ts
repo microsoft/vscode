@@ -668,23 +668,18 @@ export interface ITerminalInstance {
 	 */
 	sendText(text: string, addNewLine: boolean): Promise<void>;
 
-	/** Scroll the terminal buffer down 1 line. */
-	scrollDownLine(): void;
-	/** Scroll the terminal buffer down 1 page. */
-	scrollDownPage(): void;
-	/** Scroll the terminal buffer to the bottom. */
-	scrollToBottom(): void;
-	/** Scroll the terminal buffer up 1 line. */
-	scrollUpLine(): void;
-	/** Scroll the terminal buffer up 1 page. */
-	scrollUpPage(): void;
-	/** Scroll the terminal buffer to the top. */
-	scrollToTop(): void;
+	/** Scroll the terminal buffer down 1 line. */   scrollDownLine(): void;
+	/** Scroll the terminal buffer down 1 page. */   scrollDownPage(): void;
+	/** Scroll the terminal buffer to the bottom. */ scrollToBottom(): void;
+	/** Scroll the terminal buffer up 1 line. */     scrollUpLine(): void;
+	/** Scroll the terminal buffer up 1 page. */     scrollUpPage(): void;
+	/** Scroll the terminal buffer to the top. */    scrollToTop(): void;
 
 	/**
-	 * Clears the terminal buffer, leaving only the prompt line.
+	 * Clears the terminal buffer, leaving only the prompt line and moving it to the top of the
+	 * viewport.
 	 */
-	clear(): void;
+	clearBuffer(): void;
 
 	/**
 	 * Attaches the terminal instance to an element on the DOM, before this is called the terminal
@@ -795,6 +790,19 @@ export interface IXtermTerminal {
 	 * Forces the terminal to redraw its viewport.
 	 */
 	forceRedraw(): void;
+
+	/** Scroll the terminal buffer down 1 line. */   scrollDownLine(): void;
+	/** Scroll the terminal buffer down 1 page. */   scrollDownPage(): void;
+	/** Scroll the terminal buffer to the bottom. */ scrollToBottom(): void;
+	/** Scroll the terminal buffer up 1 line. */     scrollUpLine(): void;
+	/** Scroll the terminal buffer up 1 page. */     scrollUpPage(): void;
+	/** Scroll the terminal buffer to the top. */    scrollToTop(): void;
+
+	/**
+	 * Clears the terminal buffer, leaving only the prompt line and moving it to the top of the
+	 * viewport.
+	 */
+	clearBuffer(): void;
 }
 
 export interface IRequestAddInstanceToGroupEvent {

@@ -1288,7 +1288,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			await terminalToReuse.terminal.reuseTerminal(launchConfigs);
 
 			if (task.command.presentation && task.command.presentation.clear) {
-				terminalToReuse.terminal.clear();
+				terminalToReuse.terminal.clearBuffer();
 			}
 			this.terminals[terminalToReuse.terminal.instanceId.toString()].lastTask = taskKey;
 			return [terminalToReuse.terminal, commandExecutable, undefined];
