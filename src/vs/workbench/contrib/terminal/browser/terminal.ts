@@ -516,6 +516,11 @@ export interface ITerminalInstance {
 	readonly areLinksReady: boolean;
 
 	/**
+	 * The xterm.js instance for this terminal.
+	 */
+	readonly xterm?: IXtermTerminal;
+
+	/**
 	 * Returns an array of data events that have fired within the first 10 seconds. If this is
 	 * called 10 seconds after the terminal has existed the result will be undefined. This is useful
 	 * when objects that depend on the data events have delayed initialization, like extension
@@ -598,11 +603,6 @@ export interface ITerminalInstance {
 	 * Inform the process that the terminal is now detached.
 	 */
 	detachFromProcess(): Promise<void>;
-
-	/**
-	 * Forces the terminal to redraw its viewport.
-	 */
-	forceRedraw(): void;
 
 	/**
 	 * Check if anything is selected in terminal.
@@ -790,6 +790,13 @@ export interface ITerminalInstance {
 	 * Triggers a quick pick to change the color of the associated terminal tab icon.
 	 */
 	changeColor(): Promise<void>;
+}
+
+export interface IXtermTerminal {
+	/**
+	 * Forces the terminal to redraw its viewport.
+	 */
+	forceRedraw(): void;
 }
 
 export interface IRequestAddInstanceToGroupEvent {

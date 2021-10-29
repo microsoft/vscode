@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ITheme, RendererType, Terminal as IXtermTerminal } from 'xterm';
-import type { WebglAddon } from 'xterm-addon-webgl';
+import type { ITheme, RendererType, Terminal as RawXtermTerminal } from 'xterm';
+import type { WebglAddon as WebglAddonType } from 'xterm-addon-webgl';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
@@ -19,7 +19,7 @@ import { TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal'
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { Color } from 'vs/base/common/color';
 import { isSafari } from 'vs/base/browser/browser';
-import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
@@ -42,9 +42,9 @@ const NUMBER_OF_FRAMES_TO_MEASURE = 20;
  * Wraps the xterm object with additional functionality. Interaction with the backing process is out
  * of the scope of this class.
  */
-export class XtermTerminal extends DisposableStore {
+export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	/** The raw xterm.js instance */
-	readonly raw: IXtermTerminal;
+	readonly raw: RawXtermTerminal;
 	target?: TerminalLocation;
 
 	private _core: IXtermCore;
@@ -53,23 +53,21 @@ export class XtermTerminal extends DisposableStore {
 	private _rows: number = 0;
 	private _container?: HTMLElement;
 
-	private _webglAddon?: WebglAddon;
+	private _webglAddon?: WebglAddonType;
 
 	/**
 	 * @param xtermCtor The xterm.js constructor, this is passed in so it can be fetched lazily
 	 * outside of this class such that {@link raw} is not nullable.
 	 */
 	constructor(
-		xtermCtor: typeof IXtermTerminal,
+		xtermCtor: typeof RawXtermTerminal,
 		private readonly _configHelper: TerminalConfigHelper,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
-		// TODO: Remove ITerminalInstanceService dep
-		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService
 	) {
 		super();
 
@@ -201,7 +199,7 @@ export class XtermTerminal extends DisposableStore {
 		if (!this.raw.element || this._webglAddon) {
 			return;
 		}
-		const Addon = await this._terminalInstanceService.getXtermWebglConstructor();
+		const Addon = await getWebglAddonConstructor();
 		this._webglAddon = new Addon();
 		try {
 			this.raw.loadAddon(this._webglAddon);
@@ -273,7 +271,7 @@ export class XtermTerminal extends DisposableStore {
 			}
 		};
 
-		textRenderLayer.onGridChanged = (terminal: IXtermTerminal, firstRow: number, lastRow: number) => {
+		textRenderLayer.onGridChanged = (terminal: RawXtermTerminal, firstRow: number, lastRow: number) => {
 			const startTime = performance.now();
 			originalOnGridChanged.call(textRenderLayer, terminal, firstRow, lastRow);
 			frameTimes.push(performance.now() - startTime);
@@ -330,4 +328,12 @@ export class XtermTerminal extends DisposableStore {
 	private _updateTheme(theme?: IColorTheme): void {
 		this.raw.setOption('theme', this._getXtermTheme(theme));
 	}
+}
+
+let WebglAddon: typeof WebglAddonType;
+async function getWebglAddonConstructor(): Promise<typeof WebglAddonType> {
+	if (!WebglAddon) {
+		WebglAddon = (await import('xterm-addon-webgl')).WebglAddon;
+	}
+	return WebglAddon;
 }
