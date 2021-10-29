@@ -34,7 +34,7 @@ export interface IXtermCore {
 			actualCellHeight: number;
 		},
 		_renderer: {
-			_renderLayers: any[];
+			_renderLayers?: any[];
 		};
 		_onIntersectionChange: any;
 	};

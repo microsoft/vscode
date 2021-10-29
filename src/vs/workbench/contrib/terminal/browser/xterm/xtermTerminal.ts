@@ -38,6 +38,8 @@ export const enum XtermTerminalConstants {
 const SLOW_CANVAS_RENDER_THRESHOLD = 50;
 const NUMBER_OF_FRAMES_TO_MEASURE = 20;
 
+let WebglAddon: typeof WebglAddonType;
+
 /**
  * Wraps the xterm object with additional functionality. Interaction with the backing process is out
  * of the scope of this class.
@@ -108,6 +110,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			if (e.affectsConfiguration(TerminalSettingId.GpuAcceleration)) {
 				XtermTerminal._suggestedRendererType = undefined;
 			}
+			if (e.affectsConfiguration('terminal.integrated') || e.affectsConfiguration('editor.fastScrollSensitivity') || e.affectsConfiguration('editor.mouseWheelScrollSensitivity') || e.affectsConfiguration('editor.multiCursorModifier')) {
+				this.updateConfig();
+			}
 		}));
 		this.add(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
 		this.add(this._viewDescriptorService.onDidChangeLocation(({ views }) => {
@@ -145,13 +150,11 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
 		this._safeSetOption('wordSeparator', config.wordSeparators);
 		this._safeSetOption('customGlyphs', config.customGlyphs);
-		const suggestedRendererType = XtermTerminal._suggestedRendererType;
-		// @meganrogge @Tyriar remove if the issue related to iPads and webgl is resolved
-		if ((!isSafari && config.gpuAcceleration === 'auto' && suggestedRendererType === undefined) || config.gpuAcceleration === 'on') {
+		if ((!isSafari && config.gpuAcceleration === 'auto' && XtermTerminal._suggestedRendererType === undefined) || config.gpuAcceleration === 'on') {
 			this._enableWebglRenderer();
 		} else {
 			this._disposeOfWebglRenderer();
-			this._safeSetOption('rendererType', this._getBuiltInXtermRenderer(config.gpuAcceleration, suggestedRendererType));
+			this._safeSetOption('rendererType', this._getBuiltInXtermRenderer(config.gpuAcceleration, XtermTerminal._suggestedRendererType));
 		}
 	}
 
@@ -199,7 +202,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		if (!this.raw.element || this._webglAddon) {
 			return;
 		}
-		const Addon = await getWebglAddonConstructor();
+		const Addon = await this._getWebglAddonConstructor();
 		this._webglAddon = new Addon();
 		try {
 			this.raw.loadAddon(this._webglAddon);
@@ -221,6 +224,13 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		}
 	}
 
+	protected async _getWebglAddonConstructor(): Promise<typeof WebglAddonType> {
+		if (!WebglAddon) {
+			WebglAddon = (await import('xterm-addon-webgl')).WebglAddon;
+		}
+		return WebglAddon;
+	}
+
 	private _disposeOfWebglRenderer(): void {
 		try {
 			this._webglAddon?.dispose();
@@ -232,10 +242,10 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 	private async _measureRenderTime(): Promise<void> {
 		const frameTimes: number[] = [];
-		if (!this._core._renderService) {
+		if (!this._core._renderService?._renderer._renderLayers) {
 			return;
 		}
-		const textRenderLayer = this._core._renderService?._renderer._renderLayers[0];
+		const textRenderLayer = this._core._renderService._renderer._renderLayers[0];
 		const originalOnGridChanged = textRenderLayer?.onGridChanged;
 		const evaluateCanvasRenderer = () => {
 			// Discard first frame time as it's normal to take longer
@@ -328,12 +338,4 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	private _updateTheme(theme?: IColorTheme): void {
 		this.raw.setOption('theme', this._getXtermTheme(theme));
 	}
-}
-
-let WebglAddon: typeof WebglAddonType;
-async function getWebglAddonConstructor(): Promise<typeof WebglAddonType> {
-	if (!WebglAddon) {
-		WebglAddon = (await import('xterm-addon-webgl')).WebglAddon;
-	}
-	return WebglAddon;
 }

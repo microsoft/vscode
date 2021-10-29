@@ -373,7 +373,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 
 		this.addDisposable(this._configurationService.onDidChangeConfiguration(async e => {
-			if (e.affectsConfiguration('terminal.integrated') || e.affectsConfiguration('editor.fastScrollSensitivity') || e.affectsConfiguration('editor.mouseWheelScrollSensitivity') || e.affectsConfiguration('editor.multiCursorModifier')) {
+			if (e.affectsConfiguration('terminal.integrated')) {
 				this.updateConfig();
 				this.setVisible(this._isVisible);
 			}
@@ -1441,33 +1441,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	updateConfig(): void {
-		this.xterm?.updateConfig();
 		this._setCommandsToSkipShell(this._configHelper.config.commandsToSkipShell);
-		// this._safeSetOption('altClickMovesCursor', config.altClickMovesCursor);
-		// this._setCursorBlink(config.cursorBlinking);
-		// this._setCursorStyle(config.cursorStyle);
-		// this._setCursorWidth(config.cursorWidth);
-		// this._setCommandsToSkipShell(config.commandsToSkipShell);
-		// this._safeSetOption('scrollback', config.scrollback);
-		// this._safeSetOption('drawBoldTextInBrightColors', config.drawBoldTextInBrightColors);
-		// this._safeSetOption('minimumContrastRatio', config.minimumContrastRatio);
-		// this._safeSetOption('fastScrollSensitivity', config.fastScrollSensitivity);
-		// this._safeSetOption('scrollSensitivity', config.mouseWheelScrollSensitivity);
-		// this._safeSetOption('macOptionIsMeta', config.macOptionIsMeta);
-		// const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
-		// this._safeSetOption('altClickMovesCursor', config.altClickMovesCursor && editorOptions.multiCursorModifier === 'alt');
-		// this._safeSetOption('macOptionClickForcesSelection', config.macOptionClickForcesSelection);
-		// this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
-		// this._safeSetOption('wordSeparator', config.wordSeparators);
-		// this._safeSetOption('customGlyphs', config.customGlyphs);
-		// const suggestedRendererType = TerminalInstance._suggestedRendererType;
-		// // @meganrogge @Tyriar remove if the issue related to iPads and webgl is resolved
-		// if ((!isSafari && config.gpuAcceleration === 'auto' && suggestedRendererType === undefined) || config.gpuAcceleration === 'on') {
-		// 	this._enableWebglRenderer();
-		// } else {
-		// 	this._disposeOfWebglRenderer();
-		// 	this._safeSetOption('rendererType', this._getBuiltInXtermRenderer(config.gpuAcceleration, suggestedRendererType));
-		// }
 		this._refreshEnvironmentVariableInfoWidgetState(this._processManager.environmentVariableInfo);
 	}
 

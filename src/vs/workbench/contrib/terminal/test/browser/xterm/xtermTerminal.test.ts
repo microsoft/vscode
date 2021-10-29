@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Terminal } from 'xterm';
+import { IEvent, Terminal } from 'xterm';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -18,10 +18,34 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Emitter } from 'vs/base/common/event';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { WebglAddon } from 'xterm-addon-webgl';
+import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
-// async function writeP(terminal: XtermTerminal, data: string): Promise<void> {
-// 	return new Promise<void>(r => terminal.raw.write(data, r));
-// }
+class TestWebglAddon {
+	static shouldThrow = false;
+	static isEnabled = false;
+	readonly onContextLoss = new Emitter().event as IEvent<void>;
+	activate() {
+		TestWebglAddon.isEnabled = !TestWebglAddon.shouldThrow;
+		if (TestWebglAddon.shouldThrow) {
+			throw new Error('Test webgl set to throw');
+		}
+	}
+	dispose() {
+		TestWebglAddon.isEnabled = false;
+	}
+	clearTextureAtlas() { }
+}
+
+class TestXtermTerminal extends XtermTerminal {
+	webglAddonPromise: Promise<typeof WebglAddon> = Promise.resolve(TestWebglAddon);
+	protected override _getWebglAddonConstructor() {
+		// Force synchronous to avoid async when activating the addon
+		return this.webglAddonPromise;
+	}
+}
 
 class TestViewDescriptorService implements Partial<IViewDescriptorService> {
 	private _location = ViewContainerLocation.Panel;
@@ -43,13 +67,23 @@ class TestViewDescriptorService implements Partial<IViewDescriptorService> {
 	}
 }
 
-suite.only('LineDataEventAddon', () => {
+const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
+	fontFamily: 'monospace',
+	fontWeight: 'normal',
+	fontWeightBold: 'normal',
+	gpuAcceleration: 'off',
+	scrollback: 1000,
+	fastScrollSensitivity: 2,
+	mouseWheelScrollSensitivity: 1
+};
+
+suite('XtermTerminal', () => {
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 	let themeService: TestThemeService;
 	let viewDescriptorService: TestViewDescriptorService;
 
-	let xterm: XtermTerminal;
+	let xterm: TestXtermTerminal;
 	let configHelper: ITerminalConfigHelper;
 
 	setup(() => {
@@ -59,12 +93,7 @@ suite.only('LineDataEventAddon', () => {
 				mouseWheelScrollSensitivity: 1
 			} as Partial<IEditorOptions>,
 			terminal: {
-				integrated: {
-					fontFamily: 'monospace',
-					fontWeight: 'normal',
-					fontWeightBold: 'normal',
-					scrollback: 1000
-				} as Partial<ITerminalConfiguration>
+				integrated: defaultTerminalConfig
 			}
 		});
 		themeService = new TestThemeService();
@@ -72,14 +101,19 @@ suite.only('LineDataEventAddon', () => {
 
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IStorageService, new TestStorageService());
 		instantiationService.stub(IThemeService, themeService);
 		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
 
 		configHelper = instantiationService.createInstance(TerminalConfigHelper);
+		xterm = instantiationService.createInstance(TestXtermTerminal, Terminal, configHelper);
+
+		TestWebglAddon.shouldThrow = false;
+		TestWebglAddon.isEnabled = false;
 	});
 
 	test('should use fallback dimensions of 80x30', () => {
-		xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper);
 		strictEqual(xterm.raw.getOption('cols'), 80);
 		strictEqual(xterm.raw.getOption('rows'), 30);
 	});
@@ -193,6 +227,39 @@ suite.only('LineDataEventAddon', () => {
 				brightCyan: '#15000f',
 				brightWhite: '#16000f',
 			});
+		});
+	});
+
+	suite('renderers', () => {
+		test('should re-evaluate gpu acceleration auto when the setting is changed', async () => {
+			// Check initial state
+			strictEqual(xterm.raw.getOption('rendererType'), 'dom');
+			strictEqual(TestWebglAddon.isEnabled, false);
+
+			// Open xterm as otherwise the webgl addon won't activate
+			const container = document.createElement('div');
+			xterm.raw.open(container);
+
+			// Auto should activate the webgl addon
+			await configurationService.setUserConfiguration('terminal', { integrated: { ...defaultTerminalConfig, gpuAcceleration: 'auto' } });
+			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
+			await xterm.webglAddonPromise; // await addon activate
+			strictEqual(TestWebglAddon.isEnabled, true);
+
+			// Turn off to reset state
+			await configurationService.setUserConfiguration('terminal', { integrated: { ...defaultTerminalConfig, gpuAcceleration: 'off' } });
+			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
+			await xterm.webglAddonPromise; // await addon activate
+			strictEqual(xterm.raw.getOption('rendererType'), 'dom');
+			strictEqual(TestWebglAddon.isEnabled, false);
+
+			// Set to auto again but throw when activating the webgl addon
+			TestWebglAddon.shouldThrow = true;
+			await configurationService.setUserConfiguration('terminal', { integrated: { ...defaultTerminalConfig, gpuAcceleration: 'auto' } });
+			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
+			await xterm.webglAddonPromise; // await addon activate
+			strictEqual(xterm.raw.getOption('rendererType'), 'canvas');
+			strictEqual(TestWebglAddon.isEnabled, false);
 		});
 	});
 });
