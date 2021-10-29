@@ -134,9 +134,6 @@ export class TerminalService implements ITerminalService {
 	get onDidRegisterProcessSupport(): Event<void> { return this._onDidRegisterProcessSupport.event; }
 	private readonly _onDidChangeConnectionState = new Emitter<void>();
 	get onDidChangeConnectionState(): Event<void> { return this._onDidChangeConnectionState.event; }
-	//TODO: fix - hack because SwitchTerminalActionViewItem won't permit direct access of terminalProfileService
-	private readonly _onDidChangeAvailableProfiles = new Emitter<ITerminalProfile[]>();
-	get onDidChangeAvailableProfiles(): Event<ITerminalProfile[]> { return this._onDidChangeAvailableProfiles.event; }
 
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
@@ -200,9 +197,6 @@ export class TerminalService implements ITerminalService {
 		// we update detected profiles when an instance is created so that,
 		// for example, we detect if you've installed a pwsh
 		this.onDidCreateInstance(() => this._terminalProfileService.refreshAvailableProfiles());
-
-		//TODO: hack explained above, remove if possible
-		this._terminalProfileService.onDidChangeAvailableProfiles((profiles) => this._onDidChangeAvailableProfiles.fire(profiles));
 
 		this._forwardInstanceHostEvents(this._terminalGroupService);
 		this._forwardInstanceHostEvents(this._terminalEditorService);
@@ -1284,7 +1278,8 @@ class TerminalEditorStyle extends Themable {
 	constructor(
 		container: HTMLElement,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IThemeService private readonly _themeService: IThemeService
+		@IThemeService private readonly _themeService: IThemeService,
+		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService
 	) {
 		super(_themeService);
 		this._registerListeners();
@@ -1298,7 +1293,7 @@ class TerminalEditorStyle extends Themable {
 		this._register(this._terminalService.onDidChangeInstanceIcon(() => this.updateStyles()));
 		this._register(this._terminalService.onDidChangeInstanceColor(() => this.updateStyles()));
 		this._register(this._terminalService.onDidCreateInstance(() => this.updateStyles()));
-		this._register(this._terminalService.onDidChangeAvailableProfiles(() => this.updateStyles()));
+		this._register(this._terminalProfileService.onDidChangeAvailableProfiles(() => this.updateStyles()));
 	}
 
 	override updateStyles(): void {

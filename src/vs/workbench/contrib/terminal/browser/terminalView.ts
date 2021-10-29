@@ -292,6 +292,7 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService,
+		@ITerminalProfileService terminalProfileService: ITerminalProfileService
 	) {
 		super(null, action, getTerminalSelectOpenItems(_terminalService, _terminalGroupService), _terminalGroupService.activeGroupIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.'), optionsAsChildren: true });
 		this._register(_terminalService.onDidChangeInstances(() => this._updateItems(), this));
@@ -300,7 +301,7 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		this._register(_terminalService.onDidChangeInstanceTitle(() => this._updateItems(), this));
 		this._register(_terminalGroupService.onDidChangeGroups(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeConnectionState(() => this._updateItems(), this));
-		this._register(_terminalService.onDidChangeAvailableProfiles(() => this._updateItems(), this));
+		this._register(terminalProfileService.onDidChangeAvailableProfiles(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeInstancePrimaryStatus(() => this._updateItems(), this));
 		this._register(attachSelectBoxStyler(this.selectBox, this._themeService));
 	}
