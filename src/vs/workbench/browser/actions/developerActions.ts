@@ -222,8 +222,8 @@ class ToggleScreencastModeAction extends Action2 {
 				let titleLabel = '';
 				let categoryLabel = '';
 				let keyLabel = keybinding.getLabel();
-				if (command && configurationService.getValue('screencastMode.keyboardShortcutsPrefix') !== 'none') {
-					if (command.category && configurationService.getValue('screencastMode.keyboardShortcutsPrefix') === 'categoryAndTitle') {
+				if (command) {
+					if (command.category) {
 						categoryLabel = typeof command.category === 'string' ? command.category : command.category.value;
 						categoryLabel = `${categoryLabel}: `;
 					}
@@ -235,13 +235,18 @@ class ToggleScreencastModeAction extends Action2 {
 						}
 					}
 				}
-				if (titleLabel) {
-					const title = $('span.title', {}, `${categoryLabel}${titleLabel} `);
-					append(keyboardMarker, title);
+				if (titleLabel && ['commandWithGroup', 'commandWithGroupAndKeys'].includes(configurationService.getValue('screencastMode.keyboardShortcutsFormat'))) {
+					titleLabel = `${categoryLabel}${titleLabel} `;
 				}
 				const key = $('span.key', {}, keyLabel || '');
 				length++;
-				append(keyboardMarker, key);
+				if (titleLabel && configurationService.getValue('screencastMode.keyboardShortcutsFormat') !== 'keys') {
+					const title = $('span.title', {}, `${titleLabel} `);
+					append(keyboardMarker, title);
+				}
+				if (key && ['keys', 'commandAndKeys', 'commandWithGroupAndKeys'].includes(configurationService.getValue('screencastMode.keyboardShortcutsFormat'))) {
+					append(keyboardMarker, key);
+				}
 			}
 
 			const promise = timeout(keyboardMarkerTimeout);
@@ -338,20 +343,22 @@ configurationRegistry.registerConfiguration({
 			maximum: 100,
 			description: localize('screencastMode.fontSize', "Controls the font size (in pixels) of the screencast mode keyboard.")
 		},
+		'screencastMode.keyboardShortcutsFormat': {
+			enum: ['keys', 'command', 'commandWithGroup', 'commandAndKeys', 'commandWithGroupAndKeys'],
+			enumDescriptions: [
+				localize('keyboardShortcutsFormat.keys', "Keys."),
+				localize('keyboardShortcutsFormat.command', "Command title."),
+				localize('keyboardShortcutsFormat.commandWithGroup', "Command title prefixed by its group."),
+				localize('keyboardShortcutsFormat.commandAndKeys', "Command title and keys."),
+				localize('keyboardShortcutsFormat.commandWithGroupAndKeys', "Command title and keys, with the command prefixed by its group.")
+			],
+			description: localize('screencastMode.keyboardShortcutsFormat', "Controls what is displayed in the keyboard overlay when showing only shortcuts."),
+			default: 'commandAndKeys'
+		},
 		'screencastMode.onlyKeyboardShortcuts': {
 			type: 'boolean',
 			description: localize('screencastMode.onlyKeyboardShortcuts', "Only show keyboard shortcuts in screencast mode."),
 			default: false
-		},
-		'screencastMode.keyboardShortcutsPrefix': {
-			enum: ['none', 'commandTitle', 'categoryAndTitle'],
-			enumDescriptions: [
-				localize('keyboardShortcutsPrefix.none', "Don't prefix keyboard shortcuts."),
-				localize('keyboardShortcutsPrefix.commandTitle', "Prefix keyboard shortcuts with the command title."),
-				localize('keyboardShortcutsPrefix.categoryAndTitle', "Prefix keyboard shortcuts with both the command category and title.")
-			],
-			description: localize('screencastMode.keyboardShortcutsPrefix', "Controls how keyboard shortcuts are prefixed in screencast mode."),
-			default: 'none'
 		},
 		'screencastMode.keyboardOverlayTimeout': {
 			type: 'number',
