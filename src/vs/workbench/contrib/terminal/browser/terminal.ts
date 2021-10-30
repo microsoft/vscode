@@ -180,7 +180,8 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined>;
 	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean;
 	getEditableData(instance: ITerminalInstance): IEditableData | undefined;
-	setEditable(instance: ITerminalInstance, data: IEditableData | null): Promise<void>;
+	setEditable(instance: ITerminalInstance, data: IEditableData | null): void;
+	isEditable(instance: ITerminalInstance | undefined): boolean;
 	safeDisposeTerminal(instance: ITerminalInstance): Promise<void>;
 
 	getDefaultInstanceHost(): ITerminalInstanceHost;
