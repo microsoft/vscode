@@ -648,7 +648,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._xtermCore = (xterm as any)._core as XTermCore;
 		const lineDataEventAddon = new LineDataEventAddon();
 		this._xterm.loadAddon(lineDataEventAddon);
-		this._updateUnicodeVersion();
 		this.updateAccessibilitySupport();
 		this._terminalInstanceService.getXtermSearchConstructor().then(addonCtor => {
 			this._xtermSearch = new addonCtor();
@@ -692,23 +691,25 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._linkManager.processCwd = await this._processManager.getInitialCwd();
 			}
 		});
-		// Init winpty compat and link handler after process creation as they rely on the
-		// underlying process OS
 		this._processManager.onProcessReady((processTraits) => {
-			// If links are ready, do not re-create the manager.
-			if (this._areLinksReady) {
-				return;
-			}
+			// Update unicode after process is ready to ensure this._processManager.setUnicodeVersion
+			// is not silently ignored
+			this._updateUnicodeVersion();
 
-			if (this._processManager.os) {
-				lineDataEventAddon.setOperatingSystem(this._processManager.os);
+			// Init winpty compat and link handler after process creation as they rely on the
+			// underlying process OS
+			// If links are ready, do not re-create the manager.
+			if (!this._areLinksReady) {
+				this._areLinksReady = true;
+				if (this._processManager.os) {
+					lineDataEventAddon.setOperatingSystem(this._processManager.os);
+				}
+				if (this._processManager.os === OperatingSystem.Windows) {
+					xterm.setOption('windowsMode', processTraits.requiresWindowsMode || false);
+				}
+				this._linkManager = this._instantiationService.createInstance(TerminalLinkManager, xterm, this._processManager!);
+				this._onLinksReady.fire(this);
 			}
-			if (this._processManager.os === OperatingSystem.Windows) {
-				xterm.setOption('windowsMode', processTraits.requiresWindowsMode || false);
-			}
-			this._linkManager = this._instantiationService.createInstance(TerminalLinkManager, xterm, this._processManager!);
-			this._areLinksReady = true;
-			this._onLinksReady.fire(this);
 		});
 
 		this._commandTrackerAddon = new CommandTrackerAddon();
