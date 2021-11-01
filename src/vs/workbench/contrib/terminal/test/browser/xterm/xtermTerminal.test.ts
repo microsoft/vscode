@@ -75,7 +75,8 @@ const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	gpuAcceleration: 'off',
 	scrollback: 1000,
 	fastScrollSensitivity: 2,
-	mouseWheelScrollSensitivity: 1
+	mouseWheelScrollSensitivity: 1,
+	unicodeVersion: '11'
 };
 
 suite('XtermTerminal', () => {
