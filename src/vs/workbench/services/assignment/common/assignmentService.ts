@@ -4,15 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import type { IKeyValueStorage, IExperimentationTelemetry, ExperimentationService as TASClient } from 'tas-client-umd';
+import type { IKeyValueStorage, IExperimentationTelemetry } from 'tas-client-umd';
 import { MementoObject, Memento } from 'vs/workbench/common/memento';
-import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryData } from 'vs/base/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { AssignmentFilterProvider, ASSIGNMENT_REFETCH_INTERVAL, ASSIGNMENT_STORAGE_KEY, IAssignmentService, TargetPopulation } from 'vs/platform/assignment/common/assignment';
+import { IAssignmentService } from 'vs/platform/assignment/common/assignment';
+import { BaseAssignmentService } from 'vs/platform/assignment/common/assignmentService';
 
 export const IWorkbenchAssignmentService = createDecorator<IWorkbenchAssignmentService>('WorkbenchAssignmentService');
 
@@ -73,78 +74,37 @@ class WorkbenchAssignmentServiceTelemetry implements IExperimentationTelemetry {
 	}
 }
 
-export class WorkbenchAssignmentService implements IWorkbenchAssignmentService {
-	_serviceBrand: undefined;
-	private tasClient: Promise<TASClient> | undefined;
-	private telemetry: WorkbenchAssignmentServiceTelemetry | undefined;
-	private static MEMENTO_ID = 'experiment.service.memento';
-	private networkInitialized = false;
-
-	private overrideInitDelay: Promise<void>;
-
-	private get experimentsEnabled(): boolean {
-		return this.configurationService.getValue('workbench.enableExperiments') === true;
-	}
-
+export class WorkbenchAssignmentService extends BaseAssignmentService {
 	constructor(
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IStorageService private storageService: IStorageService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IProductService private productService: IProductService
+		@IStorageService storageService: IStorageService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IProductService productService: IProductService
 	) {
 
-		if (productService.tasConfig && this.experimentsEnabled && this.telemetryService.telemetryLevel === TelemetryLevel.USAGE) {
-			this.tasClient = this.setupTASClient();
-		}
-
-		// For development purposes, configure the delay until tas local tas treatment ovverrides are available
-		const overrideDelaySetting = this.configurationService.getValue('experiments.overrideDelay');
-		const overrideDelay = typeof overrideDelaySetting === 'number' ? overrideDelaySetting : 0;
-		this.overrideInitDelay = new Promise(resolve => setTimeout(resolve, overrideDelay));
+		super(() => {
+			return telemetryService.getTelemetryInfo().then(telemetryInfo => {
+				return telemetryInfo.machineId;
+			});
+		}, configurationService, productService,
+			new WorkbenchAssignmentServiceTelemetry(telemetryService, productService),
+			new MementoKeyValueStorage(new Memento('experiment.service.memento', storageService)));
 	}
 
-	async getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
-		// For development purposes, allow overriding tas assignments to test variants locally.
-		await this.overrideInitDelay;
-		const override = this.configurationService.getValue<T>('experiments.override.' + name);
-		if (override !== undefined) {
-			type TAASClientOverrideTreatmentData = { treatmentName: string; };
-			type TAASClientOverrideTreatmentClassification = { treatmentName: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', }; };
-			this.telemetryService.publicLog2<TAASClientOverrideTreatmentData, TAASClientOverrideTreatmentClassification>('tasClientOverrideTreatment', { treatmentName: name, });
-			return override;
-		}
-
-		const startSetup = Date.now();
-
-		if (!this.tasClient) {
-			return undefined;
-		}
-
-		if (!this.experimentsEnabled) {
-			return undefined;
-		}
-
-		let result: T | undefined;
-		const client = await this.tasClient;
-		if (this.networkInitialized) {
-			result = client.getTreatmentVariable<T>('vscode', name);
-		} else {
-			result = await client.getTreatmentVariableAsync<T>('vscode', name, true);
-		}
-
-		type TAASClientReadTreatmentData = {
+	override async getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
+		const result = await super.getTreatment<T>(name);
+		type TASClientReadTreatmentData = {
 			treatmentName: string;
 			treatmentValue: string;
-			readTime: number;
 		};
 
-		type TAASClientReadTreatmentCalssification = {
+		type TASClientReadTreatmentClassification = {
 			treatmentValue: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', };
 			treatmentName: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', };
-			readTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
 		};
-		this.telemetryService.publicLog2<TAASClientReadTreatmentData, TAASClientReadTreatmentCalssification>('tasClientReadTreatmentComplete',
-			{ readTime: Date.now() - startSetup, treatmentName: name, treatmentValue: JSON.stringify(result) });
+
+		this.telemetryService.publicLog2<TASClientReadTreatmentData, TASClientReadTreatmentClassification>('tasClientReadTreatmentComplete',
+			{ treatmentName: name, treatmentValue: JSON.stringify(result) });
 
 		return result;
 	}
@@ -160,47 +120,7 @@ export class WorkbenchAssignmentService implements IWorkbenchAssignmentService {
 
 		await this.tasClient;
 
-		return this.telemetry?.assignmentContext;
-	}
-
-	private async setupTASClient(): Promise<TASClient> {
-		const startSetup = Date.now();
-		const telemetryInfo = await this.telemetryService.getTelemetryInfo();
-		const targetPopulation = telemetryInfo.msftInternal ? TargetPopulation.Internal : (this.productService.quality === 'stable' ? TargetPopulation.Public : TargetPopulation.Insiders);
-		const machineId = telemetryInfo.machineId;
-		const filterProvider = new AssignmentFilterProvider(
-			this.productService.version,
-			this.productService.nameLong,
-			machineId,
-			targetPopulation
-		);
-
-		const keyValueStorage = new MementoKeyValueStorage(new Memento(WorkbenchAssignmentService.MEMENTO_ID, this.storageService));
-
-		this.telemetry = new WorkbenchAssignmentServiceTelemetry(this.telemetryService, this.productService);
-
-		const tasConfig = this.productService.tasConfig!;
-		const tasClient = new (await import('tas-client-umd')).ExperimentationService({
-			filterProviders: [filterProvider],
-			telemetry: this.telemetry,
-			storageKey: ASSIGNMENT_STORAGE_KEY,
-			keyValueStorage: keyValueStorage,
-			featuresTelemetryPropertyName: tasConfig.featuresTelemetryPropertyName,
-			assignmentContextTelemetryPropertyName: tasConfig.assignmentContextTelemetryPropertyName,
-			telemetryEventName: tasConfig.telemetryEventName,
-			endpoint: tasConfig.endpoint,
-			refetchInterval: ASSIGNMENT_REFETCH_INTERVAL,
-		});
-
-		await tasClient.initializePromise;
-
-		tasClient.initialFetch.then(() => this.networkInitialized = true);
-
-		type TAASClientSetupData = { setupTime: number; };
-		type TAASClientSetupCalssification = { setupTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true }; };
-		this.telemetryService.publicLog2<TAASClientSetupData, TAASClientSetupCalssification>('tasClientSetupComplete', { setupTime: Date.now() - startSetup });
-
-		return tasClient;
+		return (this.telemetry as WorkbenchAssignmentServiceTelemetry)?.assignmentContext;
 	}
 }
 
