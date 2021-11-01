@@ -7,7 +7,7 @@ import { getErrorMessage } from 'vs/base/common/errors';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { IFileService } from 'vs/platform/files/common/files';
+import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { IPCFileSystemProvider } from 'vs/platform/files/common/ipcFileSystemProvider';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
@@ -42,7 +42,14 @@ export class RemoteFileSystemProvider extends IPCFileSystemProvider {
 	}
 
 	constructor(remoteAgentEnvironment: IRemoteAgentEnvironment, remoteAgentService: IRemoteAgentService) {
-		super(remoteAgentService.getConnection()!.getChannel(REMOTE_FILE_SYSTEM_CHANNEL_NAME));
-		this.setCaseSensitive(remoteAgentEnvironment?.os === OperatingSystem.Linux);
+		let capabilities = FileSystemProviderCapabilities.FileReadWrite
+			| FileSystemProviderCapabilities.FileOpenReadWriteClose
+			| FileSystemProviderCapabilities.FileReadStream
+			| FileSystemProviderCapabilities.FileFolderCopy
+			| FileSystemProviderCapabilities.FileWriteUnlock;
+		if (remoteAgentEnvironment.os === OperatingSystem.Linux) {
+			capabilities |= FileSystemProviderCapabilities.PathCaseSensitive;
+		}
+		super(capabilities, remoteAgentService.getConnection()!.getChannel(REMOTE_FILE_SYSTEM_CHANNEL_NAME));
 	}
 }
