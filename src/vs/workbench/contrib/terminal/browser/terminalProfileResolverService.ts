@@ -20,12 +20,13 @@ import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { debounce } from 'vs/base/common/decorators';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { equals } from 'vs/base/common/arrays';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import Severity from 'vs/base/common/severity';
 import { INotificationService, IPromptChoice, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
+import { argsMatch, isUriComponents } from 'vs/workbench/contrib/terminal/browser/terminalProfileHelpers';
 
 export interface IProfileContextProvider {
 	getDefaultSystemShell: (remoteAuthority: string | undefined, os: OperatingSystem) => Promise<string>;
@@ -175,24 +176,16 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		if (ThemeIcon.isThemeIcon(icon)) {
 			return icon;
 		}
-		if (URI.isUri(icon) || this._isUriComponents(icon)) {
+		if (URI.isUri(icon) || isUriComponents(icon)) {
 			return URI.revive(icon);
 		}
 		if (typeof icon === 'object' && icon && 'light' in icon && 'dark' in icon) {
 			const castedIcon = (icon as { light: unknown, dark: unknown });
-			if ((URI.isUri(castedIcon.light) || this._isUriComponents(castedIcon.light)) && (URI.isUri(castedIcon.dark) || this._isUriComponents(castedIcon.dark))) {
+			if ((URI.isUri(castedIcon.light) || isUriComponents(castedIcon.light)) && (URI.isUri(castedIcon.dark) || isUriComponents(castedIcon.dark))) {
 				return { light: URI.revive(castedIcon.light), dark: URI.revive(castedIcon.dark) };
 			}
 		}
 		return undefined;
-	}
-
-	private _isUriComponents(thing: unknown): thing is UriComponents {
-		if (!thing) {
-			return false;
-		}
-		return typeof (<any>thing).path === 'string' &&
-			typeof (<any>thing).scheme === 'string';
 	}
 
 	private async _getUnresolvedDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
@@ -432,29 +425,10 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			args,
 			isDefault: true
 		};
-		if (detectedProfile && detectedProfile.profileName === createdProfile.profileName && detectedProfile.path === createdProfile.path && this._argsMatch(detectedProfile.args, createdProfile.args)) {
+		if (detectedProfile && detectedProfile.profileName === createdProfile.profileName && detectedProfile.path === createdProfile.path && argsMatch(detectedProfile.args, createdProfile.args)) {
 			return detectedProfile.profileName;
 		}
 		return createdProfile;
-	}
-
-	private _argsMatch(args1: string | string[] | undefined, args2: string | string[] | undefined): boolean {
-		if (!args1 && !args2) {
-			return true;
-		} else if (typeof args1 === 'string' && typeof args2 === 'string') {
-			return args1 === args2;
-		} else if (Array.isArray(args1) && Array.isArray(args2)) {
-			if (args1.length !== args2.length) {
-				return false;
-			}
-			for (let i = 0; i < args1.length; i++) {
-				if (args1[i] !== args2[i]) {
-					return false;
-				}
-			}
-			return true;
-		}
-		return false;
 	}
 
 	async showProfileMigrationNotification(): Promise<void> {

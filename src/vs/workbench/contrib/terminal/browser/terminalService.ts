@@ -21,7 +21,7 @@ import { IInstantiationService, optional } from 'vs/platform/instantiation/commo
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionTerminalProfile, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalLocationString, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalLocationString, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
 import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IconDefinition } from 'vs/platform/theme/common/iconRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
@@ -44,6 +44,8 @@ import { ILifecycleService, ShutdownReason, WillShutdownEvent } from 'vs/workben
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -155,6 +157,8 @@ export class TerminalService implements ITerminalService {
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
+		@IExtensionService private readonly _extensionService: IExtensionService,
+		@INotificationService private readonly _notificationService: INotificationService,
 		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService
 	) {
 		this._localTerminalService = localTerminalService;
@@ -315,6 +319,23 @@ export class TerminalService implements ITerminalService {
 			this._terminalEditorService.setActiveInstance(value);
 		} else {
 			this._terminalGroupService.setActiveInstance(value);
+		}
+	}
+
+	async createContributedTerminalProfile(extensionIdentifier: string, id: string, options: ICreateContributedTerminalProfileOptions): Promise<void> {
+		await this._extensionService.activateByEvent(`onTerminalProfile:${id}`);
+
+		const profileProvider = this._terminalProfileService.getContributedProfileProvider(extensionIdentifier, id);
+		if (!profileProvider) {
+			this._notificationService.error(`No terminal profile provider registered for id "${id}"`);
+			return;
+		}
+		try {
+			await profileProvider.createContributedTerminalProfile(options);
+			this._terminalGroupService.setActiveInstanceByIndex(this._terminalGroupService.instances.length - 1);
+			await this._terminalGroupService.activeInstance?.focusWhenReady();
+		} catch (e) {
+			this._notificationService.error(e.message);
 		}
 	}
 
@@ -925,7 +946,7 @@ export class TerminalService implements ITerminalService {
 			let instance;
 
 			if ('id' in value.profile) {
-				await this._terminalProfileService.createContributedTerminalProfile(value.profile.extensionIdentifier, value.profile.id, {
+				await this.createContributedTerminalProfile(value.profile.extensionIdentifier, value.profile.id, {
 					icon: value.profile.icon,
 					color: value.profile.color,
 					location: !!(keyMods?.alt && activeInstance) ? { splitActiveTerminal: true } : this.defaultLocation
@@ -1110,7 +1131,7 @@ export class TerminalService implements ITerminalService {
 			} else {
 				location = typeof options?.location === 'object' && 'viewColumn' in options.location ? options.location : resolvedLocation;
 			}
-			await this._terminalProfileService.createContributedTerminalProfile(contributedProfile.extensionIdentifier, contributedProfile.id, {
+			await this.createContributedTerminalProfile(contributedProfile.extensionIdentifier, contributedProfile.id, {
 				icon: contributedProfile.icon,
 				color: contributedProfile.color,
 				location

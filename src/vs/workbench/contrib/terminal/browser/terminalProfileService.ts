@@ -12,11 +12,11 @@ import { isMacintosh, isWeb, isWindows, OperatingSystem, OS } from 'vs/base/comm
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITerminalProfile, IExtensionTerminalProfile, TerminalSettingPrefix, TerminalSettingId, ICreateContributedTerminalProfileOptions, ITerminalProfileObject, IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
-import { IRemoteTerminalService, ITerminalGroupService, ITerminalProfileProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRemoteTerminalService, ITerminalProfileProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { refreshTerminalActions } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { argsMatch, iconsEqual } from 'vs/workbench/contrib/terminal/browser/terminalProfileHelpers';
 import { ILocalTerminalService, IOffProcessTerminalService, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
@@ -54,9 +54,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@INotificationService private readonly _notificationService: INotificationService,
 		@IRemoteAgentService private _remoteAgentService: IRemoteAgentService,
-		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IRemoteTerminalService private readonly _remoteTerminalService: IRemoteTerminalService,
 		@optional(ILocalTerminalService) private readonly _localTerminalService: ILocalTerminalService
@@ -82,6 +80,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 		this._profilesReadyBarrier = new AutoOpenBarrier(5000);
 		this.refreshAvailableProfiles();
 	}
+
 	_serviceBrand: undefined;
 
 	getDefaultProfileName(): string {
@@ -96,20 +95,8 @@ export class TerminalProfileService implements ITerminalProfileService {
 		this._refreshAvailableProfilesNow();
 	}
 
-	private async _refreshAvailableProfilesNow(): Promise<void> {
-		const platformKey = await this._getPlatformKey();
+	protected async _refreshAvailableProfilesNow(): Promise<void> {
 		const profiles = await this._detectProfiles();
-		const profilesChanged = !equals(profiles, this._availableProfiles);
-		const excludedContributedProfiles: string[] = [];
-		const configProfiles: { [key: string]: any } = this._configurationService.getValue(TerminalSettingPrefix.Profiles + platformKey);
-		for (const [profileName, value] of Object.entries(configProfiles)) {
-			if (value === null) {
-				excludedContributedProfiles.push(profileName);
-			}
-		}
-		const filteredContributedProfiles = Array.from(this._terminalContributionService.terminalProfiles.filter(p => !excludedContributedProfiles.includes(p.title)));
-		const contributedProfilesChanged = !equals(filteredContributedProfiles, this._contributedProfiles);
-
 		if (profiles.length === 0 && this._ifNoProfilesTryAgain) {
 			// available profiles get updated when a terminal is created
 			// or relevant config changes.
@@ -119,14 +106,35 @@ export class TerminalProfileService implements ITerminalProfileService {
 			this._ifNoProfilesTryAgain = false;
 			await this._refreshAvailableProfilesNow();
 		}
+		const profilesChanged = !(equals(profiles, this._availableProfiles, profilesEqual));
+		const contributedProfilesChanged = await this._updateContributedProfiles();
 		if (profilesChanged || contributedProfilesChanged) {
 			this._availableProfiles = profiles;
-			this._contributedProfiles = filteredContributedProfiles;
 			this._onDidChangeAvailableProfiles.fire(this._availableProfiles);
 			this._profilesReadyBarrier.open();
 			this._updateWebContextKey();
 			await this._refreshPlatformConfig(profiles);
 		}
+	}
+
+	private async _updateContributedProfiles(): Promise<boolean> {
+		const platformKey = await this._getPlatformKey();
+		const excludedContributedProfiles: string[] = [];
+		const configProfiles: { [key: string]: any } = this._configurationService.getValue(TerminalSettingPrefix.Profiles + platformKey);
+		for (const [profileName, value] of Object.entries(configProfiles)) {
+			if (value === null) {
+				excludedContributedProfiles.push(profileName);
+			}
+		}
+		const filteredContributedProfiles = Array.from(this._terminalContributionService.terminalProfiles.filter(p => !excludedContributedProfiles.includes(p.title)));
+		const contributedProfilesChanged = !equals(filteredContributedProfiles, this._contributedProfiles, contributedProfilesEqual);
+		this._contributedProfiles = filteredContributedProfiles;
+		return contributedProfilesChanged;
+	}
+
+	getContributedProfileProvider(extensionIdentifier: string, id: string): ITerminalProfileProvider | undefined {
+		const extMap = this._profileProviders.get(extensionIdentifier);
+		return extMap?.get(id);
 	}
 
 	private async _detectProfiles(includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> {
@@ -156,31 +164,14 @@ export class TerminalProfileService implements ITerminalProfileService {
 		return isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
 	}
 
-	registerTerminalProfileProvider(extensionIdentifierenfifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable {
-		let extMap = this._profileProviders.get(extensionIdentifierenfifier);
+	registerTerminalProfileProvider(extensionIdentifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable {
+		let extMap = this._profileProviders.get(extensionIdentifier);
 		if (!extMap) {
 			extMap = new Map();
-			this._profileProviders.set(extensionIdentifierenfifier, extMap);
+			this._profileProviders.set(extensionIdentifier, extMap);
 		}
 		extMap.set(id, profileProvider);
 		return toDisposable(() => this._profileProviders.delete(id));
-	}
-
-	async createContributedTerminalProfile(extensionIdentifier: string, id: string, options: ICreateContributedTerminalProfileOptions): Promise<void> {
-		await this._extensionService.activateByEvent(`onTerminalProfile:${id}`);
-		const extMap = this._profileProviders.get(extensionIdentifier);
-		const profileProvider = extMap?.get(id);
-		if (!profileProvider) {
-			this._notificationService.error(`No terminal profile provider registered for id "${id}"`);
-			return;
-		}
-		try {
-			await profileProvider.createContributedTerminalProfile(options);
-			this._terminalGroupService.setActiveInstanceByIndex(this._terminalGroupService.instances.length - 1);
-			await this._terminalGroupService.activeInstance?.focusWhenReady();
-		} catch (e) {
-			this._notificationService.error(e.message);
-		}
 	}
 
 	async registerContributedProfile(extensionIdentifier: string, id: string, title: string, options: ICreateContributedTerminalProfileOptions): Promise<void> {
@@ -212,4 +203,23 @@ export class TerminalProfileService implements ITerminalProfileService {
 		}
 		return undefined;
 	}
+}
+
+function profilesEqual(one: ITerminalProfile, other: ITerminalProfile) {
+	return one.profileName === other.profileName &&
+		argsMatch(one.args, other.args) &&
+		one.color === other.color &&
+		iconsEqual(one.icon, other.icon) &&
+		one.isAutoDetected === other.isAutoDetected &&
+		one.isDefault === other.isDefault &&
+		one.overrideName === other.overrideName &&
+		one.path === other.path;
+}
+
+function contributedProfilesEqual(one: IExtensionTerminalProfile, other: IExtensionTerminalProfile) {
+	return one.extensionIdentifier === other.extensionIdentifier &&
+		one.color === other.color &&
+		one.icon === other.icon &&
+		one.id === other.id &&
+		one.title === other.title;
 }

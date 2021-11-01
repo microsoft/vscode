@@ -65,12 +65,11 @@ export interface ITerminalProfileService {
 	refreshAvailableProfiles(): void;
 	getDefaultProfileName(): string;
 	onDidChangeAvailableProfiles: Event<ITerminalProfile[]>;
-	registerContributedProfile(extensionIdentifier: string, id: string, title: string, options: ICreateContributedTerminalProfileOptions): Promise<void>;
-	registerTerminalProfileProvider(extensionIdentifierenfifier: string, id: string, profileProvider: {
-		createContributedTerminalProfile(options: ICreateContributedTerminalProfileOptions): Promise<void>;
-	}): IDisposable;
-	createContributedTerminalProfile(extensionIdentifier: string, id: string, options: ICreateContributedTerminalProfileOptions): Promise<void>;
 	getContributedDefaultProfile(shellLaunchConfig: IShellLaunchConfig): Promise<IExtensionTerminalProfile | undefined>;
+	registerContributedProfile(extensionIdentifier: string, id: string, title: string, options: ICreateContributedTerminalProfileOptions): Promise<void>;
+	//TODO: fix or move to a different location?
+	getContributedProfileProvider(extensionIdentifier: string, id: string): { createContributedTerminalProfile(options: ICreateContributedTerminalProfileOptions): Promise<void>; } | undefined;
+	registerTerminalProfileProvider(extensionIdentifier: string, id: string, profileProvider: { createContributedTerminalProfile(options: ICreateContributedTerminalProfileOptions): Promise<void>; }): IDisposable;
 }
 
 export interface IShellLaunchConfigResolveOptions {
