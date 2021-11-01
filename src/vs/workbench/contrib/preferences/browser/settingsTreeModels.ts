@@ -596,14 +596,18 @@ function isObjectSetting({
 		return false;
 	}
 
-	// object additional properties allow it to have any shape
-	if (objectAdditionalProperties === true || objectAdditionalProperties === undefined) {
+	// objectAdditionalProperties allow the setting to have any shape,
+	// but if there's a pattern property that handles everything, then every
+	// property will match that patternProperty, so we don't need to look at
+	// the value of objectAdditionalProperties in that case.
+	if ((objectAdditionalProperties === true || objectAdditionalProperties === undefined)
+		&& !Object.keys(objectPatternProperties ?? {}).includes('.*')) {
 		return false;
 	}
 
 	const schemas = [...Object.values(objectProperties ?? {}), ...Object.values(objectPatternProperties ?? {})];
 
-	if (typeof objectAdditionalProperties === 'object') {
+	if (objectAdditionalProperties && typeof objectAdditionalProperties === 'object') {
 		schemas.push(objectAdditionalProperties);
 	}
 

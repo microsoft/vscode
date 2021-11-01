@@ -190,7 +190,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		// help the file service to activate providers by activating extensions by file system event
 		this._register(this._fileService.onWillActivateFileSystemProvider(e => {
-			e.join(this.activateByEvent(`onFileSystem:${e.scheme}`));
+			if (e.scheme !== Schemas.vscodeRemote) {
+				e.join(this.activateByEvent(`onFileSystem:${e.scheme}`));
+			}
 		}));
 
 		this._registry = new ExtensionDescriptionRegistry([]);

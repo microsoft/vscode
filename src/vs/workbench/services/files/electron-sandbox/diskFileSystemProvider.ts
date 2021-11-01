@@ -29,11 +29,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	IFileSystemProviderWithFileReadStreamCapability,
 	IFileSystemProviderWithFileFolderCopyCapability {
 
-	private readonly provider = this._register(new class extends IPCFileSystemProvider {
-		constructor(mainProcessService: IMainProcessService) {
-			super(mainProcessService.getChannel('localFilesystem'));
-		}
-	}(this.mainProcessService));
+	private readonly provider = this._register(new IPCFileSystemProvider(this.capabilities, this.mainProcessService.getChannel('localFilesystem')));
 
 	constructor(
 		private readonly mainProcessService: IMainProcessService,

@@ -17,6 +17,7 @@ import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/vie
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewModel {
 
@@ -112,8 +113,9 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 		@ITextModelService textModelService: ITextModelService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IUndoRedoService undoRedoService: IUndoRedoService,
+		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
-		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, textModelService, undoRedoService);
+		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, textModelService, undoRedoService, codeEditorService);
 
 		const { bottomToolbarGap } = this.viewContext.notebookOptions.computeBottomToolbarDimensions(this.viewType);
 

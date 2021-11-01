@@ -34,7 +34,6 @@ import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { FileEditorInputSerializer, FileEditorWorkingCopyEditorHandler } from 'vs/workbench/contrib/files/browser/editors/fileEditorHandler';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import product from 'vs/platform/product/common/product';
 
 class FileUriLabelContribution implements IWorkbenchContribution {
 
@@ -240,6 +239,7 @@ configurationRegistry.registerConfiguration({
 		'files.autoSaveDelay': {
 			'type': 'number',
 			'default': 1000,
+			'minimum': 0,
 			'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSaveDelay' }, "Controls the delay in milliseconds after which an editor with unsaved changes is saved automatically. Only applies when `#files.autoSave#` is set to `{0}`.", AutoSaveConfiguration.AFTER_DELAY)
 		},
 		'files.watcherExclude': {
@@ -267,7 +267,7 @@ configurationRegistry.registerConfiguration({
 			'markdownEnumDescriptions': [
 				nls.localize('files.legacyWatcher.on', "Enable the legacy file watcher in case you see issues with the new file watcher."),
 				nls.localize('files.legacyWatcher.off', "Disable the legacy file watcher and enable the new file watcher to benefit from its capabilities."),
-				nls.localize('files.legacyWatcher.default', "The new file watcher will be enabled if you are using insiders version or whenever you open multi-root workspaces."),
+				nls.localize('files.legacyWatcher.default', "The new file watcher will be enabled."),
 			],
 			'default': 'default',
 			'description': nls.localize('legacyWatcher', "Controls the mechanism used for file watching. Only change this when you see issues related to file watching."),
@@ -311,7 +311,7 @@ configurationRegistry.registerConfiguration({
 		'files.experimentalSandboxedFileService': {
 			'type': 'boolean',
 			'description': nls.localize('files.experimentalSandboxedFileService', "Experimental: changes the file service to be sandboxed. Do not change this unless instructed!"),
-			'default': product.quality !== 'stable',
+			'default': true,
 			'scope': ConfigurationScope.APPLICATION
 		},
 	}

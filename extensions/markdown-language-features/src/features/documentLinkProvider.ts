@@ -91,19 +91,21 @@ function extractDocumentLink(
 	}
 }
 
-/* Used to strip brackets from the markdown link
-	<http://example.com> will be transformed to
-	http://example.com
+const angleBracketLinkRe = /^<(.*)>$/;
+
+/**
+ * Used to strip brackets from the markdown link
+ *
+ * <http://example.com> will be transformed to http://example.com
 */
 export function stripAngleBrackets(link: string) {
-	const bracketMatcher = /^<(.*)>$/;
-	return link.replace(bracketMatcher, '$1');
+	return link.replace(angleBracketLinkRe, '$1');
 }
 
 export default class LinkProvider implements vscode.DocumentLinkProvider {
 	private readonly linkPattern = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|(?:\\\]|[^\]])*\])\(\s*)(([^\s\(\)]|\([^\s\(\)]*?\))+)\s*(".*?")?\)/g;
 	private readonly referenceLinkPattern = /(\[((?:\\\]|[^\]])+)\]\[\s*?)([^\s\]]*?)\]/g;
-	private readonly definitionPattern = /^([\t ]*\[(?!\^)((?:\\\]|[^\]])+)\]:\s*)(\S+)/gm;
+	private readonly definitionPattern = /^([\t ]*\[(?!\^)((?:\\\]|[^\]])+)\]:\s*)([^<]\S*|<[^>]+>)/gm;
 
 	public provideDocumentLinks(
 		document: vscode.TextDocument,
@@ -192,15 +194,23 @@ export default class LinkProvider implements vscode.DocumentLinkProvider {
 			const pre = match[1];
 			const reference = match[2];
 			const link = match[3].trim();
-
 			const offset = (match.index || 0) + pre.length;
-			const linkStart = document.positionAt(offset);
-			const linkEnd = document.positionAt(offset + link.length);
 
-			out.set(reference, {
-				link: link,
-				linkRange: new vscode.Range(linkStart, linkEnd)
-			});
+			if (angleBracketLinkRe.test(link)) {
+				const linkStart = document.positionAt(offset + 1);
+				const linkEnd = document.positionAt(offset + link.length - 1);
+				out.set(reference, {
+					link: link.substring(1, link.length - 1),
+					linkRange: new vscode.Range(linkStart, linkEnd)
+				});
+			} else {
+				const linkStart = document.positionAt(offset);
+				const linkEnd = document.positionAt(offset + link.length);
+				out.set(reference, {
+					link: link,
+					linkRange: new vscode.Range(linkStart, linkEnd)
+				});
+			}
 		}
 		return out;
 	}

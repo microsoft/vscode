@@ -926,16 +926,16 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			throw new TaskError(Severity.Info, nls.localize('TaskServer.noTask', 'Task to execute is undefined'), TaskErrors.TaskNotFound);
 		}
 
-		// eslint-disable-next-line no-async-promise-executor
-		return new Promise<ITaskSummary | undefined>(async (resolve) => {
+		return new Promise<ITaskSummary | undefined>((resolve) => {
 			let resolver = this.createResolver();
 			if (options && options.attachProblemMatcher && this.shouldAttachProblemMatcher(task) && !InMemoryTask.is(task)) {
-				const toExecute = await this.attachProblemMatcher(task);
-				if (toExecute) {
-					resolve(this.executeTask(toExecute, resolver, runSource));
-				} else {
-					resolve(undefined);
-				}
+				this.attachProblemMatcher(task).then(toExecute => {
+					if (toExecute) {
+						resolve(this.executeTask(toExecute, resolver, runSource));
+					} else {
+						resolve(undefined);
+					}
+				});
 			} else {
 				resolve(this.executeTask(task, resolver, runSource));
 			}
@@ -2361,10 +2361,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		});
 
-		// eslint-disable-next-line no-async-promise-executor
-		const timeout: boolean = await Promise.race([new Promise<boolean>(async (resolve) => {
-			await _createEntries;
-			resolve(false);
+		const timeout: boolean = await Promise.race([new Promise<boolean>((resolve) => {
+			_createEntries.then(() => resolve(false));
 		}), new Promise<boolean>((resolve) => {
 			const timer = setTimeout(() => {
 				clearTimeout(timer);
@@ -3036,10 +3034,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			});
 		});
 
-		// eslint-disable-next-line no-async-promise-executor
-		const timeout: boolean = await Promise.race([new Promise<boolean>(async (resolve) => {
-			await entries;
-			resolve(false);
+		const timeout: boolean = await Promise.race([new Promise<boolean>((resolve) => {
+			entries.then(() => resolve(false));
 		}), new Promise<boolean>((resolve) => {
 			const timer = setTimeout(() => {
 				clearTimeout(timer);

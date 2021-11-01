@@ -710,7 +710,7 @@ export class AzureActiveDirectoryService {
 		if (this._tokens.length === 0) {
 			await this._keychain.deleteToken();
 		} else {
-			this.storeTokenData();
+			await this.storeTokenData();
 		}
 
 		return session;

@@ -8,6 +8,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { mark } from 'vs/base/common/performance';
 import { joinPath } from 'vs/base/common/resources';
 import { isString } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -38,7 +39,9 @@ export class IndexedDB {
 	private indexedDBPromise: Promise<IDBDatabase | null>;
 
 	constructor() {
+		mark('code/willOpenWebDB');
 		this.indexedDBPromise = this.openIndexedDB(INDEXEDDB_VSCODE_DB, 2, [INDEXEDDB_USERDATA_OBJECT_STORE, INDEXEDDB_LOGS_OBJECT_STORE]);
+		this.indexedDBPromise.finally(() => mark('code/didOpenWebDB'));
 	}
 
 	async createFileSystemProvider(scheme: string, store: string, watchCrossWindowChanges: boolean): Promise<IIndexedDBFileSystemProvider | null> {

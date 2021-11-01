@@ -642,13 +642,20 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 		if (result) {
 			return result;
 		}
-		// eslint-disable-next-line no-async-promise-executor
-		const createdResult: Promise<TaskExecutionImpl> = new Promise(async (resolve, reject) => {
-			const taskToCreate = task ? task : await TaskDTO.to(execution.task, this._workspaceProvider, this._providedCustomExecutions2);
-			if (!taskToCreate) {
-				reject('Unexpected: Task does not exist.');
+		const createdResult: Promise<TaskExecutionImpl> = new Promise((resolve, reject) => {
+			function resolvePromiseWithCreatedTask(that: ExtHostTaskBase, execution: tasks.TaskExecutionDTO, taskToCreate: vscode.Task | types.Task | undefined) {
+				if (!taskToCreate) {
+					reject('Unexpected: Task does not exist.');
+				} else {
+					resolve(new TaskExecutionImpl(that, execution.id, taskToCreate));
+				}
+			}
+
+			if (task) {
+				resolvePromiseWithCreatedTask(this, execution, task);
 			} else {
-				resolve(new TaskExecutionImpl(this, execution.id, taskToCreate));
+				TaskDTO.to(execution.task, this._workspaceProvider, this._providedCustomExecutions2)
+					.then(task => resolvePromiseWithCreatedTask(this, execution, task));
 			}
 		});
 

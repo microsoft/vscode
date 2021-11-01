@@ -5,7 +5,6 @@
 
 import { Promises } from 'vs/base/common/async';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
-import { mark } from 'vs/base/common/performance';
 import { joinPath } from 'vs/base/common/resources';
 import { IStorage, Storage } from 'vs/base/parts/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -67,17 +66,11 @@ export class NativeStorageService extends AbstractStorageService {
 	}
 
 	protected async doInitialize(): Promise<void> {
-
 		// Init all storage locations
-		mark('code/willInitStorage');
-		try {
-			await Promises.settled([
-				this.globalStorage.init(),
-				this.workspaceStorage?.init() ?? Promise.resolve()
-			]);
-		} finally {
-			mark('code/didInitStorage');
-		}
+		await Promises.settled([
+			this.globalStorage.init(),
+			this.workspaceStorage?.init() ?? Promise.resolve()
+		]);
 	}
 
 	protected getStorage(scope: StorageScope): IStorage | undefined {

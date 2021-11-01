@@ -6,6 +6,7 @@
 import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
 import { dispose } from 'vs/base/common/lifecycle';
 import * as UUID from 'vs/base/common/uuid';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
@@ -111,9 +112,10 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		@INotebookService private readonly _notebookService: INotebookService,
 		@ITextModelService modelService: ITextModelService,
 		@IUndoRedoService undoRedoService: IUndoRedoService,
-		@INotebookKeymapService keymapService: INotebookKeymapService
+		@INotebookKeymapService keymapService: INotebookKeymapService,
+		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
-		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, modelService, undoRedoService);
+		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, modelService, undoRedoService, codeEditorService);
 		this._outputViewModels = this.model.outputs.map(output => new CellOutputViewModel(this, output, this._notebookService));
 
 		this._register(this.model.onDidChangeOutputs((splice) => {
@@ -383,7 +385,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		}
 
 		this._outputCollection[index] = height;
-		if (this._outputsTop!.changeValue(index, height)) {
+		if (this._outputsTop!.setValue(index, height)) {
 			this.layoutChange({ outputHeight: true }, source);
 		}
 	}

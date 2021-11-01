@@ -457,9 +457,9 @@ export class SuggestController implements IEditorContribution {
 		}
 	}
 
-	triggerSuggest(onlyFrom?: Set<CompletionItemProvider>): void {
+	triggerSuggest(onlyFrom?: Set<CompletionItemProvider>, auto?: boolean): void {
 		if (this.editor.hasModel()) {
-			this.model.trigger({ auto: false, shy: false }, false, onlyFrom);
+			this.model.trigger({ auto: auto ?? false, shy: false }, false, onlyFrom);
 			this.editor.revealPosition(this.editor.getPosition(), ScrollType.Smooth);
 			this.editor.focus();
 		}
@@ -662,14 +662,22 @@ export class TriggerSuggestAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	run(_accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 		const controller = SuggestController.get(editor);
 
 		if (!controller) {
 			return;
 		}
 
-		controller.triggerSuggest();
+		type TriggerArgs = { auto: boolean };
+		let auto: boolean | undefined;
+		if (args && typeof args === 'object') {
+			if ((<TriggerArgs>args).auto === true) {
+				auto = true;
+			}
+		}
+
+		controller.triggerSuggest(undefined, auto);
 	}
 }
 
