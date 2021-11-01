@@ -14,9 +14,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IProductService } from 'vs/platform/product/common/productService';
 import { AssignmentFilterProvider, ASSIGNMENT_REFETCH_INTERVAL, ASSIGNMENT_STORAGE_KEY, IAssignmentService, TargetPopulation } from 'vs/platform/assignment/common/assignment';
 
-export const ITASExperimentService = createDecorator<ITASExperimentService>('TASExperimentService');
+export const IWorkbenchAssignmentService = createDecorator<IWorkbenchAssignmentService>('WorkbenchAssignmentService');
 
-export interface ITASExperimentService extends IAssignmentService {
+export interface IWorkbenchAssignmentService extends IAssignmentService {
 	getCurrentExperiments(): Promise<string[] | undefined>;
 }
 
@@ -37,7 +37,7 @@ class MementoKeyValueStorage implements IKeyValueStorage {
 	}
 }
 
-class ExperimentServiceTelemetry implements IExperimentationTelemetry {
+class WorkbenchAssignmentServiceTelemetry implements IExperimentationTelemetry {
 	private _lastAssignmentContext: string | undefined;
 	constructor(
 		private telemetryService: ITelemetryService,
@@ -73,10 +73,10 @@ class ExperimentServiceTelemetry implements IExperimentationTelemetry {
 	}
 }
 
-export class ExperimentService implements ITASExperimentService {
+export class WorkbenchAssignmentService implements IWorkbenchAssignmentService {
 	_serviceBrand: undefined;
 	private tasClient: Promise<TASClient> | undefined;
-	private telemetry: ExperimentServiceTelemetry | undefined;
+	private telemetry: WorkbenchAssignmentServiceTelemetry | undefined;
 	private static MEMENTO_ID = 'experiment.service.memento';
 	private networkInitialized = false;
 
@@ -175,9 +175,9 @@ export class ExperimentService implements ITASExperimentService {
 			targetPopulation
 		);
 
-		const keyValueStorage = new MementoKeyValueStorage(new Memento(ExperimentService.MEMENTO_ID, this.storageService));
+		const keyValueStorage = new MementoKeyValueStorage(new Memento(WorkbenchAssignmentService.MEMENTO_ID, this.storageService));
 
-		this.telemetry = new ExperimentServiceTelemetry(this.telemetryService, this.productService);
+		this.telemetry = new WorkbenchAssignmentServiceTelemetry(this.telemetryService, this.productService);
 
 		const tasConfig = this.productService.tasConfig!;
 		const tasClient = new (await import('tas-client-umd')).ExperimentationService({
@@ -204,4 +204,4 @@ export class ExperimentService implements ITASExperimentService {
 	}
 }
 
-registerSingleton(ITASExperimentService, ExperimentService, false);
+registerSingleton(IWorkbenchAssignmentService, WorkbenchAssignmentService, false);
