@@ -27,6 +27,7 @@ import Severity from 'vs/base/common/severity';
 import { INotificationService, IPromptChoice, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
 import { argsMatch, isUriComponents } from 'vs/workbench/contrib/terminal/browser/terminalProfileHelpers';
+import { deepClone } from 'vs/base/common/objects';
 
 export interface IProfileContextProvider {
 	getDefaultSystemShell: (remoteAuthority: string | undefined, os: OperatingSystem) => Promise<string>;
@@ -201,7 +202,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		// allow users to migrate, see https://github.com/microsoft/vscode/issues/123171
 		const shellSettingProfile = await this._getUnresolvedShellSettingDefaultProfile(options);
 		if (shellSettingProfile) {
-			return shellSettingProfile;
+			return this._setIconForAutomation(options, shellSettingProfile);
 		}
 
 		// Return the real default profile if it exists and is valid, wait for profiles to be ready
@@ -209,12 +210,21 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		await this._terminalProfileService.profilesReady;
 		const defaultProfile = this._getUnresolvedRealDefaultProfile(options.os);
 		if (defaultProfile) {
-			return defaultProfile;
+			return this._setIconForAutomation(options, defaultProfile);
 		}
 
 		// If there is no real default profile, create a fallback default profile based on the shell
 		// and shellArgs settings in addition to the current environment.
-		return this._getUnresolvedFallbackDefaultProfile(options);
+		return this._setIconForAutomation(options, await this._getUnresolvedFallbackDefaultProfile(options));
+	}
+
+	private _setIconForAutomation(options: IShellLaunchConfigResolveOptions, profile: ITerminalProfile): ITerminalProfile {
+		if (options.allowAutomationShell) {
+			const profileClone = deepClone(profile);
+			profileClone.icon = Codicon.tools;
+			return profileClone;
+		}
+		return profile;
 	}
 
 	private _getUnresolvedRealDefaultProfile(os: OperatingSystem): ITerminalProfile | undefined {
@@ -269,8 +279,12 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		const executable = await this._context.getDefaultSystemShell(options.remoteAuthority, options.os);
 
 		// Try select an existing profile to fallback to, based on the default system shell
-		const existingProfile = this._terminalProfileService.availableProfiles.find(e => path.parse(e.path).name === path.parse(executable).name);
+		let existingProfile = this._terminalProfileService.availableProfiles.find(e => path.parse(e.path).name === path.parse(executable).name);
 		if (existingProfile) {
+			if (options.allowAutomationShell) {
+				existingProfile = deepClone(existingProfile);
+				existingProfile.icon = Codicon.tools;
+			}
 			return existingProfile;
 		}
 
@@ -297,14 +311,23 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 
 	private _getUnresolvedAutomationShellProfile(options: IShellLaunchConfigResolveOptions): ITerminalProfile | undefined {
 		const automationShell = this._configurationService.getValue(`terminal.integrated.automationShell.${this._getOsKey(options.os)}`);
-		if (!automationShell || typeof automationShell !== 'string') {
-			return undefined;
+		if (automationShell && typeof automationShell === 'string') {
+			return {
+				path: automationShell,
+				profileName: generatedProfileName,
+				isDefault: false,
+				icon: Codicon.tools
+			};
 		}
-		return {
-			path: automationShell,
-			profileName: generatedProfileName,
-			isDefault: false
-		};
+
+		// Use automationProfile second
+		const automationProfile = this._configurationService.getValue(`terminal.integrated.automationProfile.${this._getOsKey(options.os)}`);
+		if (this._isValidAutomationProfile(automationProfile, options.os)) {
+			automationProfile.icon = automationProfile.icon ?? Codicon.tools;
+			return automationProfile;
+		}
+
+		return undefined;
 	}
 
 	private async _resolveProfile(profile: ITerminalProfile, options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
@@ -429,6 +452,16 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			return detectedProfile.profileName;
 		}
 		return createdProfile;
+	}
+
+	private _isValidAutomationProfile(profile: unknown, os: OperatingSystem): profile is ITerminalProfile {
+		if (!profile === undefined || typeof profile !== 'object' || profile === null) {
+			return false;
+		}
+		if ('path' in profile && typeof (profile as { path: unknown }).path === 'string') {
+			return true;
+		}
+		return false;
 	}
 
 	async showProfileMigrationNotification(): Promise<void> {

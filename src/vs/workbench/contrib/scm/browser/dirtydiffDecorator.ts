@@ -50,6 +50,7 @@ import { EncodingMode, ITextFileEditorModel, IResolvedTextFileEditorModel, IText
 import { gotoNextLocation, gotoPreviousLocation } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { TextCompareEditorActiveContext } from 'vs/workbench/common/editor';
 
 class DiffActionRunner extends ActionRunner {
 
@@ -363,7 +364,7 @@ export class ShowPreviousChangeAction extends EditorAction {
 			id: 'editor.action.dirtydiff.previous',
 			label: nls.localize('show previous change', "Show Previous Change"),
 			alias: 'Show Previous Change',
-			precondition: undefined,
+			precondition: TextCompareEditorActiveContext.toNegated(),
 			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F3, weight: KeybindingWeight.EditorContrib }
 		});
 	}
@@ -397,7 +398,7 @@ export class ShowNextChangeAction extends EditorAction {
 			id: 'editor.action.dirtydiff.next',
 			label: nls.localize('show next change', "Show Next Change"),
 			alias: 'Show Next Change',
-			precondition: undefined,
+			precondition: TextCompareEditorActiveContext.toNegated(),
 			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Alt | KeyCode.F3, weight: KeybindingWeight.EditorContrib }
 		});
 	}
@@ -443,14 +444,14 @@ MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
 	order: 2
 });
 
-export class MoveToPreviousChangeAction extends EditorAction {
+export class GotoPreviousChangeAction extends EditorAction {
 
 	constructor() {
 		super({
 			id: 'workbench.action.editor.previousChange',
-			label: nls.localize('move to previous change', "Move to Previous Change"),
-			alias: 'Move to Previous Change',
-			precondition: undefined,
+			label: nls.localize('move to previous change', "Go to Previous Change"),
+			alias: 'Go to Previous Change',
+			precondition: TextCompareEditorActiveContext.toNegated(),
 			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F5, weight: KeybindingWeight.EditorContrib }
 		});
 	}
@@ -483,16 +484,16 @@ export class MoveToPreviousChangeAction extends EditorAction {
 		outerEditor.revealPositionInCenter(position);
 	}
 }
-registerEditorAction(MoveToPreviousChangeAction);
+registerEditorAction(GotoPreviousChangeAction);
 
-export class MoveToNextChangeAction extends EditorAction {
+export class GotoNextChangeAction extends EditorAction {
 
 	constructor() {
 		super({
 			id: 'workbench.action.editor.nextChange',
-			label: nls.localize('move to next change', "Move to Next Change"),
-			alias: 'Move to Next Change',
-			precondition: undefined,
+			label: nls.localize('move to next change', "Go to Next Change"),
+			alias: 'Go to Next Change',
+			precondition: TextCompareEditorActiveContext.toNegated(),
 			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Alt | KeyCode.F5, weight: KeybindingWeight.EditorContrib }
 		});
 	}
@@ -525,7 +526,7 @@ export class MoveToNextChangeAction extends EditorAction {
 		outerEditor.revealPositionInCenter(position);
 	}
 }
-registerEditorAction(MoveToNextChangeAction);
+registerEditorAction(GotoNextChangeAction);
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'closeDirtyDiff',

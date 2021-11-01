@@ -16,39 +16,18 @@ function validateMacAddress(candidate: string): boolean {
 	return !invalidMacAddresses.has(tempCandidate);
 }
 
-export function getMac(): Promise<string> {
-	// eslint-disable-next-line no-async-promise-executor
-	return new Promise(async (resolve, reject) => {
-		const timeout = setTimeout(() => reject('Unable to retrieve mac address (timeout after 10s)'), 10000);
-
-		try {
-			resolve(await doGetMac());
-		} catch (error) {
-			reject(error);
-		} finally {
-			clearTimeout(timeout);
-		}
-	});
-}
-
-function doGetMac(): Promise<string> {
-	return new Promise((resolve, reject) => {
-		try {
-			const ifaces = networkInterfaces();
-			for (let name in ifaces) {
-				const networkInterface = ifaces[name];
-				if (networkInterface) {
-					for (const { mac } of networkInterface) {
-						if (validateMacAddress(mac)) {
-							return resolve(mac);
-						}
-					}
+export function getMac(): string {
+	const ifaces = networkInterfaces();
+	for (let name in ifaces) {
+		const networkInterface = ifaces[name];
+		if (networkInterface) {
+			for (const { mac } of networkInterface) {
+				if (validateMacAddress(mac)) {
+					return mac;
 				}
 			}
-
-			reject('Unable to retrieve mac address (unexpected format)');
-		} catch (err) {
-			reject(err);
 		}
-	});
+	}
+
+	throw new Error('Unable to retrieve mac address (unexpected format)');
 }

@@ -530,16 +530,6 @@ export class FindMatch {
 }
 
 /**
- * @internal
- */
-export interface IFoundBracket {
-	range: Range;
-	open: string[];
-	close: string[];
-	isOpen: boolean;
-}
-
-/**
  * Describes the behavior of decorations when typing/editing near their edges.
  * Note: Please do not edit the values, as they very carefully match `DecorationRangeBehavior`
  */
@@ -967,46 +957,6 @@ export interface ITextModel {
 	 * @return The word under or besides `position`. Will never be null.
 	 */
 	getWordUntilPosition(position: IPosition): IWordAtPosition;
-
-	/**
-	 * Find the matching bracket of `request` up, counting brackets.
-	 * @param request The bracket we're searching for
-	 * @param position The position at which to start the search.
-	 * @return The range of the matching bracket, or null if the bracket match was not found.
-	 * @internal
-	 */
-	findMatchingBracketUp(bracket: string, position: IPosition): Range | null;
-
-	/**
-	 * Find the first bracket in the model before `position`.
-	 * @param position The position at which to start the search.
-	 * @return The info for the first bracket before `position`, or null if there are no more brackets before `positions`.
-	 * @internal
-	 */
-	findPrevBracket(position: IPosition): IFoundBracket | null;
-
-	/**
-	 * Find the first bracket in the model after `position`.
-	 * @param position The position at which to start the search.
-	 * @return The info for the first bracket after `position`, or null if there are no more brackets after `positions`.
-	 * @internal
-	 */
-	findNextBracket(position: IPosition): IFoundBracket | null;
-
-	/**
-	 * Find the enclosing brackets that contain `position`.
-	 * @param position The position at which to start the search.
-	 * @internal
-	 */
-	findEnclosingBrackets(position: IPosition, maxDuration?: number): [Range, Range] | null;
-
-	/**
-	 * Given a `position`, if the position is on top or near a bracket,
-	 * find the matching bracket of that bracket and return the ranges of both brackets.
-	 * @param position The position at which to look for a bracket.
-	 * @internal
-	 */
-	matchBracket(position: IPosition): [Range, Range] | null;
 
 	/**
 	 * @internal
