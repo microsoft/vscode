@@ -46,8 +46,8 @@ export interface IWatcherOptions {
 	 * If `true`, will enable polling for all watchers, otherwise
 	 * will enable it for paths included in the string array.
 	 *
-	 * @deprecated TODO@bpasero TODO@aeschli remove me once WSL1
-	 * support ends.
+	 * @deprecated this only exists for WSL1 support and should never
+	 * be used in any other case.
 	 */
 	usePolling: boolean | string[];
 
@@ -55,8 +55,8 @@ export interface IWatcherOptions {
 	 * If polling is enabled (via `usePolling`), defines the duration
 	 * in which the watcher will poll for changes.
 	 *
-	 * @deprecated TODO@bpasero TODO@aeschli remove me once WSL1
-	 * support ends.
+	 * @deprecated this only exists for WSL1 support and should never
+	 * be used in any other case.
 	 */
 	pollingInterval?: number;
 }
