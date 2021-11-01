@@ -264,27 +264,19 @@ export class EditorPanes extends Disposable {
 	}
 
 	private async doSetInput(editorPane: EditorPane, operation: IOperation, editor: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext): Promise<boolean> {
+		const forceReload = options?.forceReload;
+		const inputMatches = editorPane.input?.matches(editor);
 
 		// If the input did not change, return early and only apply the options
 		// unless the options instruct us to force open it even if it is the same
-		const forceReload = options?.forceReload;
-		const inputMatches = editorPane.input?.matches(editor);
 		if (inputMatches && !forceReload) {
-
-			// Forward options
 			editorPane.setOptions(options);
-
-			// Still focus as needed
-			const focus = !options || !options.preserveFocus;
-			if (focus) {
-				editorPane.focus();
-			}
-
-			return false;
 		}
 
-		// Call into editor pane
-		await editorPane.setInput(editor, options, context, operation.token);
+		// Otherwise set the input to the editor pane
+		else {
+			await editorPane.setInput(editor, options, context, operation.token);
+		}
 
 		return !inputMatches;
 	}
