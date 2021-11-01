@@ -597,7 +597,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const Terminal = await this._getXtermConstructor();
 
 		// TODO: Move cols/rows over to XtermTerminal
-		const xterm = this._instantiationService.createInstance(XtermTerminal, Terminal, this._configHelper);
+		const xterm = this._instantiationService.createInstance(XtermTerminal, Terminal, this._configHelper, this._cols, this._rows);
 		this.xterm = xterm;
 		this._xtermCore = (xterm as any)._core as IXtermCore;
 		const lineDataEventAddon = new LineDataEventAddon();

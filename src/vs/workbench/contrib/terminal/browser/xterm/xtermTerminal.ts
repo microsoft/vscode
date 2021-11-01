@@ -27,13 +27,6 @@ import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/termin
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
 
-export const enum XtermTerminalConstants {
-	DefaultCols = 80,
-	DefaultRows = 30,
-	MaxSupportedCols = 5000,
-	MaxCanvasWidth = 8000
-}
-
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
 const SLOW_CANVAS_RENDER_THRESHOLD = 50;
@@ -53,8 +46,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 	private _core: IXtermCore;
 	private static _suggestedRendererType: 'canvas' | 'dom' | undefined = undefined;
-	private _cols: number = 0;
-	private _rows: number = 0;
 	private _container?: HTMLElement;
 
 	private _searchAddon: SearchAddonType | undefined;
@@ -67,6 +58,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	constructor(
 		xtermCtor: typeof RawXtermTerminal,
 		private readonly _configHelper: TerminalConfigHelper,
+		cols: number,
+		rows: number,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -81,8 +74,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
 
 		this.raw = this.add(new xtermCtor({
-			cols: this._cols || XtermTerminalConstants.DefaultCols,
-			rows: this._rows || XtermTerminalConstants.DefaultRows,
+			cols,
+			rows,
 			altClickMovesCursor: config.altClickMovesCursor && editorOptions.multiCursorModifier === 'alt',
 			scrollback: config.scrollback,
 			theme: this._getXtermTheme(),
