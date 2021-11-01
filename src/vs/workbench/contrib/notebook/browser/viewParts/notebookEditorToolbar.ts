@@ -25,7 +25,7 @@ import { NotebooKernelActionViewItem } from 'vs/workbench/contrib/notebook/brows
 import { ActionViewWithLabel } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
 import { GlobalToolbarShowLabel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ITASExperimentService } from 'vs/workbench/services/experiment/common/assignmentService';
+import { ITASExperimentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 
 interface IActionModel {

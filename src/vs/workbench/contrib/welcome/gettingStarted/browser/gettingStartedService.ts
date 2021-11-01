@@ -19,7 +19,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { DefaultIconPath, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { walkthroughs } from 'vs/workbench/contrib/welcome/gettingStarted/common/gettingStartedContent';
-import { ITASExperimentService } from 'vs/workbench/services/experiment/common/assignmentService';
+import { ITASExperimentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILink, LinkedText, parseLinkedText } from 'vs/base/common/linkedText';

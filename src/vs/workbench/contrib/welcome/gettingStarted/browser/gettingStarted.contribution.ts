@@ -25,7 +25,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { EditorResolution } from 'vs/platform/editor/common/editor';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { ITASExperimentService } from 'vs/workbench/services/experiment/common/assignmentService';
+import { ITASExperimentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { isLinux, isMacintosh, isWindows, OperatingSystem as OS } from 'vs/base/common/platform';
