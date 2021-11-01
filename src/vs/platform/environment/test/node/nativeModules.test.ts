@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isWindows } from 'vs/base/common/platform';
 
 function testErrorMessage(module: string): string {
 	return `Unable to load "${module}" dependency. It was probably not compiled for the right operating system architecture or had missing build tools.`;
@@ -50,17 +50,6 @@ suite('Native Modules (all platforms)', () => {
 	test('sqlite3', async () => {
 		const sqlite3 = await import('@vscode/sqlite3');
 		assert.ok(typeof sqlite3.Database === 'function', testErrorMessage('@vscode/sqlite3'));
-	});
-});
-
-(!isMacintosh ? suite.skip : suite)('Native Modules (macOS)', () => {
-
-	test('chokidar (fsevents)', async () => {
-		const chokidar = await import('chokidar');
-		const watcher = chokidar.watch(__dirname);
-		assert.ok(watcher.options.useFsEvents, testErrorMessage('chokidar (fsevents)'));
-
-		return watcher.close();
 	});
 });
 
