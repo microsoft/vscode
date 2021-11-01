@@ -91,6 +91,17 @@ suite('SnippetsService', function () {
 		});
 	});
 
+	test('snippet completions - simple 2', function () {
+
+		const provider = new SnippetCompletionProvider(modeService, snippetService);
+		const model = disposables.add(createTextModel('hello ', undefined, 'fooLang'));
+
+		return provider.provideCompletionItems(model, new Position(1, 6), context)!.then(result => {
+			assert.strictEqual(result.incomplete, undefined);
+			assert.strictEqual(result.suggestions.length, 2);
+		});
+	});
+
 	test('snippet completions - with prefix', function () {
 
 		const provider = new SnippetCompletionProvider(modeService, snippetService);
