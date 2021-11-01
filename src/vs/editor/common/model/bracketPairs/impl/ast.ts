@@ -65,8 +65,7 @@ abstract class BaseAstNode {
 	 * @param openBracketIds The set of all opening brackets that have not yet been closed.
 	 */
 	public abstract canBeReused(
-		openBracketIds: SmallImmutableSet<OpeningBracketId>,
-		endLineDidChange: boolean
+		openBracketIds: SmallImmutableSet<OpeningBracketId>
 	): boolean;
 
 	/**
@@ -146,10 +145,7 @@ export class PairAstNode extends BaseAstNode {
 		super(length);
 	}
 
-	public canBeReused(
-		openBracketIds: SmallImmutableSet<OpeningBracketId>,
-		_endLineDidChange: boolean
-	) {
+	public canBeReused(openBracketIds: SmallImmutableSet<OpeningBracketId>) {
 		if (this.closingBracket === null) {
 			// Unclosed pair ast nodes only
 			// end at the end of the document
@@ -293,10 +289,7 @@ export abstract class ListAstNode extends BaseAstNode {
 		return mutable;
 	}
 
-	public canBeReused(
-		openBracketIds: SmallImmutableSet<OpeningBracketId>,
-		endLineDidChange: boolean
-	): boolean {
+	public canBeReused(openBracketIds: SmallImmutableSet<OpeningBracketId>): boolean {
 		if (openBracketIds.intersects(this.missingOpeningBracketIds)) {
 			return false;
 		}
@@ -307,10 +300,7 @@ export abstract class ListAstNode extends BaseAstNode {
 			lastChild = lastChild.getChild(lastLength! - 1) as ListAstNode;
 		}
 
-		return lastChild.canBeReused(
-			openBracketIds,
-			endLineDidChange
-		);
+		return lastChild.canBeReused(openBracketIds);
 	}
 
 	public handleChildrenChanged(): void {
@@ -605,13 +595,8 @@ export class TextAstNode extends ImmutableLeafAstNode {
 		return SmallImmutableSet.getEmpty();
 	}
 
-	public canBeReused(
-		_openedBracketIds: SmallImmutableSet<OpeningBracketId>,
-		endLineDidChange: boolean
-	) {
-		// Don't reuse text from a line that got changed.
-		// Otherwise, long brackets might not be detected.
-		return !endLineDidChange;
+	public canBeReused(_openedBracketIds: SmallImmutableSet<OpeningBracketId>) {
+		return true;
 	}
 
 	public computeMinIndentation(offset: Length, textModel: ITextModel): number {
@@ -665,10 +650,7 @@ export class BracketAstNode extends ImmutableLeafAstNode {
 		super(length);
 	}
 
-	public canBeReused(
-		_openedBracketIds: SmallImmutableSet<OpeningBracketId>,
-		_endLineDidChange: boolean
-	) {
+	public canBeReused(_openedBracketIds: SmallImmutableSet<OpeningBracketId>) {
 		// These nodes could be reused,
 		// but not in a general way.
 		// Their parent may be reused.
@@ -692,10 +674,7 @@ export class InvalidBracketAstNode extends ImmutableLeafAstNode {
 		this.missingOpeningBracketIds = closingBrackets;
 	}
 
-	public canBeReused(
-		openedBracketIds: SmallImmutableSet<OpeningBracketId>,
-		_endLineDidChange: boolean
-	) {
+	public canBeReused(openedBracketIds: SmallImmutableSet<OpeningBracketId>) {
 		return !openedBracketIds.intersects(this.missingOpeningBracketIds);
 	}
 

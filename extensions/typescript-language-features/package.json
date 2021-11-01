@@ -1110,6 +1110,18 @@
           "default": "allOpenProjects",
           "markdownDescription": "%typescript.workspaceSymbols.scope%",
           "scope": "window"
+        },
+        "javascript.suggest.includeCompletionsWithClassMemberSnippets": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.includeCompletionsWithClassMemberSnippets%",
+          "scope": "resource"
+        },
+        "typescript.suggest.includeCompletionsWithClassMemberSnippets": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.includeCompletionsWithClassMemberSnippets%",
+          "scope": "resource"
         }
       }
     },

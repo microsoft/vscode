@@ -70,6 +70,12 @@ flakySuite('Recursive Watcher (parcel)', () => {
 			}
 		});
 
+		service.onDidError(e => {
+			if (loggingEnabled) {
+				console.log(`[recursive watcher test error] ${e}`);
+			}
+		});
+
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'filewatcher');
 
 		const sourceDir = getPathFromAmdModule(require, './fixtures/service');

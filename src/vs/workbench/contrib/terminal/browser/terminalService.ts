@@ -293,7 +293,11 @@ export class TerminalService implements ITerminalService {
 			if (instanceToDetach) {
 				const persistentProcessId = instanceToDetach?.persistentProcessId;
 				if (persistentProcessId && !instanceToDetach.shellLaunchConfig.isFeatureTerminal && !instanceToDetach.shellLaunchConfig.customPtyImplementation) {
-					this._terminalEditorService.detachInstance(instanceToDetach);
+					if (instanceToDetach.target === TerminalLocation.Editor) {
+						this._terminalEditorService.detachInstance(instanceToDetach);
+					} else {
+						this._terminalGroupService.getGroupForInstance(instanceToDetach)?.removeInstance(instanceToDetach);
+					}
 					await instanceToDetach.detachFromProcess();
 					await this._primaryOffProcessTerminalService?.acceptDetachInstanceReply(e.requestId, persistentProcessId);
 				} else {
@@ -431,7 +435,7 @@ export class TerminalService implements ITerminalService {
 							}
 						} else {
 							// add split terminals to this group
-							await this.createTerminal({ config: { attachPersistentProcess: terminalLayout.terminal! }, location: { parentTerminal: terminalInstance } });
+							terminalInstance = await this.createTerminal({ config: { attachPersistentProcess: terminalLayout.terminal! }, location: { parentTerminal: terminalInstance } });
 						}
 					}
 					const activeInstance = this.instances.find(t => {
@@ -1367,10 +1371,6 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private _getSplitParent(location?: ITerminalLocationOptions): ITerminalInstance | undefined {
-		if (this._connectionState === TerminalConnectionState.Connecting && this.activeInstance) {
-			const group = this._terminalGroupService.getGroupForInstance(this.activeInstance);
-			return group?.terminalInstances[group.terminalInstances.length - 1];
-		}
 		if (location && typeof location === 'object' && 'parentTerminal' in location) {
 			return location.parentTerminal;
 		} else if (location && typeof location === 'object' && 'splitActiveTerminal' in location) {

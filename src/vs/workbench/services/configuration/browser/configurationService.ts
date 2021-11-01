@@ -558,8 +558,13 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	}
 
 	private async initializeConfiguration(): Promise<void> {
+		mark('code/willInitUserConfiguration');
 		const { local, remote } = await this.initializeUserConfiguration();
+		mark('code/didInitUserConfiguration');
+
+		mark('code/willInitWorkspaceConfiguration');
 		await this.loadConfiguration(local, remote);
+		mark('code/didInitWorkspaceConfiguration');
 	}
 
 	private async initializeUserConfiguration(): Promise<{ local: ConfigurationModel, remote: ConfigurationModel }> {

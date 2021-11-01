@@ -606,7 +606,7 @@ export class MimeTypeDisplayOrder {
 		initialValue: readonly string[] = [],
 		private readonly defaultOrder = NOTEBOOK_DISPLAY_ORDER,
 	) {
-		this.order = initialValue.map(pattern => ({
+		this.order = [...new Set(initialValue)].map(pattern => ({
 			pattern,
 			matches: glob.parse(normalizeSlashes(pattern))
 		}));
@@ -652,11 +652,13 @@ export class MimeTypeDisplayOrder {
 
 		// Get the other mimetypes that are before the chosenMimetype. Then, move
 		// them after it, retaining order.
-		const otherIndices = otherMimetypes.map(m => this.findIndex(m, chosenIndex)).filter(i => i !== -1);
+		const uniqueIndicies = new Set(otherMimetypes.map(m => this.findIndex(m, chosenIndex)));
+		uniqueIndicies.delete(-1);
+		const otherIndices = Array.from(uniqueIndicies).sort();
 		this.order.splice(chosenIndex + 1, 0, ...otherIndices.map(i => this.order[i]));
 
-		for (const i of otherIndices.sort()) {
-			this.order.splice(i, 1);
+		for (let oi = otherIndices.length - 1; oi >= 0; oi--) {
+			this.order.splice(otherIndices[oi], 1);
 		}
 	}
 

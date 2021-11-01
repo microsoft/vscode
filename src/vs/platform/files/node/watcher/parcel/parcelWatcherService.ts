@@ -56,8 +56,6 @@ export interface IWatcher extends IDisposable {
 
 export class ParcelWatcherService extends Disposable implements IWatcherService {
 
-	private static readonly MAX_RESTARTS = 5; // number of restarts we allow before giving up in case of unexpected errors
-
 	private static readonly MAP_PARCEL_WATCHER_ACTION_TO_FILE_CHANGE = new Map<parcelWatcher.EventType, number>(
 		[
 			['create', FileChangeType.ADDED],
@@ -85,6 +83,9 @@ export class ParcelWatcherService extends Disposable implements IWatcherService 
 
 	private readonly _onDidLogMessage = this._register(new Emitter<ILogMessage>());
 	readonly onDidLogMessage = this._onDidLogMessage.event;
+
+	private readonly _onDidError = this._register(new Emitter<string>());
+	readonly onDidError = this._onDidError.event;
 
 	protected readonly watchers = new Map<string, IWatcher>();
 
@@ -350,8 +351,12 @@ export class ParcelWatcherService extends Disposable implements IWatcherService 
 				return; // return early when disposed
 			}
 
+			// In any case of an error, treat this like a unhandled exception
+			// that might require the watcher to restart. We do not really know
+			// the state of parcel at this point and as such will try to restart
+			// up to our maximum of restarts.
 			if (error) {
-				this.error(`Unexpected error in event callback: ${toErrorMessage(error)}`, watcher);
+				this.onUnexpectedError(error, watcher);
 			}
 
 			// Handle & emit events
@@ -538,17 +543,9 @@ export class ParcelWatcherService extends Disposable implements IWatcherService 
 		// restart the watcher as a result to get into healthy
 		// state again if possible and if not attempted too much
 		else {
-			if (watcher && watcher.restarts < ParcelWatcherService.MAX_RESTARTS) {
-				if (existsSync(watcher.request.path)) {
-					this.warn(`Watcher will be restarted due to unexpected error: ${error}`, watcher);
+			this.error(`Unexpected error: ${msg} (EUNKNOWN)`, watcher);
 
-					this.restartWatching(watcher);
-				} else {
-					this.error(`Unexpected error: ${msg} (EUNKNOWN: path ${watcher.request.path} no longer exists)`, watcher);
-				}
-			} else {
-				this.error(`Unexpected error: ${msg} (EUNKNOWN)`, watcher);
-			}
+			this._onDidError.fire(msg);
 		}
 	}
 

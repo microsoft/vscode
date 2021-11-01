@@ -2732,17 +2732,17 @@ registerThemingParticipant((theme, collector) => {
 	}
 	`);
 
-
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
 		collector.addRule(`.notebookOverlay .cell.markdown a,
-			.notebookOverlay .output-show-more-container a
+			.notebookOverlay .output-show-more-container a,
+			.notebookOverlay div.output-show-more a
 			{ color: ${link};} `);
-
 	}
 	const activeLink = theme.getColor(textLinkActiveForeground);
 	if (activeLink) {
-		collector.addRule(`.notebookOverlay .output-show-more-container a:active
+		collector.addRule(`.notebookOverlay .output-show-more-container a:active,
+		.notebookOverlay .output-show-more a:active
 			{ color: ${activeLink}; }`);
 	}
 	const shortcut = theme.getColor(textPreformatForeground);

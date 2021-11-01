@@ -1136,6 +1136,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.state.zenMode.wasAuxiliaryBarPartVisible = this.isVisible(Parts.AUXILIARYBAR_PART);
 
 			this.setPanelHidden(true, true);
+			this.setAuxiliaryBarHidden(true, true);
 			this.setSideBarHidden(true, true);
 
 			if (config.hideActivityBar) {
@@ -1176,6 +1177,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		else {
 			if (this.state.zenMode.wasPanelVisible) {
 				this.setPanelHidden(false, true);
+			}
+
+			if (this.state.zenMode.wasAuxiliaryBarPartVisible) {
+				this.setAuxiliaryBarHidden(false, true);
 			}
 
 			if (this.state.zenMode.wasSideBarVisible) {
@@ -1307,6 +1312,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				: grid.getViewSize(this.sideBarPartView).width;
 
 			this.storageService.store(Storage.SIDEBAR_SIZE, sideBarSize, StorageScope.GLOBAL, StorageTarget.MACHINE);
+
+			const auxiliaryBarSize = this.state.auxiliaryBar.hidden
+				? grid.getViewCachedVisibleSize(this.auxiliaryBarPartView)
+				: grid.getViewSize(this.auxiliaryBarPartView).width;
+
+			this.storageService.store(Storage.AUXILIARYBAR_SIZE, auxiliaryBarSize, StorageScope.GLOBAL, StorageTarget.MACHINE);
 
 			const panelSize = this.state.panel.hidden
 				? grid.getViewCachedVisibleSize(this.panelPartView)
@@ -1678,7 +1689,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private setAuxiliaryBarHidden(hidden: boolean, skipLayout?: boolean): void {
-		if (!this.configurationService.getValue(Settings.AUXILIARYBAR_ENABLED)) {
+		if (!this.configurationService || !this.configurationService.getValue(Settings.AUXILIARYBAR_ENABLED)) {
 			return;
 		}
 

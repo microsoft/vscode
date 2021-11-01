@@ -420,7 +420,15 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 
 		_fireDidHide() {
 			if (this._expectingHide) {
-				this._expectingHide = false;
+				// if this._visible is true, it means that .show() was called between
+				// .hide() and .onDidHide. To ensure the correct number of onDidHide events
+				// are emitted, we set this._expectingHide to this value so that
+				// the next time .hide() is called, we can emit the event again.
+				// Example:
+				// .show() -> .hide() -> .show() -> .hide() should emit 2 onDidHide events.
+				// .show() -> .hide() -> .hide() should emit 1 onDidHide event.
+				// Fixes #135747
+				this._expectingHide = this._visible;
 				this._onDidHideEmitter.fire();
 			}
 		}

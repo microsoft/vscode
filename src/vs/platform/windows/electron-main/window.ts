@@ -6,6 +6,7 @@
 import { app, BrowserWindow, BrowserWindowConstructorOptions, Display, Event, nativeImage, NativeImage, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl, WebFrameMain } from 'electron';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -687,7 +688,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					_: [] // we pass in the workspace to open explicitly via `urisToOpen`
 				},
 				urisToOpen: workspace ? [workspace] : undefined,
-				forceEmpty
+				forceEmpty,
+				forceNewWindow: true
 			});
 			window.focus();
 		}
@@ -1318,7 +1320,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				return;
 			}
 
-			this._win.webContents.send(channel, ...args);
+			try {
+				this._win.webContents.send(channel, ...args);
+			} catch (error) {
+				this.logService.warn(`Error sending IPC message to channel '${channel}' of window ${this._id}: ${toErrorMessage(error)}`);
+			}
 		}
 	}
 

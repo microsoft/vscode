@@ -20,6 +20,32 @@ export interface ISharedProcessWorkerProcess {
 	type: string;
 }
 
+export interface IOnDidTerminateSharedProcessWorkerProcess {
+
+	/**
+	 * More information around how the shared process worker
+	 * process terminated. Will be `undefined` in case the
+	 * worker process was terminated normally via APIs
+	 * and will be defined in case the worker process
+	 * terminated on its own, either unexpectedly or
+	 * because it finished.
+	 */
+	reason?: ISharedProcessWorkerProcessExit;
+}
+
+export interface ISharedProcessWorkerProcessExit {
+
+	/**
+	 * The shared process worker process exit code if known.
+	 */
+	code?: number;
+
+	/**
+	 * The shared process worker process exit signal if known.
+	 */
+	signal?: string;
+}
+
 export interface ISharedProcessWorkerConfiguration {
 
 	/**
@@ -77,8 +103,12 @@ export interface ISharedProcessWorkerService {
 	 * the same process from one window. The intent of these workers is to be reused per
 	 * window and the communication channel allows to dynamically update the processes
 	 * after the fact.
+	 *
+	 * @returns a promise that resolves then the worker terminated. Provides more details
+	 * about the termination that can be used to figure out if the termination was unexpected
+	 * or not and whether the worker needs to be restarted.
 	 */
-	createWorker(configuration: ISharedProcessWorkerConfiguration): Promise<void>;
+	createWorker(configuration: ISharedProcessWorkerConfiguration): Promise<IOnDidTerminateSharedProcessWorkerProcess>;
 
 	/**
 	 * Terminates the process for the provided configuration if any.

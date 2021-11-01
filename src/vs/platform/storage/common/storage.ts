@@ -6,6 +6,7 @@
 import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
 import { Disposable, dispose, MutableDisposable } from 'vs/base/common/lifecycle';
+import { mark } from 'vs/base/common/performance';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { InMemoryStorageDatabase, IStorage, Storage } from 'vs/base/parts/storage/common/storage';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -271,8 +272,14 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		if (!this.initializationPromise) {
 			this.initializationPromise = (async () => {
 
-				// Ask subclasses to initialize storage
-				await this.doInitialize();
+				// Init all storage locations
+				mark('code/willInitStorage');
+				try {
+					// Ask subclasses to initialize storage
+					await this.doInitialize();
+				} finally {
+					mark('code/didInitStorage');
+				}
 
 				// On some OS we do not get enough time to persist state on shutdown (e.g. when
 				// Windows restarts after applying updates). In other cases, VSCode might crash,
