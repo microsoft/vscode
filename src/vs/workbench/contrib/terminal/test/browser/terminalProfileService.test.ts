@@ -10,8 +10,6 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TerminalProfileService } from 'vs/workbench/contrib/terminal/browser/terminalProfileService';
 import { TestRemoteAgentService } from 'vs/workbench/services/remote/test/common/testServices';
-import { TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { IExtensionTerminalProfile, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
 import { strictEqual } from 'assert';
@@ -75,10 +73,10 @@ suite('TerminalProfileService', () => {
 		let localTerminalService = new TestLocalTerminalService();
 		let remoteTerminalService = new TestRemoteTerminalService();
 		let contextKeyService = new MockContextKeyService();
-		let environmentService = instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 
 		let configHelper = instantiationService.createInstance(TerminalConfigHelper, configurationService);
-		terminalProfileService = instantiationService.createInstance(TestTerminalProfileService, contextKeyService, configurationService, terminalContributionService, extensionService, remoteAgentService, configHelper, environmentService, remoteTerminalService, localTerminalService);
+		// terminalProfileService = instantiationService.createInstance(TestTerminalProfileService);
+		terminalProfileService = new TestTerminalProfileService(contextKeyService, configurationService, terminalContributionService, extensionService, remoteAgentService, configHelper, remoteTerminalService as IRemoteTerminalService, localTerminalService as ILocalTerminalService);
 	});
 
 	test('should provide updated profiles when config changes', () => {
