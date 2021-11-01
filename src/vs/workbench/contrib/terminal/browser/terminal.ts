@@ -571,12 +571,6 @@ export interface ITerminalInstance {
 	 */
 	disableLayout: boolean;
 
-	/**
-	 * An object that tracks when commands are run and enables navigating and selecting between
-	 * them.
-	 */
-	readonly commandTracker: ICommandTracker | undefined;
-
 	readonly navigationMode: INavigationMode | undefined;
 
 	description: string | undefined;
@@ -776,6 +770,12 @@ export interface ITerminalInstance {
 }
 
 export interface IXtermTerminal {
+	/**
+	 * An object that tracks when commands are run and enables navigating and selecting between
+	 * them.
+	 */
+	readonly commandTracker: ICommandTracker;
+
 	/**
 	 * Find the next instance of the term
 	*/

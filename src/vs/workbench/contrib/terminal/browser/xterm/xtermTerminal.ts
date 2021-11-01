@@ -16,7 +16,7 @@ import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeServic
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ICommandTracker, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { Color } from 'vs/base/common/color';
 import { isSafari } from 'vs/base/browser/browser';
@@ -25,6 +25,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
+import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandTrackerAddon';
 import { localize } from 'vs/nls';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
@@ -48,8 +49,14 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	private static _suggestedRendererType: 'canvas' | 'dom' | undefined = undefined;
 	private _container?: HTMLElement;
 
-	private _searchAddon: SearchAddonType | undefined;
+	// Always on addons
+	private _commandTrackerAddon: CommandTrackerAddon;
+
+	// Lazily loaded addons
+	private _searchAddon?: SearchAddonType;
 	private _webglAddon?: WebglAddonType;
+
+	get commandTracker(): ICommandTracker { return this._commandTrackerAddon; }
 
 	/**
 	 * @param xtermCtor The xterm.js constructor, this is passed in so it can be fetched lazily
@@ -116,6 +123,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 				this._updateTheme();
 			}
 		}));
+
+		this._commandTrackerAddon = new CommandTrackerAddon();
+		this.raw.loadAddon(this._commandTrackerAddon);
 
 		this._getSearchAddonConstructor().then(addonCtor => {
 			this._searchAddon = new addonCtor();

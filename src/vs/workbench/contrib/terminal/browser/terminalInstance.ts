@@ -31,7 +31,6 @@ import { ITerminalInstanceService, ITerminalInstance, ITerminalExternalLinkProvi
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from 'xterm';
 import type { Unicode11Addon } from 'xterm-addon-unicode11';
-import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandTrackerAddon';
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/xterm/navigationModeAddon';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
@@ -149,7 +148,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _widgetManager: TerminalWidgetManager = this._instantiationService.createInstance(TerminalWidgetManager);
 	private _linkManager: TerminalLinkManager | undefined;
 	private _environmentInfo: { widget: EnvironmentVariableInfoWidget, disposable: IDisposable } | undefined;
-	private _commandTrackerAddon: CommandTrackerAddon | undefined;
 	private _navigationModeAddon: INavigationMode & ITerminalAddon | undefined;
 	private _dndObserver: IDisposable | undefined;
 
@@ -220,7 +218,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get isTitleSetByProcess(): boolean { return !!this._messageTitleDisposable; }
 	get shellLaunchConfig(): IShellLaunchConfig { return this._shellLaunchConfig; }
 	get shellType(): TerminalShellType { return this._shellType; }
-	get commandTracker(): CommandTrackerAddon | undefined { return this._commandTrackerAddon; }
 	get navigationMode(): INavigationMode | undefined { return this._navigationModeAddon; }
 	get isDisconnected(): boolean { return this._processManager.isDisconnected; }
 	get isRemote(): boolean { return this._processManager.remoteAuthority !== undefined; }
@@ -661,9 +658,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._onLinksReady.fire(this);
 		});
 
-		this._commandTrackerAddon = new CommandTrackerAddon();
-		xterm.raw.loadAddon(this._commandTrackerAddon);
-
 		this._xtermTypeAhead = this._register(this._instantiationService.createInstance(TypeAheadAddon, this._processManager, this._configHelper));
 		xterm.raw.loadAddon(this._xtermTypeAhead);
 		this._pathService.userHome().then(userHome => {
@@ -930,8 +924,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._logService.trace(`terminalInstance#dispose (instanceId: ${this.instanceId})`);
 		dispose(this._linkManager);
 		this._linkManager = undefined;
-		dispose(this._commandTrackerAddon);
-		this._commandTrackerAddon = undefined;
 		dispose(this._widgetManager);
 
 		if (this.xterm?.raw.element) {
