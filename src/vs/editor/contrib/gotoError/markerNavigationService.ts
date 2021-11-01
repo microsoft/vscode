@@ -15,6 +15,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IMarker, IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class MarkerCoordinate {
 	constructor(
@@ -38,12 +39,24 @@ export class MarkerList {
 	constructor(
 		resourceFilter: URI | ((uri: URI) => boolean) | undefined,
 		@IMarkerService private readonly _markerService: IMarkerService,
+		@IConfigurationService private readonly _configService: IConfigurationService,
 	) {
 		if (URI.isUri(resourceFilter)) {
 			this._resourceFilter = uri => uri.toString() === resourceFilter.toString();
 		} else if (resourceFilter) {
 			this._resourceFilter = resourceFilter;
 		}
+
+		const compareOrder = this._configService.getValue<string>('problems.compareOrder');
+		const compareMarker = (a: IMarker, b: IMarker): number => {
+			let res = compare(a.resource.toString(), b.resource.toString());
+			if (compareOrder === 'position') {
+				res = Range.compareRangesUsingStarts(a, b) || MarkerSeverity.compare(a.severity, b.severity);
+			} else {
+				res = MarkerSeverity.compare(a.severity, b.severity) || Range.compareRangesUsingStarts(a, b);
+			}
+			return res;
+		};
 
 		const updateMarker = () => {
 			this._markers = this._markerService.read({
@@ -53,7 +66,7 @@ export class MarkerList {
 			if (typeof resourceFilter === 'function') {
 				this._markers = this._markers.filter(m => this._resourceFilter!(m.resource));
 			}
-			this._markers.sort(MarkerList._compareMarker);
+			this._markers.sort(compareMarker);
 		};
 
 		updateMarker();
@@ -164,17 +177,6 @@ export class MarkerList {
 		}
 		return undefined;
 	}
-
-	private static _compareMarker(a: IMarker, b: IMarker): number {
-		let res = compare(a.resource.toString(), b.resource.toString());
-		if (res === 0) {
-			res = MarkerSeverity.compare(a.severity, b.severity);
-		}
-		if (res === 0) {
-			res = Range.compareRangesUsingStarts(a, b);
-		}
-		return res;
-	}
 }
 
 export const IMarkerNavigationService = createDecorator<IMarkerNavigationService>('IMarkerNavigationService');
@@ -195,7 +197,10 @@ class MarkerNavigationService implements IMarkerNavigationService, IMarkerListPr
 
 	private readonly _provider = new LinkedList<IMarkerListProvider>();
 
-	constructor(@IMarkerService private readonly _markerService: IMarkerService) { }
+	constructor(
+		@IMarkerService private readonly _markerService: IMarkerService,
+		@IConfigurationService private readonly _configService: IConfigurationService,
+	) { }
 
 	registerProvider(provider: IMarkerListProvider): IDisposable {
 		const remove = this._provider.unshift(provider);
@@ -210,7 +215,7 @@ class MarkerNavigationService implements IMarkerNavigationService, IMarkerListPr
 			}
 		}
 		// default
-		return new MarkerList(resource, this._markerService);
+		return new MarkerList(resource, this._markerService, this._configService);
 	}
 }
 
