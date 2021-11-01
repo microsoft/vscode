@@ -642,6 +642,7 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 		if (result) {
 			return result;
 		}
+		// eslint-disable-next-line no-async-promise-executor
 		const createdResult: Promise<TaskExecutionImpl> = new Promise(async (resolve, reject) => {
 			const taskToCreate = task ? task : await TaskDTO.to(execution.task, this._workspaceProvider, this._providedCustomExecutions2);
 			if (!taskToCreate) {

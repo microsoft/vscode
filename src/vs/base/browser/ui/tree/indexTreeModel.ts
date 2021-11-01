@@ -633,6 +633,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 
 		if (node !== this.root) {
 			node.visible = visibility! === TreeVisibility.Recurse ? hasVisibleDescendants : (visibility! === TreeVisibility.Visible);
+			node.visibility = visibility!;
 		}
 
 		if (!node.visible) {

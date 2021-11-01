@@ -46,17 +46,22 @@ suite.skip('Notebook Editor', function () {
 
 	test('showNotebookDocment', async function () {
 
-		const p = utils.asPromise(vscode.workspace.onDidOpenNotebookDocument);
+		const notebookDocumentsFromOnDidOpen = new Set<vscode.NotebookDocument>();
+		const sub = vscode.workspace.onDidOpenNotebookDocument(e => {
+			notebookDocumentsFromOnDidOpen.add(e);
+		});
+
 		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 
 		const editor = await vscode.window.showNotebookDocument(uri);
 		assert.strictEqual(uri.toString(), editor.document.uri.toString());
 
-		const event = await p;
-		assert.strictEqual(event.uri.toString(), uri.toString());
+		assert.strictEqual(notebookDocumentsFromOnDidOpen.has(editor.document), true);
 
 		const includes = vscode.workspace.notebookDocuments.includes(editor.document);
 		assert.strictEqual(true, includes);
+
+		sub.dispose();
 	});
 
 	// TODO@rebornix deal with getting started

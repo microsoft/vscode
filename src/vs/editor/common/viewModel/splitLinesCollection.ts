@@ -8,14 +8,13 @@ import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
 import { IViewLineTokens, LineTokens } from 'vs/editor/common/core/lineTokens';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecoration, IModelDeltaDecoration, IndentGuide, ITextModel, PositionAffinity } from 'vs/editor/common/model';
-import { ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
+import { BracketGuideOptions, EndOfLinePreference, IActiveIndentGuideInfo, IModelDecoration, IModelDeltaDecoration, IndentGuide, IndentGuideHorizontalLine, ITextModel, PositionAffinity } from 'vs/editor/common/model';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { PrefixSumIndexOfResult } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { ICoordinatesConverter, InjectedText, ILineBreaksComputer, IOverviewRulerDecorations, LineBreakData, SingleLineInlineDecoration, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
+import { ICoordinatesConverter, InjectedText, ILineBreaksComputer, LineBreakData, SingleLineInlineDecoration, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { EditorTheme } from 'vs/editor/common/view/viewContext';
 import { LineInjectedText } from 'vs/editor/common/model/textModelEvents';
 
 export interface ILineBreaksComputerFactory {
@@ -70,7 +69,7 @@ export interface IViewModelLinesCollection extends IDisposable {
 	getViewLineCount(): number;
 	getActiveIndentGuide(viewLineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo;
 	getViewLinesIndentGuides(viewStartLineNumber: number, viewEndLineNumber: number): number[];
-	getViewLinesBracketGuides(startLineNumber: number, endLineNumber: number, activePosition: IPosition | null, highlightActiveGuides: boolean, includeNonActiveGuides: boolean): IndentGuide[][];
+	getViewLinesBracketGuides(startLineNumber: number, endLineNumber: number, activePosition: IPosition | null, options: BracketGuideOptions): IndentGuide[][];
 	getViewLineContent(viewLineNumber: number): string;
 	getViewLineLength(viewLineNumber: number): number;
 	getViewLineMinColumn(viewLineNumber: number): number;
@@ -78,7 +77,6 @@ export interface IViewModelLinesCollection extends IDisposable {
 	getViewLineData(viewLineNumber: number): ViewLineData;
 	getViewLinesData(viewStartLineNumber: number, viewEndLineNumber: number, needed: boolean[]): Array<ViewLineData | null>;
 
-	getAllOverviewRulerDecorations(ownerId: number, filterOutValidation: boolean, theme: EditorTheme): IOverviewRulerDecorations;
 	getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean): IModelDecoration[];
 
 	getInjectedTextAt(viewPosition: Position): InjectedText | null;
@@ -133,6 +131,10 @@ export class CoordinatesConverter implements ICoordinatesConverter {
 
 	public getModelLineViewLineCount(modelLineNumber: number): number {
 		return this._lines.getModelLineViewLineCount(modelLineNumber);
+	}
+
+	public getViewLineNumberOfModelPosition(modelLineNumber: number, modelColumn: number): number {
+		return this._lines.getViewLineNumberOfModelPosition(modelLineNumber, modelColumn);
 	}
 }
 
@@ -737,7 +739,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 
 	// #endregion
 
-	public getViewLinesBracketGuides(viewStartLineNumber: number, viewEndLineNumber: number, activeViewPosition: IPosition | null, highlightActiveGuides: boolean, includeNonActiveGuides: boolean): IndentGuide[][] {
+	public getViewLinesBracketGuides(viewStartLineNumber: number, viewEndLineNumber: number, activeViewPosition: IPosition | null, options: BracketGuideOptions): IndentGuide[][] {
 		const modelActivePosition = activeViewPosition ? this.convertViewPositionToModelPosition(activeViewPosition.lineNumber, activeViewPosition.column) : null;
 		const resultPerViewLine: IndentGuide[][] = [];
 
@@ -748,8 +750,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 				modelRangeStartLineNumber,
 				group.modelRange.endLineNumber,
 				modelActivePosition,
-				highlightActiveGuides,
-				includeNonActiveGuides
+				options
 			);
 
 			for (const viewLineInfo of group.viewLines) {
@@ -757,7 +758,16 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 					// Don't add indent guides when the wrapped line continuation has no wrapping-indentation.
 					resultPerViewLine.push([]);
 				} else {
-					const bracketGuides = bracketGuidesPerModelLine[viewLineInfo.modelLineNumber - modelRangeStartLineNumber];
+					let bracketGuides = bracketGuidesPerModelLine[viewLineInfo.modelLineNumber - modelRangeStartLineNumber];
+
+					// visibleColumns stay as they are (this is a bug and needs to be fixed, but it is not a regression)
+					// model-columns must be converted to view-model columns.
+					bracketGuides = bracketGuides.map(g => g.horizontalLine ?
+						new IndentGuide(g.visibleColumn, g.className,
+							new IndentGuideHorizontalLine(g.horizontalLine.top,
+								this.convertModelPositionToViewPosition(viewLineInfo.modelLineNumber, g.horizontalLine.endColumn).column
+							)
+						) : g);
 					resultPerViewLine.push(bracketGuides);
 				}
 			}
@@ -1017,7 +1027,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		}
 	}
 
-	private _getViewLineNumberForModelPosition(inputLineNumber: number, inputColumn: number): number {
+	public getViewLineNumberOfModelPosition(inputLineNumber: number, inputColumn: number): number {
 		let lineIndex = inputLineNumber - 1;
 		if (this.lines[lineIndex].isVisible()) {
 			// this model line is visible
@@ -1035,24 +1045,6 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		}
 		const deltaLineNumber = 1 + (lineIndex === 0 ? 0 : this.prefixSumComputer.getAccumulatedValue(lineIndex - 1));
 		return this.lines[lineIndex].getViewLineNumberOfModelPosition(deltaLineNumber, this.model.getLineMaxColumn(lineIndex + 1));
-	}
-
-	public getAllOverviewRulerDecorations(ownerId: number, filterOutValidation: boolean, theme: EditorTheme): IOverviewRulerDecorations {
-		const decorations = this.model.getOverviewRulerDecorations(ownerId, filterOutValidation);
-		const result = new OverviewRulerDecorations();
-		for (const decoration of decorations) {
-			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
-			const lane = opts ? opts.position : 0;
-			if (lane === 0) {
-				continue;
-			}
-			const color = opts.getColor(theme);
-			const viewStartLineNumber = this._getViewLineNumberForModelPosition(decoration.range.startLineNumber, decoration.range.startColumn);
-			const viewEndLineNumber = this._getViewLineNumberForModelPosition(decoration.range.endLineNumber, decoration.range.endColumn);
-
-			result.accept(color, viewStartLineNumber, viewEndLineNumber, lane);
-		}
-		return result.result;
 	}
 
 	public getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean): IModelDecoration[] {
@@ -1702,6 +1694,10 @@ export class IdentityCoordinatesConverter implements ICoordinatesConverter {
 	public getModelLineViewLineCount(modelLineNumber: number): number {
 		return 1;
 	}
+
+	public getViewLineNumberOfModelPosition(modelLineNumber: number, modelColumn: number): number {
+		return modelLineNumber;
+	}
 }
 
 export class IdentityLinesCollection implements IViewModelLinesCollection {
@@ -1837,24 +1833,6 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 		return result;
 	}
 
-	public getAllOverviewRulerDecorations(ownerId: number, filterOutValidation: boolean, theme: EditorTheme): IOverviewRulerDecorations {
-		const decorations = this.model.getOverviewRulerDecorations(ownerId, filterOutValidation);
-		const result = new OverviewRulerDecorations();
-		for (const decoration of decorations) {
-			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
-			const lane = opts ? opts.position : 0;
-			if (lane === 0) {
-				continue;
-			}
-			const color = opts.getColor(theme);
-			const viewStartLineNumber = decoration.range.startLineNumber;
-			const viewEndLineNumber = decoration.range.endLineNumber;
-
-			result.accept(color, viewStartLineNumber, viewEndLineNumber, lane);
-		}
-		return result.result;
-	}
-
 	public getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean): IModelDecoration[] {
 		return this.model.getDecorationsInRange(range, ownerId, filterOutValidation);
 	}
@@ -1870,31 +1848,5 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 	public getInjectedTextAt(position: Position): InjectedText | null {
 		// Identity lines collection does not support injected text.
 		return null;
-	}
-}
-
-class OverviewRulerDecorations {
-
-	readonly result: IOverviewRulerDecorations = Object.create(null);
-
-	public accept(color: string, startLineNumber: number, endLineNumber: number, lane: number): void {
-		let prev = this.result[color];
-
-		if (prev) {
-			const prevLane = prev[prev.length - 3];
-			const prevEndLineNumber = prev[prev.length - 1];
-			if (prevLane === lane && prevEndLineNumber + 1 >= startLineNumber) {
-				// merge into prev
-				if (endLineNumber > prevEndLineNumber) {
-					prev[prev.length - 1] = endLineNumber;
-				}
-				return;
-			}
-
-			// push
-			prev.push(lane, startLineNumber, endLineNumber);
-		} else {
-			this.result[color] = [lane, startLineNumber, endLineNumber];
-		}
 	}
 }

@@ -132,24 +132,25 @@ export class DiffNavigator extends Disposable implements IDiffNavigator {
 					});
 
 				} else {
-					this.ranges.push({
-						rhs: true,
-						range: new Range(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedStartLineNumber, 1)
-					});
+					if (lineChange.modifiedEndLineNumber === 0) {
+						// a deletion
+						this.ranges.push({
+							rhs: true,
+							range: new Range(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedStartLineNumber + 1, 1)
+						});
+					} else {
+						// an insertion or modification
+						this.ranges.push({
+							rhs: true,
+							range: new Range(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedEndLineNumber + 1, 1)
+						});
+					}
 				}
 			});
 		}
 
 		// sort
-		this.ranges.sort((left, right) => {
-			if (left.range.getStartPosition().isBeforeOrEqual(right.range.getStartPosition())) {
-				return -1;
-			} else if (right.range.getStartPosition().isBeforeOrEqual(left.range.getStartPosition())) {
-				return 1;
-			} else {
-				return 0;
-			}
-		});
+		this.ranges.sort((left, right) => Range.compareRangesUsingStarts(left.range, right.range));
 		this._onDidUpdate.fire(this);
 	}
 
@@ -203,7 +204,7 @@ export class DiffNavigator extends Disposable implements IDiffNavigator {
 		try {
 			let pos = info.range.getStartPosition();
 			this._editor.setPosition(pos);
-			this._editor.revealPositionInCenter(pos, scrollType);
+			this._editor.revealRangeInCenter(info.range, scrollType);
 		} finally {
 			this.ignoreSelectionChange = false;
 		}

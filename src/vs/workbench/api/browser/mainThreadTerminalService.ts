@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensions, TerminalLocation, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { IProcessProperty, IShellLaunchConfig, IShellLaunchConfigDto, ProcessPropertyType, TerminalLocation, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalLink, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
@@ -21,6 +21,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { TerminalEditorLocationOptions } from 'vscode';
+import { Promises } from 'vs/base/common/async';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -140,7 +141,9 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			isExtensionOwnedTerminal: launchConfig.isExtensionOwnedTerminal,
 			useShellEnvironment: launchConfig.useShellEnvironment,
 		};
-		const terminal = new Promise<ITerminalInstance>(async r => {
+		// eslint-disable-next-line no-async-promise-executor
+
+		const terminal = Promises.withAsyncBody<ITerminalInstance>(async r => {
 			const terminal = await this._terminalService.createTerminal({
 				config: shellLaunchConfig,
 				location: await this._deserializeParentTerminal(launchConfig.location)
@@ -186,6 +189,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	public async $sendText(id: ExtHostTerminalIdentifier, text: string, addNewLine: boolean): Promise<void> {
 		const instance = await this._getTerminalInstance(id);
 		await instance?.sendText(text, addNewLine);
+	}
+
+	public $sendProcessExit(terminalId: number, exitCode: number | undefined): void {
+		this._terminalProcessProxies.get(terminalId)?.emitExit(exitCode);
 	}
 
 	public $startSendingDataEvents(): void {
@@ -300,18 +307,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		proxy.onRequestLatency(() => this._onRequestLatency(proxy.instanceId));
 	}
 
-	public $sendProcessTitle(terminalId: number, title: string): void {
-		// Since title events can only come from vscode.Pseudoterminals right now, these are routed
-		// directly to the instance as API source events such that they will replace the initial
-		// `name` property provided for the Pseudoterminal. If we support showing both Api and
-		// Process titles at the same time we may want to pass this through as a Process source
-		// event.
-		const instance = this._terminalService.getInstanceFromId(terminalId);
-		if (instance) {
-			instance.refreshTabLabels(title, TitleEventSource.Api);
-		}
-	}
-
 	public $sendProcessData(terminalId: number, data: string): void {
 		this._terminalProcessProxies.get(terminalId)?.emitData(data);
 	}
@@ -320,24 +315,14 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._terminalProcessProxies.get(terminalId)?.emitReady(pid, cwd);
 	}
 
-	public $sendProcessExit(terminalId: number, exitCode: number | undefined): void {
-		this._terminalProcessProxies.get(terminalId)?.emitExit(exitCode);
-	}
-
-	public $sendOverrideDimensions(terminalId: number, dimensions: ITerminalDimensions | undefined): void {
-		this._terminalProcessProxies.get(terminalId)?.emitOverrideDimensions(dimensions);
-	}
-
-	public $sendProcessInitialCwd(terminalId: number, initialCwd: string): void {
-		this._terminalProcessProxies.get(terminalId)?.emitInitialCwd(initialCwd);
-	}
-
-	public $sendProcessCwd(terminalId: number, cwd: string): void {
-		this._terminalProcessProxies.get(terminalId)?.emitCwd(cwd);
-	}
-
-	public $sendResolvedLaunchConfig(terminalId: number, shellLaunchConfig: IShellLaunchConfig): void {
-		this._getTerminalProcess(terminalId)?.emitResolvedShellLaunchConfig(shellLaunchConfig);
+	public $sendProcessProperty(terminalId: number, property: IProcessProperty<any>): void {
+		if (property.type === ProcessPropertyType.Title) {
+			const instance = this._terminalService.getInstanceFromId(terminalId);
+			if (instance) {
+				instance.refreshTabLabels(property.value, TitleEventSource.Api);
+			}
+		}
+		this._terminalProcessProxies.get(terminalId)?.emitProcessProperty(property);
 	}
 
 	private async _onRequestLatency(terminalId: number): Promise<void> {

@@ -165,25 +165,25 @@ export const TAB_ACTIVE_MODIFIED_BORDER = registerColor('tab.activeModifiedBorde
 	dark: '#3399CC',
 	light: '#33AAEE',
 	hc: null
-}, localize('tabActiveModifiedBorder', "Border on the top of modified (dirty) active tabs in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+}, localize('tabActiveModifiedBorder', "Border on the top of modified active tabs in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 export const TAB_INACTIVE_MODIFIED_BORDER = registerColor('tab.inactiveModifiedBorder', {
 	dark: transparent(TAB_ACTIVE_MODIFIED_BORDER, 0.5),
 	light: transparent(TAB_ACTIVE_MODIFIED_BORDER, 0.5),
 	hc: Color.white
-}, localize('tabInactiveModifiedBorder', "Border on the top of modified (dirty) inactive tabs in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+}, localize('tabInactiveModifiedBorder', "Border on the top of modified inactive tabs in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 export const TAB_UNFOCUSED_ACTIVE_MODIFIED_BORDER = registerColor('tab.unfocusedActiveModifiedBorder', {
 	dark: transparent(TAB_ACTIVE_MODIFIED_BORDER, 0.5),
 	light: transparent(TAB_ACTIVE_MODIFIED_BORDER, 0.7),
 	hc: Color.white
-}, localize('unfocusedActiveModifiedBorder', "Border on the top of modified (dirty) active tabs in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+}, localize('unfocusedActiveModifiedBorder', "Border on the top of modified active tabs in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 export const TAB_UNFOCUSED_INACTIVE_MODIFIED_BORDER = registerColor('tab.unfocusedInactiveModifiedBorder', {
 	dark: transparent(TAB_INACTIVE_MODIFIED_BORDER, 0.5),
 	light: transparent(TAB_INACTIVE_MODIFIED_BORDER, 0.5),
 	hc: Color.white
-}, localize('unfocusedINactiveModifiedBorder', "Border on the top of modified (dirty) inactive tabs in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+}, localize('unfocusedINactiveModifiedBorder', "Border on the top of modified inactive tabs in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 //#endregion
 
@@ -243,11 +243,17 @@ export const EDITOR_DRAG_AND_DROP_BACKGROUND = registerColor('editorGroup.dropBa
 	hc: null
 }, localize('editorDragAndDropBackground', "Background color when dragging editors around. The color should have transparency so that the editor contents can still shine through."));
 
-export const SIDE_BY_SIDE_EDITOR_BORDER = registerColor('sideBySideEditor.border', {
+export const SIDE_BY_SIDE_EDITOR_HORIZONTAL_BORDER = registerColor('sideBySideEditor.horizontalBorder', {
 	dark: EDITOR_GROUP_BORDER,
 	light: EDITOR_GROUP_BORDER,
 	hc: EDITOR_GROUP_BORDER
-}, localize('sideBySideEditor.border', "Color to separate two editors from each other when shown side by side in an editor group."));
+}, localize('sideBySideEditor.horizontalBorder', "Color to separate two editors from each other when shown side by side in an editor group from top to bottom."));
+
+export const SIDE_BY_SIDE_EDITOR_VERTICAL_BORDER = registerColor('sideBySideEditor.verticalBorder', {
+	dark: EDITOR_GROUP_BORDER,
+	light: EDITOR_GROUP_BORDER,
+	hc: EDITOR_GROUP_BORDER
+}, localize('sideBySideEditor.verticalBorder', "Color to separate two editors from each other when shown side by side in an editor group from left to right."));
 
 // < --- Panels --- >
 
@@ -328,7 +334,7 @@ export const PANEL_SECTION_BORDER = registerColor('panelSection.border', {
 
 export const BANNER_BACKGROUND = registerColor('banner.background', {
 	dark: listActiveSelectionBackground,
-	light: listActiveSelectionBackground,
+	light: darken(listActiveSelectionBackground, 0.3),
 	hc: listActiveSelectionBackground
 }, localize('banner.background', "Banner background color. The banner is shown under the title bar of the window."));
 

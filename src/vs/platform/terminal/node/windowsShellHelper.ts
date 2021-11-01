@@ -120,7 +120,7 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 	/**
 	 * Returns the innermost shell executable running in the terminal
 	 */
-	getShellName(): Promise<string> {
+	async getShellName(): Promise<string> {
 		if (this._isDisposed) {
 			return Promise.resolve('');
 		}
@@ -128,10 +128,10 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 		if (this._currentRequest) {
 			return this._currentRequest;
 		}
-		this._currentRequest = new Promise<string>(async resolve => {
-			if (!windowsProcessTree) {
-				windowsProcessTree = await import('windows-process-tree');
-			}
+		if (!windowsProcessTree) {
+			windowsProcessTree = await import('windows-process-tree');
+		}
+		this._currentRequest = new Promise<string>(resolve => {
 			windowsProcessTree.getProcessTree(this._rootProcessId, (tree) => {
 				const name = this.traverseTree(tree);
 				this._currentRequest = undefined;

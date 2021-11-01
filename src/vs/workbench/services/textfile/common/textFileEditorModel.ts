@@ -977,7 +977,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	override getMode(): string | undefined;
 	override getMode(): string | undefined {
 		if (this.textEditorModel) {
-			return this.textEditorModel.getModeId();
+			return this.textEditorModel.getLanguageId();
 		}
 
 		return this.preferredMode;

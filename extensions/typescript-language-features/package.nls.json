@@ -183,5 +183,6 @@
 	"codeActions.refactor.rewrite.property.generateAccessors.title": "Generate accessors",
 	"codeActions.refactor.rewrite.property.generateAccessors.description": "Generate 'get' and 'set' accessors",
 	"codeActions.source.organizeImports.title": "Organize imports",
-	"typescript.findAllFileReferences": "Find File References"
+	"typescript.findAllFileReferences": "Find File References",
+	"configuration.suggest.includeCompletionsWithClassMemberSnippets": "Enable/disable snippet completions for class members. Requires using TypeScript 4.5+ in the workspace"
 }

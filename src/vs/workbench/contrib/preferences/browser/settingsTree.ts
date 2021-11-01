@@ -868,6 +868,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		} else {
 			template.deprecationWarningElement.innerText = deprecationText;
 		}
+		template.deprecationWarningElement.prepend($('.codicon.codicon-error'));
 		template.containerElement.classList.toggle('is-deprecated', !!deprecationText);
 
 		this.renderValue(element, <ISettingItemTemplate>template, onChange);
@@ -1620,6 +1621,8 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 			createdDefault = true;
 		}
 
+		// Use String constructor in case of null or undefined values
+		const stringifiedDefaultValue = escapeInvisibleChars(String(dataElement.defaultValue));
 		const displayOptions = settingEnum
 			.map(String)
 			.map(escapeInvisibleChars)
@@ -1636,7 +1639,7 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 						},
 						disposables: disposables
 					},
-					decoratorRight: (data === dataElement.defaultValue || createdDefault && index === 0 ? localize('settings.Default', "default") : '')
+					decoratorRight: (((data === stringifiedDefaultValue) || (createdDefault && index === 0)) ? localize('settings.Default', "default") : '')
 				};
 			});
 

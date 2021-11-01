@@ -108,6 +108,8 @@ export interface ICommonNativeHostService {
 	getOSStatistics(): Promise<IOSStatistics>;
 	getOSVirtualMachineHint(): Promise<number>;
 
+	getOSColorScheme(): Promise<IColorScheme>;
+
 	// Process
 	killProcess(pid: number, code: string): Promise<void>;
 

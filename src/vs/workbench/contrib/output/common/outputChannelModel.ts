@@ -8,7 +8,7 @@ import * as resources from 'vs/base/common/resources';
 import { ITextModel } from 'vs/editor/common/model';
 import { Emitter, Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { RunOnceScheduler, ThrottledDelayer } from 'vs/base/common/async';
+import { Promises, RunOnceScheduler, ThrottledDelayer } from 'vs/base/common/async';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -222,7 +222,7 @@ class FileOutputChannelModel extends AbstractFileOutputChannelModel implements I
 	}
 
 	loadModel(): Promise<ITextModel> {
-		this.loadModelPromise = new Promise<ITextModel>(async (c, e) => {
+		this.loadModelPromise = Promises.withAsyncBody<ITextModel>(async (c, e) => {
 			try {
 				let content = '';
 				if (await this.fileService.exists(this.file)) {

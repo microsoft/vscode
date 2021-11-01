@@ -72,10 +72,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		// Color Scheme changes
 		nativeTheme.on('updated', () => {
-			this._onDidChangeColorScheme.fire({
-				highContrast: nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors,
-				dark: nativeTheme.shouldUseDarkColors
-			});
+			this._onDidChangeColorScheme.fire(this.osColorScheme);
 		});
 	}
 
@@ -596,6 +593,18 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return virtualMachineHint.value();
 	}
 
+	private get osColorScheme(): IColorScheme {
+		return {
+			highContrast: nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors,
+			dark: nativeTheme.shouldUseDarkColors
+		};
+	}
+
+	public async getOSColorScheme(): Promise<IColorScheme> {
+		return this.osColorScheme;
+	}
+
+
 	//#endregion
 
 
@@ -644,7 +653,13 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region macOS Touchbar
 
 	async newWindowTab(): Promise<void> {
-		this.windowsMainService.open({ context: OpenContext.API, cli: this.environmentMainService.args, forceNewTabbedWindow: true, forceEmpty: true, remoteAuthority: this.environmentMainService.args.remote || undefined });
+		this.windowsMainService.open({
+			context: OpenContext.API,
+			cli: this.environmentMainService.args,
+			forceNewTabbedWindow: true,
+			forceEmpty: true,
+			remoteAuthority: this.environmentMainService.args.remote || undefined
+		});
 	}
 
 	async showPreviousWindowTab(): Promise<void> {

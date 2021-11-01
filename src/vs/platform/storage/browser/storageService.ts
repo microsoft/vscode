@@ -233,28 +233,67 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 	}
 
 	private connect(): Promise<IDBDatabase> {
+		return this.doConnect(true /* retry once on error */);
+	}
+
+	private doConnect(retryOnError: boolean): Promise<IDBDatabase> {
 		return new Promise<IDBDatabase>((resolve, reject) => {
 			const request = window.indexedDB.open(this.name);
 
-			// Create `ItemTable` object-store when this DB is new
+			// Create `ItemTable` object-store in case this DB is new
 			request.onupgradeneeded = () => {
 				request.result.createObjectStore(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE);
 			};
 
 			// IndexedDB opened successfully
-			request.onsuccess = () => resolve(request.result);
+			request.onsuccess = () => {
+				const db = request.result;
+
+				// It is still possible though that the object store
+				// we expect is not there (seen in Safari). As such,
+				// we validate the store is there and otherwise attempt
+				// once to re-create.
+				if (!db.objectStoreNames.contains(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE)) {
+					this.logService.error(`[IndexedDB Storage ${this.name}] onsuccess(): ${IndexedDBStorageDatabase.STORAGE_OBJECT_STORE} does not exist.`);
+
+					if (retryOnError) {
+						this.logService.info(`[IndexedDB Storage ${this.name}] onsuccess(): Attempting to recreate the DB once.`);
+
+						// Close any opened connections
+						db.close();
+
+						// Try to delete the db
+						const deleteRequest = window.indexedDB.deleteDatabase(this.name);
+						deleteRequest.onsuccess = () => this.doConnect(false /* do not retry anymore from here */).then(resolve, reject);
+						deleteRequest.onerror = () => {
+							this.logService.error(`[IndexedDB Storage ${this.name}] deleteDatabase(): ${deleteRequest.error}`);
+
+							reject(deleteRequest.error);
+						};
+
+						return;
+					}
+				}
+
+				return resolve(db);
+			};
 
 			// Fail on error (we will then fallback to in-memory DB)
-			request.onerror = () => reject(request.error);
+			request.onerror = () => {
+				this.logService.error(`[IndexedDB Storage ${this.name}] onerror(): ${request.error}`);
+
+				reject(request.error);
+			};
 		});
 	}
 
-	getItems(): Promise<Map<string, string>> {
-		return new Promise<Map<string, string>>(async resolve => {
+	async getItems(): Promise<Map<string, string>> {
+		const db = await this.whenConnected;
+
+		return new Promise<Map<string, string>>(resolve => {
 			const items = new Map<string, string>();
 
 			// Open a IndexedDB Cursor to iterate over key/values
-			const db = await this.whenConnected;
 			const transaction = db.transaction(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE, 'readonly');
 			const objectStore = transaction.objectStore(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE);
 			const cursor = objectStore.openCursor();
@@ -323,9 +362,8 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 		}
 
 		// Update `ItemTable` with inserts and/or deletes
-		return new Promise<boolean>(async (resolve, reject) => {
-			const db = await this.whenConnected;
-
+		const db = await this.whenConnected;
+		return new Promise<boolean>((resolve, reject) => {
 			const transaction = db.transaction(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE, 'readwrite');
 			transaction.oncomplete = () => resolve(true);
 			transaction.onerror = () => reject(transaction.error);
@@ -358,10 +396,10 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 		return db.close();
 	}
 
-	clear(): Promise<void> {
-		return new Promise<void>(async (resolve, reject) => {
-			const db = await this.whenConnected;
+	async clear(): Promise<void> {
+		const db = await this.whenConnected;
 
+		return new Promise<void>((resolve, reject) => {
 			const transaction = db.transaction(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE, 'readwrite');
 			transaction.oncomplete = () => resolve();
 			transaction.onerror = () => reject(transaction.error);

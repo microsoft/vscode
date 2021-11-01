@@ -15,6 +15,7 @@ import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/v
 import { ViewContext, EditorTheme } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { OverviewRulerDecorationsGroup } from 'vs/editor/common/viewModel/viewModel';
 
 class Settings {
 
@@ -340,24 +341,22 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 		const x = this._settings.x;
 		const w = this._settings.w;
-		// Avoid flickering by always rendering the colors in the same order
-		// colors that don't use transparency will be sorted last (they start with #)
-		const colors = Object.keys(decorations);
-		colors.sort();
-		for (let cIndex = 0, cLen = colors.length; cIndex < cLen; cIndex++) {
-			const color = colors[cIndex];
 
-			const colorDecorations = decorations[color];
+		decorations.sort(OverviewRulerDecorationsGroup.cmp);
+
+		for (const decorationGroup of decorations) {
+			const color = decorationGroup.color;
+			const decorationGroupData = decorationGroup.data;
 
 			canvasCtx.fillStyle = color;
 
 			let prevLane = 0;
 			let prevY1 = 0;
 			let prevY2 = 0;
-			for (let i = 0, len = colorDecorations.length; i < len; i++) {
-				const lane = colorDecorations[3 * i];
-				const startLineNumber = colorDecorations[3 * i + 1];
-				const endLineNumber = colorDecorations[3 * i + 2];
+			for (let i = 0, len = decorationGroupData.length / 3; i < len; i++) {
+				const lane = decorationGroupData[3 * i];
+				const startLineNumber = decorationGroupData[3 * i + 1];
+				const endLineNumber = decorationGroupData[3 * i + 2];
 
 				let y1 = (viewLayout.getVerticalOffsetForLineNumber(startLineNumber) * heightRatio) | 0;
 				let y2 = ((viewLayout.getVerticalOffsetForLineNumber(endLineNumber) + lineHeight) * heightRatio) | 0;

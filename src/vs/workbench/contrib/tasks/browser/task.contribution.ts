@@ -360,7 +360,7 @@ KeybindingsRegistry.registerKeybindingRule({
 	id: 'workbench.action.tasks.build',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: undefined,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_B
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyB
 });
 
 // Tasks Output channel. Register it before using it in Task Service.

@@ -8,40 +8,43 @@ import { IRange } from 'vs/editor/common/core/range';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import { ICommand, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
 import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { createTestCodeEditor2, createTestCodeEditorServices } from 'vs/editor/test/browser/testCodeEditor';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export function testCommand(
 	lines: string[],
-	languageIdentifier: LanguageIdentifier | null,
+	languageId: string | null,
 	selection: Selection,
 	commandFactory: (selection: Selection) => ICommand,
 	expectedLines: string[],
 	expectedSelection: Selection,
-	forceTokenization?: boolean
+	forceTokenization?: boolean,
+	prepare?: (accessor: ServicesAccessor, disposables: DisposableStore) => void
 ): void {
-	let model = createTextModel(lines.join('\n'), undefined, languageIdentifier);
-	withTestCodeEditor('', { model: model }, (_editor, cursor) => {
-		if (!cursor) {
-			return;
-		}
+	const [instantiationService, disposables] = createTestCodeEditorServices();
+	if (prepare) {
+		instantiationService.invokeFunction(prepare, disposables);
+	}
+	const model = disposables.add(instantiationService.createInstance(TextModel, lines.join('\n'), TextModel.DEFAULT_CREATION_OPTIONS, languageId, null));
+	const editor = disposables.add(createTestCodeEditor2(instantiationService, model, {}));
+	const viewModel = editor.getViewModel()!;
 
-		if (forceTokenization) {
-			model.forceTokenization(model.getLineCount());
-		}
+	if (forceTokenization) {
+		model.forceTokenization(model.getLineCount());
+	}
 
-		cursor.setSelections('tests', [selection]);
+	viewModel.setSelections('tests', [selection]);
 
-		cursor.executeCommand(commandFactory(cursor.getSelection()), 'tests');
+	viewModel.executeCommand(commandFactory(viewModel.getSelection()), 'tests');
 
-		assert.deepStrictEqual(model.getLinesContent(), expectedLines);
+	assert.deepStrictEqual(model.getLinesContent(), expectedLines);
 
-		let actualSelection = cursor.getSelection();
-		assert.deepStrictEqual(actualSelection.toString(), expectedSelection.toString());
+	const actualSelection = viewModel.getSelection();
+	assert.deepStrictEqual(actualSelection.toString(), expectedSelection.toString());
 
-	});
-	model.dispose();
+	disposables.dispose();
 }
 
 /**

@@ -113,7 +113,7 @@ class UpdatableHoverWidget implements IDisposable {
 		}
 
 		if (isMarkdownString(content)) {
-			return !content.value;
+			return !!content.value;
 		}
 
 		return true;

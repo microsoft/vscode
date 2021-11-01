@@ -86,8 +86,8 @@ export class WorkspaceWatcher extends Disposable {
 			);
 		}
 
-		// Detect when the watcher shutsdown unexpectedly
-		else if (msg.indexOf('ESHUTDOWN') >= 0) {
+		// Detect when the watcher throws an error unexpectedly
+		else if (msg.indexOf('EUNKNOWN') >= 0) {
 			this.notificationService.prompt(
 				Severity.Warning,
 				localize('eshutdownError', "File changes watcher stopped unexpectedly. Please reload the window to enable the watcher again."),

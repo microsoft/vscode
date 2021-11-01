@@ -216,7 +216,7 @@ const newCommands: ApiCommand[] = [
 	),
 	new ApiCommand(
 		'vscode.provideDocumentRangeSemanticTokensLegend', '_provideDocumentRangeSemanticTokensLegend', 'Provide semantic tokens legend for a document range',
-		[ApiCommandArgument.Uri],
+		[ApiCommandArgument.Uri, ApiCommandArgument.Range.optional()],
 		new ApiCommandResult<modes.SemanticTokensLegend, types.SemanticTokensLegend | undefined>('A promise that resolves to SemanticTokensLegend.', value => {
 			if (!value) {
 				return undefined;

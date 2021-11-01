@@ -41,7 +41,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		documentsAndEditors.$acceptDocumentsAndEditorsDelta({
 			addedDocuments: [{
 				isDirty: false,
-				modeId: 'foo',
+				languageId: 'foo',
 				uri: resource,
 				versionId: 1,
 				lines: ['foo'],
@@ -159,32 +159,30 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		assert.strictEqual(callCount, 2);
 	});
 
-	test('event delivery, overall timeout', () => {
+	test('event delivery, overall timeout', async function () {
 		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadBulkEdits, { timeout: 20, errors: 5 });
 
-		let callCount = 0;
+		// let callCount = 0;
+		let calls: number[] = [];
 		let sub1 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
-			callCount += 1;
-			event.waitUntil(timeout(1));
+			calls.push(1);
 		});
 
 		let sub2 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
-			callCount += 1;
-			event.waitUntil(timeout(170));
+			calls.push(2);
+			event.waitUntil(timeout(100));
 		});
 
 		let sub3 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
-			callCount += 1;
+			calls.push(3);
 		});
 
-		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(values => {
-			sub1.dispose();
-			sub2.dispose();
-			sub3.dispose();
-
-			assert.strictEqual(callCount, 2);
-			assert.strictEqual(values.length, 2);
-		});
+		const values = await participant.$participateInSave(resource, SaveReason.EXPLICIT);
+		sub1.dispose();
+		sub2.dispose();
+		sub3.dispose();
+		assert.deepStrictEqual(calls, [1, 2]);
+		assert.strictEqual(values.length, 2);
 	});
 
 	test('event delivery, waitUntil', () => {

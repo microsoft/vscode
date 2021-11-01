@@ -15,19 +15,29 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { CellKind, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 
 
 suite('Notebook Outline', function () {
 
-	const instantiationService = setupInstantiationService();
-	instantiationService.set(IEditorService, new class extends mock<IEditorService>() { });
-	instantiationService.set(IMarkerService, new MarkerService());
-	instantiationService.set(IThemeService, new class extends mock<IThemeService>() {
-		override onDidFileIconThemeChange = Event.None;
-		override getFileIconTheme(): IFileIconTheme {
-			return { hasFileIcons: true, hasFolderIcons: true, hidesExplorerArrows: false };
-		}
+	let disposables: DisposableStore;
+	let instantiationService: TestInstantiationService;
+
+	suiteSetup(() => {
+		disposables = new DisposableStore();
+		instantiationService = setupInstantiationService(disposables);
+		instantiationService.set(IEditorService, new class extends mock<IEditorService>() { });
+		instantiationService.set(IMarkerService, new MarkerService());
+		instantiationService.set(IThemeService, new class extends mock<IThemeService>() {
+			override onDidFileIconThemeChange = Event.None;
+			override getFileIconTheme(): IFileIconTheme {
+				return { hasFileIcons: true, hasFolderIcons: true, hidesExplorerArrows: false };
+			}
+		});
 	});
+
+	suiteTeardown(() => disposables.dispose());
 
 	function withNotebookOutline<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (outline: NotebookCellOutline, editor: IActiveNotebookEditor) => R): Promise<R> {
 		return withTestNotebook(cells, (editor) => {

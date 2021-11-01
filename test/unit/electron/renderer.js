@@ -109,6 +109,12 @@ function createCoverageReport(opts) {
 	return Promise.resolve(undefined);
 }
 
+function loadWorkbenchTestingModule() {
+	return new Promise((resolve, reject) => {
+		loader.require(['vs/workbench/test/electron-browser/testing'], resolve, reject);
+	})
+}
+
 function loadTestModules(opts) {
 
 	if (opts.run) {
@@ -166,20 +172,34 @@ function loadTests(opts) {
 		});
 	});
 
-	return loadTestModules(opts).then(() => {
-		suite('Unexpected Errors & Loader Errors', function () {
-			test('should not have unexpected errors', function () {
-				const errors = _unexpectedErrors.concat(_loaderErrors);
-				if (errors.length) {
-					errors.forEach(function (stack) {
-						console.error('');
-						console.error(stack);
-					});
-					assert.ok(false, errors);
-				}
+	return loadWorkbenchTestingModule().then((workbenchTestingModule) => {
+		const assertCleanState = workbenchTestingModule.assertCleanState;
+
+		suite('Tests are using suiteSetup and setup correctly', () => {
+			test('assertCleanState - check that registries are clean at the start of test running', () => {
+				assertCleanState();
 			});
 		});
-	});
+
+		return loadTestModules(opts).then(() => {
+			suite('Unexpected Errors & Loader Errors', function () {
+				test('should not have unexpected errors', function () {
+					const errors = _unexpectedErrors.concat(_loaderErrors);
+					if (errors.length) {
+						errors.forEach(function (stack) {
+							console.error('');
+							console.error(stack);
+						});
+						assert.ok(false, errors);
+					}
+				});
+
+				test('assertCleanState - check that registries are clean and objects are disposed at the end of test running', () => {
+					assertCleanState();
+				});
+			});
+		});
+	})
 }
 
 function serializeSuite(suite) {

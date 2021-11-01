@@ -1090,7 +1090,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				// To properly reset line numbers we need to read the configuration for each editor respecting it's uri.
 				if (!lineNumbers && isCodeEditor(editor) && editor.hasModel()) {
 					const model = editor.getModel();
-					lineNumbers = this.configurationService.getValue('editor.lineNumbers', { resource: model.uri, overrideIdentifier: model.getModeId() });
+					lineNumbers = this.configurationService.getValue('editor.lineNumbers', { resource: model.uri, overrideIdentifier: model.getLanguageId() });
 				}
 				if (!lineNumbers) {
 					lineNumbers = this.configurationService.getValue('editor.lineNumbers');
@@ -1136,6 +1136,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.state.zenMode.wasAuxiliaryBarPartVisible = this.isVisible(Parts.AUXILIARYBAR_PART);
 
 			this.setPanelHidden(true, true);
+			this.setAuxiliaryBarHidden(true, true);
 			this.setSideBarHidden(true, true);
 
 			if (config.hideActivityBar) {
@@ -1176,6 +1177,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		else {
 			if (this.state.zenMode.wasPanelVisible) {
 				this.setPanelHidden(false, true);
+			}
+
+			if (this.state.zenMode.wasAuxiliaryBarPartVisible) {
+				this.setAuxiliaryBarHidden(false, true);
 			}
 
 			if (this.state.zenMode.wasSideBarVisible) {
@@ -1307,6 +1312,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				: grid.getViewSize(this.sideBarPartView).width;
 
 			this.storageService.store(Storage.SIDEBAR_SIZE, sideBarSize, StorageScope.GLOBAL, StorageTarget.MACHINE);
+
+			const auxiliaryBarSize = this.state.auxiliaryBar.hidden
+				? grid.getViewCachedVisibleSize(this.auxiliaryBarPartView)
+				: grid.getViewSize(this.auxiliaryBarPartView).width;
+
+			this.storageService.store(Storage.AUXILIARYBAR_SIZE, auxiliaryBarSize, StorageScope.GLOBAL, StorageTarget.MACHINE);
 
 			const panelSize = this.state.panel.hidden
 				? grid.getViewCachedVisibleSize(this.panelPartView)
@@ -1618,7 +1629,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.workbenchGrid.setViewVisible(this.panelPartView, !hidden);
 		// If in process of showing, toggle whether or not panel is maximized
 		if (!hidden) {
-			if (isPanelMaximized !== panelOpensMaximized) {
+			if (!skipLayout && isPanelMaximized !== panelOpensMaximized) {
 				this.toggleMaximizedPanel();
 			}
 		}
@@ -1678,7 +1689,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private setAuxiliaryBarHidden(hidden: boolean, skipLayout?: boolean): void {
-		if (!this.configurationService.getValue(Settings.AUXILIARYBAR_ENABLED)) {
+		if (!this.configurationService || !this.configurationService.getValue(Settings.AUXILIARYBAR_ENABLED)) {
 			return;
 		}
 

@@ -26,19 +26,22 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
+import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
 
 export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<DiffElementViewModelBase> {
-	// private readonly lineHeight: number;
+	private readonly lineHeight: number;
 
 	constructor(
 		@IConfigurationService readonly configurationService: IConfigurationService
 	) {
-		// const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
-		// this.lineHeight = BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel()).lineHeight;
+		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
+		this.lineHeight = BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel(), getPixelRatio()).lineHeight;
 	}
 
 	getHeight(element: DiffElementViewModelBase): number {
-		return 100;
+		return element.getHeight(this.lineHeight);
 	}
 
 	hasDynamicHeight(element: DiffElementViewModelBase): boolean {

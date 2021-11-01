@@ -9,7 +9,7 @@ import { AbstractLifecycleService } from 'vs/workbench/services/lifecycle/common
 import { localize } from 'vs/nls';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { addDisposableListener } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class BrowserLifecycleService extends AbstractLifecycleService {
@@ -29,7 +29,7 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 	private registerListeners(): void {
 
 		// beforeUnload
-		this.beforeUnloadDisposable = addDisposableListener(window, 'beforeunload', (e: BeforeUnloadEvent) => this.onBeforeUnload(e));
+		this.beforeUnloadDisposable = addDisposableListener(window, EventType.BEFORE_UNLOAD, (e: BeforeUnloadEvent) => this.onBeforeUnload(e));
 	}
 
 	private onBeforeUnload(event: BeforeUnloadEvent): void {

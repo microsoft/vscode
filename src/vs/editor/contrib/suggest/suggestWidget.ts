@@ -339,13 +339,11 @@ export class SuggestWidget implements IDisposable {
 		const backgroundColor = theme.getColor(editorSuggestWidgetBackground);
 		if (backgroundColor) {
 			this.element.domNode.style.backgroundColor = backgroundColor.toString();
-			this._messageElement.style.backgroundColor = backgroundColor.toString();
 			this._details.widget.domNode.style.backgroundColor = backgroundColor.toString();
 		}
 		const borderColor = theme.getColor(editorSuggestWidgetBorder);
 		if (borderColor) {
 			this.element.domNode.style.borderColor = borderColor.toString();
-			this._messageElement.style.borderColor = borderColor.toString();
 			this._status.element.style.borderTopColor = borderColor.toString();
 			this._details.widget.domNode.style.borderColor = borderColor.toString();
 			this._detailsBorderColor = borderColor.toString();

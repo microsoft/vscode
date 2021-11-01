@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { nbformat } from '@jupyterlab/coreutils';
-import { NotebookCellData, NotebookCellKind, NotebookCellOutput } from 'vscode';
+import { NotebookCell, NotebookCellData, NotebookCellKind, NotebookCellOutput } from 'vscode';
 import { CellMetadata, CellOutputMetadata } from './common';
 import { textMimeTypes } from './deserializers';
 
@@ -53,8 +53,11 @@ export function sortObjectPropertiesRecursively(obj: any): any {
 	return obj;
 }
 
+export function getCellMetadata(cell: NotebookCell | NotebookCellData) {
+	return cell.metadata?.custom as CellMetadata | undefined;
+}
 function createCodeCellFromNotebookCell(cell: NotebookCellData): nbformat.ICodeCell {
-	const cellMetadata = cell.metadata?.custom as CellMetadata | undefined;
+	const cellMetadata = getCellMetadata(cell);
 	const codeCell: any = {
 		cell_type: 'code',
 		execution_count: cell.executionSummary?.executionOrder ?? null,
@@ -69,7 +72,7 @@ function createCodeCellFromNotebookCell(cell: NotebookCellData): nbformat.ICodeC
 }
 
 function createRawCellFromNotebookCell(cell: NotebookCellData): nbformat.IRawCell {
-	const cellMetadata = cell.metadata?.custom as CellMetadata | undefined;
+	const cellMetadata = getCellMetadata(cell);
 	const rawCell: any = {
 		cell_type: 'raw',
 		source: splitMultilineString(cell.value.replace(/\r\n/g, '\n')),
@@ -319,7 +322,7 @@ function convertOutputMimeToJupyterOutput(mime: string, value: Uint8Array) {
 }
 
 function createMarkdownCellFromNotebookCell(cell: NotebookCellData): nbformat.IMarkdownCell {
-	const cellMetadata = cell.metadata?.custom as CellMetadata | undefined;
+	const cellMetadata = getCellMetadata(cell);
 	const markdownCell: any = {
 		cell_type: 'markdown',
 		source: splitMultilineString(cell.value.replace(/\r\n/g, '\n')),

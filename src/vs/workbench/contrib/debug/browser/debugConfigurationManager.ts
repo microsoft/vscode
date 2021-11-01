@@ -133,6 +133,11 @@ export class ConfigurationManager implements IConfigurationManager {
 			}
 		}));
 
+		// The resolver can change the type, ensure activation happens, #135090
+		if (result?.type && result.type !== config.type) {
+			await this.activateDebuggers('onDebugResolve', result.type);
+		}
+
 		return result;
 	}
 
@@ -371,7 +376,11 @@ export class ConfigurationManager implements IConfigurationManager {
 		}
 
 		const names = launch ? launch.getConfigurationNames() : [];
-		this.getSelectedConfig = () => Promise.resolve(this.selectedName ? launch?.getConfiguration(this.selectedName) : undefined);
+		this.getSelectedConfig = () => {
+			const selected = this.selectedName ? launch?.getConfiguration(this.selectedName) : undefined;
+			return Promise.resolve(selected || config);
+		};
+
 		let type = config?.type;
 		if (name && names.indexOf(name) >= 0) {
 			this.setSelectedLaunchName(name);

@@ -111,7 +111,7 @@
       },
       {
         "command": "npm.packageManager",
-        "title": "%command.packageManager"
+        "title": "%command.packageManager%"
       }
     ],
     "menus": {

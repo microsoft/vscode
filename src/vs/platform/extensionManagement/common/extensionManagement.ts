@@ -243,6 +243,7 @@ export interface IGalleryExtension {
 	publisherId: string;
 	publisher: string;
 	publisherDisplayName: string;
+	publisherDomain?: { link: string, verified: boolean };
 	description: string;
 	installCount: number;
 	rating: number;
@@ -355,12 +356,22 @@ export interface DidUninstallExtensionEvent {
 	error?: string;
 }
 
-export const INSTALL_ERROR_NOT_SUPPORTED = 'notsupported';
-export const INSTALL_ERROR_MALICIOUS = 'malicious';
-export const INSTALL_ERROR_INCOMPATIBLE = 'incompatible';
+export enum ExtensionManagementErrorCode {
+	Unsupported = 'Unsupported',
+	Malicious = 'Malicious',
+	Incompatible = 'Incompatible',
+	Invalid = 'Invalid',
+	Download = 'Download',
+	Extract = 'Extract',
+	Delete = 'Delete',
+	Rename = 'Rename',
+	CorruptZip = 'CorruptZip',
+	IncompleteZip = 'IncompleteZip',
+	Internal = 'Internal',
+}
 
 export class ExtensionManagementError extends Error {
-	constructor(message: string, readonly code: string) {
+	constructor(message: string, readonly code: ExtensionManagementErrorCode) {
 		super(message);
 		this.name = code;
 	}

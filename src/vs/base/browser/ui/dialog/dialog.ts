@@ -196,7 +196,6 @@ export class Dialog extends Disposable {
 
 			const buttonBar = this.buttonBar = this._register(new ButtonBar(this.buttonsContainer));
 			const buttonMap = this.rearrangeButtons(this.buttons, this.options.cancelId);
-			this.buttonsContainer.classList.toggle('centered');
 
 			// Handle button clicks
 			buttonMap.forEach((entry, index) => {

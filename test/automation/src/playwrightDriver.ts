@@ -187,35 +187,33 @@ interface Options {
 	readonly headless?: boolean;
 }
 
-export function connect(options: Options = {}): Promise<{ client: IDisposable, driver: IDriver }> {
-	return new Promise(async (c) => {
-		const browser = await playwright[options.browser ?? 'chromium'].launch({ headless: options.headless ?? false });
-		const context = await browser.newContext();
-		try {
-			await context.tracing.start({ screenshots: true, snapshots: true });
-		} catch (error) {
-			console.warn(`Failed to start playwright tracing.`); // do not fail the build when this fails
+export async function connect(options: Options = {}): Promise<{ client: IDisposable, driver: IDriver }> {
+	const browser = await playwright[options.browser ?? 'chromium'].launch({ headless: options.headless ?? false });
+	const context = await browser.newContext();
+	try {
+		await context.tracing.start({ screenshots: true, snapshots: true });
+	} catch (error) {
+		console.warn(`Failed to start playwright tracing.`); // do not fail the build when this fails
+	}
+	const page = await context.newPage();
+	await page.setViewportSize({ width, height });
+	page.on('pageerror', async error => console.error(`Playwright ERROR: page error: ${error}`));
+	page.on('crash', page => console.error('Playwright ERROR: page crash'));
+	page.on('response', async response => {
+		if (response.status() >= 400) {
+			console.error(`Playwright ERROR: HTTP status ${response.status()} for ${response.url()}`);
 		}
-		const page = await context.newPage();
-		await page.setViewportSize({ width, height });
-		page.on('pageerror', async error => console.error(`Playwright ERROR: page error: ${error}`));
-		page.on('crash', page => console.error('Playwright ERROR: page crash'));
-		page.on('response', async response => {
-			if (response.status() >= 400) {
-				console.error(`Playwright ERROR: HTTP status ${response.status()} for ${response.url()}`);
-			}
-		});
-		const payloadParam = `[["enableProposedApi",""],["skipWelcome","true"]]`;
-		await page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${URI.file(workspacePath!).path}&payload=${payloadParam}`);
-		const result = {
-			client: {
-				dispose: () => {
-					browser.close();
-					teardown();
-				}
-			},
-			driver: buildDriver(browser, context, page)
-		};
-		c(result);
 	});
+	const payloadParam = `[["enableProposedApi",""],["skipWelcome","true"]]`;
+	await page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${URI.file(workspacePath!).path}&payload=${payloadParam}`);
+
+	return {
+		client: {
+			dispose: () => {
+				browser.close();
+				teardown();
+			}
+		},
+		driver: buildDriver(browser, context, page)
+	};
 }

@@ -116,19 +116,19 @@ export function validate(allowStylesheet: boolean = true): boolean {
 	return true;
 }
 
-export function getMappingForIncludedLanguages(): any {
+export function getMappingForIncludedLanguages(): Record<string, string> {
 	// Explicitly map languages that have built-in grammar in VS Code to their parent language
 	// to get emmet completion support
 	// For other languages, users will have to use `emmet.includeLanguages` or
 	// language specific extensions can provide emmet completion support
-	const MAPPED_MODES: Object = {
+	const MAPPED_MODES: Record<string, string> = {
 		'handlebars': 'html',
 		'php': 'html'
 	};
 
-	const finalMappedModes = Object.create(null);
-	let includeLanguagesConfig = vscode.workspace.getConfiguration('emmet')['includeLanguages'];
-	let includeLanguages = Object.assign({}, MAPPED_MODES, includeLanguagesConfig ? includeLanguagesConfig : {});
+	const finalMappedModes: Record<string, string> = {};
+	const includeLanguagesConfig = vscode.workspace.getConfiguration('emmet').get<Record<string, string>>('includeLanguages');
+	const includeLanguages = Object.assign({}, MAPPED_MODES, includeLanguagesConfig ?? {});
 	Object.keys(includeLanguages).forEach(syntax => {
 		if (typeof includeLanguages[syntax] === 'string' && LANGUAGE_MODES[includeLanguages[syntax]]) {
 			finalMappedModes[syntax] = includeLanguages[syntax];
@@ -145,19 +145,29 @@ export function getMappingForIncludedLanguages(): any {
 *
 * @param excludedLanguages Array of language ids that user has chosen to exclude for emmet
 */
-export function getEmmetMode(language: string, excludedLanguages: string[]): string | undefined {
-	if (!language || excludedLanguages.indexOf(language) > -1) {
+export function getEmmetMode(language: string, mappedModes: Record<string, string>, excludedLanguages: string[]): string | undefined {
+	if (!language || excludedLanguages.includes(language)) {
 		return;
 	}
+
+	if (language === 'jsx-tags') {
+		language = 'javascriptreact';
+	}
+
+	if (mappedModes[language]) {
+		language = mappedModes[language];
+	}
+
 	if (/\b(typescriptreact|javascriptreact|jsx-tags)\b/.test(language)) { // treat tsx like jsx
-		return 'jsx';
+		language = 'jsx';
 	}
-	if (language === 'sass-indented') { // map sass-indented to sass
-		return 'sass';
+	else if (language === 'sass-indented') { // map sass-indented to sass
+		language = 'sass';
 	}
-	if (language === 'jade') {
-		return 'pug';
+	else if (language === 'jade' || language === 'pug') {
+		language = 'pug';
 	}
+
 	const syntaxes = getSyntaxes();
 	if (syntaxes.markup.includes(language) || syntaxes.stylesheet.includes(language)) {
 		return language;

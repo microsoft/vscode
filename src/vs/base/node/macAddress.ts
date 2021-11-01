@@ -17,6 +17,7 @@ function validateMacAddress(candidate: string): boolean {
 }
 
 export function getMac(): Promise<string> {
+	// eslint-disable-next-line no-async-promise-executor
 	return new Promise(async (resolve, reject) => {
 		const timeout = setTimeout(() => reject('Unable to retrieve mac address (timeout after 10s)'), 10000);
 

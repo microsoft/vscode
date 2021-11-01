@@ -17,10 +17,10 @@ export interface IEditorTab {
 	label: string;
 	viewColumn: ViewColumn;
 	index: number;
-	resource?: vscode.Uri;
-	viewId?: string;
+	resource: vscode.Uri | undefined;
+	viewId: string | undefined;
 	isActive: boolean;
-	additionalResourcesAndViewIds: { resource?: vscode.Uri, viewId?: string }[];
+	additionalResourcesAndViewIds: { resource: vscode.Uri | undefined, viewId: string | undefined }[];
 	move(index: number, viewColumn: ViewColumn): Promise<void>;
 	close(): Promise<void>;
 }

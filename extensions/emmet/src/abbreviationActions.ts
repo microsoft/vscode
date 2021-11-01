@@ -707,13 +707,13 @@ export function getSyntaxFromArgs(args: { [x: string]: string }): string | undef
 	const language: string = args['language'];
 	const parentMode: string = args['parentMode'];
 	const excludedLanguages = vscode.workspace.getConfiguration('emmet')['excludeLanguages'] ? vscode.workspace.getConfiguration('emmet')['excludeLanguages'] : [];
-	if (excludedLanguages.indexOf(language) > -1) {
+	if (excludedLanguages.includes(language)) {
 		return;
 	}
 
-	let syntax = getEmmetMode((mappedModes[language] ? mappedModes[language] : language), excludedLanguages);
+	let syntax = getEmmetMode(mappedModes[language] ?? language, mappedModes, excludedLanguages);
 	if (!syntax) {
-		syntax = getEmmetMode((mappedModes[parentMode] ? mappedModes[parentMode] : parentMode), excludedLanguages);
+		syntax = getEmmetMode(mappedModes[parentMode] ?? parentMode, mappedModes, excludedLanguages);
 	}
 
 	return syntax;

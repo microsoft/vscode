@@ -520,8 +520,8 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		this.styleElement.textContent = `.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before { border-bottom-color: ${backgroundColor}; }`;
 	}
 
-	override layout(width: number, height: number): void {
-		super.layout(width, height);
+	override layout(width: number, height: number, top: number, left: number): void {
+		super.layout(width, height, top, left);
 		super.layoutContents(width, height);
 	}
 

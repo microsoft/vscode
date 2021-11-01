@@ -83,7 +83,7 @@ class ToggleCommentLineAction extends CommentLineAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.US_SLASH,
+				primary: KeyMod.CtrlCmd | KeyCode.Slash,
 				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
@@ -105,7 +105,7 @@ class AddLineCommentAction extends CommentLineAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyC),
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -121,7 +121,7 @@ class RemoveLineCommentAction extends CommentLineAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyU),
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -138,8 +138,8 @@ class BlockCommentAction extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_A,
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_A },
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KeyA,
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA },
 				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {

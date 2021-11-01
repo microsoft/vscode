@@ -547,6 +547,65 @@ registerAction2(class extends Action2 {
 });
 
 
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'interactive.scrollToTop',
+			title: localize('interactiveScrollToTop', 'Scroll to Top'),
+			keybinding: {
+				when: ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
+				primary: KeyMod.CtrlCmd | KeyCode.Home,
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.UpArrow },
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			category: 'Interactive',
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined, codeEditor: CodeEditorWidget; } | undefined;
+
+		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+			if (editorControl.notebookEditor.getLength() === 0) {
+				return;
+			}
+
+			editorControl.notebookEditor.revealCellRangeInView({ start: 0, end: 1 });
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'interactive.scrollToBottom',
+			title: localize('interactiveScrollToBottom', 'Scroll to Bottom'),
+			keybinding: {
+				when: ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
+				primary: KeyMod.CtrlCmd | KeyCode.End,
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.DownArrow },
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			category: 'Interactive',
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined, codeEditor: CodeEditorWidget; } | undefined;
+
+		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+			if (editorControl.notebookEditor.getLength() === 0) {
+				return;
+			}
+
+			const len = editorControl.notebookEditor.getLength();
+			editorControl.notebookEditor.revealCellRangeInView({ start: len - 1, end: len });
+		}
+	}
+});
+
 registerThemingParticipant((theme) => {
 	registerColor('interactive.activeCodeBorder', {
 		dark: theme.getColor(peekViewBorder) ?? '#007acc',

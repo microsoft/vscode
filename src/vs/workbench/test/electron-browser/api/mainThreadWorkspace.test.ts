@@ -12,17 +12,24 @@ import { SingleProxyRPCProtocol } from 'vs/workbench/test/browser/api/testRPCPro
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('MainThreadWorkspace', () => {
 
+	let disposables: DisposableStore;
 	let configService: TestConfigurationService;
 	let instantiationService: TestInstantiationService;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService() as TestInstantiationService;
+		disposables = new DisposableStore();
+		instantiationService = workbenchInstantiationService(disposables) as TestInstantiationService;
 
 		configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		configService.setUserConfiguration('search', {});
+	});
+
+	teardown(() => {
+		disposables.dispose();
 	});
 
 	test('simple', () => {

@@ -66,6 +66,11 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			this._remoteTerminalChannel = channel;
 
 			channel.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
+			channel.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));
+			channel.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());
+			channel.onDidRequestDetach(e => this._onDidRequestDetach.fire(e));
+			channel.onProcessReady(e => this._ptys.get(e.id)?.handleReady(e.event));
+			channel.onDidChangeProperty(e => this._ptys.get(e.id)?.handleDidChangeProperty(e.property));
 			channel.onProcessExit(e => {
 				const pty = this._ptys.get(e.id);
 				if (pty) {
@@ -73,16 +78,6 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 					this._ptys.delete(e.id);
 				}
 			});
-			channel.onProcessReady(e => this._ptys.get(e.id)?.handleReady(e.event));
-			channel.onProcessTitleChanged(e => this._ptys.get(e.id)?.handleTitleChanged(e.event));
-			channel.onProcessShellTypeChanged(e => this._ptys.get(e.id)?.handleShellTypeChanged(e.event));
-			channel.onProcessOverrideDimensions(e => this._ptys.get(e.id)?.handleOverrideDimensions(e.event));
-			channel.onProcessResolvedShellLaunchConfig(e => this._ptys.get(e.id)?.handleResolvedShellLaunchConfig(e.event));
-			channel.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));
-			channel.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());
-			channel.onDidRequestDetach(e => this._onDidRequestDetach.fire(e));
-			channel.onProcessDidChangeHasChildProcesses(e => this._ptys.get(e.id)?.handleDidChangeHasChildProcesses(e.event));
-			channel.onDidChangeProperty(e => this._ptys.get(e.id)?.handleDidChangeProperty(e.property));
 
 			const allowedCommands = ['_remoteCLI.openExternal', '_remoteCLI.windowOpen', '_remoteCLI.getSystemStatus', '_remoteCLI.manageExtensions'];
 			channel.onExecuteCommand(async e => {

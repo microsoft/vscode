@@ -547,6 +547,7 @@ export function toStoreData(recents: IRecentlyOpened): RecentlyOpenedStorageData
 	for (const recent of recents.files) {
 		serialized.entries.push({ fileUri: recent.fileUri.toString(), label: recent.label, remoteAuthority: recent.remoteAuthority });
 	}
+
 	return serialized;
 }
 

@@ -18,7 +18,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { realcaseSync, realpathSync } from 'vs/base/node/extpath';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { IWatcherService } from 'vs/platform/files/node/watcher/nsfw/watcher';
-import { IDiskFileChange, ILogMessage, normalizeFileChanges, IWatchRequest } from 'vs/platform/files/node/watcher/watcher';
+import { IDiskFileChange, ILogMessage, normalizeFileChanges, IWatchRequest } from 'vs/platform/files/common/watcher';
 import { watchFolder } from 'vs/base/node/watcher';
 
 interface IWatcher extends IDisposable {
@@ -172,7 +172,7 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 				// Log the raw event before normalization or checking for ignore patterns
 				if (this.verboseLogging) {
 					const logPath = event.action === nsfw.actions.RENAMED ? `${join(event.directory, event.oldFile || '')} -> ${event.newFile}` : join(event.directory, event.file || '');
-					this.log(`${event.action === nsfw.actions.CREATED ? '[CREATED]' : event.action === nsfw.actions.DELETED ? '[DELETED]' : event.action === nsfw.actions.MODIFIED ? '[CHANGED]' : '[RENAMED]'} ${logPath}`);
+					this.log(`${event.action === nsfw.actions.CREATED ? '[ADDED]' : event.action === nsfw.actions.DELETED ? '[DELETED]' : event.action === nsfw.actions.MODIFIED ? '[CHANGED]' : '[RENAMED]'} ${logPath}`);
 				}
 
 				// Rename: convert into DELETE & ADD
@@ -311,7 +311,7 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 		else {
 			const handled = this.onUnexpectedError(msg, watcher);
 			if (!handled) {
-				this.error(`Unexpected error: ${msg} (ESHUTDOWN)`, watcher);
+				this.error(`Unexpected error: ${msg} (EUNKNOWN)`, watcher);
 			}
 		}
 	}

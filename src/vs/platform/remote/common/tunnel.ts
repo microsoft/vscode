@@ -13,6 +13,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
 
 export const ITunnelService = createDecorator<ITunnelService>('tunnelService');
+export const ISharedTunnelsService = createDecorator<ISharedTunnelsService>('sharedTunnelsService');
 
 export interface RemoteTunnel {
 	readonly tunnelRemotePort: number;
@@ -108,6 +109,12 @@ export interface ITunnel {
 	onDidDispose: Event<void>;
 
 	dispose(): Promise<void> | void;
+}
+
+export interface ISharedTunnelsService {
+	readonly _serviceBrand: undefined;
+
+	openTunnel(authority: string, addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localPort?: number, elevateIfNeeded?: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined;
 }
 
 export interface ITunnelService {
@@ -218,20 +225,22 @@ export abstract class AbstractTunnelService implements ITunnelService {
 	}
 
 	public get tunnels(): Promise<readonly RemoteTunnel[]> {
-		return new Promise(async (resolve) => {
-			const tunnels: RemoteTunnel[] = [];
-			const tunnelArray = Array.from(this._tunnels.values());
-			for (let portMap of tunnelArray) {
-				const portArray = Array.from(portMap.values());
-				for (let x of portArray) {
-					const tunnelValue = await x.value;
-					if (tunnelValue) {
-						tunnels.push(tunnelValue);
-					}
+		return this.getTunnels();
+	}
+
+	private async getTunnels(): Promise<readonly RemoteTunnel[]> {
+		const tunnels: RemoteTunnel[] = [];
+		const tunnelArray = Array.from(this._tunnels.values());
+		for (let portMap of tunnelArray) {
+			const portArray = Array.from(portMap.values());
+			for (let x of portArray) {
+				const tunnelValue = await x.value;
+				if (tunnelValue) {
+					tunnels.push(tunnelValue);
 				}
 			}
-			resolve(tunnels);
-		});
+		}
+		return tunnels;
 	}
 
 	async dispose(): Promise<void> {

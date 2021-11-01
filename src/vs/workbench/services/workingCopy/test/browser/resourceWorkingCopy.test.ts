@@ -13,6 +13,7 @@ import { FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files
 import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { ResourceWorkingCopy } from 'vs/workbench/services/workingCopy/common/resourceWorkingCopy';
 import { WorkingCopyCapabilities, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('ResourceWorkingCopy', function () {
 
@@ -29,6 +30,7 @@ suite('ResourceWorkingCopy', function () {
 
 	}
 
+	let disposables: DisposableStore;
 	let resource = URI.file('test/resource');
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
@@ -39,7 +41,8 @@ suite('ResourceWorkingCopy', function () {
 	}
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
+		disposables = new DisposableStore();
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
 		workingCopy = createWorkingCopy();
@@ -47,6 +50,7 @@ suite('ResourceWorkingCopy', function () {
 
 	teardown(() => {
 		workingCopy.dispose();
+		disposables.dispose();
 	});
 
 	test('orphaned tracking', async () => {

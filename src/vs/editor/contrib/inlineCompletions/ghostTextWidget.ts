@@ -19,7 +19,9 @@ import { Range } from 'vs/editor/common/core/range';
 import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
-import { ghostTextBorder, ghostTextForeground } from 'vs/editor/common/view/editorColorRegistry';
+import { ILanguageIdCodec } from 'vs/editor/common/modes';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { ghostTextBackground, ghostTextBorder, ghostTextForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
@@ -33,13 +35,14 @@ const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHT
 export class GhostTextWidget extends Disposable {
 	private disposed = false;
 	private readonly partsWidget = this._register(this.instantiationService.createInstance(DecorationsWidget, this.editor));
-	private readonly additionalLinesWidget = this._register(new AdditionalLinesWidget(this.editor));
+	private readonly additionalLinesWidget = this._register(new AdditionalLinesWidget(this.editor, this.modeService.languageIdCodec));
 	private viewMoreContentWidget: ViewMoreLinesContentWidget | undefined = undefined;
 
 	constructor(
 		private readonly editor: ICodeEditor,
 		private readonly model: GhostTextWidgetModel,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IModeService private readonly modeService: IModeService,
 	) {
 		super();
 
@@ -223,6 +226,7 @@ class DecorationsWidget implements IDisposable {
 
 		const colorTheme = this.themeService.getColorTheme();
 		const foreground = colorTheme.getColor(ghostTextForeground);
+
 		let opacity: string | undefined = undefined;
 		let color: string | undefined = undefined;
 		if (foreground) {
@@ -336,7 +340,10 @@ class AdditionalLinesWidget implements IDisposable {
 	private _viewZoneId: string | undefined = undefined;
 	public get viewZoneId(): string | undefined { return this._viewZoneId; }
 
-	constructor(private readonly editor: ICodeEditor) { }
+	constructor(
+		private readonly editor: ICodeEditor,
+		private readonly languageIdCodec: ILanguageIdCodec
+	) { }
 
 	public dispose(): void {
 		this.clear();
@@ -368,7 +375,7 @@ class AdditionalLinesWidget implements IDisposable {
 			const heightInLines = Math.max(additionalLines.length, minReservedLineCount);
 			if (heightInLines > 0) {
 				const domNode = document.createElement('div');
-				renderLines(domNode, tabSize, additionalLines, this.editor.getOptions());
+				renderLines(domNode, tabSize, additionalLines, this.editor.getOptions(), this.languageIdCodec);
 
 				this._viewZoneId = changeAccessor.addZone({
 					afterLineNumber: lineNumber,
@@ -385,7 +392,7 @@ interface LineData {
 	decorations: LineDecoration[];
 }
 
-function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], opts: IComputedEditorOptions): void {
+function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], opts: IComputedEditorOptions, languageIdCodec: ILanguageIdCodec): void {
 	const disableMonospaceOptimizations = opts.get(EditorOption.disableMonospaceOptimizations);
 	const stopRenderingLineAfter = opts.get(EditorOption.stopRenderingLineAfter);
 	// To avoid visual confusion, we don't want to render visible whitespace
@@ -408,7 +415,7 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], o
 
 		const isBasicASCII = strings.isBasicASCII(line);
 		const containsRTL = strings.containsRTL(line);
-		const lineTokens = LineTokens.createEmpty(line);
+		const lineTokens = LineTokens.createEmpty(line, languageIdCodec);
 
 		renderViewLine(new RenderLineInput(
 			(fontInfo.isMonospace && !disableMonospaceOptimizations),
@@ -493,15 +500,18 @@ class ViewMoreLinesContentWidget extends Disposable implements IContentWidget {
 
 registerThemingParticipant((theme, collector) => {
 	const foreground = theme.getColor(ghostTextForeground);
-
 	if (foreground) {
-		const opacity = String(foreground.rgba.a);
-		const color = Color.Format.CSS.format(opaque(foreground))!;
-
 		// `!important` ensures that other decorations don't cause a style conflict (#132017).
-		collector.addRule(`.monaco-editor .ghost-text-decoration { opacity: ${opacity} !important; color: ${color} !important; }`);
+		collector.addRule(`.monaco-editor .ghost-text-decoration { color: ${foreground.toString()} !important; }`);
 		collector.addRule(`.monaco-editor .ghost-text-decoration-preview { color: ${foreground.toString()} !important; }`);
-		collector.addRule(`.monaco-editor .suggest-preview-text .ghost-text { opacity: ${opacity} !important; color: ${color} !important; }`);
+		collector.addRule(`.monaco-editor .suggest-preview-text .ghost-text { color: ${foreground.toString()} !important; }`);
+	}
+
+	const background = theme.getColor(ghostTextBackground);
+	if (background) {
+		collector.addRule(`.monaco-editor .ghost-text-decoration { background-color: ${background.toString()}; }`);
+		collector.addRule(`.monaco-editor .ghost-text-decoration-preview { background-color: ${background.toString()}; }`);
+		collector.addRule(`.monaco-editor .suggest-preview-text .ghost-text { background-color: ${background.toString()}; }`);
 	}
 
 	const border = theme.getColor(ghostTextBorder);

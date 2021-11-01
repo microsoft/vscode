@@ -14,8 +14,8 @@ exports.collectModules = function () {
 
 		createModuleDescription('vs/workbench/services/search/node/searchApp'),
 
-		createModuleDescription('vs/platform/files/node/watcher/unix/watcherApp'),
 		createModuleDescription('vs/platform/files/node/watcher/nsfw/watcherApp'),
+		createModuleDescription('vs/platform/files/node/watcher/parcel/watcherApp'),
 
 		createModuleDescription('vs/platform/terminal/node/ptyHostMain'),
 

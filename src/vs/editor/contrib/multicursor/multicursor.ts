@@ -70,7 +70,10 @@ export class InsertCursorAbove extends EditorAction {
 			return;
 		}
 
-		const useLogicalLine = (args && args.logicalLine === true);
+		let useLogicalLine = true;
+		if (args && args.logicalLine === false) {
+			useLogicalLine = false;
+		}
 		const viewModel = editor._getViewModel();
 
 		if (viewModel.cursorConfig.readOnly) {
@@ -120,7 +123,10 @@ export class InsertCursorBelow extends EditorAction {
 			return;
 		}
 
-		const useLogicalLine = (args && args.logicalLine === true);
+		let useLogicalLine = true;
+		if (args && args.logicalLine === false) {
+			useLogicalLine = false;
+		}
 		const viewModel = editor._getViewModel();
 
 		if (viewModel.cursorConfig.readOnly) {
@@ -149,7 +155,7 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_I,
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KeyI,
 				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
@@ -693,7 +699,7 @@ export class AddSelectionToNextFindMatchAction extends MultiCursorSelectionContr
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_D,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyD,
 				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
@@ -738,7 +744,7 @@ export class MoveSelectionToNextFindMatchAction extends MultiCursorSelectionCont
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_D),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyD),
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -771,7 +777,7 @@ export class SelectHighlightsAction extends MultiCursorSelectionControllerAction
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_L,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL,
 				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {

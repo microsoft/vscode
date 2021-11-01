@@ -123,6 +123,10 @@ export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 	}
 
 	public override get ghostText(): GhostText | undefined {
+		if (!this.isSuggestionPreviewEnabled()) {
+			return undefined;
+		}
+
 		const suggestWidgetState = this.suggestionInlineCompletionSource.state;
 
 		const originalInlineCompletion = minimizeInlineCompletion(this.editor.getModel()!, suggestWidgetState?.selectedItemAsInlineCompletion);
@@ -150,9 +154,7 @@ export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 
 		const newGhostText = toGhostText(finalCompletion);
 
-		return this.isSuggestionPreviewEnabled()
-			? newGhostText
-			: undefined;
+		return newGhostText;
 	}
 }
 

@@ -6,6 +6,7 @@ schedules:
     branches:
       include:
         - main
+        - joao/web
 
 parameters:
   - name: VSCODE_QUALITY
