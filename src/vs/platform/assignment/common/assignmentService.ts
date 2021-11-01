@@ -25,6 +25,7 @@ class NullAssignmentServiceTelemetry implements IExperimentationTelemetry {
 export abstract class BaseAssignmentService implements IAssignmentService {
 	_serviceBrand: undefined;
 	protected tasClient: Promise<TASClient> | undefined;
+	private networkInitialized = false;
 	private overrideInitDelay: Promise<void>;
 
 	protected get experimentsEnabled(): boolean {
@@ -67,7 +68,16 @@ export abstract class BaseAssignmentService implements IAssignmentService {
 
 		let result: T | undefined;
 		const client = await this.tasClient;
-		await client.initialFetch;
+
+		// The TAS client is initialized but we need to check if the initial fetch has completed yet
+		// If it is complete, return a cached value for the treatment
+		// If not, use the async call with `checkCache: true`. This will allow the module to return a cached value if it is present.
+		// Otherwise it will await the initial fetch to return the most up to date value.
+		if (this.networkInitialized) {
+			result = client.getTreatmentVariable<T>('vscode', name);
+		} else {
+			result = await client.getTreatmentVariableAsync<T>('vscode', name, true);
+		}
 
 		result = client.getTreatmentVariable<T>('vscode', name);
 		return result;
@@ -97,6 +107,8 @@ export abstract class BaseAssignmentService implements IAssignmentService {
 		});
 
 		await tasClient.initializePromise;
+		tasClient.initialFetch.then(() => this.networkInitialized = true);
+
 		return tasClient;
 	}
 }
