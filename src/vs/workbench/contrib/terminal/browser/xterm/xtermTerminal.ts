@@ -5,6 +5,7 @@
 
 import type { ITheme, RendererType, Terminal as RawXtermTerminal } from 'xterm';
 import type { ISearchOptions, SearchAddon as SearchAddonType } from 'xterm-addon-search';
+import type { Unicode11Addon as Unicode11AddonType } from 'xterm-addon-unicode11';
 import type { WebglAddon as WebglAddonType } from 'xterm-addon-webgl';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -34,6 +35,7 @@ const SLOW_CANVAS_RENDER_THRESHOLD = 50;
 const NUMBER_OF_FRAMES_TO_MEASURE = 20;
 
 let SearchAddon: typeof SearchAddonType;
+let Unicode11Addon: typeof Unicode11AddonType;
 let WebglAddon: typeof WebglAddonType;
 
 /**
@@ -54,6 +56,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 	// Lazily loaded addons
 	private _searchAddon?: SearchAddonType;
+
+	// Optional addons
+	private _unicode11Addon?: Unicode11AddonType;
 	private _webglAddon?: WebglAddonType;
 
 	get commandTracker(): ICommandTracker { return this._commandTrackerAddon; }
@@ -116,6 +121,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			if (e.affectsConfiguration('terminal.integrated') || e.affectsConfiguration('editor.fastScrollSensitivity') || e.affectsConfiguration('editor.mouseWheelScrollSensitivity') || e.affectsConfiguration('editor.multiCursorModifier')) {
 				this.updateConfig();
 			}
+			if (e.affectsConfiguration(TerminalSettingId.UnicodeVersion)) {
+				this._updateUnicodeVersion();
+			}
 		}));
 		this.add(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
 		this.add(this._viewDescriptorService.onDidChangeLocation(({ views }) => {
@@ -123,6 +131,10 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 				this._updateTheme();
 			}
 		}));
+
+		// Load addons
+
+		this._updateUnicodeVersion();
 
 		this._commandTrackerAddon = new CommandTrackerAddon();
 		this.raw.loadAddon(this._commandTrackerAddon);
@@ -289,6 +301,13 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		return SearchAddon;
 	}
 
+	protected async _getUnicode11Constructor(): Promise<typeof Unicode11AddonType> {
+		if (!Unicode11Addon) {
+			Unicode11Addon = (await import('xterm-addon-unicode11')).Unicode11Addon;
+		}
+		return Unicode11Addon;
+	}
+
 	protected async _getWebglAddonConstructor(): Promise<typeof WebglAddonType> {
 		if (!WebglAddon) {
 			WebglAddon = (await import('xterm-addon-webgl')).WebglAddon;
@@ -402,5 +421,16 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 	private _updateTheme(theme?: IColorTheme): void {
 		this.raw.setOption('theme', this._getXtermTheme(theme));
+	}
+
+	private async _updateUnicodeVersion(): Promise<void> {
+		if (!this._unicode11Addon && this._configHelper.config.unicodeVersion === '11') {
+			const Addon = await this._getUnicode11Constructor();
+			this._unicode11Addon = new Addon();
+			this.raw.loadAddon(this._unicode11Addon);
+		}
+		if (this.raw.unicode.activeVersion !== this._configHelper.config.unicodeVersion) {
+			this.raw.unicode.activeVersion = this._configHelper.config.unicodeVersion;
+		}
 	}
 }

@@ -30,7 +30,6 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { ITerminalInstanceService, ITerminalInstance, ITerminalExternalLinkProvider, IRequestAddInstanceToGroupEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from 'xterm';
-import type { Unicode11Addon } from 'xterm-addon-unicode11';
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/xterm/navigationModeAddon';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
@@ -123,7 +122,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _wrapperElement: (HTMLElement & { xterm?: XTermTerminal }) | undefined;
 	private _xtermCore: IXtermCore | undefined;
 	private _xtermTypeAhead: TypeAheadAddon | undefined;
-	private _xtermUnicode11: Unicode11Addon | undefined;
 	private _xtermElement: HTMLDivElement | undefined;
 	private _horizontalScrollbar: DomScrollableElement | undefined;
 	private _terminalHasTextContextKey: IContextKey<boolean>;
@@ -599,7 +597,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._xtermCore = (xterm as any)._core as IXtermCore;
 		const lineDataEventAddon = new LineDataEventAddon();
 		this.xterm.raw.loadAddon(lineDataEventAddon);
-		this._updateUnicodeVersion();
 		this.updateAccessibilitySupport();
 		// Write initial text, deferring onLineFeed listener when applicable to avoid firing
 		// onLineData events containing initialText
@@ -1427,18 +1424,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private async _updateUnicodeVersion(): Promise<void> {
-		if (!this.xterm) {
-			throw new Error('Cannot update unicode version before xterm has been initialized');
-		}
-		if (!this._xtermUnicode11 && this._configHelper.config.unicodeVersion === '11') {
-			const Addon = await this._terminalInstanceService.getXtermUnicode11Constructor();
-			this._xtermUnicode11 = new Addon();
-			this.xterm.raw.loadAddon(this._xtermUnicode11);
-		}
-		if (this.xterm.raw.unicode.activeVersion !== this._configHelper.config.unicodeVersion) {
-			this.xterm.raw.unicode.activeVersion = this._configHelper.config.unicodeVersion;
-			this._processManager.setUnicodeVersion(this._configHelper.config.unicodeVersion);
-		}
+		this._processManager.setUnicodeVersion(this._configHelper.config.unicodeVersion);
 	}
 
 	updateAccessibilitySupport(): void {
