@@ -28,9 +28,9 @@ class DesktopMain extends SharedDesktopMain {
 		// Local Files
 		let diskFileSystemProvider: ElectronFileSystemProvider | SandboxedDiskFileSystemProvider;
 		if (this.configuration.experimentalSandboxedFileService !== false) {
-			logService.info('[FileService]: Using sandbox ready file system provider');
 			diskFileSystemProvider = this._register(new SandboxedDiskFileSystemProvider(mainProcessService, sharedProcessWorkerWorkbenchService, logService));
 		} else {
+			logService.info('[FileService]: NOT using sandbox ready file system provider');
 			diskFileSystemProvider = this._register(new ElectronFileSystemProvider(logService, nativeHostService, { legacyWatcher: this.configuration.legacyWatcher }));
 		}
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
