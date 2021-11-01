@@ -434,7 +434,7 @@ class TypeLabelController<T> implements IDisposable {
 			.filter(() => this.automaticKeyboardNavigation || this.triggered)
 			.map(event => new StandardKeyboardEvent(event))
 			.filter(e => this.delegate.mightProducePrintableCharacter(e))
-			.forEach(e => { e.stopPropagation(); e.preventDefault(); })
+			.forEach(e => e.preventDefault())
 			.map(event => event.browserEvent.key)
 			.event;
 
