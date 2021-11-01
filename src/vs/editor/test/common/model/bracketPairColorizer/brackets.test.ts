@@ -5,9 +5,9 @@
 
 import assert = require('assert');
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { LanguageAgnosticBracketTokens } from 'vs/editor/common/model/bracketPairs/impl/brackets';
-import { SmallImmutableSet, DenseKeyProvider } from 'vs/editor/common/model/bracketPairs/impl/smallImmutableSet';
-import { Token, TokenKind } from 'vs/editor/common/model/bracketPairs/impl/tokenizer';
+import { LanguageAgnosticBracketTokens } from 'vs/editor/common/model/bracketPairs/bracketPairsTree/brackets';
+import { SmallImmutableSet, DenseKeyProvider } from 'vs/editor/common/model/bracketPairs/bracketPairsTree/smallImmutableSet';
+import { Token, TokenKind } from 'vs/editor/common/model/bracketPairs/bracketPairsTree/tokenizer';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 

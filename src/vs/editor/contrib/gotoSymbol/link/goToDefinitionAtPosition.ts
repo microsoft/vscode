@@ -18,7 +18,8 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IFoundBracket, IModelDeltaDecoration, ITextModel, IWordAtPosition } from 'vs/editor/common/model';
+import { IModelDeltaDecoration, ITextModel, IWordAtPosition } from 'vs/editor/common/model';
+import { IFoundBracket } from 'vs/editor/common/model/bracketPairs/bracketPairs';
 import { DefinitionProviderRegistry, LocationLink } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -260,7 +261,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		const brackets: IFoundBracket[] = [];
 
 		let ignoreFirstEmpty = true;
-		let currentBracket = textEditorModel.findNextBracket(new Position(startLineNumber, 1));
+		let currentBracket = textEditorModel.bracketPairs.findNextBracket(new Position(startLineNumber, 1));
 		while (currentBracket !== null) {
 
 			if (brackets.length === 0) {
@@ -294,7 +295,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 				return new Range(startLineNumber, 1, maxLineNumber + 1, 1);
 			}
 
-			currentBracket = textEditorModel.findNextBracket(new Position(nextLineNumber, nextColumn));
+			currentBracket = textEditorModel.bracketPairs.findNextBracket(new Position(nextLineNumber, nextColumn));
 		}
 
 		return new Range(startLineNumber, 1, maxLineNumber + 1, 1);
