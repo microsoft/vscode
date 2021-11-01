@@ -22,6 +22,7 @@ import { WebglAddon } from 'xterm-addon-webgl';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { isSafari } from 'vs/base/browser/browser';
 
 class TestWebglAddon {
 	static shouldThrow = false;
@@ -244,7 +245,11 @@ suite('XtermTerminal', () => {
 			await configurationService.setUserConfiguration('terminal', { integrated: { ...defaultTerminalConfig, gpuAcceleration: 'auto' } });
 			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
 			await xterm.webglAddonPromise; // await addon activate
-			strictEqual(TestWebglAddon.isEnabled, true);
+			if (isSafari) {
+				strictEqual(TestWebglAddon.isEnabled, false, 'The webgl renderer is always disabled on Safari');
+			} else {
+				strictEqual(TestWebglAddon.isEnabled, true);
+			}
 
 			// Turn off to reset state
 			await configurationService.setUserConfiguration('terminal', { integrated: { ...defaultTerminalConfig, gpuAcceleration: 'off' } });
