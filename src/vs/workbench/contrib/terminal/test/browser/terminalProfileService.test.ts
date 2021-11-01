@@ -25,6 +25,7 @@ import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/comm
 import { IExtensionTerminalProfile, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
 import { strictEqual } from 'assert';
 import { IRemoteTerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { isWindows } from 'vs/base/common/platform';
 
 
 class TestTerminalProfileService extends TerminalProfileService {
@@ -94,7 +95,7 @@ suite('TerminalProfileService', () => {
 	let terminalProfileService: TestTerminalProfileService;
 	let terminalContributionService: TestTerminalContributionService;
 
-	setup(() => {
+	setup(async () => {
 		configurationService = new TestConfigurationService({
 			editor: {
 				fastScrollSensitivity: 2,
@@ -122,15 +123,37 @@ suite('TerminalProfileService', () => {
 		instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 		instantiationService.stub(IStorageService, new TestStorageService());
 		instantiationService.stub(ILogService, new NullLogService());
+		await configurationService.setUserConfiguration('terminal', {
+			integrated: {
+				...defaultTerminalConfig, profiles: {
+					windows: {
+						'My powershell': {
 
+						},
+						'JavaScript Debug Terminal': null
+					}
+				}
+			}
+		});
 		terminalProfileService = instantiationService.createInstance(TestTerminalProfileService, terminalContributionService, configHelper, extensionService, remoteAgentService, remoteTerminalService, localTerminalService);
 	});
 
-	test('should ', () => {
-		test('should ', async () => {
-			await configurationService.setUserConfiguration('terminal', { integrated: { ...defaultTerminalConfig, gpuAcceleration: 'auto' } });
-			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
-			strictEqual(terminalProfileService.availableProfiles, []);
+	test('should provide updated profiles when config changes', () => {
+		test('should filter out contributed profiles set to null', async () => {
+			if (isWindows) {
+				await configurationService.setUserConfiguration('terminal', {
+					integrated: {
+						...defaultTerminalConfig, profiles: {
+							windows: {
+								'JavaScript Debug Terminal': null
+							}
+						}
+					}
+				});
+				configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
+				terminalProfileService.refreshAvailableProfiles();
+				strictEqual(terminalProfileService.availableProfiles, ['hi']);
+			}
 		});
 	});
 });
