@@ -13,7 +13,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
+import { ITASExperimentService } from 'vs/workbench/services/experiment/common/assignmentService';
 import { URI } from 'vs/base/common/uri';
 import { platform } from 'vs/base/common/process';
 import { ThrottledDelayer } from 'vs/base/common/async';

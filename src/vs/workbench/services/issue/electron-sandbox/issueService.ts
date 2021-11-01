@@ -16,7 +16,7 @@ import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { platform } from 'vs/base/common/process';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
+import { ITASExperimentService } from 'vs/workbench/services/experiment/common/assignmentService';
 import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
