@@ -134,7 +134,12 @@ async function doResolveUnixShellEnv(logService: ILogService, token: Cancellatio
 			shellArgs = ['-Login', '-Command'];
 		} else {
 			command = `'${process.execPath}' -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
-			shellArgs = ['-ilc'];
+
+			if (name === 'tcsh') {
+				shellArgs = ['-ic'];
+			} else {
+				shellArgs = ['-ilc'];
+			}
 		}
 
 		logService.trace('getUnixShellEnvironment#spawn', JSON.stringify(shellArgs), command);
