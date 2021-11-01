@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation'; import * as platform from 'vs/base/common/platform';
-import type { IKeyValueStorage, IExperimentationTelemetry, IExperimentationFilterProvider, ExperimentationService as TASClient } from 'tas-client-umd';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import type { IKeyValueStorage, IExperimentationTelemetry, ExperimentationService as TASClient } from 'tas-client-umd';
 import { MementoObject, Memento } from 'vs/workbench/common/memento';
 import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -12,17 +12,13 @@ import { ITelemetryData } from 'vs/base/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { AssignmentFilterProvider, ASSIGNMENT_REFETCH_INTERVAL, ASSIGNMENT_STORAGE_KEY, IAssignmentService, TargetPopulation } from 'vs/platform/assignment/common/assignment';
 
 export const ITASExperimentService = createDecorator<ITASExperimentService>('TASExperimentService');
 
-export interface ITASExperimentService {
-	readonly _serviceBrand: undefined;
-	getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined>;
+export interface ITASExperimentService extends IAssignmentService {
 	getCurrentExperiments(): Promise<string[] | undefined>;
 }
-
-const storageKey = 'VSCode.ABExp.FeatureData';
-const refetchInterval = 0; // no polling
 
 class MementoKeyValueStorage implements IKeyValueStorage {
 	private mementoObj: MementoObject;
@@ -75,108 +71,6 @@ class ExperimentServiceTelemetry implements IExperimentationTelemetry {
 		*/
 		this.telemetryService.publicLog(eventName, data);
 	}
-}
-
-class ExperimentServiceFilterProvider implements IExperimentationFilterProvider {
-	constructor(
-		private version: string,
-		private appName: string,
-		private machineId: string,
-		private targetPopulation: TargetPopulation
-	) { }
-
-	getFilterValue(filter: string): string | null {
-		switch (filter) {
-			case Filters.ApplicationVersion:
-				return this.version; // productService.version
-			case Filters.Build:
-				return this.appName; // productService.nameLong
-			case Filters.ClientId:
-				return this.machineId;
-			case Filters.Language:
-				return platform.language;
-			case Filters.ExtensionName:
-				return 'vscode-core'; // always return vscode-core for exp service
-			case Filters.TargetPopulation:
-				return this.targetPopulation;
-			default:
-				return '';
-		}
-	}
-
-	getFilters(): Map<string, any> {
-		let filters: Map<string, any> = new Map<string, any>();
-		let filterValues = Object.values(Filters);
-		for (let value of filterValues) {
-			filters.set(value, this.getFilterValue(value));
-		}
-
-		return filters;
-	}
-}
-
-/*
-Based upon the official VSCode currently existing filters in the
-ExP backend for the VSCode cluster.
-https://experimentation.visualstudio.com/Analysis%20and%20Experimentation/_git/AnE.ExP.TAS.TachyonHost.Configuration?path=%2FConfigurations%2Fvscode%2Fvscode.json&version=GBmaster
-"X-MSEdge-Market": "detection.market",
-"X-FD-Corpnet": "detection.corpnet",
-"X-VSCode–AppVersion": "appversion",
-"X-VSCode-Build": "build",
-"X-MSEdge-ClientId": "clientid",
-"X-VSCode-ExtensionName": "extensionname",
-"X-VSCode-TargetPopulation": "targetpopulation",
-"X-VSCode-Language": "language"
-*/
-
-enum Filters {
-	/**
-	 * The market in which the extension is distributed.
-	 */
-	Market = 'X-MSEdge-Market',
-
-	/**
-	 * The corporation network.
-	 */
-	CorpNet = 'X-FD-Corpnet',
-
-	/**
-	 * Version of the application which uses experimentation service.
-	 */
-	ApplicationVersion = 'X-VSCode-AppVersion',
-
-	/**
-	 * Insiders vs Stable.
-	 */
-	Build = 'X-VSCode-Build',
-
-	/**
-	 * Client Id which is used as primary unit for the experimentation.
-	 */
-	ClientId = 'X-MSEdge-ClientId',
-
-	/**
-	 * Extension header.
-	 */
-	ExtensionName = 'X-VSCode-ExtensionName',
-
-	/**
-	 * The language in use by VS Code
-	 */
-	Language = 'X-VSCode-Language',
-
-	/**
-	 * The target population.
-	 * This is used to separate internal, early preview, GA, etc.
-	 */
-	TargetPopulation = 'X-VSCode-TargetPopulation',
-}
-
-enum TargetPopulation {
-	Team = 'team',
-	Internal = 'internal',
-	Insiders = 'insider',
-	Public = 'public',
 }
 
 export class ExperimentService implements ITASExperimentService {
@@ -274,7 +168,7 @@ export class ExperimentService implements ITASExperimentService {
 		const telemetryInfo = await this.telemetryService.getTelemetryInfo();
 		const targetPopulation = telemetryInfo.msftInternal ? TargetPopulation.Internal : (this.productService.quality === 'stable' ? TargetPopulation.Public : TargetPopulation.Insiders);
 		const machineId = telemetryInfo.machineId;
-		const filterProvider = new ExperimentServiceFilterProvider(
+		const filterProvider = new AssignmentFilterProvider(
 			this.productService.version,
 			this.productService.nameLong,
 			machineId,
@@ -289,13 +183,13 @@ export class ExperimentService implements ITASExperimentService {
 		const tasClient = new (await import('tas-client-umd')).ExperimentationService({
 			filterProviders: [filterProvider],
 			telemetry: this.telemetry,
-			storageKey: storageKey,
+			storageKey: ASSIGNMENT_STORAGE_KEY,
 			keyValueStorage: keyValueStorage,
 			featuresTelemetryPropertyName: tasConfig.featuresTelemetryPropertyName,
 			assignmentContextTelemetryPropertyName: tasConfig.assignmentContextTelemetryPropertyName,
 			telemetryEventName: tasConfig.telemetryEventName,
 			endpoint: tasConfig.endpoint,
-			refetchInterval: refetchInterval,
+			refetchInterval: ASSIGNMENT_REFETCH_INTERVAL,
 		});
 
 		await tasClient.initializePromise;
