@@ -277,11 +277,7 @@ class BrowserMain extends Disposable {
 		})();
 
 		// Remote file system
-		const connection = remoteAgentService.getConnection();
-		if (connection) {
-			const remoteFileSystemProvider = this._register(new RemoteFileSystemProvider(remoteAgentService));
-			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
-		}
+		this._register(RemoteFileSystemProvider.register(remoteAgentService, fileService, logService));
 
 		// User data
 		let indexedDBUserDataProvider: IIndexedDBFileSystemProvider | null = null;
