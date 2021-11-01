@@ -87,8 +87,6 @@ export class AssignmentService implements IAssignmentService {
 			targetPopulation
 		);
 
-		//const keyValueStorage = new MementoKeyValueStorage(new Memento(AssignmentService.MEMENTO_ID, this.storageService));
-
 		this.telemetry = new AssignmentServiceTelemetry();
 
 		const tasConfig = this.productService.tasConfig!;
