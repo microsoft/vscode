@@ -5,19 +5,10 @@
 
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ILocalTerminalService, ITerminalConfigHelper, ITerminalConfiguration, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ILocalTerminalService, ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IViewDescriptor, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { Emitter } from 'vs/base/common/event';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { TestContextService, TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TerminalProfileService } from 'vs/workbench/contrib/terminal/browser/terminalProfileService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TestRemoteAgentService } from 'vs/workbench/services/remote/test/common/testServices';
 import { TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -26,6 +17,7 @@ import { IExtensionTerminalProfile, ITerminalProfile } from 'vs/platform/termina
 import { strictEqual } from 'assert';
 import { IRemoteTerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { isWindows } from 'vs/base/common/platform';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 
 
 class TestTerminalProfileService extends TerminalProfileService {
@@ -55,26 +47,6 @@ class TestLocalTerminalService implements Partial<ILocalTerminalService> {
 	}
 }
 
-class TestViewDescriptorService implements Partial<IViewDescriptorService> {
-	private _location = ViewContainerLocation.Panel;
-	private _onDidChangeLocation = new Emitter<{ views: IViewDescriptor[], from: ViewContainerLocation, to: ViewContainerLocation }>();
-	onDidChangeLocation = this._onDidChangeLocation.event;
-	getViewLocationById(id: string) {
-		return this._location;
-	}
-	moveTerminalToLocation(to: ViewContainerLocation) {
-		const oldLocation = this._location;
-		this._location = to;
-		this._onDidChangeLocation.fire({
-			views: [
-				{ id: TERMINAL_VIEW_ID } as any
-			],
-			from: oldLocation,
-			to
-		});
-	}
-}
-
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
 	fontWeight: 'normal',
@@ -86,56 +58,27 @@ const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 };
 
 suite('TerminalProfileService', () => {
-	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
-	let themeService: TestThemeService;
-	let viewDescriptorService: TestViewDescriptorService;
-	let contextKeyService: TestContextService;
-	let configHelper: ITerminalConfigHelper;
 	let terminalProfileService: TestTerminalProfileService;
-	let terminalContributionService: TestTerminalContributionService;
 
 	setup(async () => {
 		configurationService = new TestConfigurationService({
-			editor: {
-				fastScrollSensitivity: 2,
-				mouseWheelScrollSensitivity: 1
-			} as Partial<IEditorOptions>,
 			terminal: {
 				integrated: defaultTerminalConfig
 			}
 		});
-		instantiationService = new TestInstantiationService();
-		themeService = new TestThemeService();
-		viewDescriptorService = new TestViewDescriptorService();
-		terminalContributionService = new TestTerminalContributionService();
 
+		let instantiationService = new TestInstantiationService();
+		let terminalContributionService = new TestTerminalContributionService();
 		let remoteAgentService = new TestRemoteAgentService();
 		let extensionService = new TestExtensionService();
 		let localTerminalService = new TestLocalTerminalService();
 		let remoteTerminalService = new TestRemoteTerminalService();
+		let contextKeyService = new MockContextKeyService();
+		let environmentService = instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 
-		configHelper = instantiationService.createInstance(TerminalConfigHelper);
-		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(IThemeService, themeService);
-		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
-		instantiationService.stub(IContextKeyService, contextKeyService);
-		instantiationService.stub(IEnvironmentService, TestEnvironmentService);
-		instantiationService.stub(IStorageService, new TestStorageService());
-		instantiationService.stub(ILogService, new NullLogService());
-		await configurationService.setUserConfiguration('terminal', {
-			integrated: {
-				...defaultTerminalConfig, profiles: {
-					windows: {
-						'My powershell': {
-
-						},
-						'JavaScript Debug Terminal': null
-					}
-				}
-			}
-		});
-		terminalProfileService = instantiationService.createInstance(TestTerminalProfileService, terminalContributionService, configHelper, extensionService, remoteAgentService, remoteTerminalService, localTerminalService);
+		let configHelper = instantiationService.createInstance(TerminalConfigHelper, configurationService);
+		terminalProfileService = instantiationService.createInstance(TestTerminalProfileService, contextKeyService, configurationService, terminalContributionService, extensionService, remoteAgentService, configHelper, environmentService, remoteTerminalService, localTerminalService);
 	});
 
 	test('should provide updated profiles when config changes', () => {
@@ -152,7 +95,7 @@ suite('TerminalProfileService', () => {
 				});
 				configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
 				terminalProfileService.refreshAvailableProfiles();
-				strictEqual(terminalProfileService.availableProfiles, ['hi']);
+				strictEqual(terminalProfileService.availableProfiles, []);
 			}
 		});
 	});
