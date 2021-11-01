@@ -46,6 +46,8 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 	private static readonly MAX_MACOS_DOCK_RECENT_WORKSPACES = 7; 		// prefer higher number of workspaces...
 	private static readonly MAX_MACOS_DOCK_RECENT_ENTRIES_TOTAL = 10; 	// ...over number of files
 
+	private static readonly MAX_WINDOWS_JUMP_LIST_ENTRIES = 7;
+
 	// Exclude some very common files from the dock/taskbar
 	private static readonly COMMON_FILES_FILTER = [
 		'COMMIT_EDITMSG',
@@ -346,7 +348,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 			// Add entries
 			let hasWorkspaces = false;
-			const items: JumpListItem[] = coalesce(this.getRecentlyOpened().workspaces.slice(0, 7 /* limit number of entries here */).map(recent => {
+			const items: JumpListItem[] = coalesce(this.getRecentlyOpened().workspaces.slice(0, WorkspacesHistoryMainService.MAX_WINDOWS_JUMP_LIST_ENTRIES).map(recent => {
 				const workspace = isRecentWorkspace(recent) ? recent.workspace : recent.folderUri;
 
 				const { title, description } = this.getWindowsJumpListLabel(workspace, recent.label);
