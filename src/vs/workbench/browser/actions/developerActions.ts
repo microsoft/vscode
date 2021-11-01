@@ -217,17 +217,20 @@ class ToggleScreencastModeAction extends Action2 {
 					length = 0;
 				}
 
+				const format = configurationService.getValue<'keys' | 'command' | 'commandWithGroup' | 'commandAndKeys' | 'commandWithGroupAndKeys'>('screencastMode.keyboardShortcutsFormat');
 				const keybinding = keybindingService.resolveKeyboardEvent(event);
 				const command = shortcut?.commandId ? MenuRegistry.getCommand(shortcut.commandId) : null;
+
 				let titleLabel = '';
-				let categoryLabel = '';
 				let keyLabel = keybinding.getLabel();
+
 				if (command) {
-					if (command.category) {
-						categoryLabel = typeof command.category === 'string' ? command.category : command.category.value;
-						categoryLabel = `${categoryLabel}: `;
-					}
 					titleLabel = typeof command.title === 'string' ? command.title : command.title.value;
+
+					if ((format === 'commandWithGroup' || format === 'commandWithGroupAndKeys') && command.category) {
+						titleLabel = `${typeof command.category === 'string' ? command.category : command.category.value}: ${titleLabel} `;
+					}
+
 					if (shortcut?.commandId) {
 						const fullKeyLabel = keybindingService.lookupKeybinding(shortcut.commandId);
 						if (fullKeyLabel) {
@@ -235,18 +238,16 @@ class ToggleScreencastModeAction extends Action2 {
 						}
 					}
 				}
-				if (titleLabel && ['commandWithGroup', 'commandWithGroupAndKeys'].includes(configurationService.getValue('screencastMode.keyboardShortcutsFormat'))) {
-					titleLabel = `${categoryLabel}${titleLabel} `;
+
+				if (format !== 'keys' && titleLabel) {
+					append(keyboardMarker, $('span.title', {}, `${titleLabel} `));
 				}
-				const key = $('span.key', {}, keyLabel || '');
+
+				if (format === 'keys' || format === 'commandAndKeys' || format === 'commandWithGroupAndKeys') {
+					append(keyboardMarker, $('span.key', {}, keyLabel || ''));
+				}
+
 				length++;
-				if (titleLabel && configurationService.getValue('screencastMode.keyboardShortcutsFormat') !== 'keys') {
-					const title = $('span.title', {}, `${titleLabel} `);
-					append(keyboardMarker, title);
-				}
-				if (key && ['keys', 'commandAndKeys', 'commandWithGroupAndKeys'].includes(configurationService.getValue('screencastMode.keyboardShortcutsFormat'))) {
-					append(keyboardMarker, key);
-				}
 			}
 
 			const promise = timeout(keyboardMarkerTimeout);
