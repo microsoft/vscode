@@ -1033,7 +1033,7 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).doWithActiveInstance(t => {
-				t.commandTracker?.scrollToPreviousCommand();
+				t.xterm?.commandTracker.scrollToPreviousCommand();
 				t.focus();
 			});
 		}
@@ -1055,7 +1055,7 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).doWithActiveInstance(t => {
-				t.commandTracker?.scrollToNextCommand();
+				t.xterm?.commandTracker.scrollToNextCommand();
 				t.focus();
 			});
 		}
@@ -1077,7 +1077,7 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).doWithActiveInstance(t => {
-				t.commandTracker?.selectToPreviousCommand();
+				t.xterm?.commandTracker.selectToPreviousCommand();
 				t.focus();
 			});
 		}
@@ -1099,7 +1099,7 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).doWithActiveInstance(t => {
-				t.commandTracker?.selectToNextCommand();
+				t.xterm?.commandTracker.selectToNextCommand();
 				t.focus();
 			});
 		}
@@ -1116,7 +1116,7 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).doWithActiveInstance(t => {
-				t.commandTracker?.selectToPreviousLine();
+				t.xterm?.commandTracker.selectToPreviousLine();
 				t.focus();
 			});
 		}
@@ -1133,7 +1133,7 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).doWithActiveInstance(t => {
-				t.commandTracker?.selectToNextLine();
+				t.xterm?.commandTracker.selectToNextLine();
 				t.focus();
 			});
 		}
@@ -1802,7 +1802,7 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).doWithActiveInstance(t => t.clear());
+			accessor.get(ITerminalService).doWithActiveInstance(t => t.clearBuffer());
 		}
 	});
 	registerAction2(class extends Action2 {
