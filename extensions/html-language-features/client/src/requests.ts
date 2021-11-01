@@ -18,30 +18,36 @@ export namespace FsReadDirRequest {
 	export const type: RequestType<string, [string, FileType][], any> = new RequestType('fs/readDir');
 }
 
-export function serveFileSystemRequests(client: CommonLanguageClient, runtime: Runtime) {
-	client.onRequest(FsContentRequest.type, (param: { uri: string; encoding?: string; }) => {
+export function serveFileSystemRequests(client: CommonLanguageClient, runtime: Runtime, subscriptions: { dispose(): any }[]) {
+	subscriptions.push(client.onRequest(FsContentRequest.type, (param: { uri: string; encoding?: string; }) => {
 		const uri = Uri.parse(param.uri);
 		if (uri.scheme === 'file' && runtime.fs) {
 			return runtime.fs.getContent(param.uri);
 		}
+
 		return workspace.fs.readFile(uri).then(buffer => {
 			return new runtime.TextDecoder(param.encoding).decode(buffer);
+		}, () => {
+			// this path also considers TextDocumentContentProvider
+			return workspace.openTextDocument(uri).then(doc => {
+				return doc.getText();
+			});
 		});
-	});
-	client.onRequest(FsReadDirRequest.type, (uriString: string) => {
+	}));
+	subscriptions.push(client.onRequest(FsReadDirRequest.type, (uriString: string) => {
 		const uri = Uri.parse(uriString);
 		if (uri.scheme === 'file' && runtime.fs) {
 			return runtime.fs.readDirectory(uriString);
 		}
 		return workspace.fs.readDirectory(uri);
-	});
-	client.onRequest(FsStatRequest.type, (uriString: string) => {
+	}));
+	subscriptions.push(client.onRequest(FsStatRequest.type, (uriString: string) => {
 		const uri = Uri.parse(uriString);
 		if (uri.scheme === 'file' && runtime.fs) {
 			return runtime.fs.stat(uriString);
 		}
 		return workspace.fs.stat(uri);
-	});
+	}));
 }
 
 export enum FileType {

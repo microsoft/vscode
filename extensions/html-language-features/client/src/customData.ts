@@ -26,6 +26,13 @@ export function getCustomDataSource(toDispose: Disposable[]) {
 		}
 	}));
 
+	toDispose.push(workspace.onDidChangeTextDocument(e => {
+		const path = e.document.uri.toString();
+		if (pathsInExtensions.indexOf(path) || pathsInWorkspace.indexOf(path)) {
+			onChange.fire();
+		}
+	}));
+
 	return {
 		get uris() {
 			return pathsInWorkspace.concat(pathsInExtensions);
@@ -50,7 +57,14 @@ function getCustomDataPathsInAllWorkspaces(): string[] {
 		if (Array.isArray(paths)) {
 			for (const path of paths) {
 				if (typeof path === 'string') {
-					dataPaths.push(resolvePath(rootFolder, path).toString());
+					const uri = Uri.parse(path);
+					if (uri.scheme === 'file') {
+						// only resolve file paths relative to extension
+						dataPaths.push(resolvePath(rootFolder, path).toString());
+					} else {
+						// others schemes
+						dataPaths.push(path);
+					}
 				}
 			}
 		}
@@ -80,7 +94,15 @@ function getCustomDataPathsFromAllExtensions(): string[] {
 		const customData = extension.packageJSON?.contributes?.html?.customData;
 		if (Array.isArray(customData)) {
 			for (const rp of customData) {
-				dataPaths.push(joinPath(extension.extensionUri, rp).toString());
+				const uri = Uri.parse(rp);
+				if (uri.scheme === 'file') {
+					// only resolve file paths relative to extension
+					dataPaths.push(joinPath(extension.extensionUri, rp).toString());
+				} else {
+					// others schemes
+					dataPaths.push(rp);
+				}
+
 			}
 		}
 	}
