@@ -13,7 +13,6 @@ import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 export interface IAssignmentService {
 	readonly _serviceBrand: undefined;
 	getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined>;
-	getCurrentExperiments(): Promise<string[] | undefined>;
 }
 
 const storageKey = 'VSCode.ABExp.FeatureData';
@@ -39,7 +38,6 @@ const refetchInterval = 0; // no polling
 class AssignmentServiceTelemetry implements IExperimentationTelemetry {
 	private _lastAssignmentContext: string | undefined;
 	constructor(
-		private productService: IProductService
 	) { }
 
 	get assignmentContext(): string[] | undefined {
@@ -47,9 +45,7 @@ class AssignmentServiceTelemetry implements IExperimentationTelemetry {
 	}
 
 	setSharedProperty(name: string, value: string): void {
-		if (name === this.productService.tasConfig?.assignmentContextTelemetryPropertyName) {
-			this._lastAssignmentContext = value;
-		}
+		// noop due to lack of telemetry service
 	}
 
 	postEvent(eventName: string, props: Map<string, string>): void {
@@ -214,20 +210,6 @@ export class AssignmentService implements IAssignmentService {
 		return result;
 	}
 
-	async getCurrentExperiments(): Promise<string[] | undefined> {
-		if (!this.tasClient) {
-			return undefined;
-		}
-
-		if (!this.experimentsEnabled) {
-			return undefined;
-		}
-
-		await this.tasClient;
-
-		return this.telemetry?.assignmentContext;
-	}
-
 	private async setupTASClient(): Promise<TASClient> {
 		const targetPopulation = this.productService.quality === 'stable' ? TargetPopulation.Public : TargetPopulation.Insiders;
 		const machineId = this.machineId;
@@ -240,7 +222,7 @@ export class AssignmentService implements IAssignmentService {
 
 		//const keyValueStorage = new MementoKeyValueStorage(new Memento(AssignmentService.MEMENTO_ID, this.storageService));
 
-		this.telemetry = new AssignmentServiceTelemetry(this.productService);
+		this.telemetry = new AssignmentServiceTelemetry();
 
 		const tasConfig = this.productService.tasConfig!;
 		const tasClient = new (await import('tas-client-umd')).ExperimentationService({

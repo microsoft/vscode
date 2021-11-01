@@ -44,7 +44,8 @@ export class AppInsightsAppender implements ITelemetryAppender {
 		private _eventPrefix: string,
 		private _defaultData: { [key: string]: any } | null,
 		aiKeyOrClientFactory: string | (() => TelemetryClient), // allow factory function for testing
-		private readonly testCollector?: boolean
+		private readonly testCollector?: boolean,
+		private readonly mirrored?: boolean
 	) {
 		if (!this._defaultData) {
 			this._defaultData = Object.create(null);
@@ -89,6 +90,10 @@ export class AppInsightsAppender implements ITelemetryAppender {
 		}
 		data = mixin(data, this._defaultData);
 		data = validateTelemetryData(data);
+
+		if (this.testCollector) {
+			data.properties['common.useragent'] = this.mirrored ? 'mirror-collector++' : 'collector++';
+		}
 
 		this._withAIClient((aiClient) => aiClient.trackEvent({
 			name: this._eventPrefix + '/' + eventName,

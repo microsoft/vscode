@@ -255,7 +255,15 @@ class SharedProcessMain extends Disposable {
 			// Application Insights
 			if (productService.aiConfig && productService.aiConfig.asimovKey) {
 				const testCollector = await assignmentService.getTreatment<boolean>('vscode.telemetryMigration') ?? false;
-				const appInsightsAppender = new AppInsightsAppender('monacoworkbench', null, productService.aiConfig.asimovKey, testCollector);
+				const insiders = productService.quality !== 'stable';
+				// Insiders send to both collector and vortex if assigned.
+				// Stable only send to one
+				if (insiders && testCollector) {
+					const collectorAppender = new AppInsightsAppender('monacoworkbench', null, productService.aiConfig.asimovKey, testCollector, true);
+					this._register(toDisposable(() => collectorAppender.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
+					appenders.push(collectorAppender);
+				}
+				const appInsightsAppender = new AppInsightsAppender('monacoworkbench', null, productService.aiConfig.asimovKey, insiders ? false : testCollector);
 				this._register(toDisposable(() => appInsightsAppender.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
 				appenders.push(appInsightsAppender);
 			}
