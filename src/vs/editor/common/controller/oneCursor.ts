@@ -6,7 +6,7 @@
 import { CursorContext, CursorState, ICursorSimpleModel, SingleCursorState } from 'vs/editor/common/controller/cursorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
+import { Selection } from 'vs/editor/common/core/selection';
 import { PositionAffinity, TrackedRangeStickiness } from 'vs/editor/common/model';
 
 /**
@@ -63,10 +63,7 @@ export class Cursor {
 
 	public readSelectionFromMarkers(context: CursorContext): Selection {
 		const range = context.model._getTrackedRange(this._selTrackedRange!)!;
-		if (this.modelState.selection.getDirection() === SelectionDirection.LTR) {
-			return new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
-		}
-		return new Selection(range.endLineNumber, range.endColumn, range.startLineNumber, range.startColumn);
+		return Selection.fromRange(range, this.modelState.selection.getDirection());
 	}
 
 	public ensureValidState(context: CursorContext): void {
