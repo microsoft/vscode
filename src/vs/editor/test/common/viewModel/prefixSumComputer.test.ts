@@ -58,7 +58,7 @@ suite('Editor ViewModel - PrefixSumComputer', () => {
 		assert.strictEqual(indexOfResult.remainder, 3);
 
 		// [1, 2, 2, 1, 3]
-		psc.changeValue(1, 2);
+		psc.setValue(1, 2);
 		assert.strictEqual(psc.getTotalSum(), 9);
 		assert.strictEqual(psc.getPrefixSum(0), 1);
 		assert.strictEqual(psc.getPrefixSum(1), 3);
@@ -67,7 +67,7 @@ suite('Editor ViewModel - PrefixSumComputer', () => {
 		assert.strictEqual(psc.getPrefixSum(4), 9);
 
 		// [1, 0, 2, 1, 3]
-		psc.changeValue(1, 0);
+		psc.setValue(1, 0);
 		assert.strictEqual(psc.getTotalSum(), 7);
 		assert.strictEqual(psc.getPrefixSum(0), 1);
 		assert.strictEqual(psc.getPrefixSum(1), 1);
@@ -100,7 +100,7 @@ suite('Editor ViewModel - PrefixSumComputer', () => {
 		assert.strictEqual(indexOfResult.remainder, 3);
 
 		// [1, 0, 0, 1, 3]
-		psc.changeValue(2, 0);
+		psc.setValue(2, 0);
 		assert.strictEqual(psc.getTotalSum(), 5);
 		assert.strictEqual(psc.getPrefixSum(0), 1);
 		assert.strictEqual(psc.getPrefixSum(1), 1);
@@ -127,7 +127,7 @@ suite('Editor ViewModel - PrefixSumComputer', () => {
 		assert.strictEqual(indexOfResult.remainder, 3);
 
 		// [1, 0, 0, 0, 3]
-		psc.changeValue(3, 0);
+		psc.setValue(3, 0);
 		assert.strictEqual(psc.getTotalSum(), 4);
 		assert.strictEqual(psc.getPrefixSum(0), 1);
 		assert.strictEqual(psc.getPrefixSum(1), 1);
@@ -151,9 +151,9 @@ suite('Editor ViewModel - PrefixSumComputer', () => {
 		assert.strictEqual(indexOfResult.remainder, 3);
 
 		// [1, 1, 0, 1, 1]
-		psc.changeValue(1, 1);
-		psc.changeValue(3, 1);
-		psc.changeValue(4, 1);
+		psc.setValue(1, 1);
+		psc.setValue(3, 1);
+		psc.setValue(4, 1);
 		assert.strictEqual(psc.getTotalSum(), 4);
 		assert.strictEqual(psc.getPrefixSum(0), 1);
 		assert.strictEqual(psc.getPrefixSum(1), 2);
