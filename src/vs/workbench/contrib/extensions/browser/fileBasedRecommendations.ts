@@ -102,7 +102,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionRecommendationNotificationService private readonly extensionRecommendationNotificationService: IExtensionRecommendationNotificationService,
 		@IExtensionIgnoredRecommendationsService private readonly extensionIgnoredRecommendationsService: IExtensionIgnoredRecommendationsService,
-		@ITASExperimentService private tasExperimentService: IWorkbenchAssignmentService,
+		@IWorkbenchAssignmentService private tasExperimentService: IWorkbenchAssignmentService,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 	) {
 		super();

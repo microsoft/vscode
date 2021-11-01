@@ -92,7 +92,7 @@ function isSetProfileArgs(args: unknown): args is ISetProfileArgs {
 }
 
 export class NotebookProfileContribution extends Disposable {
-	constructor(@IConfigurationService configService: IConfigurationService, @ITASExperimentService private readonly experimentService: IWorkbenchAssignmentService) {
+	constructor(@IConfigurationService configService: IConfigurationService, @IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService) {
 		super();
 
 		if (this.experimentService) {

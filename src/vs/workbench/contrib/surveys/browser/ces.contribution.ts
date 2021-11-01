@@ -38,7 +38,7 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IProductService private readonly productService: IProductService,
-		@ITASExperimentService tasExperimentService: IWorkbenchAssignmentService,
+		@IWorkbenchAssignmentService tasExperimentService: IWorkbenchAssignmentService,
 	) {
 		super();
 

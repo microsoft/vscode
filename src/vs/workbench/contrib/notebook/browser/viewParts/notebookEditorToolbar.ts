@@ -69,7 +69,7 @@ export class NotebookEditorToolbar extends Disposable {
 		@IMenuService readonly menuService: IMenuService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@ITASExperimentService private readonly experimentService: IWorkbenchAssignmentService
+		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService
 	) {
 		super();
 

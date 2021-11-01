@@ -230,7 +230,7 @@ class WorkbenchConfigurationContribution {
 	constructor(
 		@IInstantiationService _instantiationService: IInstantiationService,
 		@IConfigurationService _configurationService: IConfigurationService,
-		@ITASExperimentService _experimentSevice: IWorkbenchAssignmentService,
+		@IWorkbenchAssignmentService _experimentSevice: IWorkbenchAssignmentService,
 	) {
 		this.registerConfigs(_experimentSevice);
 	}
