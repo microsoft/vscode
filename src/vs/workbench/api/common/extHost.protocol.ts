@@ -154,7 +154,7 @@ export interface CommentProviderFeatures {
 export type CommentThreadChanges = Partial<{
 	range: IRange,
 	label: string,
-	contextValue: string,
+	contextValue: string | null,
 	comments: modes.Comment[],
 	collapseState: modes.CommentThreadCollapsibleState;
 	canReply: boolean;
