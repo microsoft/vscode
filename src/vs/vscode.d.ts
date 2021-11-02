@@ -7743,7 +7743,7 @@ declare module 'vscode' {
 		/**
 		 * Icon for the panel shown in UI.
 		 */
-		iconPath?: Uri | { light: Uri; dark: Uri };
+		iconPath?: Uri | { readonly light: Uri; readonly dark: Uri };
 
 		/**
 		 * {@linkcode Webview} belonging to the panel.
