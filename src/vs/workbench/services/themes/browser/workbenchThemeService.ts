@@ -39,6 +39,7 @@ import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hos
 import { RunOnceScheduler, Sequencer } from 'vs/base/common/async';
 import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
+import { asCssVariableName, getColorRegistry } from 'vs/platform/theme/common/colorRegistry';
 
 // implementation
 
@@ -476,6 +477,16 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		};
 		ruleCollector.addRule(`.monaco-workbench { forced-color-adjust: none; }`);
 		themingRegistry.getThemingParticipants().forEach(p => p(themeData, ruleCollector, this.environmentService));
+
+		const colorVariables: string[] = [];
+		for (const item of getColorRegistry().getColors()) {
+			const color = themeData.getColor(item.id, true);
+			if (color) {
+				colorVariables.push(`${asCssVariableName(item.id)}: ${color.toString()};`);
+			}
+		}
+		ruleCollector.addRule(`.monaco-workbench { ${colorVariables.join('\n')} }`);
+
 		_applyRules([...cssRules].join('\n'), colorThemeRulesClassName);
 	}
 
