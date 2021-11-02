@@ -26,8 +26,8 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import Severity from 'vs/base/common/severity';
 import { INotificationService, IPromptChoice, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
-import { argsMatch, isUriComponents } from 'vs/workbench/contrib/terminal/browser/terminalProfileHelpers';
 import { deepClone } from 'vs/base/common/objects';
+import { terminalProfileArgsMatch, isUriComponents } from 'vs/platform/terminal/common/terminalProfiles';
 
 export interface IProfileContextProvider {
 	getDefaultSystemShell: (remoteAuthority: string | undefined, os: OperatingSystem) => Promise<string>;
@@ -448,7 +448,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			args,
 			isDefault: true
 		};
-		if (detectedProfile && detectedProfile.profileName === createdProfile.profileName && detectedProfile.path === createdProfile.path && argsMatch(detectedProfile.args, createdProfile.args)) {
+		if (detectedProfile && detectedProfile.profileName === createdProfile.profileName && detectedProfile.path === createdProfile.path && terminalProfileArgsMatch(detectedProfile.args, createdProfile.args)) {
 			return detectedProfile.profileName;
 		}
 		return createdProfile;

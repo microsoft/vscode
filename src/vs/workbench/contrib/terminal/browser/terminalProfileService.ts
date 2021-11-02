@@ -14,10 +14,10 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { ITerminalProfile, IExtensionTerminalProfile, TerminalSettingPrefix, TerminalSettingId, ICreateContributedTerminalProfileOptions, ITerminalProfileObject, IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
-import { IRemoteTerminalService, ITerminalProfileProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { terminalIconsEqual, terminalProfileArgsMatch } from 'vs/platform/terminal/common/terminalProfiles';
+import { IRemoteTerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { refreshTerminalActions } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { argsMatch, iconsEqual } from 'vs/workbench/contrib/terminal/browser/terminalProfileHelpers';
-import { ILocalTerminalService, IOffProcessTerminalService, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ILocalTerminalService, IOffProcessTerminalService, ITerminalProfileProvider, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -68,7 +68,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 			if (e.affectsConfiguration(TerminalSettingPrefix.DefaultProfile + platformKey) ||
 				e.affectsConfiguration(TerminalSettingPrefix.Profiles + platformKey) ||
 				e.affectsConfiguration(TerminalSettingId.UseWslProfiles)) {
-				await this.refreshAvailableProfiles();
+				this.refreshAvailableProfiles();
 			}
 		});
 		this._webExtensionContributedProfileContextKey = TerminalContextKeys.webExtensionContributedProfile.bindTo(this._contextKeyService);
@@ -92,10 +92,10 @@ export class TerminalProfileService implements ITerminalProfileService {
 
 	@throttle(2000)
 	refreshAvailableProfiles(): void {
-		this.refreshAvailableProfilesNow();
+		this._refreshAvailableProfilesNow();
 	}
 
-	async refreshAvailableProfilesNow(): Promise<void> {
+	protected async _refreshAvailableProfilesNow(): Promise<void> {
 		const profiles = await this._detectProfiles();
 		if (profiles.length === 0 && this._ifNoProfilesTryAgain) {
 			// available profiles get updated when a terminal is created
@@ -104,7 +104,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 			// since terminal creation can't happen in this case and users
 			// might not think to try changing the config
 			this._ifNoProfilesTryAgain = false;
-			await this.refreshAvailableProfilesNow();
+			await this._refreshAvailableProfilesNow();
 		}
 		const profilesChanged = !(equals(profiles, this._availableProfiles, profilesEqual));
 		const contributedProfilesChanged = await this._updateContributedProfiles();
@@ -207,9 +207,9 @@ export class TerminalProfileService implements ITerminalProfileService {
 
 function profilesEqual(one: ITerminalProfile, other: ITerminalProfile) {
 	return one.profileName === other.profileName &&
-		argsMatch(one.args, other.args) &&
+		terminalProfileArgsMatch(one.args, other.args) &&
 		one.color === other.color &&
-		iconsEqual(one.icon, other.icon) &&
+		terminalIconsEqual(one.icon, other.icon) &&
 		one.isAutoDetected === other.isAutoDetected &&
 		one.isDefault === other.isDefault &&
 		one.overrideName === other.overrideName &&
