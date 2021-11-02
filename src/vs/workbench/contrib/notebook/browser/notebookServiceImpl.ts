@@ -174,7 +174,7 @@ export class NotebookProviderInfoStore extends Disposable {
 					cellOptions = { resource, options };
 				}
 
-				const notebookOptions: INotebookEditorOptions = { ...options, cellOptions };
+				const notebookOptions = { ...options, cellOptions } as INotebookEditorOptions;
 				return { editor: NotebookEditorInput.create(this._instantiationService, notebookUri, notebookProviderInfo.id), options: notebookOptions };
 			};
 			const notebookUntitledEditorFactory: UntitledEditorInputFactoryFunction = async ({ resource, options }) => {
