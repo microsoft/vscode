@@ -29,7 +29,7 @@ async function getClient(aiKey: string, testCollector: boolean): Promise<Telemet
 	}
 
 	if (aiKey.indexOf('AIF-') === 0) {
-		client.config.endpointUrl = testCollector ? 'https://mobile.events.data.microsoft.com/collect/v1' : 'https://vortex.data.microsoft.com/collect/v1';
+		client.config.endpointUrl = testCollector ? 'https://mobile.events.data.microsoft.com/OneCollector/1.0' : 'https://vortex.data.microsoft.com/collect/v1';
 	}
 	return client;
 }
