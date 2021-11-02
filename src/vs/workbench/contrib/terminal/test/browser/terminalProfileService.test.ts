@@ -9,7 +9,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TerminalProfileService } from 'vs/workbench/contrib/terminal/browser/terminalProfileService';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
-import { IExtensionTerminalProfile, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
+import { IExtensionTerminalProfile, ITerminalProfile, ProfileSource } from 'vs/platform/terminal/common/terminal';
 import { IRemoteTerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
@@ -72,7 +72,7 @@ const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	profiles: {
 		windows: {
 			'PowerShell': {
-				'source': 'PowerShell',
+				'source': ProfileSource.Pwsh,
 				'icon': 'terminal-powershell'
 			},
 			'Command Prompt': {
@@ -84,7 +84,7 @@ const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 				'icon': 'terminal-cmd'
 			},
 			'Git Bash': {
-				'source': 'Git Bash'
+				'source': ProfileSource.GitBash
 			},
 		},
 		linux: {
