@@ -439,7 +439,7 @@ export class TerminalTabbedView extends Disposable {
 		if (!isEditing) {
 			this._tabList.domFocus();
 		}
-		return this._tabList.refresh();
+		this._tabList.refresh(false);
 	}
 
 	focusTabs(): void {

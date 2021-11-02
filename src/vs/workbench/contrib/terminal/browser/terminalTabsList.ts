@@ -192,7 +192,11 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		return this._configurationService.getValue<'singleClick' | 'doubleClick'>(TerminalSettingId.TabsFocusMode);
 	}
 
-	refresh(): void {
+	refresh(cancelEditing: boolean = true): void {
+		if (cancelEditing && this._terminalService.isEditable(undefined)) {
+			this.domFocus();
+		}
+
 		this.splice(0, this.length, this._terminalGroupService.instances.slice());
 	}
 
@@ -324,12 +328,12 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			template.actionBar.clear();
 		}
 
-		if (!template.elementDispoables) {
-			template.elementDispoables = new DisposableStore();
+		if (!template.elementDisposables) {
+			template.elementDisposables = new DisposableStore();
 		}
 
 		// Kill terminal on middle click
-		template.elementDispoables.add(DOM.addDisposableListener(template.element, DOM.EventType.AUXCLICK, e => {
+		template.elementDisposables.add(DOM.addDisposableListener(template.element, DOM.EventType.AUXCLICK, e => {
 			e.stopImmediatePropagation();
 			if (e.button === 1/*middle*/) {
 				this._terminalService.safeDisposeTerminal(instance);
@@ -364,14 +368,13 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		const editableData = this._terminalService.getEditableData(instance);
 		template.label.element.classList.toggle('editable-tab', !!editableData);
 		if (editableData) {
-			this._renderInputBox(template.label.element.querySelector('.monaco-icon-label-container')!, instance, editableData);
+			template.elementDisposables.add(this._renderInputBox(template.label.element.querySelector('.monaco-icon-label-container')!, instance, editableData));
 			template.actionBar.clear();
 		}
 	}
 
 	private _renderInputBox(container: HTMLElement, instance: ITerminalInstance, editableData: IEditableData): IDisposable {
 
-		const label = this._labels.create(container);
 		const value = instance.title || '';
 
 		const inputBox = new InputBox(container, this._contextViewService, {
@@ -439,7 +442,6 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
 				done(inputBox.isInputValid(), true);
 			}),
-			label,
 			styler
 		];
 
@@ -449,11 +451,14 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 	}
 
 	disposeElement(instance: ITerminalInstance, index: number, templateData: ITerminalTabEntryTemplate): void {
-		templateData.elementDispoables?.dispose();
-		templateData.elementDispoables = undefined;
+		templateData.elementDisposables?.dispose();
+		templateData.elementDisposables = undefined;
 	}
 
 	disposeTemplate(templateData: ITerminalTabEntryTemplate): void {
+		templateData.elementDisposables?.dispose();
+		templateData.elementDisposables = undefined;
+		templateData.label.dispose();
 	}
 
 	fillActionBar(instance: ITerminalInstance, template: ITerminalTabEntryTemplate): void {
@@ -496,7 +501,7 @@ interface ITerminalTabEntryTemplate {
 	context: {
 		hoverActions?: IHoverAction[];
 	};
-	elementDispoables?: DisposableStore;
+	elementDisposables?: DisposableStore;
 }
 
 

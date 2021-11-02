@@ -880,9 +880,11 @@ export function registerTerminalActions() {
 				return;
 			}
 
-			await terminalService.setEditable(instance, {
+			terminalService.setEditable(instance, {
 				validationMessage: value => validateTerminalName(value),
 				onFinish: async (value, success) => {
+					// Cancel editing first as instance.rename will trigger a rerender automatically
+					terminalService.setEditable(instance, null);
 					if (success) {
 						try {
 							await instance.rename(value);
@@ -890,7 +892,6 @@ export function registerTerminalActions() {
 							notificationService.error(e);
 						}
 					}
-					await terminalService.setEditable(instance, null);
 				}
 			});
 		}
