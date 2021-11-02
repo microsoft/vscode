@@ -33,6 +33,7 @@ import { IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayo
 import { ViewModelEventDispatcher, OutgoingViewModelEvent, FocusChangedEvent, ScrollChangedEvent, ViewZonesChangedEvent, ViewModelEventsCollector, ReadOnlyEditAttemptEvent } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { ArrayQueue } from 'vs/base/common/arrays';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -296,10 +297,9 @@ export class ViewModel extends Disposable implements IViewModel {
 					}
 				}
 				const lineBreaks = lineBreaksComputer.finalize();
-				let lineBreaksOffset = 0;
+				const lineBreakQueue = new ArrayQueue(lineBreaks);
 
 				for (const change of changes) {
-
 					switch (change.changeType) {
 						case textModelEvents.RawContentChangedType.Flush: {
 							this._lines.onModelFlushed();
@@ -319,9 +319,7 @@ export class ViewModel extends Disposable implements IViewModel {
 							break;
 						}
 						case textModelEvents.RawContentChangedType.LinesInserted: {
-							const insertedLineBreaks = lineBreaks.slice(lineBreaksOffset, lineBreaksOffset + change.detail.length);
-							lineBreaksOffset += change.detail.length;
-
+							const insertedLineBreaks = lineBreakQueue.takeCount(change.detail.length);
 							const linesInsertedEvent = this._lines.onModelLinesInserted(versionId, change.fromLineNumber, change.toLineNumber, insertedLineBreaks);
 							if (linesInsertedEvent !== null) {
 								eventsCollector.emitViewEvent(linesInsertedEvent);
@@ -331,10 +329,9 @@ export class ViewModel extends Disposable implements IViewModel {
 							break;
 						}
 						case textModelEvents.RawContentChangedType.LineChanged: {
-							const changedLineBreakData = lineBreaks[lineBreaksOffset];
-							lineBreaksOffset++;
-
-							const [lineMappingChanged, linesChangedEvent, linesInsertedEvent, linesDeletedEvent] = this._lines.onModelLineChanged(versionId, change.lineNumber, changedLineBreakData);
+							const changedLineBreakData = lineBreakQueue.dequeue()!;
+							const [lineMappingChanged, linesChangedEvent, linesInsertedEvent, linesDeletedEvent] =
+								this._lines.onModelLineChanged(versionId, change.lineNumber, changedLineBreakData);
 							hadModelLineChangeThatChangedLineMapping = lineMappingChanged;
 							if (linesChangedEvent) {
 								eventsCollector.emitViewEvent(linesChangedEvent);
