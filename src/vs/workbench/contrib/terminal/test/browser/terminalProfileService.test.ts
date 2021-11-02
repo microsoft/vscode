@@ -24,8 +24,6 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { Codicon } from 'vs/base/common/codicons';
 import { equals } from 'vs/base/common/objects';
 import { deepStrictEqual, strictEqual } from 'assert';
-
-
 class TestTerminalProfileService extends TerminalProfileService {
 	hasRefreshedProfiles: Promise<void> | undefined;
 
@@ -33,8 +31,6 @@ class TestTerminalProfileService extends TerminalProfileService {
 		this.hasRefreshedProfiles = this._refreshAvailableProfilesNow();
 	}
 }
-
-
 class TestTerminalContributionService implements ITerminalContributionService {
 	_serviceBrand: undefined;
 	terminalProfiles: readonly IExtensionTerminalProfile[] = [];
@@ -117,6 +113,12 @@ suite('TerminalProfileService', () => {
 			integrated: {
 				profiles: {
 					windows: {
+						'JavaScript Debug Terminal': null
+					},
+					linux: {
+						'JavaScript Debug Terminal': null
+					},
+					osx: {
 						'JavaScript Debug Terminal': null
 					}
 				}
