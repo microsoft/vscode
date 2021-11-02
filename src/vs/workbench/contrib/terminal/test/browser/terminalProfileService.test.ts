@@ -17,14 +17,13 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { Codicon } from 'vs/base/common/codicons';
 import { deepStrictEqual } from 'assert';
 import { assert } from 'console';
-
+import { Emitter } from 'vs/base/common/event';
 class TestTerminalProfileService extends TerminalProfileService {
 	hasRefreshedProfiles: Promise<void> | undefined;
 	override refreshAvailableProfiles(): void {
@@ -38,6 +37,11 @@ class TestTerminalProfileService extends TerminalProfileService {
 		return this.hasRefreshedProfiles;
 	}
 }
+
+class TestTerminalExtensionService extends TestExtensionService {
+	readonly _onDidChangeExtensions = new Emitter<void>();
+}
+
 class TestTerminalContributionService implements ITerminalContributionService {
 	_serviceBrand: undefined;
 	terminalProfiles: readonly IExtensionTerminalProfile[] = [];
@@ -86,16 +90,21 @@ suite.only('TerminalProfileService', () => {
 	let terminalProfileService: TestTerminalProfileService;
 	let remoteAgentService: TestRemoteAgentService;
 	let localTerminalService: TestOffProcessTerminalService;
+	let remoteTerminalService: TestOffProcessTerminalService;
+	let extensionService: TestTerminalExtensionService;
+	let environmentService: IWorkbenchEnvironmentService;
+	let instantiationService: TestInstantiationService;
 
 	setup(async () => {
 		configurationService = new TestConfigurationService({ terminal: { integrated: defaultTerminalConfig } });
 		remoteAgentService = new TestRemoteAgentService();
-
-		let instantiationService = new TestInstantiationService();
-		let terminalContributionService = new TestTerminalContributionService();
-		let extensionService = new TestExtensionService();
 		localTerminalService = new TestOffProcessTerminalService();
-		let remoteTerminalService = new TestOffProcessTerminalService();
+		remoteTerminalService = new TestOffProcessTerminalService();
+		extensionService = new TestTerminalExtensionService();
+		environmentService = { configuration: {}, remoteAuthority: undefined } as IWorkbenchEnvironmentService;
+		instantiationService = new TestInstantiationService();
+
+		let terminalContributionService = new TestTerminalContributionService();
 		let contextKeyService = new MockContextKeyService();
 
 		instantiationService.stub(IContextKeyService, contextKeyService);
@@ -105,7 +114,8 @@ suite.only('TerminalProfileService', () => {
 		instantiationService.stub(ITerminalContributionService, terminalContributionService);
 		instantiationService.stub(ILocalTerminalService, localTerminalService);
 		instantiationService.stub(IRemoteTerminalService, remoteTerminalService);
-		instantiationService.stub(IWorkbenchEnvironmentService, TestEnvironmentService);
+		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
+
 		terminalProfileService = instantiationService.createInstance(TestTerminalProfileService);
 
 		//reset as these properties are changed in each test
@@ -161,6 +171,19 @@ suite.only('TerminalProfileService', () => {
 			deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
 			deepStrictEqual(terminalProfileService.contributedProfiles, [jsdebugProfile]);
 		});
+	});
+
+	test('should get profiles from remoteTerminalService when there is a remote authority', async () => {
+		environmentService = { configuration: {}, remoteAuthority: 'authority' } as IWorkbenchEnvironmentService;
+		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
+		terminalProfileService = instantiationService.createInstance(TestTerminalProfileService);
+		await terminalProfileService.refreshAndAwaitAvailableProfiles();
+		deepStrictEqual(terminalProfileService.availableProfiles, []);
+		deepStrictEqual(terminalProfileService.contributedProfiles, [jsdebugProfile]);
+		remoteTerminalService.setProfiles([powershellProfile]);
+		await terminalProfileService.refreshAndAwaitAvailableProfiles();
+		deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
+		deepStrictEqual(terminalProfileService.contributedProfiles, [jsdebugProfile]);
 	});
 
 	test('should fire onDidChangeAvailableProfiles only when available profiles have changed via user config', async () => {
@@ -228,6 +251,23 @@ suite.only('TerminalProfileService', () => {
 			});
 		});
 		await terminalProfileService.refreshAndAwaitAvailableProfiles();
+		assert(countCalled === 1, true);
+		deepStrictEqual(calls, [powershellProfile]);
+		deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
+		deepStrictEqual(terminalProfileService.contributedProfiles, [jsdebugProfile]);
+	});
+
+	test('should call refreshAvailableProfiles _onDidChangeExtensions', async () => {
+		extensionService._onDidChangeExtensions.fire();
+		const calls: ITerminalProfile[] = [];
+		let countCalled = 0;
+		await new Promise<void>(r => {
+			terminalProfileService.onDidChangeAvailableProfiles(e => {
+				calls.push(...e);
+				countCalled++;
+				r();
+			});
+		});
 		assert(countCalled === 1, true);
 		deepStrictEqual(calls, [powershellProfile]);
 		deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
