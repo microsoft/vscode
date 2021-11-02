@@ -866,7 +866,6 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.maintainFileSearchCache': {
 			type: 'boolean',
-			deprecationMessage: nls.localize('maintainFileSearchCacheDeprecated', "The search cache is kept in the extension host which never shuts down, so this setting is no longer needed."),
 			description: nls.localize('search.maintainFileSearchCache', "When enabled, the searchService process will be kept alive instead of being shut down after an hour of inactivity. This will keep the file search cache in memory."),
 			default: false
 		},
