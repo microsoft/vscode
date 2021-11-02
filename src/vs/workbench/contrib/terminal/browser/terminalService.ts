@@ -477,18 +477,18 @@ export class TerminalService implements ITerminalService {
 		return this.activeInstance || this.createTerminal();
 	}
 
-	async setEditable(instance: ITerminalInstance, data?: IEditableData | null): Promise<void> {
+	setEditable(instance: ITerminalInstance, data?: IEditableData | null): void {
 		if (!data) {
 			this._editable = undefined;
 		} else {
 			this._editable = { instance: instance, data };
 		}
 		const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
-		const isEditing = this._isEditable(instance);
+		const isEditing = this.isEditable(instance);
 		pane?.terminalTabbedView?.setEditable(isEditing);
 	}
 
-	private _isEditable(instance: ITerminalInstance | undefined): boolean {
+	isEditable(instance: ITerminalInstance | undefined): boolean {
 		return !!this._editable && (this._editable.instance === instance || !instance);
 	}
 

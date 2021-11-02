@@ -492,10 +492,6 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 	public async $onDidStartTask(execution: tasks.TaskExecutionDTO, terminalId: number, resolvedDefinition: tasks.TaskDefinitionDTO): Promise<void> {
 		const customExecution: types.CustomExecution | undefined = this._providedCustomExecutions2.get(execution.id);
 		if (customExecution) {
-			if (this._activeCustomExecutions2.get(execution.id) !== undefined) {
-				throw new Error('We should not be trying to start the same custom task executions twice.');
-			}
-
 			// Clone the custom execution to keep the original untouched. This is important for multiple runs of the same task.
 			this._activeCustomExecutions2.set(execution.id, customExecution);
 			this._terminalService.attachPtyToTerminal(terminalId, await customExecution.callback(resolvedDefinition));
@@ -625,6 +621,8 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 		const taskId = await this._proxy.$createTaskId(taskDTO);
 		if (!isProvided && !this._providedCustomExecutions2.has(taskId)) {
 			this._notProvidedCustomExecutions.add(taskId);
+			// Also add to active executions when not coming from a provider to prevent timing issue.
+			this._activeCustomExecutions2.set(taskId, <types.CustomExecution>task.execution);
 		}
 		this._providedCustomExecutions2.set(taskId, <types.CustomExecution>task.execution);
 	}
