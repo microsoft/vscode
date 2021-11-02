@@ -40,8 +40,9 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 
 		// Listen to `pagehide` to support orderly shutdown
 		// We explicitly do not listen to `unload` event
-		// which would disable certain browser caching
-		// (https://web.dev/bfcache/)
+		// which would disable certain browser caching.
+		// We currently do not handle the `persisted` property
+		// (https://github.com/microsoft/vscode/issues/136216)
 		this._register(addDisposableListener(window, EventType.PAGE_HIDE, () => this.onUnload()));
 	}
 
@@ -61,7 +62,7 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 		// before and now potentially have a disposed workbench
 		// that is non-functional.
 		// To be on the safe side, we ignore this event in any
-		// other cases.
+		// other cases to not accidentally reload the workbench.
 		const handleLoadEvent = this.didBeforeUnload;
 		if (!handleLoadEvent) {
 			return;
@@ -80,25 +81,17 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 
 		// Unload without veto support
 		if (this.disableBeforeUnloadVeto) {
-			this.onBeforeUnloadWithoutVetoSupport();
+			this.logService.info('[lifecycle] onBeforeUnload triggered and handled without veto support');
+
+			this.doShutdown();
 		}
 
 		// Unload with veto support
 		else {
-			this.onBeforeUnloadWithVetoSupport(event);
+			this.logService.info('[lifecycle] onBeforeUnload triggered and handled with veto support');
+
+			this.doShutdown(() => this.vetoBeforeUnload(event));
 		}
-	}
-
-	private onBeforeUnloadWithoutVetoSupport(): void {
-		this.logService.info('[lifecycle] onBeforeUnload triggered and handled without veto support');
-
-		this.doShutdown();
-	}
-
-	private onBeforeUnloadWithVetoSupport(event: BeforeUnloadEvent): void {
-		this.logService.info('[lifecycle] onBeforeUnload triggered and handled with veto support');
-
-		this.doShutdown(() => this.vetoBeforeUnload(event));
 	}
 
 	private vetoBeforeUnload(event: BeforeUnloadEvent): void {
@@ -137,7 +130,7 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 		this.doShutdown();
 	}
 
-	private doShutdown(supportVeto?: () => void): void {
+	private doShutdown(vetoShutdown?: () => void): void {
 		const logService = this.logService;
 
 		this.didBeforeUnload = true;
@@ -147,7 +140,7 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 		// Before Shutdown
 		this._onBeforeShutdown.fire({
 			veto(value, id) {
-				if (typeof supportVeto === 'function') {
+				if (typeof vetoShutdown === 'function') {
 					if (value instanceof Promise) {
 						logService.error(`[lifecycle] Long running operations before shutdown are unsupported in the web (id: ${id})`);
 
@@ -165,13 +158,8 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 		});
 
 		// Veto: handle if provided
-		if (veto && typeof supportVeto === 'function') {
-			supportVeto();
-
-			// Unfortunately, browsers are not giving us back any
-			// control from this moment on. We do not know whether
-			// the user decided to stay on the page or close it
-			return;
+		if (veto && typeof vetoShutdown === 'function') {
+			return vetoShutdown();
 		}
 
 		// No veto, continue to shutdown
