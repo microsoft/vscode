@@ -736,6 +736,11 @@
 	margin: 0;
 }
 
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories>.gettingStartedCategoriesContainer .index-list.start-container {
+	min-height: 156px;
+	margin-bottom: 16px;
+}
+
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories>.gettingStartedCategoriesContainer>.footer>button {
 	text-align: center;
 }
