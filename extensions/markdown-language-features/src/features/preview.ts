@@ -161,6 +161,12 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			}
 		}));
 
+		this._register(vscode.workspace.onDidOpenTextDocument(document => {
+			if (this.isPreviewOf(document.uri)) {
+				this.refresh();
+			}
+		}));
+
 		const watcher = this._register(vscode.workspace.createFileSystemWatcher(resource.fsPath));
 		this._register(watcher.onDidChange(uri => {
 			if (this.isPreviewOf(uri)) {
