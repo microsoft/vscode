@@ -32,6 +32,13 @@
 
 .monaco-editor .monaco-editor-overlaymessage .message {
 	padding: 1px 4px;
+	color: var(--vscode-inputValidation-infoForeground);
+	background-color: var(--vscode-inputValidation-infoBackground);
+	border: 1px solid var(--vscode-inputValidation-infoBorder);
+}
+
+.monaco-editor.hc-black .monaco-editor-overlaymessage .message {
+	border-width: 2px;
 }
 
 .monaco-editor .monaco-editor-overlaymessage .anchor {
@@ -42,6 +49,14 @@
 	z-index: 1000;
 	border-width: 8px;
 	position: absolute;
+}
+
+.monaco-editor .monaco-editor-overlaymessage .anchor.top {
+	border-bottom-color: var(--vscode-inputValidation-infoBorder);
+}
+
+.monaco-editor .monaco-editor-overlaymessage .anchor.below {
+	border-top-color: var(--vscode-inputValidation-infoBorder);
 }
 
 .monaco-editor .monaco-editor-overlaymessage:not(.below) .anchor.top,
