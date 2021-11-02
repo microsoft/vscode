@@ -243,7 +243,7 @@ class ToggleScreencastModeAction extends Action2 {
 					append(keyboardMarker, $('span.title', {}, `${titleLabel} `));
 				}
 
-				if (!configurationService.getValue('screencastMode.onlyKeyboardShortcuts') || shortcut?.commandId && (format === 'keys' || format === 'commandAndKeys' || format === 'commandWithGroupAndKeys')) {
+				if (!configurationService.getValue('screencastMode.onlyKeyboardShortcuts') || !titleLabel || shortcut?.commandId && (format === 'keys' || format === 'commandAndKeys' || format === 'commandWithGroupAndKeys')) {
 					append(keyboardMarker, $('span.key', {}, keyLabel || ''));
 				}
 
