@@ -239,7 +239,6 @@ export class IndexedDBFileSystemProvider extends Disposable {
 
 	private cachedFiletree: Promise<IndexedDBFileSystemNode> | undefined;
 	private writeManyThrottler: Throttler;
-	private readonly pendingTransactions: IDBTransaction[] = [];
 
 	constructor(scheme: string, private indexedDB: IndexedDB, private readonly store: string, watchCrossWindowChanges: boolean) {
 		super();
@@ -429,12 +428,6 @@ export class IndexedDBFileSystemProvider extends Disposable {
 
 	async reset(): Promise<void> {
 		await this.indexedDB.runInTransaction(this.store, 'readwrite', objectStore => objectStore.clear());
-	}
-
-	abort(): void {
-		if (this.pendingTransactions.length) {
-			this.pendingTransactions.splice(0, this.pendingTransactions.length).forEach(transaction => transaction.abort());
-		}
 	}
 
 }
