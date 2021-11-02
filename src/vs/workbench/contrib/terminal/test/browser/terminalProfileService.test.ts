@@ -17,19 +17,31 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { Codicon } from 'vs/base/common/codicons';
 import { deepStrictEqual } from 'assert';
+import { assert } from 'console';
+import { Emitter } from 'vs/base/common/event';
 class TestTerminalProfileService extends TerminalProfileService {
 	hasRefreshedProfiles: Promise<void> | undefined;
-
 	override refreshAvailableProfiles(): void {
 		this.hasRefreshedProfiles = this._refreshAvailableProfilesNow();
 	}
+	refreshAndAwaitAvailableProfiles(): Promise<void> {
+		this.refreshAvailableProfiles();
+		if (!this.hasRefreshedProfiles) {
+			throw new Error('has not refreshed profiles yet');
+		}
+		return this.hasRefreshedProfiles;
+	}
 }
+
+class TestTerminalExtensionService extends TestExtensionService {
+	readonly _onDidChangeExtensions = new Emitter<void>();
+}
+
 class TestTerminalContributionService implements ITerminalContributionService {
 	_serviceBrand: undefined;
 	terminalProfiles: readonly IExtensionTerminalProfile[] = [];
@@ -59,21 +71,40 @@ class TestRemoteAgentService implements Partial<IRemoteAgentService> {
 }
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = { profiles: { windows: {}, linux: {}, osx: {} } };
+let powershellProfile = {
+	profileName: 'PowerShell',
+	path: 'C:\\Powershell.exe',
+	isDefault: true,
+	icon: ThemeIcon.asThemeIcon(Codicon.terminalPowershell)
+};
+let jsdebugProfile = {
+	extensionIdentifier: 'ms-vscode.js-debug-nightly',
+	icon: 'debug',
+	id: 'extension.js-debug.debugTerminal',
+	title: 'JavaScript Debug Terminal'
+};
 
-suite('TerminalProfileService', () => {
+
+suite.only('TerminalProfileService', () => {
 	let configurationService: TestConfigurationService;
 	let terminalProfileService: TestTerminalProfileService;
 	let remoteAgentService: TestRemoteAgentService;
+	let localTerminalService: TestOffProcessTerminalService;
+	let remoteTerminalService: TestOffProcessTerminalService;
+	let extensionService: TestTerminalExtensionService;
+	let environmentService: IWorkbenchEnvironmentService;
+	let instantiationService: TestInstantiationService;
 
 	setup(async () => {
 		configurationService = new TestConfigurationService({ terminal: { integrated: defaultTerminalConfig } });
 		remoteAgentService = new TestRemoteAgentService();
+		localTerminalService = new TestOffProcessTerminalService();
+		remoteTerminalService = new TestOffProcessTerminalService();
+		extensionService = new TestTerminalExtensionService();
+		environmentService = { configuration: {}, remoteAuthority: undefined } as IWorkbenchEnvironmentService;
+		instantiationService = new TestInstantiationService();
 
-		let instantiationService = new TestInstantiationService();
 		let terminalContributionService = new TestTerminalContributionService();
-		let extensionService = new TestExtensionService();
-		let localTerminalService = new TestOffProcessTerminalService();
-		let remoteTerminalService = new TestOffProcessTerminalService();
 		let contextKeyService = new MockContextKeyService();
 
 		instantiationService.stub(IContextKeyService, contextKeyService);
@@ -83,21 +114,27 @@ suite('TerminalProfileService', () => {
 		instantiationService.stub(ITerminalContributionService, terminalContributionService);
 		instantiationService.stub(ILocalTerminalService, localTerminalService);
 		instantiationService.stub(IRemoteTerminalService, remoteTerminalService);
-		instantiationService.stub(IWorkbenchEnvironmentService, TestEnvironmentService);
+		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
+
 		terminalProfileService = instantiationService.createInstance(TestTerminalProfileService);
-		localTerminalService.setProfiles([{
+
+		//reset as these properties are changed in each test
+		powershellProfile = {
 			profileName: 'PowerShell',
 			path: 'C:\\Powershell.exe',
 			isDefault: true,
 			icon: ThemeIcon.asThemeIcon(Codicon.terminalPowershell)
-		}]);
-		remoteTerminalService.setProfiles([]);
-		terminalContributionService.setProfiles([{
+		};
+		jsdebugProfile = {
 			extensionIdentifier: 'ms-vscode.js-debug-nightly',
 			icon: 'debug',
 			id: 'extension.js-debug.debugTerminal',
 			title: 'JavaScript Debug Terminal'
-		}]);
+		};
+
+		localTerminalService.setProfiles([powershellProfile]);
+		remoteTerminalService.setProfiles([]);
+		terminalContributionService.setProfiles([jsdebugProfile]);
 		if (isWindows) {
 			remoteAgentService.setEnvironment(OperatingSystem.Windows);
 		} else if (isLinux) {
@@ -105,50 +142,135 @@ suite('TerminalProfileService', () => {
 		} else {
 			remoteAgentService.setEnvironment(OperatingSystem.Macintosh);
 		}
+		configurationService.setUserConfiguration('terminal', { integrated: defaultTerminalConfig });
+	});
+	suite('Contributed Profiles', () => {
+		test('should filter out contributed profiles set to null', async () => {
+			await configurationService.setUserConfiguration('terminal', {
+				integrated: {
+					profiles: {
+						windows: {
+							'JavaScript Debug Terminal': null
+						},
+						linux: {
+							'JavaScript Debug Terminal': null
+						},
+						osx: {
+							'JavaScript Debug Terminal': null
+						}
+					}
+				}
+			});
+			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
+			await terminalProfileService.refreshAndAwaitAvailableProfiles();
+			deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
+			deepStrictEqual(terminalProfileService.contributedProfiles, []);
+		});
+		test('should include contributed profiles', async () => {
+			await terminalProfileService.refreshAndAwaitAvailableProfiles();
+			deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
+			deepStrictEqual(terminalProfileService.contributedProfiles, [jsdebugProfile]);
+		});
 	});
 
-	test('should filter out contributed profiles set to null', async () => {
+	test('should get profiles from remoteTerminalService when there is a remote authority', async () => {
+		environmentService = { configuration: {}, remoteAuthority: 'authority' } as IWorkbenchEnvironmentService;
+		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
+		terminalProfileService = instantiationService.createInstance(TestTerminalProfileService);
+		await terminalProfileService.refreshAndAwaitAvailableProfiles();
+		deepStrictEqual(terminalProfileService.availableProfiles, []);
+		deepStrictEqual(terminalProfileService.contributedProfiles, [jsdebugProfile]);
+		remoteTerminalService.setProfiles([powershellProfile]);
+		await terminalProfileService.refreshAndAwaitAvailableProfiles();
+		deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
+		deepStrictEqual(terminalProfileService.contributedProfiles, [jsdebugProfile]);
+	});
+
+	test('should fire onDidChangeAvailableProfiles only when available profiles have changed via user config', async () => {
+		powershellProfile.icon = ThemeIcon.asThemeIcon(Codicon.lightBulb);
+		let calls: ITerminalProfile[] = [];
+		let countCalled = 0;
+		await new Promise<void>(r => {
+			terminalProfileService.onDidChangeAvailableProfiles(e => {
+				calls.push(...e);
+				countCalled++;
+				r();
+			});
+		});
 		await configurationService.setUserConfiguration('terminal', {
 			integrated: {
 				profiles: {
-					windows: {
-						'JavaScript Debug Terminal': null
-					},
-					linux: {
-						'JavaScript Debug Terminal': null
-					},
-					osx: {
-						'JavaScript Debug Terminal': null
-					}
+					windows: powershellProfile,
+					linux: powershellProfile,
+					osx: powershellProfile
 				}
 			}
 		});
 		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
-		terminalProfileService.refreshAvailableProfiles();
-		await terminalProfileService.hasRefreshedProfiles;
-		deepStrictEqual(terminalProfileService.availableProfiles, [{
-			profileName: 'PowerShell',
-			path: 'C:\\Powershell.exe',
-			isDefault: true,
-			icon: ThemeIcon.asThemeIcon(Codicon.terminalPowershell)
-		}]);
-		deepStrictEqual(terminalProfileService.contributedProfiles, []);
+		await terminalProfileService.refreshAndAwaitAvailableProfiles();
+		assert(countCalled === 1, true);
+		deepStrictEqual(calls, [powershellProfile]);
+		deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
+		deepStrictEqual(terminalProfileService.contributedProfiles, [jsdebugProfile]);
+		calls = [];
+		countCalled = 0;
+		await terminalProfileService.refreshAndAwaitAvailableProfiles();
+		assert(countCalled === 0, true);
+		deepStrictEqual(calls, []);
 	});
-	test('should include contributed profiles', async () => {
-		configurationService.setUserConfiguration('terminal', { integrated: defaultTerminalConfig });
-		terminalProfileService.refreshAvailableProfiles();
-		await terminalProfileService.hasRefreshedProfiles;
-		deepStrictEqual(terminalProfileService.availableProfiles, [{
-			profileName: 'PowerShell',
-			path: 'C:\\Powershell.exe',
-			isDefault: true,
-			icon: ThemeIcon.asThemeIcon(Codicon.terminalPowershell)
-		}]);
-		deepStrictEqual(terminalProfileService.contributedProfiles, [{
-			extensionIdentifier: 'ms-vscode.js-debug-nightly',
-			icon: 'debug',
-			id: 'extension.js-debug.debugTerminal',
-			title: 'JavaScript Debug Terminal'
-		}]);
+
+	test('should fire onDidChangeAvailableProfiles when available or contributed profiles have changed via remote/localTerminalService', async () => {
+		powershellProfile.isDefault = false;
+		localTerminalService.setProfiles([powershellProfile]);
+		const calls: ITerminalProfile[] = [];
+		let countCalled = 0;
+		await new Promise<void>(r => {
+			terminalProfileService.onDidChangeAvailableProfiles(e => {
+				calls.push(...e);
+				countCalled++;
+				r();
+			});
+		});
+		await terminalProfileService.refreshAndAwaitAvailableProfiles();
+		assert(countCalled === 1, true);
+		deepStrictEqual(calls, [powershellProfile]);
+		deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
+		deepStrictEqual(terminalProfileService.contributedProfiles, [jsdebugProfile]);
+	});
+
+	test('should fire onDidChangeAvailableProfiles when available or contributed profiles have changed via remote/localTerminalService', async () => {
+		powershellProfile.isDefault = false;
+		localTerminalService.setProfiles([powershellProfile]);
+		const calls: ITerminalProfile[] = [];
+		let countCalled = 0;
+		await new Promise<void>(r => {
+			terminalProfileService.onDidChangeAvailableProfiles(e => {
+				calls.push(...e);
+				countCalled++;
+				r();
+			});
+		});
+		await terminalProfileService.refreshAndAwaitAvailableProfiles();
+		assert(countCalled === 1, true);
+		deepStrictEqual(calls, [powershellProfile]);
+		deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
+		deepStrictEqual(terminalProfileService.contributedProfiles, [jsdebugProfile]);
+	});
+
+	test('should call refreshAvailableProfiles _onDidChangeExtensions', async () => {
+		extensionService._onDidChangeExtensions.fire();
+		const calls: ITerminalProfile[] = [];
+		let countCalled = 0;
+		await new Promise<void>(r => {
+			terminalProfileService.onDidChangeAvailableProfiles(e => {
+				calls.push(...e);
+				countCalled++;
+				r();
+			});
+		});
+		assert(countCalled === 1, true);
+		deepStrictEqual(calls, [powershellProfile]);
+		deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
+		deepStrictEqual(terminalProfileService.contributedProfiles, [jsdebugProfile]);
 	});
 });
