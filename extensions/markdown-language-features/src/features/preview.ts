@@ -255,13 +255,6 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		this.firstUpdate = false;
 	}
 
-	private get iconPath() {
-		const root = vscode.Uri.joinPath(this._contributionProvider.extensionUri, 'media');
-		return {
-			light: vscode.Uri.joinPath(root, 'preview-light.svg'),
-			dark: vscode.Uri.joinPath(root, 'preview-dark.svg'),
-		};
-	}
 
 	public isPreviewOf(resource: vscode.Uri): boolean {
 		return this._resource.fsPath === resource.fsPath;
@@ -385,7 +378,6 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		if (this.delegate.getTitle) {
 			this._webviewPanel.title = this.delegate.getTitle(this._resource);
 		}
-		this._webviewPanel.iconPath = this.iconPath;
 		this._webviewPanel.webview.options = this.getWebviewOptions();
 
 		if (reloadPage) {
