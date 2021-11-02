@@ -113,6 +113,9 @@ class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActionButton
 	) { }
 
 	renderTemplate(container: HTMLElement): ActionButtonTemplate {
+		// Disable hover for list item
+		container.parentElement!.parentElement!.classList.add('force-no-hover');
+
 		const buttonContainer = append(container, $('.button-container'));
 		const actionButton = new ScmActionButton(buttonContainer, this.commandService, this.themeService, this.notificationService);
 
@@ -166,6 +169,9 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 	renderTemplate(container: HTMLElement): InputTemplate {
 		// hack
 		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
+
+		// Disable hover for list item
+		container.parentElement!.parentElement!.classList.add('force-no-hover');
 
 		const disposables = new DisposableStore();
 		const inputElement = append(container, $('.scm-input'));
