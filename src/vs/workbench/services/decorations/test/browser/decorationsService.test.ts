@@ -9,7 +9,6 @@ import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/dec
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as resources from 'vs/base/common/resources';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { mock } from 'vs/base/test/common/mock';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
@@ -23,7 +22,6 @@ suite('DecorationsService', function () {
 			service.dispose();
 		}
 		service = new DecorationsService(
-			new TestThemeService(),
 			new class extends mock<IUriIdentityService>() {
 				override extUri = resources.extUri;
 			}
