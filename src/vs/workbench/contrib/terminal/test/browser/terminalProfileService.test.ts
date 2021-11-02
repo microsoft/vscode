@@ -22,8 +22,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { Codicon } from 'vs/base/common/codicons';
-import { equals } from 'vs/base/common/objects';
-import { deepStrictEqual, strictEqual } from 'assert';
+import { deepStrictEqual } from 'assert';
 class TestTerminalProfileService extends TerminalProfileService {
 	hasRefreshedProfiles: Promise<void> | undefined;
 
@@ -133,23 +132,23 @@ suite('TerminalProfileService', () => {
 			isDefault: true,
 			icon: ThemeIcon.asThemeIcon(Codicon.terminalPowershell)
 		}]);
-		strictEqual(equals(terminalProfileService.contributedProfiles, []), true);
+		deepStrictEqual(terminalProfileService.contributedProfiles, []);
 	});
 	test('should include contributed profiles', async () => {
 		configurationService.setUserConfiguration('terminal', { integrated: defaultTerminalConfig });
 		terminalProfileService.refreshAvailableProfiles();
 		await terminalProfileService.hasRefreshedProfiles;
-		strictEqual(equals(terminalProfileService.availableProfiles, [{
+		deepStrictEqual(terminalProfileService.availableProfiles, [{
 			profileName: 'PowerShell',
 			path: 'C:\\Powershell.exe',
 			isDefault: true,
 			icon: ThemeIcon.asThemeIcon(Codicon.terminalPowershell)
-		}]), true);
-		strictEqual(equals(terminalProfileService.contributedProfiles, [{
+		}]);
+		deepStrictEqual(terminalProfileService.contributedProfiles, [{
 			extensionIdentifier: 'ms-vscode.js-debug-nightly',
 			icon: 'debug',
 			id: 'extension.js-debug.debugTerminal',
 			title: 'JavaScript Debug Terminal'
-		}]), true);
+		}]);
 	});
 });
