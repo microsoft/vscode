@@ -415,7 +415,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 		let matches: IMatch[] | undefined;
 		let descriptionMatches: IMatch[] | undefined;
-		let strikethrough: boolean | undefined = false;
+		let strikethrough: boolean | undefined;
 
 		if (ResourceTree.isResourceNode(resourceOrFolder)) {
 			if (resourceOrFolder.element) {
