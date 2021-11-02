@@ -376,7 +376,10 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		}
 
 		// TODO@Alex: use arrays.arrayInsert
-		this.modelLineProjections = this.modelLineProjections.slice(0, fromLineNumber - 1).concat(insertLines).concat(this.modelLineProjections.slice(fromLineNumber - 1));
+		this.modelLineProjections =
+			this.modelLineProjections.slice(0, fromLineNumber - 1)
+				.concat(insertLines)
+				.concat(this.modelLineProjections.slice(fromLineNumber - 1));
 
 		this.projectedModelLineLineCounts.insertValues(fromLineNumber - 1, insertPrefixSumValues);
 
