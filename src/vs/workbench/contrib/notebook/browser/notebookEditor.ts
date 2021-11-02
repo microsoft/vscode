@@ -223,7 +223,7 @@ export class NotebookEditor extends EditorPane {
 
 
 
-		const viewState = this._loadNotebookEditorViewState(input);
+		const viewState = options?.viewState ?? this._loadNotebookEditorViewState(input);
 
 		this._widget.value?.setParentContextKeyService(this._contextKeyService);
 		await this._widget.value!.setModel(model.notebook, viewState);
@@ -311,6 +311,17 @@ export class NotebookEditor extends EditorPane {
 		this._saveEditorViewState(this.input);
 		super.saveState();
 	}
+
+	override getViewState(): INotebookEditorViewState | undefined {
+		const input = this.input;
+		if (!(input instanceof NotebookEditorInput)) {
+			return undefined;
+		}
+
+		this._saveEditorViewState(input);
+		return this._loadNotebookEditorViewState(input);
+	}
+
 
 	private _saveEditorViewState(input: EditorInput | undefined): void {
 		if (this.group && this._widget.value && input instanceof NotebookEditorInput) {
