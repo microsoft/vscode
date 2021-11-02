@@ -420,6 +420,9 @@ export interface ITerminalInstance {
 	 */
 	processId: number | undefined;
 
+	/**
+	 * The position of the terminal.
+	 */
 	target?: TerminalLocation;
 
 	/**
@@ -775,6 +778,11 @@ export interface IXtermTerminal {
 	 * them.
 	 */
 	readonly commandTracker: ICommandTracker;
+
+	/**
+	 * The position of the terminal.
+	 */
+	target?: TerminalLocation;
 
 	/**
 	 * Find the next instance of the term

@@ -39,7 +39,7 @@ import { TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTy
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType, TerminalSettingId, TitleEventSource, TerminalIcon, TerminalSettingPrefix, ITerminalProfileObject, TerminalLocation, ProcessPropertyType, ProcessCapability, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType, TerminalSettingId, TitleEventSource, TerminalIcon, TerminalSettingPrefix, ITerminalProfileObject, ProcessPropertyType, ProcessCapability, IProcessPropertyMap, TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { AutoOpenBarrier, Promises } from 'vs/base/common/async';
@@ -170,7 +170,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _hasScrollBar?: boolean;
 
 	xterm?: XtermTerminal;
-	target?: TerminalLocation;
+
+	get target(): TerminalLocation | undefined { return this.xterm?.target; }
+	set target(value: TerminalLocation | undefined) {
+		if (this.xterm) {
+			this.xterm.target = value;
+		}
+	}
 
 	get instanceId(): number { return this._instanceId; }
 	get resource(): URI { return this._resource; }
