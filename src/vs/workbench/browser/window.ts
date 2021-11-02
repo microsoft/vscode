@@ -83,6 +83,21 @@ export class BrowserWindow extends Disposable {
 
 	private onWillShutdown(): void {
 
+		// Some browsers implement back/forward caching which will
+		// restore the workbench even after `unload` events have
+		// fired.
+		// We can detect this happens by looking at the `persisted`
+		// property when the `pageshow` event fires. If this happens
+		// after we have been shutdown, we simply reload the workbench
+		// to bring back a working state.
+		// Docs: https://web.dev/bfcache/#optimize-your-pages-for-bfcache
+		// Refs: https://github.com/microsoft/vscode/issues/136035
+		window.addEventListener('pageshow', function (event) {
+			if (event.persisted) {
+				window.location.reload();
+			}
+		});
+
 		// Try to detect some user interaction with the workbench
 		// when shutdown has happened to not show the dialog e.g.
 		// when navigation takes a longer time.

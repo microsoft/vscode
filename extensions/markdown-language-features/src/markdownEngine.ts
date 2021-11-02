@@ -112,6 +112,7 @@ export class MarkdownEngine {
 			this.md = (async () => {
 				const markdownIt = await import('markdown-it');
 				let md: MarkdownIt = markdownIt(await getMarkdownOptions(() => md));
+				md.linkify.set({ fuzzyLink: false });
 
 				for (const plugin of this.contributionProvider.contributions.markdownItPlugins.values()) {
 					try {

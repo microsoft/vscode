@@ -58,7 +58,7 @@ You may see improved VNC responsiveness when accessing a codespace from VS Code 
 
 2. After the VS Code is up and running, press <kbd>Ctrl/Cmd</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd> or <kbd>F1</kbd>, choose **Codespaces: Create New Codespace**, and use the following settings:
     - `microsoft/vscode` for the repository.
-	- Select any branch (e.g. **main**) - you select a different one later.
+	- Select any branch (e.g. **main**) - you can select a different one later.
 	- Choose **Standard** (4-core, 8GB) as the size.
 
 4. After you have connected to the codespace, you can use a [VNC Viewer](https://www.realvnc.com/en/connect/download/viewer/) to connect to `localhost:5901` and enter `vscode` as the password.

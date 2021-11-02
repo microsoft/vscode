@@ -21,7 +21,7 @@ import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ILanguageIdCodec } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { ghostTextBorder, ghostTextForeground } from 'vs/editor/common/view/editorColorRegistry';
+import { ghostTextBackground, ghostTextBorder, ghostTextForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
@@ -226,6 +226,7 @@ class DecorationsWidget implements IDisposable {
 
 		const colorTheme = this.themeService.getColorTheme();
 		const foreground = colorTheme.getColor(ghostTextForeground);
+
 		let opacity: string | undefined = undefined;
 		let color: string | undefined = undefined;
 		if (foreground) {
@@ -499,15 +500,18 @@ class ViewMoreLinesContentWidget extends Disposable implements IContentWidget {
 
 registerThemingParticipant((theme, collector) => {
 	const foreground = theme.getColor(ghostTextForeground);
-
 	if (foreground) {
-		const opacity = String(foreground.rgba.a);
-		const color = Color.Format.CSS.format(opaque(foreground))!;
-
 		// `!important` ensures that other decorations don't cause a style conflict (#132017).
-		collector.addRule(`.monaco-editor .ghost-text-decoration { opacity: ${opacity} !important; color: ${color} !important; }`);
+		collector.addRule(`.monaco-editor .ghost-text-decoration { color: ${foreground.toString()} !important; }`);
 		collector.addRule(`.monaco-editor .ghost-text-decoration-preview { color: ${foreground.toString()} !important; }`);
-		collector.addRule(`.monaco-editor .suggest-preview-text .ghost-text { opacity: ${opacity} !important; color: ${color} !important; }`);
+		collector.addRule(`.monaco-editor .suggest-preview-text .ghost-text { color: ${foreground.toString()} !important; }`);
+	}
+
+	const background = theme.getColor(ghostTextBackground);
+	if (background) {
+		collector.addRule(`.monaco-editor .ghost-text-decoration { background-color: ${background.toString()}; }`);
+		collector.addRule(`.monaco-editor .ghost-text-decoration-preview { background-color: ${background.toString()}; }`);
+		collector.addRule(`.monaco-editor .suggest-preview-text .ghost-text { background-color: ${background.toString()}; }`);
 	}
 
 	const border = theme.getColor(ghostTextBorder);

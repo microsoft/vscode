@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Server } from 'vs/base/parts/ipc/node/ipc.cp';
-import { SearchChannel } from './searchIpc';
-import { SearchService } from './rawSearchService';
+import * as assert from 'assert';
+import * as terminalEncoding from 'vs/base/node/terminalEncoding';
 
-const server = new Server('search');
-const service = new SearchService();
-const channel = new SearchChannel(service);
-server.registerChannel('search', channel);
+suite('Encoding', () => {
+
+	test('resolve terminal encoding (detect)', async function () {
+		const enc = await terminalEncoding.resolveTerminalEncoding();
+		assert.ok(enc.length > 0);
+	});
+});

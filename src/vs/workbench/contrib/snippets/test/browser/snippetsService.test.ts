@@ -12,7 +12,7 @@ import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
 import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { CompletionContext, CompletionTriggerKind } from 'vs/editor/common/modes';
+import { CompletionContext, CompletionItemLabel, CompletionItemRanges, CompletionTriggerKind } from 'vs/editor/common/modes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 
 class SimpleSnippetService implements ISnippetsService {
@@ -91,6 +91,17 @@ suite('SnippetsService', function () {
 		});
 	});
 
+	test('snippet completions - simple 2', function () {
+
+		const provider = new SnippetCompletionProvider(modeService, snippetService);
+		const model = disposables.add(createTextModel('hello ', undefined, 'fooLang'));
+
+		return provider.provideCompletionItems(model, new Position(1, 6), context)!.then(result => {
+			assert.strictEqual(result.incomplete, undefined);
+			assert.strictEqual(result.suggestions.length, 2);
+		});
+	});
+
 	test('snippet completions - with prefix', function () {
 
 		const provider = new SnippetCompletionProvider(modeService, snippetService);
@@ -139,24 +150,34 @@ suite('SnippetsService', function () {
 				description: 'barTest'
 			});
 			assert.strictEqual(result.suggestions[0].insertText, 's1');
-			assert.strictEqual((result.suggestions[0].range as any).insert.startColumn, 1);
+			assert.strictEqual((result.suggestions[0].range as CompletionItemRanges).insert.startColumn, 1);
 			assert.deepStrictEqual(result.suggestions[1].label, {
 				label: 'bar-bar',
 				description: 'name'
 			});
 			assert.strictEqual(result.suggestions[1].insertText, 's2');
-			assert.strictEqual((result.suggestions[1].range as any).insert.startColumn, 1);
+			assert.strictEqual((result.suggestions[1].range as CompletionItemRanges).insert.startColumn, 1);
 		});
 
 		await provider.provideCompletionItems(model, new Position(1, 5), context)!.then(result => {
 			assert.strictEqual(result.incomplete, undefined);
-			assert.strictEqual(result.suggestions.length, 1);
-			assert.deepStrictEqual(result.suggestions[0].label, {
+			assert.strictEqual(result.suggestions.length, 2);
+
+			const [first, second] = result.suggestions;
+
+			assert.deepStrictEqual(first.label, {
+				label: 'bar',
+				description: 'barTest'
+			});
+			assert.strictEqual(first.insertText, 's1');
+			assert.strictEqual((first.range as CompletionItemRanges).insert.startColumn, 5);
+
+			assert.deepStrictEqual(second.label, {
 				label: 'bar-bar',
 				description: 'name'
 			});
-			assert.strictEqual(result.suggestions[0].insertText, 's2');
-			assert.strictEqual((result.suggestions[0].range as any).insert.startColumn, 1);
+			assert.strictEqual(second.insertText, 's2');
+			assert.strictEqual((second.range as CompletionItemRanges).insert.startColumn, 1);
 		});
 
 		await provider.provideCompletionItems(model, new Position(1, 6), context)!.then(result => {
@@ -548,6 +569,31 @@ suite('SnippetsService', function () {
 		assert.strictEqual((first.range as any).insert.endColumn, 5);
 		// This is 6 because it should eat the `]` at the end of the text even if cursor is before it
 		assert.strictEqual((first.range as any).replace.endColumn, 6);
+		model.dispose();
+	});
+
+	test('Leading whitespace in snippet prefix #123860', async function () {
+
+		snippetService = new SimpleSnippetService([new Snippet(
+			['fooLang'],
+			'cite-name',
+			' cite',
+			'',
+			'~\\cite{$CLIPBOARD}',
+			'',
+			SnippetSource.User
+		)]);
+
+		const provider = new SnippetCompletionProvider(modeService, snippetService);
+
+		let model = createTextModel(' ci', undefined, 'fooLang');
+		let result = await provider.provideCompletionItems(model, new Position(1, 4), context)!;
+
+		assert.strictEqual(result.suggestions.length, 1);
+		let [first] = result.suggestions;
+		assert.strictEqual((<CompletionItemLabel>first.label).label, ' cite');
+		assert.strictEqual((<CompletionItemRanges>first.range).insert.startColumn, 1);
+
 		model.dispose();
 	});
 });

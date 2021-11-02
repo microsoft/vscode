@@ -578,6 +578,9 @@ export class TextAreaHandler extends ViewPart {
 				top, left,
 				canUseZeroSizeTextarea ? 0 : 1, this._lineHeight
 			);
+			// In case the textarea contains a word, we're going to try to align the textarea's cursor
+			// with our cursor by scrolling the textarea as much as possible
+			this.textArea.domNode.scrollLeft = 1000000;
 			return;
 		}
 
