@@ -14,8 +14,10 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class BrowserLifecycleService extends AbstractLifecycleService {
 
-	private beforeUnloadDisposable: IDisposable | undefined = undefined;
-	private disableUnloadHandling = false;
+	private beforeUnloadListener: IDisposable | undefined = undefined;
+
+	private disableBeforeUnloadVeto = false;
+	private didUnload = false;
 
 	constructor(
 		@ILogService logService: ILogService,
@@ -28,27 +30,44 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 
 	private registerListeners(): void {
 
-		// beforeUnload
-		this.beforeUnloadDisposable = addDisposableListener(window, EventType.BEFORE_UNLOAD, (e: BeforeUnloadEvent) => this.onBeforeUnload(e));
+		// Listen to `beforeUnload` to support to veto
+		this.beforeUnloadListener = addDisposableListener(window, EventType.BEFORE_UNLOAD, (e: BeforeUnloadEvent) => this.onBeforeUnload(e));
+
+		// Listen to `pagehide` to support orderly shutdown
+		// We explicitly do not listen to `unload` event
+		// which would disable certain browser caching
+		// (https://web.dev/bfcache/)
+		this._register(addDisposableListener(window, EventType.PAGE_HIDE, () => this.onUnload()));
 	}
 
 	private onBeforeUnload(event: BeforeUnloadEvent): void {
-		if (this.disableUnloadHandling) {
-			this.logService.info('[lifecycle] onBeforeUnload disabled, ignoring once');
 
-			this.disableUnloadHandling = false;
-
-			return; // ignore unload handling only once
+		// Unload without veto support
+		if (this.disableBeforeUnloadVeto) {
+			this.onBeforeUnloadWithoutVetoSupport();
 		}
 
-		this.logService.info('[lifecycle] onBeforeUnload triggered');
+		// Unload with veto support
+		else {
+			this.onBeforeUnloadWithVetoSupport(event);
+		}
+	}
 
-		this.doShutdown(() => {
+	private onBeforeUnloadWithoutVetoSupport(): void {
+		this.logService.info('[lifecycle] onBeforeUnload triggered and handled without veto support');
 
-			// Veto handling
-			event.preventDefault();
-			event.returnValue = localize('lifecycleVeto', "Changes that you made may not be saved. Please check press 'Cancel' and try again.");
-		});
+		this.doShutdown();
+	}
+
+	private onBeforeUnloadWithVetoSupport(event: BeforeUnloadEvent): void {
+		this.logService.info('[lifecycle] onBeforeUnload triggered and handled with veto support');
+
+		this.doShutdown(() => this.vetoBeforeUnload(event));
+	}
+
+	private vetoBeforeUnload(event: BeforeUnloadEvent): void {
+		event.preventDefault();
+		event.returnValue = localize('lifecycleVeto', "Changes that you made may not be saved. Please check press 'Cancel' and try again.");
 	}
 
 	withExpectedShutdown(reason: ShutdownReason): void;
@@ -60,13 +79,13 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 			this.shutdownReason = reason;
 		}
 
-		// Shutdown handling disabled for duration of callback
+		// Veto handling disabled for duration of callback
 		else {
-			this.disableUnloadHandling = true;
+			this.disableBeforeUnloadVeto = true;
 			try {
 				callback?.();
 			} finally {
-				this.disableUnloadHandling = false;
+				this.disableBeforeUnloadVeto = false;
 			}
 		}
 	}
@@ -74,8 +93,9 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 	shutdown(): void {
 		this.logService.info('[lifecycle] shutdown triggered');
 
-		// Remove `beforeunload` listener that would prevent shutdown
-		this.beforeUnloadDisposable?.dispose();
+		// An explicit shutdown renders `beforeUnload` event
+		// handling disabled from here on
+		this.beforeUnloadListener?.dispose();
 
 		// Handle shutdown without veto support
 		this.doShutdown();
@@ -113,7 +133,20 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 			return;
 		}
 
-		// No Veto: continue with willShutdown
+		// No veto, continue to shutdown
+		return this.onUnload();
+	}
+
+	private onUnload(): void {
+		if (this.didUnload) {
+			return; // only once
+		}
+
+		this.didUnload = true;
+
+		const logService = this.logService;
+
+		// First indicate will-shutdown
 		this._onWillShutdown.fire({
 			join(promise, id) {
 				logService.error(`[lifecycle] Long running operations during shutdown are unsupported in the web (id: ${id})`);
@@ -121,7 +154,7 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 			reason: ShutdownReason.QUIT
 		});
 
-		// Finally end with didShutdown
+		// Finally end with did-shutdown
 		this._onDidShutdown.fire();
 	}
 }

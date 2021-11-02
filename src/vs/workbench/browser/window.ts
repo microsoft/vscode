@@ -49,9 +49,10 @@ export class BrowserWindow extends Disposable {
 		// Layout
 		const viewport = isIOS && window.visualViewport ? window.visualViewport /** Visual viewport */ : window /** Layout viewport */;
 		this._register(addDisposableListener(viewport, EventType.RESIZE, () => {
-			this.onWindowResize();
+			this.layoutService.layout();
+
+			// Sometimes the keyboard appearing scrolls the whole workbench out of view, as a workaround scroll back into view #121206
 			if (isIOS) {
-				// Sometimes the keyboard appearing scrolls the whole workbench out of view, as a workaround scroll back into view #121206
 				window.scrollTo(0, 0);
 			}
 		}));
@@ -76,12 +77,8 @@ export class BrowserWindow extends Disposable {
 		}, undefined, isMacintosh ? 2000 /* adjust for macOS animation */ : 800 /* can be throttled */));
 	}
 
-	private onWindowResize(): void {
-		this.logService.trace(`web.main#${isIOS && window.visualViewport ? 'visualViewport' : 'window'}Resize`);
-		this.layoutService.layout();
-	}
-
 	private onWillShutdown(): void {
+		const logService = this.logService;
 
 		// Some browsers implement back/forward caching which will
 		// restore the workbench even after `unload` events have
@@ -92,8 +89,10 @@ export class BrowserWindow extends Disposable {
 		// to bring back a working state.
 		// Docs: https://web.dev/bfcache/#optimize-your-pages-for-bfcache
 		// Refs: https://github.com/microsoft/vscode/issues/136035
-		window.addEventListener('pageshow', function (event) {
+		window.addEventListener(EventType.PAGE_SHOW, function (event) {
 			if (event.persisted) {
+				logService.warn('[window] pageshow triggered with `persisted: true` after shutdown, reloading...');
+
 				window.location.reload();
 			}
 		});

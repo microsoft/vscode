@@ -846,6 +846,8 @@ export const EventType = {
 	LOAD: 'load',
 	BEFORE_UNLOAD: 'beforeunload',
 	UNLOAD: 'unload',
+	PAGE_SHOW: 'pageshow',
+	PAGE_HIDE: 'pagehide',
 	ABORT: 'abort',
 	ERROR: 'error',
 	RESIZE: 'resize',
