@@ -102,6 +102,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private static _lastKnownGridDimensions: IGridDimensions | undefined;
 	private static _instanceIdCounter = 1;
 
+	xterm?: XtermTerminal;
+	private _xtermReadyPromise: Promise<XtermTerminal>;
+	private _xtermTypeAheadAddon: TypeAheadAddon | undefined;
+
 	private _processManager!: ITerminalProcessManager;
 	private _pressAnyKeyToCloseListener: IDisposable | undefined;
 
@@ -119,8 +123,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _titleSource: TitleEventSource = TitleEventSource.Process;
 	private _container: HTMLElement | undefined;
 	private _wrapperElement: (HTMLElement & { xterm?: XTermTerminal }) | undefined;
-	private _xtermTypeAhead: TypeAheadAddon | undefined;
-	private _xtermElement: HTMLDivElement | undefined;
 	private _horizontalScrollbar: DomScrollableElement | undefined;
 	private _terminalHasTextContextKey: IContextKey<boolean>;
 	private _terminalA11yTreeFocusContextKey: IContextKey<boolean>;
@@ -131,7 +133,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _cwd: string | undefined = undefined;
 	private _initialCwd: string | undefined = undefined;
 	private _dimensionsOverride: ITerminalDimensionsOverride | undefined;
-	private _xtermReadyPromise: Promise<XtermTerminal>;
 	private _titleReadyPromise: Promise<string>;
 	private _titleReadyComplete: ((title: string) => any) | undefined;
 	private _areLinksReady: boolean = false;
@@ -153,7 +154,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _hasHadInput: boolean;
 
-
 	readonly statusList: ITerminalStatusList;
 	disableLayout: boolean = false;
 
@@ -166,8 +166,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _labelComputer?: TerminalLabelComputer;
 	private _userHome?: string;
 	private _hasScrollBar?: boolean;
-
-	xterm?: XtermTerminal;
 
 	get target(): TerminalLocation | undefined { return this.xterm?.target; }
 	set target(value: TerminalLocation | undefined) {
@@ -658,8 +656,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._onLinksReady.fire(this);
 		});
 
-		this._xtermTypeAhead = this._register(this._instantiationService.createInstance(TypeAheadAddon, this._processManager, this._configHelper));
-		xterm.raw.loadAddon(this._xtermTypeAhead);
+		// TODO: This should be an optional addon
+		this._xtermTypeAheadAddon = this._register(this._instantiationService.createInstance(TypeAheadAddon, this._processManager, this._configHelper));
+		xterm.raw.loadAddon(this._xtermTypeAheadAddon);
 		this._pathService.userHome().then(userHome => {
 			this._userHome = userHome.fsPath;
 		});
@@ -701,8 +700,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._container = container;
 		this._wrapperElement = document.createElement('div');
 		this._wrapperElement.classList.add('terminal-wrapper');
-		this._xtermElement = document.createElement('div');
-		this._wrapperElement.appendChild(this._xtermElement);
+		const xtermElement = document.createElement('div');
+		this._wrapperElement.appendChild(xtermElement);
 
 		this._container.appendChild(this._wrapperElement);
 
@@ -711,7 +710,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Attach the xterm object to the DOM, exposing it to the smoke tests
 		this._wrapperElement.xterm = xterm.raw;
 
-		xterm.attachToElement(this._xtermElement);
+		xterm.attachToElement(xtermElement);
 
 		if (!xterm.raw.element || !xterm.raw.textarea) {
 			throw new Error('xterm elements not set after open');
@@ -1378,7 +1377,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._processManager.relaunch(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, this._accessibilityService.isScreenReaderOptimized(), reset);
 
-		this._xtermTypeAhead?.reset();
+		this._xtermTypeAheadAddon?.reset();
 	}
 
 	@debounce(1000)
