@@ -415,26 +415,26 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 		let matches: IMatch[] | undefined;
 		let descriptionMatches: IMatch[] | undefined;
+		let strikethrough: boolean | undefined = false;
 
 		if (ResourceTree.isResourceNode(resourceOrFolder)) {
 			if (resourceOrFolder.element) {
 				const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.element.resourceGroup.provider);
 				elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceMenu(resourceOrFolder.element), template.actionBar));
-				template.name.classList.toggle('strike-through', resourceOrFolder.element.decorations.strikeThrough);
 				template.element.classList.toggle('faded', resourceOrFolder.element.decorations.faded);
+				strikethrough = resourceOrFolder.element.decorations.strikeThrough;
 			} else {
 				matches = createMatches(node.filterData as FuzzyScore | undefined);
 				const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.context.provider);
 				elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceFolderMenu(resourceOrFolder.context), template.actionBar));
-				template.name.classList.remove('strike-through');
 				template.element.classList.remove('faded');
 			}
 		} else {
 			[matches, descriptionMatches] = this._processFilterData(uri, node.filterData);
 			const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.resourceGroup.provider);
 			elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceMenu(resourceOrFolder), template.actionBar));
-			template.name.classList.toggle('strike-through', resourceOrFolder.decorations.strikeThrough);
 			template.element.classList.toggle('faded', resourceOrFolder.decorations.faded);
+			strikethrough = resourceOrFolder.decorations.strikeThrough;
 		}
 
 		const render = () => {
@@ -446,7 +446,8 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 				hidePath: viewModel.mode === ViewModelMode.Tree,
 				fileKind,
 				matches,
-				descriptionMatches
+				descriptionMatches,
+				strikethrough
 			});
 
 			if (icon) {

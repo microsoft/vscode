@@ -132,10 +132,6 @@
 	margin-right: 3px;
 }
 
-.scm-view .monaco-list-row .resource > .name.strike-through > .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-name-container > .label-name {
-	text-decoration: line-through;
-}
-
 .scm-view .monaco-list-row .resource > .decoration-icon {
 	width: 16px;
 	height: 100%;
