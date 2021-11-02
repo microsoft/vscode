@@ -7,12 +7,14 @@ import { ActiveLineMarker } from './activeLineMarker';
 import { onceDocumentLoaded } from './events';
 import { createPosterForVsCode } from './messaging';
 import { getEditorLineNumberForPageOffset, scrollToRevealSourceLine, getLineElementForFragment } from './scroll-sync';
-import { getSettings, getData } from './settings';
+import { SettingsManager, getData } from './settings';
 import throttle = require('lodash.throttle');
+import morphdom from 'morphdom';
 
+let documentVersion = 0;
 let scrollDisabledCount = 0;
 const marker = new ActiveLineMarker();
-const settings = getSettings();
+const settings = new SettingsManager();
 
 const vscode = acquireVsCodeApi();
 
@@ -26,14 +28,10 @@ const state = {
 // Make sure to sync VS Code state here
 vscode.setState(state);
 
-const messaging = createPosterForVsCode(vscode);
+const messaging = createPosterForVsCode(vscode, settings);
 
 window.cspAlerter.setPoster(messaging);
 window.styleLoadingMonitor.setPoster(messaging);
-
-window.onload = () => {
-	updateImageSizes();
-};
 
 
 function doAfterImagesLoaded(cb: () => void) {
@@ -58,7 +56,7 @@ function doAfterImagesLoaded(cb: () => void) {
 onceDocumentLoaded(() => {
 	const scrollProgress = state.scrollProgress;
 
-	if (typeof scrollProgress === 'number' && !settings.fragment) {
+	if (typeof scrollProgress === 'number' && !settings.settings.fragment) {
 		doAfterImagesLoaded(() => {
 			scrollDisabledCount += 1;
 			window.scrollTo(0, scrollProgress * document.body.clientHeight);
@@ -66,22 +64,22 @@ onceDocumentLoaded(() => {
 		return;
 	}
 
-	if (settings.scrollPreviewWithEditor) {
+	if (settings.settings.scrollPreviewWithEditor) {
 		doAfterImagesLoaded(() => {
 			// Try to scroll to fragment if available
-			if (settings.fragment) {
+			if (settings.settings.fragment) {
 				state.fragment = undefined;
 				vscode.setState(state);
 
-				const element = getLineElementForFragment(settings.fragment);
+				const element = getLineElementForFragment(settings.settings.fragment, documentVersion);
 				if (element) {
 					scrollDisabledCount += 1;
-					scrollToRevealSourceLine(element.line);
+					scrollToRevealSourceLine(element.line, documentVersion, settings);
 				}
 			} else {
-				if (!isNaN(settings.line!)) {
+				if (!isNaN(settings.settings.line!)) {
 					scrollDisabledCount += 1;
-					scrollToRevealSourceLine(settings.line!);
+					scrollToRevealSourceLine(settings.settings.line!, documentVersion, settings);
 				}
 			}
 		});
@@ -91,7 +89,7 @@ onceDocumentLoaded(() => {
 const onUpdateView = (() => {
 	const doScroll = throttle((line: number) => {
 		scrollDisabledCount += 1;
-		doAfterImagesLoaded(() => scrollToRevealSourceLine(line));
+		doAfterImagesLoaded(() => scrollToRevealSourceLine(line, documentVersion, settings));
 	}, 50);
 
 	return (line: number) => {
@@ -103,53 +101,38 @@ const onUpdateView = (() => {
 	};
 })();
 
-let updateImageSizes = throttle(() => {
-	const imageInfo: { id: string, height: number, width: number; }[] = [];
-	let images = document.getElementsByTagName('img');
-	if (images) {
-		let i;
-		for (i = 0; i < images.length; i++) {
-			const img = images[i];
-
-			if (img.classList.contains('loading')) {
-				img.classList.remove('loading');
-			}
-
-			imageInfo.push({
-				id: img.id,
-				height: img.height,
-				width: img.width
-			});
-		}
-
-		messaging.postMessage('cacheImageSizes', imageInfo);
-	}
-}, 50);
 
 window.addEventListener('resize', () => {
 	scrollDisabledCount += 1;
 	updateScrollProgress();
-	updateImageSizes();
 }, true);
 
 window.addEventListener('message', event => {
-	if (event.data.source !== settings.source) {
+	if (settings.settings && event.data.source !== settings.settings.source) {
 		return;
 	}
 
 	switch (event.data.type) {
 		case 'onDidChangeTextEditorSelection':
-			marker.onDidChangeTextEditorSelection(event.data.line);
+			marker.onDidChangeTextEditorSelection(event.data.line, documentVersion);
 			break;
 
 		case 'updateView':
 			onUpdateView(event.data.line);
 			break;
+
+		case 'updateContent':
+			const root = document.querySelector('.markdown-body')!;
+			morphdom(root, event.data.content);
+			++documentVersion;
+
+			window.dispatchEvent(new CustomEvent('vscode.markdown.updateContent'));
+			break;
 	}
 }, false);
 
 document.addEventListener('dblclick', event => {
-	if (!settings.doubleClickToSwitchToEditor) {
+	if (!settings.settings.doubleClickToSwitchToEditor) {
 		return;
 	}
 
@@ -161,7 +144,7 @@ document.addEventListener('dblclick', event => {
 	}
 
 	const offset = event.pageY;
-	const line = getEditorLineNumberForPageOffset(offset);
+	const line = getEditorLineNumberForPageOffset(offset, documentVersion, settings);
 	if (typeof line === 'number' && !isNaN(line)) {
 		messaging.postMessage('didClick', { line: Math.floor(line) });
 	}
@@ -210,7 +193,7 @@ window.addEventListener('scroll', throttle(() => {
 	if (scrollDisabledCount > 0) {
 		scrollDisabledCount -= 1;
 	} else {
-		const line = getEditorLineNumberForPageOffset(window.scrollY);
+		const line = getEditorLineNumberForPageOffset(window.scrollY, documentVersion, settings);
 		if (typeof line === 'number' && !isNaN(line)) {
 			messaging.postMessage('revealLine', { line });
 		}

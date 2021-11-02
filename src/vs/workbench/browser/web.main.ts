@@ -8,7 +8,7 @@ import { domContentLoaded, detectFullscreen, getCookieValue, WebFileSystemAccess
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService, ConsoleLogger, MultiplexLogService, getLogLevel } from 'vs/platform/log/common/log';
 import { ConsoleLogInAutomationLogger } from 'vs/platform/log/browser/log';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { RemoteFileSystemProvider } from 'vs/workbench/services/remote/common/remoteAgentFileSystemChannel';
@@ -19,7 +19,7 @@ import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteA
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IFileService, IFileSystemProvider } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -43,7 +43,7 @@ import { getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from 'vs/w
 import { coalesce } from 'vs/base/common/arrays';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IIndexedDBFileSystemProvider, IndexedDB, INDEXEDDB_LOGS_OBJECT_STORE, INDEXEDDB_USERDATA_OBJECT_STORE } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
+import { IndexedDBFileSystemProvider } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
 import { BrowserRequestService } from 'vs/workbench/services/request/browser/requestService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
@@ -66,8 +66,11 @@ import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystem
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { safeStringify } from 'vs/base/common/objects';
 import { ICredentialsService } from 'vs/workbench/services/credentials/common/credentials';
+import { IndexedDB } from 'vs/base/browser/indexedDB';
 
 class BrowserMain extends Disposable {
+
+	private readonly onWillShutdownDisposables = new DisposableStore();
 
 	constructor(
 		private readonly domElement: HTMLElement,
@@ -140,7 +143,7 @@ class BrowserMain extends Disposable {
 				event.veto(true, 'veto.pendingStorageUpdate'); // prevent data loss from pending storage update
 			}
 		}));
-		this._register(workbench.onWillShutdown(() => storageService.close()));
+		this._register(workbench.onWillShutdown(() => this.onWillShutdownDisposables.clear()));
 		this._register(workbench.onDidShutdown(() => this.dispose()));
 	}
 
@@ -251,54 +254,42 @@ class BrowserMain extends Disposable {
 	}
 
 	private async registerFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IFileService, remoteAgentService: IRemoteAgentService, logService: BufferLogService, logsPath: URI): Promise<void> {
-		const indexedDB = new IndexedDB();
+		let indexedDB: IndexedDB | undefined;
+		const userDataStore = 'vscode-userdata-store', logsStore = 'vscode-logs-store';
+		try {
+			indexedDB = await IndexedDB.create('vscode-web-db', 2, [userDataStore, logsStore]);
+			this.onWillShutdownDisposables.add(toDisposable(() => indexedDB?.close()));
+		} catch (error) {
+			logService.error('Error while creating IndexedDB');
+			logService.error(error);
+		}
 
 		// Logger
-		(async () => {
-			let indexedDBLogProvider: IFileSystemProvider | null = null;
-			try {
-				indexedDBLogProvider = await indexedDB.createFileSystemProvider(logsPath.scheme, INDEXEDDB_LOGS_OBJECT_STORE, false);
-			} catch (error) {
-				onUnexpectedError(error);
-			}
+		if (indexedDB) {
+			fileService.registerProvider(logsPath.scheme, new IndexedDBFileSystemProvider(logsPath.scheme, indexedDB, logsStore, false));
+		} else {
+			fileService.registerProvider(logsPath.scheme, new InMemoryFileSystemProvider());
+		}
+		logService.logger = new MultiplexLogService(coalesce([
+			new ConsoleLogger(logService.getLevel()),
+			new FileLogger('window', environmentService.logFile, logService.getLevel(), false, fileService),
+			// Extension development test CLI: forward everything to test runner
+			environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI ? new ConsoleLogInAutomationLogger(logService.getLevel()) : undefined
+		]));
 
-			if (indexedDBLogProvider) {
-				fileService.registerProvider(logsPath.scheme, indexedDBLogProvider);
-			} else {
-				fileService.registerProvider(logsPath.scheme, new InMemoryFileSystemProvider());
-			}
-
-			logService.logger = new MultiplexLogService(coalesce([
-				new ConsoleLogger(logService.getLevel()),
-				new FileLogger('window', environmentService.logFile, logService.getLevel(), false, fileService),
-				// Extension development test CLI: forward everything to test runner
-				environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI ? new ConsoleLogInAutomationLogger(logService.getLevel()) : undefined
-			]));
-		})();
+		// User data
+		let userDataProvider;
+		if (indexedDB) {
+			userDataProvider = new IndexedDBFileSystemProvider(logsPath.scheme, indexedDB, userDataStore, false);
+			this.registerDeveloperActions(<IndexedDBFileSystemProvider>userDataProvider);
+		} else {
+			logService.info('Using in-memory user data provider');
+			userDataProvider = new InMemoryFileSystemProvider();
+		}
+		fileService.registerProvider(Schemas.userData, userDataProvider);
 
 		// Remote file system
 		this._register(RemoteFileSystemProvider.register(remoteAgentService, fileService, logService));
-
-		// User data
-		let indexedDBUserDataProvider: IIndexedDBFileSystemProvider | null = null;
-		try {
-			indexedDBUserDataProvider = await indexedDB.createFileSystemProvider(Schemas.userData, INDEXEDDB_USERDATA_OBJECT_STORE, true);
-		} catch (error) {
-			onUnexpectedError(error);
-		}
-
-		let userDataProvider: IFileSystemProvider | undefined;
-		if (indexedDBUserDataProvider) {
-			userDataProvider = indexedDBUserDataProvider;
-
-			this.registerDeveloperActions(indexedDBUserDataProvider);
-		} else {
-			logService.info('Using in-memory user data provider');
-
-			userDataProvider = new InMemoryFileSystemProvider();
-		}
-
-		fileService.registerProvider(Schemas.userData, userDataProvider);
 
 		// Local file access (if supported by browser)
 		if (WebFileSystemAccess.supported(window)) {
@@ -309,7 +300,7 @@ class BrowserMain extends Disposable {
 		fileService.registerProvider(Schemas.tmp, new InMemoryFileSystemProvider());
 	}
 
-	private registerDeveloperActions(provider: IIndexedDBFileSystemProvider): void {
+	private registerDeveloperActions(provider: IndexedDBFileSystemProvider): void {
 		registerAction2(class ResetUserDataAction extends Action2 {
 			constructor() {
 				super({
@@ -352,7 +343,7 @@ class BrowserMain extends Disposable {
 
 		try {
 			await storageService.initialize();
-
+			this.onWillShutdownDisposables.add(toDisposable(() => storageService.close()));
 			return storageService;
 		} catch (error) {
 			onUnexpectedError(error);

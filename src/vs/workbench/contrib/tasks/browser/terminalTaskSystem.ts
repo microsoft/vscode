@@ -200,6 +200,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private previousPanelId: string | undefined;
 	private previousTerminalInstance: ITerminalInstance | undefined;
 	private terminalStatusManager: TaskTerminalStatus;
+	private terminalCreationQueue: Promise<ITerminalInstance | void> = Promise.resolve();
 
 	private readonly _onDidStateChange: Emitter<TaskEvent>;
 
@@ -1205,6 +1206,25 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return shellLaunchConfig;
 	}
 
+	private async doCreateTerminal(group: string | undefined, launchConfigs: IShellLaunchConfig): Promise<ITerminalInstance> {
+		if (group) {
+			// Try to find an existing terminal to split.
+			// Even if an existing terminal is found, the split can fail if the terminal width is too small.
+			for (const terminal of values(this.terminals)) {
+				if (terminal.group === group) {
+					const originalInstance = terminal.terminal;
+					console.log('splitting');
+					const result = await this.terminalService.createTerminal({ location: { parentTerminal: originalInstance }, config: launchConfigs });
+					if (result) {
+						return result;
+					}
+				}
+			}
+		}
+		// Either no group is used, no terminal with the group exists or splitting an existing terminal failed.
+		return this.terminalService.createTerminal({ config: launchConfigs });
+	}
+
 	private async createTerminal(task: CustomTask | ContributedTask, resolver: VariableResolver, workspaceFolder: IWorkspaceFolder | undefined): Promise<[ITerminalInstance | undefined, string | undefined, TaskError | undefined]> {
 		let platform = resolver.taskSystemInfo ? resolver.taskSystemInfo.platform : Platform.platform;
 		let options = await this.resolveOptions(resolver, task.command.options);
@@ -1294,31 +1314,16 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			await terminalToReuse.terminal.reuseTerminal(launchConfigs);
 
 			if (task.command.presentation && task.command.presentation.clear) {
-				terminalToReuse.terminal.clear();
+				terminalToReuse.terminal.clearBuffer();
 			}
 			this.terminals[terminalToReuse.terminal.instanceId.toString()].lastTask = taskKey;
 			return [terminalToReuse.terminal, commandExecutable, undefined];
 		}
 
-		let result: ITerminalInstance | null = null;
-		if (group) {
-			// Try to find an existing terminal to split.
-			// Even if an existing terminal is found, the split can fail if the terminal width is too small.
-			for (const terminal of values(this.terminals)) {
-				if (terminal.group === group) {
-					const originalInstance = terminal.terminal;
-					await originalInstance.waitForTitle();
-					result = await this.terminalService.createTerminal({ location: { parentTerminal: originalInstance }, config: launchConfigs });
-					if (result) {
-						break;
-					}
-				}
-			}
-		}
-		if (!result) {
-			// Either no group is used, no terminal with the group exists or splitting an existing terminal failed.
-			result = await this.terminalService.createTerminal({ config: launchConfigs });
-		}
+		await this.terminalCreationQueue;
+		const createTerminalPromise = this.doCreateTerminal(group, launchConfigs);
+		this.terminalCreationQueue = createTerminalPromise;
+		const result: ITerminalInstance = await createTerminalPromise;
 
 		const terminalKey = result.instanceId.toString();
 		result.onDisposed((terminal) => {

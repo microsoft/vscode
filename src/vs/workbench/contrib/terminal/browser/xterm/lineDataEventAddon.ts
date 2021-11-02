@@ -22,13 +22,13 @@ export class LineDataEventAddon extends Disposable implements ITerminalAddon {
 	activate(xterm: XTermTerminal) {
 		this._xterm = xterm;
 		// Fire onLineData when a line feed occurs, taking into account wrapped lines
-		xterm.onLineFeed(() => {
+		this._register(xterm.onLineFeed(() => {
 			const buffer = xterm.buffer;
 			const newLine = buffer.active.getLine(buffer.active.baseY + buffer.active.cursorY);
 			if (newLine && !newLine.isWrapped) {
 				this._sendLineData(buffer.active, buffer.active.baseY + buffer.active.cursorY - 1);
 			}
-		});
+		}));
 
 		// Fire onLineData when disposing object to flush last line
 		this._register(toDisposable(() => {

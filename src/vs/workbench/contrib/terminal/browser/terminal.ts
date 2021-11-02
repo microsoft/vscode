@@ -9,11 +9,10 @@ import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalIcon, TitleEventSource, TerminalShellType, IExtensionTerminalProfile, TerminalLocation, ProcessPropertyType, ProcessCapability } from 'vs/platform/terminal/common/terminal';
-import { ICommandTracker, INavigationMode, IOffProcessTerminalService, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ICommandTracker, INavigationMode, IOffProcessTerminalService, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
-import type { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { ICompleteTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
@@ -41,7 +40,6 @@ export interface ITerminalInstanceService {
 	getXtermConstructor(): Promise<typeof XTermTerminal>;
 	getXtermSearchConstructor(): Promise<typeof XTermSearchAddon>;
 	getXtermUnicode11Constructor(): Promise<typeof XTermUnicode11Addon>;
-	getXtermWebglConstructor(): Promise<typeof XTermWebglAddon>;
 
 	/**
 	 * Takes a path and returns the properly escaped path to send to the terminal.
@@ -174,7 +172,8 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined>;
 	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean;
 	getEditableData(instance: ITerminalInstance): IEditableData | undefined;
-	setEditable(instance: ITerminalInstance, data: IEditableData | null): Promise<void>;
+	setEditable(instance: ITerminalInstance, data: IEditableData | null): void;
+	isEditable(instance: ITerminalInstance | undefined): boolean;
 	safeDisposeTerminal(instance: ITerminalInstance): Promise<void>;
 
 	getDefaultInstanceHost(): ITerminalInstanceHost;
@@ -411,6 +410,9 @@ export interface ITerminalInstance {
 	 */
 	processId: number | undefined;
 
+	/**
+	 * The position of the terminal.
+	 */
 	target?: TerminalLocation;
 
 	/**
@@ -505,6 +507,11 @@ export interface ITerminalInstance {
 	readonly areLinksReady: boolean;
 
 	/**
+	 * The xterm.js instance for this terminal.
+	 */
+	readonly xterm?: IXtermTerminal;
+
+	/**
 	 * Returns an array of data events that have fired within the first 10 seconds. If this is
 	 * called 10 seconds after the terminal has existed the result will be undefined. This is useful
 	 * when objects that depend on the data events have delayed initialization, like extension
@@ -557,12 +564,6 @@ export interface ITerminalInstance {
 	 */
 	disableLayout: boolean;
 
-	/**
-	 * An object that tracks when commands are run and enables navigating and selecting between
-	 * them.
-	 */
-	readonly commandTracker: ICommandTracker | undefined;
-
 	readonly navigationMode: INavigationMode | undefined;
 
 	description: string | undefined;
@@ -589,11 +590,6 @@ export interface ITerminalInstance {
 	detachFromProcess(): Promise<void>;
 
 	/**
-	 * Forces the terminal to redraw its viewport.
-	 */
-	forceRedraw(): void;
-
-	/**
 	 * Check if anything is selected in terminal.
 	 */
 	hasSelection(): boolean;
@@ -617,16 +613,6 @@ export interface ITerminalInstance {
 	 * Select all text in the terminal.
 	 */
 	selectAll(): void;
-
-	/**
-	 * Find the next instance of the term
-	*/
-	findNext(term: string, searchOptions: ISearchOptions): boolean;
-
-	/**
-	 * Find the previous instance of the term
-	 */
-	findPrevious(term: string, searchOptions: ISearchOptions): boolean;
 
 	/**
 	 * Notifies the terminal that the find widget's focus state has been changed.
@@ -669,23 +655,18 @@ export interface ITerminalInstance {
 	 */
 	sendText(text: string, addNewLine: boolean): Promise<void>;
 
-	/** Scroll the terminal buffer down 1 line. */
-	scrollDownLine(): void;
-	/** Scroll the terminal buffer down 1 page. */
-	scrollDownPage(): void;
-	/** Scroll the terminal buffer to the bottom. */
-	scrollToBottom(): void;
-	/** Scroll the terminal buffer up 1 line. */
-	scrollUpLine(): void;
-	/** Scroll the terminal buffer up 1 page. */
-	scrollUpPage(): void;
-	/** Scroll the terminal buffer to the top. */
-	scrollToTop(): void;
+	/** Scroll the terminal buffer down 1 line. */   scrollDownLine(): void;
+	/** Scroll the terminal buffer down 1 page. */   scrollDownPage(): void;
+	/** Scroll the terminal buffer to the bottom. */ scrollToBottom(): void;
+	/** Scroll the terminal buffer up 1 line. */     scrollUpLine(): void;
+	/** Scroll the terminal buffer up 1 page. */     scrollUpPage(): void;
+	/** Scroll the terminal buffer to the top. */    scrollToTop(): void;
 
 	/**
-	 * Clears the terminal buffer, leaving only the prompt line.
+	 * Clears the terminal buffer, leaving only the prompt line and moving it to the top of the
+	 * viewport.
 	 */
-	clear(): void;
+	clearBuffer(): void;
 
 	/**
 	 * Attaches the terminal instance to an element on the DOM, before this is called the terminal
@@ -779,6 +760,52 @@ export interface ITerminalInstance {
 	 * Triggers a quick pick to change the color of the associated terminal tab icon.
 	 */
 	changeColor(): Promise<void>;
+}
+
+export interface IXtermTerminal {
+	/**
+	 * An object that tracks when commands are run and enables navigating and selecting between
+	 * them.
+	 */
+	readonly commandTracker: ICommandTracker;
+
+	/**
+	 * The position of the terminal.
+	 */
+	target?: TerminalLocation;
+
+	/**
+	 * Find the next instance of the term
+	*/
+	findNext(term: string, searchOptions: ISearchOptions): boolean;
+
+	/**
+	 * Find the previous instance of the term
+	 */
+	findPrevious(term: string, searchOptions: ISearchOptions): boolean;
+
+	/**
+	 * Forces the terminal to redraw its viewport.
+	 */
+	forceRedraw(): void;
+
+	/**
+	 * Gets the font metrics of this xterm.js instance.
+	 */
+	getFont(): ITerminalFont;
+
+	/** Scroll the terminal buffer down 1 line. */   scrollDownLine(): void;
+	/** Scroll the terminal buffer down 1 page. */   scrollDownPage(): void;
+	/** Scroll the terminal buffer to the bottom. */ scrollToBottom(): void;
+	/** Scroll the terminal buffer up 1 line. */     scrollUpLine(): void;
+	/** Scroll the terminal buffer up 1 page. */     scrollUpPage(): void;
+	/** Scroll the terminal buffer to the top. */    scrollToTop(): void;
+
+	/**
+	 * Clears the terminal buffer, leaving only the prompt line and moving it to the top of the
+	 * viewport.
+	 */
+	clearBuffer(): void;
 }
 
 export interface IRequestAddInstanceToGroupEvent {

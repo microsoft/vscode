@@ -35,7 +35,7 @@ import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { splitName } from 'vs/base/common/labels';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { isMacintosh, locale } from 'vs/base/common/platform';
-import { Throttler } from 'vs/base/common/async';
+import { Delayer, Throttler } from 'vs/base/common/async';
 import { GettingStartedInput } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
 import { GroupDirection, GroupsOrder, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
@@ -522,14 +522,24 @@ export class GettingStartedPage extends EditorPane {
 			StorageTarget.USER);
 	}
 
+	private currentMediaComponent: string | undefined = undefined;
 	private async buildMediaComponent(stepId: string) {
 		if (!this.currentWalkthrough) {
 			throw Error('no walkthrough selected');
 		}
 		const stepToExpand = assertIsDefined(this.currentWalkthrough.steps.find(step => step.id === stepId));
 
+		if (this.currentMediaComponent === stepId) { return; }
+		this.currentMediaComponent = stepId;
+
 		this.stepDisposables.clear();
-		clearNode(this.stepMediaComponent);
+
+		this.stepDisposables.add({
+			dispose: () => {
+				clearNode(this.stepMediaComponent);
+				this.currentMediaComponent = undefined;
+			}
+		});
 
 		if (stepToExpand.media.type === 'image') {
 
@@ -647,17 +657,24 @@ export class GettingStartedPage extends EditorPane {
 					if (e.affectsSome(watchingKeys)) { postTrueKeysMessage(); }
 				}));
 
-				this.layoutMarkdown = () => { webview.postMessage({ layout: true }); };
+				const layoutDelayer = new Delayer(50);
+
+				this.layoutMarkdown = () => {
+					layoutDelayer.trigger(() => {
+						webview.postMessage({ layoutMeNow: true });
+					});
+				};
+
+				this.stepDisposables.add(layoutDelayer);
 				this.stepDisposables.add({ dispose: () => this.layoutMarkdown = undefined });
-				this.layoutMarkdown();
 
 				postTrueKeysMessage();
 
 				webview.onMessage(e => {
 					const message: string = e.message as string;
-					if (message.startsWith('command$')) {
-						this.openerService.open(message.replace('$', ':'), { allowCommands: true });
-					} else if (message.startsWith('setTheme$')) {
+					if (message.startsWith('command:')) {
+						this.openerService.open(message, { allowCommands: true });
+					} else if (message.startsWith('setTheme:')) {
 						this.configurationService.updateValue(ThemeSettings.COLOR_THEME, message.slice('setTheme:'.length), ConfigurationTarget.USER);
 					} else {
 						console.error('Unexpected message', message);
@@ -823,11 +840,16 @@ export class GettingStartedPage extends EditorPane {
 						vscode.postMessage(el.getAttribute('when-checked'));
 					});
 				});
+				document.querySelectorAll('vertically-centered').forEach(element => {
+					element.style.marginTop = Math.max((document.body.scrollHeight - element.scrollHeight) * 2/5, 10) + 'px';
+				})
 
 				window.addEventListener('message', event => {
-					document.querySelectorAll('vertically-centered').forEach(element => {
-						element.style.marginTop = Math.max((document.body.scrollHeight - element.scrollHeight) * 2/5, 10) + 'px';
-					})
+					if (event.data.layoutMeNow) {
+						document.querySelectorAll('vertically-centered').forEach(element => {
+							element.style.marginTop = Math.max((document.body.scrollHeight - element.scrollHeight) * 2/5, 10) + 'px';
+						})
+					}
 					if (event.data.enabledContextKeys) {
 						document.querySelectorAll('.checked').forEach(element => element.classList.remove('checked'))
 						for (const key of event.data.enabledContextKeys) {

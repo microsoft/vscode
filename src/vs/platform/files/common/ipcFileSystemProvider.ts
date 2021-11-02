@@ -25,7 +25,7 @@ export class IPCFileSystemProvider extends Disposable implements
 	IFileSystemProviderWithFileReadStreamCapability,
 	IFileSystemProviderWithFileFolderCopyCapability {
 
-	constructor(readonly capabilities: FileSystemProviderCapabilities, private readonly channel: IChannel) {
+	constructor(private readonly channel: IChannel, private readonly extraCapabilities: { trash?: boolean, pathCaseSensitive?: boolean }) {
 		super();
 
 		this.registerFileChangeListeners();
@@ -34,6 +34,28 @@ export class IPCFileSystemProvider extends Disposable implements
 	//#region File Capabilities
 
 	readonly onDidChangeCapabilities: Event<void> = Event.None;
+
+	private _capabilities: FileSystemProviderCapabilities | undefined;
+	get capabilities(): FileSystemProviderCapabilities {
+		if (!this._capabilities) {
+			this._capabilities =
+				FileSystemProviderCapabilities.FileReadWrite |
+				FileSystemProviderCapabilities.FileOpenReadWriteClose |
+				FileSystemProviderCapabilities.FileReadStream |
+				FileSystemProviderCapabilities.FileFolderCopy |
+				FileSystemProviderCapabilities.FileWriteUnlock;
+
+			if (this.extraCapabilities.pathCaseSensitive) {
+				this._capabilities |= FileSystemProviderCapabilities.PathCaseSensitive;
+			}
+
+			if (this.extraCapabilities.trash) {
+				this._capabilities |= FileSystemProviderCapabilities.Trash;
+			}
+		}
+
+		return this._capabilities;
+	}
 
 	//#endregion
 

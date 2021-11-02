@@ -17,7 +17,6 @@ import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService } from 'vs/platform/log/common/log';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -32,7 +31,6 @@ export class BrowserWindow extends Disposable {
 		@IDialogService private readonly dialogService: IDialogService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@ILogService private readonly logService: ILogService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super();
@@ -49,9 +47,10 @@ export class BrowserWindow extends Disposable {
 		// Layout
 		const viewport = isIOS && window.visualViewport ? window.visualViewport /** Visual viewport */ : window /** Layout viewport */;
 		this._register(addDisposableListener(viewport, EventType.RESIZE, () => {
-			this.onWindowResize();
+			this.layoutService.layout();
+
+			// Sometimes the keyboard appearing scrolls the whole workbench out of view, as a workaround scroll back into view #121206
 			if (isIOS) {
-				// Sometimes the keyboard appearing scrolls the whole workbench out of view, as a workaround scroll back into view #121206
 				window.scrollTo(0, 0);
 			}
 		}));
@@ -76,27 +75,7 @@ export class BrowserWindow extends Disposable {
 		}, undefined, isMacintosh ? 2000 /* adjust for macOS animation */ : 800 /* can be throttled */));
 	}
 
-	private onWindowResize(): void {
-		this.logService.trace(`web.main#${isIOS && window.visualViewport ? 'visualViewport' : 'window'}Resize`);
-		this.layoutService.layout();
-	}
-
 	private onWillShutdown(): void {
-
-		// Some browsers implement back/forward caching which will
-		// restore the workbench even after `unload` events have
-		// fired.
-		// We can detect this happens by looking at the `persisted`
-		// property when the `pageshow` event fires. If this happens
-		// after we have been shutdown, we simply reload the workbench
-		// to bring back a working state.
-		// Docs: https://web.dev/bfcache/#optimize-your-pages-for-bfcache
-		// Refs: https://github.com/microsoft/vscode/issues/136035
-		window.addEventListener('pageshow', function (event) {
-			if (event.persisted) {
-				window.location.reload();
-			}
-		});
 
 		// Try to detect some user interaction with the workbench
 		// when shutdown has happened to not show the dialog e.g.

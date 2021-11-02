@@ -23,7 +23,7 @@ import { TerminalProtocolLinkProvider } from 'vs/workbench/contrib/terminal/brow
 import { TerminalValidatedLocalLinkProvider, lineAndColumnClause, unixLocalLinkClause, winLocalLinkClause, winDrivePrefix, winLineAndColumnMatchIndex, unixLineAndColumnMatchIndex, lineAndColumnClauseGroupCount } from 'vs/workbench/contrib/terminal/browser/links/terminalValidatedLocalLinkProvider';
 import { TerminalWordLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalWordLinkProvider';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
+import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { TerminalHover, ILinkHoverTargetOptions } from 'vs/workbench/contrib/terminal/browser/widgets/terminalHoverWidget';
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { TerminalExternalLinkProviderAdapter } from 'vs/workbench/contrib/terminal/browser/links/terminalExternalLinkProviderAdapter';
@@ -94,7 +94,7 @@ export class TerminalLinkManager extends DisposableStore {
 			return;
 		}
 
-		const core = (this._xterm as any)._core as XTermCore;
+		const core = (this._xterm as any)._core as IXtermCore;
 		const cellDimensions = {
 			width: core._renderService.dimensions.actualCellWidth,
 			height: core._renderService.dimensions.actualCellHeight

@@ -16,7 +16,7 @@ import { WebviewResourceProvider } from '../util/resources';
 import { getVisibleLine, LastScrollLocation, TopmostLineMonitor } from '../util/topmostLineMonitor';
 import { urlToUri } from '../util/url';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
-import { MarkdownContentProvider, MarkdownContentProviderOutput } from './previewContentProvider';
+import { MarkdownContentProvider } from './previewContentProvider';
 
 const localize = nls.loadMessageBundle();
 
@@ -63,7 +63,7 @@ interface PreviewStyleLoadErrorMessage extends WebviewMessage {
 
 export class PreviewDocumentVersion {
 
-	private readonly resource: vscode.Uri;
+	public readonly resource: vscode.Uri;
 	private readonly version: number;
 
 	public constructor(document: vscode.TextDocument) {
@@ -314,13 +314,18 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			return;
 		}
 
+		const shouldReloadPage = !this.currentVersion || this.currentVersion.resource.toString() !== pendingVersion.resource.toString();
 		this.currentVersion = pendingVersion;
-		const content = await this._contentProvider.provideTextDocumentContent(document, this, this._previewConfigurations, this.line, this.state);
+
+		const content = await (shouldReloadPage
+			? this._contentProvider.provideTextDocumentContent(document, this, this._previewConfigurations, this.line, this.state)
+			: this._contentProvider.markdownBody(document, this));
 
 		// Another call to `doUpdate` may have happened.
 		// Make sure we are still updating for the correct document
 		if (this.currentVersion?.equals(pendingVersion)) {
-			this.setContent(content);
+			this.updateWebviewContent(content.html, shouldReloadPage);
+			this.updateImageWatchers(content.containingImages);
 		}
 	}
 
@@ -366,7 +371,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		this._webviewPanel.webview.html = this._contentProvider.provideFileNotFoundContent(this._resource);
 	}
 
-	private setContent(content: MarkdownContentProviderOutput): void {
+	private updateWebviewContent(html: string, reloadPage: boolean): void {
 		if (this._disposed) {
 			return;
 		}
@@ -377,9 +382,19 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		this._webviewPanel.iconPath = this.iconPath;
 		this._webviewPanel.webview.options = this.getWebviewOptions();
 
-		this._webviewPanel.webview.html = content.html;
+		if (reloadPage) {
+			this._webviewPanel.webview.html = html;
+		} else {
+			this._webviewPanel.webview.postMessage({
+				type: 'updateContent',
+				content: html,
+				source: this._resource.toString(),
+			});
+		}
+	}
 
-		const srcs = new Set(content.containingImages.map(img => img.src));
+	private updateImageWatchers(containingImages: { src: string }[]) {
+		const srcs = new Set(containingImages.map(img => img.src));
 
 		// Delete stale file watchers.
 		for (const [src, watcher] of [...this._fileWatchersBySrc]) {

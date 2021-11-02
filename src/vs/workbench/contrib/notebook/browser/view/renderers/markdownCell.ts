@@ -70,14 +70,6 @@ export class StatefulMarkdownCell extends Disposable {
 
 		this._register(toDisposable(() => renderedEditors.delete(this.viewCell)));
 
-		this._register(viewCell.onDidChangeState((e) => {
-			if (e.editStateChanged) {
-				this.viewUpdate();
-			} else if (e.contentChanged) {
-				this.viewUpdate();
-			}
-		}));
-
 		this._register(viewCell.model.onDidChangeMetadata(() => {
 			this.viewUpdate();
 		}));
@@ -89,15 +81,27 @@ export class StatefulMarkdownCell extends Disposable {
 
 			templateData.container.classList.toggle('cell-editor-focus', viewCell.focusMode === CellFocusMode.Editor);
 		};
+
 		this._register(viewCell.onDidChangeState((e) => {
-			if (!e.focusModeChanged) {
-				return;
+			if (e.editStateChanged || e.contentChanged) {
+				this.viewUpdate();
 			}
 
-			updateForFocusMode();
-		}));
-		updateForFocusMode();
+			if (e.focusModeChanged) {
+				updateForFocusMode();
+			}
 
+			if (e.foldingStateChanged) {
+				const foldingState = viewCell.foldingState;
+
+				if (foldingState !== this.foldingState) {
+					this.foldingState = foldingState;
+					this.setFoldingIndicator();
+				}
+			}
+		}));
+
+		updateForFocusMode();
 		this.foldingState = viewCell.foldingState;
 		this.setFoldingIndicator();
 		this.updateFoldingIconShowClass();
@@ -105,19 +109,6 @@ export class StatefulMarkdownCell extends Disposable {
 		this._register(this.notebookEditor.notebookOptions.onDidChangeOptions(e => {
 			if (e.showFoldingControls) {
 				this.updateFoldingIconShowClass();
-			}
-		}));
-
-		this._register(viewCell.onDidChangeState((e) => {
-			if (!e.foldingStateChanged) {
-				return;
-			}
-
-			const foldingState = viewCell.foldingState;
-
-			if (foldingState !== this.foldingState) {
-				this.foldingState = foldingState;
-				this.setFoldingIndicator();
 			}
 		}));
 
@@ -265,7 +256,6 @@ export class StatefulMarkdownCell extends Disposable {
 				}
 
 				this.editor!.setModel(model);
-				this.focusEditorIfNeeded();
 
 				const realContentHeight = this.editor!.getContentHeight();
 				if (realContentHeight !== editorHeight) {
@@ -314,10 +304,21 @@ export class StatefulMarkdownCell extends Disposable {
 	}
 
 	private focusEditorIfNeeded() {
-		if (
-			this.viewCell.focusMode === CellFocusMode.Editor &&
-			(this.notebookEditor.hasEditorFocus() || document.activeElement === document.body)) { // Don't steal focus from other workbench parts, but if body has focus, we can take it
-			this.editor?.focus();
+		if (this.viewCell.focusMode === CellFocusMode.Editor &&
+			(this.notebookEditor.hasEditorFocus() || document.activeElement === document.body)
+		) { // Don't steal focus from other workbench parts, but if body has focus, we can take it
+			if (!this.editor) {
+				return;
+			}
+
+			this.editor.focus();
+
+			const primarySelection = this.editor.getSelection();
+			if (!primarySelection) {
+				return;
+			}
+
+			this.notebookEditor.revealRangeInViewAsync(this.viewCell, primarySelection);
 		}
 	}
 

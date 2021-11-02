@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/TypeScript-TmLanguage/commit/33d8371c344f0b54746586313a939f742f9bcd3a",
+	"version": "https://github.com/microsoft/TypeScript-TmLanguage/commit/644389aef914fc6fbc97a4dd799cc2d1431ffc87",
 	"name": "JavaScript (with React support)",
 	"scopeName": "source.js",
 	"patterns": [
@@ -2302,24 +2302,27 @@
 					"include": "#comment"
 				},
 				{
-					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:(\\bdefault)|(\\*)|(\\b[_$[:alpha:]][_$[:alnum:]]*))\\s+(as)\\s+(?:(default(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.)))|([_$[:alpha:]][_$[:alnum:]]*))",
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:(?:(\\btype)\\s+)?(?:(\\bdefault)|(\\*)|(\\b[_$[:alpha:]][_$[:alnum:]]*)))\\s+(as)\\s+(?:(default(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.)))|([_$[:alpha:]][_$[:alnum:]]*))",
 					"captures": {
 						"1": {
-							"name": "keyword.control.default.js"
+							"name": "keyword.control.type.js"
 						},
 						"2": {
-							"name": "constant.language.import-export-all.js"
-						},
-						"3": {
-							"name": "variable.other.readwrite.js"
-						},
-						"4": {
-							"name": "keyword.control.as.js"
-						},
-						"5": {
 							"name": "keyword.control.default.js"
 						},
+						"3": {
+							"name": "constant.language.import-export-all.js"
+						},
+						"4": {
+							"name": "variable.other.readwrite.js"
+						},
+						"5": {
+							"name": "keyword.control.as.js"
+						},
 						"6": {
+							"name": "keyword.control.default.js"
+						},
+						"7": {
 							"name": "variable.other.readwrite.alias.js"
 						}
 					}
@@ -2336,8 +2339,15 @@
 					"match": "\\b(default)\\b"
 				},
 				{
-					"name": "variable.other.readwrite.alias.js",
-					"match": "([_$[:alpha:]][_$[:alnum:]]*)"
+					"match": "(?:(\\btype)\\s+)?([_$[:alpha:]][_$[:alnum:]]*)",
+					"captures": {
+						"1": {
+							"name": "keyword.control.type.js"
+						},
+						"2": {
+							"name": "variable.other.readwrite.alias.js"
+						}
+					}
 				}
 			]
 		},

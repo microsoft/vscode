@@ -3,6 +3,7 @@
 	"compilerOptions": {
 		"outDir": "./dist/",
 		"jsx": "react",
+		"esModuleInterop": true,
 		"lib": [
 			"es2018",
 			"DOM",
