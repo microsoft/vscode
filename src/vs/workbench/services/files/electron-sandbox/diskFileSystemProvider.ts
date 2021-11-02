@@ -29,7 +29,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	IFileSystemProviderWithFileReadStreamCapability,
 	IFileSystemProviderWithFileFolderCopyCapability {
 
-	private readonly provider = this._register(new IPCFileSystemProvider(this.capabilities, this.mainProcessService.getChannel('localFilesystem')));
+	private readonly provider = this._register(new IPCFileSystemProvider(this.mainProcessService.getChannel('localFilesystem'), { pathCaseSensitive: isLinux, trash: true }));
 
 	constructor(
 		private readonly mainProcessService: IMainProcessService,
@@ -50,26 +50,9 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 	//#region File Capabilities
 
-	readonly onDidChangeCapabilities: Event<void> = Event.None;
+	get onDidChangeCapabilities(): Event<void> { return this.provider.onDidChangeCapabilities; }
 
-	private _capabilities: FileSystemProviderCapabilities | undefined;
-	get capabilities(): FileSystemProviderCapabilities {
-		if (!this._capabilities) {
-			this._capabilities =
-				FileSystemProviderCapabilities.FileReadWrite |
-				FileSystemProviderCapabilities.FileOpenReadWriteClose |
-				FileSystemProviderCapabilities.FileReadStream |
-				FileSystemProviderCapabilities.FileFolderCopy |
-				FileSystemProviderCapabilities.Trash |
-				FileSystemProviderCapabilities.FileWriteUnlock;
-
-			if (isLinux) {
-				this._capabilities |= FileSystemProviderCapabilities.PathCaseSensitive;
-			}
-		}
-
-		return this._capabilities;
-	}
+	get capabilities(): FileSystemProviderCapabilities { return this.provider.capabilities; }
 
 	//#endregion
 

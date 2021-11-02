@@ -4,52 +4,53 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getErrorMessage } from 'vs/base/common/errors';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IPCFileSystemProvider } from 'vs/platform/files/common/ipcFileSystemProvider';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export const REMOTE_FILE_SYSTEM_CHANNEL_NAME = 'remoteFilesystem';
 
 export class RemoteFileSystemProvider extends IPCFileSystemProvider {
 
 	static register(remoteAgentService: IRemoteAgentService, fileService: IFileService, logService: ILogService): IDisposable {
-		const disposables = new DisposableStore();
-		if (remoteAgentService.getConnection()) {
-			const promise = remoteAgentService.getRawEnvironment()
-				.then(environment => {
-					if (environment) {
-						// Register remote fsp even before it is asked to activate
-						// Because, some features (Configuration) wait for its registeration before making fs calls
-						fileService.registerProvider(Schemas.vscodeRemote, disposables.add(new RemoteFileSystemProvider(environment, remoteAgentService)));
-					} else {
-						logService.error('Cannot register remote filesystem provider. Remote environment doesnot exist.');
-					}
-				}, error => {
-					logService.error('Cannot register remote filesystem provider. Error while fetching remote environment.', getErrorMessage(error));
-				});
-			disposables.add(fileService.onWillActivateFileSystemProvider(e => {
-				if (e.scheme === Schemas.vscodeRemote) {
-					e.join(promise);
-				}
-			}));
+		const connection = remoteAgentService.getConnection();
+		if (!connection) {
+			return Disposable.None;
 		}
+
+		const disposables = new DisposableStore();
+
+		const environmentPromise = (async () => {
+			try {
+				const environment = await remoteAgentService.getRawEnvironment();
+				if (environment) {
+					// Register remote fsp even before it is asked to activate
+					// because, some features (configuration) wait for its
+					// registration before making fs calls.
+					fileService.registerProvider(Schemas.vscodeRemote, disposables.add(new RemoteFileSystemProvider(environment, connection)));
+				} else {
+					logService.error('Cannot register remote filesystem provider. Remote environment doesnot exist.');
+				}
+			} catch (error) {
+				logService.error('Cannot register remote filesystem provider. Error while fetching remote environment.', getErrorMessage(error));
+			}
+		})();
+
+		disposables.add(fileService.onWillActivateFileSystemProvider(e => {
+			if (e.scheme === Schemas.vscodeRemote) {
+				e.join(environmentPromise);
+			}
+		}));
+
 		return disposables;
 	}
 
-	constructor(remoteAgentEnvironment: IRemoteAgentEnvironment, remoteAgentService: IRemoteAgentService) {
-		let capabilities = FileSystemProviderCapabilities.FileReadWrite
-			| FileSystemProviderCapabilities.FileOpenReadWriteClose
-			| FileSystemProviderCapabilities.FileReadStream
-			| FileSystemProviderCapabilities.FileFolderCopy
-			| FileSystemProviderCapabilities.FileWriteUnlock;
-		if (remoteAgentEnvironment.os === OperatingSystem.Linux) {
-			capabilities |= FileSystemProviderCapabilities.PathCaseSensitive;
-		}
-		super(capabilities, remoteAgentService.getConnection()!.getChannel(REMOTE_FILE_SYSTEM_CHANNEL_NAME));
+	private constructor(remoteAgentEnvironment: IRemoteAgentEnvironment, connection: IRemoteAgentConnection) {
+		super(connection.getChannel(REMOTE_FILE_SYSTEM_CHANNEL_NAME), { pathCaseSensitive: remoteAgentEnvironment.os === OperatingSystem.Linux });
 	}
 }
