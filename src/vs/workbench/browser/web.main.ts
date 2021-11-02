@@ -68,11 +68,6 @@ import { safeStringify } from 'vs/base/common/objects';
 import { ICredentialsService } from 'vs/workbench/services/credentials/common/credentials';
 import { IndexedDB } from 'vs/base/browser/indexedDB';
 
-const INDEXEDDB_VSCODE_DB = 'vscode-web-db';
-const INDEXEDDB_VSCODE_DB_VERSION = 2;
-const INDEXEDDB_USERDATA_OBJECT_STORE = 'vscode-userdata-store';
-const INDEXEDDB_LOGS_OBJECT_STORE = 'vscode-logs-store';
-
 class BrowserMain extends Disposable {
 
 	private readonly onWillShutdownDisposables = new DisposableStore();
@@ -260,8 +255,9 @@ class BrowserMain extends Disposable {
 
 	private async registerFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IFileService, remoteAgentService: IRemoteAgentService, logService: BufferLogService, logsPath: URI): Promise<void> {
 		let indexedDB: IndexedDB | undefined;
+		const userDataStore = 'vscode-userdata-store', logsStore = 'vscode-logs-store';
 		try {
-			indexedDB = await IndexedDB.create(INDEXEDDB_VSCODE_DB, INDEXEDDB_VSCODE_DB_VERSION, [INDEXEDDB_USERDATA_OBJECT_STORE, INDEXEDDB_LOGS_OBJECT_STORE]);
+			indexedDB = await IndexedDB.create('vscode-web-db', 2, [userDataStore, logsStore]);
 			this.onWillShutdownDisposables.add(toDisposable(() => indexedDB?.close()));
 		} catch (error) {
 			logService.error('Error while creating IndexedDB');
@@ -270,7 +266,7 @@ class BrowserMain extends Disposable {
 
 		// Logger
 		if (indexedDB) {
-			fileService.registerProvider(logsPath.scheme, new IndexedDBFileSystemProvider(logsPath.scheme, indexedDB, INDEXEDDB_LOGS_OBJECT_STORE, false));
+			fileService.registerProvider(logsPath.scheme, new IndexedDBFileSystemProvider(logsPath.scheme, indexedDB, logsStore, false));
 		} else {
 			fileService.registerProvider(logsPath.scheme, new InMemoryFileSystemProvider());
 		}
@@ -284,7 +280,7 @@ class BrowserMain extends Disposable {
 		// User data
 		let userDataProvider;
 		if (indexedDB) {
-			userDataProvider = new IndexedDBFileSystemProvider(logsPath.scheme, indexedDB, INDEXEDDB_USERDATA_OBJECT_STORE, false);
+			userDataProvider = new IndexedDBFileSystemProvider(logsPath.scheme, indexedDB, userDataStore, false);
 			this.registerDeveloperActions(<IndexedDBFileSystemProvider>userDataProvider);
 		} else {
 			logService.info('Using in-memory user data provider');
