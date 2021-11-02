@@ -17,7 +17,7 @@ import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeServic
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { ICommandTracker, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ICommandTracker, ITerminalFont, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { Color } from 'vs/base/common/color';
 import { isSafari } from 'vs/base/browser/browser';
@@ -191,6 +191,19 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this._core.viewport?._innerRefresh();
 	}
 
+	forceUnpause() {
+		// HACK: Force the renderer to unpause by simulating an IntersectionObserver event.
+		// This is to fix an issue where dragging the windpow to the top of the screen to
+		// maximize on Windows/Linux would fire an event saying that the terminal was not
+		// visible.
+		if (this.raw.getOption('rendererType') === 'canvas') {
+			this._core._renderService?._onIntersectionChange({ intersectionRatio: 1 });
+			// HACK: Force a refresh of the screen to ensure links are refresh corrected.
+			// This can probably be removed when the above hack is fixed in Chromium.
+			this.raw.refresh(0, this.raw.rows - 1);
+		}
+	}
+
 	findNext(term: string, searchOptions: ISearchOptions): boolean {
 		if (!this._searchAddon) {
 			return false;
@@ -203,6 +216,10 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			return false;
 		}
 		return this._searchAddon.findPrevious(term, searchOptions);
+	}
+
+	getFont(): ITerminalFont {
+		return this._configHelper.getFont(this._core);
 	}
 
 	scrollDownLine(): void {
