@@ -1149,7 +1149,7 @@ export class ListTopCellToolbar extends Disposable {
 	}
 
 	private updateClass() {
-		if (this.notebookEditor.getLength() === 0) {
+		if (this.notebookEditor.hasModel() && this.notebookEditor.getLength() === 0) {
 			this.topCellToolbar.classList.add('emptyNotebook');
 		} else {
 			this.topCellToolbar.classList.remove('emptyNotebook');
