@@ -17,7 +17,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationHandle, INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IRequestResolveVariablesEvent, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalIcon } from 'vs/platform/terminal/common/terminal';
+import { IRequestResolveVariablesEvent, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalIcon, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { RemotePty } from 'vs/workbench/contrib/terminal/browser/remotePty';
@@ -253,8 +253,8 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		await this._remoteTerminalChannel?.updateProperty(id, property, value);
 	}
 
-	async updateTitle(id: number, title: string): Promise<void> {
-		await this._remoteTerminalChannel?.updateTitle(id, title);
+	async updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void> {
+		await this._remoteTerminalChannel?.updateTitle(id, title, titleSource);
 	}
 
 	async updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<void> {
