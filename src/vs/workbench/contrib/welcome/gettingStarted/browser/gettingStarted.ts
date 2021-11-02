@@ -631,6 +631,15 @@ export class GettingStartedPage extends EditorPane {
 				}
 			};
 
+			if (serializedContextKeyExprs) {
+				const contextKeyExprs = coalesce(serializedContextKeyExprs.map(expr => ContextKeyExpr.deserialize(expr)));
+				const watchingKeys = new Set(flatten(contextKeyExprs.map(expr => expr.keys())));
+
+				this.stepDisposables.add(this.contextService.onDidChangeContext(e => {
+					if (e.affectsSome(watchingKeys)) { postTrueKeysMessage(); }
+				}));
+			}
+
 			let isDisposed = false;
 			this.stepDisposables.add(toDisposable(() => { isDisposed = true; }));
 
@@ -649,39 +658,29 @@ export class GettingStartedPage extends EditorPane {
 				}
 			}));
 
-			if (serializedContextKeyExprs) {
-				const contextKeyExprs = coalesce(serializedContextKeyExprs.map(expr => ContextKeyExpr.deserialize(expr)));
-				const watchingKeys = new Set(flatten(contextKeyExprs.map(expr => expr.keys())));
+			const layoutDelayer = new Delayer(50);
 
-				this.stepDisposables.add(this.contextService.onDidChangeContext(e => {
-					if (e.affectsSome(watchingKeys)) { postTrueKeysMessage(); }
-				}));
-
-				const layoutDelayer = new Delayer(50);
-
-				this.layoutMarkdown = () => {
-					layoutDelayer.trigger(() => {
-						webview.postMessage({ layoutMeNow: true });
-					});
-				};
-
-				this.stepDisposables.add(layoutDelayer);
-				this.stepDisposables.add({ dispose: () => this.layoutMarkdown = undefined });
-
-				postTrueKeysMessage();
-
-				webview.onMessage(e => {
-					const message: string = e.message as string;
-					if (message.startsWith('command:')) {
-						this.openerService.open(message, { allowCommands: true });
-					} else if (message.startsWith('setTheme:')) {
-						this.configurationService.updateValue(ThemeSettings.COLOR_THEME, message.slice('setTheme:'.length), ConfigurationTarget.USER);
-					} else {
-						console.error('Unexpected message', message);
-					}
+			this.layoutMarkdown = () => {
+				layoutDelayer.trigger(() => {
+					webview.postMessage({ layoutMeNow: true });
 				});
-			}
+			};
 
+			this.stepDisposables.add(layoutDelayer);
+			this.stepDisposables.add({ dispose: () => this.layoutMarkdown = undefined });
+
+			postTrueKeysMessage();
+
+			this.stepDisposables.add(webview.onMessage(e => {
+				const message: string = e.message as string;
+				if (message.startsWith('command:')) {
+					this.openerService.open(message, { allowCommands: true });
+				} else if (message.startsWith('setTheme:')) {
+					this.configurationService.updateValue(ThemeSettings.COLOR_THEME, message.slice('setTheme:'.length), ConfigurationTarget.USER);
+				} else {
+					console.error('Unexpected message', message);
+				}
+			}));
 		}
 	}
 
@@ -850,8 +849,7 @@ export class GettingStartedPage extends EditorPane {
 				let ongoingLayout = undefined;
 				const doLayout = () => {
 					document.querySelectorAll('vertically-centered').forEach(element => {
-						console.log({element, elementScrollHeight: element.scrollHeight, bodyClientHeight: document.body.clientHeight})
-						element.style.marginTop = Math.max((document.body.clientHeight - element.scrollHeight) * 3/10, 10) + 'px';
+						element.style.marginTop = Math.max((document.body.clientHeight - element.scrollHeight) * 3/10, 0) + 'px';
 					});
 					ongoingLayout = undefined;
 				};
@@ -859,10 +857,8 @@ export class GettingStartedPage extends EditorPane {
 				const layout = () => {
 					if (ongoingLayout) {
 						clearTimeout(ongoingLayout);
-						ongoingLayout = setTimeout(doLayout, 10);
-					} else {
-						ongoingLayout = setTimeout(doLayout, 0);
 					}
+					ongoingLayout = setTimeout(doLayout, 0);
 				};
 
 				layout();
