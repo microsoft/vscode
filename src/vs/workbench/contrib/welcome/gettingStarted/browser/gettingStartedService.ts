@@ -19,7 +19,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { DefaultIconPath, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { walkthroughs } from 'vs/workbench/contrib/welcome/gettingStarted/common/gettingStartedContent';
-import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
+import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILink, LinkedText, parseLinkedText } from 'vs/base/common/linkedText';
@@ -135,7 +135,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 	private gettingStartedContributions = new Map<string, IWalkthrough>();
 	private steps = new Map<string, IWalkthroughStep>();
 
-	private tasExperimentService?: ITASExperimentService;
+	private tasExperimentService?: IWorkbenchAssignmentService;
 	private sessionInstalledExtensions = new Set<string>();
 
 	private categoryVisibilityContextKeys = new Set<string>();
@@ -159,7 +159,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		@IHostService private readonly hostService: IHostService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ITASExperimentService tasExperimentService: ITASExperimentService,
+		@IWorkbenchAssignmentService tasExperimentService: IWorkbenchAssignmentService,
 	) {
 		super();
 

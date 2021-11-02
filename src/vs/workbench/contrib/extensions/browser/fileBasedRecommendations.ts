@@ -25,7 +25,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
-import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
+import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { distinct } from 'vs/base/common/arrays';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -102,7 +102,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionRecommendationNotificationService private readonly extensionRecommendationNotificationService: IExtensionRecommendationNotificationService,
 		@IExtensionIgnoredRecommendationsService private readonly extensionIgnoredRecommendationsService: IExtensionIgnoredRecommendationsService,
-		@ITASExperimentService private tasExperimentService: ITASExperimentService,
+		@IWorkbenchAssignmentService private tasExperimentService: IWorkbenchAssignmentService,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
