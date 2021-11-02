@@ -217,11 +217,14 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 
 	override dispose() {
 		super.dispose();
+
 		this._disposed = true;
+
 		clearTimeout(this.throttleTimer);
 		for (const entry of this._fileWatchersBySrc.values()) {
 			entry.dispose();
 		}
+		this._fileWatchersBySrc.clear();
 	}
 
 	public get resource(): vscode.Uri {
