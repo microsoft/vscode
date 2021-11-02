@@ -29,7 +29,7 @@ function toAnnotatedText(text: string, lineBreakData: LineBreakData | null): str
 	if (lineBreakData) {
 		let previousLineIndex = 0;
 		for (let i = 0, len = text.length; i < len; i++) {
-			let r = lineBreakData.getOutputPositionOfInputOffset(i);
+			let r = lineBreakData.translateToOutputPosition(i);
 			if (previousLineIndex !== r.outputLineIndex) {
 				previousLineIndex = r.outputLineIndex;
 				actualAnnotatedText += '|';

@@ -11,8 +11,8 @@ import { LineBreakData } from 'vs/editor/common/viewModel/viewModel';
 suite('Editor ViewModel - LineBreakData', () => {
 	test('Basic', () => {
 		const data = new LineBreakData([], [], [100], [], 0);
-		assert.strictEqual(data.getInputOffsetOfOutputPosition(0, 50), 50);
-		assert.strictEqual(data.getInputOffsetOfOutputPosition(1, 50), 150);
+		assert.strictEqual(data.translateToInputOffset(0, 50), 50);
+		assert.strictEqual(data.translateToInputOffset(1, 50), 150);
 	});
 
 	function sequence(length: number, start = 0): number[] {
@@ -25,17 +25,17 @@ suite('Editor ViewModel - LineBreakData', () => {
 
 	function testInverse(data: LineBreakData) {
 		for (let i = 0; i < 100; i++) {
-			const output = data.getOutputPositionOfInputOffset(i);
-			assert.deepStrictEqual(data.getInputOffsetOfOutputPosition(output.outputLineIndex, output.outputOffset), i);
+			const output = data.translateToOutputPosition(i);
+			assert.deepStrictEqual(data.translateToInputOffset(output.outputLineIndex, output.outputOffset), i);
 		}
 	}
 
 	function getInputOffsets(data: LineBreakData, outputLineIdx: number): number[] {
-		return sequence(11).map(i => data.getInputOffsetOfOutputPosition(outputLineIdx, i));
+		return sequence(11).map(i => data.translateToInputOffset(outputLineIdx, i));
 	}
 
 	function getOutputOffsets(data: LineBreakData, affinity: PositionAffinity): string[] {
-		return sequence(25).map(i => data.getOutputPositionOfInputOffset(i, affinity).toString());
+		return sequence(25).map(i => data.translateToOutputPosition(i, affinity).toString());
 	}
 
 	function mapTextToInjectedTextOptions(arr: string[]): ModelDecorationInjectedTextOptions[] {
@@ -52,7 +52,7 @@ suite('Editor ViewModel - LineBreakData', () => {
 		});
 
 		test('getOutputPositionOfInputOffset', () => {
-			data.getOutputPositionOfInputOffset(20);
+			data.translateToOutputPosition(20);
 			assert.deepStrictEqual(getOutputOffsets(data, PositionAffinity.None), [
 				'0:0', '0:1', '0:2', '0:4', '0:7', '0:8', '0:9',
 				'1:0', '1:1', '1:2', '1:3', '1:7', '1:8', '1:9', '1:10', '1:11', '1:12', '1:13', '1:14', '1:15', '1:16', '1:17', '1:18', '1:19', '1:20',
