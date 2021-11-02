@@ -20,7 +20,7 @@ import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { MinimapTokensColorTracker } from 'vs/editor/common/viewModel/minimapTokensColorTracker';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
-import { IViewModelLinesCollection, IdentityLinesCollection, SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
+import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from 'vs/editor/common/viewModel/viewModelLines';
 import { ICoordinatesConverter, InjectedText, ILineBreaksComputer, IViewModel, MinimapLinesRenderingData, ViewLineData, ViewLineRenderingData, ViewModelDecoration, OverviewRulerDecorationsGroup, ILineBreaksComputerFactory } from 'vs/editor/common/viewModel/viewModel';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -50,7 +50,7 @@ export class ViewModel extends Disposable implements IViewModel {
 	private _viewportStartLine: number;
 	private _viewportStartLineTrackedRange: string | null;
 	private _viewportStartLineDelta: number;
-	private readonly _lines: IViewModelLinesCollection;
+	private readonly _lines: IViewModelLines;
 	public readonly coordinatesConverter: ICoordinatesConverter;
 	public readonly viewLayout: ViewLayout;
 	private readonly _cursor: CursorsController;
@@ -81,7 +81,7 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		if (USE_IDENTITY_LINES_COLLECTION && this.model.isTooLargeForTokenization()) {
 
-			this._lines = new IdentityLinesCollection(this.model);
+			this._lines = new ViewModelLinesFromModelAsIs(this.model);
 
 		} else {
 			const options = this._configuration.options;
@@ -90,7 +90,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			const wrappingInfo = options.get(EditorOption.wrappingInfo);
 			const wrappingIndent = options.get(EditorOption.wrappingIndent);
 
-			this._lines = new SplitLinesCollection(
+			this._lines = new ViewModelLinesFromProjectedModel(
 				this._editorId,
 				this.model,
 				domLineBreaksComputerFactory,

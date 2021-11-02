@@ -17,7 +17,7 @@ import { createModelLineProjection, IModelLineProjection } from 'vs/editor/commo
 import { ConstantTimePrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { ICoordinatesConverter, ILineBreaksComputer, ILineBreaksComputerFactory, InjectedText, LineBreakData, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 
-export interface IViewModelLinesCollection extends IDisposable {
+export interface IViewModelLines extends IDisposable {
 	createCoordinatesConverter(): ICoordinatesConverter;
 
 	setWrappingSettings(fontInfo: FontInfo, wrappingStrategy: 'simple' | 'advanced', wrappingColumn: number, wrappingIndent: WrappingIndent): boolean;
@@ -55,7 +55,7 @@ export interface IViewModelLinesCollection extends IDisposable {
 	getLineIndentColumn(lineNumber: number): number;
 }
 
-export class SplitLinesCollection implements IViewModelLinesCollection {
+export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	private readonly _editorId: number;
 	private readonly model: ITextModel;
 	private _validModelVersionId: number;
@@ -967,9 +967,9 @@ class ViewLineInfoGroupedByModelRange {
 }
 
 class CoordinatesConverter implements ICoordinatesConverter {
-	private readonly _lines: SplitLinesCollection;
+	private readonly _lines: ViewModelLinesFromProjectedModel;
 
-	constructor(lines: SplitLinesCollection) {
+	constructor(lines: ViewModelLinesFromProjectedModel) {
 		this._lines = lines;
 	}
 
@@ -1020,7 +1020,7 @@ const enum IndentGuideRepeatOption {
 	BlockAll = 2
 }
 
-export class IdentityLinesCollection implements IViewModelLinesCollection {
+export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 	public readonly model: ITextModel;
 
 	constructor(model: ITextModel) {
@@ -1171,9 +1171,9 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 }
 
 class IdentityCoordinatesConverter implements ICoordinatesConverter {
-	private readonly _lines: IdentityLinesCollection;
+	private readonly _lines: ViewModelLinesFromModelAsIs;
 
-	constructor(lines: IdentityLinesCollection) {
+	constructor(lines: ViewModelLinesFromModelAsIs) {
 		this._lines = lines;
 	}
 
