@@ -31,7 +31,6 @@ import { ITerminalInstanceService, ITerminalInstance, ITerminalExternalLinkProvi
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from 'xterm';
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/xterm/navigationModeAddon';
-import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { EnvironmentVariableInfoWidget } from 'vs/workbench/contrib/terminal/browser/widgets/environmentVariableInfoWidget';
 import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
@@ -120,7 +119,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _titleSource: TitleEventSource = TitleEventSource.Process;
 	private _container: HTMLElement | undefined;
 	private _wrapperElement: (HTMLElement & { xterm?: XTermTerminal }) | undefined;
-	private _xtermCore: IXtermCore | undefined;
 	private _xtermTypeAhead: TypeAheadAddon | undefined;
 	private _xtermElement: HTMLDivElement | undefined;
 	private _horizontalScrollbar: DomScrollableElement | undefined;
@@ -519,7 +517,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return null;
 		}
 
-		const font = this._configHelper.getFont(this._xtermCore);
+		const font = this.xterm ? this.xterm.getFont() : this._configHelper.getFont();
 		if (!font.charWidth || !font.charHeight) {
 			this._setLastKnownColsAndRows();
 			return null;
@@ -562,7 +560,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _getDimension(width: number, height: number): ICanvasDimensions | undefined {
 		// The font needs to have been initialized
-		const font = this._configHelper.getFont(this._xtermCore);
+		const font = this.xterm ? this.xterm.getFont() : this._configHelper.getFont();
 		if (!font || !font.charWidth || !font.charHeight) {
 			return undefined;
 		}
@@ -600,7 +598,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// TODO: Move cols/rows over to XtermTerminal
 		const xterm = this._instantiationService.createInstance(XtermTerminal, Terminal, this._configHelper, this._cols, this._rows);
 		this.xterm = xterm;
-		this._xtermCore = (xterm as any)._core as IXtermCore;
 		const lineDataEventAddon = new LineDataEventAddon();
 		this.xterm.raw.loadAddon(lineDataEventAddon);
 		this.updateAccessibilitySupport();
@@ -1494,11 +1491,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		let cols = this.cols;
 		let rows = this.rows;
 
-		if (this.xterm && this._xtermCore) {
+		if (this.xterm) {
 			// Only apply these settings when the terminal is visible so that
 			// the characters are measured correctly.
 			if (this._isVisible) {
-				const font = this._configHelper.getFont(this._xtermCore);
+				const font = this.xterm ? this.xterm.getFont() : this._configHelper.getFont();
 				const config = this._configHelper.config;
 				this._safeSetOption('letterSpacing', font.letterSpacing);
 				this._safeSetOption('lineHeight', font.lineHeight);
@@ -1529,16 +1526,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			TerminalInstance._lastKnownGridDimensions = { cols, rows };
 
 			if (this._isVisible) {
-				// HACK: Force the renderer to unpause by simulating an IntersectionObserver event.
-				// This is to fix an issue where dragging the windpow to the top of the screen to
-				// maximize on Windows/Linux would fire an event saying that the terminal was not
-				// visible.
-				if (this.xterm.raw.getOption('rendererType') === 'canvas') {
-					this._xtermCore._renderService?._onIntersectionChange({ intersectionRatio: 1 });
-					// HACK: Force a refresh of the screen to ensure links are refresh corrected.
-					// This can probably be removed when the above hack is fixed in Chromium.
-					this.xterm.raw.refresh(0, this.xterm.raw.rows - 1);
-				}
+				this.xterm.forceUnpause();
 			}
 		}
 
@@ -1718,7 +1706,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private async _addScrollbar(): Promise<void> {
-		const charWidth = this._configHelper?.getFont(this._xtermCore).charWidth;
+		const charWidth = (this.xterm ? this.xterm.getFont() : this._configHelper.getFont()).charWidth;
 		if (!this.xterm?.raw.element || !this._wrapperElement || !this._container || !charWidth || !this._fixedCols) {
 			return;
 		}
