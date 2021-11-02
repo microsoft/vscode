@@ -14,11 +14,12 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import * as modes from 'vs/editor/common/modes';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
-import { ISimpleModel, ModelLineProjection, SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
+import { SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
 import { LineBreakData, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { ISimpleModel, ModelLineProjection } from 'vs/editor/common/viewModel/modelLineProjection';
 
 suite('Editor ViewModel - SplitLinesCollection', () => {
 	test('SplitLine', () => {
