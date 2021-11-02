@@ -125,6 +125,8 @@ window.addEventListener('message', event => {
 			const root = document.querySelector('.markdown-body')!;
 			morphdom(root, event.data.content);
 			++documentVersion;
+
+			window.dispatchEvent(new CustomEvent('vscode.markdown.updateContent'));
 			break;
 	}
 }, false);
