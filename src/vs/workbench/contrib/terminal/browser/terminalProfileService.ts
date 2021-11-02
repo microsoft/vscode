@@ -92,10 +92,10 @@ export class TerminalProfileService implements ITerminalProfileService {
 
 	@throttle(2000)
 	refreshAvailableProfiles(): void {
-		this._refreshAvailableProfilesNow();
+		this.refreshAvailableProfilesNow();
 	}
 
-	protected async _refreshAvailableProfilesNow(): Promise<void> {
+	async refreshAvailableProfilesNow(): Promise<void> {
 		const profiles = await this._detectProfiles();
 		if (profiles.length === 0 && this._ifNoProfilesTryAgain) {
 			// available profiles get updated when a terminal is created
@@ -104,7 +104,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 			// since terminal creation can't happen in this case and users
 			// might not think to try changing the config
 			this._ifNoProfilesTryAgain = false;
-			await this._refreshAvailableProfilesNow();
+			await this.refreshAvailableProfilesNow();
 		}
 		const profilesChanged = !(equals(profiles, this._availableProfiles, profilesEqual));
 		const contributedProfilesChanged = await this._updateContributedProfiles();
