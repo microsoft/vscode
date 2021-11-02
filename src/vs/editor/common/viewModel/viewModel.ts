@@ -112,14 +112,29 @@ export class OutputPosition {
 		return new Position(baseLineNumber + this.outputLineIndex, delta + this.outputOffset + 1);
 	}
 }
-
+/**
+ * Input:
+ * xxxxxxxxxxxxxxxxxxxxxxxxxxx
+ * + injections i, break offsets, wrappedTextIndentLength
+ * ->
+ * Output:
+ * xxxxxx[iiiiiii
+ *    iii]xxxxxxxxxxx
+ *    xxxxxx[ii]xxxx
+ */
 export class LineBreakData {
 	constructor(
-		public breakOffsets: number[],
-		public breakOffsetsVisibleColumn: number[],
-		public wrappedTextIndentLength: number,
 		public injectionOffsets: number[] | null,
-		public injectionOptions: InjectedTextOptions[] | null
+		public injectionOptions: InjectedTextOptions[] | null,
+		/**
+		 * Refers to offsets after applying injections
+		*/
+		public breakOffsets: number[],
+		/**
+		 * Refers to offsets after applying injections
+		*/
+		public breakOffsetsVisibleColumn: number[],
+		public wrappedTextIndentLength: number
 	) { }
 
 	public getInputOffsetOfOutputPosition(outputLineIndex: number, outputOffset: number): number {

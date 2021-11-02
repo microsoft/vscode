@@ -10,7 +10,7 @@ import { LineBreakData } from 'vs/editor/common/viewModel/viewModel';
 
 suite('Editor ViewModel - LineBreakData', () => {
 	test('Basic', () => {
-		const data = new LineBreakData([100], [], 0, [], []);
+		const data = new LineBreakData([], [], [100], [], 0);
 		assert.strictEqual(data.getInputOffsetOfOutputPosition(0, 50), 50);
 		assert.strictEqual(data.getInputOffsetOfOutputPosition(1, 50), 150);
 	});
@@ -43,7 +43,7 @@ suite('Editor ViewModel - LineBreakData', () => {
 	}
 
 	suite('Injected Text 1', () => {
-		const data = new LineBreakData([10, 100], [], 0, [2, 3, 10], mapTextToInjectedTextOptions(['1', '22', '333']));
+		const data = new LineBreakData([2, 3, 10], mapTextToInjectedTextOptions(['1', '22', '333']), [10, 100], [], 0);
 
 		test('getInputOffsetOfOutputPosition', () => {
 			// For every view model position, what is the model position?
@@ -75,7 +75,7 @@ suite('Editor ViewModel - LineBreakData', () => {
 	});
 
 	suite('Injected Text 2', () => {
-		const data = new LineBreakData([10, 100], [], 0, [2, 2, 6], mapTextToInjectedTextOptions(['1', '22', '333']));
+		const data = new LineBreakData([2, 2, 6], mapTextToInjectedTextOptions(['1', '22', '333']), [10, 100], [], 0);
 
 		test('getInputOffsetOfOutputPosition', () => {
 			assert.deepStrictEqual(getInputOffsets(data, 0), [0, 1, 2, 2, 2, 2, 3, 4, 5, 6, 6]);
@@ -88,7 +88,7 @@ suite('Editor ViewModel - LineBreakData', () => {
 	});
 
 	suite('Injected Text 3', () => {
-		const data = new LineBreakData([10, 100], [], 0, [2, 2, 7], mapTextToInjectedTextOptions(['1', '22', '333']));
+		const data = new LineBreakData([2, 2, 7], mapTextToInjectedTextOptions(['1', '22', '333']), [10, 100], [], 0);
 
 		test('getInputOffsetOfOutputPosition', () => {
 			assert.deepStrictEqual(getInputOffsets(data, 0), [0, 1, 2, 2, 2, 2, 3, 4, 5, 6, 7]);
