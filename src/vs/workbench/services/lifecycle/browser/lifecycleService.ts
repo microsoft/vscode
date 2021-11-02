@@ -17,6 +17,8 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 	private beforeUnloadListener: IDisposable | undefined = undefined;
 
 	private disableBeforeUnloadVeto = false;
+
+	private didBeforeUnload = false;
 	private didUnload = false;
 
 	constructor(
@@ -30,6 +32,9 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 
 	private registerListeners(): void {
 
+		// Listen to `pageshow` to handle unsupported `persisted: true` cases
+		this._register(addDisposableListener(window, EventType.PAGE_SHOW, (e: PageTransitionEvent) => this.onLoad(e)));
+
 		// Listen to `beforeUnload` to support to veto
 		this.beforeUnloadListener = addDisposableListener(window, EventType.BEFORE_UNLOAD, (e: BeforeUnloadEvent) => this.onBeforeUnload(e));
 
@@ -38,6 +43,37 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 		// which would disable certain browser caching
 		// (https://web.dev/bfcache/)
 		this._register(addDisposableListener(window, EventType.PAGE_HIDE, () => this.onUnload()));
+	}
+
+	private onLoad(event: PageTransitionEvent): void {
+
+		// We only really care about page-show events
+		// where the browser indicates to us that the
+		// page was restored from cache and not freshly
+		// loaded.
+		const wasRestoredFromCache = event.persisted;
+		if (!wasRestoredFromCache) {
+			return;
+		}
+
+		// We only really care about `persisted` page-show
+		// events if there is a chance that we were unloaded
+		// before and now potentially have a disposed workbench
+		// that is non-functional.
+		// To be on the safe side, we ignore this event in any
+		// other cases.
+		const handleLoadEvent = this.didBeforeUnload;
+		if (!handleLoadEvent) {
+			return;
+		}
+
+		// At this point, we know that the page was restored from
+		// cache even though it was potentially unloaded before,
+		// so in order to get back to a functional workbench, we
+		// currently can only reload the window
+		// Docs: https://web.dev/bfcache/#optimize-your-pages-for-bfcache
+		// Refs: https://github.com/microsoft/vscode/issues/136035
+		this.withExpectedShutdown({ disableShutdownHandling: true }, () => window.location.reload());
 	}
 
 	private onBeforeUnload(event: BeforeUnloadEvent): void {
@@ -101,15 +137,17 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 		this.doShutdown();
 	}
 
-	private doShutdown(handleVeto?: () => void): void {
+	private doShutdown(supportVeto?: () => void): void {
 		const logService = this.logService;
+
+		this.didBeforeUnload = true;
 
 		let veto = false;
 
 		// Before Shutdown
 		this._onBeforeShutdown.fire({
 			veto(value, id) {
-				if (typeof handleVeto === 'function') {
+				if (typeof supportVeto === 'function') {
 					if (value instanceof Promise) {
 						logService.error(`[lifecycle] Long running operations before shutdown are unsupported in the web (id: ${id})`);
 
@@ -127,9 +165,12 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 		});
 
 		// Veto: handle if provided
-		if (veto && typeof handleVeto === 'function') {
-			handleVeto();
+		if (veto && typeof supportVeto === 'function') {
+			supportVeto();
 
+			// Unfortunately, browsers are not giving us back any
+			// control from this moment on. We do not know whether
+			// the user decided to stay on the page or close it
 			return;
 		}
 
