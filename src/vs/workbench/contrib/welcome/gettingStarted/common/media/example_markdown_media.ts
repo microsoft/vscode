@@ -7,7 +7,6 @@ import { escape } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
 
 export default () => `
-<vertically-centered>
 <checklist>
 	<checkbox when-checked="setTheme:Default Light+" checked-on="config.workbench.colorTheme == 'Default Light+'">
 		<img width="150" src="./light.png"/>
@@ -25,5 +24,4 @@ export default () => `
 <checkbox when-checked="command:workbench.action.selectTheme" checked-on="false">
 	${escape(localize('seeMore', "See More Themes..."))}
 </checkbox>
-</vertically-centered>
 `;

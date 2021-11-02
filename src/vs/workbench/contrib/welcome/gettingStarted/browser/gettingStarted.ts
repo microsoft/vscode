@@ -825,13 +825,19 @@ export class GettingStartedPage extends EditorPane {
 						margin-block-end: 0.25em;
 						margin-block-start: 0.25em;
 					}
+					vertically-centered {
+						padding-top: 5px;
+						padding-bottom: 5px;
+					}
 					html {
 						height: 100%;
 					}
 				</style>
 			</head>
 			<body>
-				${uriTranformedContent}
+				<vertically-centered>
+					${uriTranformedContent}
+				</vertically-centered>
 			</body>
 			<script nonce="${nonce}">
 				const vscode = acquireVsCodeApi();
@@ -840,15 +846,34 @@ export class GettingStartedPage extends EditorPane {
 						vscode.postMessage(el.getAttribute('when-checked'));
 					});
 				});
-				document.querySelectorAll('vertically-centered').forEach(element => {
-					element.style.marginTop = Math.max((document.body.scrollHeight - element.scrollHeight) * 2/5, 10) + 'px';
+
+				let ongoingLayout = undefined;
+				const doLayout = () => {
+					document.querySelectorAll('vertically-centered').forEach(element => {
+						console.log({element, elementScrollHeight: element.scrollHeight, bodyClientHeight: document.body.clientHeight})
+						element.style.marginTop = Math.max((document.body.clientHeight - element.scrollHeight) * 3/10, 10) + 'px';
+					});
+					ongoingLayout = undefined;
+				};
+
+				const layout = () => {
+					if (ongoingLayout) {
+						clearTimeout(ongoingLayout);
+						ongoingLayout = setTimeout(doLayout, 10);
+					} else {
+						ongoingLayout = setTimeout(doLayout, 0);
+					}
+				};
+
+				layout();
+
+				document.querySelectorAll('img').forEach(element => {
+					element.onload = layout;
 				})
 
 				window.addEventListener('message', event => {
 					if (event.data.layoutMeNow) {
-						document.querySelectorAll('vertically-centered').forEach(element => {
-							element.style.marginTop = Math.max((document.body.scrollHeight - element.scrollHeight) * 2/5, 10) + 'px';
-						})
+						layout();
 					}
 					if (event.data.enabledContextKeys) {
 						document.querySelectorAll('.checked').forEach(element => element.classList.remove('checked'))
