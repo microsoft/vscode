@@ -193,13 +193,13 @@ suite('TerminalProfileService', () => {
 			});
 			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
 			await terminalProfileService.refreshAvailableProfilesNow();
-			equals(terminalProfileService.availableProfiles, [{
+			strictEqual(equals(terminalProfileService.availableProfiles, [{
 				profileName: 'PowerShell',
 				path: 'C:Powershell.exe',
 				isDefault: true,
 				icon: ThemeIcon.asThemeIcon(Codicon.terminalPowershell)
-			}]);
-			strictEqual(terminalProfileService.contributedProfiles.length, 0);
+			}]), true);
+			strictEqual(equals(terminalProfileService.contributedProfiles, []), true);
 		}
 	});
 	test('should include contributed profiles', async () => {
@@ -207,13 +207,18 @@ suite('TerminalProfileService', () => {
 		if (isWindows) {
 			remoteAgentService.setEnvironment(OperatingSystem.Windows);
 			await terminalProfileService.refreshAvailableProfilesNow();
-			equals(terminalProfileService.availableProfiles, [{
+			strictEqual(equals(terminalProfileService.availableProfiles, [{
 				profileName: 'PowerShell',
 				path: 'C:Powershell.exe',
 				isDefault: true,
 				icon: ThemeIcon.asThemeIcon(Codicon.terminalPowershell)
-			}]);
-			strictEqual(terminalProfileService.contributedProfiles.length, 1);
+			}]), true);
+			strictEqual(equals(terminalProfileService.contributedProfiles, [{
+				extensionIdentifier: 'ms-vscode.js-debug-nightly',
+				icon: 'debug',
+				id: 'extension.js-debug.debugTerminal',
+				title: 'JavaScript Debug Terminal'
+			}]), true);
 		}
 	});
 });
