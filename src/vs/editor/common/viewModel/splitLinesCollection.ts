@@ -15,12 +15,7 @@ import { LineInjectedText } from 'vs/editor/common/model/textModelEvents';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { createModelLineProjection, IModelLineProjection } from 'vs/editor/common/viewModel/modelLineProjection';
 import { ConstantTimePrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { ICoordinatesConverter, ILineBreaksComputer, InjectedText, LineBreakData, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
-
-export interface ILineBreaksComputerFactory {
-	createLineBreaksComputer(fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent): ILineBreaksComputer;
-}
-
+import { ICoordinatesConverter, ILineBreaksComputer, ILineBreaksComputerFactory, InjectedText, LineBreakData, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 
 export interface IViewModelLinesCollection extends IDisposable {
 	createCoordinatesConverter(): ICoordinatesConverter;
@@ -60,63 +55,7 @@ export interface IViewModelLinesCollection extends IDisposable {
 	getLineIndentColumn(lineNumber: number): number;
 }
 
-export class CoordinatesConverter implements ICoordinatesConverter {
-
-	private readonly _lines: SplitLinesCollection;
-
-	constructor(lines: SplitLinesCollection) {
-		this._lines = lines;
-	}
-
-	// View -> Model conversion and related methods
-
-	public convertViewPositionToModelPosition(viewPosition: Position): Position {
-		return this._lines.convertViewPositionToModelPosition(viewPosition.lineNumber, viewPosition.column);
-	}
-
-	public convertViewRangeToModelRange(viewRange: Range): Range {
-		return this._lines.convertViewRangeToModelRange(viewRange);
-	}
-
-	public validateViewPosition(viewPosition: Position, expectedModelPosition: Position): Position {
-		return this._lines.validateViewPosition(viewPosition.lineNumber, viewPosition.column, expectedModelPosition);
-	}
-
-	public validateViewRange(viewRange: Range, expectedModelRange: Range): Range {
-		return this._lines.validateViewRange(viewRange, expectedModelRange);
-	}
-
-	// Model -> View conversion and related methods
-
-	public convertModelPositionToViewPosition(modelPosition: Position, affinity?: PositionAffinity): Position {
-		return this._lines.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column, affinity);
-	}
-
-	public convertModelRangeToViewRange(modelRange: Range, affinity?: PositionAffinity): Range {
-		return this._lines.convertModelRangeToViewRange(modelRange, affinity);
-	}
-
-	public modelPositionIsVisible(modelPosition: Position): boolean {
-		return this._lines.modelPositionIsVisible(modelPosition.lineNumber, modelPosition.column);
-	}
-
-	public getModelLineViewLineCount(modelLineNumber: number): number {
-		return this._lines.getModelLineViewLineCount(modelLineNumber);
-	}
-
-	public getViewLineNumberOfModelPosition(modelLineNumber: number, modelColumn: number): number {
-		return this._lines.getViewLineNumberOfModelPosition(modelLineNumber, modelColumn);
-	}
-}
-
-const enum IndentGuideRepeatOption {
-	BlockNone = 0,
-	BlockSubsequent = 1,
-	BlockAll = 2
-}
-
 export class SplitLinesCollection implements IViewModelLinesCollection {
-
 	private readonly _editorId: number;
 	private readonly model: ITextModel;
 	private _validModelVersionId: number;
@@ -133,7 +72,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 	private modelLineProjections!: IModelLineProjection[];
 
 	/**
-	 * Reflects the sum of the line counts of all .
+	 * Reflects the sum of the line counts of all projected model lines.
 	*/
 	private projectedModelLineLineCounts!: ConstantTimePrefixSumComputer;
 
@@ -1027,70 +966,61 @@ class ViewLineInfoGroupedByModelRange {
 	}
 }
 
-export class IdentityCoordinatesConverter implements ICoordinatesConverter {
+class CoordinatesConverter implements ICoordinatesConverter {
+	private readonly _lines: SplitLinesCollection;
 
-	private readonly _lines: IdentityLinesCollection;
-
-	constructor(lines: IdentityLinesCollection) {
+	constructor(lines: SplitLinesCollection) {
 		this._lines = lines;
-	}
-
-	private _validPosition(pos: Position): Position {
-		return this._lines.model.validatePosition(pos);
-	}
-
-	private _validRange(range: Range): Range {
-		return this._lines.model.validateRange(range);
 	}
 
 	// View -> Model conversion and related methods
 
 	public convertViewPositionToModelPosition(viewPosition: Position): Position {
-		return this._validPosition(viewPosition);
+		return this._lines.convertViewPositionToModelPosition(viewPosition.lineNumber, viewPosition.column);
 	}
 
 	public convertViewRangeToModelRange(viewRange: Range): Range {
-		return this._validRange(viewRange);
+		return this._lines.convertViewRangeToModelRange(viewRange);
 	}
 
-	public validateViewPosition(_viewPosition: Position, expectedModelPosition: Position): Position {
-		return this._validPosition(expectedModelPosition);
+	public validateViewPosition(viewPosition: Position, expectedModelPosition: Position): Position {
+		return this._lines.validateViewPosition(viewPosition.lineNumber, viewPosition.column, expectedModelPosition);
 	}
 
-	public validateViewRange(_viewRange: Range, expectedModelRange: Range): Range {
-		return this._validRange(expectedModelRange);
+	public validateViewRange(viewRange: Range, expectedModelRange: Range): Range {
+		return this._lines.validateViewRange(viewRange, expectedModelRange);
 	}
 
 	// Model -> View conversion and related methods
 
-	public convertModelPositionToViewPosition(modelPosition: Position): Position {
-		return this._validPosition(modelPosition);
+	public convertModelPositionToViewPosition(modelPosition: Position, affinity?: PositionAffinity): Position {
+		return this._lines.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column, affinity);
 	}
 
-	public convertModelRangeToViewRange(modelRange: Range): Range {
-		return this._validRange(modelRange);
+	public convertModelRangeToViewRange(modelRange: Range, affinity?: PositionAffinity): Range {
+		return this._lines.convertModelRangeToViewRange(modelRange, affinity);
 	}
 
 	public modelPositionIsVisible(modelPosition: Position): boolean {
-		const lineCount = this._lines.model.getLineCount();
-		if (modelPosition.lineNumber < 1 || modelPosition.lineNumber > lineCount) {
-			// invalid arguments
-			return false;
-		}
-		return true;
+		return this._lines.modelPositionIsVisible(modelPosition.lineNumber, modelPosition.column);
 	}
 
 	public getModelLineViewLineCount(modelLineNumber: number): number {
-		return 1;
+		return this._lines.getModelLineViewLineCount(modelLineNumber);
 	}
 
 	public getViewLineNumberOfModelPosition(modelLineNumber: number, modelColumn: number): number {
-		return modelLineNumber;
+		return this._lines.getViewLineNumberOfModelPosition(modelLineNumber, modelColumn);
 	}
 }
 
-export class IdentityLinesCollection implements IViewModelLinesCollection {
+const enum IndentGuideRepeatOption {
+	BlockNone = 0,
+	BlockSubsequent = 1,
+	BlockAll = 2
+}
 
+export class IdentityLinesCollection implements IViewModelLinesCollection {
 	public readonly model: ITextModel;
 
 	constructor(model: ITextModel) {
@@ -1237,5 +1167,66 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 	public getInjectedTextAt(position: Position): InjectedText | null {
 		// Identity lines collection does not support injected text.
 		return null;
+	}
+}
+
+class IdentityCoordinatesConverter implements ICoordinatesConverter {
+	private readonly _lines: IdentityLinesCollection;
+
+	constructor(lines: IdentityLinesCollection) {
+		this._lines = lines;
+	}
+
+	private _validPosition(pos: Position): Position {
+		return this._lines.model.validatePosition(pos);
+	}
+
+	private _validRange(range: Range): Range {
+		return this._lines.model.validateRange(range);
+	}
+
+	// View -> Model conversion and related methods
+
+	public convertViewPositionToModelPosition(viewPosition: Position): Position {
+		return this._validPosition(viewPosition);
+	}
+
+	public convertViewRangeToModelRange(viewRange: Range): Range {
+		return this._validRange(viewRange);
+	}
+
+	public validateViewPosition(_viewPosition: Position, expectedModelPosition: Position): Position {
+		return this._validPosition(expectedModelPosition);
+	}
+
+	public validateViewRange(_viewRange: Range, expectedModelRange: Range): Range {
+		return this._validRange(expectedModelRange);
+	}
+
+	// Model -> View conversion and related methods
+
+	public convertModelPositionToViewPosition(modelPosition: Position): Position {
+		return this._validPosition(modelPosition);
+	}
+
+	public convertModelRangeToViewRange(modelRange: Range): Range {
+		return this._validRange(modelRange);
+	}
+
+	public modelPositionIsVisible(modelPosition: Position): boolean {
+		const lineCount = this._lines.model.getLineCount();
+		if (modelPosition.lineNumber < 1 || modelPosition.lineNumber > lineCount) {
+			// invalid arguments
+			return false;
+		}
+		return true;
+	}
+
+	public getModelLineViewLineCount(modelLineNumber: number): number {
+		return 1;
+	}
+
+	public getViewLineNumberOfModelPosition(modelLineNumber: number, modelColumn: number): number {
+		return modelLineNumber;
 	}
 }

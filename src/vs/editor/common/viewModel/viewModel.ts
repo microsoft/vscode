@@ -18,6 +18,8 @@ import { ICursorSimpleModel, PartialCursorState, CursorState, IColumnSelectData,
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { LineInjectedText } from 'vs/editor/common/model/textModelEvents';
+import { FontInfo } from 'vs/editor/common/config/fontInfo';
+import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
 
 export interface IViewWhitespaceViewportData {
 	readonly id: string;
@@ -288,6 +290,10 @@ export class LineBreakData {
 
 		return undefined;
 	}
+}
+
+export interface ILineBreaksComputerFactory {
+	createLineBreaksComputer(fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent): ILineBreaksComputer;
 }
 
 export interface ILineBreaksComputer {

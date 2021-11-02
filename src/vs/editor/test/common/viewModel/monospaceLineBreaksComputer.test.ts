@@ -5,9 +5,8 @@
 import * as assert from 'assert';
 import { WrappingIndent, EditorOptions } from 'vs/editor/common/config/editorOptions';
 import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
-import { ILineBreaksComputerFactory } from 'vs/editor/common/viewModel/splitLinesCollection';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { LineBreakData } from 'vs/editor/common/viewModel/viewModel';
+import { ILineBreaksComputerFactory, LineBreakData } from 'vs/editor/common/viewModel/viewModel';
 
 function parseAnnotatedText(annotatedText: string): { text: string; indices: number[]; } {
 	let text = '';
