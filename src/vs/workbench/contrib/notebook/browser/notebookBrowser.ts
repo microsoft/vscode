@@ -399,6 +399,7 @@ export interface INotebookEditor {
 	readonly onDidFocusEditorWidget: Event<void>;
 	readonly onDidScroll: Event<void>;
 	readonly onDidChangeActiveCell: Event<void>;
+	readonly onDidChangeActiveKernel: Event<void>;
 	readonly onMouseUp: Event<INotebookEditorMouseEvent>;
 	readonly onMouseDown: Event<INotebookEditorMouseEvent>;
 

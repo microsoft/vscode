@@ -718,6 +718,12 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			}
 		}));
 
+		disposables.add(this.notebookEditor.onDidChangeActiveKernel(() => {
+			if (templateData.currentRenderedCell) {
+				this.updateForKernel(templateData.currentRenderedCell as CodeCellViewModel, templateData);
+			}
+		}));
+
 		this.commonRenderTemplate(templateData);
 
 		return templateData;
@@ -919,6 +925,10 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		}
 	}
 
+	private updateForKernel(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
+		this.updateExecutionOrder(element.internalMetadata, templateData);
+	}
+
 	private updateExecutionOrder(internalMetadata: NotebookCellInternalMetadata, templateData: CodeCellRenderTemplate): void {
 		if (this.notebookEditor.activeKernel?.implementsExecutionOrder) {
 			const executionOrderLabel = typeof internalMetadata.executionOrder === 'number' ?
@@ -1045,6 +1055,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		this.updateForOutputs(element, templateData);
 		elementDisposables.add(element.onDidChangeOutputs(_e => this.updateForOutputs(element, templateData)));
+
+		this.updateForKernel(element, templateData);
 
 		this.setupCellToolbarActions(templateData, elementDisposables);
 
