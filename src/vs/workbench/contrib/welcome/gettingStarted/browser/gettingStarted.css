@@ -282,10 +282,12 @@
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .new-badge {
 	justify-self: flex-end;
+	align-self: flex-start;
 	border-radius: 4px;
 	padding: 2px 4px;
-	margin: 0 4px;
+	margin: 4px;
 	font-size: 11px;
+	white-space: nowrap;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured-badge {
