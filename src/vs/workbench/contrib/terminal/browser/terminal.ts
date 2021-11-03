@@ -30,6 +30,8 @@ export const IRemoteTerminalService = createDecorator<IRemoteTerminalService>('r
  * A service used by TerminalInstance (and components owned by it) that allows it to break its
  * dependency on electron-browser and node layers, while at the same time avoiding a cyclic
  * dependency on ITerminalService.
+ *
+ * **This service is intended to only be used within the terminal contrib.**
  */
 export interface ITerminalInstanceService {
 	readonly _serviceBrand: undefined;
@@ -53,6 +55,12 @@ export interface ITerminalInstanceService {
 	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType, isRemote: boolean): Promise<string>;
 
 	createInstance(launchConfig: IShellLaunchConfig, target?: TerminalLocation, resource?: URI): ITerminalInstance;
+
+	/**
+	 * Gets the registered backend for a remote authority (undefined = local). This is a convenience
+	 * method to avoid using the more verbose fetching from the registry.
+	 */
+	getBackend(remoteAuthority?: string): ITerminalBackend | undefined;
 }
 
 export interface IBrowserTerminalConfigHelper extends ITerminalConfigHelper {

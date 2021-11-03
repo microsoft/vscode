@@ -10,17 +10,18 @@ import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode1
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IShellLaunchConfig, ITerminalProfile, TerminalLocation, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { basename } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { ILocalTerminalService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ILocalTerminalService, ITerminalBackend, ITerminalBackendRegistry, TerminalExtensions } from 'vs/workbench/contrib/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 let Terminal: typeof XTermTerminal;
 let SearchAddon: typeof XTermSearchAddon;
@@ -41,11 +42,9 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	constructor(
 		@IRemoteTerminalService private readonly _remoteTerminalService: IRemoteTerminalService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
-		this._localTerminalService = localTerminalService;
 		this._terminalFocusContextKey = TerminalContextKeys.focus.bindTo(this._contextKeyService);
 		this._terminalHasFixedWidth = TerminalContextKeys.terminalHasFixedWidth.bindTo(this._contextKeyService);
 		this._terminalShellTypeContextKey = TerminalContextKeys.shellType.bindTo(this._contextKeyService);
@@ -179,6 +178,10 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 
 			c(escapeNonWindowsPath(originalPath));
 		});
+	}
+
+	getBackend(remoteAuthority?: string): ITerminalBackend | undefined {
+		return Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).getTerminalBackend(remoteAuthority);
 	}
 }
 
