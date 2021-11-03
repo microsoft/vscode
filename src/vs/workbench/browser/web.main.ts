@@ -254,14 +254,18 @@ class BrowserMain extends Disposable {
 	}
 
 	private async registerFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IFileService, remoteAgentService: IRemoteAgentService, logService: BufferLogService, logsPath: URI): Promise<void> {
+
+		// IndexedDB is used for logging and user data
 		let indexedDB: IndexedDB | undefined;
-		const userDataStore = 'vscode-userdata-store', logsStore = 'vscode-logs-store';
+		const userDataStore = 'vscode-userdata-store';
+		const logsStore = 'vscode-logs-store';
 		try {
 			indexedDB = await IndexedDB.create('vscode-web-db', 2, [userDataStore, logsStore]);
+
+			// Close onWillShutdown
 			this.onWillShutdownDisposables.add(toDisposable(() => indexedDB?.close()));
 		} catch (error) {
-			logService.error('Error while creating IndexedDB');
-			logService.error(error);
+			logService.error('Error while creating IndexedDB', error);
 		}
 
 		// Logger
@@ -343,7 +347,10 @@ class BrowserMain extends Disposable {
 
 		try {
 			await storageService.initialize();
+
+			// Close onWillShutdown
 			this.onWillShutdownDisposables.add(toDisposable(() => storageService.close()));
+
 			return storageService;
 		} catch (error) {
 			onUnexpectedError(error);

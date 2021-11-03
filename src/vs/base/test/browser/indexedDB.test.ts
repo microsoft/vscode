@@ -24,6 +24,24 @@ suite('IndexedDB', () => {
 		assert.deepStrictEqual(value, 'hello1');
 	});
 
+	test('getKeyValues', async () => {
+		await indexedDB.runInTransaction('test-store', 'readwrite', store => {
+			const requests: IDBRequest[] = [];
+			requests.push(store.add('hello1', 'key1'));
+			requests.push(store.add('hello2', 'key2'));
+			requests.push(store.add(true, 'key3'));
+
+			return requests;
+		});
+		function isValid(value: unknown): value is string {
+			return typeof value === 'string';
+		}
+		const keyValues = await indexedDB.getKeyValues('test-store', isValid);
+		assert.strictEqual(keyValues.size, 2);
+		assert.strictEqual(keyValues.get('key1'), 'hello1');
+		assert.strictEqual(keyValues.get('key2'), 'hello2');
+	});
+
 	test('hasPendingTransactions', async () => {
 		const promise = indexedDB.runInTransaction('test-store', 'readwrite', store => store.add('hello2', 'key2'));
 		assert.deepStrictEqual(indexedDB.hasPendingTransactions(), true);
