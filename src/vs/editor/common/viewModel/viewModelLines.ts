@@ -341,8 +341,8 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 			return null;
 		}
 
-		let outputFromLineNumber = (fromLineNumber === 1 ? 1 : this.projectedModelLineLineCounts.getPrefixSum(fromLineNumber - 2) + 1);
-		let outputToLineNumber = this.projectedModelLineLineCounts.getPrefixSum(toLineNumber - 1);
+		let outputFromLineNumber = (fromLineNumber === 1 ? 1 : this.projectedModelLineLineCounts.getPrefixSum(fromLineNumber - 1) + 1);
+		let outputToLineNumber = this.projectedModelLineLineCounts.getPrefixSum(toLineNumber);
 
 		this.modelLineProjections.splice(fromLineNumber - 1, toLineNumber - fromLineNumber + 1);
 		this.projectedModelLineLineCounts.removeValues(fromLineNumber - 1, toLineNumber - fromLineNumber + 1);
@@ -360,7 +360,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		// cannot use this.getHiddenAreas() because those decorations have already seen the effect of this model change
 		const isInHiddenArea = (fromLineNumber > 2 && !this.modelLineProjections[fromLineNumber - 2].isVisible());
 
-		let outputFromLineNumber = (fromLineNumber === 1 ? 1 : this.projectedModelLineLineCounts.getPrefixSum(fromLineNumber - 2) + 1);
+		let outputFromLineNumber = (fromLineNumber === 1 ? 1 : this.projectedModelLineLineCounts.getPrefixSum(fromLineNumber - 1) + 1);
 
 		let totalOutputLineCount = 0;
 		let insertLines: IModelLineProjection[] = [];
@@ -410,19 +410,19 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		let deleteTo = -1;
 
 		if (oldOutputLineCount > newOutputLineCount) {
-			changeFrom = (lineNumber === 1 ? 1 : this.projectedModelLineLineCounts.getPrefixSum(lineNumber - 2) + 1);
+			changeFrom = this.projectedModelLineLineCounts.getPrefixSum(lineNumber - 1) + 1;
 			changeTo = changeFrom + newOutputLineCount - 1;
 			deleteFrom = changeTo + 1;
 			deleteTo = deleteFrom + (oldOutputLineCount - newOutputLineCount) - 1;
 			lineMappingChanged = true;
 		} else if (oldOutputLineCount < newOutputLineCount) {
-			changeFrom = (lineNumber === 1 ? 1 : this.projectedModelLineLineCounts.getPrefixSum(lineNumber - 2) + 1);
+			changeFrom = this.projectedModelLineLineCounts.getPrefixSum(lineNumber - 1) + 1;
 			changeTo = changeFrom + oldOutputLineCount - 1;
 			insertFrom = changeTo + 1;
 			insertTo = insertFrom + (newOutputLineCount - oldOutputLineCount) - 1;
 			lineMappingChanged = true;
 		} else {
-			changeFrom = (lineNumber === 1 ? 1 : this.projectedModelLineLineCounts.getPrefixSum(lineNumber - 2) + 1);
+			changeFrom = this.projectedModelLineLineCounts.getPrefixSum(lineNumber - 1) + 1;
 			changeTo = changeFrom + newOutputLineCount - 1;
 		}
 
@@ -810,7 +810,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 			// console.log('in -> out ' + inputLineNumber + ',' + inputColumn + ' ===> ' + 1 + ',' + 1);
 			return new Position(1, 1);
 		}
-		const deltaLineNumber = 1 + (lineIndex === 0 ? 0 : this.projectedModelLineLineCounts.getPrefixSum(lineIndex - 1));
+		const deltaLineNumber = 1 + this.projectedModelLineLineCounts.getPrefixSum(lineIndex);
 
 		let r: Position;
 		if (lineIndexChanged) {
@@ -841,7 +841,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		let lineIndex = modelLineNumber - 1;
 		if (this.modelLineProjections[lineIndex].isVisible()) {
 			// this model line is visible
-			const deltaLineNumber = 1 + (lineIndex === 0 ? 0 : this.projectedModelLineLineCounts.getPrefixSum(lineIndex - 1));
+			const deltaLineNumber = 1 + this.projectedModelLineLineCounts.getPrefixSum(lineIndex);
 			return this.modelLineProjections[lineIndex].getViewLineNumberOfModelPosition(deltaLineNumber, modelColumn);
 		}
 
@@ -853,7 +853,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 			// Could not reach a real line
 			return 1;
 		}
-		const deltaLineNumber = 1 + (lineIndex === 0 ? 0 : this.projectedModelLineLineCounts.getPrefixSum(lineIndex - 1));
+		const deltaLineNumber = 1 + this.projectedModelLineLineCounts.getPrefixSum(lineIndex);
 		return this.modelLineProjections[lineIndex].getViewLineNumberOfModelPosition(deltaLineNumber, this.model.getLineMaxColumn(lineIndex + 1));
 	}
 
