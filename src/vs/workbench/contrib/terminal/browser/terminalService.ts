@@ -61,6 +61,8 @@ export class TerminalService implements ITerminalService {
 	private _processSupportContextKey: IContextKey<boolean>;
 
 	private _terminalHasBeenCreated: IContextKey<boolean>;
+	private _terminalCountContextKey: IContextKey<number>;
+
 	private readonly _localTerminalService?: ILocalTerminalService;
 	private readonly _primaryOffProcessTerminalService?: IOffProcessTerminalService;
 	private _configHelper: TerminalConfigHelper;
@@ -77,6 +79,7 @@ export class TerminalService implements ITerminalService {
 
 	get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 	get instances(): ITerminalInstance[] {
+		console.log('getting instances', this._terminalGroupService.instances);
 		return this._terminalGroupService.instances.concat(this._terminalEditorService.instances);
 	}
 
@@ -225,6 +228,7 @@ export class TerminalService implements ITerminalService {
 		this._processSupportContextKey = TerminalContextKeys.processSupported.bindTo(this._contextKeyService);
 		this._processSupportContextKey.set(!isWeb || this._remoteAgentService.getConnection() !== null);
 		this._terminalHasBeenCreated = TerminalContextKeys.terminalHasBeenCreated.bindTo(this._contextKeyService);
+		this._terminalCountContextKey = TerminalContextKeys.count.bindTo(this._contextKeyService);
 
 		lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal'));
 		lifecycleService.onWillShutdown(e => this._onWillShutdown(e));
@@ -446,6 +450,7 @@ export class TerminalService implements ITerminalService {
 		const terminalIsOpenContext = TerminalContextKeys.isOpen.bindTo(this._contextKeyService);
 		const updateTerminalContextKeys = () => {
 			terminalIsOpenContext.set(this.instances.length > 0);
+			this._terminalCountContextKey.set(this.instances.length);
 		};
 		this.onDidChangeInstances(() => updateTerminalContextKeys());
 	}
