@@ -323,7 +323,7 @@ before(async function () {
 });
 
 after(async function () {
-	await new Promise(c => setTimeout(c, 500)); // wait for shutdown
+	await new Promise(resolve => setTimeout(resolve, 500)); // wait for shutdown
 
 	if (opts.log) {
 		const logsDir = path.join(userDataDir, 'logs');

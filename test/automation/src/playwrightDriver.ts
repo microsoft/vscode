@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as playwright from 'playwright';
+import * as kill from 'tree-kill';
 import { ChildProcess, spawn } from 'child_process';
 import { join } from 'path';
 import { mkdir } from 'fs';
 import { promisify } from 'util';
 import { IDriver, IDisposable } from './driver';
 import { URI } from 'vscode-uri';
-import * as kill from 'tree-kill';
 
 const width = 1200;
 const height = 800;
@@ -34,7 +34,7 @@ const vscodeToPlaywrightKey: { [key: string]: string } = {
 
 let traceCounter = 1;
 
-function buildDriver(browser: playwright.Browser, context: playwright.BrowserContext, page: playwright.Page): IDriver {
+function buildDriver(app: playwright.ElectronApplication | playwright.Browser, context: playwright.BrowserContext, page: playwright.Page): IDriver {
 	const driver: IDriver = {
 		_serviceBrand: undefined,
 		getWindowIds: () => {
@@ -48,7 +48,7 @@ function buildDriver(browser: playwright.Browser, context: playwright.BrowserCon
 			} catch (error) {
 				console.warn(`Failed to stop playwright tracing.`); // do not fail the build when this fails
 			}
-			await browser.close();
+			await app.close();
 			await teardown();
 
 			return false;
@@ -109,7 +109,7 @@ let server: ChildProcess | undefined;
 let endpoint: string | undefined;
 let workspacePath: string | undefined;
 
-export async function launch(userDataDir: string, _workspacePath: string, codeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH, extPath: string, verbose: boolean): Promise<void> {
+export async function launchServer(userDataDir: string, _workspacePath: string, codeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH, extPath: string, verbose: boolean): Promise<void> {
 	workspacePath = _workspacePath;
 
 	const agentFolder = userDataDir;
@@ -120,7 +120,7 @@ export async function launch(userDataDir: string, _workspacePath: string, codeSe
 		...process.env
 	};
 
-	const args = ['--disable-telemetry', '--port', `${port++}`, '--browser', 'none', '--driver', 'web', '--extensions-dir', extPath];
+	const args = ['--disable-telemetry', '--port', `${port++}`, '--browser', 'none', '--enable-driver', '--extensions-dir', extPath];
 
 	let serverLocation: string | undefined;
 	if (codeServerPath) {
@@ -182,12 +182,12 @@ function waitForEndpoint(): Promise<string> {
 	});
 }
 
-interface Options {
+interface BrowserOptions {
 	readonly browser?: 'chromium' | 'webkit' | 'firefox';
 	readonly headless?: boolean;
 }
 
-export async function connect(options: Options = {}): Promise<{ client: IDisposable, driver: IDriver }> {
+export async function connectBrowser(options: BrowserOptions = {}): Promise<{ client: IDisposable, driver: IDriver }> {
 	const browser = await playwright[options.browser ?? 'chromium'].launch({ headless: options.headless ?? false });
 	const context = await browser.newContext();
 	try {
@@ -195,15 +195,18 @@ export async function connect(options: Options = {}): Promise<{ client: IDisposa
 	} catch (error) {
 		console.warn(`Failed to start playwright tracing.`); // do not fail the build when this fails
 	}
+
 	const page = await context.newPage();
 	await page.setViewportSize({ width, height });
+
 	page.on('pageerror', async error => console.error(`Playwright ERROR: page error: ${error}`));
-	page.on('crash', page => console.error('Playwright ERROR: page crash'));
+	page.on('crash', () => console.error('Playwright ERROR: page crash'));
 	page.on('response', async response => {
 		if (response.status() >= 400) {
 			console.error(`Playwright ERROR: HTTP status ${response.status()} for ${response.url()}`);
 		}
 	});
+
 	const payloadParam = `[["enableProposedApi",""],["skipWelcome","true"]]`;
 	await page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${URI.file(workspacePath!).path}&payload=${payloadParam}`);
 
@@ -215,5 +218,45 @@ export async function connect(options: Options = {}): Promise<{ client: IDisposa
 			}
 		},
 		driver: buildDriver(browser, context, page)
+	};
+}
+
+interface ElectronOptions {
+	readonly executablePath: string;
+	readonly args?: string[];
+	readonly env?: NodeJS.ProcessEnv;
+}
+
+export async function connectElectron(options: ElectronOptions): Promise<{ client: IDisposable, driver: IDriver }> {
+	const electronApp = await playwright._electron.launch({
+		executablePath: options.executablePath,
+		args: options.args,
+		env: options.env as { [key: string]: string; } // Playwright typings fail
+	});
+
+	const window = await electronApp.firstWindow();
+	const context = window.context();
+	try {
+		await context.tracing.start({ screenshots: true, snapshots: true });
+	} catch (error) {
+		console.warn(`Failed to start playwright tracing.`); // do not fail the build when this fails
+	}
+
+	window.on('pageerror', async error => console.error(`Playwright ERROR: window error: ${error}`));
+	window.on('crash', () => console.error('Playwright ERROR: window crash'));
+	window.on('response', async response => {
+		if (response.status() >= 400) {
+			console.error(`Playwright ERROR: HTTP status ${response.status()} for ${response.url()}`);
+		}
+	});
+
+	return {
+		client: {
+			dispose: () => {
+				electronApp.close();
+				teardown();
+			}
+		},
+		driver: buildDriver(electronApp, context, window)
 	};
 }
