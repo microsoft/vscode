@@ -335,7 +335,7 @@ suite('SmartSelect', () => {
 		);
 	});
 
-	test('Smart select: only add line ranges if they’re contained by the next range #73850', async function () {
+	test('Smart select: only add line ranges if they\'re contained by the next range #73850', async function () {
 
 		const reg = SelectionRangeRegistry.register('*', {
 			provideSelectionRanges() {
