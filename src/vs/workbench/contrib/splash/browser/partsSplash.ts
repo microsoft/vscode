@@ -19,8 +19,8 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import * as perf from 'vs/base/common/performance';
 import { assertIsDefined } from 'vs/base/common/types';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { ISplashStorageService } from 'vs/workbench/contrib/splash/browser/splash';
 
 export class PartsSplash {
 
@@ -37,7 +37,7 @@ export class PartsSplash {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@IConfigurationService configService: IConfigurationService,
-		@INativeHostService private readonly _nativeHostService: INativeHostService
+		@ISplashStorageService private readonly _partSplashService: ISplashStorageService
 	) {
 		lifecycleService.when(LifecyclePhase.Restored).then(_ => {
 			this._removePartsSplash();
@@ -68,7 +68,7 @@ export class PartsSplash {
 	private _savePartsSplash() {
 		const theme = this._themeService.getColorTheme();
 
-		this._nativeHostService.saveWindowSplash({
+		this._partSplashService.saveWindowSplash({
 			baseTheme: getThemeTypeSelector(theme.type),
 			colorInfo: {
 				foreground: theme.getColor(foreground)?.toString(),
