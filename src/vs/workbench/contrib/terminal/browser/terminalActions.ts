@@ -1701,6 +1701,8 @@ export function registerTerminalActions() {
 				} else {
 					await terminalGroupService.showPanel(true);
 				}
+			} else if (TerminalContextKeys.webExtensionContributedProfile) {
+				commandService.executeCommand(TerminalCommandId.NewWithProfile);
 			}
 		}
 	});
@@ -2087,7 +2089,7 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 				title: { value: localize('workbench.action.terminal.newWithProfile', "Create New Terminal (With Profile)"), original: 'Create New Terminal (With Profile)' },
 				f1: true,
 				category,
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported),
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.webExtensionContributedProfile),
 				description: {
 					description: 'workbench.action.terminal.newWithProfile',
 					args: [{
@@ -2111,10 +2113,6 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 		async run(accessor: ServicesAccessor, eventOrOptionsOrProfile: MouseEvent | ICreateTerminalOptions | ITerminalProfile | { profileName: string } | undefined, profile?: ITerminalProfile) {
 			const terminalService = accessor.get(ITerminalService);
 			const terminalProfileService = accessor.get(ITerminalProfileService);
-
-			if (!terminalService.isProcessSupportRegistered) {
-				return;
-			}
 
 			const terminalGroupService = accessor.get(ITerminalGroupService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
