@@ -28,6 +28,7 @@ import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/t
 import { IProcessEnvironment, isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { IRemoteTerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -119,7 +120,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		@IPathService private readonly _pathService: IPathService,
 		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IRemoteTerminalService private readonly _remoteTerminalService: IRemoteTerminalService
 	) {
 		super();
 
@@ -192,7 +194,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				this.remoteAuthority = this._workbenchEnvironmentService.remoteAuthority;
 			}
 
-			const backend = Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).getTerminalBackend(this.remoteAuthority);
+			const backend = this.remoteAuthority
+				? this._remoteTerminalService
+				: Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).getTerminalBackend(this.remoteAuthority);
 			if (!backend) {
 				throw new Error(`No terminal backend registered for remote authority '${this.remoteAuthority}'`);
 			}
@@ -235,14 +239,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 						os: this.os
 					});
 					try {
-						// newProcess = await backend.createProcess(
-						// 	shellLaunchConfig,
-						// 	activeWorkspaceRootUri,
-						// 	cols,
-						// 	rows,
-						// 	this._configHelper.config.unicodeVersion,
-						// 	shouldPersist
-						// );
 						newProcess = await backend.createProcess(
 							shellLaunchConfig,
 							'', // TODO: Fix cwd

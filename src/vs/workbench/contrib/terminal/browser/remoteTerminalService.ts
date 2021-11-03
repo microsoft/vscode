@@ -9,7 +9,6 @@ import { revive } from 'vs/base/common/marshalling';
 import { Schemas } from 'vs/base/common/network';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -58,8 +57,8 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
-		@IHistoryService historyService: IHistoryService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IHistoryService private readonly _historyService: IHistoryService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -143,7 +142,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 				if (e.workspaceId !== workspaceContextService.getWorkspace().id) {
 					return;
 				}
-				const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.vscodeRemote);
+				const activeWorkspaceRootUri = _historyService.getLastActiveWorkspaceRoot(Schemas.vscodeRemote);
 				const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
 				const resolveCalls: Promise<string>[] = e.originalText.map(t => {
 					return configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, t);
@@ -183,7 +182,16 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		this._storageService.store(TerminalStorageKeys.TerminalBufferState, serialized, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
-	async createProcess(shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, unicodeVersion: '6' | '11', shouldPersist: boolean): Promise<ITerminalChildProcess> {
+	async createProcess(
+		shellLaunchConfig: IShellLaunchConfig,
+		cwd: string, // TODO: This is ignored
+		cols: number,
+		rows: number,
+		unicodeVersion: '6' | '11',
+		env: IProcessEnvironment, // TODO: This is ignored
+		windowsEnableConpty: boolean, // TODO: This is ignored
+		shouldPersist: boolean
+	): Promise<ITerminalChildProcess> {
 		if (!this._remoteTerminalChannel) {
 			throw new Error(`Cannot create remote terminal when there is no remote!`);
 		}
@@ -221,6 +229,8 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			env: shellLaunchConfig.env,
 			useShellEnvironment: shellLaunchConfig.useShellEnvironment
 		};
+		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
+
 		const result = await this._remoteTerminalChannel.createProcess(
 			shellLaunchConfigDto,
 			configuration,

@@ -118,10 +118,7 @@ export interface IOffProcessTerminalService {
 	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined>;
 	acceptDetachInstanceReply(requestId: number, persistentProcessId?: number): Promise<void>;
 	persistTerminalState(): Promise<void>;
-}
 
-export const ILocalTerminalService = createDecorator<ILocalTerminalService>('localTerminalService');
-export interface ILocalTerminalService extends IOffProcessTerminalService {
 	createProcess(
 		shellLaunchConfig: IShellLaunchConfig,
 		cwd: string,
@@ -132,6 +129,10 @@ export interface ILocalTerminalService extends IOffProcessTerminalService {
 		windowsEnableConpty: boolean,
 		shouldPersist: boolean
 	): Promise<ITerminalChildProcess>;
+}
+
+export const ILocalTerminalService = createDecorator<ILocalTerminalService>('localTerminalService');
+export interface ILocalTerminalService extends IOffProcessTerminalService {
 }
 
 export const ITerminalProcessService = createDecorator<ITerminalProcessService>('terminalProcessService');
