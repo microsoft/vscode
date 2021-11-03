@@ -55,6 +55,12 @@ class ExtHostOutputChannelBackedByFile extends AbstractExtHostOutputChannel {
 		this._onDidAppend.fire();
 	}
 
+	override replaceAll(value: string): void {
+		this._appender.append(value);
+		this._appender.flush();
+		super.replaceAll(value);
+	}
+
 	override update(): void {
 		this._appender.flush();
 		super.update();

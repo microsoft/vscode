@@ -81,6 +81,14 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 		return undefined;
 	}
 
+	public $replaceAll(channelId: string, till: number, value: string): Promise<void> | undefined {
+		const channel = this._getChannel(channelId);
+		if (channel) {
+			channel.replaceAll(till, value);
+		}
+		return undefined;
+	}
+
 	public $reveal(channelId: string, preserveFocus: boolean): Promise<void> | undefined {
 		const channel = this._getChannel(channelId);
 		if (channel) {

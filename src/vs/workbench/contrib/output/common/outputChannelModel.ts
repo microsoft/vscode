@@ -6,6 +6,7 @@
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import * as resources from 'vs/base/common/resources';
 import { ITextModel } from 'vs/editor/common/model';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { Emitter, Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { Promises, RunOnceScheduler, ThrottledDelayer } from 'vs/base/common/async';
@@ -16,8 +17,10 @@ import { Disposable, toDisposable, IDisposable, dispose } from 'vs/base/common/l
 import { isNumber } from 'vs/base/common/types';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ILogger, ILoggerService, ILogService } from 'vs/platform/log/common/log';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export interface IOutputChannelModel extends IDisposable {
 	readonly onDidAppendedContent: Event<void>;
@@ -26,6 +29,7 @@ export interface IOutputChannelModel extends IDisposable {
 	update(): void;
 	loadModel(): Promise<ITextModel>;
 	clear(till?: number): void;
+	replaceAll(till: number, value: string): void;
 }
 
 export const IOutputChannelModelService = createDecorator<IOutputChannelModelService>('outputChannelModelService');
@@ -75,6 +79,10 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 	protected startOffset: number = 0;
 	protected endOffset: number = 0;
 
+	protected replaceAllValue: string | null = null;
+	protected replaceAllValueSeenInAppend: boolean = false;
+	protected replaceAllCancellationToken: CancellationTokenSource | null = null;
+
 	constructor(
 		private readonly modelUri: URI,
 		private readonly mimeType: string,
@@ -82,6 +90,7 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 		protected fileService: IFileService,
 		protected modelService: IModelService,
 		protected modeService: IModeService,
+		protected editorWorkerService: IEditorWorkerService,
 	) {
 		super();
 		this.modelUpdater = new RunOnceScheduler(() => this.updateModel(), 300);
@@ -93,11 +102,63 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 			this.modelUpdater.cancel();
 			this.onUpdateModelCancelled();
 		}
+		if (this.replaceAllCancellationToken) {
+			this.replaceAllCancellationToken.cancel();
+			this.replaceAllCancellationToken = null;
+			this.replaceAllValue = null;
+		}
 		if (this.model) {
 			this.model.setValue('');
 		}
 		this.endOffset = isNumber(till) ? till : this.endOffset;
 		this.startOffset = this.endOffset;
+	}
+
+	replaceAll(till: number, value: string): void {
+		if (this.modelUpdater.isScheduled()) {
+			this.modelUpdater.cancel();
+			this.onUpdateModelCancelled();
+		}
+		this.replaceAllValue = value;
+		this.replaceAllValueSeenInAppend = false;
+		this.endOffset = isNumber(till) ? till : this.endOffset;
+		this.startOffset = this.endOffset;
+
+		if (this.model) {
+			if (this.replaceAllCancellationToken) {
+				this.replaceAllCancellationToken.cancel();
+				this.replaceAllCancellationToken = null;
+			}
+
+			const myToken = new CancellationTokenSource();
+			this.replaceAllCancellationToken = myToken;
+
+			this.editorWorkerService.computeMoreMinimalEdits(this.model.uri, [{ text: value, range: this.model.getFullModelRange() }]).then(edits => {
+				if (myToken.token.isCancellationRequested) {
+					return;
+				}
+
+				this.replaceAllCancellationToken = null;
+
+				if (edits && edits.length > 0) {
+					if (this.model) {
+						this.model.applyEdits(edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
+						this._onDidAppendedContent.fire();
+					}
+				}
+			}).catch((e) => {
+				if (myToken.token.isCancellationRequested) {
+					return;
+				}
+
+				this.replaceAllCancellationToken = null;
+
+				if (this.model) {
+					this.model.setValue(value);
+					this._onDidAppendedContent.fire();
+				}
+			});
+		}
 	}
 
 	update(): void { }
@@ -118,11 +179,63 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 	}
 
 	appendToModel(content: string): void {
-		if (this.model && content) {
-			const lastLine = this.model.getLineCount();
-			const lastLineMaxColumn = this.model.getLineMaxColumn(lastLine);
-			this.model.applyEdits([EditOperation.insert(new Position(lastLine, lastLineMaxColumn), content)]);
-			this._onDidAppendedContent.fire();
+		if (this.model) {
+			if (this.replaceAllValue === null && content) {
+				const lastLine = this.model.getLineCount();
+				const lastLineMaxColumn = this.model.getLineMaxColumn(lastLine);
+				this.model.applyEdits([EditOperation.insert(new Position(lastLine, lastLineMaxColumn), content)]);
+				this._onDidAppendedContent.fire();
+			} else if (this.replaceAllValue !== null) {
+				if (this.replaceAllCancellationToken) {
+					this.replaceAllCancellationToken.cancel();
+					this.replaceAllCancellationToken = null;
+				}
+
+				if (!this.replaceAllValueSeenInAppend && content === this.replaceAllValue) {
+					this.replaceAllValue = null;
+					return;
+				}
+
+				if (content) {
+					if (!this.replaceAllValueSeenInAppend && content.length >= this.replaceAllValue.length && content.startsWith(this.replaceAllValue)) {
+						this.replaceAllValue += content.substring(this.replaceAllValue.length);
+						this.replaceAllValueSeenInAppend = true;
+					} else {
+						this.replaceAllValue += content;
+					}
+				}
+
+				const myToken = new CancellationTokenSource();
+				this.replaceAllCancellationToken = myToken;
+
+				this.editorWorkerService.computeMoreMinimalEdits(this.model.uri, [{ text: this.replaceAllValue, range: this.model.getFullModelRange() }]).then(edits => {
+					if (myToken.token.isCancellationRequested) {
+						return;
+					}
+
+					this.replaceAllCancellationToken = null;
+					this.replaceAllValue = null;
+
+					if (edits && edits.length > 0) {
+						if (this.model) {
+							this.model.applyEdits(edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
+							this._onDidAppendedContent.fire();
+						}
+					}
+				}).catch(() => {
+					if (myToken.token.isCancellationRequested) {
+						return;
+					}
+
+					if (this.model && this.replaceAllValue !== null) {
+						this.model.setValue(this.replaceAllValue);
+						this._onDidAppendedContent.fire();
+					}
+
+					this.replaceAllCancellationToken = null;
+					this.replaceAllValue = null;
+				});
+			}
 		}
 	}
 
@@ -212,9 +325,10 @@ class FileOutputChannelModel extends AbstractFileOutputChannelModel implements I
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
-		super(modelUri, mimeType, file, fileService, modelService, modeService);
+		super(modelUri, mimeType, file, fileService, modelService, modeService, editorWorkerService);
 
 		this.fileHandler = this._register(new OutputFileListener(this.file, this.fileService, logService));
 		this._register(this.fileHandler.onDidContentChange(size => this.update(size)));
@@ -246,6 +360,14 @@ class FileOutputChannelModel extends AbstractFileOutputChannelModel implements I
 		const loadModelPromise: Promise<any> = this.loadModelPromise ? this.loadModelPromise : Promise.resolve();
 		loadModelPromise.then(() => {
 			super.clear(till);
+			this.update();
+		});
+	}
+
+	override replaceAll(till: number, value: string): void {
+		const loadModelPromise: Promise<any> = this.loadModelPromise ? this.loadModelPromise : Promise.resolve();
+		loadModelPromise.then(() => {
+			super.replaceAll(till, value);
 			this.update();
 		});
 	}
@@ -316,9 +438,10 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implement
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
-		@ILoggerService loggerService: ILoggerService
+		@ILoggerService loggerService: ILoggerService,
+		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
-		super(modelUri, mimeType, file, fileService, modelService, modeService);
+		super(modelUri, mimeType, file, fileService, modelService, modeService, editorWorkerService);
 		this.appendedMessage = '';
 		this.loadingFromFileInProgress = false;
 
@@ -352,6 +475,11 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implement
 				}
 			}
 		}
+	}
+
+	override replaceAll(till: number, value: string): void {
+		super.replaceAll(till, value);
+		this.appendedMessage = '';
 	}
 
 	override clear(till?: number): void {
@@ -463,4 +591,7 @@ class DelegatedOutputChannelModel extends Disposable implements IOutputChannelMo
 		this.outputChannelModel.then(outputChannelModel => outputChannelModel.clear(till));
 	}
 
+	replaceAll(till: number, value: string): void {
+		this.outputChannelModel.then(outputChannelModel => outputChannelModel.replaceAll(till, value));
+	}
 }

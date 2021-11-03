@@ -5662,6 +5662,14 @@ declare module 'vscode' {
 		 */
 		clear(): void;
 
+		/*
+		 * Replaces the existing contents of the channel with the given value.
+		 *
+		 * *Note*: this method should only be used by extensions with smaller output
+		 * channel text sizes. Use of `append` methods is preferred.
+		 */
+		replaceAll(value: string): void;
+
 		/**
 		 * Reveal this channel in the UI.
 		 *

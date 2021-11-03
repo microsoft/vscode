@@ -58,6 +58,13 @@ export abstract class AbstractExtHostOutputChannel extends Disposable implements
 		this._id.then(id => this._proxy.$clear(id, till));
 	}
 
+	replaceAll(value: string): void {
+		this.validate();
+		const till = this._offset;
+		this._offset += value ? VSBuffer.fromString(value).byteLength : 0;
+		this._id.then(id => this._proxy.$replaceAll(id, till, value));
+	}
+
 	show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
 		this.validate();
 		this._id.then(id => this._proxy.$reveal(id, !!(typeof columnOrPreserveFocus === 'boolean' ? columnOrPreserveFocus : preserveFocus)));
@@ -124,6 +131,9 @@ export class LazyOutputChannel implements vscode.OutputChannel {
 	}
 	clear(): void {
 		this._channel.then(channel => channel.clear());
+	}
+	replaceAll(value: string): void {
+		this._channel.then(channel => channel.replaceAll(value));
 	}
 	show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
 		this._channel.then(channel => channel.show(columnOrPreserveFocus, preserveFocus));

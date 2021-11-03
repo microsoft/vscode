@@ -128,6 +128,11 @@ export interface IOutputChannel {
 	clear(till?: number): void;
 
 	/**
+	 * Replaces the output of the channel.
+	 */
+	replaceAll(till: number, value: string): void;
+
+	/**
 	 * Disposes the output channel.
 	 */
 	dispose(): void;
