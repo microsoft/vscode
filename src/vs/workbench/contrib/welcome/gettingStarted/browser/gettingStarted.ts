@@ -830,6 +830,7 @@ export class GettingStartedPage extends EditorPane {
 					}
 					html {
 						height: 100%;
+						padding-right: 32px;
 					}
 					h1 {
 						font-size: 19.5px;
