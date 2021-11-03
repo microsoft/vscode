@@ -831,6 +831,12 @@ export class GettingStartedPage extends EditorPane {
 					html {
 						height: 100%;
 					}
+					h1 {
+						font-size: 19.5px;
+					}
+					h2 {
+						font-size: 18.5px;
+					}
 				</style>
 			</head>
 			<body>
