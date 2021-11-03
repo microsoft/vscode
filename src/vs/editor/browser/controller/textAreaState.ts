@@ -172,6 +172,7 @@ export class TextAreaState {
 			if (potentialEmojiInput !== null && potentialEmojiInput.length > 0) {
 				// now we check that this is indeed an emoji
 				// emojis can grow quite long, so a length check is of no help
+				// allow-any-unicode-next-line
 				// e.g. 1F3F4 E0067 E0062 E0065 E006E E0067 E007F  ; fully-qualified     # 🏴󠁧󠁢󠁥󠁮󠁧󠁿 England
 
 				// Oftentimes, emojis use Variation Selector-16 (U+FE0F), so that is a good hint

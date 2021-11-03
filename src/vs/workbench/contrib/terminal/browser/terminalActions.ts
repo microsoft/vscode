@@ -47,6 +47,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { isAbsolute } from 'vs/base/common/path';
 
+// allow-any-unicode-next-line
 export const switchTerminalActionViewItemSeparator = '─────────';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
 
@@ -980,6 +981,7 @@ export function registerTerminalActions() {
 				const cwdLabel = labelService.getUriLabel(URI.file(term.cwd));
 				return {
 					label: term.title,
+					// allow-any-unicode-next-line
 					detail: term.workspaceName ? `${term.workspaceName} ⸱ ${cwdLabel}` : cwdLabel,
 					description: term.pid ? String(term.pid) : '',
 					term
