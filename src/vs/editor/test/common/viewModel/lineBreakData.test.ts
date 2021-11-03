@@ -10,9 +10,10 @@ import { LineBreakData } from 'vs/editor/common/viewModel/viewModel';
 
 suite('Editor ViewModel - LineBreakData', () => {
 	test('Basic', () => {
-		const data = new LineBreakData([], [], [100], [], 0);
+		const data = new LineBreakData([], [], [100], [0], 10);
+
 		assert.strictEqual(data.translateToInputOffset(0, 50), 50);
-		assert.strictEqual(data.translateToInputOffset(1, 50), 150);
+		assert.strictEqual(data.translateToInputOffset(1, 60), 150);
 	});
 
 	function sequence(length: number, start = 0): number[] {
