@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { ProcessState, ITerminalProcessManager, ITerminalConfigHelper, IBeforeProcessDataEvent, ITerminalProfileResolverService, ITerminalBackend, TerminalExtensions, ITerminalBackendRegistry } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ProcessState, ITerminalProcessManager, ITerminalConfigHelper, IBeforeProcessDataEvent, ITerminalProfileResolverService, ITerminalBackend } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -27,7 +27,7 @@ import { localize } from 'vs/nls';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IProcessEnvironment, isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -119,7 +119,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		@IPathService private readonly _pathService: IPathService,
 		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService
 	) {
 		super();
 
@@ -192,7 +193,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				this.remoteAuthority = this._workbenchEnvironmentService.remoteAuthority;
 			}
 
-			const backend = Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).getTerminalBackend(this.remoteAuthority);
+			const backend = this._terminalInstanceService.getBackend(this.remoteAuthority);
 			if (!backend) {
 				throw new Error(`No terminal backend registered for remote authority '${this.remoteAuthority}'`);
 			}
