@@ -1448,7 +1448,7 @@ export class GettingStartedPage extends EditorPane {
 							'data-step-id': step.id,
 							'aria-expanded': 'false',
 							'aria-checked': '' + step.done,
-							'role': 'listitem',
+							'role': 'button',
 						},
 						codicon,
 						stepDescription);
