@@ -29,6 +29,7 @@ import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { Emitter } from 'vs/base/common/event';
 
 export const manageExtensionIcon = registerIcon('theme-selection-manage-extension', Codicon.gear, localize('manageExtensionIcon', 'Icon for the \'Manage\' action in the theme selection quick pick.'));
 
@@ -134,14 +135,11 @@ export class SelectColorThemeAction extends Action {
 				quickpick.show();
 
 				if (this.extensionGalleryService.isEnabled()) {
-					const mpQueryDelayer = new ThrottledDelayer<void>(200);
-					let tokenSource: CancellationTokenSource | undefined;
 
 					const marketplaceThemes = new MarketplaceThemes(this.extensionGalleryService, this.extensionManagementService, this.themeService, this.logService);
-
-					const updateItems = (searchingOngoing: boolean) => {
+					marketplaceThemes.onDidChange(() => {
 						const items = picks.concat(...marketplaceThemes.themes);
-						if (searchingOngoing) {
+						if (marketplaceThemes.isSearching) {
 							items.push({ label: '$(sync~spin) Searching for themes...', id: undefined, alwaysShow: true });
 						}
 						const activeItemId = quickpick.activeItems[0]?.id;
@@ -151,24 +149,14 @@ export class SelectColorThemeAction extends Action {
 						if (newActiveItem) {
 							quickpick.activeItems = [newActiveItem as ThemeItem];
 						}
-					};
+					});
 
-					const searchMarketPlace = () => {
-						if (tokenSource) {
-							tokenSource.cancel();
-							tokenSource = undefined;
-						}
-						mpQueryDelayer.trigger(async () => {
-							if (!isCompleted) {
-								updateItems(true); // add the spinning icon
-								tokenSource = new CancellationTokenSource();
-								await marketplaceThemes.triggerSearch(quickpick.value, tokenSource.token, () => updateItems(true));
-								updateItems(false);
-							}
-						});
-					};
-					quickpick.onDidChangeValue(() => searchMarketPlace());
-					searchMarketPlace();
+					quickpick.onDidChangeValue(() => marketplaceThemes.trigger(quickpick.value));
+					marketplaceThemes.trigger(quickpick.value);
+
+					quickpick.onDidHide(() => {
+						marketplaceThemes.dispose();
+					});
 				}
 			});
 		});
@@ -193,7 +181,15 @@ export class SelectColorThemeAction extends Action {
 }
 
 class MarketplaceThemes {
-	private installedExtensions: Set<string> | undefined;
+	private _installedExtensions: Set<string> | undefined;
+	private _marketplaceExtensions: Set<string> = new Set();
+	private _marketplaceThemes: ThemeItem[] = [];
+
+	private _searchOngoing: boolean = false;
+	private _onDidChange = new Emitter<void>();
+
+	private _tokenSource: CancellationTokenSource | undefined;
+	private _queryDelayer = new ThrottledDelayer<void>(200);
 
 	constructor(
 		private extensionGalleryService: IExtensionGalleryService,
@@ -201,38 +197,57 @@ class MarketplaceThemes {
 		private themeService: IWorkbenchThemeService,
 		private logService: ILogService
 	) {
+	}
 
+	public get themes(): ThemeItem[] {
+		return this._marketplaceThemes;
+	}
+
+	public get isSearching(): boolean {
+		return this._searchOngoing;
+	}
+
+	public get onDidChange() {
+		return this._onDidChange.event;
 	}
 
 	private async getInstalledExtesionIds() {
-		if (!this.installedExtensions) {
-			this.installedExtensions = new Set();
+		if (!this._installedExtensions) {
+			this._installedExtensions = new Set();
 			const installed = await this.extensionManagementService.getInstalled();
 			for (const ext of installed) {
-				this.installedExtensions.add(ext.identifier.id);
+				this._installedExtensions.add(ext.identifier.id);
 			}
 		}
-		return this.installedExtensions;
+		return this._installedExtensions;
 	}
 
-	private marketplaceExtensions: Set<string> = new Set();
-	private marketplaceThemes: ThemeItem[] = [];
 
-	public get themes(): ThemeItem[] {
-		return this.marketplaceThemes;
+	public trigger(value: string) {
+		if (this._tokenSource) {
+			this._tokenSource.cancel();
+			this._tokenSource = undefined;
+		}
+		this._queryDelayer.trigger(() => {
+			this._tokenSource = new CancellationTokenSource();
+			return this.doSearch(value, this._tokenSource.token);
+		});
 	}
 
-	public async triggerSearch(value: string, token: CancellationToken, themesUpdated: () => void): Promise<void> {
+	private async doSearch(value: string, token: CancellationToken): Promise<void> {
+		this._searchOngoing = true;
+		this._onDidChange.fire();
 		try {
 			const installedExtensions = await this.getInstalledExtesionIds();
 
 			const options = { text: `category:themes ${value}`, pageSize: 10 };
-
 			const pager = await this.extensionGalleryService.query(options, token);
 			for (let i = 0; i < pager.total && i < 2; i++) {
 				if (token.isCancellationRequested) {
 					break;
 				}
+
+				const nThemes = this._marketplaceThemes.length;
 
 				const gallery = await pager.getPage(i, token);
 				for (let i = 0; i < gallery.length; i++) {
@@ -240,22 +255,37 @@ class MarketplaceThemes {
 						break;
 					}
 					const ext = gallery[i];
-					if (!installedExtensions.has(ext.identifier.id) && !this.marketplaceExtensions.has(ext.identifier.id)) {
-						this.marketplaceExtensions.add(ext.identifier.id);
+					if (!installedExtensions.has(ext.identifier.id) && !this._marketplaceExtensions.has(ext.identifier.id)) {
+						this._marketplaceExtensions.add(ext.identifier.id);
 						const themes = await this.themeService.getMarketplaceColorThemes(ext.identifier.id, ext.version);
 						for (const theme of themes) {
-							this.marketplaceThemes.push({ id: theme.id, theme: theme, label: theme.label, description: `${ext.displayName} · ${ext.publisherDisplayName}`, galleryExtension: ext, buttons: [configureButton] });
+							this._marketplaceThemes.push({ id: theme.id, theme: theme, label: theme.label, description: `${ext.displayName} · ${ext.publisherDisplayName}`, galleryExtension: ext, buttons: [configureButton] });
 						}
 					}
 				}
-				this.marketplaceThemes.sort((t1, t2) => t1.label.localeCompare(t2.label));
-				themesUpdated();
+				if (nThemes !== this._marketplaceThemes.length) {
+					this._marketplaceThemes.sort((t1, t2) => t1.label.localeCompare(t2.label));
+					this._onDidChange.fire();
+				}
 			}
 		} catch (e) {
 			if (!isPromiseCanceledError(e)) {
 				this.logService.error(`Error while searching for themes:`, e);
 			}
 		}
+		this._searchOngoing = false;
+		this._onDidChange.fire();
+	}
+
+	public dispose() {
+		if (this._tokenSource) {
+			this._tokenSource.cancel();
+			this._tokenSource = undefined;
+		}
+		this._queryDelayer.dispose();
+		this._marketplaceExtensions.clear();
+		this._marketplaceThemes.length = 0;
+		this._installedExtensions?.clear();
 	}
 }
 
