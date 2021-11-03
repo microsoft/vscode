@@ -9,24 +9,30 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchActionRegistry, Extensions, CATEGORIES } from 'vs/workbench/common/actions';
-import { IWorkbenchThemeService, IWorkbenchTheme, ThemeSettingTarget } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, IWorkbenchTheme, ThemeSettingTarget, IWorkbenchColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionManagementService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IColorRegistry, Extensions as ColorRegistryExtensions } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Color } from 'vs/base/common/color';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { colorThemeSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
+import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { DEFAULT_PRODUCT_ICON_THEME_ID } from 'vs/workbench/services/themes/browser/productIconThemeData';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { ThrottledDelayer } from 'vs/base/common/async';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { ILogService } from 'vs/platform/log/common/log';
+
 
 export class SelectColorThemeAction extends Action {
 
 	static readonly ID = 'workbench.action.selectTheme';
 	static readonly LABEL = localize('selectTheme.label', "Color Theme");
+
+	static readonly INSTALL_ADDITIONAL = localize('installColorThemes', "Install Additional Color Themes...");
 
 	constructor(
 		id: string,
@@ -34,7 +40,9 @@ export class SelectColorThemeAction extends Action {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super(id, label);
 	}
@@ -47,19 +55,19 @@ export class SelectColorThemeAction extends Action {
 				...toEntries(themes.filter(t => t.type === ColorScheme.LIGHT), localize('themes.category.light', "light themes")),
 				...toEntries(themes.filter(t => t.type === ColorScheme.DARK), localize('themes.category.dark', "dark themes")),
 				...toEntries(themes.filter(t => t.type === ColorScheme.HIGH_CONTRAST), localize('themes.category.hc', "high contrast themes")),
-				...configurationEntries(this.extensionGalleryService, localize('installColorThemes', "Install Additional Color Themes..."))
+				...configurationEntries(SelectColorThemeAction.INSTALL_ADDITIONAL)
 			];
 
 			let selectThemeTimeout: number | undefined;
 
-			const selectTheme = (theme: ThemeItem, applyTheme: boolean) => {
+			const selectTheme = (theme: IWorkbenchTheme | undefined, applyTheme: boolean) => {
 				if (selectThemeTimeout) {
 					clearTimeout(selectThemeTimeout);
 				}
 				selectThemeTimeout = window.setTimeout(() => {
 					selectThemeTimeout = undefined;
-					const themeId = theme && theme.id !== undefined ? theme.id : currentTheme.id;
-					this.themeService.setColorTheme(themeId, applyTheme ? 'auto' : 'preview').then(undefined,
+					const newTheme = (theme ?? currentTheme) as IWorkbenchColorTheme;
+					this.themeService.setColorTheme(newTheme, applyTheme ? 'auto' : 'preview').then(undefined,
 						err => {
 							onUnexpectedError(err);
 							this.themeService.setColorTheme(currentTheme.id, undefined);
@@ -68,36 +76,153 @@ export class SelectColorThemeAction extends Action {
 				}, applyTheme ? 0 : 200);
 			};
 
+			const mpQueryDelayer = new ThrottledDelayer<void>(200);
+			let tokenSource: CancellationTokenSource | undefined;
+
 			return new Promise((s, _) => {
 				let isCompleted = false;
 
 				const autoFocusIndex = picks.findIndex(p => isItem(p) && p.id === currentTheme.id);
 				const quickpick = this.quickInputService.createQuickPick<ThemeItem>();
 				quickpick.items = picks;
+				quickpick.sortByLabel = false;
+				quickpick.matchOnDescription = true;
 				quickpick.placeholder = localize('themes.selectTheme', "Select Color Theme (Up/Down Keys to Preview)");
 				quickpick.activeItems = [picks[autoFocusIndex] as ThemeItem];
 				quickpick.canSelectMany = false;
 				quickpick.onDidAccept(_ => {
-					const theme = quickpick.activeItems[0];
-					if (!theme || typeof theme.id === 'undefined') { // 'pick in marketplace' entry
+					const themeItem = quickpick.activeItems[0];
+					if (!themeItem || themeItem.theme === undefined) { // 'pick in marketplace' entry
 						openExtensionViewlet(this.paneCompositeService, `category:themes ${quickpick.value}`);
 					} else {
-						selectTheme(theme, true);
+						if (themeItem.galleryExtension) {
+							this.extensionManagementService.installFromGallery(themeItem.galleryExtension);
+						}
+						selectTheme(themeItem.theme, true);
 					}
 					isCompleted = true;
 					quickpick.hide();
 					s();
 				});
-				quickpick.onDidChangeActive(themes => selectTheme(themes[0], false));
+
+				quickpick.onDidChangeActive(themes => selectTheme(themes[0]?.theme, false));
 				quickpick.onDidHide(() => {
 					if (!isCompleted) {
 						selectTheme(currentTheme, true);
 						s();
+						isCompleted = true;
 					}
 				});
 				quickpick.show();
+
+				if (this.extensionGalleryService.isEnabled()) {
+					const marketplaceThemes = new MarketplaceThemes(this.extensionGalleryService, this.extensionManagementService, this.themeService, this.logService);
+
+					const searchingItem: ThemeItem = { label: '$(sync~spin) Searching for themes...', id: undefined, alwaysShow: true };
+
+					const updateItemsPreserveSelection = (items: QuickPickInput<ThemeItem>[]) => {
+						const activeItemId = quickpick.activeItems[0]?.id;
+						const newActiveItem = activeItemId ? items.find(i => isItem(i) && i.id === activeItemId) : undefined;
+
+						quickpick.items = items;
+						if (newActiveItem) {
+							quickpick.activeItems = [newActiveItem as ThemeItem];
+						}
+					};
+
+					const searchMarketPlace = () => {
+						console.log('trigger ' + quickpick.value);
+						if (tokenSource) {
+							tokenSource.cancel();
+							tokenSource = undefined;
+						}
+						mpQueryDelayer.trigger(async () => {
+
+							if (!isCompleted) {
+								updateItemsPreserveSelection(picks.concat(...marketplaceThemes.themes, searchingItem)); // add the spinning icon
+
+								tokenSource = new CancellationTokenSource();
+								await marketplaceThemes.triggerSearch(quickpick.value, tokenSource.token, () => {
+									updateItemsPreserveSelection(picks.concat(...marketplaceThemes.themes, searchingItem));
+								});
+								updateItemsPreserveSelection(picks.concat(...marketplaceThemes.themes));
+							}
+						});
+					};
+					quickpick.onDidChangeValue(() => searchMarketPlace());
+					searchMarketPlace();
+				}
 			});
 		});
+	}
+
+
+}
+
+class MarketplaceThemes {
+	private installedExtensions: Set<string> | undefined;
+
+	constructor(
+		private extensionGalleryService: IExtensionGalleryService,
+		private extensionManagementService: IExtensionManagementService,
+		private themeService: IWorkbenchThemeService,
+		private logService: ILogService
+	) {
+
+	}
+
+	private async getInstalledExtesionIds() {
+		if (!this.installedExtensions) {
+			this.installedExtensions = new Set();
+			const installed = await this.extensionManagementService.getInstalled();
+			for (const ext of installed) {
+				this.installedExtensions.add(ext.identifier.id);
+			}
+		}
+		return this.installedExtensions;
+	}
+
+	private marketplaceExtensions: Set<string> = new Set();
+	private marketplaceThemes: ThemeItem[] = [];
+
+	public get themes() {
+		return this.marketplaceThemes;
+	}
+
+	public async triggerSearch(value: string, token: CancellationToken, themesUpdated: () => void): Promise<void> {
+		try {
+			const installedExtensions = await this.getInstalledExtesionIds();
+
+			const options = { text: `category:themes ${value}`, pageSize: 10 };
+
+			const pager = await this.extensionGalleryService.query(options, token);
+			for (let i = 0; i < pager.total && i < 2; i++) {
+				if (token.isCancellationRequested) {
+					break;
+				}
+
+				const gallery = await pager.getPage(i, token);
+				for (let i = 0; i < gallery.length; i++) {
+					if (token.isCancellationRequested) {
+						break;
+					}
+					const ext = gallery[i];
+					if (!installedExtensions.has(ext.identifier.id) && !this.marketplaceExtensions.has(ext.identifier.id)) {
+						this.marketplaceExtensions.add(ext.identifier.id);
+						const themes = await this.themeService.getMarketplaceColorThemes(ext.identifier.id, ext.version);
+						for (const theme of themes) {
+							this.marketplaceThemes.push({ id: theme.id, theme: theme, label: `${theme.label}`, description: `${ext.displayName}`, galleryExtension: ext });
+						}
+					}
+				}
+				this.marketplaceThemes.sort((t1, t2) => t1.label.localeCompare(t2.label));
+				themesUpdated();
+			}
+		} catch (e) {
+			if (!isPromiseCanceledError(e)) {
+				this.logService.error(`Error while searching for themes:`, e);
+			}
+		}
 	}
 }
 
@@ -114,18 +239,14 @@ abstract class AbstractIconThemeAction extends Action {
 	}
 
 	protected abstract get builtInEntry(): QuickPickInput<ThemeItem>;
-	protected abstract get installMessage(): string | undefined;
+	protected abstract get installMessage(): string;
 	protected abstract get placeholderMessage(): string;
 	protected abstract get marketplaceTag(): string;
 
 	protected abstract setTheme(id: string, settingsTarget: ThemeSettingTarget): Promise<any>;
 
 	protected pick(themes: IWorkbenchTheme[], currentTheme: IWorkbenchTheme) {
-		let picks: QuickPickInput<ThemeItem>[] = [this.builtInEntry];
-		picks = picks.concat(
-			toEntries(themes),
-			configurationEntries(this.extensionGalleryService, this.installMessage)
-		);
+		let picks: QuickPickInput<ThemeItem>[] = [this.builtInEntry, ...toEntries(themes), ...configurationEntries(this.installMessage)];
 
 		let selectThemeTimeout: number | undefined;
 
@@ -150,7 +271,7 @@ abstract class AbstractIconThemeAction extends Action {
 
 			const autoFocusIndex = picks.findIndex(p => isItem(p) && p.id === currentTheme.id);
 			const quickpick = this.quickInputService.createQuickPick<ThemeItem>();
-			quickpick.items = picks;
+			quickpick.items = this.extensionGalleryService.isEnabled() ? picks.concat(configurationEntries(this.installMessage)) : picks;
 			quickpick.placeholder = this.placeholderMessage;
 			quickpick.activeItems = [picks[autoFocusIndex] as ThemeItem];
 			quickpick.canSelectMany = false;
@@ -238,20 +359,19 @@ class SelectProductIconThemeAction extends AbstractIconThemeAction {
 	}
 }
 
-function configurationEntries(extensionGalleryService: IExtensionGalleryService, label: string | undefined): QuickPickInput<ThemeItem>[] {
-	if (extensionGalleryService.isEnabled() && label !== undefined) {
-		return [
-			{
-				type: 'separator'
-			},
-			{
-				id: undefined,
-				label: label,
-				alwaysShow: true
-			}
-		];
-	}
-	return [];
+function configurationEntries(label: string): QuickPickInput<ThemeItem>[] {
+	return [
+		{
+			type: 'separator',
+			label: 'marketplace themes'
+		},
+		{
+			id: undefined,
+			label: label,
+			alwaysShow: true
+		}
+	];
+
 }
 
 function openExtensionViewlet(paneCompositeService: IPaneCompositePartService, query: string) {
@@ -262,8 +382,10 @@ function openExtensionViewlet(paneCompositeService: IPaneCompositePartService, q
 		}
 	});
 }
-interface ThemeItem {
+interface ThemeItem extends IQuickPickItem {
 	id: string | undefined;
+	theme?: IWorkbenchTheme;
+	galleryExtension?: IGalleryExtension;
 	label: string;
 	description?: string;
 	alwaysShow?: boolean;
@@ -273,8 +395,11 @@ function isItem(i: QuickPickInput<ThemeItem>): i is ThemeItem {
 	return (<any>i)['type'] !== 'separator';
 }
 
+function toEntry(theme: IWorkbenchTheme): ThemeItem {
+	return { id: theme.id, theme: theme, label: theme.label, description: theme.description };
+}
+
 function toEntries(themes: Array<IWorkbenchTheme>, label?: string): QuickPickInput<ThemeItem>[] {
-	const toEntry = (theme: IWorkbenchTheme): ThemeItem => ({ id: theme.id, label: theme.label, description: theme.description });
 	const sorter = (t1: ThemeItem, t2: ThemeItem) => t1.label.localeCompare(t2.label);
 	let entries: QuickPickInput<ThemeItem>[] = themes.map(toEntry).sort(sorter);
 	if (entries.length > 0 && label) {
