@@ -219,7 +219,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.popular',
 			name: localize('popularExtensions', "Popular"),
-			ctorDescriptor: new SyncDescriptor(DefaultPopularExtensionsView, [{}]),
+			ctorDescriptor: new SyncDescriptor(DefaultPopularExtensionsView, [{ hideBadge: true }]),
 			when: ContextKeyExpr.and(DefaultViewsContext, ContextKeyExpr.not('hasInstalledExtensions')),
 			weight: 60,
 			order: 2,
