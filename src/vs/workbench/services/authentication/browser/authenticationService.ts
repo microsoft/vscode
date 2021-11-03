@@ -42,8 +42,6 @@ const VSO_ALLOWED_EXTENSIONS = [
 	'github.vscode-pull-request-github-insiders',
 	'vscode.git',
 	'ms-vsonline.vsonline',
-	'ms-vscode.remotehub',
-	'ms-vscode.remotehub-insiders',
 	'github.remotehub',
 	'github.remotehub-insiders',
 	'github.codespaces',
