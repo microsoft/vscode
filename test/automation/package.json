@@ -15,7 +15,7 @@
     "copy-driver": "cpx src/driver.js out/",
     "watch-driver": "cpx src/driver.js out/ -w",
     "copy-driver-definition": "node tools/copy-driver-definition.js",
-    "watch-driver-definition": "watch \"node tools/copy-driver-definition.js\" ../../src/vs/platform/driver/node",
+    "watch-driver-definition": "watch \"node tools/copy-driver-definition.js\"",
     "copy-package-version": "node tools/copy-package-version.js",
     "prepublishOnly": "npm run copy-package-version"
   },

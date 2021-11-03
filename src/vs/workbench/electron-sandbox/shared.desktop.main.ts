@@ -46,7 +46,6 @@ import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { NativeLogService } from 'vs/workbench/services/log/electron-sandbox/logService';
 import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
 import { safeStringify } from 'vs/base/common/objects';
 import { ISharedProcessWorkerWorkbenchService, SharedProcessWorkerWorkbenchService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessWorkerWorkbenchService';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -118,11 +117,6 @@ export abstract class SharedDesktopMain extends Disposable {
 
 		// Logging
 		services.logService.trace('workbench configuration', safeStringify(this.configuration));
-
-		// Driver
-		if (services.environmentService.enableDriver) {
-			(async () => this._register(await registerWindowDriver()))();
-		}
 	}
 
 	private getExtraClasses(): string[] {
