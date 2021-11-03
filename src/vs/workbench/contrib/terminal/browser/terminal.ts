@@ -24,7 +24,6 @@ export const ITerminalService = createDecorator<ITerminalService>('terminalServi
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
 export const ITerminalGroupService = createDecorator<ITerminalGroupService>('terminalGroupService');
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
-export const IRemoteTerminalService = createDecorator<IRemoteTerminalService>('remoteTerminalService');
 
 /**
  * A service used by TerminalInstance (and components owned by it) that allows it to break its
@@ -325,9 +324,6 @@ export interface ITerminalFindHost {
 	getFindState(): FindReplaceState;
 	findNext(): void;
 	findPrevious(): void;
-}
-
-export interface IRemoteTerminalService extends IOffProcessTerminalService {
 }
 
 /**

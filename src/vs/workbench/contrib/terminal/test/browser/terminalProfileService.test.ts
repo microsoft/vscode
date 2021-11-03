@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IOffProcessTerminalService, ITerminalConfiguration, ITerminalBackend } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalConfiguration, ITerminalBackend } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TerminalProfileService } from 'vs/workbench/contrib/terminal/browser/terminalProfileService';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { IExtensionTerminalProfile, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
-import { IRemoteTerminalService, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { isLinux, isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -73,25 +73,6 @@ class TestTerminalInstanceService implements Partial<ITerminalInstanceService> {
 	}
 }
 
-class TestOffProcessTerminalService implements Partial<IOffProcessTerminalService> {
-	private _profiles: ITerminalProfile[] = [];
-	private _hasReturnedNone = true;
-	async getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> {
-		if (this._hasReturnedNone) {
-			return this._profiles;
-		} else {
-			this._hasReturnedNone = true;
-			return [];
-		}
-	}
-	setProfiles(profiles: ITerminalProfile[]) {
-		this._profiles = profiles;
-	}
-	setReturnNone() {
-		this._hasReturnedNone = false;
-	}
-}
-
 class TestRemoteAgentService implements Partial<IRemoteAgentService> {
 	private _os: OperatingSystem | undefined;
 	setEnvironment(os: OperatingSystem) {
@@ -122,7 +103,6 @@ suite('TerminalProfileService', () => {
 	let terminalInstanceService: TestTerminalInstanceService;
 	let terminalProfileService: TestTerminalProfileService;
 	let remoteAgentService: TestRemoteAgentService;
-	let remoteTerminalService: TestOffProcessTerminalService;
 	let extensionService: TestTerminalExtensionService;
 	let environmentService: IWorkbenchEnvironmentService;
 	let instantiationService: TestInstantiationService;
@@ -131,7 +111,6 @@ suite('TerminalProfileService', () => {
 		configurationService = new TestConfigurationService({ terminal: { integrated: defaultTerminalConfig } });
 		remoteAgentService = new TestRemoteAgentService();
 		terminalInstanceService = new TestTerminalInstanceService();
-		remoteTerminalService = new TestOffProcessTerminalService();
 		extensionService = new TestTerminalExtensionService();
 		environmentService = { configuration: {}, remoteAuthority: undefined } as IWorkbenchEnvironmentService;
 		instantiationService = new TestInstantiationService();
@@ -145,7 +124,6 @@ suite('TerminalProfileService', () => {
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
 		instantiationService.stub(ITerminalContributionService, terminalContributionService);
 		instantiationService.stub(ITerminalInstanceService, terminalInstanceService);
-		instantiationService.stub(IRemoteTerminalService, remoteTerminalService);
 		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
 
 		terminalProfileService = instantiationService.createInstance(TestTerminalProfileService);
@@ -165,8 +143,9 @@ suite('TerminalProfileService', () => {
 		};
 
 		terminalInstanceService.setProfiles(undefined, [powershellProfile]);
-		remoteTerminalService.setProfiles([]);
+		terminalInstanceService.setProfiles('fakeremote', []);
 		terminalContributionService.setProfiles([jsdebugProfile]);
+		// TODO: @meganrogge we can write separate tests for each OS that run on all operating systems
 		if (isWindows) {
 			remoteAgentService.setEnvironment(OperatingSystem.Windows);
 		} else if (isLinux) {
@@ -206,13 +185,13 @@ suite('TerminalProfileService', () => {
 	});
 
 	test('should get profiles from remoteTerminalService when there is a remote authority', async () => {
-		environmentService = { configuration: {}, remoteAuthority: 'authority' } as IWorkbenchEnvironmentService;
+		environmentService = { configuration: {}, remoteAuthority: 'fakeremote' } as IWorkbenchEnvironmentService;
 		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
 		terminalProfileService = instantiationService.createInstance(TestTerminalProfileService);
 		await terminalProfileService.refreshAndAwaitAvailableProfiles();
 		deepStrictEqual(terminalProfileService.availableProfiles, []);
 		deepStrictEqual(terminalProfileService.contributedProfiles, [jsdebugProfile]);
-		remoteTerminalService.setProfiles([powershellProfile]);
+		terminalInstanceService.setProfiles('fakeremote', [powershellProfile]);
 		await terminalProfileService.refreshAndAwaitAvailableProfiles();
 		deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
 		deepStrictEqual(terminalProfileService.contributedProfiles, [jsdebugProfile]);

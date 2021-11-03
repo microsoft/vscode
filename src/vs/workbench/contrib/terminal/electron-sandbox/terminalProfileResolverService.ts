@@ -8,7 +8,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IRemoteTerminalService, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { BaseTerminalProfileResolverService } from 'vs/workbench/contrib/terminal/browser/terminalProfileResolverService';
 import { ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -23,7 +23,6 @@ export class ElectronTerminalProfileResolverService extends BaseTerminalProfileR
 		@IHistoryService historyService: IHistoryService,
 		@ILogService logService: ILogService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@IRemoteTerminalService remoteTerminalService: IRemoteTerminalService,
 		@ITerminalProfileService terminalProfileService: ITerminalProfileService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IStorageService storageService: IStorageService,
@@ -33,17 +32,18 @@ export class ElectronTerminalProfileResolverService extends BaseTerminalProfileR
 		super(
 			{
 				getDefaultSystemShell: async (remoteAuthority, platform) => {
-					const backend = remoteAuthority ? remoteTerminalService : (terminalInstanceService.getBackend() || remoteTerminalService);
+					const backend = terminalInstanceService.getBackend(remoteAuthority);
+					if (!backend) {
+						throw new Error(`Cannot get default system shell when there is no backend for remote authority '${remoteAuthority}'`);
+					}
 					return backend.getDefaultSystemShell(platform);
 				},
 				getEnvironment: (remoteAuthority) => {
-					if (!remoteAuthority) {
-						const localBackend = terminalInstanceService.getBackend();
-						if (localBackend) {
-							return localBackend.getEnvironment();
-						}
+					const backend = terminalInstanceService.getBackend(remoteAuthority);
+					if (!backend) {
+						throw new Error(`Cannot get environment when there is no backend for remote authority '${remoteAuthority}'`);
 					}
-					return remoteTerminalService.getEnvironment();
+					return backend.getEnvironment();
 				}
 			},
 			configurationService,
