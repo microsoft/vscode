@@ -8,7 +8,7 @@ import * as os from 'os';
 import * as fs from 'fs';
 import * as mkdirp from 'mkdirp';
 import { IDriver, IDisposable, IElement, Thenable, ILocalizedStrings, ILocaleInfo } from './driver';
-import { connectBrowser, connectElectron, launchServer } from './playwrightDriver';
+import { connectBrowser, connectElectron, launchServer } from './playwright';
 import { Logger } from './logger';
 import { ncp } from 'ncp';
 import { URI } from 'vscode-uri';
@@ -47,7 +47,6 @@ function getBuildElectronPath(root: string): string {
 			throw new Error('Unsupported platform.');
 	}
 }
-
 
 async function connect(driverFn: () => Promise<{ client: IDisposable, driver: IDriver }>, logger: Logger): Promise<Code> {
 	let errCount = 0;
@@ -100,7 +99,6 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 	// Electron Smoke Test
 	else {
 		const env = { ...process.env };
-		const codePath = options.codePath;
 
 		const args = [
 			options.workspacePath,
@@ -126,7 +124,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 			// Replace workspace path with URI
 			args[0] = `--${options.workspacePath.endsWith('.code-workspace') ? 'file' : 'folder'}-uri=vscode-remote://test+test/${URI.file(options.workspacePath).path}`;
 
-			if (codePath) {
+			if (options.codePath) {
 				// running against a build: copy the test resolver extension
 				copyExtension(options.extensionsPath, 'vscode-test-resolver');
 			}
@@ -134,7 +132,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 			const remoteDataDir = `${options.userDataDir}-server`;
 			mkdirp.sync(remoteDataDir);
 
-			if (codePath) {
+			if (options.codePath) {
 				// running against a build: copy the test resolver extension into remote extensions dir
 				const remoteExtensionsDir = path.join(remoteDataDir, 'extensions');
 				mkdirp.sync(remoteExtensionsDir);
@@ -146,7 +144,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 
 		args.push('--enable-proposed-api=vscode.vscode-notebook-tests');
 
-		if (!codePath) {
+		if (!options.codePath) {
 			args.unshift(repoPath);
 		}
 
@@ -158,7 +156,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 			args.push(...options.extraArgs);
 		}
 
-		const executablePath = codePath ? getBuildElectronPath(codePath) : getDevElectronPath();
+		const executablePath = options.codePath ? getBuildElectronPath(options.codePath) : getDevElectronPath();
 		return connect(() => connectElectron({ executablePath, args, env }), options.logger);
 	}
 }
@@ -256,10 +254,7 @@ export class Code {
 	}
 
 	async exit(): Promise<void> {
-		const veto = await this.driver.exitApplication();
-		if (veto === true) {
-			throw new Error('Code exit was blocked by a veto.');
-		}
+		return this.driver.exitApplication();
 	}
 
 	async waitForTextContent(selector: string, textContent?: string, accept?: (result: string) => boolean, retryCount?: number): Promise<string> {

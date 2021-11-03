@@ -12,9 +12,6 @@ import { promisify } from 'util';
 import { IDriver, IDisposable } from './driver';
 import { URI } from 'vscode-uri';
 
-const width = 1200;
-const height = 800;
-
 const root = join(__dirname, '..', '..', '..');
 const logsPath = join(root, '.build', 'logs', 'smoke-tests-browser');
 
@@ -37,11 +34,9 @@ let traceCounter = 1;
 function buildDriver(app: playwright.ElectronApplication | playwright.Browser, context: playwright.BrowserContext, page: playwright.Page): IDriver {
 	const driver: IDriver = {
 		_serviceBrand: undefined,
-		getWindowIds: () => {
-			return Promise.resolve([1]);
-		},
+		getWindowIds: () => Promise.resolve([1]),
 		capturePage: () => Promise.resolve(''),
-		reloadWindow: (windowId) => Promise.resolve(),
+		reloadWindow: async (windowId) => { await page.reload(); },
 		exitApplication: async () => {
 			try {
 				await context.tracing.stop({ path: join(logsPath, `playwright-trace-${traceCounter++}.zip`) });
@@ -50,8 +45,6 @@ function buildDriver(app: playwright.ElectronApplication | playwright.Browser, c
 			}
 			await app.close();
 			await teardown();
-
-			return false;
 		},
 		dispatchKeybinding: async (windowId, keybinding) => {
 			const chords = keybinding.split(' ');
@@ -162,7 +155,7 @@ export async function launchServer(userDataDir: string, _workspacePath: string, 
 async function teardown(): Promise<void> {
 	if (server) {
 		try {
-			await new Promise<void>((c, e) => kill(server!.pid, err => err ? e(err) : c()));
+			await new Promise<void>((resolve, reject) => kill(server!.pid, err => err ? reject(err) : resolve()));
 		} catch {
 			// noop
 		}
@@ -197,7 +190,7 @@ export async function connectBrowser(options: BrowserOptions = {}): Promise<{ cl
 	}
 
 	const page = await context.newPage();
-	await page.setViewportSize({ width, height });
+	await page.setViewportSize({ width: 1200, height: 800 });
 
 	page.on('pageerror', async error => console.error(`Playwright ERROR: page error: ${error}`));
 	page.on('crash', () => console.error('Playwright ERROR: page crash'));
