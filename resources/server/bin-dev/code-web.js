@@ -30,7 +30,7 @@ for (let idx = 0; idx <= process.argv.length - 2; idx++) {
 		case '--port': PORT = Number(process.argv[idx + 1]); break;
 		case '--folder': FOLDER = process.argv[idx + 1]; break;
 		case '--workspace': WORKSPACE = process.argv[idx + 1]; break;
-		case '--driver': DRIVER = process.argv[idx + 1]; break;
+		case '--enable-driver': DRIVER = true; break;
 		case '--github-auth': GITHUB_AUTH_TOKEN = process.argv[idx + 1]; break;
 		case '--logsPath': LOGS_PATH = process.argv[idx + 1]; break;
 		case '--enable-sync': ENABLE_SYNC = true; break;
@@ -45,7 +45,7 @@ if (WORKSPACE) {
 	serverArgs.push('--workspace', WORKSPACE);
 }
 if (DRIVER) {
-	serverArgs.push('--driver', DRIVER);
+	serverArgs.push('--enable-driver', true);
 
 	// given a DRIVER, we auto-shutdown when tests are done
 	serverArgs.push('--enable-remote-auto-shutdown', '--remote-auto-shutdown-without-delay');

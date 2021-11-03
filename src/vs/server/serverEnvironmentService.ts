@@ -15,7 +15,7 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	'connection-secret': { type: 'string', description: nls.localize('connection-secret', "Path to file that contains the connection token. This will require that all incoming connections know the secret.") },
 	'host': { type: 'string' },
 	'socket-path': { type: 'string' },
-	'driver': { type: 'string' },
+	'enable-driver': { type: 'boolean' },
 	'start-server': { type: 'boolean' },
 	'print-startup-performance': { type: 'boolean' },
 	'print-ip-address': { type: 'boolean' },
@@ -71,7 +71,7 @@ export interface ServerParsedArgs {
 	'connection-secret'?: string;
 	host?: string;
 	'socket-path'?: string;
-	driver?: string;
+	'enable-driver'?: boolean;
 	'print-startup-performance'?: boolean;
 	'print-ip-address'?: boolean;
 	'disable-websocket-compression'?: boolean;

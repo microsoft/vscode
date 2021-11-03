@@ -13,7 +13,6 @@ exports.collectModules = function () {
 		createModuleDescription('vs/code/node/cliProcessMain', ['vs/code/node/cli']),
 		createModuleDescription('vs/code/electron-sandbox/issue/issueReporterMain'),
 		createModuleDescription('vs/code/electron-browser/sharedProcess/sharedProcessMain'),
-		createModuleDescription('vs/platform/driver/node/driver'),
 		createModuleDescription('vs/code/electron-sandbox/processExplorer/processExplorerMain')
 	];
 };

@@ -46,7 +46,7 @@ import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { NativeLogService } from 'vs/workbench/services/log/electron-sandbox/logService';
 import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
+import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
 import { safeStringify } from 'vs/base/common/objects';
 import { ISharedProcessWorkerWorkbenchService, SharedProcessWorkerWorkbenchService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessWorkerWorkbenchService';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -120,8 +120,8 @@ export abstract class SharedDesktopMain extends Disposable {
 		services.logService.trace('workbench configuration', safeStringify(this.configuration));
 
 		// Driver
-		if (this.configuration.driver) {
-			instantiationService.invokeFunction(async accessor => this._register(await registerWindowDriver(accessor, this.configuration.windowId)));
+		if (services.environmentService.enableDriver) {
+			(async () => this._register(await registerWindowDriver()))();
 		}
 	}
 
@@ -150,7 +150,7 @@ export abstract class SharedDesktopMain extends Disposable {
 		nativeHostService: INativeHostService
 	): void;
 
-	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: NativeStorageService }> {
+	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: NativeStorageService, environmentService: INativeWorkbenchEnvironmentService }> {
 		const serviceCollection = new ServiceCollection();
 
 
@@ -307,7 +307,7 @@ export abstract class SharedDesktopMain extends Disposable {
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-		return { serviceCollection, logService, storageService };
+		return { serviceCollection, logService, storageService, environmentService };
 	}
 
 	private resolveWorkspaceInitializationPayload(environmentService: INativeWorkbenchEnvironmentService): IWorkspaceInitializationPayload {

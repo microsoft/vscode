@@ -128,7 +128,7 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	builtinExtensionsPath: string;
 
 	// --- smoke test support
-	driverHandle?: string;
+	enableDriver?: boolean;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//

@@ -182,7 +182,7 @@ export class WebClientServer {
 		}
 
 		let _wrapWebWorkerExtHostInIframe: undefined | false = undefined;
-		if (this._environmentService.driverHandle) {
+		if (this._environmentService.enableDriver) {
 			// integration tests run at a time when the built output is not yet published to the CDN
 			// so we must disable the iframe wrapping because the iframe URL will give a 404
 			_wrapWebWorkerExtHostInIframe = false;
@@ -201,7 +201,7 @@ export class WebClientServer {
 				workspaceUri: (workspacePath && !isFolder) ? transformer.transformOutgoing(URI.file(workspacePath)) : undefined,
 				remoteAuthority,
 				_wrapWebWorkerExtHostInIframe,
-				developmentOptions: { enableSmokeTestDriver: this._environmentService.driverHandle === 'web' ? true : undefined },
+				developmentOptions: { enableSmokeTestDriver: this._environmentService.enableDriver },
 				settingsSyncOptions: !this._environmentService.isBuilt && this._environmentService.args['enable-sync'] ? { enabled: true } : undefined,
 			})))
 			.replace('{{WORKBENCH_AUTH_SESSION}}', () => authSessionInfo ? escapeAttribute(JSON.stringify(authSessionInfo)) : '');
