@@ -254,7 +254,7 @@ class SharedProcessMain extends Disposable {
 
 			// Application Insights
 			if (productService.aiConfig && productService.aiConfig.asimovKey) {
-				const testCollector = await assignmentService.getTreatment<boolean>('vscode.telemetryMigration') ?? false;
+				const testCollector = await assignmentService.getTreatment<boolean>('telemetryMigration') ?? false;
 				const insiders = productService.quality !== 'stable';
 				// Insiders send to both collector and vortex if assigned.
 				// Stable only send to one
