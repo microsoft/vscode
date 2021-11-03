@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalIcon, TitleEventSource, TerminalShellType, IExtensionTerminalProfile, TerminalLocation, ProcessPropertyType, ProcessCapability } from 'vs/platform/terminal/common/terminal';
-import { ICommandTracker, INavigationMode, IOffProcessTerminalService, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalFont, ITerminalBackend, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ICommandTracker, INavigationMode, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalFont, ITerminalBackend, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
@@ -147,7 +147,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	getActiveOrCreateInstance(): Promise<ITerminalInstance>;
 	moveToEditor(source: ITerminalInstance): void;
 	moveToTerminalView(source?: ITerminalInstance | URI): Promise<void>;
-	getOffProcessTerminalService(): IOffProcessTerminalService | ITerminalBackend | undefined;
+	getPrimaryBackend(): ITerminalBackend | undefined;
 
 	/**
 	 * Perform an action with the active terminal instance, if the terminal does

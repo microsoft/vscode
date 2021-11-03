@@ -35,7 +35,7 @@ import { getColorClass, getColorStyleContent, getColorStyleElement, getUriClasse
 import { configureTerminalProfileIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { getInstanceFromResource, getTerminalUri, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { IOffProcessTerminalService, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalBackend, ITerminalProcessExtHostProxy, ITerminalProfileService, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalBackend, ITerminalProcessExtHostProxy, ITerminalProfileService, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { formatMessageForTerminal, terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
@@ -61,7 +61,7 @@ export class TerminalService implements ITerminalService {
 	private _processSupportContextKey: IContextKey<boolean>;
 
 	private _terminalHasBeenCreated: IContextKey<boolean>;
-	private readonly _primaryOffProcessTerminalService?: IOffProcessTerminalService | ITerminalBackend;
+	private readonly _primaryBackend?: ITerminalBackend;
 	private _configHelper: TerminalConfigHelper;
 	private _remoteTerminalsInitPromise: Promise<void> | undefined;
 	private _localTerminalsInitPromise: Promise<void> | undefined;
@@ -267,18 +267,18 @@ export class TerminalService implements ITerminalService {
 							this._terminalGroupService.getGroupForInstance(instanceToDetach)?.removeInstance(instanceToDetach);
 						}
 						await instanceToDetach.detachFromProcess();
-						await this._primaryOffProcessTerminalService?.acceptDetachInstanceReply(e.requestId, persistentProcessId);
+						await this._primaryBackend?.acceptDetachInstanceReply(e.requestId, persistentProcessId);
 					} else {
 						// will get rejected without a persistentProcessId to attach to
-						await this._primaryOffProcessTerminalService?.acceptDetachInstanceReply(e.requestId, undefined);
+						await this._primaryBackend?.acceptDetachInstanceReply(e.requestId, undefined);
 					}
 				}
 			});
 		}
 	}
 
-	getOffProcessTerminalService(): IOffProcessTerminalService | ITerminalBackend | undefined {
-		return this._primaryOffProcessTerminalService;
+	getPrimaryBackend(): ITerminalBackend | undefined {
+		return this._primaryBackend;
 	}
 
 	private _forwardInstanceHostEvents(host: ITerminalInstanceHost) {
@@ -510,7 +510,7 @@ export class TerminalService implements ITerminalService {
 		this._shutdownWindowCount = await this._nativeDelegate?.getWindowCount();
 		const shouldReviveProcesses = this._shouldReviveProcesses(reason);
 		if (shouldReviveProcesses) {
-			await this._primaryOffProcessTerminalService?.persistTerminalState();
+			await this._primaryBackend?.persistTerminalState();
 		}
 
 		// Persist terminal _processes_
@@ -578,7 +578,7 @@ export class TerminalService implements ITerminalService {
 
 		// Clear terminal layout info only when not persisting
 		if (!this._shouldReviveProcesses(e.reason)) {
-			this._primaryOffProcessTerminalService?.setTerminalLayoutInfo(undefined);
+			this._primaryBackend?.setTerminalLayoutInfo(undefined);
 		}
 	}
 
@@ -597,7 +597,7 @@ export class TerminalService implements ITerminalService {
 		}
 		const tabs = this._terminalGroupService.groups.map(g => g.getLayoutInfo(g === this._terminalGroupService.activeGroup));
 		const state: ITerminalsLayoutInfoById = { tabs };
-		this._primaryOffProcessTerminalService?.setTerminalLayoutInfo(state);
+		this._primaryBackend?.setTerminalLayoutInfo(state);
 	}
 
 	@debounce(500)
@@ -605,7 +605,7 @@ export class TerminalService implements ITerminalService {
 		if (!this.configHelper.config.enablePersistentSessions || !instance || !instance.persistentProcessId || !instance.title) {
 			return;
 		}
-		this._primaryOffProcessTerminalService?.updateTitle(instance.persistentProcessId, instance.title, instance.titleSource);
+		this._primaryBackend?.updateTitle(instance.persistentProcessId, instance.title, instance.titleSource);
 	}
 
 	@debounce(500)
@@ -613,7 +613,7 @@ export class TerminalService implements ITerminalService {
 		if (!this.configHelper.config.enablePersistentSessions || !instance || !instance.persistentProcessId || !instance.icon) {
 			return;
 		}
-		this._primaryOffProcessTerminalService?.updateIcon(instance.persistentProcessId, instance.icon, instance.color);
+		this._primaryBackend?.updateIcon(instance.persistentProcessId, instance.icon, instance.color);
 	}
 
 	refreshActiveGroup(): void {
@@ -755,7 +755,7 @@ export class TerminalService implements ITerminalService {
 
 		// Terminal from a different window
 		if (!sourceInstance) {
-			const attachPersistentProcess = await this._primaryOffProcessTerminalService?.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId);
+			const attachPersistentProcess = await this._primaryBackend?.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId);
 			if (attachPersistentProcess) {
 				sourceInstance = await this.createTerminal({ config: { attachPersistentProcess }, resource: e.uri });
 				this._terminalGroupService.moveInstance(sourceInstance, instance, e.side);
