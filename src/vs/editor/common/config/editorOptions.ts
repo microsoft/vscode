@@ -575,7 +575,7 @@ export interface IEditorOptions {
 	renderWhitespace?: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
 	/**
 	 * Enable rendering of control characters.
-	 * Defaults to false.
+	 * Defaults to true.
 	 */
 	renderControlCharacters?: boolean;
 	/**
@@ -4637,8 +4637,8 @@ export const EditorOptions = {
 		{ description: nls.localize('renameOnType', "Controls whether the editor auto renames on type."), markdownDeprecationMessage: nls.localize('renameOnTypeDeprecate', "Deprecated, use `editor.linkedEditing` instead.") }
 	)),
 	renderControlCharacters: register(new EditorBooleanOption(
-		EditorOption.renderControlCharacters, 'renderControlCharacters', false,
-		{ description: nls.localize('renderControlCharacters', "Controls whether the editor should render control characters.") }
+		EditorOption.renderControlCharacters, 'renderControlCharacters', true,
+		{ description: nls.localize('renderControlCharacters', "Controls whether the editor should render control characters."), restricted: true }
 	)),
 	renderFinalNewline: register(new EditorBooleanOption(
 		EditorOption.renderFinalNewline, 'renderFinalNewline', true,
