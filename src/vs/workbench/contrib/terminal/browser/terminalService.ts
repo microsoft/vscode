@@ -1147,7 +1147,7 @@ export class TerminalService implements ITerminalService {
 			shellLaunchConfig.cwd = options.cwd;
 		}
 
-		if (!shellLaunchConfig.customPtyImplementation && !this.isProcessSupportRegistered) {
+		if (!shellLaunchConfig.customPtyImplementation && !this.isProcessSupportRegistered && !this._terminalProfileService.shouldShowWebTerminals) {
 			throw new Error('Could not create terminal when process support is not registered');
 		}
 		if (shellLaunchConfig.hideFromUser) {
