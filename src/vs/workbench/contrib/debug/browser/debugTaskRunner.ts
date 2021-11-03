@@ -200,8 +200,7 @@ export class DebugTaskRunner {
 			return taskPromise.then(withUndefinedAsNull);
 		});
 
-		// eslint-disable-next-line no-async-promise-executor
-		return new Promise(async (c, e) => {
+		return new Promise((c, e) => {
 			const waitForInput = new Promise<void>(resolve => once(e => (e.kind === TaskEventKind.AcquiredInput) && e.taskId === task._id, this.taskService.onDidStateChange)(() => {
 				resolve();
 			}));
@@ -211,17 +210,18 @@ export class DebugTaskRunner {
 				c(result);
 			}, error => e(error));
 
-			await waitForInput;
-			const waitTime = task.configurationProperties.isBackground ? 5000 : 10000;
+			waitForInput.then(() => {
+				const waitTime = task.configurationProperties.isBackground ? 5000 : 10000;
 
-			setTimeout(() => {
-				if (!taskStarted) {
-					const errorMessage = typeof taskId === 'string'
-						? nls.localize('taskNotTrackedWithTaskId', "The task '{0}' cannot be tracked. Make sure to have a problem matcher defined.", taskId)
-						: nls.localize('taskNotTracked', "The task '{0}' cannot be tracked. Make sure to have a problem matcher defined.", JSON.stringify(taskId));
-					e({ severity: severity.Error, message: errorMessage });
-				}
-			}, waitTime);
+				setTimeout(() => {
+					if (!taskStarted) {
+						const errorMessage = typeof taskId === 'string'
+							? nls.localize('taskNotTrackedWithTaskId', "The task '{0}' cannot be tracked. Make sure to have a problem matcher defined.", taskId)
+							: nls.localize('taskNotTracked', "The task '{0}' cannot be tracked. Make sure to have a problem matcher defined.", JSON.stringify(taskId));
+						e({ severity: severity.Error, message: errorMessage });
+					}
+				}, waitTime);
+			});
 		});
 	}
 }

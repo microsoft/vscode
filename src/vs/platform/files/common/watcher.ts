@@ -162,8 +162,8 @@ export interface IWatchRequest {
 	excludes: string[];
 
 	/**
-	 * @deprecated TODO@bpasero TODO@aeschli remove me once WSL1
-	 * support ends.
+	 * @deprecated this only exists for WSL1 support and should never
+	 * be used in any other case.
 	 */
 	pollingInterval?: number;
 }

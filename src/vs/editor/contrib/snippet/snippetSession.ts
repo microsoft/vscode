@@ -19,22 +19,9 @@ import { IIdentifiedSingleEditOperation, ITextModel, TrackedRangeStickiness } fr
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { OvertypingCapturer } from 'vs/editor/contrib/suggest/suggestOvertypingCapturer';
 import { ILabelService } from 'vs/platform/label/common/label';
-import * as colors from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Choice, Marker, Placeholder, SnippetParser, Text, TextmateSnippet } from './snippetParser';
 import { ClipboardBasedVariableResolver, CommentBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, RandomBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, WorkspaceBasedVariableResolver } from './snippetVariables';
-
-registerThemingParticipant((theme, collector) => {
-
-	function getColorGraceful(name: string) {
-		const color = theme.getColor(name);
-		return color ? color.toString() : 'transparent';
-	}
-
-	collector.addRule(`.monaco-editor .snippet-placeholder { background-color: ${getColorGraceful(colors.snippetTabstopHighlightBackground)}; outline-color: ${getColorGraceful(colors.snippetTabstopHighlightBorder)}; }`);
-	collector.addRule(`.monaco-editor .finish-snippet-placeholder { background-color: ${getColorGraceful(colors.snippetFinalTabstopHighlightBackground)}; outline-color: ${getColorGraceful(colors.snippetFinalTabstopHighlightBorder)}; }`);
-});
 
 export class OneSnippet {
 

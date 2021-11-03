@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
+import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 
@@ -27,12 +27,7 @@ export class ReplaceCommand implements ICommand {
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
 		let inverseEditOperations = helper.getInverseEditOperations();
 		let srcRange = inverseEditOperations[0].range;
-		return new Selection(
-			srcRange.endLineNumber,
-			srcRange.endColumn,
-			srcRange.endLineNumber,
-			srcRange.endColumn
-		);
+		return Selection.fromPositions(srcRange.getEndPosition());
 	}
 }
 
@@ -53,7 +48,7 @@ export class ReplaceCommandThatSelectsText implements ICommand {
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
 		const inverseEditOperations = helper.getInverseEditOperations();
 		const srcRange = inverseEditOperations[0].range;
-		return new Selection(srcRange.startLineNumber, srcRange.startColumn, srcRange.endLineNumber, srcRange.endColumn);
+		return Selection.fromRange(srcRange, SelectionDirection.LTR);
 	}
 }
 
@@ -76,12 +71,7 @@ export class ReplaceCommandWithoutChangingPosition implements ICommand {
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
 		let inverseEditOperations = helper.getInverseEditOperations();
 		let srcRange = inverseEditOperations[0].range;
-		return new Selection(
-			srcRange.startLineNumber,
-			srcRange.startColumn,
-			srcRange.startLineNumber,
-			srcRange.startColumn
-		);
+		return Selection.fromPositions(srcRange.getStartPosition());
 	}
 }
 
@@ -108,12 +98,7 @@ export class ReplaceCommandWithOffsetCursorState implements ICommand {
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
 		let inverseEditOperations = helper.getInverseEditOperations();
 		let srcRange = inverseEditOperations[0].range;
-		return new Selection(
-			srcRange.endLineNumber + this._lineNumberDeltaOffset,
-			srcRange.endColumn + this._columnDeltaOffset,
-			srcRange.endLineNumber + this._lineNumberDeltaOffset,
-			srcRange.endColumn + this._columnDeltaOffset
-		);
+		return Selection.fromPositions(srcRange.getEndPosition().delta(this._lineNumberDeltaOffset, this._columnDeltaOffset));
 	}
 }
 

@@ -119,7 +119,7 @@ export class DiffNestedCellViewModel extends Disposable implements IDiffNestedCe
 
 		this._ensureOutputsTop();
 		this._outputCollection[index] = height;
-		if (this._outputsTop!.changeValue(index, height)) {
+		if (this._outputsTop!.setValue(index, height)) {
 			this._onDidChangeOutputLayout.fire();
 		}
 	}

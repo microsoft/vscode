@@ -282,10 +282,12 @@
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .new-badge {
 	justify-self: flex-end;
+	align-self: flex-start;
 	border-radius: 4px;
 	padding: 2px 4px;
-	margin: 0 4px;
+	margin: 4px;
 	font-size: 11px;
+	white-space: nowrap;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured-badge {
@@ -472,11 +474,11 @@
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent {
 	height: 100%;
-	max-width: 1200px;
+	max-width: 1600px;
 	margin: 0 auto;
-	padding: 0 32px;
+	padding: 0 0 0 32px;
 	display: grid;
-	grid-template-columns: 1fr 5fr 1fr 7fr 1fr;
+	grid-template-columns: 1fr 4fr 1fr 8fr;
 	grid-template-rows: calc(25% - 100px) auto auto 1fr auto;
 	grid-template-areas:
 		". back   .      media  ."
@@ -734,6 +736,11 @@
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories>.gettingStartedCategoriesContainer>.footer p {
 	margin: 0;
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories>.gettingStartedCategoriesContainer .index-list.start-container {
+	min-height: 156px;
+	margin-bottom: 16px;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories>.gettingStartedCategoriesContainer>.footer>button {

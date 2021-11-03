@@ -193,7 +193,7 @@ registerAction2(class extends Action2 {
 
 				// Next display all of the kernels grouped by categories or extensions.
 				// If we don't have a kind, always display those at the bottom.
-				const picks = all.filter(item => item !== selected && !suggestions.includes(item)).map(toQuickPick);
+				const picks = all.filter(item => !suggestions.includes(item)).map(toQuickPick);
 				const kernelsPerCategory = groupBy(picks, (a, b) => compareIgnoreCase(a.kernel.kind || 'z', b.kernel.kind || 'z'));
 				kernelsPerCategory.forEach(items => {
 					quickPickItems.push({

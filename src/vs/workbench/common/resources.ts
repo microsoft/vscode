@@ -7,17 +7,17 @@ import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { deepClone, equals } from 'vs/base/common/objects';
 import { Emitter } from 'vs/base/common/event';
-import { basename, dirname, extname, relativePath } from 'vs/base/common/resources';
+import { basename, dirname, extname, relativePath, isEqual } from 'vs/base/common/resources';
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { ParsedExpression, IExpression, parse } from 'vs/base/common/glob';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { withNullAsUndefined } from 'vs/base/common/types';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
-export class ResourceContextKey extends Disposable implements IContextKey<URI> {
+export class ResourceContextKey implements IContextKey<URI> {
 
 	// NOTE: DO NOT CHANGE THE DEFAULT VALUE TO ANYTHING BUT
 	// UNDEFINED! IT IS IMPORTANT THAT DEFAULTS ARE INHERITED
@@ -33,6 +33,8 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 	static readonly HasResource = new RawContextKey<boolean>('resourceSet', undefined, { type: 'boolean', description: localize('resourceSet', "Whether a resource is present or not") });
 	static readonly IsFileSystemResource = new RawContextKey<boolean>('isFileSystemResource', undefined, { type: 'boolean', description: localize('isFileSystemResource', "Whether the resource is backed by a file system provider") });
 
+	private readonly _disposables = new DisposableStore();
+
 	private readonly _resourceKey: IContextKey<URI | null>;
 	private readonly _schemeKey: IContextKey<string | null>;
 	private readonly _filenameKey: IContextKey<string | null>;
@@ -46,10 +48,9 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 	constructor(
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IFileService private readonly _fileService: IFileService,
-		@IModeService private readonly _modeService: IModeService
+		@IModeService private readonly _modeService: IModeService,
+		@IModelService private readonly _modelService: IModelService,
 	) {
-		super();
-
 		this._schemeKey = ResourceContextKey.Scheme.bindTo(this._contextKeyService);
 		this._filenameKey = ResourceContextKey.Filename.bindTo(this._contextKeyService);
 		this._dirnameKey = ResourceContextKey.Dirname.bindTo(this._contextKeyService);
@@ -60,31 +61,53 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 		this._hasResource = ResourceContextKey.HasResource.bindTo(this._contextKeyService);
 		this._isFileSystemResource = ResourceContextKey.IsFileSystemResource.bindTo(this._contextKeyService);
 
-		this._register(_fileService.onDidChangeFileSystemProviderRegistrations(() => {
-			const resource = this._resourceKey.get();
+		this._disposables.add(_fileService.onDidChangeFileSystemProviderRegistrations(() => {
+			const resource = this.get();
 			this._isFileSystemResource.set(Boolean(resource && _fileService.hasProvider(resource)));
 		}));
 
-		this._register(_modeService.onDidEncounterLanguage(() => {
-			const value = this._resourceKey.get();
-			this._langIdKey.set(value ? this._modeService.getModeIdByFilepathOrFirstLine(value) : null);
+		this._disposables.add(_modeService.onDidEncounterLanguage(this._setLangId, this));
+		this._disposables.add(_modelService.onModelAdded(model => {
+			if (isEqual(model.uri, this.get())) {
+				this._setLangId();
+			}
+		}));
+		this._disposables.add(_modelService.onModelModeChanged(e => {
+			if (isEqual(e.model.uri, this.get())) {
+				this._setLangId();
+			}
 		}));
 	}
 
-	set(value: URI | null) {
-		if (!ResourceContextKey._uriEquals(this._resourceKey.get(), value)) {
-			this._contextKeyService.bufferChangeEvents(() => {
-				this._resourceKey.set(value);
-				this._schemeKey.set(value ? value.scheme : null);
-				this._filenameKey.set(value ? basename(value) : null);
-				this._dirnameKey.set(value ? dirname(value).fsPath : null);
-				this._pathKey.set(value ? value.fsPath : null);
-				this._langIdKey.set(value ? this._modeService.getModeIdByFilepathOrFirstLine(value) : null);
-				this._extensionKey.set(value ? extname(value) : null);
-				this._hasResource.set(!!value);
-				this._isFileSystemResource.set(value ? this._fileService.hasProvider(value) : false);
-			});
+	dispose(): void {
+		this._disposables.dispose();
+	}
+
+	private _setLangId(): void {
+		const value = this.get();
+		if (!value) {
+			this._langIdKey.set(null);
+			return;
 		}
+		const langId = this._modelService.getModel(value)?.getLanguageId() ?? this._modeService.getModeIdByFilepathOrFirstLine(value);
+		this._langIdKey.set(langId);
+	}
+
+	set(value: URI | null) {
+		if (isEqual(this.get(), value ?? undefined)) {
+			return;
+		}
+		this._contextKeyService.bufferChangeEvents(() => {
+			this._resourceKey.set(value);
+			this._schemeKey.set(value ? value.scheme : null);
+			this._filenameKey.set(value ? basename(value) : null);
+			this._dirnameKey.set(value ? dirname(value).fsPath : null);
+			this._pathKey.set(value ? value.fsPath : null);
+			this._setLangId();
+			this._extensionKey.set(value ? extname(value) : null);
+			this._hasResource.set(Boolean(value));
+			this._isFileSystemResource.set(value ? this._fileService.hasProvider(value) : false);
+		});
 	}
 
 	reset(): void {
@@ -102,22 +125,7 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 	}
 
 	get(): URI | undefined {
-		return withNullAsUndefined(this._resourceKey.get());
-	}
-
-	private static _uriEquals(a: URI | undefined | null, b: URI | undefined | null): boolean {
-		if (a === b) {
-			return true;
-		}
-		if (!a || !b) {
-			return false;
-		}
-		return a.scheme === b.scheme // checks for not equals (fail fast)
-			&& a.authority === b.authority
-			&& a.path === b.path
-			&& a.query === b.query
-			&& a.fragment === b.fragment
-			&& a.toString() === b.toString(); // for equal we use the normalized toString-form
+		return this._resourceKey.get() ?? undefined;
 	}
 }
 

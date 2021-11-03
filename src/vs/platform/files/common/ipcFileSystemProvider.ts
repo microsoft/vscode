@@ -7,7 +7,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { canceled } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { newWriteableStream, ReadableStreamEventPayload, ReadableStreamEvents } from 'vs/base/common/stream';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -19,13 +19,13 @@ import { createFileSystemProviderError, FileChangeType, FileDeleteOptions, FileO
  * An implementation of a file system provider that is backed by a `IChannel`
  * and thus implemented via IPC on a different process.
  */
-export abstract class IPCFileSystemProvider extends Disposable implements
+export class IPCFileSystemProvider extends Disposable implements
 	IFileSystemProviderWithFileReadWriteCapability,
 	IFileSystemProviderWithOpenReadWriteCloseCapability,
 	IFileSystemProviderWithFileReadStreamCapability,
 	IFileSystemProviderWithFileFolderCopyCapability {
 
-	constructor(private readonly channel: IChannel) {
+	constructor(private readonly channel: IChannel, private readonly extraCapabilities: { trash?: boolean, pathCaseSensitive?: boolean }) {
 		super();
 
 		this.registerFileChangeListeners();
@@ -33,24 +33,28 @@ export abstract class IPCFileSystemProvider extends Disposable implements
 
 	//#region File Capabilities
 
-	private readonly _onDidChangeCapabilities = this._register(new Emitter<void>());
-	readonly onDidChangeCapabilities = this._onDidChangeCapabilities.event;
+	readonly onDidChangeCapabilities: Event<void> = Event.None;
 
-	private _capabilities = FileSystemProviderCapabilities.FileReadWrite
-		| FileSystemProviderCapabilities.FileOpenReadWriteClose
-		| FileSystemProviderCapabilities.FileReadStream
-		| FileSystemProviderCapabilities.FileFolderCopy
-		| FileSystemProviderCapabilities.FileWriteUnlock;
-	get capabilities(): FileSystemProviderCapabilities { return this._capabilities; }
+	private _capabilities: FileSystemProviderCapabilities | undefined;
+	get capabilities(): FileSystemProviderCapabilities {
+		if (!this._capabilities) {
+			this._capabilities =
+				FileSystemProviderCapabilities.FileReadWrite |
+				FileSystemProviderCapabilities.FileOpenReadWriteClose |
+				FileSystemProviderCapabilities.FileReadStream |
+				FileSystemProviderCapabilities.FileFolderCopy |
+				FileSystemProviderCapabilities.FileWriteUnlock;
 
-	protected setCaseSensitive(isCaseSensitive: boolean) {
-		if (isCaseSensitive) {
-			this._capabilities |= FileSystemProviderCapabilities.PathCaseSensitive;
-		} else {
-			this._capabilities &= ~FileSystemProviderCapabilities.PathCaseSensitive;
+			if (this.extraCapabilities.pathCaseSensitive) {
+				this._capabilities |= FileSystemProviderCapabilities.PathCaseSensitive;
+			}
+
+			if (this.extraCapabilities.trash) {
+				this._capabilities |= FileSystemProviderCapabilities.Trash;
+			}
 		}
 
-		this._onDidChangeCapabilities.fire();
+		return this._capabilities;
 	}
 
 	//#endregion

@@ -190,6 +190,29 @@ suite('vscode API - window', () => {
 		}
 	});
 
+	test('editor, opening multiple at the same time #134786', async () => {
+		const fileA = await createRandomFile();
+		const fileB = await createRandomFile();
+		const fileC = await createRandomFile();
+
+		const testFiles = [fileA, fileB, fileC];
+		const result = await Promise.all(testFiles.map(async testFile => {
+			try {
+				const doc = await workspace.openTextDocument(testFile);
+				const editor = await window.showTextDocument(doc);
+
+				return editor.document.uri;
+			} catch (error) {
+				return undefined;
+			}
+		}));
+
+		assert.strictEqual(result.length, 3);
+		assert.strictEqual(result[0], undefined);
+		assert.strictEqual(result[1], undefined);
+		assert.strictEqual(result[2]?.toString(), fileC.toString());
+	});
+
 	test('default column when opening a file', async () => {
 		const [docA, docB, docC] = await Promise.all([
 			workspace.openTextDocument(await createRandomFile()),

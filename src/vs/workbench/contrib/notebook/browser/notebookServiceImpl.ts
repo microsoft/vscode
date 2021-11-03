@@ -174,7 +174,7 @@ export class NotebookProviderInfoStore extends Disposable {
 					cellOptions = { resource, options };
 				}
 
-				const notebookOptions: INotebookEditorOptions = { ...options, cellOptions };
+				const notebookOptions = { ...options, cellOptions } as INotebookEditorOptions;
 				return { editor: NotebookEditorInput.create(this._instantiationService, notebookUri, notebookProviderInfo.id), options: notebookOptions };
 			};
 			const notebookUntitledEditorFactory: UntitledEditorInputFactoryFunction = async ({ resource, options }) => {
@@ -314,8 +314,8 @@ export class NotebookOutputRendererInfoStore {
 		const enum ReuseOrder {
 			PreviouslySelected = 1 << 8,
 			SameExtensionAsNotebook = 2 << 8,
-			BuiltIn = 3 << 8,
-			OtherRenderer = 4 << 8
+			OtherRenderer = 3 << 8,
+			BuiltIn = 4 << 8,
 		}
 
 		const preferred = notebookProviderInfo && this.preferredMimetype.getValue()[notebookProviderInfo.id]?.[mimeType];
@@ -333,7 +333,7 @@ export class NotebookOutputRendererInfoStore {
 					? ReuseOrder.PreviouslySelected
 					: renderer.extensionId.value === notebookProviderInfo?.extension?.value
 						? ReuseOrder.SameExtensionAsNotebook
-						: ReuseOrder.BuiltIn;
+						: renderer.isBuiltin ? ReuseOrder.BuiltIn : ReuseOrder.OtherRenderer;
 				return {
 					ordered: { mimeType, rendererId: renderer.id, isTrusted: true },
 					score: reuseScore | ownScore,

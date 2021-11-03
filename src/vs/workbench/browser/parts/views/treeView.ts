@@ -922,10 +922,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 		return {
 			markdown: (token: CancellationToken): Promise<IMarkdownString | string | undefined> => {
-				// eslint-disable-next-line no-async-promise-executor
-				return new Promise<IMarkdownString | string | undefined>(async (resolve) => {
-					await node.resolve(token);
-					resolve(node.tooltip);
+				return new Promise<IMarkdownString | string | undefined>((resolve) => {
+					node.resolve(token).then(() => resolve(node.tooltip));
 				});
 			},
 			markdownNotSupportedFallback: resource ? undefined : label ?? '' // Passing undefined as the fallback for a resource falls back to the old native hover

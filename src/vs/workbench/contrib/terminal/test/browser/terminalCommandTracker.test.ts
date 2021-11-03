@@ -5,12 +5,12 @@
 
 import * as assert from 'assert';
 import { Terminal } from 'xterm';
-import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/addons/commandTrackerAddon';
+import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandTrackerAddon';
 import { isWindows } from 'vs/base/common/platform';
-import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
+import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 
 interface TestTerminal extends Terminal {
-	_core: XTermCore;
+	_core: IXtermCore;
 }
 
 const ROWS = 10;

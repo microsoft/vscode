@@ -25,6 +25,16 @@ export interface ColorContribution {
 	readonly deprecationMessage: string | undefined;
 }
 
+/**
+ * Returns the css variable name for the given color identifier. Dots (`.`) are replaced with hyphens (`-`) and
+ * everything is prefixed with `--vscode-`.
+ *
+ * @sample `editorSuggestWidget.background` is `--vscode-editorSuggestWidget-background`.
+ */
+export function asCssVariableName(colorIdent: ColorIdentifier): string {
+	return `--vscode-${colorIdent.replace('.', '-')}`;
+}
+
 export const enum ColorTransformType {
 	Darken,
 	Lighten,

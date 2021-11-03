@@ -95,7 +95,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 			return; // no auto save for readonly or untitled editors
 		}
 
-		// Determine if we need to save all. In case of a window focus change we also save if 
+		// Determine if we need to save all. In case of a window focus change we also save if
 		// auto save mode is configured to be ON_FOCUS_CHANGE (editor focus change)
 		const mode = this.filesConfigurationService.getAutoSaveMode();
 		if (
@@ -115,7 +115,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 	private onAutoSaveConfigurationChange(config: IAutoSaveConfiguration, fromEvent: boolean): void {
 
 		// Update auto save after delay config
-		this.autoSaveAfterDelay = (typeof config.autoSaveDelay === 'number') && config.autoSaveDelay > 0 ? config.autoSaveDelay : undefined;
+		this.autoSaveAfterDelay = (typeof config.autoSaveDelay === 'number') && config.autoSaveDelay >= 0 ? config.autoSaveDelay : undefined;
 
 		// Trigger a save-all when auto save is enabled
 		if (fromEvent) {

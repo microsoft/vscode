@@ -113,6 +113,9 @@ class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActionButton
 	) { }
 
 	renderTemplate(container: HTMLElement): ActionButtonTemplate {
+		// Disable hover for list item
+		container.parentElement!.parentElement!.classList.add('force-no-hover');
+
 		const buttonContainer = append(container, $('.button-container'));
 		const actionButton = new ScmActionButton(buttonContainer, this.commandService, this.themeService, this.notificationService);
 
@@ -166,6 +169,9 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 	renderTemplate(container: HTMLElement): InputTemplate {
 		// hack
 		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
+
+		// Disable hover for list item
+		container.parentElement!.parentElement!.classList.add('force-no-hover');
 
 		const disposables = new DisposableStore();
 		const inputElement = append(container, $('.scm-input'));
@@ -409,26 +415,26 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 		let matches: IMatch[] | undefined;
 		let descriptionMatches: IMatch[] | undefined;
+		let strikethrough: boolean | undefined;
 
 		if (ResourceTree.isResourceNode(resourceOrFolder)) {
 			if (resourceOrFolder.element) {
 				const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.element.resourceGroup.provider);
 				elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceMenu(resourceOrFolder.element), template.actionBar));
-				template.name.classList.toggle('strike-through', resourceOrFolder.element.decorations.strikeThrough);
 				template.element.classList.toggle('faded', resourceOrFolder.element.decorations.faded);
+				strikethrough = resourceOrFolder.element.decorations.strikeThrough;
 			} else {
 				matches = createMatches(node.filterData as FuzzyScore | undefined);
 				const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.context.provider);
 				elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceFolderMenu(resourceOrFolder.context), template.actionBar));
-				template.name.classList.remove('strike-through');
 				template.element.classList.remove('faded');
 			}
 		} else {
 			[matches, descriptionMatches] = this._processFilterData(uri, node.filterData);
 			const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.resourceGroup.provider);
 			elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceMenu(resourceOrFolder), template.actionBar));
-			template.name.classList.toggle('strike-through', resourceOrFolder.decorations.strikeThrough);
 			template.element.classList.toggle('faded', resourceOrFolder.decorations.faded);
+			strikethrough = resourceOrFolder.decorations.strikeThrough;
 		}
 
 		const render = () => {
@@ -440,7 +446,8 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 				hidePath: viewModel.mode === ViewModelMode.Tree,
 				fileKind,
 				matches,
-				descriptionMatches
+				descriptionMatches,
+				strikethrough
 			});
 
 			if (icon) {

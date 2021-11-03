@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { IndexedDB } from 'vs/base/browser/indexedDB';
 import { bufferToReadable, bufferToStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basename, joinPath } from 'vs/base/common/resources';
-import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { flakySuite } from 'vs/base/test/common/testUtils';
-import { IIndexedDBFileSystemProvider, IndexedDB, INDEXEDDB_LOGS_OBJECT_STORE, INDEXEDDB_USERDATA_OBJECT_STORE } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
+import { IndexedDBFileSystemProvider } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
 import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileSystemProviderErrorCode, FileType, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 
-flakySuite('IndexedDB File Service', function () {
+flakySuite('IndexedDBFileSystemProvider', function () {
 
 	const logSchema = 'logs';
 
 	let service: FileService;
-	let logFileProvider: IIndexedDBFileSystemProvider;
-	let userdataFileProvider: IIndexedDBFileSystemProvider;
+	let logFileProvider: IndexedDBFileSystemProvider;
+	let userdataFileProvider: IndexedDBFileSystemProvider;
 	const testDir = '/';
 
 	const logfileURIFromPaths = (paths: string[]) => joinPath(URI.from({ scheme: logSchema, path: testDir }), ...paths);
@@ -67,11 +67,13 @@ flakySuite('IndexedDB File Service', function () {
 		service = new FileService(logService);
 		disposables.add(service);
 
-		logFileProvider = assertIsDefined(await new IndexedDB().createFileSystemProvider(Schemas.file, INDEXEDDB_LOGS_OBJECT_STORE, false));
+		const indexedDB = await IndexedDB.create('vscode-web-db-test', 1, ['vscode-userdata-store', 'vscode-logs-store']);
+
+		logFileProvider = new IndexedDBFileSystemProvider(logSchema, indexedDB, 'vscode-logs-store', false);
 		disposables.add(service.registerProvider(logSchema, logFileProvider));
 		disposables.add(logFileProvider);
 
-		userdataFileProvider = assertIsDefined(await new IndexedDB().createFileSystemProvider(logSchema, INDEXEDDB_USERDATA_OBJECT_STORE, true));
+		userdataFileProvider = new IndexedDBFileSystemProvider(Schemas.userData, indexedDB, 'vscode-userdata-store', true);
 		disposables.add(service.registerProvider(Schemas.userData, userdataFileProvider));
 		disposables.add(userdataFileProvider);
 	};

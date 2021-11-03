@@ -12,11 +12,8 @@ import { joinPath } from 'vs/base/common/resources';
 import { isString } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { createFileSystemProviderError, FileChangeType, FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
-
-const INDEXEDDB_VSCODE_DB = 'vscode-web-db';
-export const INDEXEDDB_USERDATA_OBJECT_STORE = 'vscode-userdata-store';
-export const INDEXEDDB_LOGS_OBJECT_STORE = 'vscode-logs-store';
+import { createFileSystemProviderError, FileChangeType, FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileChange, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+import { IndexedDB } from 'vs/base/browser/indexedDB';
 
 // Standard FS Errors (expected to be thrown in production when invalid FS operations are requested)
 const ERR_FILE_NOT_FOUND = createFileSystemProviderError(localize('fileNotExists', "File does not exist"), FileSystemProviderErrorCode.FileNotFound);
@@ -26,98 +23,6 @@ const ERR_DIR_NOT_EMPTY = createFileSystemProviderError(localize('dirIsNotEmpty'
 
 // Arbitrary Internal Errors (should never be thrown in production)
 const ERR_UNKNOWN_INTERNAL = (message: string) => createFileSystemProviderError(localize('internal', "Internal error occurred in IndexedDB File System Provider. ({0})", message), FileSystemProviderErrorCode.Unknown);
-
-class MissingStoresError extends Error {
-	constructor(readonly db: IDBDatabase) {
-		super('Missing stores');
-	}
-}
-
-export class IndexedDB {
-
-	private indexedDBPromise: Promise<IDBDatabase | null>;
-
-	constructor() {
-		this.indexedDBPromise = this.openIndexedDB(INDEXEDDB_VSCODE_DB, 2, [INDEXEDDB_USERDATA_OBJECT_STORE, INDEXEDDB_LOGS_OBJECT_STORE]);
-	}
-
-	async createFileSystemProvider(scheme: string, store: string, watchCrossWindowChanges: boolean): Promise<IIndexedDBFileSystemProvider | null> {
-		let fsp: IIndexedDBFileSystemProvider | null = null;
-		const indexedDB = await this.indexedDBPromise;
-		if (indexedDB) {
-			if (indexedDB.objectStoreNames.contains(store)) {
-				fsp = new IndexedDBFileSystemProvider(scheme, indexedDB, store, watchCrossWindowChanges);
-			} else {
-				console.error(`Error while creating indexedDB filesystem provider. Could not find ${store} object store`);
-			}
-		}
-		return fsp;
-	}
-
-	private async openIndexedDB(name: string, version: number, stores: string[]): Promise<IDBDatabase> {
-		try {
-			return await this.createIndexedDB(name, version, stores);
-		} catch (err) {
-			if (err instanceof MissingStoresError) {
-				console.info(`Attempting to recreate the indexedDB once.`, name);
-
-				try {
-					// Try to delete the db
-					await this.deleteIndexedDB(err.db);
-				} catch (error) {
-					console.error(`Error while deleting the indexedDB`, getErrorMessage(error));
-					throw error;
-				}
-
-				return await this.createIndexedDB(name, version, stores);
-			}
-
-			throw err;
-		}
-	}
-
-	private createIndexedDB(name: string, version: number, stores: string[]): Promise<IDBDatabase> {
-		return new Promise((c, e) => {
-			const request = window.indexedDB.open(name, version);
-			request.onerror = () => e(request.error);
-			request.onsuccess = () => {
-				const db = request.result;
-				for (const store of stores) {
-					if (!db.objectStoreNames.contains(store)) {
-						console.error(`Error while opening indexedDB. Could not find ${store} object store`);
-						e(new MissingStoresError(db));
-						return;
-					}
-				}
-				c(db);
-			};
-			request.onupgradeneeded = () => {
-				const db = request.result;
-				for (const store of stores) {
-					if (!db.objectStoreNames.contains(store)) {
-						db.createObjectStore(store);
-					}
-				}
-			};
-		});
-	}
-
-	private deleteIndexedDB(indexedDB: IDBDatabase): Promise<void> {
-		return new Promise((c, e) => {
-			// Close any opened connections
-			indexedDB.close();
-
-			// Delete the db
-			const deleteRequest = window.indexedDB.deleteDatabase(indexedDB.name);
-			deleteRequest.onerror = (err) => e(deleteRequest.error);
-			deleteRequest.onsuccess = () => c();
-		});
-	}
-}
-
-export interface IIndexedDBFileSystemProvider extends Disposable, IFileSystemProviderWithFileReadWriteCapability {
-	reset(): Promise<void>;
-}
 
 type DirEntry = [string, FileType];
 
@@ -319,7 +224,7 @@ class IndexedDBChangesBroadcastChannel extends Disposable {
 
 }
 
-class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSystemProvider {
+export class IndexedDBFileSystemProvider extends Disposable {
 
 	readonly capabilities: FileSystemProviderCapabilities =
 		FileSystemProviderCapabilities.FileReadWrite
@@ -335,7 +240,7 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 	private cachedFiletree: Promise<IndexedDBFileSystemNode> | undefined;
 	private writeManyThrottler: Throttler;
 
-	constructor(scheme: string, private readonly database: IDBDatabase, private readonly store: string, watchCrossWindowChanges: boolean) {
+	constructor(scheme: string, private indexedDB: IndexedDB, private readonly store: string, watchCrossWindowChanges: boolean) {
 		super();
 		this.writeManyThrottler = new Throttler();
 
@@ -400,29 +305,19 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 	}
 
 	async readFile(resource: URI): Promise<Uint8Array> {
-		const buffer = await new Promise<Uint8Array>((c, e) => {
-			const transaction = this.database.transaction([this.store]);
-			transaction.oncomplete = () => {
-				if (request.result instanceof Uint8Array) {
-					c(request.result);
-				} else if (typeof request.result === 'string') {
-					c(VSBuffer.fromString(request.result).buffer);
-				}
-				else {
-					if (request.result === undefined) {
-						e(ERR_FILE_NOT_FOUND);
-					} else {
-						e(ERR_UNKNOWN_INTERNAL(`IndexedDB entry at "${resource.path}" in unexpected format`));
-					}
-				}
-			};
-			transaction.onerror = () => e(transaction.error);
+		const result = await this.indexedDB.runInTransaction(this.store, 'readonly', objectStore => objectStore.get(resource.path));
+		if (result === undefined) {
+			throw ERR_FILE_NOT_FOUND;
+		}
+		const buffer = result instanceof Uint8Array ? result : isString(result) ? VSBuffer.fromString(result).buffer : undefined;
+		if (buffer === undefined) {
+			throw ERR_UNKNOWN_INTERNAL(`IndexedDB entry at "${resource.path}" in unexpected format`);
+		}
 
-			const objectStore = transaction.objectStore(this.store);
-			const request = objectStore.get(resource.path);
-		});
+		// update cache
+		const fileTree = await this.getFiletree();
+		fileTree.add(resource.path, { type: 'file', size: buffer.byteLength });
 
-		(await this.getFiletree()).add(resource.path, { type: 'file', size: buffer.byteLength });
 		return buffer;
 	}
 
@@ -502,70 +397,37 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 
 	private getFiletree(): Promise<IndexedDBFileSystemNode> {
 		if (!this.cachedFiletree) {
-			this.cachedFiletree = new Promise((c, e) => {
-				const transaction = this.database.transaction([this.store]);
-				transaction.oncomplete = () => {
-					const rootNode = new IndexedDBFileSystemNode({
-						children: new Map(),
-						path: '',
-						type: FileType.Directory
-					});
-					const keys = request.result.map(key => key.toString());
-					keys.forEach(key => rootNode.add(key, { type: 'file' }));
-					c(rootNode);
-				};
-				transaction.onerror = () => e(transaction.error);
-
-				const objectStore = transaction.objectStore(this.store);
-				const request = objectStore.getAllKeys();
-			});
+			this.cachedFiletree = (async () => {
+				const rootNode = new IndexedDBFileSystemNode({
+					children: new Map(),
+					path: '',
+					type: FileType.Directory
+				});
+				const result = await this.indexedDB.runInTransaction(this.store, 'readonly', objectStore => objectStore.getAllKeys());
+				const keys = result.map(key => key.toString());
+				keys.forEach(key => rootNode.add(key, { type: 'file' }));
+				return rootNode;
+			})();
 		}
 		return this.cachedFiletree;
 	}
 
 	private fileWriteBatch: { resource: URI, content: Uint8Array }[] = [];
 	private async writeMany() {
-		return new Promise<void>((c, e) => {
-			const fileBatch = this.fileWriteBatch;
-			this.fileWriteBatch = [];
-			if (fileBatch.length === 0) {
-				return c();
-			}
-
-			const transaction = this.database.transaction([this.store], 'readwrite');
-			transaction.oncomplete = () => c();
-			transaction.onerror = () => e(transaction.error);
-			const objectStore = transaction.objectStore(this.store);
-			for (const entry of fileBatch) {
-				objectStore.put(entry.content, entry.resource.path);
-			}
-		});
+		if (this.fileWriteBatch.length) {
+			const fileBatch = this.fileWriteBatch.splice(0, this.fileWriteBatch.length);
+			await this.indexedDB.runInTransaction(this.store, 'readwrite', objectStore => fileBatch.map(entry => objectStore.put(entry.content, entry.resource.path)));
+		}
 	}
 
-	private deleteKeys(keys: string[]): Promise<void> {
-		return new Promise((c, e) => {
-			if (keys.length === 0) {
-				return c();
-			}
-
-			const transaction = this.database.transaction([this.store], 'readwrite');
-			transaction.oncomplete = () => c();
-			transaction.onerror = () => e(transaction.error);
-			const objectStore = transaction.objectStore(this.store);
-			for (const key of keys) {
-				objectStore.delete(key);
-			}
-		});
+	private async deleteKeys(keys: string[]): Promise<void> {
+		if (keys.length) {
+			await this.indexedDB.runInTransaction(this.store, 'readwrite', objectStore => keys.map(key => objectStore.delete(key)));
+		}
 	}
 
-	reset(): Promise<void> {
-		return new Promise((c, e) => {
-			const transaction = this.database.transaction([this.store], 'readwrite');
-			transaction.oncomplete = () => c();
-			transaction.onerror = () => e(transaction.error);
-
-			const objectStore = transaction.objectStore(this.store);
-			objectStore.clear();
-		});
+	async reset(): Promise<void> {
+		await this.indexedDB.runInTransaction(this.store, 'readwrite', objectStore => objectStore.clear());
 	}
+
 }

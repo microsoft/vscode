@@ -92,6 +92,10 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		const disposables = new DisposableStore();
 
 		const disposeWorker = (reason: string) => {
+			if (!this.isAlive()) {
+				return; // the shared process is already gone, no need to dispose anything
+			}
+
 			this.logService.trace(`SharedProcess: disposing worker (reason: '${reason}')`, configuration);
 
 			// Only once!
@@ -152,14 +156,13 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 	}
 
 	private send(channel: string, ...args: any[]): void {
-		const window = this.window;
-		if (!window || window.isDestroyed() || window.webContents.isDestroyed()) {
+		if (!this.isAlive()) {
 			this.logService.warn(`Sending IPC message to channel '${channel}' for shared process window that is destroyed`);
 			return;
 		}
 
 		try {
-			window.webContents.send(channel, ...args);
+			this.window?.webContents.send(channel, ...args);
 		} catch (error) {
 			this.logService.warn(`Error sending IPC message to channel '${channel}' of shared process: ${toErrorMessage(error)}`);
 		}
@@ -304,5 +307,14 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 
 	isVisible(): boolean {
 		return this.window?.isVisible() ?? false;
+	}
+
+	private isAlive(): boolean {
+		const window = this.window;
+		if (!window) {
+			return false;
+		}
+
+		return !window.isDestroyed() && !window.webContents.isDestroyed();
 	}
 }
