@@ -90,10 +90,6 @@ export class TerminalProfileService implements ITerminalProfileService {
 		return this._defaultProfileName;
 	}
 
-	shouldShowWebTerminals(): boolean {
-		return this._webExtensionContributedProfileContextKey.get() || false;
-	}
-
 	@throttle(2000)
 	refreshAvailableProfiles(): void {
 		this._refreshAvailableProfilesNow();
