@@ -20,6 +20,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import * as perf from 'vs/base/common/performance';
 import { assertIsDefined } from 'vs/base/common/types';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 export class PartsSplash {
 
@@ -43,10 +44,10 @@ export class PartsSplash {
 			perf.mark('code/didRemovePartsSplash');
 		});
 
-		Event.debounce(Event.any(
-			onDidChangeFullscreen,
-			editorGroupsService.onDidLayout
-		), () => { }, 800)(this._savePartsSplash, this, this._disposables);
+		const savePartsSplashSoon = new RunOnceScheduler(() => this._savePartsSplash(), 800);
+		Event.any(onDidChangeFullscreen, editorGroupsService.onDidLayout)(() => {
+			savePartsSplashSoon.schedule();
+		}, undefined, this._disposables);
 
 		configService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('window.titleBarStyle')) {
@@ -58,6 +59,10 @@ export class PartsSplash {
 		_themeService.onDidColorThemeChange(_ => {
 			this._savePartsSplash();
 		}, this, this._disposables);
+	}
+
+	dispose(): void {
+		this._disposables.dispose();
 	}
 
 	private _savePartsSplash() {
@@ -104,9 +109,5 @@ export class PartsSplash {
 		if (defaultStyles.length) {
 			document.head.removeChild(defaultStyles[0]);
 		}
-	}
-
-	dispose(): void {
-		this._disposables.dispose();
 	}
 }
