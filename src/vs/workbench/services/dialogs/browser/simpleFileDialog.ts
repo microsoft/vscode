@@ -650,7 +650,11 @@ export class SimpleFileDialog {
 			this.activeItem = quickPickItem;
 			// Changing the active items will trigger the onDidActiveItemsChanged. Clear the autocomplete first, then set it after.
 			this.autoCompletePathSegment = '';
-			this.filePickBox.activeItems = [quickPickItem];
+			if (quickPickItem.isFolder || !this.trailing) {
+				this.filePickBox.activeItems = [quickPickItem];
+			} else {
+				this.filePickBox.activeItems = [];
+			}
 			return true;
 		} else if (force && (!equalsIgnoreCase(this.basenameWithTrailingSlash(quickPickItem.uri), (this.userEnteredPathSegment + this.autoCompletePathSegment)))) {
 			this.userEnteredPathSegment = '';
