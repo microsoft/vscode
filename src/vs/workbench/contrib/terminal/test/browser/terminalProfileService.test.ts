@@ -98,7 +98,7 @@ let jsdebugProfile = {
 };
 
 
-suite('TerminalProfileService', () => {
+suite.only('TerminalProfileService', () => {
 	let configurationService: TestConfigurationService;
 	let terminalInstanceService: TestTerminalInstanceService;
 	let terminalProfileService: TestTerminalProfileService;
@@ -284,20 +284,16 @@ suite('TerminalProfileService', () => {
 		deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
 		deepStrictEqual(terminalProfileService.contributedProfiles, [jsdebugProfile]);
 	});
-	// TODO: @meganrogge countCalled assertion is failing
-	test.skip('should call refreshAvailableProfiles again if no profiles are returned from local/remoteTerminalService', async () => {
+	test('should call refreshAvailableProfiles again if no profiles are returned from local/remoteTerminalService', async () => {
 		terminalInstanceService.setReturnNone();
 		const calls: ITerminalProfile[] = [];
 		let countCalled = 0;
-		await new Promise<void>(r => {
-			terminalProfileService.onDidChangeAvailableProfiles(e => {
-				calls.push(...e);
-				countCalled++;
-				r();
-			});
+		terminalProfileService.onDidChangeAvailableProfiles(e => {
+			calls.push(...e);
+			countCalled++;
 		});
-		await terminalProfileService.refreshAndAwaitAvailableProfiles();
-		strictEqual(countCalled, 1);
+		await terminalProfileService.hasRefreshedProfiles;
+		strictEqual(countCalled, 2);
 		deepStrictEqual(calls, [powershellProfile]);
 		deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
 		deepStrictEqual(terminalProfileService.contributedProfiles, [jsdebugProfile]);

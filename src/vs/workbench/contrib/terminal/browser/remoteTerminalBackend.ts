@@ -47,8 +47,6 @@ export class RemoteTerminalBackendContribution implements IWorkbenchContribution
 }
 
 class RemoteTerminalBackend extends Disposable implements ITerminalBackend {
-	declare _serviceBrand: undefined;
-
 	private readonly _ptys: Map<number, RemotePty> = new Map();
 	private readonly _remoteTerminalChannel: RemoteTerminalChannelClient | null;
 	private _isPtyHostUnresponsive: boolean = false;

@@ -100,7 +100,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 			// since terminal creation can't happen in this case and users
 			// might not think to try changing the config
 			this._ifNoProfilesTryAgain = false;
-			this._refreshAvailableProfilesNow();
+			await this._refreshAvailableProfilesNow();
 		}
 		const profilesChanged = !(equals(profiles, this._availableProfiles, profilesEqual));
 		const contributedProfilesChanged = await this._updateContributedProfiles();

@@ -41,8 +41,6 @@ export class LocalTerminalBackendContribution implements IWorkbenchContribution 
 }
 
 class LocalTerminalBackend extends Disposable implements ITerminalBackend {
-	declare _serviceBrand: undefined;
-
 	private readonly _ptys: Map<number, LocalPty> = new Map();
 	private _isPtyHostUnresponsive: boolean = false;
 
