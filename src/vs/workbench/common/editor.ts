@@ -1133,6 +1133,11 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 			return;
 		}
 
+		const fileStat = await fileService.resolve(resource);
+		if (fileStat.isDirectory) {
+			return;
+		}
+
 		const canHandleResource = await fileService.canHandleResource(resource);
 		if (!canHandleResource) {
 			return;
