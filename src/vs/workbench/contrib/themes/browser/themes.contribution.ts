@@ -18,14 +18,19 @@ import { Color } from 'vs/base/common/color';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { colorThemeSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
-import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { DEFAULT_PRODUCT_ICON_THEME_ID } from 'vs/workbench/services/themes/browser/productIconThemeData';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { Codicon } from 'vs/base/common/codicons';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
+export const manageExtensionIcon = registerIcon('theme-selection-manage-extension', Codicon.gear, localize('manageExtensionIcon', 'Icon for the \'Manage\' action in the theme selection quick pick.'));
 
 export class SelectColorThemeAction extends Action {
 
@@ -33,6 +38,7 @@ export class SelectColorThemeAction extends Action {
 	static readonly LABEL = localize('selectTheme.label', "Color Theme");
 
 	static readonly INSTALL_ADDITIONAL = localize('installColorThemes', "Install Additional Color Themes...");
+
 
 	constructor(
 		id: string,
@@ -42,7 +48,8 @@ export class SelectColorThemeAction extends Action {
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IProgressService private progressService: IProgressService
 	) {
 		super(id, label);
 	}
@@ -76,9 +83,6 @@ export class SelectColorThemeAction extends Action {
 				}, applyTheme ? 0 : 200);
 			};
 
-			const mpQueryDelayer = new ThrottledDelayer<void>(200);
-			let tokenSource: CancellationTokenSource | undefined;
-
 			return new Promise((s, _) => {
 				let isCompleted = false;
 
@@ -90,19 +94,33 @@ export class SelectColorThemeAction extends Action {
 				quickpick.placeholder = localize('themes.selectTheme', "Select Color Theme (Up/Down Keys to Preview)");
 				quickpick.activeItems = [picks[autoFocusIndex] as ThemeItem];
 				quickpick.canSelectMany = false;
-				quickpick.onDidAccept(_ => {
+				quickpick.onDidAccept(async _ => {
 					const themeItem = quickpick.activeItems[0];
 					if (!themeItem || themeItem.theme === undefined) { // 'pick in marketplace' entry
 						openExtensionViewlet(this.paneCompositeService, `category:themes ${quickpick.value}`);
 					} else {
+						let themeToSet = themeItem.theme;
 						if (themeItem.galleryExtension) {
-							this.extensionManagementService.installFromGallery(themeItem.galleryExtension);
+							const success = await this.installExtension(themeItem.galleryExtension);
+							if (!success) {
+								themeToSet = currentTheme;
+							}
 						}
-						selectTheme(themeItem.theme, true);
+						selectTheme(themeToSet, true);
 					}
 					isCompleted = true;
 					quickpick.hide();
 					s();
+				});
+				quickpick.onDidTriggerItemButton(e => {
+					if (isItem(e.item)) {
+						const extensionId = e.item.theme?.extensionData?.extensionId;
+						if (extensionId) {
+							openExtensionViewlet(this.paneCompositeService, `@id:${extensionId}`);
+						} else {
+							openExtensionViewlet(this.paneCompositeService, `category:themes ${quickpick.value}`);
+						}
+					}
 				});
 
 				quickpick.onDidChangeActive(themes => selectTheme(themes[0]?.theme, false));
@@ -116,11 +134,16 @@ export class SelectColorThemeAction extends Action {
 				quickpick.show();
 
 				if (this.extensionGalleryService.isEnabled()) {
+					const mpQueryDelayer = new ThrottledDelayer<void>(200);
+					let tokenSource: CancellationTokenSource | undefined;
+
 					const marketplaceThemes = new MarketplaceThemes(this.extensionGalleryService, this.extensionManagementService, this.themeService, this.logService);
 
-					const searchingItem: ThemeItem = { label: '$(sync~spin) Searching for themes...', id: undefined, alwaysShow: true };
-
-					const updateItemsPreserveSelection = (items: QuickPickInput<ThemeItem>[]) => {
+					const updateItems = (searchingOngoing: boolean) => {
+						const items = picks.concat(...marketplaceThemes.themes);
+						if (searchingOngoing) {
+							items.push({ label: '$(sync~spin) Searching for themes...', id: undefined, alwaysShow: true });
+						}
 						const activeItemId = quickpick.activeItems[0]?.id;
 						const newActiveItem = activeItemId ? items.find(i => isItem(i) && i.id === activeItemId) : undefined;
 
@@ -131,21 +154,16 @@ export class SelectColorThemeAction extends Action {
 					};
 
 					const searchMarketPlace = () => {
-						console.log('trigger ' + quickpick.value);
 						if (tokenSource) {
 							tokenSource.cancel();
 							tokenSource = undefined;
 						}
 						mpQueryDelayer.trigger(async () => {
-
 							if (!isCompleted) {
-								updateItemsPreserveSelection(picks.concat(...marketplaceThemes.themes, searchingItem)); // add the spinning icon
-
+								updateItems(true); // add the spinning icon
 								tokenSource = new CancellationTokenSource();
-								await marketplaceThemes.triggerSearch(quickpick.value, tokenSource.token, () => {
-									updateItemsPreserveSelection(picks.concat(...marketplaceThemes.themes, searchingItem));
-								});
-								updateItemsPreserveSelection(picks.concat(...marketplaceThemes.themes));
+								await marketplaceThemes.triggerSearch(quickpick.value, tokenSource.token, () => updateItems(true));
+								updateItems(false);
 							}
 						});
 					};
@@ -156,6 +174,21 @@ export class SelectColorThemeAction extends Action {
 		});
 	}
 
+	private async installExtension(galleryExtension: IGalleryExtension) {
+		try {
+			openExtensionViewlet(this.paneCompositeService, `@id:${galleryExtension.identifier.id}`);
+			await this.progressService.withProgress({
+				location: ProgressLocation.Notification,
+				title: localize('installing extensions', "Installing Extension {0}...", galleryExtension.displayName)
+			}, () => {
+				return this.extensionManagementService.installFromGallery(galleryExtension);
+			});
+			return true;
+		} catch (e) {
+			this.logService.error(`Problem installing extension ${galleryExtension.identifier.id}`, e);
+			return false;
+		}
+	}
 
 }
 
@@ -185,7 +218,7 @@ class MarketplaceThemes {
 	private marketplaceExtensions: Set<string> = new Set();
 	private marketplaceThemes: ThemeItem[] = [];
 
-	public get themes() {
+	public get themes(): ThemeItem[] {
 		return this.marketplaceThemes;
 	}
 
@@ -211,7 +244,7 @@ class MarketplaceThemes {
 						this.marketplaceExtensions.add(ext.identifier.id);
 						const themes = await this.themeService.getMarketplaceColorThemes(ext.identifier.id, ext.version);
 						for (const theme of themes) {
-							this.marketplaceThemes.push({ id: theme.id, theme: theme, label: `${theme.label}`, description: `${ext.displayName}`, galleryExtension: ext });
+							this.marketplaceThemes.push({ id: theme.id, theme: theme, label: theme.label, description: `${ext.displayName} · ${ext.publisherDisplayName}`, galleryExtension: ext, buttons: [configureButton] });
 						}
 					}
 				}
@@ -368,7 +401,8 @@ function configurationEntries(label: string): QuickPickInput<ThemeItem>[] {
 		{
 			id: undefined,
 			label: label,
-			alwaysShow: true
+			alwaysShow: true,
+			buttons: [configureButton]
 		}
 	];
 
@@ -396,7 +430,11 @@ function isItem(i: QuickPickInput<ThemeItem>): i is ThemeItem {
 }
 
 function toEntry(theme: IWorkbenchTheme): ThemeItem {
-	return { id: theme.id, theme: theme, label: theme.label, description: theme.description };
+	const item: ThemeItem = { id: theme.id, theme: theme, label: theme.label, description: theme.description };
+	if (theme.extensionData) {
+		item.buttons = [configureButton];
+	}
+	return item;
 }
 
 function toEntries(themes: Array<IWorkbenchTheme>, label?: string): QuickPickInput<ThemeItem>[] {
@@ -408,6 +446,10 @@ function toEntries(themes: Array<IWorkbenchTheme>, label?: string): QuickPickInp
 	return entries;
 }
 
+const configureButton: IQuickInputButton = {
+	iconClass: ThemeIcon.asClassName(manageExtensionIcon),
+	tooltip: localize('manage extension', "Manage Extension"),
+};
 class GenerateColorThemeAction extends Action {
 
 	static readonly ID = 'workbench.action.generateColorTheme';
