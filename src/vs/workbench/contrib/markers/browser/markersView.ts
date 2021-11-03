@@ -40,7 +40,7 @@ import { ResourceLabels } from 'vs/workbench/browser/labels';
 import { IMarker, IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { MementoObject, Memento } from 'vs/workbench/common/memento';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { editorLightBulbForeground, editorLightBulbAutoFixForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -65,6 +65,10 @@ function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterab
 		return { element: m, children };
 	});
 }
+
+const markerElementIdentityProvider: IIdentityProvider<MarkerElement> = {
+	getId(element: MarkerElement): string { return element.id; }
+};
 
 export class MarkersView extends ViewPane implements IMarkersView {
 
@@ -268,7 +272,9 @@ export class MarkersView extends ViewPane implements IMarkersView {
 					} else {
 						// Update resource
 						for (const updated of markerOrChange.updated) {
-							this.tree.setChildren(updated, createResourceMarkersIterator(updated));
+							this.tree.setChildren(updated, createResourceMarkersIterator(updated), {
+								diffIdentityProvider: markerElementIdentityProvider
+							});
 							this.tree.rerender(updated);
 						}
 					}
@@ -322,7 +328,9 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		} else {
 			resourceMarkers = this.markersModel.resourceMarkers;
 		}
-		this.tree.setChildren(null, Iterable.map(resourceMarkers, m => ({ element: m, children: createResourceMarkersIterator(m) })));
+		this.tree.setChildren(null, Iterable.map(resourceMarkers, m => ({ element: m, children: createResourceMarkersIterator(m) })), {
+			diffIdentityProvider: markerElementIdentityProvider
+		});
 	}
 
 	private updateFilter() {
