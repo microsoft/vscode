@@ -52,11 +52,20 @@ class TestTerminalContributionService implements ITerminalContributionService {
 
 class TestOffProcessTerminalService implements Partial<IOffProcessTerminalService> {
 	private _profiles: ITerminalProfile[] = [];
+	private _hasReturnedNone = true;
 	async getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> {
-		return this._profiles;
+		if (this._hasReturnedNone) {
+			return this._profiles;
+		} else {
+			this._hasReturnedNone = true;
+			return [];
+		}
 	}
 	setProfiles(profiles: ITerminalProfile[]) {
 		this._profiles = profiles;
+	}
+	setReturnNone() {
+		this._hasReturnedNone = false;
 	}
 }
 
@@ -85,7 +94,7 @@ let jsdebugProfile = {
 };
 
 
-suite.only('TerminalProfileService', () => {
+suite('TerminalProfileService', () => {
 	let configurationService: TestConfigurationService;
 	let terminalProfileService: TestTerminalProfileService;
 	let remoteAgentService: TestRemoteAgentService;
@@ -268,6 +277,23 @@ suite.only('TerminalProfileService', () => {
 				r();
 			});
 		});
+		assert(countCalled === 1, true);
+		deepStrictEqual(calls, [powershellProfile]);
+		deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
+		deepStrictEqual(terminalProfileService.contributedProfiles, [jsdebugProfile]);
+	});
+	test('should call refreshAvailableProfiles again if no profiles are returned from local/remoteTerminalService', async () => {
+		localTerminalService.setReturnNone();
+		const calls: ITerminalProfile[] = [];
+		let countCalled = 0;
+		await new Promise<void>(r => {
+			terminalProfileService.onDidChangeAvailableProfiles(e => {
+				calls.push(...e);
+				countCalled++;
+				r();
+			});
+		});
+		await terminalProfileService.refreshAndAwaitAvailableProfiles();
 		assert(countCalled === 1, true);
 		deepStrictEqual(calls, [powershellProfile]);
 		deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
