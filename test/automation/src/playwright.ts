@@ -74,10 +74,8 @@ function buildDriver(app: playwright.ElectronApplication | playwright.Browser, c
 			await page.mouse.click(x + (xoffset ? xoffset : 0), y + (yoffset ? yoffset : 0));
 		},
 		doubleClick: async (windowId, selector) => {
-			await driver.click(windowId, selector, 0, 0);
-			await timeout(60);
-			await driver.click(windowId, selector, 0, 0);
-			await timeout(100);
+			const { x, y } = await driver.getElementXY(windowId, selector);
+			await page.mouse.dblclick(x, y);
 		},
 		setValue: async (windowId, selector, text) => page.evaluate(`window.driver.setValue('${selector}', '${text}')`).then(undefined),
 		getTitle: (windowId) => page.evaluate(`window.driver.getTitle()`),

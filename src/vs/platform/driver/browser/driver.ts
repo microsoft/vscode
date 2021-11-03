@@ -176,7 +176,7 @@ class BrowserWindowDriver implements IWindowDriver {
 		});
 	}
 
-	protected async _getElementXY(selector: string, offset?: { x: number, y: number }): Promise<{ x: number; y: number; }> {
+	private async _getElementXY(selector: string, offset?: { x: number, y: number }): Promise<{ x: number; y: number; }> {
 		const element = document.querySelector(selector);
 
 		if (!element) {
@@ -199,18 +199,6 @@ class BrowserWindowDriver implements IWindowDriver {
 		y = Math.round(y);
 
 		return { x, y };
-	}
-
-	click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-
-	doubleClick(selector: string): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-
-	openDevTools(): Promise<void> {
-		throw new Error('Method not implemented.');
 	}
 }
 

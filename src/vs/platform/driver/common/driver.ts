@@ -63,8 +63,6 @@ export const ID = 'driverService';
 export const IDriver = createDecorator<IDriver>(ID);
 
 export interface IWindowDriver {
-	click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined): Promise<void>;
-	doubleClick(selector: string): Promise<void>;
 	setValue(selector: string, text: string): Promise<void>;
 	getTitle(): Promise<string>;
 	isActiveElement(selector: string): Promise<boolean>;
