@@ -1213,7 +1213,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			for (const terminal of values(this.terminals)) {
 				if (terminal.group === group) {
 					const originalInstance = terminal.terminal;
-					console.log('splitting');
 					const result = await this.terminalService.createTerminal({ location: { parentTerminal: originalInstance }, config: launchConfigs });
 					if (result) {
 						return result;
