@@ -546,7 +546,10 @@ export class SimpleFileDialog {
 
 	private tildaReplace(value: string): URI {
 		const home = this.userHome;
-		return resources.joinPath(home, value.substring(1));
+		if ((value.length > 0) && (value[0] === '~')) {
+			return resources.joinPath(home, value.substring(1));
+		}
+		return this.remoteUriFrom(value);
 	}
 
 	private async tryUpdateItems(value: string, valueUri: URI): Promise<UpdateResult> {
