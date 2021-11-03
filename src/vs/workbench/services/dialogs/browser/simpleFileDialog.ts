@@ -546,16 +546,11 @@ export class SimpleFileDialog {
 
 	private tildaReplace(value: string): URI {
 		const home = this.userHome;
-		if ((value[0] === '~') && (value.length > 1)) {
-			return resources.joinPath(home, value.substring(1));
-		} else if (value[value.length - 1] === '~') {
-			return home;
-		}
-		return this.remoteUriFrom(value);
+		return resources.joinPath(home, value.substring(1));
 	}
 
 	private async tryUpdateItems(value: string, valueUri: URI): Promise<UpdateResult> {
-		if ((value.length > 0) && ((value[value.length - 1] === '~') || (value[0] === '~'))) {
+		if ((value.length > 0) && (value[0] === '~')) {
 			let newDir = this.tildaReplace(value);
 			return await this.updateItems(newDir, true) ? UpdateResult.UpdatedWithTrailing : UpdateResult.Updated;
 		} else if (value === '\\') {
