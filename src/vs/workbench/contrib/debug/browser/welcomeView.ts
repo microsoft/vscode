@@ -25,16 +25,10 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { SELECT_AND_START_ID, DEBUG_CONFIGURE_COMMAND_ID, DEBUG_START_COMMAND_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 const debugStartLanguageKey = 'debugStartLanguage';
 const CONTEXT_DEBUG_START_LANGUAGE = new RawContextKey<string>(debugStartLanguageKey, undefined);
 const CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR = new RawContextKey<boolean>('debuggerInterestedInActiveEditor', false);
-
-
-const hideTerminals = 'hideTerminals';
-const HIDE_TERMINALS = new RawContextKey<boolean>(hideTerminals, true);
 
 export class WelcomeView extends ViewPane {
 
@@ -43,7 +37,7 @@ export class WelcomeView extends ViewPane {
 
 	private debugStartLanguageContext: IContextKey<string | undefined>;
 	private debuggerInterestedContext: IContextKey<boolean>;
-	private hideTerminalsContext: IContextKey<boolean>;
+
 	constructor(
 		options: IViewletViewOptions,
 		@IThemeService themeService: IThemeService,
@@ -58,8 +52,6 @@ export class WelcomeView extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IStorageService storageSevice: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@ITerminalProfileService terminalProfileService: ITerminalProfileService,
-		@ITerminalService terminalService: ITerminalService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
@@ -67,16 +59,6 @@ export class WelcomeView extends ViewPane {
 		this.debuggerInterestedContext = CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR.bindTo(contextKeyService);
 		const lastSetLanguage = storageSevice.get(debugStartLanguageKey, StorageScope.WORKSPACE);
 		this.debugStartLanguageContext.set(lastSetLanguage);
-
-		this.hideTerminalsContext = HIDE_TERMINALS.bindTo(contextKeyService);
-
-		this._register(terminalProfileService.onDidChangeAvailableProfiles(() => {
-			this.hideTerminalsContext.set(!terminalProfileService.shouldShowWebTerminals());
-		}));
-
-		this._register(terminalService.onDidCreateInstance(() => {
-			this.hideTerminalsContext.set(false);
-		}));
 
 		const setContextKey = () => {
 			const editorControl = this.editorService.activeTextEditorControl;

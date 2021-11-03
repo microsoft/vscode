@@ -79,7 +79,6 @@ export class TerminalService implements ITerminalService {
 
 	get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 	get instances(): ITerminalInstance[] {
-		console.log('getting instances', this._terminalGroupService.instances);
 		return this._terminalGroupService.instances.concat(this._terminalEditorService.instances);
 	}
 
@@ -1152,7 +1151,7 @@ export class TerminalService implements ITerminalService {
 			shellLaunchConfig.cwd = options.cwd;
 		}
 
-		if (!shellLaunchConfig.customPtyImplementation && !this.isProcessSupportRegistered && !this._terminalProfileService.shouldShowWebTerminals) {
+		if (!shellLaunchConfig.customPtyImplementation && !this.isProcessSupportRegistered) {
 			throw new Error('Could not create terminal when process support is not registered');
 		}
 		if (shellLaunchConfig.hideFromUser) {
