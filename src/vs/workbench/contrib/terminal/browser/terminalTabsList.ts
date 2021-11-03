@@ -16,7 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IOffProcessTerminalService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IOffProcessTerminalService, ITerminalBackend, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
@@ -544,7 +544,7 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<IT
 class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 	private _autoFocusInstance: ITerminalInstance | undefined;
 	private _autoFocusDisposable: IDisposable = Disposable.None;
-	private _offProcessTerminalService: IOffProcessTerminalService | undefined;
+	private _offProcessTerminalService: IOffProcessTerminalService | ITerminalBackend | undefined;
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,

@@ -12,17 +12,19 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationHandle, INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IRequestResolveVariablesEvent, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalIcon, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { IRequestResolveVariablesEvent, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalEnvironment, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalIcon, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { RemotePty } from 'vs/workbench/contrib/terminal/browser/remotePty';
 import { IRemoteTerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ICompleteTerminalConfiguration, RemoteTerminalChannelClient, REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
+import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -56,7 +58,8 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
-		@IHistoryService historyService: IHistoryService
+		@IHistoryService historyService: IHistoryService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
 
@@ -180,7 +183,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		this._storageService.store(TerminalStorageKeys.TerminalBufferState, serialized, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
-	async createProcess(shellLaunchConfig: IShellLaunchConfig, configuration: ICompleteTerminalConfiguration, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, unicodeVersion: '6' | '11', shouldPersist: boolean): Promise<ITerminalChildProcess> {
+	async createProcess(shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, unicodeVersion: '6' | '11', shouldPersist: boolean): Promise<ITerminalChildProcess> {
 		if (!this._remoteTerminalChannel) {
 			throw new Error(`Cannot create remote terminal when there is no remote!`);
 		}
@@ -191,6 +194,24 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			// Extension host processes are only allowed in remote extension hosts currently
 			throw new Error('Could not fetch remote environment');
 		}
+
+		const terminalConfig = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
+		const configuration: ICompleteTerminalConfiguration = {
+			'terminal.integrated.automationShell.windows': this._configurationService.getValue(TerminalSettingId.AutomationShellWindows) as string,
+			'terminal.integrated.automationShell.osx': this._configurationService.getValue(TerminalSettingId.AutomationShellMacOs) as string,
+			'terminal.integrated.automationShell.linux': this._configurationService.getValue(TerminalSettingId.AutomationShellLinux) as string,
+			'terminal.integrated.shell.windows': this._configurationService.getValue(TerminalSettingId.ShellWindows) as string,
+			'terminal.integrated.shell.osx': this._configurationService.getValue(TerminalSettingId.ShellMacOs) as string,
+			'terminal.integrated.shell.linux': this._configurationService.getValue(TerminalSettingId.ShellLinux) as string,
+			'terminal.integrated.shellArgs.windows': this._configurationService.getValue(TerminalSettingId.ShellArgsWindows) as string | string[],
+			'terminal.integrated.shellArgs.osx': this._configurationService.getValue(TerminalSettingId.ShellArgsMacOs) as string | string[],
+			'terminal.integrated.shellArgs.linux': this._configurationService.getValue(TerminalSettingId.ShellArgsLinux) as string | string[],
+			'terminal.integrated.env.windows': this._configurationService.getValue(TerminalSettingId.EnvWindows) as ITerminalEnvironment,
+			'terminal.integrated.env.osx': this._configurationService.getValue(TerminalSettingId.EnvMacOs) as ITerminalEnvironment,
+			'terminal.integrated.env.linux': this._configurationService.getValue(TerminalSettingId.EnvLinux) as ITerminalEnvironment,
+			'terminal.integrated.cwd': this._configurationService.getValue(TerminalSettingId.Cwd) as string,
+			'terminal.integrated.detectLocale': terminalConfig.detectLocale
+		};
 
 		const shellLaunchConfigDto: IShellLaunchConfigDto = {
 			name: shellLaunchConfig.name,

@@ -17,7 +17,7 @@ import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -35,7 +35,7 @@ import { getColorClass, getColorStyleContent, getColorStyleElement, getUriClasse
 import { configureTerminalProfileIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { getInstanceFromResource, getTerminalUri, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { ILocalTerminalService, IOffProcessTerminalService, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, ITerminalProfileService, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IOffProcessTerminalService, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackendRegistry, ITerminalConfigHelper, ITerminalBackend, ITerminalProcessExtHostProxy, ITerminalProfileService, TerminalExtensions, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { formatMessageForTerminal, terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
@@ -46,6 +46,7 @@ import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/ed
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -61,8 +62,7 @@ export class TerminalService implements ITerminalService {
 	private _processSupportContextKey: IContextKey<boolean>;
 
 	private _terminalHasBeenCreated: IContextKey<boolean>;
-	private readonly _localTerminalService?: ILocalTerminalService;
-	private readonly _primaryOffProcessTerminalService?: IOffProcessTerminalService;
+	private readonly _primaryOffProcessTerminalService?: IOffProcessTerminalService | ITerminalBackend;
 	private _configHelper: TerminalConfigHelper;
 	private _remoteTerminalsInitPromise: Promise<void> | undefined;
 	private _localTerminalsInitPromise: Promise<void> | undefined;
@@ -158,10 +158,8 @@ export class TerminalService implements ITerminalService {
 		@IThemeService private readonly _themeService: IThemeService,
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@INotificationService private readonly _notificationService: INotificationService,
-		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService
+		@INotificationService private readonly _notificationService: INotificationService
 	) {
-		this._localTerminalService = localTerminalService;
 		this._isShuttingDown = false;
 		this._findState = new FindReplaceState();
 		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
@@ -253,7 +251,9 @@ export class TerminalService implements ITerminalService {
 		} else {
 			this._connectionState = TerminalConnectionState.Connected;
 		}
-		this._primaryOffProcessTerminalService = !!this._environmentService.remoteAuthority ? this._remoteTerminalService : (this._localTerminalService || this._remoteTerminalService);
+		this._primaryOffProcessTerminalService = !!this._environmentService.remoteAuthority
+			? this._remoteTerminalService
+			: (Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).getTerminalBackend() || this._remoteTerminalService);
 		this._primaryOffProcessTerminalService.onDidRequestDetach(async (e) => {
 			const instanceToDetach = this.getInstanceFromResource(getTerminalUri(e.workspaceId, e.instanceId));
 			if (instanceToDetach) {
@@ -277,7 +277,7 @@ export class TerminalService implements ITerminalService {
 		timeout(0).then(() => this._instantiationService.createInstance(TerminalEditorStyle, document.head));
 	}
 
-	getOffProcessTerminalService(): IOffProcessTerminalService | undefined {
+	getOffProcessTerminalService(): IOffProcessTerminalService | ITerminalBackend | undefined {
 		return this._primaryOffProcessTerminalService;
 	}
 
@@ -377,10 +377,11 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private async _reconnectToLocalTerminals(): Promise<void> {
-		if (!this._localTerminalService) {
+		const localBackend = Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).getTerminalBackend();
+		if (!localBackend) {
 			return;
 		}
-		const layoutInfo = await this._localTerminalService.getTerminalLayoutInfo();
+		const layoutInfo = await localBackend.getTerminalLayoutInfo();
 		if (layoutInfo && layoutInfo.tabs.length > 0) {
 			await this._recreateTerminalGroups(layoutInfo);
 		}

@@ -13,6 +13,7 @@ import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/e
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -132,6 +133,91 @@ export interface ILocalTerminalService extends IOffProcessTerminalService {
 		shouldPersist: boolean
 	): Promise<ITerminalChildProcess>;
 }
+
+export const ITerminalProcessService = createDecorator<ITerminalProcessService>('terminalProcessService');
+export interface ITerminalProcessService extends IOffProcessTerminalService {
+	registerProcessBackend(remoteAuthority: string | null, processBackend: ITerminalBackend): void;
+}
+
+export interface ITerminalBackend {
+	/**
+	 * Fired when the ptyHost process becomes non-responsive, this should disable stdin for all
+	 * terminals using this pty host connection and mark them as disconnected.
+	 */
+	onPtyHostUnresponsive: Event<void>;
+	/**
+	 * Fired when the ptyHost process becomes responsive after being non-responsive. Allowing
+	 * previously disconnected terminals to reconnect.
+	 */
+	onPtyHostResponsive: Event<void>;
+	/**
+	 * Fired when the ptyHost has been restarted, this is used as a signal for listening terminals
+	 * that its pty has been lost and will remain disconnected.
+	 */
+	onPtyHostRestart: Event<void>;
+
+	onDidRequestDetach: Event<{ requestId: number, workspaceId: string, instanceId: number }>;
+
+	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
+	listProcesses(): Promise<IProcessDetails[]>;
+	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
+	getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
+	getWslPath(original: string): Promise<string>;
+	getEnvironment(): Promise<IProcessEnvironment>;
+	getShellEnvironment(): Promise<IProcessEnvironment | undefined>;
+	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
+	updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void>;
+	updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<void>;
+	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
+	reduceConnectionGraceTime(): Promise<void>;
+	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined>;
+	acceptDetachInstanceReply(requestId: number, persistentProcessId?: number): Promise<void>;
+	persistTerminalState(): Promise<void>;
+
+	createProcess(
+		shellLaunchConfig: IShellLaunchConfig,
+		cwd: string,
+		cols: number,
+		rows: number,
+		unicodeVersion: '6' | '11',
+		env: IProcessEnvironment,
+		windowsEnableConpty: boolean,
+		shouldPersist: boolean
+	): Promise<ITerminalChildProcess>;
+}
+
+export const TerminalExtensions = {
+	Backend: 'workbench.contributions.terminal.processBackend'
+};
+
+export interface ITerminalBackendRegistry {
+	/**
+	 * Registers a terminal backend for a remote authority.
+	 */
+	registerTerminalBackend(remoteAuthority: string | undefined, backend: ITerminalBackend): void;
+
+	/**
+	 * Returns the registered terminal backend for a remote authority.
+	 */
+	getTerminalBackend(remoteAuthority?: string): ITerminalBackend | undefined;
+}
+
+class TerminalBackendRegistry implements ITerminalBackendRegistry {
+	private readonly _backends = new Map<string, ITerminalBackend>();
+
+	registerTerminalBackend(remoteAuthority: string | undefined, backend: ITerminalBackend): void {
+		const key = remoteAuthority ?? '';
+		if (this._backends.has(key)) {
+			throw new Error(`A terminal backend with remote authority '${key}' was already registered.`);
+		}
+		this._backends.set(key, backend);
+	}
+
+	getTerminalBackend(remoteAuthority: string | undefined): ITerminalBackend | undefined {
+		return this._backends.get(remoteAuthority ?? '');
+	}
+}
+Registry.add(TerminalExtensions.Backend, new TerminalBackendRegistry());
 
 export type FontWeight = 'normal' | 'bold' | number;
 
