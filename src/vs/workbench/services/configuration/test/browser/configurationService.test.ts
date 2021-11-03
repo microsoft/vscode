@@ -38,7 +38,7 @@ import { timeout } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { ConfigurationCache as BrowserConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';

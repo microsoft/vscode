@@ -30,7 +30,7 @@ import { OpenSearchEditorArgs } from 'vs/workbench/contrib/searchEditor/browser/
 import { SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ISearchConfiguration, VIEW_ID } from 'vs/workbench/services/search/common/search';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 export function isSearchViewFocused(viewsService: IViewsService): boolean {
 	const searchView = getSearchView(viewsService);

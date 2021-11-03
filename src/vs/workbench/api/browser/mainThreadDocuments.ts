@@ -17,7 +17,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { toLocalResource, extUri, IExtUri } from 'vs/base/common/resources';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { Emitter } from 'vs/base/common/event';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ResourceMap } from 'vs/base/common/map';

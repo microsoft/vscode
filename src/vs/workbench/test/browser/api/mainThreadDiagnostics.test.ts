@@ -9,7 +9,7 @@ import { MainThreadDiagnostics } from 'vs/workbench/api/browser/mainThreadDiagno
 import { URI } from 'vs/base/common/uri';
 import { IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { mock } from 'vs/workbench/test/common/workbenchTestServices';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
 
 

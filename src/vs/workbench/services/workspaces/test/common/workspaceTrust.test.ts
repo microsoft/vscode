@@ -18,8 +18,8 @@ import { IWorkspaceTrustEnablementService, IWorkspaceTrustInfo } from 'vs/platfo
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { Memento } from 'vs/workbench/common/memento';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService, WORKSPACE_TRUST_STORAGE_KEY } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { TestWorkspaceTrustEnablementService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';

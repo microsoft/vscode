@@ -8,7 +8,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { MainThreadDiagnosticsShape, MainContext, IExtHostContext, ExtHostDiagnosticsShape, ExtHostContext } from '../common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 @extHostNamedCustomer(MainContext.MainThreadDiagnostics)
 export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {

@@ -31,7 +31,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
 import { KeybindingsEditingService, IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { joinPath } from 'vs/base/common/resources';

@@ -31,7 +31,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { getUriFromSource } from 'vs/workbench/contrib/debug/common/debugSource';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextModel } from 'vs/editor/common/model';
 import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';

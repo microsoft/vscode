@@ -75,7 +75,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { LabelFuzzyScore } from 'vs/base/browser/ui/tree/abstractTree';
 import { Selection } from 'vs/editor/common/core/selection';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
