@@ -19,7 +19,8 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import * as perf from 'vs/base/common/performance';
 import { assertIsDefined } from 'vs/base/common/types';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { ISplashStorageService } from 'vs/workbench/contrib/splash/browser/splash';
 
 export class PartsSplash {
 
@@ -36,17 +37,17 @@ export class PartsSplash {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@IConfigurationService configService: IConfigurationService,
-		@INativeHostService private readonly _nativeHostService: INativeHostService
+		@ISplashStorageService private readonly _partSplashService: ISplashStorageService
 	) {
 		lifecycleService.when(LifecyclePhase.Restored).then(_ => {
 			this._removePartsSplash();
 			perf.mark('code/didRemovePartsSplash');
 		});
 
-		Event.debounce(Event.any(
-			onDidChangeFullscreen,
-			editorGroupsService.onDidLayout
-		), () => { }, 800)(this._savePartsSplash, this, this._disposables);
+		const savePartsSplashSoon = new RunOnceScheduler(() => this._savePartsSplash(), 800);
+		Event.any(onDidChangeFullscreen, editorGroupsService.onDidLayout)(() => {
+			savePartsSplashSoon.schedule();
+		}, undefined, this._disposables);
 
 		configService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('window.titleBarStyle')) {
@@ -60,10 +61,14 @@ export class PartsSplash {
 		}, this, this._disposables);
 	}
 
+	dispose(): void {
+		this._disposables.dispose();
+	}
+
 	private _savePartsSplash() {
 		const theme = this._themeService.getColorTheme();
 
-		this._nativeHostService.saveWindowSplash({
+		this._partSplashService.saveWindowSplash({
 			baseTheme: getThemeTypeSelector(theme.type),
 			colorInfo: {
 				foreground: theme.getColor(foreground)?.toString(),
@@ -104,9 +109,5 @@ export class PartsSplash {
 		if (defaultStyles.length) {
 			document.head.removeChild(defaultStyles[0]);
 		}
-	}
-
-	dispose(): void {
-		this._disposables.dispose();
 	}
 }

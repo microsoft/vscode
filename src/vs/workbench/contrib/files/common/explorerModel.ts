@@ -16,7 +16,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { joinPath, isEqualOrParent, basenameOrAuthority } from 'vs/base/common/resources';
 import { SortOrder } from 'vs/workbench/contrib/files/common/files';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 export class ExplorerModel implements IDisposable {
 

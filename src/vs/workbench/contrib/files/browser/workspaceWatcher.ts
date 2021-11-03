@@ -14,7 +14,7 @@ import { localize } from 'vs/nls';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { isAbsolute } from 'vs/base/common/path';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export class WorkspaceWatcher extends Disposable {

@@ -21,7 +21,7 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
 

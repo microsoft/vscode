@@ -18,7 +18,7 @@ import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { hash } from 'vs/base/common/hash';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { iconRegistry } from 'vs/base/common/codicons';
 import { asArray, distinct } from 'vs/base/common/arrays';
 import { asCssVariableName } from 'vs/platform/theme/common/colorRegistry';

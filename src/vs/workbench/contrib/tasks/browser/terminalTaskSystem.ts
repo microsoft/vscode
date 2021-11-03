@@ -46,7 +46,7 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IShellLaunchConfig, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
 import { TaskTerminalStatus } from 'vs/workbench/contrib/tasks/browser/taskTerminalStatus';
 import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
@@ -1213,7 +1213,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			for (const terminal of values(this.terminals)) {
 				if (terminal.group === group) {
 					const originalInstance = terminal.terminal;
-					console.log('splitting');
 					const result = await this.terminalService.createTerminal({ location: { parentTerminal: originalInstance }, config: launchConfigs });
 					if (result) {
 						return result;
@@ -1222,7 +1221,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			}
 		}
 		// Either no group is used, no terminal with the group exists or splitting an existing terminal failed.
-		return this.terminalService.createTerminal({ config: launchConfigs });
+		return this.terminalService.createTerminal({ location: TerminalLocation.Panel, config: launchConfigs });
 	}
 
 	private async createTerminal(task: CustomTask | ContributedTask, resolver: VariableResolver, workspaceFolder: IWorkspaceFolder | undefined): Promise<[ITerminalInstance | undefined, string | undefined, TaskError | undefined]> {

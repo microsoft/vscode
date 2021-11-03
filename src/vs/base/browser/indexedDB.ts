@@ -91,10 +91,6 @@ export class IndexedDB {
 		this.database = database;
 	}
 
-	getDatabase(): IDBDatabase | null {
-		return this.database;
-	}
-
 	hasPendingTransactions(): boolean {
 		return this.pendingTransactions.length > 0;
 	}

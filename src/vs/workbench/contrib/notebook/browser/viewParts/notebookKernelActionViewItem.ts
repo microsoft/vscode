@@ -7,19 +7,11 @@ import 'vs/css!./notebookKernelActionViewItem';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Action, IAction } from 'vs/base/common/actions';
 import { localize } from 'vs/nls';
-import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { INotebookKernelMatchResult, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-
-registerThemingParticipant((theme, collector) => {
-	const value = theme.getColor(toolbarHoverBackground);
-	collector.addRule(`:root {
-		--code-toolbarHoverBackground: ${value};
-	}`);
-});
 
 export class NotebooKernelActionViewItem extends ActionViewItem {
 

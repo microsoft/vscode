@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
-import { mock } from 'vs/workbench/test/common/workbenchTestServices';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { mock } from 'vs/base/test/common/mock';
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';

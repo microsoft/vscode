@@ -53,7 +53,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { isLinux, isNative, isWindows } from 'vs/base/common/platform';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
