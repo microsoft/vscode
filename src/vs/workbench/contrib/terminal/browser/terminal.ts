@@ -49,10 +49,10 @@ export interface ITerminalInstanceService {
 	 * @param executable The executable off the shellLaunchConfig
 	 * @param title The terminal's title
 	 * @param path The path to be escaped and formatted.
-	 * @param isRemote Whether the terminal's pty is remote.
+	 * @param remoteAuthority The remote authority of the terminal's pty.
 	 * @returns An escaped version of the path to be execuded in the terminal.
 	 */
-	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType, isRemote: boolean): Promise<string>;
+	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType, remoteAuthority: string | undefined): Promise<string>;
 
 	createInstance(launchConfig: IShellLaunchConfig, target?: TerminalLocation, resource?: URI): ITerminalInstance;
 
@@ -189,6 +189,8 @@ export interface ITerminalService extends ITerminalInstanceHost {
 
 	resolveLocation(location?: ITerminalLocationOptions): TerminalLocation | undefined
 	setNativeDelegate(nativeCalls: ITerminalServiceNativeDelegate): void;
+
+	handleNewRegisteredBackend(backend: ITerminalBackend): void;
 }
 
 export interface ITerminalServiceNativeDelegate {
@@ -433,6 +435,11 @@ export interface ITerminalInstance {
 	 * Whether the terminal's pty is hosted on a remote.
 	 */
 	readonly isRemote: boolean;
+
+	/**
+	 * The remote authority of the terminal's pty.
+	 */
+	readonly remoteAuthority: string | undefined;
 
 	/**
 	 * Whether an element within this terminal is focused.

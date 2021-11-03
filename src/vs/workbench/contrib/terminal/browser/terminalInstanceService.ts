@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRemoteTerminalService, ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import type { Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
@@ -39,7 +39,6 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	get onDidCreateInstance(): Event<ITerminalInstance> { return this._onDidCreateInstance.event; }
 
 	constructor(
-		@IRemoteTerminalService private readonly _remoteTerminalService: IRemoteTerminalService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
@@ -117,7 +116,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		return Unicode11Addon;
 	}
 
-	async preparePathForTerminalAsync(originalPath: string, executable: string | undefined, title: string, shellType: TerminalShellType, isRemote: boolean): Promise<string> {
+	async preparePathForTerminalAsync(originalPath: string, executable: string | undefined, title: string, shellType: TerminalShellType, remoteAuthority: string | undefined): Promise<string> {
 		return new Promise<string>(c => {
 			if (!executable) {
 				c(originalPath);
@@ -151,7 +150,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 						c(originalPath.replace(/\\/g, '/'));
 					}
 					else if (shellType === WindowsShellType.Wsl) {
-						const offProcService = isRemote ? this._remoteTerminalService : this.getBackend();
+						const offProcService = this.getBackend(remoteAuthority);
 						c(offProcService?.getWslPath(originalPath) || originalPath);
 					}
 
@@ -163,7 +162,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 				} else {
 					const lowerExecutable = executable.toLowerCase();
 					if (lowerExecutable.indexOf('wsl') !== -1 || (lowerExecutable.indexOf('bash.exe') !== -1 && lowerExecutable.toLowerCase().indexOf('git') === -1)) {
-						const offProcService = isRemote ? this._remoteTerminalService : this.getBackend();
+						const offProcService = this.getBackend(remoteAuthority);
 						c(offProcService?.getWslPath(originalPath) || originalPath);
 					} else if (hasSpace) {
 						c('"' + originalPath + '"');

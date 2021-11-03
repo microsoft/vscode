@@ -137,6 +137,8 @@ export interface ITerminalProcessService extends IOffProcessTerminalService {
 }
 
 export interface ITerminalBackend {
+	readonly remoteAuthority: string | undefined;
+
 	/**
 	 * Fired when the ptyHost process becomes non-responsive, this should disable stdin for all
 	 * terminals using this pty host connection and mark them as disconnected.
@@ -191,7 +193,7 @@ export interface ITerminalBackendRegistry {
 	/**
 	 * Registers a terminal backend for a remote authority.
 	 */
-	registerTerminalBackend(remoteAuthority: string | undefined, backend: ITerminalBackend): void;
+	registerTerminalBackend(backend: ITerminalBackend): void;
 
 	/**
 	 * Returns the registered terminal backend for a remote authority.
@@ -202,8 +204,8 @@ export interface ITerminalBackendRegistry {
 class TerminalBackendRegistry implements ITerminalBackendRegistry {
 	private readonly _backends = new Map<string, ITerminalBackend>();
 
-	registerTerminalBackend(remoteAuthority: string | undefined, backend: ITerminalBackend): void {
-		const key = remoteAuthority ?? '';
+	registerTerminalBackend(backend: ITerminalBackend): void {
+		const key = backend.remoteAuthority ?? '';
 		if (this._backends.has(key)) {
 			throw new Error(`A terminal backend with remote authority '${key}' was already registered.`);
 		}
