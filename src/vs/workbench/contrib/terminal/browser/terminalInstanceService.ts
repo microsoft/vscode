@@ -17,7 +17,7 @@ import { isWindows } from 'vs/base/common/platform';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { ILocalTerminalService, ITerminalBackend, ITerminalBackendRegistry, TerminalExtensions } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalBackend, ITerminalBackendRegistry, TerminalExtensions } from 'vs/workbench/contrib/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
@@ -29,7 +29,6 @@ let Unicode11Addon: typeof XTermUnicode11Addon;
 
 export class TerminalInstanceService extends Disposable implements ITerminalInstanceService {
 	declare _serviceBrand: undefined;
-	private readonly _localTerminalService?: ILocalTerminalService;
 	private _terminalFocusContextKey: IContextKey<boolean>;
 	private _terminalHasFixedWidth: IContextKey<boolean>;
 	private _terminalShellTypeContextKey: IContextKey<string>;
@@ -152,7 +151,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 						c(originalPath.replace(/\\/g, '/'));
 					}
 					else if (shellType === WindowsShellType.Wsl) {
-						const offProcService = isRemote ? this._remoteTerminalService : this._localTerminalService;
+						const offProcService = isRemote ? this._remoteTerminalService : this.getBackend();
 						c(offProcService?.getWslPath(originalPath) || originalPath);
 					}
 
@@ -164,7 +163,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 				} else {
 					const lowerExecutable = executable.toLowerCase();
 					if (lowerExecutable.indexOf('wsl') !== -1 || (lowerExecutable.indexOf('bash.exe') !== -1 && lowerExecutable.toLowerCase().indexOf('git') === -1)) {
-						const offProcService = isRemote ? this._remoteTerminalService : this._localTerminalService;
+						const offProcService = isRemote ? this._remoteTerminalService : this.getBackend();
 						c(offProcService?.getWslPath(originalPath) || originalPath);
 					} else if (hasSpace) {
 						c('"' + originalPath + '"');

@@ -131,10 +131,6 @@ export interface IOffProcessTerminalService {
 	): Promise<ITerminalChildProcess>;
 }
 
-export const ILocalTerminalService = createDecorator<ILocalTerminalService>('localTerminalService');
-export interface ILocalTerminalService extends IOffProcessTerminalService {
-}
-
 export const ITerminalProcessService = createDecorator<ITerminalProcessService>('terminalProcessService');
 export interface ITerminalProcessService extends IOffProcessTerminalService {
 	registerProcessBackend(remoteAuthority: string | null, processBackend: ITerminalBackend): void;
