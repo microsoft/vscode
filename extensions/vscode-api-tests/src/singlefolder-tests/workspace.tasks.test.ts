@@ -363,6 +363,70 @@ import { assertNoRpc } from '../utils';
 					await tasksConfig.update('tasks', []);
 				});
 			});
+
+			test('Tasks can be run back to back', async () => {
+				class Pty implements Pseudoterminal {
+					writer = new EventEmitter<string>();
+					onDidWrite = this.writer.event;
+					closer = new EventEmitter<number | undefined>();
+					onDidClose = this.closer.event;
+
+					constructor(readonly num: number, readonly quick: boolean) { }
+
+					cleanup() {
+						this.writer.dispose();
+						this.closer.dispose();
+					}
+
+					open() {
+						this.writer.fire('starting\r\n');
+						setTimeout(() => {
+							this.closer.fire(this.num);
+							this.cleanup();
+						}, this.quick ? 1 : 200);
+					}
+
+					close() {
+						this.closer.fire(undefined);
+						this.cleanup();
+					}
+				}
+
+				async function runTask(num: number, quick: boolean) {
+					const pty = new Pty(num, quick);
+					const task = new Task(
+						{ type: 'task_bug', exampleProp: `hello world ${num}` },
+						TaskScope.Workspace, `task bug ${num}`, 'task bug',
+						new CustomExecution(
+							async () => {
+								return pty;
+							},
+						));
+					tasks.executeTask(task);
+					return new Promise<number | undefined>(resolve => {
+						pty.onDidClose(exitCode => {
+							resolve(exitCode);
+						});
+					});
+				}
+
+
+				const [r1, r2, r3, r4] = await Promise.all([
+					runTask(1, false), runTask(2, false), runTask(3, false), runTask(4, false)
+				]);
+				assert.strictEqual(r1, 1);
+				assert.strictEqual(r2, 2);
+				assert.strictEqual(r3, 3);
+				assert.strictEqual(r4, 4);
+
+				const [j1, j2, j3, j4] = await Promise.all([
+					runTask(5, true), runTask(6, true), runTask(7, true), runTask(8, true)
+				]);
+				assert.strictEqual(j1, 5);
+				assert.strictEqual(j2, 6);
+				assert.strictEqual(j3, 7);
+				assert.strictEqual(j4, 8);
+			});
 		});
 	});
 });

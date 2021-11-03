@@ -1826,6 +1826,7 @@ declare module 'vscode' {
 		/**
 		 * The text of the hint.
 		 */
+		// todo@API label?
 		text: string;
 		/**
 		 * The position of this hint.

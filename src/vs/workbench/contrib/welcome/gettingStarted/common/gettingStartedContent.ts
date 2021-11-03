@@ -144,7 +144,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 	{
 		id: 'topLevelShowWalkthroughs',
 		title: localize('gettingStarted.topLevelShowWalkthroughs.title', "Open a Walkthrough..."),
-		description: localize('gettingStarted.topLevelShowWalkthroughs.description', ""),
+		description: localize('gettingStarted.topLevelShowWalkthroughs.description', "View a walkthrough on the editor or an extension"),
 		icon: Codicon.checklist,
 		when: 'allWalkthroughsHidden',
 		content: {

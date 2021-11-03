@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IExperimentationTelemetry, ExperimentationService as TASClient } from 'tas-client-umd';
+import type { IExperimentationTelemetry, ExperimentationService as TASClient, IKeyValueStorage } from 'tas-client-umd';
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 import { AssignmentFilterProvider, ASSIGNMENT_REFETCH_INTERVAL, ASSIGNMENT_STORAGE_KEY, IAssignmentService, TargetPopulation } from 'vs/platform/assignment/common/assignment';
 
-class AssignmentServiceTelemetry implements IExperimentationTelemetry {
-	constructor(
-	) { }
+class NullAssignmentServiceTelemetry implements IExperimentationTelemetry {
+	constructor() { }
 
 	setSharedProperty(name: string, value: string): void {
 		// noop due to lack of telemetry service
@@ -23,22 +22,22 @@ class AssignmentServiceTelemetry implements IExperimentationTelemetry {
 	}
 }
 
-export class AssignmentService implements IAssignmentService {
+export abstract class BaseAssignmentService implements IAssignmentService {
 	_serviceBrand: undefined;
-	private tasClient: Promise<TASClient> | undefined;
-	private telemetry: AssignmentServiceTelemetry | undefined;
+	protected tasClient: Promise<TASClient> | undefined;
 	private networkInitialized = false;
-
 	private overrideInitDelay: Promise<void>;
 
-	private get experimentsEnabled(): boolean {
+	protected get experimentsEnabled(): boolean {
 		return this.configurationService.getValue('workbench.enableExperiments') === true;
 	}
 
 	constructor(
-		private readonly machineId: string,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IProductService private productService: IProductService
+		private readonly getMachineId: () => Promise<string>,
+		private readonly configurationService: IConfigurationService,
+		protected readonly productService: IProductService,
+		protected telemetry: IExperimentationTelemetry,
+		private keyValueStorage?: IKeyValueStorage
 	) {
 
 		if (productService.tasConfig && this.experimentsEnabled && getTelemetryLevel(this.configurationService) === TelemetryLevel.USAGE) {
@@ -69,17 +68,24 @@ export class AssignmentService implements IAssignmentService {
 
 		let result: T | undefined;
 		const client = await this.tasClient;
+
+		// The TAS client is initialized but we need to check if the initial fetch has completed yet
+		// If it is complete, return a cached value for the treatment
+		// If not, use the async call with `checkCache: true`. This will allow the module to return a cached value if it is present.
+		// Otherwise it will await the initial fetch to return the most up to date value.
 		if (this.networkInitialized) {
 			result = client.getTreatmentVariable<T>('vscode', name);
 		} else {
 			result = await client.getTreatmentVariableAsync<T>('vscode', name, true);
 		}
+
+		result = client.getTreatmentVariable<T>('vscode', name);
 		return result;
 	}
 
 	private async setupTASClient(): Promise<TASClient> {
 		const targetPopulation = this.productService.quality === 'stable' ? TargetPopulation.Public : TargetPopulation.Insiders;
-		const machineId = this.machineId;
+		const machineId = await this.getMachineId();
 		const filterProvider = new AssignmentFilterProvider(
 			this.productService.version,
 			this.productService.nameLong,
@@ -87,14 +93,12 @@ export class AssignmentService implements IAssignmentService {
 			targetPopulation
 		);
 
-		this.telemetry = new AssignmentServiceTelemetry();
-
 		const tasConfig = this.productService.tasConfig!;
 		const tasClient = new (await import('tas-client-umd')).ExperimentationService({
 			filterProviders: [filterProvider],
 			telemetry: this.telemetry,
 			storageKey: ASSIGNMENT_STORAGE_KEY,
-			keyValueStorage: undefined,
+			keyValueStorage: this.keyValueStorage,
 			featuresTelemetryPropertyName: tasConfig.featuresTelemetryPropertyName,
 			assignmentContextTelemetryPropertyName: tasConfig.assignmentContextTelemetryPropertyName,
 			telemetryEventName: tasConfig.telemetryEventName,
@@ -103,8 +107,17 @@ export class AssignmentService implements IAssignmentService {
 		});
 
 		await tasClient.initializePromise;
-
 		tasClient.initialFetch.then(() => this.networkInitialized = true);
+
 		return tasClient;
+	}
+}
+
+export class AssignmentService extends BaseAssignmentService {
+	constructor(
+		machineId: string,
+		configurationService: IConfigurationService,
+		productService: IProductService) {
+		super(() => Promise.resolve(machineId), configurationService, productService, new NullAssignmentServiceTelemetry());
 	}
 }

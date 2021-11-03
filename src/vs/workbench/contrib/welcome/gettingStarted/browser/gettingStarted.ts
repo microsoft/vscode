@@ -631,6 +631,15 @@ export class GettingStartedPage extends EditorPane {
 				}
 			};
 
+			if (serializedContextKeyExprs) {
+				const contextKeyExprs = coalesce(serializedContextKeyExprs.map(expr => ContextKeyExpr.deserialize(expr)));
+				const watchingKeys = new Set(flatten(contextKeyExprs.map(expr => expr.keys())));
+
+				this.stepDisposables.add(this.contextService.onDidChangeContext(e => {
+					if (e.affectsSome(watchingKeys)) { postTrueKeysMessage(); }
+				}));
+			}
+
 			let isDisposed = false;
 			this.stepDisposables.add(toDisposable(() => { isDisposed = true; }));
 
@@ -649,39 +658,29 @@ export class GettingStartedPage extends EditorPane {
 				}
 			}));
 
-			if (serializedContextKeyExprs) {
-				const contextKeyExprs = coalesce(serializedContextKeyExprs.map(expr => ContextKeyExpr.deserialize(expr)));
-				const watchingKeys = new Set(flatten(contextKeyExprs.map(expr => expr.keys())));
+			const layoutDelayer = new Delayer(50);
 
-				this.stepDisposables.add(this.contextService.onDidChangeContext(e => {
-					if (e.affectsSome(watchingKeys)) { postTrueKeysMessage(); }
-				}));
-
-				const layoutDelayer = new Delayer(50);
-
-				this.layoutMarkdown = () => {
-					layoutDelayer.trigger(() => {
-						webview.postMessage({ layoutMeNow: true });
-					});
-				};
-
-				this.stepDisposables.add(layoutDelayer);
-				this.stepDisposables.add({ dispose: () => this.layoutMarkdown = undefined });
-
-				postTrueKeysMessage();
-
-				webview.onMessage(e => {
-					const message: string = e.message as string;
-					if (message.startsWith('command:')) {
-						this.openerService.open(message, { allowCommands: true });
-					} else if (message.startsWith('setTheme:')) {
-						this.configurationService.updateValue(ThemeSettings.COLOR_THEME, message.slice('setTheme:'.length), ConfigurationTarget.USER);
-					} else {
-						console.error('Unexpected message', message);
-					}
+			this.layoutMarkdown = () => {
+				layoutDelayer.trigger(() => {
+					webview.postMessage({ layoutMeNow: true });
 				});
-			}
+			};
 
+			this.stepDisposables.add(layoutDelayer);
+			this.stepDisposables.add({ dispose: () => this.layoutMarkdown = undefined });
+
+			postTrueKeysMessage();
+
+			this.stepDisposables.add(webview.onMessage(e => {
+				const message: string = e.message as string;
+				if (message.startsWith('command:')) {
+					this.openerService.open(message, { allowCommands: true });
+				} else if (message.startsWith('setTheme:')) {
+					this.configurationService.updateValue(ThemeSettings.COLOR_THEME, message.slice('setTheme:'.length), ConfigurationTarget.USER);
+				} else {
+					console.error('Unexpected message', message);
+				}
+			}));
 		}
 	}
 
@@ -825,13 +824,26 @@ export class GettingStartedPage extends EditorPane {
 						margin-block-end: 0.25em;
 						margin-block-start: 0.25em;
 					}
+					vertically-centered {
+						padding-top: 5px;
+						padding-bottom: 5px;
+					}
 					html {
 						height: 100%;
+						padding-right: 32px;
+					}
+					h1 {
+						font-size: 19.5px;
+					}
+					h2 {
+						font-size: 18.5px;
 					}
 				</style>
 			</head>
 			<body>
-				${uriTranformedContent}
+				<vertically-centered>
+					${uriTranformedContent}
+				</vertically-centered>
 			</body>
 			<script nonce="${nonce}">
 				const vscode = acquireVsCodeApi();
@@ -840,15 +852,31 @@ export class GettingStartedPage extends EditorPane {
 						vscode.postMessage(el.getAttribute('when-checked'));
 					});
 				});
-				document.querySelectorAll('vertically-centered').forEach(element => {
-					element.style.marginTop = Math.max((document.body.scrollHeight - element.scrollHeight) * 2/5, 10) + 'px';
+
+				let ongoingLayout = undefined;
+				const doLayout = () => {
+					document.querySelectorAll('vertically-centered').forEach(element => {
+						element.style.marginTop = Math.max((document.body.clientHeight - element.scrollHeight) * 3/10, 0) + 'px';
+					});
+					ongoingLayout = undefined;
+				};
+
+				const layout = () => {
+					if (ongoingLayout) {
+						clearTimeout(ongoingLayout);
+					}
+					ongoingLayout = setTimeout(doLayout, 0);
+				};
+
+				layout();
+
+				document.querySelectorAll('img').forEach(element => {
+					element.onload = layout;
 				})
 
 				window.addEventListener('message', event => {
 					if (event.data.layoutMeNow) {
-						document.querySelectorAll('vertically-centered').forEach(element => {
-							element.style.marginTop = Math.max((document.body.scrollHeight - element.scrollHeight) * 2/5, 10) + 'px';
-						})
+						layout();
 					}
 					if (event.data.enabledContextKeys) {
 						document.querySelectorAll('.checked').forEach(element => element.classList.remove('checked'))
@@ -1420,7 +1448,7 @@ export class GettingStartedPage extends EditorPane {
 							'data-step-id': step.id,
 							'aria-expanded': 'false',
 							'aria-checked': '' + step.done,
-							'role': 'listitem',
+							'role': 'button',
 						},
 						codicon,
 						stepDescription);
