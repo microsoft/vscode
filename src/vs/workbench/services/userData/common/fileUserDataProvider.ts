@@ -10,7 +10,6 @@ import { URI } from 'vs/base/common/uri';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ReadableStreamEvents } from 'vs/base/common/stream';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ExtUri, extUri, extUriIgnorePathCase } from 'vs/base/common/resources';
 import { TernarySearchTree } from 'vs/base/common/map';
 
 export class FileUserDataProvider extends Disposable implements
@@ -24,9 +23,7 @@ export class FileUserDataProvider extends Disposable implements
 	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
 	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChangeFile.event;
 
-	private extUri: ExtUri;
-
-	private readonly watchResources = TernarySearchTree.forUris<URI>(uri => this.extUri.ignorePathCasing(uri));
+	private readonly watchResources = TernarySearchTree.forUris<URI>(() => !(this.capabilities & FileSystemProviderCapabilities.PathCaseSensitive));
 
 	constructor(
 		private readonly fileSystemScheme: string,
@@ -35,10 +32,6 @@ export class FileUserDataProvider extends Disposable implements
 		private readonly logService: ILogService,
 	) {
 		super();
-
-		this.extUri = !!(this.capabilities & FileSystemProviderCapabilities.PathCaseSensitive) ? extUri : extUriIgnorePathCase;
-		// update extUri as capabilites might change.
-		this._register(this.onDidChangeCapabilities(() => this.extUri = !!(this.capabilities & FileSystemProviderCapabilities.PathCaseSensitive) ? extUri : extUriIgnorePathCase));
 		this._register(this.fileSystemProvider.onDidChangeFile(e => this.handleFileChanges(e)));
 	}
 

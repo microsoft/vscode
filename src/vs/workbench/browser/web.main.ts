@@ -234,7 +234,7 @@ class BrowserMain extends Disposable {
 		serviceCollection.set(IUserDataSyncStoreManagementService, userDataSyncStoreManagementService);
 
 		// Userdata Initialize Service
-		const userDataInitializationService = new UserDataInitializationService(environmentService, userDataSyncStoreManagementService, fileService, storageService, productService, requestService, logService);
+		const userDataInitializationService = new UserDataInitializationService(environmentService, userDataSyncStoreManagementService, fileService, storageService, productService, requestService, logService, uriIdentityService);
 		serviceCollection.set(IUserDataInitializationService, userDataInitializationService);
 
 		if (await userDataInitializationService.requiresInitialization()) {

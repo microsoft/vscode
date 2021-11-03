@@ -77,6 +77,8 @@ import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
 import { IPtyService, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
 import { IRemoteTelemetryService, RemoteNullTelemetryService, RemoteTelemetryService } from 'vs/server/remoteTelemetryService';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 
 const SHUTDOWN_TIMEOUT = 5 * 60 * 1000;
 
@@ -278,6 +280,11 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 
 		const configurationService = new ConfigurationService(this._environmentService.machineSettingsResource, fileService);
 		services.set(IConfigurationService, configurationService);
+
+		// URI Identity
+		services.set(IUriIdentityService, new UriIdentityService(fileService));
+
+		// Request
 		services.set(IRequestService, new SyncDescriptor(RequestService));
 
 		let appInsightsAppender: ITelemetryAppender = NullAppender;
