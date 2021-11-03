@@ -147,7 +147,6 @@ export class ModelLineProjection implements IModelLineProjection {
 		const injectionOffsets = lineBreakData.injectionOffsets;
 		const injectionOptions = lineBreakData.injectionOptions;
 
-		let lineContent: string;
 		let tokens: IViewLineTokens;
 		let inlineDecorations: null | SingleLineInlineDecoration[];
 		if (injectionOffsets) {
@@ -160,7 +159,6 @@ export class ModelLineProjection implements IModelLineProjection {
 			const lineStartOffsetInInputWithInjections = outputLineIndex > 0 ? lineBreakData.breakOffsets[outputLineIndex - 1] : 0;
 			const lineEndOffsetInInputWithInjections = lineBreakData.breakOffsets[outputLineIndex];
 
-			lineContent = lineTokens.getLineContent().substring(lineStartOffsetInInputWithInjections, lineEndOffsetInInputWithInjections);
 			tokens = lineTokens.sliceAndInflate(lineStartOffsetInInputWithInjections, lineEndOffsetInInputWithInjections, deltaStartIndex);
 			inlineDecorations = new Array<SingleLineInlineDecoration>();
 
@@ -194,16 +192,11 @@ export class ModelLineProjection implements IModelLineProjection {
 			const startOffset = this.getInputStartOffsetOfOutputLineIndex(outputLineIndex);
 			const endOffset = this.getInputEndOffsetOfOutputLineIndex(outputLineIndex);
 			const lineTokens = model.getLineTokens(modelLineNumber);
-			lineContent = model.getValueInRange({
-				startLineNumber: modelLineNumber,
-				startColumn: startOffset + 1,
-				endLineNumber: modelLineNumber,
-				endColumn: endOffset + 1
-			});
 			tokens = lineTokens.sliceAndInflate(startOffset, endOffset, deltaStartIndex);
 			inlineDecorations = null;
 		}
 
+		let lineContent = tokens.getLineContent();
 		if (outputLineIndex > 0) {
 			lineContent = spaces(lineBreakData.wrappedTextIndentLength) + lineContent;
 		}
