@@ -21,7 +21,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { Codicon } from 'vs/base/common/codicons';
-import { deepStrictEqual, strictEqual } from 'assert';
+import { deepStrictEqual } from 'assert';
 import { Emitter } from 'vs/base/common/event';
 
 class TestTerminalProfileService extends TerminalProfileService {
@@ -98,7 +98,7 @@ let jsdebugProfile = {
 };
 
 
-suite.only('TerminalProfileService', () => {
+suite('TerminalProfileService', () => {
 	let configurationService: TestConfigurationService;
 	let terminalInstanceService: TestTerminalInstanceService;
 	let terminalProfileService: TestTerminalProfileService;
@@ -145,7 +145,6 @@ suite.only('TerminalProfileService', () => {
 		terminalInstanceService.setProfiles(undefined, [powershellProfile]);
 		terminalInstanceService.setProfiles('fakeremote', []);
 		terminalContributionService.setProfiles([jsdebugProfile]);
-		// TODO: @meganrogge we can write separate tests for each OS that run on all operating systems
 		if (isWindows) {
 			remoteAgentService.setEnvironment(OperatingSystem.Windows);
 		} else if (isLinux) {
@@ -156,16 +155,43 @@ suite.only('TerminalProfileService', () => {
 		configurationService.setUserConfiguration('terminal', { integrated: defaultTerminalConfig });
 	});
 	suite('Contributed Profiles', () => {
-		test('should filter out contributed profiles set to null', async () => {
+		test('should filter out contributed profiles set to null (Linux)', async () => {
+			remoteAgentService.setEnvironment(OperatingSystem.Linux);
+			await configurationService.setUserConfiguration('terminal', {
+				integrated: {
+					profiles: {
+						linux: {
+							'JavaScript Debug Terminal': null
+						}
+					}
+				}
+			});
+			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
+			await terminalProfileService.refreshAndAwaitAvailableProfiles();
+			deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
+			deepStrictEqual(terminalProfileService.contributedProfiles, []);
+		});
+		test('should filter out contributed profiles set to null (Windows)', async () => {
+			remoteAgentService.setEnvironment(OperatingSystem.Windows);
 			await configurationService.setUserConfiguration('terminal', {
 				integrated: {
 					profiles: {
 						windows: {
 							'JavaScript Debug Terminal': null
-						},
-						linux: {
-							'JavaScript Debug Terminal': null
-						},
+						}
+					}
+				}
+			});
+			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
+			await terminalProfileService.refreshAndAwaitAvailableProfiles();
+			deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
+			deepStrictEqual(terminalProfileService.contributedProfiles, []);
+		});
+		test('should filter out contributed profiles set to null (macOS)', async () => {
+			remoteAgentService.setEnvironment(OperatingSystem.Macintosh);
+			await configurationService.setUserConfiguration('terminal', {
+				integrated: {
+					profiles: {
 						osx: {
 							'JavaScript Debug Terminal': null
 						}
@@ -188,7 +214,7 @@ suite.only('TerminalProfileService', () => {
 		environmentService = { configuration: {}, remoteAuthority: 'fakeremote' } as IWorkbenchEnvironmentService;
 		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
 		terminalProfileService = instantiationService.createInstance(TestTerminalProfileService);
-		await terminalProfileService.refreshAndAwaitAvailableProfiles();
+		await terminalProfileService.hasRefreshedProfiles;
 		deepStrictEqual(terminalProfileService.availableProfiles, []);
 		deepStrictEqual(terminalProfileService.contributedProfiles, [jsdebugProfile]);
 		terminalInstanceService.setProfiles('fakeremote', [powershellProfile]);
@@ -199,15 +225,8 @@ suite.only('TerminalProfileService', () => {
 
 	test('should fire onDidChangeAvailableProfiles only when available profiles have changed via user config', async () => {
 		powershellProfile.icon = ThemeIcon.asThemeIcon(Codicon.lightBulb);
-		let calls: ITerminalProfile[] = [];
-		let countCalled = 0;
-		await new Promise<void>(r => {
-			terminalProfileService.onDidChangeAvailableProfiles(e => {
-				calls.push(...e);
-				countCalled++;
-				r();
-			});
-		});
+		let calls: ITerminalProfile[][] = [];
+		terminalProfileService.onDidChangeAvailableProfiles(e => calls.push(e));
 		await configurationService.setUserConfiguration('terminal', {
 			integrated: {
 				profiles: {
@@ -218,83 +237,49 @@ suite.only('TerminalProfileService', () => {
 			}
 		});
 		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
-		await terminalProfileService.refreshAndAwaitAvailableProfiles();
-		strictEqual(countCalled, 1);
-		deepStrictEqual(calls, [powershellProfile]);
+		await terminalProfileService.hasRefreshedProfiles;
+		deepStrictEqual(calls, [
+			[powershellProfile]
+		]);
 		deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
 		deepStrictEqual(terminalProfileService.contributedProfiles, [jsdebugProfile]);
 		calls = [];
-		countCalled = 0;
 		await terminalProfileService.refreshAndAwaitAvailableProfiles();
-		strictEqual(countCalled, 0);
 		deepStrictEqual(calls, []);
 	});
 
 	test('should fire onDidChangeAvailableProfiles when available or contributed profiles have changed via remote/localTerminalService', async () => {
 		powershellProfile.isDefault = false;
 		terminalInstanceService.setProfiles(undefined, [powershellProfile]);
-		const calls: ITerminalProfile[] = [];
-		let countCalled = 0;
-		await new Promise<void>(r => {
-			terminalProfileService.onDidChangeAvailableProfiles(e => {
-				calls.push(...e);
-				countCalled++;
-				r();
-			});
-		});
-		await terminalProfileService.refreshAndAwaitAvailableProfiles();
-		strictEqual(countCalled, 1);
-		deepStrictEqual(calls, [powershellProfile]);
-		deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
-		deepStrictEqual(terminalProfileService.contributedProfiles, [jsdebugProfile]);
-	});
-
-	test('should fire onDidChangeAvailableProfiles when available or contributed profiles have changed via remote/localTerminalService', async () => {
-		powershellProfile.isDefault = false;
-		terminalInstanceService.setProfiles(undefined, [powershellProfile]);
-		const calls: ITerminalProfile[] = [];
-		let countCalled = 0;
-		await new Promise<void>(r => {
-			terminalProfileService.onDidChangeAvailableProfiles(e => {
-				calls.push(...e);
-				countCalled++;
-				r();
-			});
-		});
-		await terminalProfileService.refreshAndAwaitAvailableProfiles();
-		strictEqual(countCalled, 1);
-		deepStrictEqual(calls, [powershellProfile]);
+		const calls: ITerminalProfile[][] = [];
+		terminalProfileService.onDidChangeAvailableProfiles(e => calls.push(e));
+		await terminalProfileService.hasRefreshedProfiles;
+		deepStrictEqual(calls, [
+			[powershellProfile]
+		]);
 		deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
 		deepStrictEqual(terminalProfileService.contributedProfiles, [jsdebugProfile]);
 	});
 
 	test('should call refreshAvailableProfiles _onDidChangeExtensions', async () => {
 		extensionService._onDidChangeExtensions.fire();
-		const calls: ITerminalProfile[] = [];
-		let countCalled = 0;
-		await new Promise<void>(r => {
-			terminalProfileService.onDidChangeAvailableProfiles(e => {
-				calls.push(...e);
-				countCalled++;
-				r();
-			});
-		});
-		strictEqual(countCalled, 1);
-		deepStrictEqual(calls, [powershellProfile]);
+		const calls: ITerminalProfile[][] = [];
+		terminalProfileService.onDidChangeAvailableProfiles(e => calls.push(e));
+		await terminalProfileService.hasRefreshedProfiles;
+		deepStrictEqual(calls, [
+			[powershellProfile]
+		]);
 		deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
 		deepStrictEqual(terminalProfileService.contributedProfiles, [jsdebugProfile]);
 	});
 	test('should call refreshAvailableProfiles again if no profiles are returned from local/remoteTerminalService', async () => {
 		terminalInstanceService.setReturnNone();
-		const calls: ITerminalProfile[] = [];
-		let countCalled = 0;
-		terminalProfileService.onDidChangeAvailableProfiles(e => {
-			calls.push(...e);
-			countCalled++;
-		});
+		const calls: ITerminalProfile[][] = [];
+		terminalProfileService.onDidChangeAvailableProfiles(e => calls.push(e));
 		await terminalProfileService.hasRefreshedProfiles;
-		strictEqual(countCalled, 2);
-		deepStrictEqual(calls, [powershellProfile]);
+		deepStrictEqual(calls, [
+			[powershellProfile]
+		]);
 		deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
 		deepStrictEqual(terminalProfileService.contributedProfiles, [jsdebugProfile]);
 	});

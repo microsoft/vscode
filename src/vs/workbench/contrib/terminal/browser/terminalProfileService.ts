@@ -101,6 +101,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 			// might not think to try changing the config
 			this._ifNoProfilesTryAgain = false;
 			await this._refreshAvailableProfilesNow();
+			return;
 		}
 		const profilesChanged = !(equals(profiles, this._availableProfiles, profilesEqual));
 		const contributedProfilesChanged = await this._updateContributedProfiles();
