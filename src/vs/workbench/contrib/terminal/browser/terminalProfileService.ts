@@ -34,7 +34,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 	private _profilesReadyBarrier: AutoOpenBarrier;
 	private _availableProfiles: ITerminalProfile[] | undefined;
 	private _contributedProfiles: IExtensionTerminalProfile[] = [];
-	private _defaultProfileName: string | null = null;
+	private _defaultProfileName?: string;
 	private readonly _profileProviders: Map</*ext id*/string, Map</*provider id*/string, ITerminalProfileProvider>> = new Map();
 	private readonly _primaryOffProcessTerminalService?: IOffProcessTerminalService;
 
@@ -139,7 +139,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 			return this._availableProfiles || [];
 		}
 		const platform = await this._getPlatformKey();
-		this._defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${platform}`);
+		this._defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${platform}`) ?? undefined;
 		return this._primaryOffProcessTerminalService?.getProfiles(this._configurationService.getValue(`${TerminalSettingPrefix.Profiles}${platform}`), this._defaultProfileName, includeDetectedProfiles);
 	}
 
