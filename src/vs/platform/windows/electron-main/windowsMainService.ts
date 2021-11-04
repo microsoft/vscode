@@ -29,7 +29,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { IFileService } from 'vs/platform/files/common/files';
+import { FileType, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -988,15 +988,21 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 							return undefined;
 						}
 
-						return { workspace: { id: workspace.id, configPath: workspace.configPath }, remoteAuthority: workspace.remoteAuthority, exists: true, isFile: true, transient: workspace.transient };
+						return {
+							workspace: { id: workspace.id, configPath: workspace.configPath },
+							type: FileType.File,
+							exists: true,
+							remoteAuthority: workspace.remoteAuthority,
+							transient: workspace.transient
+						};
 					}
 				}
 
 				return {
 					fileUri: URI.file(path),
-					selection: lineNumber ? { startLineNumber: lineNumber, startColumn: columnNumber || 1 } : undefined,
+					type: FileType.File,
 					exists: true,
-					isFile: true
+					selection: lineNumber ? { startLineNumber: lineNumber, startColumn: columnNumber || 1 } : undefined
 				};
 			}
 
@@ -1004,8 +1010,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			else if (pathStat.isDirectory()) {
 				return {
 					workspace: getSingleFolderWorkspaceIdentifier(URI.file(path), pathStat),
-					exists: true,
-					isFile: false
+					type: FileType.Directory,
+					exists: true
 				};
 			}
 
@@ -1016,8 +1022,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			else if (!isWindows && path === '/dev/null') {
 				return {
 					fileUri: URI.file(path),
-					exists: true,
-					isFile: true
+					type: FileType.File,
+					exists: true
 				};
 			}
 		} catch (error) {
@@ -1030,8 +1036,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			if (options.ignoreFileNotFound) {
 				return {
 					fileUri,
-					exists: false,
-					isFile: true
+					type: FileType.File,
+					exists: false
 				};
 			}
 		}
