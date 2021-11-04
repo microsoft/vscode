@@ -455,21 +455,26 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	 * @return The terminal's width if it requires a layout.
 	 */
 	private _evaluateColsAndRows(width: number, height: number): number | null {
+		console.trace(`Instance ${this._instanceId}: _evaluateColsAndRows`, width, height);
 		// Ignore if dimensions are undefined or 0
 		if (!width || !height) {
 			this._setLastKnownColsAndRows();
+			console.log(`Instance ${this._instanceId}:   set last known 1`);
 			return null;
 		}
 
 		const dimension = this._getDimension(width, height);
+		console.log(`Instance ${this._instanceId}:   dimension`, dimension?.width, dimension?.height);
 		if (!dimension) {
 			this._setLastKnownColsAndRows();
+			console.log(`Instance ${this._instanceId}:   set last known 2`);
 			return null;
 		}
 
 		const font = this.xterm ? this.xterm.getFont() : this._configHelper.getFont();
 		if (!font.charWidth || !font.charHeight) {
 			this._setLastKnownColsAndRows();
+			console.log(`Instance ${this._instanceId}:   set last known 3`);
 			return null;
 		}
 
@@ -492,6 +497,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._rows = newRows;
 			this._fireMaximumDimensionsChanged();
 		}
+		console.log(`Instance ${this._instanceId}:   result`, this._cols, this._rows, dimension.width);
 
 		return dimension.width;
 	}
@@ -515,10 +521,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return undefined;
 		}
 
-		if (!this._wrapperElement) {
+		if (!this._wrapperElement || !this.xterm?.raw.element) {
 			return undefined;
 		}
-		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(Math.min(Constants.MaxCanvasWidth, width), height + (this._hasScrollBar && !this._horizontalScrollbar ? -scrollbarHeight - 2 : 0)/* bottom padding */);
+		const computedStyle = window.getComputedStyle(this.xterm.raw.element);
+		const horizontalPadding = parseInt(computedStyle.paddingLeft) + parseInt(computedStyle.paddingRight);
+		const verticalPadding = parseInt(computedStyle.paddingTop) + parseInt(computedStyle.paddingBottom);
+		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(
+			Math.min(Constants.MaxCanvasWidth, width - horizontalPadding),
+			height + (this._hasScrollBar && !this._horizontalScrollbar ? -scrollbarHeight : 0) - 2/* bottom padding */ - verticalPadding);
 		return TerminalInstance._lastKnownCanvasDimensions;
 	}
 
@@ -1411,6 +1422,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	layout(dimension: dom.Dimension): void {
+		console.log(`Instance ${this._instanceId}: layout`, dimension.width, dimension.height);
 		this._lastLayoutDimensions = dimension;
 		if (this.disableLayout) {
 			return;
@@ -1423,10 +1435,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		// Evaluate columns and rows, exclude the wrapper element's margin
-		const computedStyle = window.getComputedStyle(this._wrapperElement!);
-		const horizontalMargin = parseInt(computedStyle.marginLeft) + parseInt(computedStyle.marginRight);
-		const verticalMargin = parseInt(computedStyle.marginTop) + parseInt(computedStyle.marginBottom);
-		const terminalWidth = this._evaluateColsAndRows(dimension.width - horizontalMargin, dimension.height - verticalMargin);
+		const terminalWidth = this._evaluateColsAndRows(dimension.width, dimension.height);
 		if (!terminalWidth) {
 			return;
 		}
