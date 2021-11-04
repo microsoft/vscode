@@ -137,7 +137,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 			return this._availableProfiles || [];
 		}
 		const platform = await this._getPlatformKey();
-		this._defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${platform}`);
+		this._defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${platform}`) ?? undefined;
 		return primaryBackend.getProfiles(this._configurationService.getValue(`${TerminalSettingPrefix.Profiles}${platform}`), this._defaultProfileName, includeDetectedProfiles);
 	}
 
