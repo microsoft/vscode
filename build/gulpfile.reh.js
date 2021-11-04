@@ -134,7 +134,7 @@ const serverWithWebEntryPoints = [
 ];
 
 function getNodeVersion () {
-	// NOTE@coder: Fix version due to .yarnrc removal.
+	// NOTE@coder: Always use the current version to avoid native module errors.
 	return process.versions.node;
 
 	const yarnrc = fs.readFileSync(path.join(REPO_ROOT, 'remote', '.yarnrc'), 'utf8');

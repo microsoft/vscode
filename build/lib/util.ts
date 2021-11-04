@@ -336,9 +336,8 @@ export function streamToPromise(stream: NodeJS.ReadWriteStream): Promise<void> {
 }
 
 export function getElectronVersion(): string {
-	// NOTE@coder: Fix version due to .yarnrc removal.
+	// NOTE@coder: Always use the current version to avoid native module errors.
 	return process.versions.node;
-
 	const yarnrc = fs.readFileSync(path.join(root, '.yarnrc'), 'utf8');
 	const target = /^target "(.*)"$/m.exec(yarnrc)![1];
 	return target;
@@ -406,4 +405,3 @@ export function buildWebNodePaths(outDir: string) {
 	result.taskName = 'build-web-node-paths';
 	return result;
 }
-
