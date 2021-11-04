@@ -85,6 +85,15 @@ declare global {
 
 		export type CreateServer = (address: string | net.AddressInfo | null, args: ServerParsedArgs, REMOTE_DATA_FOLDER: string) => Promise<IServerAPI>;
 
+		export interface ProductDescription {
+			productName: string;
+			version: string;
+			commit: string;
+			executableName: string;
+		}
+
+		export type RemoteCLIMain = (desc: ProductDescription, args: string[]) => void;
+
 		export interface IServerAPI {
 			handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void>;
 			handleUpgrade(req: http.IncomingMessage, socket: net.Socket): void;
