@@ -83,10 +83,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 
 	_serviceBrand: undefined;
 
-	getDefaultProfileName(): string {
-		if (!this._defaultProfileName) {
-			throw new Error('no default profile');
-		}
+	getDefaultProfileName(): string | undefined {
 		return this._defaultProfileName;
 	}
 
