@@ -190,7 +190,7 @@ export class PtyService extends Disposable implements IPtyService {
 			executableEnv,
 			windowsEnableConpty
 		};
-		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, processLaunchOptions, unicodeVersion, this._reconnectConstants, this._logService, isReviving ? shellLaunchConfig.initialText : undefined, shellLaunchConfig.icon, shellLaunchConfig.color, shellLaunchConfig.fixedDimensions);
+		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, processLaunchOptions, unicodeVersion, this._reconnectConstants, this._logService, isReviving ? shellLaunchConfig.initialText : undefined, shellLaunchConfig.icon, shellLaunchConfig.color, shellLaunchConfig.name, shellLaunchConfig.fixedDimensions);
 		process.onDidChangeProperty(property => this._onDidChangeProperty.fire({ id, property }));
 		process.onProcessExit(event => {
 			persistentProcess.dispose();
@@ -425,7 +425,12 @@ export class PersistentTerminalProcess extends Disposable {
 	private _fixedDimensions: IFixedTerminalDimensions | undefined;
 
 	get pid(): number { return this._pid; }
-	get shellLaunchConfig(): IShellLaunchConfig { return this._terminalProcess.shellLaunchConfig; }
+	get shellLaunchConfig(): IShellLaunchConfig {
+		this._terminalProcess.shellLaunchConfig.color = this.color;
+		this._terminalProcess.shellLaunchConfig.icon = this.icon;
+		this._terminalProcess.shellLaunchConfig.name = this.title;
+		return this._terminalProcess.shellLaunchConfig;
+	}
 	get title(): string { return this._title || this._terminalProcess.currentTitle; }
 	get titleSource(): TitleEventSource { return this._titleSource; }
 	get icon(): TerminalIcon | undefined { return this._icon; }
@@ -437,8 +442,10 @@ export class PersistentTerminalProcess extends Disposable {
 		this._titleSource = titleSource;
 	}
 
-	setIcon(icon: TerminalIcon, color?: string): void {
-		this._icon = icon;
+	setIcon(icon?: TerminalIcon, color?: string): void {
+		if (icon) {
+			this._icon = icon;
+		}
 		this._color = color;
 	}
 
@@ -461,9 +468,14 @@ export class PersistentTerminalProcess extends Disposable {
 		reviveBuffer: string | undefined,
 		private _icon?: TerminalIcon,
 		private _color?: string,
+		name?: string,
 		fixedDimensions?: IFixedTerminalDimensions
 	) {
 		super();
+		this.setIcon(_icon, _color);
+		if (name) {
+			this.setTitle(name, TitleEventSource.Api);
+		}
 		this._logService.trace('persistentTerminalProcess#ctor', _persistentProcessId, arguments);
 		this._wasRevived = reviveBuffer !== undefined;
 		this._serializer = new XtermSerializer(

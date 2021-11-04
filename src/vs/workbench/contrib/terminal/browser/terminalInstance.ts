@@ -409,7 +409,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _getIcon(): TerminalIcon | undefined {
-		const icon = this._shellLaunchConfig.icon || this._shellLaunchConfig.attachPersistentProcess?.icon;
+		const icon = this._shellLaunchConfig.attachPersistentProcess?.icon || this._shellLaunchConfig.icon;
 		if (!icon) {
 			return this._processManager.processState >= ProcessState.Launching ? Codicon.terminal : undefined;
 		}
@@ -417,16 +417,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _getColor(): string | undefined {
-		if (this.shellLaunchConfig.color) {
-			return this.shellLaunchConfig.color;
-		}
-		if (this.shellLaunchConfig?.attachPersistentProcess?.color) {
-			return this.shellLaunchConfig.attachPersistentProcess.color;
-		}
-		if (this._processManager.processState >= ProcessState.Launching) {
-			return undefined;
-		}
-		return undefined;
+
+		return this.shellLaunchConfig?.attachPersistentProcess?.color || this.shellLaunchConfig?.color || undefined;
 	}
 
 	addDisposable(disposable: IDisposable): void {
