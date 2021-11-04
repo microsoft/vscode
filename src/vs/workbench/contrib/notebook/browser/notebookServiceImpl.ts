@@ -318,7 +318,7 @@ export class NotebookOutputRendererInfoStore {
 			OtherRenderer = 4 << 8,
 		}
 
-		const preferred = false && notebookProviderInfo && this.preferredMimetype.getValue()[notebookProviderInfo.id]?.[mimeType];
+		const preferred = notebookProviderInfo && this.preferredMimetype.getValue()[notebookProviderInfo.id]?.[mimeType];
 		const notebookExtId = notebookProviderInfo?.extension?.value;
 		const renderers: { ordered: IOrderedMimeType, score: number }[] = Array.from(this.contributedRenderers.values())
 			.map(renderer => {
