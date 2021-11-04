@@ -102,6 +102,7 @@ export class FileWalker {
 
 	cancel(): void {
 		this.isCanceled = true;
+		killCmds.forEach(cmd => cmd());
 	}
 
 	walk(folderQueries: IFolderQuery[], extraFiles: URI[], onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgressMessage) => void, done: (error: Error | null, isLimitHit: boolean) => void): void {

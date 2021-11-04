@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert = require('assert');
-import { AstNode, AstNodeKind, ListAstNode, TextAstNode } from 'vs/editor/common/model/bracketPairs/impl/ast';
-import { toLength } from 'vs/editor/common/model/bracketPairs/impl/length';
-import { concat23Trees } from 'vs/editor/common/model/bracketPairs/impl/concat23Trees';
+import { AstNode, AstNodeKind, ListAstNode, TextAstNode } from 'vs/editor/common/model/bracketPairs/bracketPairsTree/ast';
+import { toLength } from 'vs/editor/common/model/bracketPairs/bracketPairsTree/length';
+import { concat23Trees } from 'vs/editor/common/model/bracketPairs/bracketPairsTree/concat23Trees';
 
 suite('Bracket Pair Colorizer - mergeItems', () => {
 	test('Clone', () => {

@@ -3,38 +3,46 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ipcRenderer } from 'electron';
+import { CrashReporterStartOptions, ipcRenderer } from 'electron';
+import { join } from 'path';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
-import { generateUuid } from 'vs/base/common/uuid';
+import { isLinux } from 'vs/base/common/platform';
+import { generateUuid, isUUID } from 'vs/base/common/uuid';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
-import { hash, ISharedProcessWorkerConfiguration, ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
-import { SharedProcessWorkerMessages, ISharedProcessToWorkerMessage, IWorkerToSharedProcessMessage } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorker';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { hash, IOnDidTerminateSharedProcessWorkerProcess, ISharedProcessWorkerConfiguration, ISharedProcessWorkerProcessExit, ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
+import { SharedProcessWorkerMessages, ISharedProcessToWorkerMessage, IWorkerToSharedProcessMessage, ISharedProcessWorkerEnvironment } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorker';
 
 export class SharedProcessWorkerService implements ISharedProcessWorkerService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private readonly workers = new Map<string /* process module ID */, Promise<SharedProcessWebWorker>>();
-	private readonly processes = new Map<number /* process configuration hash */, IDisposable>();
+
+	private readonly processeDisposables = new Map<number /* process configuration hash */, (reason?: ISharedProcessWorkerProcessExit) => void>();
+	private readonly processResolvers = new Map<number /* process configuration hash */, (process: IOnDidTerminateSharedProcessWorkerProcess) => void>();
 
 	constructor(
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IProductService private readonly productService: IProductService,
+		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService
 	) {
 	}
 
-	async createWorker(configuration: ISharedProcessWorkerConfiguration): Promise<void> {
+	async createWorker(configuration: ISharedProcessWorkerConfiguration): Promise<IOnDidTerminateSharedProcessWorkerProcess> {
 		const workerLogId = `window: ${configuration.reply.windowId}, moduleId: ${configuration.process.moduleId}`;
 		this.logService.trace(`SharedProcess: createWorker (${workerLogId})`);
 
 		// Ensure to dispose any existing process for config
 		const configurationHash = hash(configuration);
-		if (this.processes.has(configurationHash)) {
+		if (this.processeDisposables.has(configurationHash)) {
 			this.logService.warn(`SharedProcess: createWorker found an existing worker that will be terminated (${workerLogId})`);
 
-			this.disposeWorker(configuration);
+			this.doDisposeWorker(configuration);
 		}
 
 		const cts = new CancellationTokenSource();
@@ -43,8 +51,8 @@ export class SharedProcessWorkerService implements ISharedProcessWorkerService {
 		let windowPort: MessagePort | undefined = undefined;
 		let workerPort: MessagePort | undefined = undefined;
 
-		// Store as process for later disposal
-		this.processes.set(configurationHash, toDisposable(() => {
+		// Store as process for termination support
+		this.processeDisposables.set(configurationHash, (reason?: ISharedProcessWorkerProcessExit) => {
 
 			// Signal to token
 			cts.dispose(true);
@@ -57,14 +65,27 @@ export class SharedProcessWorkerService implements ISharedProcessWorkerService {
 			workerPort?.close();
 
 			// Remove from processes
-			this.processes.delete(configurationHash);
-		}));
+			this.processeDisposables.delete(configurationHash);
+
+			// Release process resolvers if any
+			const processResolver = this.processResolvers.get(configurationHash);
+			if (processResolver) {
+				this.processResolvers.delete(configurationHash);
+				processResolver({ reason });
+			}
+		});
 
 		// Acquire a worker for the configuration
 		worker = await this.getOrCreateWebWorker(configuration);
 
+		// Keep a promise that will resolve in the future when the
+		// underlying process terminates.
+		const onDidTerminate = new Promise<IOnDidTerminateSharedProcessWorkerProcess>(resolve => {
+			this.processResolvers.set(configurationHash, resolve);
+		});
+
 		if (cts.token.isCancellationRequested) {
-			return;
+			return onDidTerminate;
 		}
 
 		// Create a `MessageChannel` with 2 ports:
@@ -78,7 +99,7 @@ export class SharedProcessWorkerService implements ISharedProcessWorkerService {
 		await worker.spawn(configuration, workerPort, cts.token);
 
 		if (cts.token.isCancellationRequested) {
-			return;
+			return onDidTerminate;
 		}
 
 		// We cannot just send the `MessagePort` through our protocol back
@@ -86,6 +107,8 @@ export class SharedProcessWorkerService implements ISharedProcessWorkerService {
 		// to send it through the main process back to the window.
 		this.logService.trace(`SharedProcess: createWorker sending message port back to window (${workerLogId})`);
 		ipcRenderer.postMessage('vscode:relaySharedProcessWorkerMessageChannel', configuration, [windowPort]);
+
+		return onDidTerminate;
 	}
 
 	private getOrCreateWebWorker(configuration: ISharedProcessWorkerConfiguration): Promise<SharedProcessWebWorker> {
@@ -100,14 +123,13 @@ export class SharedProcessWorkerService implements ISharedProcessWorkerService {
 		if (!webWorkerPromise) {
 			this.logService.trace(`SharedProcess: creating new web worker (${configuration.process.moduleId})`);
 
-			const sharedProcessWorker = new SharedProcessWebWorker(configuration.process.type, this.logService);
+			const sharedProcessWorker = new SharedProcessWebWorker(configuration.process.type, this.logService, this.productService, this.environmentService);
 			webWorkerPromise = sharedProcessWorker.init();
 
-			// Make sure to run through our normal
-			// `disposeWorker` call when the process
-			// terminates by itself.
-			sharedProcessWorker.onDidProcessSelfTerminate(configuration => {
-				this.disposeWorker(configuration);
+			// Make sure to run through our normal `disposeWorker` call
+			// when the process terminates by itself.
+			sharedProcessWorker.onDidProcessSelfTerminate(({ configuration, reason }) => {
+				this.doDisposeWorker(configuration, reason);
 			});
 
 			this.workers.set(configuration.process.moduleId, webWorkerPromise);
@@ -117,18 +139,22 @@ export class SharedProcessWorkerService implements ISharedProcessWorkerService {
 	}
 
 	async disposeWorker(configuration: ISharedProcessWorkerConfiguration): Promise<void> {
-		const processDisposable = this.processes.get(hash(configuration));
+		return this.doDisposeWorker(configuration);
+	}
+
+	private doDisposeWorker(configuration: ISharedProcessWorkerConfiguration, reason?: ISharedProcessWorkerProcessExit): void {
+		const processDisposable = this.processeDisposables.get(hash(configuration));
 		if (processDisposable) {
 			this.logService.trace(`SharedProcess: disposeWorker (window: ${configuration.reply.windowId}, moduleId: ${configuration.process.moduleId})`);
 
-			processDisposable.dispose();
+			processDisposable(reason);
 		}
 	}
 }
 
 class SharedProcessWebWorker extends Disposable {
 
-	private readonly _onDidProcessSelfTerminate = this._register(new Emitter<ISharedProcessWorkerConfiguration>());
+	private readonly _onDidProcessSelfTerminate = this._register(new Emitter<{ configuration: ISharedProcessWorkerConfiguration, reason: ISharedProcessWorkerProcessExit }>());
 	readonly onDidProcessSelfTerminate = this._onDidProcessSelfTerminate.event;
 
 	private readonly workerReady: Promise<Worker> = this.doInit();
@@ -136,7 +162,9 @@ class SharedProcessWebWorker extends Disposable {
 
 	constructor(
 		private readonly type: string,
-		private readonly logService: ILogService
+		private readonly logService: ILogService,
+		private readonly productService: IProductService,
+		private readonly environmentService: INativeEnvironmentService
 	) {
 		super();
 	}
@@ -186,8 +214,8 @@ class SharedProcessWebWorker extends Disposable {
 
 				// Lifecycle: self termination
 				case SharedProcessWorkerMessages.SelfTerminated:
-					if (configuration) {
-						this._onDidProcessSelfTerminate.fire(configuration);
+					if (configuration && message) {
+						this._onDidProcessSelfTerminate.fire({ configuration, reason: JSON.parse(message) });
 					}
 					break;
 
@@ -260,12 +288,45 @@ class SharedProcessWebWorker extends Disposable {
 		const workerMessage: ISharedProcessToWorkerMessage = {
 			id: SharedProcessWorkerMessages.Spawn,
 			configuration,
-			environment: {
-				bootstrapPath: FileAccess.asFileUri('bootstrap-fork', require).fsPath
-			}
+			environment: this.getSharedProcessWorkerEnvironment()
 		};
 
 		return this.send(workerMessage, token, port);
+	}
+
+	private getSharedProcessWorkerEnvironment(): ISharedProcessWorkerEnvironment {
+		const sharedProcessWorkerEnvironment = {
+			bootstrapPath: FileAccess.asFileUri('bootstrap-fork', require).fsPath,
+			env: Object.create(null)
+		};
+
+		// Crash reporter support
+		// TODO@bpasero TODO@deepak1556 remove once we updated to Electron 15
+		if (isLinux) {
+			const crashReporterStartOptions: CrashReporterStartOptions = {
+				companyName: this.productService.crashReporter?.companyName || 'Microsoft',
+				productName: this.productService.crashReporter?.productName || this.productService.nameShort,
+				submitURL: '',
+				uploadToServer: false
+			};
+
+			const crashReporterId = this.environmentService.args['crash-reporter-id']; // crashReporterId is set by the main process only when crash reporting is enabled by the user.
+			const appcenter = this.productService.appCenter;
+			const uploadCrashesToServer = !this.environmentService.args['crash-reporter-directory']; // only upload unless --crash-reporter-directory is provided
+			if (uploadCrashesToServer && appcenter && crashReporterId && isUUID(crashReporterId)) {
+				const submitURL = appcenter[`linux-x64`];
+				crashReporterStartOptions.submitURL = submitURL.concat('&uid=', crashReporterId, '&iid=', crashReporterId, '&sid=', crashReporterId);
+				crashReporterStartOptions.uploadToServer = true;
+			}
+			// In the upload to server case, there is a bug in electron that creates client_id file in the current
+			// working directory. Setting the env BREAKPAD_DUMP_LOCATION will force electron to create the file in that location,
+			// For https://github.com/microsoft/vscode/issues/105743
+			const extHostCrashDirectory = this.environmentService.args['crash-reporter-directory'] || this.environmentService.userDataPath;
+			sharedProcessWorkerEnvironment.env.BREAKPAD_DUMP_LOCATION = join(extHostCrashDirectory, this.type);
+			sharedProcessWorkerEnvironment.env.VSCODE_CRASH_REPORTER_START_OPTIONS = JSON.stringify(crashReporterStartOptions);
+		}
+
+		return sharedProcessWorkerEnvironment;
 	}
 
 	terminate(configuration: ISharedProcessWorkerConfiguration, token: CancellationToken): Promise<void> {

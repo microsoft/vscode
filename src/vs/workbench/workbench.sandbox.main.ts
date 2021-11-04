@@ -52,7 +52,6 @@ import 'vs/workbench/services/credentials/electron-sandbox/credentialsService';
 import 'vs/workbench/services/encryption/electron-sandbox/encryptionService';
 import 'vs/workbench/services/localizations/electron-sandbox/localizationsService';
 import 'vs/workbench/services/telemetry/electron-sandbox/telemetryService';
-import 'vs/workbench/services/extensions/electron-sandbox/extensionHostStarter';
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionManagementServerService';
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionTipsService';
 import 'vs/workbench/services/userDataSync/electron-sandbox/userDataSyncMachinesService';
@@ -143,5 +142,8 @@ import 'vs/workbench/contrib/externalTerminal/electron-sandbox/externalTerminal.
 
 // Webview
 import 'vs/workbench/contrib/webview/electron-sandbox/webview.contribution';
+
+// Splash
+import 'vs/workbench/contrib/splash/electron-sandbox/splash.contribution';
 
 //#endregion

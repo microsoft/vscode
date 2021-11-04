@@ -1277,16 +1277,16 @@ declare module 'vscode' {
 		 * `Uri.parse('file://' + path)` because the path might contain characters that are
 		 * interpreted (# and ?). See the following sample:
 		 * ```ts
-		const good = URI.file('/coding/c#/project1');
-		good.scheme === 'file';
-		good.path === '/coding/c#/project1';
-		good.fragment === '';
-
-		const bad = URI.parse('file://' + '/coding/c#/project1');
-		bad.scheme === 'file';
-		bad.path === '/coding/c'; // path is now broken
-		bad.fragment === '/project1';
-		```
+		 * const good = URI.file('/coding/c#/project1');
+		 * good.scheme === 'file';
+		 * good.path === '/coding/c#/project1';
+		 * good.fragment === '';
+		 *
+		 * const bad = URI.parse('file://' + '/coding/c#/project1');
+		 * bad.scheme === 'file';
+		 * bad.path === '/coding/c'; // path is now broken
+		 * bad.fragment === '/project1';
+		 * ```
 		 *
 		 * @param path A file system or UNC path.
 		 * @return A new Uri instance.
@@ -1370,11 +1370,11 @@ declare module 'vscode' {
 		 * The *difference* to the {@linkcode Uri.path path}-property is the use of the platform specific
 		 * path separator and the handling of UNC paths. The sample below outlines the difference:
 		 * ```ts
-		const u = URI.parse('file://server/c$/folder/file.txt')
-		u.authority === 'server'
-		u.path === '/shares/c$/file.txt'
-		u.fsPath === '\\server\c$\folder\file.txt'
-		```
+		 * const u = URI.parse('file://server/c$/folder/file.txt')
+		 * u.authority === 'server'
+		 * u.path === '/shares/c$/file.txt'
+		 * u.fsPath === '\\server\c$\folder\file.txt'
+		 * ```
 		 */
 		readonly fsPath: string;
 
@@ -5131,18 +5131,17 @@ declare module 'vscode' {
 	 * - *Workspace Folder settings* - From one of the {@link workspace.workspaceFolders Workspace Folders} under which requested resource belongs to.
 	 * - *Language settings* - Settings defined under requested language.
 	 *
-	 * The *effective* value (returned by {@linkcode WorkspaceConfiguration.get get}) is computed by overriding or merging the values in the following order.
+	 * The *effective* value (returned by {@linkcode WorkspaceConfiguration.get get}) is computed by overriding or merging the values in the following order:
 	 *
-	 * ```
-	 * `defaultValue` (if defined in `package.json` otherwise derived from the value's type)
-	 * `globalValue` (if defined)
-	 * `workspaceValue` (if defined)
-	 * `workspaceFolderValue` (if defined)
-	 * `defaultLanguageValue` (if defined)
-	 * `globalLanguageValue` (if defined)
-	 * `workspaceLanguageValue` (if defined)
-	 * `workspaceFolderLanguageValue` (if defined)
-	 * ```
+	 * 1. `defaultValue` (if defined in `package.json` otherwise derived from the value's type)
+	 * 1. `globalValue` (if defined)
+	 * 1. `workspaceValue` (if defined)
+	 * 1. `workspaceFolderValue` (if defined)
+	 * 1. `defaultLanguageValue` (if defined)
+	 * 1. `globalLanguageValue` (if defined)
+	 * 1. `workspaceLanguageValue` (if defined)
+	 * 1. `workspaceFolderLanguageValue` (if defined)
+	 *
 	 * **Note:** Only `object` value types are merged and all other value types are overridden.
 	 *
 	 * Example 1: Overriding
@@ -7690,8 +7689,8 @@ declare module 'vscode' {
 		 *
 		 * This is the origin that should be used in a content security policy rule:
 		 *
-		 * ```
-		 * img-src https: ${webview.cspSource} ...;
+		 * ```ts
+		 * `img-src https: ${webview.cspSource} ...;`
 		 * ```
 		 */
 		readonly cspSource: string;
@@ -7744,7 +7743,7 @@ declare module 'vscode' {
 		/**
 		 * Icon for the panel shown in UI.
 		 */
-		iconPath?: Uri | { light: Uri; dark: Uri };
+		iconPath?: Uri | { readonly light: Uri; readonly dark: Uri };
 
 		/**
 		 * {@linkcode Webview} belonging to the panel.
@@ -9545,17 +9544,17 @@ declare module 'vscode' {
 		 * Context value of the tree item. This can be used to contribute item specific actions in the tree.
 		 * For example, a tree item is given a context value as `folder`. When contributing actions to `view/item/context`
 		 * using `menus` extension point, you can specify context value for key `viewItem` in `when` expression like `viewItem == folder`.
-		 * ```
-		 *	"contributes": {
-		 *		"menus": {
-		 *			"view/item/context": [
-		 *				{
-		 *					"command": "extension.deleteFolder",
-		 *					"when": "viewItem == folder"
-		 *				}
-		 *			]
-		 *		}
-		 *	}
+		 * ```json
+		 * "contributes": {
+		 *   "menus": {
+		 *     "view/item/context": [
+		 *       {
+		 *         "command": "extension.deleteFolder",
+		 *         "when": "viewItem == folder"
+		 *       }
+		 *     ]
+		 *   }
+		 * }
 		 * ```
 		 * This will show action `extension.deleteFolder` only for items with `contextValue` is `folder`.
 		 */
@@ -11255,7 +11254,7 @@ declare module 'vscode' {
 		 * 2. A string will be desugared to become the `language`-part of a {@linkcode DocumentFilter}, so `"fooLang"` is like `{ language: "fooLang" }`.
 		 * 3. A {@linkcode DocumentFilter} will be matched against the document by comparing its parts with the document. The following rules apply:
 		 *  1. When the `DocumentFilter` is empty (`{}`) the result is `0`
-		 *  2. When `scheme`, `language`, or `pattern` are defined but one doesn’t match, the result is `0`
+		 *  2. When `scheme`, `language`, or `pattern` are defined but one doesn't match, the result is `0`
 		 *  3. Matching against `*` gives a score of `5`, matching via equality or via a glob-pattern gives a score of `10`
 		 *  4. The result is the maximum value of each match
 		 *
@@ -12662,17 +12661,17 @@ declare module 'vscode' {
 		 * Context value of the resource state. This can be used to contribute resource specific actions.
 		 * For example, if a resource is given a context value as `diffable`. When contributing actions to `scm/resourceState/context`
 		 * using `menus` extension point, you can specify context value for key `scmResourceState` in `when` expressions, like `scmResourceState == diffable`.
-		 * ```
-		 *	"contributes": {
-		 *		"menus": {
-		 *			"scm/resourceState/context": [
-		 *				{
-		 *					"command": "extension.diff",
-		 *					"when": "scmResourceState == diffable"
-		 *				}
-		 *			]
-		 *		}
-		 *	}
+		 * ```json
+		 * "contributes": {
+		 *   "menus": {
+		 *     "scm/resourceState/context": [
+		 *       {
+		 *         "command": "extension.diff",
+		 *         "when": "scmResourceState == diffable"
+		 *       }
+		 *     ]
+		 *   }
+		 * }
 		 * ```
 		 * This will show action `extension.diff` only for resources with `contextValue` is `diffable`.
 		 */
@@ -13579,17 +13578,17 @@ declare module 'vscode' {
 		 * Context value of the comment thread. This can be used to contribute thread specific actions.
 		 * For example, a comment thread is given a context value as `editable`. When contributing actions to `comments/commentThread/title`
 		 * using `menus` extension point, you can specify context value for key `commentThread` in `when` expression like `commentThread == editable`.
-		 * ```
-		 *	"contributes": {
-		 *		"menus": {
-		 *			"comments/commentThread/title": [
-		 *				{
-		 *					"command": "extension.deleteCommentThread",
-		 *					"when": "commentThread == editable"
-		 *				}
-		 *			]
-		 *		}
-		 *	}
+		 * ```json
+		 * "contributes": {
+		 *   "menus": {
+		 *     "comments/commentThread/title": [
+		 *       {
+		 *         "command": "extension.deleteCommentThread",
+		 *         "when": "commentThread == editable"
+		 *       }
+		 *     ]
+		 *   }
+		 * }
 		 * ```
 		 * This will show action `extension.deleteCommentThread` only for comment threads with `contextValue` is `editable`.
 		 */

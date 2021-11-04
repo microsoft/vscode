@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MessagePoster } from './messaging';
-import { getSettings } from './settings';
+import { SettingsManager } from './settings';
 import { getStrings } from './strings';
 
 /**
@@ -16,7 +16,9 @@ export class CspAlerter {
 
 	private messaging?: MessagePoster;
 
-	constructor() {
+	constructor(
+		private readonly settingsManager: SettingsManager,
+	) {
 		document.addEventListener('securitypolicyviolation', () => {
 			this.onCspWarning();
 		});
@@ -42,7 +44,7 @@ export class CspAlerter {
 
 	private showCspWarning() {
 		const strings = getStrings();
-		const settings = getSettings();
+		const settings = this.settingsManager.settings;
 
 		if (this.didShow || settings.disableSecurityWarnings || !this.messaging) {
 			return;

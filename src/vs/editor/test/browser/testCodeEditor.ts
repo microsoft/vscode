@@ -32,7 +32,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { BrandedService, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
@@ -117,7 +117,8 @@ export interface TestCodeEditorCreationOptions extends editorOptions.IEditorOpti
 }
 
 export function withTestCodeEditor(text: string | string[] | ITextBufferFactory | null, options: TestCodeEditorCreationOptions, callback: (editor: ITestCodeEditor, viewModel: ViewModel) => void): void {
-	const [instantiationService, disposables] = createTestCodeEditorServices(options.serviceCollection);
+	const disposables = new DisposableStore();
+	const instantiationService = createCodeEditorServices(disposables, options.serviceCollection);
 	delete options.serviceCollection;
 
 	// create a model if necessary
@@ -138,7 +139,8 @@ export function withTestCodeEditor(text: string | string[] | ITextBufferFactory 
 }
 
 export async function withAsyncTestCodeEditor(text: string | string[] | ITextBufferFactory | null, options: TestCodeEditorCreationOptions, callback: (editor: ITestCodeEditor, viewModel: ViewModel, instantiationService: IInstantiationService) => Promise<void>): Promise<void> {
-	const [instantiationService, disposables] = createTestCodeEditorServices(options.serviceCollection);
+	const disposables = new DisposableStore();
+	const instantiationService = createCodeEditorServices(disposables, options.serviceCollection);
 	delete options.serviceCollection;
 
 	// create a model if necessary
@@ -159,7 +161,8 @@ export async function withAsyncTestCodeEditor(text: string | string[] | ITextBuf
 }
 
 export function createTestCodeEditor(options: TestCodeEditorCreationOptions): ITestCodeEditor {
-	const [instantiationService, disposables] = createTestCodeEditorServices(options.serviceCollection);
+	const disposables = new DisposableStore();
+	const instantiationService = createCodeEditorServices(disposables, options.serviceCollection);
 	delete options.serviceCollection;
 
 	const editor = doCreateTestCodeEditor(instantiationService, options);
@@ -167,7 +170,7 @@ export function createTestCodeEditor(options: TestCodeEditorCreationOptions): IT
 	return editor;
 }
 
-export function createTestCodeEditorServices(services: ServiceCollection = new ServiceCollection()): [IInstantiationService, DisposableStore] {
+export function createCodeEditorServices(disposables: DisposableStore, services: ServiceCollection = new ServiceCollection()): TestInstantiationService {
 	const serviceIdentifiers: ServiceIdentifier<any>[] = [];
 	const define = <T>(id: ServiceIdentifier<T>, ctor: new (...args: any[]) => T) => {
 		if (!services.has(id)) {
@@ -191,8 +194,7 @@ export function createTestCodeEditorServices(services: ServiceCollection = new S
 	define(ICommandService, TestCommandService);
 	define(ITelemetryService, NullTelemetryServiceShape);
 
-	const instantiationService: IInstantiationService = new InstantiationService(services);
-	const disposables = new DisposableStore();
+	const instantiationService = new TestInstantiationService(services);
 	disposables.add(toDisposable(() => {
 		for (const id of serviceIdentifiers) {
 			const instanceOrDescriptor = services.get(id);
@@ -201,7 +203,7 @@ export function createTestCodeEditorServices(services: ServiceCollection = new S
 			}
 		}
 	}));
-	return [instantiationService, disposables];
+	return instantiationService;
 }
 
 function doCreateTestCodeEditor(instantiationService: IInstantiationService, options: TestCodeEditorCreationOptions): ITestCodeEditor {

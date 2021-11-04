@@ -285,7 +285,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				this._taskSystem = undefined;
 			}
 			this.updateSetup(folderSetup);
-			this.updateWorkspaceTasks();
+			this.updateWorkspaceTasks(TaskRunSource.FolderOpen);
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(() => {
 			if (!this._taskSystem && !this._workspaceTasksPromise) {
@@ -926,16 +926,16 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			throw new TaskError(Severity.Info, nls.localize('TaskServer.noTask', 'Task to execute is undefined'), TaskErrors.TaskNotFound);
 		}
 
-		// eslint-disable-next-line no-async-promise-executor
-		return new Promise<ITaskSummary | undefined>(async (resolve) => {
+		return new Promise<ITaskSummary | undefined>((resolve) => {
 			let resolver = this.createResolver();
 			if (options && options.attachProblemMatcher && this.shouldAttachProblemMatcher(task) && !InMemoryTask.is(task)) {
-				const toExecute = await this.attachProblemMatcher(task);
-				if (toExecute) {
-					resolve(this.executeTask(toExecute, resolver, runSource));
-				} else {
-					resolve(undefined);
-				}
+				this.attachProblemMatcher(task).then(toExecute => {
+					if (toExecute) {
+						resolve(this.executeTask(toExecute, resolver, runSource));
+					} else {
+						resolve(undefined);
+					}
+				});
 			} else {
 				resolve(this.executeTask(task, resolver, runSource));
 			}
@@ -1940,17 +1940,18 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					result.set(value.workspaceFolder.uri.toString(), value);
 				}
 			}
-			const folder = await this.getAFolder();
-			const userTasks = await this.computeUserTasks(folder, runSource).then((value) => value, () => undefined);
-			if (userTasks) {
-				result.set(USER_TASKS_GROUP_KEY, userTasks);
-			}
 
+			const folder = await this.getAFolder();
 			if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
 				const workspaceFileTasks = await this.computeWorkspaceFileTasks(folder, runSource).then((value) => value, () => undefined);
 				if (workspaceFileTasks && this._workspace && this._workspace.configuration) {
 					result.set(this._workspace.configuration.toString(), workspaceFileTasks);
 				}
+			}
+
+			const userTasks = await this.computeUserTasks(folder, runSource).then((value) => value, () => undefined);
+			if (userTasks) {
+				result.set(USER_TASKS_GROUP_KEY, userTasks);
 			}
 			return result;
 		});
@@ -2361,10 +2362,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		});
 
-		// eslint-disable-next-line no-async-promise-executor
-		const timeout: boolean = await Promise.race([new Promise<boolean>(async (resolve) => {
-			await _createEntries;
-			resolve(false);
+		const timeout: boolean = await Promise.race([new Promise<boolean>((resolve) => {
+			_createEntries.then(() => resolve(false));
 		}), new Promise<boolean>((resolve) => {
 			const timer = setTimeout(() => {
 				clearTimeout(timer);
@@ -2629,7 +2628,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			title: nls.localize('TaskService.fetchingBuildTasks', 'Fetching build tasks...')
 		};
 		let promise = this.getWorkspaceTasks().then(tasks => {
-			const buildTasks: ConfiguringTask[] = [];
+			const buildTasks: (ConfiguringTask | Task)[] = [];
 			for (const taskSource of tasks) {
 				for (const task in taskSource[1].configurations?.byIdentifier) {
 					if (taskSource[1].configurations) {
@@ -2640,13 +2639,34 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						}
 					}
 				}
+				if (taskSource[1].set) {
+					for (const task of taskSource[1].set?.tasks) {
+						const taskGroup: TaskGroup = task.configurationProperties.group as TaskGroup;
+						if (taskGroup && taskGroup._id === TaskGroup.Build._id && taskGroup.isDefault) {
+							buildTasks.push(task);
+						}
+					}
+				}
+				if (buildTasks.length > 0) {
+					break;
+				}
 			}
-			if (buildTasks.length === 1) {
-				this.tryResolveTask(buildTasks[0]).then(resolvedTask => {
-					this.run(resolvedTask, undefined, TaskRunSource.User).then(undefined, reason => {
-						// eat the error, it has already been surfaced to the user and we don't care about it here
-					});
+
+			async function runSingleBuildTask(task: Task | undefined, problemMatcherOptions: ProblemMatcherRunOptions | undefined, that: AbstractTaskService) {
+				that.run(task, problemMatcherOptions, TaskRunSource.User).then(undefined, reason => {
+					// eat the error, it has already been surfaced to the user and we don't care about it here
 				});
+			}
+
+			if (buildTasks.length === 1) {
+				const buildTask = buildTasks[0];
+				if (ConfiguringTask.is(buildTask)) {
+					this.tryResolveTask(buildTask).then(resolvedTask => {
+						runSingleBuildTask(resolvedTask, undefined, this);
+					});
+				} else {
+					runSingleBuildTask(buildTask, undefined, this);
+				}
 				return;
 			}
 
@@ -2654,9 +2674,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (tasks.length > 0) {
 					let { none, defaults } = this.splitPerGroupType(tasks);
 					if (defaults.length === 1) {
-						this.run(defaults[0], undefined, TaskRunSource.User).then(undefined, reason => {
-							// eat the error, it has already been surfaced to the user and we don't care about it here
-						});
+						runSingleBuildTask(defaults[0], undefined, this);
 						return;
 					} else if (defaults.length + none.length > 0) {
 						tasks = defaults.concat(none);
@@ -2678,9 +2696,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 								this.runConfigureDefaultBuildTask();
 								return;
 							}
-							this.run(task, { attachProblemMatcher: true }, TaskRunSource.User).then(undefined, reason => {
-								// eat the error, it has already been surfaced to the user and we don't care about it here
-							});
+							runSingleBuildTask(task, { attachProblemMatcher: true }, this);
 						});
 				});
 			});
@@ -3036,10 +3052,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			});
 		});
 
-		// eslint-disable-next-line no-async-promise-executor
-		const timeout: boolean = await Promise.race([new Promise<boolean>(async (resolve) => {
-			await entries;
-			resolve(false);
+		const timeout: boolean = await Promise.race([new Promise<boolean>((resolve) => {
+			entries.then(() => resolve(false));
 		}), new Promise<boolean>((resolve) => {
 			const timer = setTimeout(() => {
 				clearTimeout(timer);

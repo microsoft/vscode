@@ -461,14 +461,6 @@ class RegisterSchemasContribution extends Disposable implements IWorkbenchContri
 				['language']: {
 					type: 'string',
 					description: 'The language for the cell'
-				},
-				['inputCollapsed']: {
-					type: 'boolean',
-					description: `Whether a code cell's editor is collapsed`
-				},
-				['outputCollapsed']: {
-					type: 'boolean',
-					description: `Whether a code cell's outputs are collapsed`
 				}
 			},
 			// patternProperties: allSettings.patternProperties,

@@ -366,7 +366,7 @@ interface IWorkbenchConstructionOptions {
 	/**
 	 * [TEMPORARY]: This will be removed soon.
 	 * Use an unique origin for the web worker extension host.
-	 * Defaults to false.
+	 * Defaults to true.
 	 */
 	readonly __uniqueWebWorkerExtensionHostOrigin?: boolean;
 
@@ -447,6 +447,13 @@ interface IWorkbenchConstructionOptions {
 	 * link protection popup.
 	 */
 	readonly additionalTrustedDomains?: string[];
+
+	/**
+	 * Urls that will be opened externally that are allowed access
+	 * to the opener window. This is primarily used to allow
+	 * `window.close()` to be called from the newly opened window.
+	 */
+	readonly openerAllowedExternalUrlPrefixes?: string[];
 
 	/**
 	 * Support for URL callbacks.

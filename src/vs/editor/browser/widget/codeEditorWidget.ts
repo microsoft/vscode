@@ -1104,7 +1104,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (source === 'keyboard') {
 			this._onDidPaste.fire({
 				range: new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column),
-				mode: mode
+				languageId: mode
 			});
 		}
 	}

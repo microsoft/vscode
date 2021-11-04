@@ -146,14 +146,14 @@
 	"configuration.tsserver.watchOptions.watchFile.fixedPollingInterval": "Check every file for changes several times a second at a fixed interval.",
 	"configuration.tsserver.watchOptions.watchFile.priorityPollingInterval": "Check every file for changes several times a second, but use heuristics to check certain types of files less frequently than others.",
 	"configuration.tsserver.watchOptions.watchFile.dynamicPriorityPolling": "Use a dynamic queue where less-frequently modified files will be checked less often.",
-	"configuration.tsserver.watchOptions.watchFile.useFsEvents": "Attempt to use the operating system/file system’s native events for file changes.",
-	"configuration.tsserver.watchOptions.watchFile.useFsEventsOnParentDirectory": "Attempt to use the operating system/file system’s native events to listen for changes on a file’s containing directories. This can use fewer file watchers, but might be less accurate.",
+	"configuration.tsserver.watchOptions.watchFile.useFsEvents": "Attempt to use the operating system/file system's native events for file changes.",
+	"configuration.tsserver.watchOptions.watchFile.useFsEventsOnParentDirectory": "Attempt to use the operating system/file system's native events to listen for changes on a file's containing directories. This can use fewer file watchers, but might be less accurate.",
 	"configuration.tsserver.watchOptions.watchDirectory": "Strategy for how entire directory trees are watched under systems that lack recursive file-watching functionality.",
 	"configuration.tsserver.watchOptions.watchDirectory.fixedChunkSizePolling": "Polls directories in chunks at regular interval. Requires using TypeScript 4.3+ in the workspace.",
 	"configuration.tsserver.watchOptions.watchDirectory.fixedPollingInterval": "Check every directory for changes several times a second at a fixed interval.",
 	"configuration.tsserver.watchOptions.watchDirectory.dynamicPriorityPolling": "Use a dynamic queue where less-frequently modified directories will be checked less often.",
-	"configuration.tsserver.watchOptions.watchDirectory.useFsEvents": "Attempt to use the operating system/file system’s native events for directory changes.",
-	"configuration.tsserver.watchOptions.fallbackPolling": "When using file system events, this option specifies the polling strategy that gets used when the system runs out of native file watchers and/or doesn’t support native file watchers.",
+	"configuration.tsserver.watchOptions.watchDirectory.useFsEvents": "Attempt to use the operating system/file system's native events for directory changes.",
+	"configuration.tsserver.watchOptions.fallbackPolling": "When using file system events, this option specifies the polling strategy that gets used when the system runs out of native file watchers and/or doesn't support native file watchers.",
 	"configuration.tsserver.watchOptions.fallbackPolling.fixedPollingInterval": "Check every file for changes several times a second at a fixed interval.",
 	"configuration.tsserver.watchOptions.fallbackPolling.priorityPollingInterval": "Check every file for changes several times a second, but use heuristics to check certain types of files less frequently than others.",
 	"configuration.tsserver.watchOptions.fallbackPolling.dynamicPriorityPolling ": "Use a dynamic queue where less-frequently modified files will be checked less often.",
@@ -183,5 +183,6 @@
 	"codeActions.refactor.rewrite.property.generateAccessors.title": "Generate accessors",
 	"codeActions.refactor.rewrite.property.generateAccessors.description": "Generate 'get' and 'set' accessors",
 	"codeActions.source.organizeImports.title": "Organize imports",
-	"typescript.findAllFileReferences": "Find File References"
+	"typescript.findAllFileReferences": "Find File References",
+	"configuration.suggest.includeCompletionsWithClassMemberSnippets": "Enable/disable snippet completions for class members. Requires using TypeScript 4.5+ in the workspace"
 }

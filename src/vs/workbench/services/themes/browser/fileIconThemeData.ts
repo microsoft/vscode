@@ -9,10 +9,10 @@ import * as Paths from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import * as Json from 'vs/base/common/json';
 import { ExtensionData, IThemeExtensionPoint, IWorkbenchFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IFileService } from 'vs/platform/files/common/files';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { asCSSUrl } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 
 export class FileIconThemeData implements IWorkbenchFileIconTheme {
 
@@ -42,15 +42,15 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 		this.hidesExplorerArrows = false;
 	}
 
-	public ensureLoaded(fileService: IFileService): Promise<string | undefined> {
+	public ensureLoaded(fileService: IExtensionResourceLoaderService): Promise<string | undefined> {
 		return !this.isLoaded ? this.load(fileService) : Promise.resolve(this.styleSheetContent);
 	}
 
-	public reload(fileService: IFileService): Promise<string | undefined> {
+	public reload(fileService: IExtensionResourceLoaderService): Promise<string | undefined> {
 		return this.load(fileService);
 	}
 
-	private load(fileService: IFileService): Promise<string | undefined> {
+	private load(fileService: IExtensionResourceLoaderService): Promise<string | undefined> {
 		if (!this.location) {
 			return Promise.resolve(this.styleSheetContent);
 		}
@@ -197,10 +197,10 @@ interface IconThemeDocument extends IconsAssociation {
 	hidesExplorerArrows?: boolean;
 }
 
-function _loadIconThemeDocument(fileService: IFileService, location: URI): Promise<IconThemeDocument> {
-	return fileService.readFile(location).then((content) => {
+function _loadIconThemeDocument(fileService: IExtensionResourceLoaderService, location: URI): Promise<IconThemeDocument> {
+	return fileService.readExtensionResource(location).then((content) => {
 		let errors: Json.ParseError[] = [];
-		let contentValue = Json.parse(content.value.toString(), errors);
+		let contentValue = Json.parse(content, errors);
 		if (errors.length > 0) {
 			return Promise.reject(new Error(nls.localize('error.cannotparseicontheme', "Problems parsing file icons file: {0}", errors.map(e => getParseErrorMessage(e.error)).join(', '))));
 		} else if (Json.getNodeType(contentValue) !== 'object') {

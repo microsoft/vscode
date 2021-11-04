@@ -1077,6 +1077,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		// Clone scrollbar options before changing them
 		clonedOptions.scrollbar = { ...(clonedOptions.scrollbar || {}) };
 		clonedOptions.scrollbar.vertical = 'visible';
+		clonedOptions.folding = false;
 		clonedOptions.codeLens = this._options.diffCodeLens;
 		clonedOptions.fixedOverflowWidgets = true;
 		// clonedOptions.lineDecorationsWidth = '2ch';

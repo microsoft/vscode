@@ -118,6 +118,9 @@ import 'vs/workbench/contrib/output/common/outputChannelModelService';
 // Explorer
 import 'vs/workbench/contrib/files/browser/files.web.contribution';
 
+// Performance
+import 'vs/workbench/contrib/performance/browser/performance.web.contribution';
+
 // Preferences
 import 'vs/workbench/contrib/preferences/browser/keyboardLayoutPicker';
 
@@ -146,5 +149,8 @@ import 'vs/workbench/contrib/tags/browser/workspaceTagsService';
 
 // Issues
 import 'vs/workbench/contrib/issue/browser/issue.web.contribution';
+
+// Splash
+import 'vs/workbench/contrib/splash/browser/splash.contribution';
 
 //#endregion

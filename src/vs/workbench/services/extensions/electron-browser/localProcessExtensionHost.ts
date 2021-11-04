@@ -277,6 +277,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				}
 
 				// On linux crash reporter needs to be started on child node processes explicitly
+				// TODO@bpasero TODO@deepak1556 remove once we updated to Electron 15
 				if (platform.isLinux) {
 					const crashReporterStartOptions: CrashReporterStartOptions = {
 						companyName: this._productService.crashReporter?.companyName || 'Microsoft',

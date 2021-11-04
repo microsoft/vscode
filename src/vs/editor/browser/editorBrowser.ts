@@ -326,7 +326,7 @@ export interface IPartialEditorMouseEvent {
  */
 export interface IPasteEvent {
 	readonly range: Range;
-	readonly mode: string | null;
+	readonly languageId: string | null;
 }
 
 /**

@@ -31,6 +31,8 @@ import { IRequestService } from 'vs/platform/request/common/request';
 import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { ExtensionsStorageSyncService, IExtensionsStorageSyncService } from 'vs/platform/userDataSync/common/extensionsStorageSync';
 import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 import { UserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
@@ -90,6 +92,7 @@ export class UserDataSyncClient extends Disposable {
 		await configurationService.initialize();
 		this.instantiationService.stub(IConfigurationService, configurationService);
 		this.instantiationService.stub(IUserConfigurationFileService, this.instantiationService.createInstance(UserConfigurationFileService));
+		this.instantiationService.stub(IUriIdentityService, this.instantiationService.createInstance(UriIdentityService));
 
 		this.instantiationService.stub(IRequestService, this.testServer);
 

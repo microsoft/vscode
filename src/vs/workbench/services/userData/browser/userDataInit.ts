@@ -33,6 +33,7 @@ import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/co
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 export const IUserDataInitializationService = createDecorator<IUserDataInitializationService>('IUserDataInitializationService');
 export interface IUserDataInitializationService {
@@ -60,7 +61,8 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 		@IStorageService private readonly storageService: IStorageService,
 		@IProductService private readonly productService: IProductService,
 		@IRequestService private readonly requestService: IRequestService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		this.createUserDataSyncStoreClient().then(userDataSyncStoreClient => {
 			if (!userDataSyncStoreClient) {
@@ -269,10 +271,10 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 
 	private createSyncResourceInitializer(syncResource: SyncResource): IUserDataInitializer {
 		switch (syncResource) {
-			case SyncResource.Settings: return new SettingsInitializer(this.fileService, this.environmentService, this.logService);
-			case SyncResource.Keybindings: return new KeybindingsInitializer(this.fileService, this.environmentService, this.logService);
-			case SyncResource.Snippets: return new SnippetsInitializer(this.fileService, this.environmentService, this.logService);
-			case SyncResource.GlobalState: return new GlobalStateInitializer(this.storageService, this.fileService, this.environmentService, this.logService);
+			case SyncResource.Settings: return new SettingsInitializer(this.fileService, this.environmentService, this.logService, this.uriIdentityService);
+			case SyncResource.Keybindings: return new KeybindingsInitializer(this.fileService, this.environmentService, this.logService, this.uriIdentityService);
+			case SyncResource.Snippets: return new SnippetsInitializer(this.fileService, this.environmentService, this.logService, this.uriIdentityService);
+			case SyncResource.GlobalState: return new GlobalStateInitializer(this.storageService, this.fileService, this.environmentService, this.logService, this.uriIdentityService);
 		}
 		throw new Error(`Cannot create initializer for ${syncResource}`);
 	}
@@ -291,8 +293,9 @@ class ExtensionsPreviewInitializer extends AbstractExtensionsInitializer {
 		@IFileService fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(extensionManagementService, ignoredExtensionsManagementService, fileService, environmentService, logService);
+		super(extensionManagementService, ignoredExtensionsManagementService, fileService, environmentService, logService, uriIdentityService);
 	}
 
 	getPreview(): Promise<IExtensionsInitializerPreviewResult | null> {

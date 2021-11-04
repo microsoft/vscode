@@ -18,7 +18,8 @@ suite('ModelService', () => {
 	let instantiationService: TestInstantiationService;
 
 	setup(() => {
-		[instantiationService, disposables] = createModelServices();
+		disposables = new DisposableStore();
+		instantiationService = createModelServices(disposables);
 	});
 
 	teardown(() => {
