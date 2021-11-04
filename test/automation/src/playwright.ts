@@ -13,7 +13,6 @@ import { IDriver, IDisposable } from './driver';
 import { URI } from 'vscode-uri';
 
 const root = join(__dirname, '..', '..', '..');
-const logsPath = join(root, '.build', 'logs', 'smoke-tests-browser');
 
 const vscodeToPlaywrightKey: { [key: string]: string } = {
 	cmd: 'Meta',
@@ -31,7 +30,7 @@ const vscodeToPlaywrightKey: { [key: string]: string } = {
 
 let traceCounter = 1;
 
-function buildDriver(app: playwright.ElectronApplication | playwright.Browser, context: playwright.BrowserContext, page: playwright.Page): IDriver {
+function buildDriver(app: playwright.ElectronApplication | playwright.Browser, context: playwright.BrowserContext, page: playwright.Page, logsPath: string): IDriver {
 	const driver: IDriver = {
 		_serviceBrand: undefined,
 		waitForReady: () => page.evaluate('window.driver.waitForReady()'),
@@ -102,6 +101,8 @@ let workspacePath: string | undefined;
 
 export async function launchServer(userDataDir: string, _workspacePath: string, codeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH, extPath: string, verbose: boolean): Promise<void> {
 	workspacePath = _workspacePath;
+
+	const logsPath = join(root, '.build', 'logs', 'smoke-tests-browser');
 
 	const agentFolder = userDataDir;
 	await promisify(mkdir)(agentFolder);
@@ -208,7 +209,7 @@ export async function connectBrowser(options: BrowserOptions = {}): Promise<{ cl
 				teardown();
 			}
 		},
-		driver: buildDriver(browser, context, page)
+		driver: buildDriver(browser, context, page, join(root, '.build', 'logs', 'smoke-tests-browser'))
 	};
 }
 
@@ -249,6 +250,6 @@ export async function connectElectron(options: ElectronOptions): Promise<{ clien
 				teardown();
 			}
 		},
-		driver: buildDriver(electronApp, context, window)
+		driver: buildDriver(electronApp, context, window, join(root, '.build', 'logs', 'smoke-tests'))
 	};
 }
