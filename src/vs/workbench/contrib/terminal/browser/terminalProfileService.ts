@@ -34,7 +34,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 	private _profilesReadyBarrier: AutoOpenBarrier;
 	private _availableProfiles: ITerminalProfile[] | undefined;
 	private _contributedProfiles: IExtensionTerminalProfile[] = [];
-	private _defaultProfileName?: string;
+	private _defaultProfileName: string | null = null;
 	private readonly _profileProviders: Map</*ext id*/string, Map</*provider id*/string, ITerminalProfileProvider>> = new Map();
 	private readonly _primaryOffProcessTerminalService?: IOffProcessTerminalService;
 
@@ -84,7 +84,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 	_serviceBrand: undefined;
 
 	getDefaultProfileName(): string | undefined {
-		return this._defaultProfileName;
+		return this._defaultProfileName === null ? undefined : this._defaultProfileName;
 	}
 
 	@throttle(2000)
