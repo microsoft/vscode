@@ -32,12 +32,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	private readonly _onDidRemoveOutputs = this._register(new Emitter<readonly ICellOutputViewModel[]>());
 	readonly onDidRemoveOutputs = this._onDidRemoveOutputs.event;
 
-	private readonly _onDidHideInput = this._register(new Emitter<void>());
-	readonly onDidHideInput = this._onDidHideInput.event;
-
-	private readonly _onDidHideOutputs = this._register(new Emitter<readonly ICellOutputViewModel[]>());
-	readonly onDidHideOutputs = this._onDidHideOutputs.event;
-
 	private _outputCollection: number[] = [];
 
 	private _outputsTop: PrefixSumComputer | null = null;
@@ -130,16 +124,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			dispose(removedOutputs);
 		}));
 
-		this._register(this.model.onDidChangeMetadata(e => {
-			if (this.metadata.outputCollapsed) {
-				this._onDidHideOutputs.fire(this.outputsViewModels.slice(0));
-			}
-
-			if (this.metadata.inputCollapsed) {
-				this._onDidHideInput.fire();
-			}
-		}));
-
 		this._outputCollection = new Array(this.model.outputs.length);
 
 		this._layoutInfo = {
@@ -179,10 +163,10 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		const notebookLayoutConfiguration = this.viewContext.notebookOptions.getLayoutConfiguration();
 		const bottomToolbarDimensions = this.viewContext.notebookOptions.computeBottomToolbarDimensions();
 		const outputShowMoreContainerHeight = state.outputShowMoreContainerHeight ? state.outputShowMoreContainerHeight : this._layoutInfo.outputShowMoreContainerHeight;
-		let outputTotalHeight = Math.max(this._outputMinHeight, this.metadata.outputCollapsed ? notebookLayoutConfiguration.collapsedIndicatorHeight : this._outputsTop!.getTotalSum());
+		let outputTotalHeight = Math.max(this._outputMinHeight, this.isOutputCollapsed ? notebookLayoutConfiguration.collapsedIndicatorHeight : this._outputsTop!.getTotalSum());
 
 		const originalLayout = this.layoutInfo;
-		if (!this.metadata.inputCollapsed) {
+		if (!this.isInputCollapsed) {
 			let newState: CellLayoutState;
 			let editorHeight: number;
 			let totalHeight: number;

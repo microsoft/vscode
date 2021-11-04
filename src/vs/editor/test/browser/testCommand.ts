@@ -8,7 +8,7 @@ import { IRange } from 'vs/editor/common/core/range';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import { ICommand, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
 import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
-import { createTestCodeEditor2, createTestCodeEditorServices } from 'vs/editor/test/browser/testCodeEditor';
+import { createTestCodeEditor2, createCodeEditorServices } from 'vs/editor/test/browser/testCodeEditor';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -23,7 +23,8 @@ export function testCommand(
 	forceTokenization?: boolean,
 	prepare?: (accessor: ServicesAccessor, disposables: DisposableStore) => void
 ): void {
-	const [instantiationService, disposables] = createTestCodeEditorServices();
+	const disposables = new DisposableStore();
+	const instantiationService = createCodeEditorServices(disposables);
 	if (prepare) {
 		instantiationService.invokeFunction(prepare, disposables);
 	}

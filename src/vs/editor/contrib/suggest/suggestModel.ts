@@ -198,9 +198,9 @@ export class SuggestModel implements IDisposable {
 			this._onCompositionEnd();
 		}));
 		this._toDispose.add(this._editor.onDidChangeModelContent(() => {
-			// only filter completions when the editor isn't
-			// composing a character, e.g. ¨ + u makes ü but just
-			// ¨ cannot be used for filtering
+			// only filter completions when the editor isn't composing a character
+			// allow-any-unicode-next-line
+			// e.g. ¨ + u makes ü but just ¨ cannot be used for filtering
 			if (!editorIsComposing) {
 				this._refilterCompletionItems();
 			}

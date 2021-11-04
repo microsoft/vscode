@@ -86,7 +86,8 @@ export class TerminalViewPane extends ViewPane {
 			}
 			this._onDidChangeViewWelcomeState.fire();
 		});
-		this._terminalService.onDidCreateInstance(() => {
+
+		this._terminalService.onDidChangeInstances(() => {
 			if (!this._isWelcomeShowing) {
 				return;
 			}
@@ -141,6 +142,8 @@ export class TerminalViewPane extends ViewPane {
 						this._terminalsInitialized = true;
 						this._terminalService.initializeTerminals();
 					}
+				} else {
+					this._onDidChangeViewWelcomeState.fire();
 				}
 
 				if (hadTerminals) {
