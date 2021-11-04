@@ -150,4 +150,7 @@ import 'vs/workbench/contrib/issue/browser/issue.web.contribution';
 // Splash
 import 'vs/workbench/contrib/splash/browser/splash.contribution';
 
+// Driver
+import 'vs/workbench/contrib/driver/browser/driver.contribution';
+
 //#endregion

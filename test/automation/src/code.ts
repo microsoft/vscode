@@ -54,6 +54,7 @@ async function connect(driverFn: () => Promise<{ client: IDisposable, driver: ID
 	while (true) {
 		try {
 			const { client, driver } = await driverFn();
+
 			return new Code(client, driver, logger);
 		} catch (err) {
 			if (++errCount > 50) {
@@ -121,6 +122,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		}
 
 		if (options.remote) {
+
 			// Replace workspace path with URI
 			args[0] = `--${options.workspacePath.endsWith('.code-workspace') ? 'file' : 'folder'}-uri=vscode-remote://test+test/${URI.file(options.workspacePath).path}`;
 
@@ -165,7 +167,7 @@ async function copyExtension(extensionsPath: string, extId: string): Promise<voi
 	const dest = path.join(extensionsPath, extId);
 	if (!fs.existsSync(dest)) {
 		const orig = path.join(repoPath, 'extensions', extId);
-		await new Promise<void>((c, e) => ncp(orig, dest, err => err ? e(err) : c()));
+		await new Promise<void>((resolve, reject) => ncp(orig, dest, err => err ? reject(err) : resolve()));
 	}
 }
 
@@ -232,11 +234,6 @@ export class Code {
 				};
 			}
 		});
-	}
-
-	async capturePage(): Promise<string> {
-		const windowId = await this.getActiveWindowId();
-		return await this.driver.capturePage(windowId);
 	}
 
 	async waitForWindowIds(fn: (windowIds: number[]) => boolean): Promise<void> {

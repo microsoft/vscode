@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
 import { Workbench } from './workbench';
 import { Code, spawn, SpawnOptions } from './code';
 import { Logger } from './logger';
@@ -19,7 +17,6 @@ export interface ApplicationOptions extends SpawnOptions {
 	quality: Quality;
 	workspacePath: string;
 	waitTime: number;
-	screenshotsPath: string | null;
 }
 
 export class Application {
@@ -77,7 +74,7 @@ export class Application {
 
 	async restart(options: { workspaceOrFolder?: string, extraArgs?: string[] }): Promise<any> {
 		await this.stop();
-		await new Promise(c => setTimeout(c, 1000));
+		await new Promise(resolve => setTimeout(resolve, 1000));
 		await this._start(options.workspaceOrFolder, options.extraArgs);
 	}
 
@@ -92,7 +89,7 @@ export class Application {
 			.catch(err => null); // ignore the connection drop errors
 
 		// needs to be enough to propagate the 'Reload Window' command
-		await new Promise(c => setTimeout(c, 1500));
+		await new Promise(resolve => setTimeout(resolve, 1500));
 		await this.checkWindowReady();
 	}
 
@@ -101,18 +98,6 @@ export class Application {
 			await this._code.exit();
 			this._code.dispose();
 			this._code = undefined;
-		}
-	}
-
-	async captureScreenshot(name: string): Promise<void> {
-		if (this.options.screenshotsPath) {
-			const raw = await this.code.capturePage();
-			const buffer = Buffer.from(raw, 'base64');
-			const screenshotPath = path.join(this.options.screenshotsPath, `${name}.png`);
-			if (this.options.log) {
-				this.logger.log('*** Screenshot recorded:', screenshotPath);
-			}
-			fs.writeFileSync(screenshotPath, buffer);
 		}
 	}
 
@@ -140,6 +125,6 @@ export class Application {
 
 		// wait a bit, since focus might be stolen off widgets
 		// as soon as they open (e.g. quick access)
-		await new Promise(c => setTimeout(c, 1000));
+		await new Promise(resolve => setTimeout(resolve, 1000));
 	}
 }

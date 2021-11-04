@@ -15,7 +15,6 @@ import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -111,11 +110,6 @@ export class BrowserWindow extends Disposable {
 	}
 
 	private create(): void {
-
-		// Driver
-		if (this.environmentService.options?.developmentOptions?.enableSmokeTestDriver) {
-			(async () => this._register(await registerWindowDriver()))();
-		}
 
 		// Handle open calls
 		this.setupOpenHandlers();

@@ -34,15 +34,15 @@ let traceCounter = 1;
 function buildDriver(app: playwright.ElectronApplication | playwright.Browser, context: playwright.BrowserContext, page: playwright.Page): IDriver {
 	const driver: IDriver = {
 		_serviceBrand: undefined,
-		getWindowIds: () => Promise.resolve([1]),
-		capturePage: () => Promise.resolve(''),
-		reloadWindow: async (windowId) => { await page.reload(); },
+		getWindowIds: () => page.evaluate('window.driver.getWindowIds()'),
+		reloadWindow: () => page.evaluate('window.driver.reloadWindow()'),
 		exitApplication: async () => {
 			try {
 				await context.tracing.stop({ path: join(logsPath, `playwright-trace-${traceCounter++}.zip`) });
 			} catch (error) {
 				console.warn(`Failed to stop playwright tracing.`); // do not fail the build when this fails
 			}
+			await page.evaluate('window.driver.exitApplication()');
 			await app.close();
 			await teardown();
 		},
@@ -77,16 +77,16 @@ function buildDriver(app: playwright.ElectronApplication | playwright.Browser, c
 			const { x, y } = await driver.getElementXY(windowId, selector);
 			await page.mouse.dblclick(x, y);
 		},
-		setValue: async (windowId, selector, text) => page.evaluate(`window.driver.setValue('${selector}', '${text}')`).then(undefined),
-		getTitle: (windowId) => page.evaluate(`window.driver.getTitle()`),
+		setValue: async (windowId, selector, text) => await page.evaluate(`window.driver.setValue('${selector}', '${text}')`),
+		getTitle: (windowId) => page.evaluate('window.driver.getTitle()'),
 		isActiveElement: (windowId, selector) => page.evaluate(`window.driver.isActiveElement('${selector}')`),
 		getElements: (windowId, selector, recursive) => page.evaluate(`window.driver.getElements('${selector}', ${recursive})`),
 		getElementXY: (windowId, selector, xoffset?, yoffset?) => page.evaluate(`window.driver.getElementXY('${selector}', ${xoffset}, ${yoffset})`),
 		typeInEditor: (windowId, selector, text) => page.evaluate(`window.driver.typeInEditor('${selector}', '${text}')`),
 		getTerminalBuffer: (windowId, selector) => page.evaluate(`window.driver.getTerminalBuffer('${selector}')`),
 		writeInTerminal: (windowId, selector, text) => page.evaluate(`window.driver.writeInTerminal('${selector}', '${text}')`),
-		getLocaleInfo: (windowId) => page.evaluate(`window.driver.getLocaleInfo()`),
-		getLocalizedStrings: (windowId) => page.evaluate(`window.driver.getLocalizedStrings()`)
+		getLocaleInfo: (windowId) => page.evaluate('window.driver.getLocaleInfo()'),
+		getLocalizedStrings: (windowId) => page.evaluate('window.driver.getLocalizedStrings()')
 	};
 	return driver;
 }
@@ -190,9 +190,9 @@ export async function connectBrowser(options: BrowserOptions = {}): Promise<{ cl
 	const page = await context.newPage();
 	await page.setViewportSize({ width: 1200, height: 800 });
 
-	page.on('pageerror', async error => console.error(`Playwright ERROR: page error: ${error}`));
+	page.on('pageerror', error => console.error(`Playwright ERROR: page error: ${error}`));
 	page.on('crash', () => console.error('Playwright ERROR: page crash'));
-	page.on('response', async response => {
+	page.on('response', response => {
 		if (response.status() >= 400) {
 			console.error(`Playwright ERROR: HTTP status ${response.status()} for ${response.url()}`);
 		}
@@ -233,9 +233,10 @@ export async function connectElectron(options: ElectronOptions): Promise<{ clien
 		console.warn(`Failed to start playwright tracing.`); // do not fail the build when this fails
 	}
 
-	window.on('pageerror', async error => console.error(`Playwright ERROR: window error: ${error}`));
+	window.on('requestfailed', request => console.error(`Playwright ERROR: HTTP status ${request}`));
+	window.on('pageerror', error => console.error(`Playwright ERROR: window error: ${error}`));
 	window.on('crash', () => console.error('Playwright ERROR: window crash'));
-	window.on('response', async response => {
+	window.on('response', response => {
 		if (response.status() >= 400) {
 			console.error(`Playwright ERROR: HTTP status ${response.status()} for ${response.url()}`);
 		}

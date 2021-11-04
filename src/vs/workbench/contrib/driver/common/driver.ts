@@ -40,7 +40,6 @@ export interface IDriver {
 	readonly _serviceBrand: undefined;
 
 	getWindowIds(): Promise<number[]>;
-	capturePage(windowId: number): Promise<string>;
 	reloadWindow(windowId: number): Promise<void>;
 	exitApplication(): Promise<void>;
 	dispatchKeybinding(windowId: number, keybinding: string): Promise<void>;
@@ -63,6 +62,9 @@ export const ID = 'driverService';
 export const IDriver = createDecorator<IDriver>(ID);
 
 export interface IWindowDriver {
+	getWindowIds(): Promise<number[]>;
+	reloadWindow(): Promise<void>;
+	exitApplication(): Promise<void>;
 	setValue(selector: string, text: string): Promise<void>;
 	getTitle(): Promise<string>;
 	isActiveElement(selector: string): Promise<boolean>;

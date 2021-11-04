@@ -61,7 +61,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
 
 export class NativeWindow extends Disposable {
 
@@ -483,11 +482,6 @@ export class NativeWindow extends Disposable {
 				this.dialogService.show(Severity.Error, localize('loaderCycle', "There is a dependency cycle in the AMD modules that needs to be resolved!"));
 				this.nativeHostService.openDevTools();
 			}
-		}
-
-		// Driver
-		if (this.environmentService.enableDriver) {
-			(async () => this._register(await registerWindowDriver()))();
 		}
 	}
 

@@ -146,4 +146,7 @@ import 'vs/workbench/contrib/webview/electron-sandbox/webview.contribution';
 // Splash
 import 'vs/workbench/contrib/splash/electron-sandbox/splash.contribution';
 
+// Driver
+import 'vs/workbench/contrib/driver/electron-sandbox/driver.contribution';
+
 //#endregion

@@ -45,16 +45,6 @@ export function beforeSuite(opts: minimist.ParsedArgs, optionsTransform?: (opts:
 export function afterSuite(opts: minimist.ParsedArgs) {
 	after(async function () {
 		const app = this.app as Application;
-
-		if (this.currentTest?.state === 'failed' && opts.screenshots) {
-			const name = this.currentTest!.fullTitle().replace(/[^a-z0-9\-]/ig, '_');
-			try {
-				await app.captureScreenshot(name);
-			} catch (error) {
-				// ignore
-			}
-		}
-
 		if (app) {
 			await app.stop();
 		}

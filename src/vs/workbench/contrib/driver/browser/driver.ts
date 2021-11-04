@@ -3,14 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { getClientArea, getTopLeftOffset } from 'vs/base/browser/dom';
 import { coalesce } from 'vs/base/common/arrays';
 import { language, locale } from 'vs/base/common/platform';
-import { IElement, ILocaleInfo, ILocalizedStrings, IWindowDriver } from 'vs/platform/driver/common/driver';
+import { IElement, ILocaleInfo, ILocalizedStrings, IWindowDriver } from 'vs/workbench/contrib/driver/common/driver';
 import localizedStrings from 'vs/platform/localizations/common/localizedStrings';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
-class BrowserWindowDriver implements IWindowDriver {
+export class BrowserWindowDriver implements IWindowDriver {
+
+	constructor(@IHostService private readonly hostService: IHostService) { }
+
+	async getWindowIds(): Promise<number[]> {
+		return [0];
+	}
+
+	async reloadWindow(): Promise<void> {
+		return this.hostService.reload();
+	}
+
+	async exitApplication(): Promise<void> {
+		return this.hostService.close();
+	}
 
 	async setValue(selector: string, text: string): Promise<void> {
 		const element = document.querySelector(selector);
@@ -202,8 +218,14 @@ class BrowserWindowDriver implements IWindowDriver {
 	}
 }
 
-export async function registerWindowDriver(): Promise<IDisposable> {
-	(<any>window).driver = new BrowserWindowDriver();
+export class DriverContribution implements IWorkbenchContribution {
 
-	return Disposable.None;
+	constructor(
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IHostService hostService: IHostService
+	) {
+		if (environmentService.options?.developmentOptions?.enableSmokeTestDriver) {
+			(<any>window).driver = new BrowserWindowDriver(hostService);
+		}
+	}
 }

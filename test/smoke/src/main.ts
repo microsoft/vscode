@@ -49,7 +49,6 @@ const opts = minimist(args, {
 		'stable-build',
 		'wait-time',
 		'test-repo',
-		'screenshots',
 		'log',
 		'electronArgs'
 	],
@@ -69,12 +68,7 @@ const workspacePath = path.join(testDataPath, 'vscode-smoketest-express');
 const extensionsPath = path.join(testDataPath, 'extensions-dir');
 mkdirp.sync(extensionsPath);
 
-const screenshotsPath = opts.screenshots ? path.resolve(opts.screenshots) : null;
-if (screenshotsPath) {
-	mkdirp.sync(screenshotsPath);
-}
-
-function fail(errorMessage): void {
+function fail(errorMessage: unknown): void {
 	console.error(errorMessage);
 	process.exit(1);
 }
@@ -156,7 +150,7 @@ if (!opts.web) {
 
 	if (process.env.VSCODE_DEV === '1') {
 		quality = Quality.Dev;
-	} else if (electronPath.indexOf('Code - Insiders') >= 0 /* macOS/Windows */ || electronPath.indexOf('code-insiders') /* Linux */ >= 0) {
+	} else if (electronPath.indexOf('Code - Insiders') >= 0 /* macOS / Windows */ || electronPath.indexOf('code-insiders') /* Linux */ >= 0) {
 		quality = Quality.Insiders;
 	} else {
 		quality = Quality.Stable;
@@ -307,7 +301,6 @@ function createOptions(): ApplicationOptions {
 		logger: new MultiLogger(loggers),
 		verbose: opts.verbose,
 		log,
-		screenshotsPath,
 		remote: opts.remote,
 		web: opts.web,
 		headless: opts.headless,
@@ -328,10 +321,11 @@ after(async function () {
 	if (opts.log) {
 		const logsDir = path.join(userDataDir, 'logs');
 		const destLogsDir = path.join(path.dirname(opts.log), 'logs');
-		await new Promise((c, e) => ncp(logsDir, destLogsDir, err => err ? e(err) : c(undefined)));
+
+		await new Promise((resolve, reject) => ncp(logsDir, destLogsDir, err => err ? reject(err) : resolve(undefined)));
 	}
 
-	await new Promise((c, e) => rimraf(testDataPath, { maxBusyTries: 10 }, err => err ? e(err) : c(undefined)));
+	await new Promise((resolve, reject) => rimraf(testDataPath, { maxBusyTries: 10 }, err => err ? reject(err) : resolve(undefined)));
 });
 
 if (!opts.web && opts['build'] && !opts['remote']) {
