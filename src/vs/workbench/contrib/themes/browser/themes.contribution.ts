@@ -181,22 +181,29 @@ export class SelectColorThemeAction extends Action {
 }
 
 class MarketplaceThemes {
-	private _installedExtensions: Set<string> | undefined;
-	private _marketplaceExtensions: Set<string> = new Set();
-	private _marketplaceThemes: ThemeItem[] = [];
+	private readonly _installedExtensions: Promise<Set<string>>;
+	private readonly _marketplaceExtensions: Set<string> = new Set();
+	private readonly _marketplaceThemes: ThemeItem[] = [];
 
 	private _searchOngoing: boolean = false;
-	private _onDidChange = new Emitter<void>();
+	private readonly _onDidChange = new Emitter<void>();
 
 	private _tokenSource: CancellationTokenSource | undefined;
-	private _queryDelayer = new ThrottledDelayer<void>(200);
+	private readonly _queryDelayer = new ThrottledDelayer<void>(200);
 
 	constructor(
 		private extensionGalleryService: IExtensionGalleryService,
-		private extensionManagementService: IExtensionManagementService,
+		extensionManagementService: IExtensionManagementService,
 		private themeService: IWorkbenchThemeService,
 		private logService: ILogService
 	) {
+		this._installedExtensions = extensionManagementService.getInstalled().then(installed => {
+			const result = new Set<string>();
+			for (const ext of installed) {
+				result.add(ext.identifier.id);
+			}
+			return result;
+		});
 	}
 
 	public get themes(): ThemeItem[] {
@@ -210,18 +217,6 @@ class MarketplaceThemes {
 	public get onDidChange() {
 		return this._onDidChange.event;
 	}
-
-	private async getInstalledExtesionIds() {
-		if (!this._installedExtensions) {
-			this._installedExtensions = new Set();
-			const installed = await this.extensionManagementService.getInstalled();
-			for (const ext of installed) {
-				this._installedExtensions.add(ext.identifier.id);
-			}
-		}
-		return this._installedExtensions;
-	}
-
 
 	public trigger(value: string) {
 		if (this._tokenSource) {
@@ -238,7 +233,7 @@ class MarketplaceThemes {
 		this._searchOngoing = true;
 		this._onDidChange.fire();
 		try {
-			const installedExtensions = await this.getInstalledExtesionIds();
+			const installedExtensions = await this._installedExtensions;
 
 			const options = { text: `category:themes ${value}`, pageSize: 10 };
 			const pager = await this.extensionGalleryService.query(options, token);
@@ -285,7 +280,6 @@ class MarketplaceThemes {
 		this._queryDelayer.dispose();
 		this._marketplaceExtensions.clear();
 		this._marketplaceThemes.length = 0;
-		this._installedExtensions?.clear();
 	}
 }
 
