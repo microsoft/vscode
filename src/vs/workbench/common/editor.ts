@@ -17,7 +17,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IEncodingSupport, IModeSupport } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ICompositeControl, IComposite } from 'vs/workbench/common/composite';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce } from 'vs/base/common/arrays';
 import { IExtUri } from 'vs/base/common/resources';
@@ -1133,17 +1133,20 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 			return;
 		}
 
-		const fileStat = await fileService.resolve(resource);
-		if (fileStat.isDirectory) {
-			return;
-		}
-
 		const canHandleResource = await fileService.canHandleResource(resource);
 		if (!canHandleResource) {
 			return;
 		}
 
-		const exists = (typeof path.exists === 'boolean') ? path.exists : await fileService.exists(resource);
+		let stat: IFileStat | undefined;
+		try {
+			stat = await fileService.resolve(resource);
+			if (stat.isDirectory) {
+				return;
+			}
+		} catch { }
+
+		const exists = (typeof path.exists === 'boolean') ? path.exists : !!stat;
 		if (!exists && path.openOnlyIfExists) {
 			return;
 		}
