@@ -92,7 +92,9 @@ export class AppInsightsAppender implements ITelemetryAppender {
 		data = validateTelemetryData(data);
 
 		if (this.testCollector) {
-			data.properties['common.useragent'] = this.mirrored ? 'mirror-collector++' : 'collector++';
+			data.properties['common.userAgent'] = this.mirrored ? 'mirror-collector++' : 'collector++';
+		} else if (this.mirrored) {
+			data.properties['common.userAgent'] = 'mirror-vortex';
 		}
 
 		this._withAIClient((aiClient) => aiClient.trackEvent({
