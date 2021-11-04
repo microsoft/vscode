@@ -128,6 +128,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _fixedRows: number | undefined;
 	private _cwd: string | undefined = undefined;
 	private _initialCwd: string | undefined = undefined;
+	private _layoutSettingsChanged: boolean = true;
 	private _dimensionsOverride: ITerminalDimensionsOverride | undefined;
 	private _titleReadyPromise: Promise<string>;
 	private _titleReadyComplete: ((title: string) => any) | undefined;
@@ -378,6 +379,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				'editor.fontFamily'
 			];
 			if (layoutSettings.some(id => e.affectsConfiguration(id))) {
+				this._layoutSettingsChanged = true;
 				await this._resize();
 			}
 			if (e.affectsConfiguration(TerminalSettingId.UnicodeVersion)) {
@@ -440,8 +442,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		const computedStyle = window.getComputedStyle(this._wrapperElement!);
-		const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
-		const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
+		const width = parseInt(computedStyle.width);
+		const height = parseInt(computedStyle.height);
+
 		this._evaluateColsAndRows(width, height);
 	}
 
@@ -1419,7 +1422,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 
-		const terminalWidth = this._evaluateColsAndRows(dimension.width, dimension.height);
+		// Evaluate columns and rows, exclude the wrapper element's margin
+		const computedStyle = window.getComputedStyle(this._wrapperElement!);
+		const horizontalMargin = parseInt(computedStyle.marginLeft) + parseInt(computedStyle.marginRight);
+		const verticalMargin = parseInt(computedStyle.marginTop) + parseInt(computedStyle.marginBottom);
+		const terminalWidth = this._evaluateColsAndRows(dimension.width - horizontalMargin, dimension.height - verticalMargin);
 		if (!terminalWidth) {
 			return;
 		}
@@ -1442,8 +1449,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this.xterm) {
 			// Only apply these settings when the terminal is visible so that
 			// the characters are measured correctly.
-			if (this._isVisible) {
-				const font = this.xterm ? this.xterm.getFont() : this._configHelper.getFont();
+			if (this._isVisible && this._layoutSettingsChanged) {
+				const font = this.xterm.getFont();
 				const config = this._configHelper.config;
 				this._safeSetOption('letterSpacing', font.letterSpacing);
 				this._safeSetOption('lineHeight', font.lineHeight);
@@ -1457,6 +1464,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._initDimensions();
 				cols = this.cols;
 				rows = this.rows;
+
+				this._layoutSettingsChanged = false;
 			}
 
 			if (isNaN(cols) || isNaN(rows)) {
