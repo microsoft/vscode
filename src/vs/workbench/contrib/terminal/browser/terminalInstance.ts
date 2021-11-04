@@ -136,6 +136,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _containerReadyBarrier: AutoOpenBarrier;
 	private _attachBarrier: AutoOpenBarrier;
 
+	private _icon: TerminalIcon | undefined;
+
 	private _messageTitleDisposable: IDisposable | undefined;
 
 	private _widgetManager: TerminalWidgetManager = this._instantiationService.createInstance(TerminalWidgetManager);
@@ -315,6 +317,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._fixedRows = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.rows;
 		this._fixedCols = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.cols;
+		this._icon = _shellLaunchConfig.attachPersistentProcess?.icon || _shellLaunchConfig.icon;
 
 		// the resource is already set when it's been moved from another window
 		this._resource = resource || getTerminalUri(this._workspaceContextService.getWorkspace().id, this.instanceId, this.title);
@@ -409,11 +412,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _getIcon(): TerminalIcon | undefined {
-		const icon = this._shellLaunchConfig.icon || this._shellLaunchConfig.attachPersistentProcess?.icon;
-		if (!icon) {
-			return this._processManager.processState >= ProcessState.Launching ? Codicon.terminal : undefined;
+		if (!this._icon) {
+			this._icon = this._processManager.processState >= ProcessState.Launching ? Codicon.terminal : undefined;
 		}
-		return icon;
+		return this._icon;
 	}
 
 	private _getColor(): string | undefined {
@@ -1832,7 +1834,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			matchOnDescription: true
 		});
 		if (result && result.description) {
-			this.shellLaunchConfig.icon = iconRegistry.get(result.description);
+			this._icon = iconRegistry.get(result.description);
 			this._onIconChanged.fire(this);
 		}
 	}
