@@ -316,9 +316,7 @@ export class IFrameWebview extends Disposable implements Webview {
 	}
 
 	override dispose(): void {
-		if (this.element) {
-			this.element.remove();
-		}
+		this.element?.remove();
 		this._element = undefined;
 
 		this._onDidDispose.fire();
@@ -467,7 +465,7 @@ export class IFrameWebview extends Disposable implements Webview {
 		}
 		this._hasAlertedAboutMissingCsp = true;
 
-		if (this.extension && this.extension.id) {
+		if (this.extension?.id) {
 			if (this._environmentService.isExtensionDevelopment) {
 				this._onMissingCsp.fire(this.extension.id);
 			}
