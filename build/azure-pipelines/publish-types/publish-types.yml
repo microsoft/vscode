@@ -20,7 +20,7 @@ steps:
 
   - bash: |
       TAG_VERSION=$(git describe --tags `git rev-list --tags --max-count=1`)
-      CHANNEL="G1C14HJ2F"
+      CHANNEL="C1C14HJ2F"
 
       if [ "$TAG_VERSION" == "1.999.0" ]; then
         MESSAGE="<!here>. Someone pushed 1.999.0 tag. Please delete it ASAP from remote and local."
