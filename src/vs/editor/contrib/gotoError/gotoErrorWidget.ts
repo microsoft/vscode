@@ -78,8 +78,8 @@ class MessageWidget {
 			horizontal: ScrollbarVisibility.Auto,
 			vertical: ScrollbarVisibility.Auto,
 			useShadows: false,
-			horizontalScrollbarSize: 3,
-			verticalScrollbarSize: 3
+			horizontalScrollbarSize: 6,
+			verticalScrollbarSize: 6
 		});
 		parent.appendChild(this._scrollable.getDomNode());
 		this._disposables.add(this._scrollable.onScroll(e => {
