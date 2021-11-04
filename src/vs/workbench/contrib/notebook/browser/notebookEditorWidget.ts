@@ -1423,17 +1423,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			store.add((cell as CodeCellViewModel).onDidRemoveOutputs((outputs) => {
 				outputs.forEach(output => this.removeInset(output));
 			}));
-
-			store.add((cell as CodeCellViewModel).onDidHideOutputs((outputs) => {
-				outputs.forEach(output => this.hideInset(output));
-			}));
 		}
 
-		if (cell.cellKind === CellKind.Markup) {
-			store.add((cell as MarkupCellViewModel).onDidHideInput(() => {
+		store.add((cell as CellViewModel).onDidChangeState(e => {
+			if (e.inputCollapsedChanged && cell.isInputCollapsed && cell.cellKind === CellKind.Markup) {
 				this.hideMarkupPreviews([(cell as MarkupCellViewModel)]);
-			}));
-		}
+			}
+
+			if (e.outputCollapsedChanged && cell.isOutputCollapsed && cell.cellKind === CellKind.Code) {
+				cell.outputsViewModels.forEach(output => this.hideInset(output));
+			}
+		}));
 
 		return store;
 	}
@@ -1576,7 +1576,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		if (!state) {
 			return {
 				editingCells: {},
-				editorViewStates: {}
+				editorViewStates: {},
+				collapsedInputCells: {},
+				collapsedOutputCells: {},
 			};
 		}
 
@@ -2319,7 +2321,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 					output: output.source,
 					cellTop,
 					outputOffset,
-					forceDisplay: !cell.metadata.outputCollapsed,
+					forceDisplay: !cell.isOutputCollapsed,
 				}], []);
 			}
 		});

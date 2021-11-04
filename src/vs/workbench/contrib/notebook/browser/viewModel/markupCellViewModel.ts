@@ -100,9 +100,6 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 		this._onDidChangeState.fire({ cellIsHoveredChanged: true });
 	}
 
-	private readonly _onDidHideInput = this._register(new Emitter<void>());
-	readonly onDidHideInput = this._onDidHideInput.event;
-
 	constructor(
 		viewType: string,
 		model: NotebookCellTextModel,
@@ -133,12 +130,6 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 
 		this._register(this.onDidChangeState(e => {
 			this.viewContext.eventDispatcher.emit([new NotebookCellStateChangedEvent(e, this)]);
-		}));
-
-		this._register(model.onDidChangeMetadata(e => {
-			if (this.metadata.inputCollapsed) {
-				this._onDidHideInput.fire();
-			}
 		}));
 	}
 
@@ -187,7 +178,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 
 	layoutChange(state: MarkdownCellLayoutChangeEvent) {
 		// recompute
-		if (!this.metadata.inputCollapsed) {
+		if (!this.isInputCollapsed) {
 			const editorWidth = state.outerWidth !== undefined
 				? this.viewContext.notebookOptions.computeMarkdownCellEditorWidth(state.outerWidth)
 				: this._layoutInfo.editorWidth;

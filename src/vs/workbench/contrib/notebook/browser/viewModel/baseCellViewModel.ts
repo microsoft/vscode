@@ -150,6 +150,24 @@ export abstract class BaseCellViewModel extends Disposable {
 
 	protected _textModelRef: IReference<IResolvedTextEditorModel> | undefined;
 
+	private _inputCollapsed: boolean = false;
+	get isInputCollapsed(): boolean {
+		return this._inputCollapsed;
+	}
+	set isInputCollapsed(v: boolean) {
+		this._inputCollapsed = v;
+		this._onDidChangeState.fire({ inputCollapsedChanged: true });
+	}
+
+	private _outputCollapsed: boolean = false;
+	get isOutputCollapsed(): boolean {
+		return this._outputCollapsed;
+	}
+	set isOutputCollapsed(v: boolean) {
+		this._outputCollapsed = v;
+		this._onDidChangeState.fire({ outputCollapsedChanged: true });
+	}
+
 	constructor(
 		readonly viewType: string,
 		readonly model: NotebookCellTextModel,

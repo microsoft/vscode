@@ -163,7 +163,7 @@ export class StatefulMarkdownCell extends Disposable {
 	}
 
 	private viewUpdate(): void {
-		if (this.viewCell.metadata.inputCollapsed) {
+		if (this.viewCell.isInputCollapsed) {
 			this.viewUpdateCollapsed();
 		} else if (this.viewCell.getEditState() === CellEditState.Editing) {
 			this.viewUpdateEditing();
