@@ -14,11 +14,12 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import * as modes from 'vs/editor/common/modes';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
-import { ISimpleModel, ModelLineProjection, SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
+import { ViewModelLinesFromProjectedModel } from 'vs/editor/common/viewModel/viewModelLines';
 import { LineBreakData, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { ISimpleModel, ModelLineProjection } from 'vs/editor/common/viewModel/modelLineProjection';
 
 suite('Editor ViewModel - SplitLinesCollection', () => {
 	test('SplitLine', () => {
@@ -87,7 +88,7 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		}
 	});
 
-	function withSplitLinesCollection(text: string, callback: (model: TextModel, linesCollection: SplitLinesCollection) => void): void {
+	function withSplitLinesCollection(text: string, callback: (model: TextModel, linesCollection: ViewModelLinesFromProjectedModel) => void): void {
 		const config = new TestConfiguration({});
 		const wrappingInfo = config.options.get(EditorOption.wrappingInfo);
 		const fontInfo = config.options.get(EditorOption.fontInfo);
@@ -106,7 +107,7 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 			'}',
 		].join('\n'));
 
-		const linesCollection = new SplitLinesCollection(
+		const linesCollection = new ViewModelLinesFromProjectedModel(
 			1,
 			model,
 			lineBreaksComputerFactory,
@@ -404,7 +405,7 @@ suite('SplitLinesCollection', () => {
 		}
 	}
 
-	function assertAllMinimapLinesRenderingData(splitLinesCollection: SplitLinesCollection, all: ITestMinimapLineRenderingData[]): void {
+	function assertAllMinimapLinesRenderingData(splitLinesCollection: ViewModelLinesFromProjectedModel, all: ITestMinimapLineRenderingData[]): void {
 		let lineCount = all.length;
 		for (let line = 1; line <= lineCount; line++) {
 			assert.strictEqual(splitLinesCollection.getViewLineData(line).content, splitLinesCollection.getViewLineContent(line));
@@ -909,7 +910,7 @@ suite('SplitLinesCollection', () => {
 		});
 	});
 
-	function withSplitLinesCollection(model: TextModel, wordWrap: 'on' | 'off' | 'wordWrapColumn' | 'bounded', wordWrapColumn: number, callback: (splitLinesCollection: SplitLinesCollection) => void): void {
+	function withSplitLinesCollection(model: TextModel, wordWrap: 'on' | 'off' | 'wordWrapColumn' | 'bounded', wordWrapColumn: number, callback: (splitLinesCollection: ViewModelLinesFromProjectedModel) => void): void {
 		const configuration = new TestConfiguration({
 			wordWrap: wordWrap,
 			wordWrapColumn: wordWrapColumn,
@@ -923,7 +924,7 @@ suite('SplitLinesCollection', () => {
 
 		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(wordWrapBreakBeforeCharacters, wordWrapBreakAfterCharacters);
 
-		const linesCollection = new SplitLinesCollection(
+		const linesCollection = new ViewModelLinesFromProjectedModel(
 			1,
 			model,
 			lineBreaksComputerFactory,
@@ -955,7 +956,7 @@ function createLineBreakData(breakingLengths: number[], breakingOffsetsVisibleCo
 	for (let i = 0; i < breakingLengths.length; i++) {
 		sums[i] = (i > 0 ? sums[i - 1] : 0) + breakingLengths[i];
 	}
-	return new LineBreakData(sums, breakingOffsetsVisibleColumn, wrappedTextIndentWidth, null, null);
+	return new LineBreakData(null, null, sums, breakingOffsetsVisibleColumn, wrappedTextIndentWidth);
 }
 
 function createModel(text: string): ISimpleModel {

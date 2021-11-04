@@ -95,6 +95,11 @@ export class ViewLineTokens implements IViewLineTokens {
 	public findTokenIndexAtOffset(offset: number): number {
 		throw new Error('Not implemented');
 	}
+
+	public getLineContent(): string {
+		throw new Error('Not implemented');
+	}
+
 }
 
 export class ViewLineTokenFactory {
