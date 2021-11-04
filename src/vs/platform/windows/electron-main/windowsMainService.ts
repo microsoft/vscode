@@ -988,14 +988,15 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 							return undefined;
 						}
 
-						return { workspace: { id: workspace.id, configPath: workspace.configPath }, remoteAuthority: workspace.remoteAuthority, exists: true, transient: workspace.transient };
+						return { workspace: { id: workspace.id, configPath: workspace.configPath }, remoteAuthority: workspace.remoteAuthority, exists: true, isFile: true, transient: workspace.transient };
 					}
 				}
 
 				return {
 					fileUri: URI.file(path),
 					selection: lineNumber ? { startLineNumber: lineNumber, startColumn: columnNumber || 1 } : undefined,
-					exists: true
+					exists: true,
+					isFile: true
 				};
 			}
 
@@ -1003,7 +1004,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			else if (pathStat.isDirectory()) {
 				return {
 					workspace: getSingleFolderWorkspaceIdentifier(URI.file(path), pathStat),
-					exists: true
+					exists: true,
+					isFile: false
 				};
 			}
 
@@ -1014,7 +1016,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			else if (!isWindows && path === '/dev/null') {
 				return {
 					fileUri: URI.file(path),
-					exists: true
+					exists: true,
+					isFile: true
 				};
 			}
 		} catch (error) {
@@ -1027,7 +1030,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			if (options.ignoreFileNotFound) {
 				return {
 					fileUri,
-					exists: false
+					exists: false,
+					isFile: true
 				};
 			}
 		}

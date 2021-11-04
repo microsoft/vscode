@@ -1138,16 +1138,24 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 			return;
 		}
 
-		let stat: IFileStat | undefined;
-		try {
-			stat = await fileService.resolve(resource);
-			if (stat.isDirectory) {
-				return;
-			}
-		} catch { }
+		let exists = path.exists;
+		let isFile = path.isFile;
+		if (typeof exists !== 'boolean' || typeof isFile !== 'boolean') {
+			let stat: IFileStat | undefined;
 
-		const exists = (typeof path.exists === 'boolean') ? path.exists : !!stat;
-		if (!exists && path.openOnlyIfExists) {
+			try {
+				stat = await fileService.resolve(resource);
+				isFile = typeof isFile === 'boolean' ? isFile : stat.isFile;
+			} catch { }
+
+			exists = typeof exists === 'boolean' ? exists : !!stat;
+		}
+
+		if (exists === false && path.openOnlyIfExists) {
+			return;
+		}
+
+		if (isFile === false) {
 			return;
 		}
 

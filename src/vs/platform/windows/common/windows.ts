@@ -190,6 +190,12 @@ export interface IPathData {
 	// undefined the state is unknown.
 	readonly exists?: boolean;
 
+	// a hint that the resource is a file. if
+	// true, the resource is a file, if false
+	// it is a folder. with undefined the type
+	// is unknown.
+	readonly isFile?: boolean;
+
 	// Specifies if the file should be only be opened if it exists
 	readonly openOnlyIfExists?: boolean;
 
