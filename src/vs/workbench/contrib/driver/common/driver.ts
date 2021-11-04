@@ -39,22 +39,22 @@ export interface ILocalizedStrings {
 export interface IDriver {
 	readonly _serviceBrand: undefined;
 
-	getWindowIds(): Promise<number[]>;
-	reloadWindow(windowId: number): Promise<void>;
+	waitForReady(): Promise<void>;
+	reloadWindow(): Promise<void>;
 	exitApplication(): Promise<void>;
-	dispatchKeybinding(windowId: number, keybinding: string): Promise<void>;
-	click(windowId: number, selector: string, xoffset?: number | undefined, yoffset?: number | undefined): Promise<void>;
-	doubleClick(windowId: number, selector: string): Promise<void>;
-	setValue(windowId: number, selector: string, text: string): Promise<void>;
-	getTitle(windowId: number): Promise<string>;
-	isActiveElement(windowId: number, selector: string): Promise<boolean>;
-	getElements(windowId: number, selector: string, recursive?: boolean): Promise<IElement[]>;
-	getElementXY(windowId: number, selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number; }>;
-	typeInEditor(windowId: number, selector: string, text: string): Promise<void>;
-	getTerminalBuffer(windowId: number, selector: string): Promise<string[]>;
-	writeInTerminal(windowId: number, selector: string, text: string): Promise<void>;
-	getLocaleInfo(windowId: number): Promise<ILocaleInfo>;
-	getLocalizedStrings(windowId: number): Promise<ILocalizedStrings>;
+	dispatchKeybinding(keybinding: string): Promise<void>;
+	click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined): Promise<void>;
+	doubleClick(selector: string): Promise<void>;
+	setValue(selector: string, text: string): Promise<void>;
+	getTitle(): Promise<string>;
+	isActiveElement(selector: string): Promise<boolean>;
+	getElements(selector: string, recursive?: boolean): Promise<IElement[]>;
+	getElementXY(selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number; }>;
+	typeInEditor(selector: string, text: string): Promise<void>;
+	getTerminalBuffer(selector: string): Promise<string[]>;
+	writeInTerminal(selector: string, text: string): Promise<void>;
+	getLocaleInfo(): Promise<ILocaleInfo>;
+	getLocalizedStrings(): Promise<ILocalizedStrings>;
 }
 //*END
 
@@ -62,7 +62,7 @@ export const ID = 'driverService';
 export const IDriver = createDecorator<IDriver>(ID);
 
 export interface IWindowDriver {
-	getWindowIds(): Promise<number[]>;
+	waitForReady(): Promise<void>;
 	reloadWindow(): Promise<void>;
 	exitApplication(): Promise<void>;
 	setValue(selector: string, text: string): Promise<void>;
@@ -79,9 +79,4 @@ export interface IWindowDriver {
 
 export interface IDriverOptions {
 	verbose: boolean;
-}
-
-export interface IWindowDriverRegistry {
-	registerWindowDriver(windowId: number): Promise<IDriverOptions>;
-	reloadWindowDriver(windowId: number): Promise<void>;
 }

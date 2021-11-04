@@ -116,8 +116,8 @@ export class Application {
 			return;
 		}
 
-		await this.code.waitForWindowIds(ids => ids.length > 0);
 		await this.code.waitForElement('.monaco-workbench');
+		await this.code.waitForReady();
 
 		if (this.remote) {
 			await this.code.waitForTextContent('.monaco-workbench .statusbar-item[id="status.host"]', ' TestResolver', undefined, 2000);

@@ -3,24 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { BrowserWindowDriver } from 'vs/workbench/contrib/driver/browser/driver';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 class ElectronWindowDriver extends BrowserWindowDriver {
 
 	constructor(
 		@IHostService hostService: IHostService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService
+		@ILifecycleService lifecycleService: ILifecycleService
 	) {
-		super(hostService);
-	}
-
-	override async getWindowIds(): Promise<number[]> {
-		return [this.environmentService.configuration.windowId];
+		super(hostService, lifecycleService);
 	}
 
 	override reloadWindow(): Promise<void> {
@@ -35,12 +33,11 @@ class ElectronWindowDriver extends BrowserWindowDriver {
 export class DriverContribution implements IWorkbenchContribution {
 
 	constructor(
-		@IHostService hostService: IHostService,
-		@INativeHostService nativeHostService: INativeHostService,
-		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		if (environmentService.enableDriver) {
-			(<any>window).driver = new ElectronWindowDriver(hostService, nativeHostService, environmentService);
+			(<any>window).driver = instantiationService.createInstance(ElectronWindowDriver);
 		}
 	}
 }

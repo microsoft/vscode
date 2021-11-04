@@ -209,7 +209,7 @@ async function poll<T>(
 
 export class Code {
 
-	private _activeWindowId: number | undefined = undefined;
+	private ready: Promise<void> | undefined = undefined;
 	private driver: IDriver;
 
 	constructor(
@@ -236,18 +236,20 @@ export class Code {
 		});
 	}
 
-	async waitForWindowIds(fn: (windowIds: number[]) => boolean): Promise<void> {
-		await poll(() => this.driver.getWindowIds(), fn, `get window ids`);
+	async waitForReady(): Promise<void> {
+		if (!this.ready) {
+			this.ready = this.driver.waitForReady();
+		}
+
+		return this.ready;
 	}
 
 	async dispatchKeybinding(keybinding: string): Promise<void> {
-		const windowId = await this.getActiveWindowId();
-		await this.driver.dispatchKeybinding(windowId, keybinding);
+		await this.driver.dispatchKeybinding(keybinding);
 	}
 
 	async reload(): Promise<void> {
-		const windowId = await this.getActiveWindowId();
-		await this.driver.reloadWindow(windowId);
+		await this.driver.reloadWindow();
 	}
 
 	async exit(): Promise<void> {
@@ -255,11 +257,10 @@ export class Code {
 	}
 
 	async waitForTextContent(selector: string, textContent?: string, accept?: (result: string) => boolean, retryCount?: number): Promise<string> {
-		const windowId = await this.getActiveWindowId();
 		accept = accept || (result => textContent !== undefined ? textContent === result : !!result);
 
 		return await poll(
-			() => this.driver.getElements(windowId, selector).then(els => els.length > 0 ? Promise.resolve(els[0].textContent) : Promise.reject(new Error('Element not found for textContent'))),
+			() => this.driver.getElements(selector).then(els => els.length > 0 ? Promise.resolve(els[0].textContent) : Promise.reject(new Error('Element not found for textContent'))),
 			s => accept!(typeof s === 'string' ? s : ''),
 			`get text content '${selector}'`,
 			retryCount
@@ -267,72 +268,53 @@ export class Code {
 	}
 
 	async waitAndClick(selector: string, xoffset?: number, yoffset?: number, retryCount: number = 200): Promise<void> {
-		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.click(windowId, selector, xoffset, yoffset), () => true, `click '${selector}'`, retryCount);
+		await poll(() => this.driver.click(selector, xoffset, yoffset), () => true, `click '${selector}'`, retryCount);
 	}
 
 	async waitAndDoubleClick(selector: string): Promise<void> {
-		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.doubleClick(windowId, selector), () => true, `double click '${selector}'`);
+		await poll(() => this.driver.doubleClick(selector), () => true, `double click '${selector}'`);
 	}
 
 	async waitForSetValue(selector: string, value: string): Promise<void> {
-		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.setValue(windowId, selector, value), () => true, `set value '${selector}'`);
+		await poll(() => this.driver.setValue(selector, value), () => true, `set value '${selector}'`);
 	}
 
 	async waitForElements(selector: string, recursive: boolean, accept: (result: IElement[]) => boolean = result => result.length > 0): Promise<IElement[]> {
-		const windowId = await this.getActiveWindowId();
-		return await poll(() => this.driver.getElements(windowId, selector, recursive), accept, `get elements '${selector}'`);
+		return await poll(() => this.driver.getElements(selector, recursive), accept, `get elements '${selector}'`);
 	}
 
 	async waitForElement(selector: string, accept: (result: IElement | undefined) => boolean = result => !!result, retryCount: number = 200): Promise<IElement> {
-		const windowId = await this.getActiveWindowId();
-		return await poll<IElement>(() => this.driver.getElements(windowId, selector).then(els => els[0]), accept, `get element '${selector}'`, retryCount);
+		return await poll<IElement>(() => this.driver.getElements(selector).then(els => els[0]), accept, `get element '${selector}'`, retryCount);
 	}
 
 	async waitForActiveElement(selector: string, retryCount: number = 200): Promise<void> {
-		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.isActiveElement(windowId, selector), r => r, `is active element '${selector}'`, retryCount);
+		await this.waitForReady();
+		await poll(() => this.driver.isActiveElement(selector), r => r, `is active element '${selector}'`, retryCount);
 	}
 
 	async waitForTitle(fn: (title: string) => boolean): Promise<void> {
-		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.getTitle(windowId), fn, `get title`);
+		await poll(() => this.driver.getTitle(), fn, `get title`);
 	}
 
 	async waitForTypeInEditor(selector: string, text: string): Promise<void> {
-		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.typeInEditor(windowId, selector, text), () => true, `type in editor '${selector}'`);
+		await this.waitForReady();
+		await poll(() => this.driver.typeInEditor(selector, text), () => true, `type in editor '${selector}'`);
 	}
 
 	async waitForTerminalBuffer(selector: string, accept: (result: string[]) => boolean): Promise<void> {
-		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.getTerminalBuffer(windowId, selector), accept, `get terminal buffer '${selector}'`);
+		await poll(() => this.driver.getTerminalBuffer(selector), accept, `get terminal buffer '${selector}'`);
 	}
 
 	async writeInTerminal(selector: string, value: string): Promise<void> {
-		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.writeInTerminal(windowId, selector, value), () => true, `writeInTerminal '${selector}'`);
+		await poll(() => this.driver.writeInTerminal(selector, value), () => true, `writeInTerminal '${selector}'`);
 	}
 
 	async getLocaleInfo(): Promise<ILocaleInfo> {
-		const windowId = await this.getActiveWindowId();
-		return await this.driver.getLocaleInfo(windowId);
+		return this.driver.getLocaleInfo();
 	}
 
 	async getLocalizedStrings(): Promise<ILocalizedStrings> {
-		const windowId = await this.getActiveWindowId();
-		return await this.driver.getLocalizedStrings(windowId);
-	}
-
-	private async getActiveWindowId(): Promise<number> {
-		if (typeof this._activeWindowId !== 'number') {
-			const windows = await this.driver.getWindowIds();
-			this._activeWindowId = windows[0];
-		}
-
-		return this._activeWindowId;
+		return this.driver.getLocalizedStrings();
 	}
 
 	dispose(): void {

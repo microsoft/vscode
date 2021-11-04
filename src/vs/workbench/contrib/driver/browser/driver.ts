@@ -11,13 +11,18 @@ import localizedStrings from 'vs/platform/localizations/common/localizedStrings'
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class BrowserWindowDriver implements IWindowDriver {
 
-	constructor(@IHostService private readonly hostService: IHostService) { }
+	constructor(
+		@IHostService private readonly hostService: IHostService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService
+	) { }
 
-	async getWindowIds(): Promise<number[]> {
-		return [0];
+	async waitForReady(): Promise<void> {
+		return this.lifecycleService.when(LifecyclePhase.Ready);
 	}
 
 	async reloadWindow(): Promise<void> {
@@ -222,10 +227,10 @@ export class DriverContribution implements IWorkbenchContribution {
 
 	constructor(
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IHostService hostService: IHostService
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		if (environmentService.options?.developmentOptions?.enableSmokeTestDriver) {
-			(<any>window).driver = new BrowserWindowDriver(hostService);
+			(<any>window).driver = instantiationService.createInstance(BrowserWindowDriver);
 		}
 	}
 }

@@ -34,7 +34,7 @@ let traceCounter = 1;
 function buildDriver(app: playwright.ElectronApplication | playwright.Browser, context: playwright.BrowserContext, page: playwright.Page): IDriver {
 	const driver: IDriver = {
 		_serviceBrand: undefined,
-		getWindowIds: () => page.evaluate('window.driver.getWindowIds()'),
+		waitForReady: () => page.evaluate('window.driver.waitForReady()'),
 		reloadWindow: () => page.evaluate('window.driver.reloadWindow()'),
 		exitApplication: async () => {
 			try {
@@ -46,7 +46,7 @@ function buildDriver(app: playwright.ElectronApplication | playwright.Browser, c
 			await app.close();
 			await teardown();
 		},
-		dispatchKeybinding: async (windowId, keybinding) => {
+		dispatchKeybinding: async (keybinding) => {
 			const chords = keybinding.split(' ');
 			for (let i = 0; i < chords.length; i++) {
 				const chord = chords[i];
@@ -69,24 +69,24 @@ function buildDriver(app: playwright.ElectronApplication | playwright.Browser, c
 
 			await timeout(100);
 		},
-		click: async (windowId, selector, xoffset, yoffset) => {
-			const { x, y } = await driver.getElementXY(windowId, selector, xoffset, yoffset);
+		click: async (selector, xoffset, yoffset) => {
+			const { x, y } = await driver.getElementXY(selector, xoffset, yoffset);
 			await page.mouse.click(x + (xoffset ? xoffset : 0), y + (yoffset ? yoffset : 0));
 		},
-		doubleClick: async (windowId, selector) => {
-			const { x, y } = await driver.getElementXY(windowId, selector);
+		doubleClick: async (selector) => {
+			const { x, y } = await driver.getElementXY(selector);
 			await page.mouse.dblclick(x, y);
 		},
-		setValue: async (windowId, selector, text) => await page.evaluate(`window.driver.setValue('${selector}', '${text}')`),
-		getTitle: (windowId) => page.evaluate('window.driver.getTitle()'),
-		isActiveElement: (windowId, selector) => page.evaluate(`window.driver.isActiveElement('${selector}')`),
-		getElements: (windowId, selector, recursive) => page.evaluate(`window.driver.getElements('${selector}', ${recursive})`),
-		getElementXY: (windowId, selector, xoffset?, yoffset?) => page.evaluate(`window.driver.getElementXY('${selector}', ${xoffset}, ${yoffset})`),
-		typeInEditor: (windowId, selector, text) => page.evaluate(`window.driver.typeInEditor('${selector}', '${text}')`),
-		getTerminalBuffer: (windowId, selector) => page.evaluate(`window.driver.getTerminalBuffer('${selector}')`),
-		writeInTerminal: (windowId, selector, text) => page.evaluate(`window.driver.writeInTerminal('${selector}', '${text}')`),
-		getLocaleInfo: (windowId) => page.evaluate('window.driver.getLocaleInfo()'),
-		getLocalizedStrings: (windowId) => page.evaluate('window.driver.getLocalizedStrings()')
+		setValue: async (selector, text) => await page.evaluate(`window.driver.setValue('${selector}', '${text}')`),
+		getTitle: () => page.evaluate('window.driver.getTitle()'),
+		isActiveElement: (selector) => page.evaluate(`window.driver.isActiveElement('${selector}')`),
+		getElements: (selector, recursive) => page.evaluate(`window.driver.getElements('${selector}', ${recursive})`),
+		getElementXY: (selector, xoffset?, yoffset?) => page.evaluate(`window.driver.getElementXY('${selector}', ${xoffset}, ${yoffset})`),
+		typeInEditor: (selector, text) => page.evaluate(`window.driver.typeInEditor('${selector}', '${text}')`),
+		getTerminalBuffer: (selector) => page.evaluate(`window.driver.getTerminalBuffer('${selector}')`),
+		writeInTerminal: (selector, text) => page.evaluate(`window.driver.writeInTerminal('${selector}', '${text}')`),
+		getLocaleInfo: () => page.evaluate('window.driver.getLocaleInfo()'),
+		getLocalizedStrings: () => page.evaluate('window.driver.getLocalizedStrings()')
 	};
 	return driver;
 }

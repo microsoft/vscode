@@ -9,4 +9,4 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { DriverContribution } from 'vs/workbench/contrib/driver/browser/driver';
 
 // Register Driver Contribution
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DriverContribution, LifecyclePhase.Ready);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DriverContribution, LifecyclePhase.Starting);
