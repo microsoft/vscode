@@ -1513,20 +1513,28 @@
 			"fontCharacter": "\\E0A6",
 			"fontColor": "#a074c4"
 		},
-		"_zip_light": {
+		"_zig_light": {
 			"fontCharacter": "\\E0A7",
+			"fontColor": "#cc6d2e"
+		},
+		"_zig": {
+			"fontCharacter": "\\E0A7",
+			"fontColor": "#e37933"
+		},
+		"_zip_light": {
+			"fontCharacter": "\\E0A8",
 			"fontColor": "#b8383d"
 		},
 		"_zip": {
-			"fontCharacter": "\\E0A7",
+			"fontCharacter": "\\E0A8",
 			"fontColor": "#cc3e44"
 		},
 		"_zip_1_light": {
-			"fontCharacter": "\\E0A7",
+			"fontCharacter": "\\E0A8",
 			"fontColor": "#627379"
 		},
 		"_zip_1": {
-			"fontCharacter": "\\E0A7",
+			"fontCharacter": "\\E0A8",
 			"fontColor": "#6d8086"
 		}
 	},
@@ -1690,6 +1698,7 @@
 		"wasm": "_wasm",
 		"wat": "_wat",
 		"pro": "_prolog",
+		"zig": "_zig",
 		"jar": "_zip",
 		"zip": "_zip_1",
 		"wgt": "_wgt",
@@ -2068,6 +2077,7 @@
 			"wasm": "_wasm_light",
 			"wat": "_wat_light",
 			"pro": "_prolog_light",
+			"zig": "_zig_light",
 			"jar": "_zip_light",
 			"zip": "_zip_1_light",
 			"wgt": "_wgt_light",
@@ -2284,5 +2294,5 @@
 			"npm-debug.log": "_npm_ignored_light"
 		}
 	},
-	"version": "https://github.com/jesseweed/seti-ui/commit/8eacb11357be8b79868246f972702b6b2460e9ac"
+	"version": "https://github.com/jesseweed/seti-ui/commit/bc194faed12b10692807f47b97f0ff963e4c9f24"
 }
