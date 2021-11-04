@@ -96,6 +96,8 @@ import { ipcSharedProcessWorkerChannelName, ISharedProcessWorkerConfiguration, I
 import { SharedProcessWorkerService } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorkerService';
 import { IUserConfigurationFileService, UserConfigurationFileServiceId } from 'vs/platform/configuration/common/userConfigurationFileService';
 import { AssignmentService } from 'vs/platform/assignment/common/assignmentService';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 
 class SharedProcessMain extends Disposable {
 
@@ -195,7 +197,7 @@ class SharedProcessMain extends Disposable {
 		services.set(ILogService, logService);
 
 		// Worker
-		this.sharedProcessWorkerService = new SharedProcessWorkerService(logService);
+		this.sharedProcessWorkerService = new SharedProcessWorkerService(logService, productService, environmentService);
 		services.set(ISharedProcessWorkerService, this.sharedProcessWorkerService);
 
 		// Files
@@ -222,6 +224,9 @@ class SharedProcessMain extends Disposable {
 
 		// User Configuration File
 		services.set(IUserConfigurationFileService, ProxyChannel.toService<IUserConfigurationFileService>(mainProcessService.getChannel(UserConfigurationFileServiceId)));
+
+		// URI Identity
+		services.set(IUriIdentityService, new UriIdentityService(fileService));
 
 		// Request
 		services.set(IRequestService, new SyncDescriptor(RequestService));

@@ -56,8 +56,8 @@ import { localize } from 'vs/nls';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { BrowserWindow } from 'vs/workbench/browser/window';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
@@ -234,7 +234,7 @@ class BrowserMain extends Disposable {
 		serviceCollection.set(IUserDataSyncStoreManagementService, userDataSyncStoreManagementService);
 
 		// Userdata Initialize Service
-		const userDataInitializationService = new UserDataInitializationService(environmentService, userDataSyncStoreManagementService, fileService, storageService, productService, requestService, logService);
+		const userDataInitializationService = new UserDataInitializationService(environmentService, userDataSyncStoreManagementService, fileService, storageService, productService, requestService, logService, uriIdentityService);
 		serviceCollection.set(IUserDataInitializationService, userDataInitializationService);
 
 		if (await userDataInitializationService.requiresInitialization()) {
@@ -254,14 +254,18 @@ class BrowserMain extends Disposable {
 	}
 
 	private async registerFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IFileService, remoteAgentService: IRemoteAgentService, logService: BufferLogService, logsPath: URI): Promise<void> {
+
+		// IndexedDB is used for logging and user data
 		let indexedDB: IndexedDB | undefined;
-		const userDataStore = 'vscode-userdata-store', logsStore = 'vscode-logs-store';
+		const userDataStore = 'vscode-userdata-store';
+		const logsStore = 'vscode-logs-store';
 		try {
 			indexedDB = await IndexedDB.create('vscode-web-db', 2, [userDataStore, logsStore]);
+
+			// Close onWillShutdown
 			this.onWillShutdownDisposables.add(toDisposable(() => indexedDB?.close()));
 		} catch (error) {
-			logService.error('Error while creating IndexedDB');
-			logService.error(error);
+			logService.error('Error while creating IndexedDB', error);
 		}
 
 		// Logger
@@ -343,7 +347,10 @@ class BrowserMain extends Disposable {
 
 		try {
 			await storageService.initialize();
+
+			// Close onWillShutdown
 			this.onWillShutdownDisposables.add(toDisposable(() => storageService.close()));
+
 			return storageService;
 		} catch (error) {
 			onUnexpectedError(error);

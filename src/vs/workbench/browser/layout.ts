@@ -345,7 +345,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Move layout call to any time the menubar
 			// is toggled to update consumers of offset
 			// see issue #115267
-			this.layout();
+			this._onDidLayout.fire(this._dimension);
 		}
 	}
 
@@ -372,8 +372,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
 
 			this.updateWindowBorder(true);
-
-			this.layout(); // handle title bar when fullscreen changes
 		}
 
 		this._onDidChangeFullscreen.fire(this.state.fullscreen);

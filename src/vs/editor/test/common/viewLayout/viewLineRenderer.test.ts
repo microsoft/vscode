@@ -2114,6 +2114,38 @@ suite('viewLineRenderer.renderLine 2', () => {
 		assert.deepStrictEqual(actual.html, expected);
 	});
 
+	test('issue #116939: Important control characters aren\'t rendered', () => {
+		const actual = renderViewLine(new RenderLineInput(
+			false,
+			false,
+			`transferBalance(5678,${String.fromCharCode(0x202E)}6776,4321${String.fromCharCode(0x202C)},"USD");`,
+			false,
+			false,
+			false,
+			0,
+			createViewLineTokens([createPart(42, 3)]),
+			[],
+			4,
+			0,
+			10,
+			10,
+			10,
+			10000,
+			'none',
+			true,
+			false,
+			null
+		));
+
+		const expected = [
+			'<span>',
+			'<span class="mtk3">transferBalance(5678,</span><span class="mtkcontrol">[U+202E]</span><span class="mtk3">6776,4321</span><span class="mtkcontrol">[U+202C]</span><span class="mtk3">,"USD");</span>',
+			'</span>'
+		].join('');
+
+		assert.deepStrictEqual(actual.html, expected);
+	});
+
 	test('issue #124038: Multiple end-of-line text decorations get merged', () => {
 		const actual = renderViewLine(new RenderLineInput(
 			true,

@@ -52,7 +52,7 @@ class NotebookViewportContribution extends Disposable implements INotebookEditor
 			for (let i = 0; i < this._notebookEditor.getLength(); i++) {
 				const cell = this._notebookEditor.cellAt(i);
 
-				if (cell?.cellKind === CellKind.Markup && cell?.getEditState() === CellEditState.Preview && !cell.metadata.inputCollapsed) {
+				if (cell?.cellKind === CellKind.Markup && cell?.getEditState() === CellEditState.Preview && !cell.isInputCollapsed) {
 					// TODO@rebornix currently we disable markdown cell rendering in webview for accessibility
 					// this._notebookEditor.createMarkupPreview(cell);
 				} else if (cell?.cellKind === CellKind.Code) {
@@ -75,7 +75,7 @@ class NotebookViewportContribution extends Disposable implements INotebookEditor
 		cellRangesToIndexes(visibleRanges).forEach(index => {
 			const cell = this._notebookEditor.cellAt(index);
 
-			if (cell?.cellKind === CellKind.Markup && cell?.getEditState() === CellEditState.Preview && !cell.metadata.inputCollapsed) {
+			if (cell?.cellKind === CellKind.Markup && cell?.getEditState() === CellEditState.Preview && !cell.isInputCollapsed) {
 				(this._notebookEditor as INotebookEditorDelegate).createMarkupPreview(cell);
 			} else if (cell?.cellKind === CellKind.Code) {
 				this._renderCell((cell as CodeCellViewModel));
@@ -84,7 +84,7 @@ class NotebookViewportContribution extends Disposable implements INotebookEditor
 	}
 
 	private _renderCell(viewCell: CodeCellViewModel) {
-		if (viewCell.metadata.outputCollapsed) {
+		if (viewCell.isOutputCollapsed) {
 			return;
 		}
 

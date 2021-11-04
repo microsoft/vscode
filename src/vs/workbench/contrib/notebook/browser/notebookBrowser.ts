@@ -254,6 +254,8 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	readonly onDidChangeCellStatusBarItems: Event<void>;
 	readonly editStateSource: string;
 	readonly editorAttached: boolean;
+	isInputCollapsed: boolean;
+	isOutputCollapsed: boolean;
 	dragging: boolean;
 	handle: number;
 	uri: URI;
@@ -723,6 +725,8 @@ export interface CellViewModelStateChangeEvent {
 	readonly outputIsFocusedChanged?: boolean;
 	readonly cellIsHoveredChanged?: boolean;
 	readonly cellLineNumberChanged?: boolean;
+	readonly inputCollapsedChanged?: boolean;
+	readonly outputCollapsedChanged?: boolean;
 }
 
 export function getVisibleCells(cells: CellViewModel[], hiddenRanges: ICellRange[]) {

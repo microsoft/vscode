@@ -546,16 +546,14 @@ export class SimpleFileDialog {
 
 	private tildaReplace(value: string): URI {
 		const home = this.userHome;
-		if ((value[0] === '~') && (value.length > 1)) {
+		if ((value.length > 0) && (value[0] === '~')) {
 			return resources.joinPath(home, value.substring(1));
-		} else if (value[value.length - 1] === '~') {
-			return home;
 		}
 		return this.remoteUriFrom(value);
 	}
 
 	private async tryUpdateItems(value: string, valueUri: URI): Promise<UpdateResult> {
-		if ((value.length > 0) && ((value[value.length - 1] === '~') || (value[0] === '~'))) {
+		if ((value.length > 0) && (value[0] === '~')) {
 			let newDir = this.tildaReplace(value);
 			return await this.updateItems(newDir, true) ? UpdateResult.UpdatedWithTrailing : UpdateResult.Updated;
 		} else if (value === '\\') {
@@ -652,7 +650,11 @@ export class SimpleFileDialog {
 			this.activeItem = quickPickItem;
 			// Changing the active items will trigger the onDidActiveItemsChanged. Clear the autocomplete first, then set it after.
 			this.autoCompletePathSegment = '';
-			this.filePickBox.activeItems = [quickPickItem];
+			if (quickPickItem.isFolder || !this.trailing) {
+				this.filePickBox.activeItems = [quickPickItem];
+			} else {
+				this.filePickBox.activeItems = [];
+			}
 			return true;
 		} else if (force && (!equalsIgnoreCase(this.basenameWithTrailingSlash(quickPickItem.uri), (this.userEnteredPathSegment + this.autoCompletePathSegment)))) {
 			this.userEnteredPathSegment = '';

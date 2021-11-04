@@ -90,6 +90,7 @@ function getTagDocumentation(
 				if (!doc) {
 					return label;
 				}
+				// allow-any-unicode-next-line
 				return label + (doc.match(/\r\n|\n/g) ? '  \n' + processInlineTags(doc) : ` — ${processInlineTags(doc)}`);
 			}
 	}
@@ -100,6 +101,7 @@ function getTagDocumentation(
 	if (!text) {
 		return label;
 	}
+	// allow-any-unicode-next-line
 	return label + (text.match(/\r\n|\n/g) ? '  \n' + text : ` — ${text}`);
 }
 
