@@ -50,10 +50,10 @@
 .monaco-workbench .pane-body.integrated-terminal .xterm {
 	padding: 0 10px 2px;
 	/* Bottom align the terminal withing the split pane */
-	/* position: absolute;
+	position: absolute;
     bottom: 0;
     left: 0;
-    right: 0; */
+    right: 0;
 }
 
 .monaco-workbench .editor-instance .xterm-viewpo,
