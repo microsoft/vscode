@@ -2,9 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import * as assert from 'assert';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
-import * as assert from 'assert';
 
 suite('ContextKeyService', () => {
 	test('updateParent', () => {
@@ -34,10 +34,10 @@ suite('ContextKeyService', () => {
 				assert.ok(e.affectsSome(new Set(['testC'])), 'testC changed');
 				assert.ok(!e.affectsSome(new Set(['testD'])), 'testD did not change');
 
-				assert.equal(child.getContextKeyValue('testA'), 3);
-				assert.equal(child.getContextKeyValue('testB'), undefined);
-				assert.equal(child.getContextKeyValue('testC'), 4);
-				assert.equal(child.getContextKeyValue('testD'), 0);
+				assert.strictEqual(child.getContextKeyValue('testA'), 3);
+				assert.strictEqual(child.getContextKeyValue('testB'), undefined);
+				assert.strictEqual(child.getContextKeyValue('testC'), 4);
+				assert.strictEqual(child.getContextKeyValue('testD'), 0);
 			} catch (err) {
 				reject(err);
 				return;

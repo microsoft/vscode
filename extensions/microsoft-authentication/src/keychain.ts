@@ -3,51 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// keytar depends on a native module shipped in vscode, so this is
-// how we load it
-import * as keytarType from 'keytar';
 import * as vscode from 'vscode';
 import Logger from './logger';
 import * as nls from 'vscode-nls';
 
 const localize = nls.loadMessageBundle();
 
-function getKeytar(): Keytar | undefined {
-	try {
-		return require('keytar');
-	} catch (err) {
-		console.log(err);
-	}
-
-	return undefined;
-}
-
-export type Keytar = {
-	getPassword: typeof keytarType['getPassword'];
-	setPassword: typeof keytarType['setPassword'];
-	deletePassword: typeof keytarType['deletePassword'];
-};
-
-const OLD_SERVICE_ID = `${vscode.env.uriScheme}-microsoft.login`;
 const SERVICE_ID = `microsoft.login`;
-const ACCOUNT_ID = 'account';
 
 export class Keychain {
-	private keytar: Keytar;
 
-	constructor() {
-		const keytar = getKeytar();
-		if (!keytar) {
-			throw new Error('System keychain unavailable');
-		}
-
-		this.keytar = keytar;
-	}
-
+	constructor(private context: vscode.ExtensionContext) { }
 
 	async setToken(token: string): Promise<void> {
+
 		try {
-			return await vscode.authentication.setPassword(SERVICE_ID, token);
+			return await this.context.secrets.store(SERVICE_ID, token);
 		} catch (e) {
 			Logger.error(`Setting token failed: ${e}`);
 
@@ -69,7 +40,7 @@ export class Keychain {
 
 	async getToken(): Promise<string | null | undefined> {
 		try {
-			return await vscode.authentication.getPassword(SERVICE_ID);
+			return await this.context.secrets.get(SERVICE_ID);
 		} catch (e) {
 			// Ignore
 			Logger.error(`Getting token failed: ${e}`);
@@ -79,34 +50,11 @@ export class Keychain {
 
 	async deleteToken(): Promise<void> {
 		try {
-			return await vscode.authentication.deletePassword(SERVICE_ID);
+			return await this.context.secrets.delete(SERVICE_ID);
 		} catch (e) {
 			// Ignore
 			Logger.error(`Deleting token failed: ${e}`);
 			return Promise.resolve(undefined);
 		}
 	}
-
-	async tryMigrate(): Promise<string | null> {
-		try {
-			const oldValue = await this.keytar.getPassword(OLD_SERVICE_ID, ACCOUNT_ID);
-			if (oldValue) {
-				await this.setToken(oldValue);
-				await this.keytar.deletePassword(OLD_SERVICE_ID, ACCOUNT_ID);
-			}
-
-			return oldValue;
-		} catch (_) {
-			// Ignore
-			return Promise.resolve(null);
-		}
-	}
-
-	onDidChangePassword(listener: () => void) {
-		vscode.authentication.onDidChangePassword(_ => {
-			listener();
-		});
-	}
 }
-
-export const keychain = new Keychain();

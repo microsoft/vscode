@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SelectionRangeProvider, SelectionRange } from 'vs/editor/common/modes';
-import { ITextModel } from 'vs/editor/common/model';
+import { LinkedList } from 'vs/base/common/linkedList';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { LinkedList } from 'vs/base/common/linkedList';
+import { ITextModel } from 'vs/editor/common/model';
+import { SelectionRange, SelectionRangeProvider } from 'vs/editor/common/modes';
 
 export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 
@@ -26,7 +26,7 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 		return result;
 	}
 
-	private static readonly _maxDuration = 30;
+	public static _maxDuration = 30;
 	private static readonly _maxRounds = 2;
 
 	private static _bracketsRightYield(resolve: () => void, round: number, model: ITextModel, pos: Position, ranges: Map<string, LinkedList<Range>>): void {
@@ -41,7 +41,7 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 				resolve();
 				break;
 			}
-			let bracket = model.findNextBracket(pos);
+			let bracket = model.bracketPairs.findNextBracket(pos);
 			if (!bracket) {
 				resolve();
 				break;
@@ -86,7 +86,7 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 				resolve();
 				break;
 			}
-			let bracket = model.findPrevBracket(pos);
+			let bracket = model.bracketPairs.findPrevBracket(pos);
 			if (!bracket) {
 				resolve();
 				break;

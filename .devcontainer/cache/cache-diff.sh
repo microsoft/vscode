@@ -1,12 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This file is used to archive off a copy of any differences in the source tree into another location
-# in the image. Once the codespace is up, this will be restored into its proper location (which is
-# quick and happens parallel to other startup activities)
+# in the image. Once the codespace / container is up, this will be restored into its proper location.
 
 set -e
 
-SCRIPT_PATH="$(cd "$(dirname $0)" && pwd)"
+SCRIPT_PATH="$(cd $(dirname "${BASH_SOURCE[0]}") && pwd)"
 SOURCE_FOLDER="${1:-"."}"
 CACHE_FOLDER="${2:-"/usr/local/etc/devcontainer-cache"}"
 

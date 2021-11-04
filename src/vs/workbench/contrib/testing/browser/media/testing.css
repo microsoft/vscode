@@ -1,0 +1,209 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/** -- explorer */
+.test-explorer {
+	display: flex;
+	flex-direction: column;
+}
+
+.test-explorer > .test-explorer-tree {
+	flex-grow: 1;
+	height: 0px;
+	position: relative;
+}
+
+.test-explorer .test-item,
+.test-output-peek-tree .test-peek-item {
+	display: flex;
+	align-items: center;
+}
+
+.test-output-peek-tree .monaco-list-row .monaco-action-bar,
+.test-explorer .monaco-list-row .monaco-action-bar,
+.test-explorer .monaco-list-row .codicon-testing-hidden {
+	display: none;
+	flex-shrink: 0;
+	margin-right: 0.8em;
+}
+
+.test-explorer .monaco-list-row:hover .monaco-action-bar,
+.test-output-peek-tree .monaco-list-row:hover .monaco-action-bar,
+.test-explorer .monaco-list-row:focus .monaco-action-bar,
+.test-output-peek-tree .monaco-list-row:focus .monaco-action-bar {
+	display: initial;
+}
+
+.test-explorer .monaco-list-row .test-is-hidden .codicon-testing-hidden {
+	display: block;
+	margin-right: 9px;
+}
+
+.test-explorer .monaco-list-row:hover .codicon-testing-hidden,
+.test-explorer .monaco-list-row:focus .codicon-testing-hidden {
+	display: none;
+}
+
+.test-explorer .monaco-list-row .error p {
+	margin: 0;
+}
+
+.test-explorer .name,
+.test-output-peek-tree .name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	flex-grow: 1;
+	height: 22px;
+	align-items: center;
+}
+
+.test-explorer .computed-state,
+.test-output-peek-tree .computed-state {
+	margin-right: 0.25em;
+}
+
+.test-explorer .computed-state.retired,
+.testing-run-glyph.retired {
+	opacity: 0.7  !important;
+}
+
+.test-explorer .test-is-hidden {
+	opacity: 0.8;
+}
+
+.test-explorer .test-explorer-messages {
+	padding: 0 12px 8px;
+	font-variant-numeric: tabular-nums;
+}
+
+.monaco-workbench
+	.test-explorer
+	.monaco-action-bar
+	.action-item
+	> .action-label {
+	padding: 2px;
+	margin-right: 2px;
+}
+
+.monaco-workbench .part > .title > .title-actions .action-label.codicon-testing-autorun::after {
+	content: '';
+	display: none;
+	position: absolute;
+	width: 0.4em;
+	height: 0.4em;
+	top: 50%;
+	left: 50%;
+	margin: 0.1em 0 0 0.05em;
+	border-radius: 100%;
+}
+
+.monaco-workbench .part > .title > .title-actions .action-label.codicon-testing-autorun.checked::after {
+	display: block;
+}
+
+.codicon-testing-loading-icon::before {
+	/* Use steps to throttle FPS to reduce CPU usage */
+	animation: codicon-spin 1.25s steps(30) infinite;
+}
+
+.testing-no-test-placeholder {
+	display: none;
+	padding: 0 20px;
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 0;
+	z-index: 1;
+}
+
+.testing-no-test-placeholder.visible {
+	display: block;
+}
+
+/** -- peek */
+.monaco-editor .zone-widget.test-output-peek .zone-widget-container.peekview-widget {
+	border-top-width: 2px;
+	border-bottom-width: 2px;
+}
+
+.monaco-editor .zone-widget.test-output-peek .test-output-peek-message-container,
+.monaco-editor .zone-widget.test-output-peek .test-output-peek-tree {
+	height: 100%;
+}
+
+.monaco-editor .zone-widget.test-output-peek .preview-text {
+	padding: 8px 12px 8px 20px;
+	height: calc(100% - 16px);
+}
+
+.monaco-editor .zone-widget.test-output-peek .preview-text p:first-child {
+	margin-top: 0;
+}
+
+.monaco-editor .zone-widget.test-output-peek .preview-text p:last-child {
+	margin-bottom: 0;
+}
+
+/** -- filter  */
+.testing-filter-action-bar {
+	flex-shrink: 0;
+	margin: 4px 12px;
+	height: auto;
+}
+
+.testing-filter-action-item {
+	display: flex !important;
+	flex-grow: 1;
+	max-width: 400px;
+	align-items: center;
+}
+
+.testing-filter-action-bar .testing-filter-action-item {
+	max-width: none;
+}
+
+.testing-filter-wrapper {
+	height: 27px;
+}
+
+.testing-filter-action-item .testing-filter-wrapper {
+	flex-grow: 1;
+}
+
+.testing-filter-action-item .testing-filter-wrapper input {
+	padding-right: 30px !important;
+}
+
+.testing-filter-action-item .monaco-action-bar {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	right: 0;
+	display: flex;
+	align-items: center;
+}
+
+/** -- decorations  */
+
+.monaco-editor .testing-run-glyph {
+	cursor: pointer;
+}
+
+.testing-diff-title-widget {
+	line-height: 19px;
+	font-size: 12px;
+	padding-right: 6px;
+
+	overflow: hidden;
+	display: inline-block;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.test-message-inline-content {
+	font-family: var(--testMessageDecorationFontFamily);
+	font-size: var(--testMessageDecorationFontSize);
+	cursor: pointer;
+}

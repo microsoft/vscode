@@ -7,6 +7,7 @@ import * as nls from 'vs/nls';
 import { isFirefox } from 'vs/base/browser/browser';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as types from 'vs/base/common/types';
+import { status } from 'vs/base/browser/ui/aria/aria';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Command, EditorCommand, ICommandOptions, registerEditorCommand, MultiCommand, UndoCommand, RedoCommand, SelectAllCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -217,7 +218,7 @@ export namespace RevealLine_ {
 
 		const reveaLineArg: RawArguments = arg;
 
-		if (!types.isNumber(reveaLineArg.lineNumber)) {
+		if (!types.isNumber(reveaLineArg.lineNumber) && !types.isString(reveaLineArg.lineNumber)) {
 			return false;
 		}
 
@@ -235,7 +236,7 @@ export namespace RevealLine_ {
 				name: 'Reveal line argument object',
 				description: `Property-value pairs that can be passed through this argument:
 					* 'lineNumber': A mandatory line number value.
-					* 'at': Logical position at which line has to be revealed .
+					* 'at': Logical position at which line has to be revealed.
 						\`\`\`
 						'top', 'center', 'bottom'
 						\`\`\`
@@ -246,7 +247,7 @@ export namespace RevealLine_ {
 					'required': ['lineNumber'],
 					'properties': {
 						'lineNumber': {
-							'type': 'number',
+							'type': ['number', 'string'],
 						},
 						'at': {
 							'type': 'string',
@@ -262,7 +263,7 @@ export namespace RevealLine_ {
 	 * Arguments for reveal line command
 	 */
 	export interface RawArguments {
-		lineNumber?: number;
+		lineNumber?: number | string;
 		at?: string;
 	}
 
@@ -280,7 +281,7 @@ abstract class EditorOrNativeTextInputCommand {
 
 	constructor(target: MultiCommand) {
 		// 1. handle case when focus is in editor.
-		target.addImplementation(10000, (accessor: ServicesAccessor, args: any) => {
+		target.addImplementation(10000, 'code-editor', (accessor: ServicesAccessor, args: any) => {
 			// Only if editor text focus (i.e. not if editor has widget focus).
 			const focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 			if (focusedEditor && focusedEditor.hasTextFocus()) {
@@ -290,7 +291,7 @@ abstract class EditorOrNativeTextInputCommand {
 		});
 
 		// 2. handle case when focus is in some other `input` / `textarea`.
-		target.addImplementation(1000, (accessor: ServicesAccessor, args: any) => {
+		target.addImplementation(1000, 'generic-dom-input-textarea', (accessor: ServicesAccessor, args: any) => {
 			// Only if focused on an element that allows for entering text
 			const activeElement = <HTMLElement>document.activeElement;
 			if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
@@ -301,7 +302,7 @@ abstract class EditorOrNativeTextInputCommand {
 		});
 
 		// 3. (default) handle case when focus is somewhere else.
-		target.addImplementation(0, (accessor: ServicesAccessor, args: any) => {
+		target.addImplementation(0, 'generic-dom', (accessor: ServicesAccessor, args: any) => {
 			// Redirecting to active editor
 			const activeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor();
 			if (activeEditor) {
@@ -554,6 +555,8 @@ export namespace CoreNavigationCommands {
 				case CursorMove_.Direction.Right:
 				case CursorMove_.Direction.Up:
 				case CursorMove_.Direction.Down:
+				case CursorMove_.Direction.PrevBlankLine:
+				case CursorMove_.Direction.NextBlankLine:
 				case CursorMove_.Direction.WrappedLineStart:
 				case CursorMove_.Direction.WrappedLineFirstNonWhitespaceCharacter:
 				case CursorMove_.Direction.WrappedLineColumnCenter:
@@ -622,7 +625,7 @@ export namespace CoreNavigationCommands {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyCode.LeftArrow,
-			mac: { primary: KeyCode.LeftArrow, secondary: [KeyMod.WinCtrl | KeyCode.KEY_B] }
+			mac: { primary: KeyCode.LeftArrow, secondary: [KeyMod.WinCtrl | KeyCode.KeyB] }
 		}
 	}));
 
@@ -655,7 +658,7 @@ export namespace CoreNavigationCommands {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyCode.RightArrow,
-			mac: { primary: KeyCode.RightArrow, secondary: [KeyMod.WinCtrl | KeyCode.KEY_F] }
+			mac: { primary: KeyCode.RightArrow, secondary: [KeyMod.WinCtrl | KeyCode.KeyF] }
 		}
 	}));
 
@@ -688,7 +691,7 @@ export namespace CoreNavigationCommands {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyCode.UpArrow,
-			mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.WinCtrl | KeyCode.KEY_P] }
+			mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.WinCtrl | KeyCode.KeyP] }
 		}
 	}));
 
@@ -756,7 +759,7 @@ export namespace CoreNavigationCommands {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyCode.DownArrow,
-			mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.WinCtrl | KeyCode.KEY_N] }
+			mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.WinCtrl | KeyCode.KeyN] }
 		}
 	}));
 
@@ -976,7 +979,7 @@ export namespace CoreNavigationCommands {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: 0,
-			mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_A }
+			mac: { primary: KeyMod.WinCtrl | KeyCode.KeyA }
 		}
 	}));
 
@@ -988,7 +991,7 @@ export namespace CoreNavigationCommands {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: 0,
-			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_A }
+			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyA }
 		}
 	}));
 
@@ -1109,7 +1112,7 @@ export namespace CoreNavigationCommands {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: 0,
-			mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_E }
+			mac: { primary: KeyMod.WinCtrl | KeyCode.KeyE }
 		}
 	}));
 
@@ -1121,7 +1124,7 @@ export namespace CoreNavigationCommands {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: 0,
-			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_E }
+			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyE }
 		}
 	}));
 
@@ -1523,7 +1526,7 @@ export namespace CoreNavigationCommands {
 				kbOpts: {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
-					primary: KeyMod.CtrlCmd | KeyCode.KEY_L
+					primary: KeyMod.CtrlCmd | KeyCode.KeyL
 				}
 			});
 		}
@@ -1591,6 +1594,7 @@ export namespace CoreNavigationCommands {
 				]
 			);
 			viewModel.revealPrimaryCursor(args.source, true);
+			status(nls.localize('removedCursor', "Removed secondary cursors"));
 		}
 	});
 
@@ -1605,7 +1609,8 @@ export namespace CoreNavigationCommands {
 
 		public runCoreEditorCommand(viewModel: IViewModel, args: any): void {
 			const revealLineArg = <RevealLine_.RawArguments>args;
-			let lineNumber = (revealLineArg.lineNumber || 0) + 1;
+			const lineNumberArg = revealLineArg.lineNumber || 0;
+			let lineNumber = typeof lineNumberArg === 'number' ? (lineNumberArg + 1) : (parseInt(lineNumberArg) + 1);
 			if (lineNumber < 1) {
 				lineNumber = 1;
 			}
@@ -1744,7 +1749,7 @@ export namespace CoreEditingCommands {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
 					primary: 0,
-					mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_O }
+					mac: { primary: KeyMod.WinCtrl | KeyCode.KeyO }
 				}
 			});
 		}
@@ -1811,13 +1816,13 @@ export namespace CoreEditingCommands {
 					kbExpr: EditorContextKeys.textInputFocus,
 					primary: KeyCode.Backspace,
 					secondary: [KeyMod.Shift | KeyCode.Backspace],
-					mac: { primary: KeyCode.Backspace, secondary: [KeyMod.Shift | KeyCode.Backspace, KeyMod.WinCtrl | KeyCode.KEY_H, KeyMod.WinCtrl | KeyCode.Backspace] }
+					mac: { primary: KeyCode.Backspace, secondary: [KeyMod.Shift | KeyCode.Backspace, KeyMod.WinCtrl | KeyCode.KeyH, KeyMod.WinCtrl | KeyCode.Backspace] }
 				}
 			});
 		}
 
 		public runCoreEditingCommand(editor: ICodeEditor, viewModel: IViewModel, args: any): void {
-			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteLeft(viewModel.getPrevEditOperationType(), viewModel.cursorConfig, viewModel.model, viewModel.getCursorStates().map(s => s.modelState.selection));
+			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteLeft(viewModel.getPrevEditOperationType(), viewModel.cursorConfig, viewModel.model, viewModel.getCursorStates().map(s => s.modelState.selection), viewModel.getCursorAutoClosedCharacters());
 			if (shouldPushStackElementBefore) {
 				editor.pushUndoStop();
 			}
@@ -1835,7 +1840,7 @@ export namespace CoreEditingCommands {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
 					primary: KeyCode.Delete,
-					mac: { primary: KeyCode.Delete, secondary: [KeyMod.WinCtrl | KeyCode.KEY_D, KeyMod.WinCtrl | KeyCode.Delete] }
+					mac: { primary: KeyCode.Delete, secondary: [KeyMod.WinCtrl | KeyCode.KeyD, KeyMod.WinCtrl | KeyCode.Delete] }
 				}
 			});
 		}
@@ -1928,6 +1933,7 @@ registerOverwritableCommand(Handler.Type, {
 	}]
 });
 registerOverwritableCommand(Handler.ReplacePreviousChar);
+registerOverwritableCommand(Handler.CompositionType);
 registerOverwritableCommand(Handler.CompositionStart);
 registerOverwritableCommand(Handler.CompositionEnd);
 registerOverwritableCommand(Handler.Paste);

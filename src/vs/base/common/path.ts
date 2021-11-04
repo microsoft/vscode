@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // NOTE: VSCode's copy of nodejs path library to be usable in common (non-node) namespace
-// Copied from: https://github.com/nodejs/node/blob/v12.8.1/lib/path.js
+// Copied from: https://github.com/nodejs/node/blob/v14.16.0/lib/path.js
 
 /**
  * Copyright Joyent, Inc. and other Node contributors.
@@ -43,7 +43,7 @@ const CHAR_QUESTION_MARK = 63; /* ? */
 
 class ErrorInvalidArgType extends Error {
 	code: 'ERR_INVALID_ARG_TYPE';
-	constructor(name: string, expected: string, actual: any) {
+	constructor(name: string, expected: string, actual: unknown) {
 		// determiner: 'must be' or 'must not be'
 		let determiner;
 		if (typeof expected === 'string' && expected.indexOf('not ') === 0) {
@@ -78,8 +78,8 @@ function isPosixPathSeparator(code: number | undefined) {
 }
 
 function isWindowsDeviceRoot(code: number) {
-	return code >= CHAR_UPPERCASE_A && code <= CHAR_UPPERCASE_Z ||
-		code >= CHAR_LOWERCASE_A && code <= CHAR_LOWERCASE_Z;
+	return (code >= CHAR_UPPERCASE_A && code <= CHAR_UPPERCASE_Z) ||
+		(code >= CHAR_LOWERCASE_A && code <= CHAR_LOWERCASE_Z);
 }
 
 // Resolves . and .. elements in a path with directory names
@@ -215,13 +215,13 @@ export const win32: IPath = {
 				// absolute path, get cwd for that drive, or the process cwd if
 				// the drive cwd is not available. We're sure the device is not
 				// a UNC path at this points, because UNC paths are always absolute.
-				path = (process.env as any)[`=${resolvedDevice}`] || process.cwd();
+				path = process.env[`=${resolvedDevice}`] || process.cwd();
 
 				// Verify that a cwd was found and that it actually points
 				// to our drive. If not, default to the drive's root.
 				if (path === undefined ||
-					path.slice(0, 2).toLowerCase() !== resolvedDevice.toLowerCase() &&
-					path.charCodeAt(2) === CHAR_BACKWARD_SLASH) {
+					(path.slice(0, 2).toLowerCase() !== resolvedDevice.toLowerCase() &&
+						path.charCodeAt(2) === CHAR_BACKWARD_SLASH)) {
 					path = `${resolvedDevice}\\`;
 				}
 			}
@@ -429,10 +429,10 @@ export const win32: IPath = {
 		const code = path.charCodeAt(0);
 		return isPathSeparator(code) ||
 			// Possible device root
-			len > 2 &&
-			isWindowsDeviceRoot(code) &&
-			path.charCodeAt(1) === CHAR_COLON &&
-			isPathSeparator(path.charCodeAt(2));
+			(len > 2 &&
+				isWindowsDeviceRoot(code) &&
+				path.charCodeAt(1) === CHAR_COLON &&
+				isPathSeparator(path.charCodeAt(2)));
 	},
 
 	join(...paths: string[]): string {
@@ -460,14 +460,14 @@ export const win32: IPath = {
 		}
 
 		// Make sure that the joined path doesn't start with two slashes, because
-		// normalize() will mistake it for an UNC path then.
+		// normalize() will mistake it for a UNC path then.
 		//
 		// This step is skipped when it is very clear that the user actually
-		// intended to point at an UNC path. This is assumed when the first
+		// intended to point at a UNC path. This is assumed when the first
 		// non-empty string arguments starts with exactly two slashes followed by
 		// at least one more non-slash character.
 		//
-		// Note that for normalize() to treat a path as an UNC path it needs to
+		// Note that for normalize() to treat a path as a UNC path it needs to
 		// have at least 2 components, so we don't filter for that here.
 		// This means that the user can use join to construct UNC paths from
 		// a server name and a share name; for example:

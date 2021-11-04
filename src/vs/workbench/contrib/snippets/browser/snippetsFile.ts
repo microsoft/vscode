@@ -15,6 +15,9 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IdleValue } from 'vs/base/common/async';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
+import { relativePath } from 'vs/base/common/resources';
+import { isObject } from 'vs/base/common/types';
+import { Iterable } from 'vs/base/common/iterator';
 
 class SnippetBodyInsights {
 
@@ -86,9 +89,9 @@ export class Snippet {
 		readonly body: string,
 		readonly source: string,
 		readonly snippetSource: SnippetSource,
+		readonly snippetIdentifier?: string
 	) {
-		//
-		this.prefixLow = prefix ? prefix.toLowerCase() : prefix;
+		this.prefixLow = prefix.toLowerCase();
 		this._bodyInsights = new IdleValue(() => new SnippetBodyInsights(this.body));
 	}
 
@@ -121,14 +124,14 @@ export class Snippet {
 
 
 interface JsonSerializedSnippet {
-	body: string;
+	body: string | string[];
 	scope: string;
-	prefix: string | string[];
+	prefix: string | string[] | undefined;
 	description: string;
 }
 
 function isJsonSerializedSnippet(thing: any): thing is JsonSerializedSnippet {
-	return Boolean((<JsonSerializedSnippet>thing).body) && Boolean((<JsonSerializedSnippet>thing).prefix);
+	return isObject(thing) && Boolean((<JsonSerializedSnippet>thing).body);
 }
 
 interface JsonSerializedSnippets {
@@ -242,16 +245,19 @@ export class SnippetFile {
 
 		let { prefix, body, description } = snippet;
 
+		if (!prefix) {
+			prefix = '';
+		}
+
 		if (Array.isArray(body)) {
 			body = body.join('\n');
+		}
+		if (typeof body !== 'string') {
+			return;
 		}
 
 		if (Array.isArray(description)) {
 			description = description.join('\n');
-		}
-
-		if ((typeof prefix !== 'string' && !Array.isArray(prefix)) || typeof body !== 'string') {
-			return;
 		}
 
 		let scopes: string[];
@@ -280,17 +286,17 @@ export class SnippetFile {
 			}
 		}
 
-		let prefixes = Array.isArray(prefix) ? prefix : [prefix];
-		prefixes.forEach(p => {
+		for (const _prefix of Array.isArray(prefix) ? prefix : Iterable.single(prefix)) {
 			bucket.push(new Snippet(
 				scopes,
 				name,
-				p,
+				_prefix,
 				description,
 				body,
 				source,
-				this.source
+				this.source,
+				this._extension && `${relativePath(this._extension.extensionLocation, this.location)}/${name}`
 			));
-		});
+		}
 	}
 }

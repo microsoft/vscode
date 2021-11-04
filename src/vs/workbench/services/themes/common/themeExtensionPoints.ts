@@ -10,7 +10,6 @@ import * as resources from 'vs/base/common/resources';
 import { ExtensionMessageCollector, IExtensionPoint, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionData, IThemeExtensionPoint, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
-import { IExtensionService, checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 
@@ -113,7 +112,7 @@ export interface ThemeChangeEvent<T> {
 export interface IThemeData {
 	id: string;
 	settingsId: string | null;
-	extensionData?: ExtensionData;
+	location?: URI;
 }
 
 export class ThemeRegistry<T extends IThemeData> {
@@ -124,12 +123,10 @@ export class ThemeRegistry<T extends IThemeData> {
 	public readonly onDidChange: Event<ThemeChangeEvent<T>> = this.onDidChangeEmitter.event;
 
 	constructor(
-		@IExtensionService private readonly extensionService: IExtensionService,
 		private readonly themesExtPoint: IExtensionPoint<IThemeExtensionPoint[]>,
 		private create: (theme: IThemeExtensionPoint, themeLocation: URI, extensionData: ExtensionData) => T,
 		private idRequired = false,
-		private builtInTheme: T | undefined = undefined,
-		private isProposedApi = false
+		private builtInTheme: T | undefined = undefined
 	) {
 		this.extensionThemes = [];
 		this.initialize();
@@ -145,17 +142,13 @@ export class ThemeRegistry<T extends IThemeData> {
 			}
 			this.extensionThemes.length = 0;
 			for (let ext of extensions) {
-				if (this.isProposedApi) {
-					checkProposedApiEnabled(ext.description);
-				}
 				let extensionData: ExtensionData = {
 					extensionId: ext.description.identifier.value,
 					extensionPublisher: ext.description.publisher,
 					extensionName: ext.description.name,
-					extensionIsBuiltin: ext.description.isBuiltin,
-					extensionLocation: ext.description.extensionLocation
+					extensionIsBuiltin: ext.description.isBuiltin
 				};
-				this.onThemes(extensionData, ext.value, ext.collector);
+				this.onThemes(extensionData, ext.description.extensionLocation, ext.value, this.extensionThemes, ext.collector);
 			}
 			for (const theme of this.extensionThemes) {
 				if (!previousIds[theme.id]) {
@@ -169,18 +162,18 @@ export class ThemeRegistry<T extends IThemeData> {
 		});
 	}
 
-	private onThemes(extensionData: ExtensionData, themes: IThemeExtensionPoint[], collector: ExtensionMessageCollector): void {
-		if (!Array.isArray(themes)) {
-			collector.error(nls.localize(
+	private onThemes(extensionData: ExtensionData, extensionLocation: URI, themeContributions: IThemeExtensionPoint[], resultingThemes: T[] = [], log?: ExtensionMessageCollector): T[] {
+		if (!Array.isArray(themeContributions)) {
+			log?.error(nls.localize(
 				'reqarray',
 				"Extension point `{0}` must be an array.",
 				this.themesExtPoint.name
 			));
-			return;
+			return resultingThemes;
 		}
-		themes.forEach(theme => {
+		themeContributions.forEach(theme => {
 			if (!theme.path || !types.isString(theme.path)) {
-				collector.error(nls.localize(
+				log?.error(nls.localize(
 					'reqpath',
 					"Expected string in `contributes.{0}.path`. Provided value: {1}",
 					this.themesExtPoint.name,
@@ -189,7 +182,7 @@ export class ThemeRegistry<T extends IThemeData> {
 				return;
 			}
 			if (this.idRequired && (!theme.id || !types.isString(theme.id))) {
-				collector.error(nls.localize(
+				log?.error(nls.localize(
 					'reqid',
 					"Expected string in `contributes.{0}.id`. Provided value: {1}",
 					this.themesExtPoint.name,
@@ -198,21 +191,22 @@ export class ThemeRegistry<T extends IThemeData> {
 				return;
 			}
 
-			const themeLocation = resources.joinPath(extensionData.extensionLocation, theme.path);
-			if (!resources.isEqualOrParent(themeLocation, extensionData.extensionLocation)) {
-				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", this.themesExtPoint.name, themeLocation.path, extensionData.extensionLocation.path));
+			const themeLocation = resources.joinPath(extensionLocation, theme.path);
+			if (!resources.isEqualOrParent(themeLocation, extensionLocation)) {
+				log?.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", this.themesExtPoint.name, themeLocation.path, extensionLocation.path));
 			}
 
 			let themeData = this.create(theme, themeLocation, extensionData);
-			this.extensionThemes.push(themeData);
+			resultingThemes.push(themeData);
 		});
+		return resultingThemes;
 	}
 
-	public async findThemeById(themeId: string, defaultId?: string): Promise<T | undefined> {
+	public findThemeById(themeId: string, defaultId?: string): T | undefined {
 		if (this.builtInTheme && this.builtInTheme.id === themeId) {
 			return this.builtInTheme;
 		}
-		const allThemes = await this.getThemes();
+		const allThemes = this.getThemes();
 		let defaultTheme: T | undefined = undefined;
 		for (let t of allThemes) {
 			if (t.id === themeId) {
@@ -225,11 +219,11 @@ export class ThemeRegistry<T extends IThemeData> {
 		return defaultTheme;
 	}
 
-	public async findThemeBySettingsId(settingsId: string | null, defaultId?: string): Promise<T | undefined> {
+	public findThemeBySettingsId(settingsId: string | null, defaultId?: string): T | undefined {
 		if (this.builtInTheme && this.builtInTheme.settingsId === settingsId) {
 			return this.builtInTheme;
 		}
-		const allThemes = await this.getThemes();
+		const allThemes = this.getThemes();
 		let defaultTheme: T | undefined = undefined;
 		for (let t of allThemes) {
 			if (t.settingsId === settingsId) {
@@ -242,20 +236,23 @@ export class ThemeRegistry<T extends IThemeData> {
 		return defaultTheme;
 	}
 
-	public findThemeByExtensionLocation(extLocation: URI | undefined): Promise<T[]> {
+	public findThemeByExtensionLocation(extLocation: URI | undefined): T[] {
 		if (extLocation) {
-			return this.getThemes().then(allThemes => {
-				return allThemes.filter(t => t.extensionData && resources.isEqual(t.extensionData.extensionLocation, extLocation));
-			});
+			return this.getThemes().filter(t => t.location && resources.isEqualOrParent(t.location, extLocation));
 		}
-		return Promise.resolve([]);
-
+		return [];
 	}
 
-	public getThemes(): Promise<T[]> {
-		return this.extensionService.whenInstalledExtensionsRegistered().then(_ => {
-			return this.extensionThemes;
-		});
+	public getThemes(): T[] {
+		return this.extensionThemes;
+	}
+
+	public getMarketplaceThemes(manifest: any, extensionLocation: URI, extensionData: ExtensionData): T[] {
+		const themes = manifest?.contributes?.[this.themesExtPoint.name];
+		if (Array.isArray(themes)) {
+			return this.onThemes(extensionData, extensionLocation, themes);
+		}
+		return [];
 	}
 
 }

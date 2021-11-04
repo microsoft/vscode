@@ -9,10 +9,10 @@ export interface DocumentSelector {
 	/**
 	 * Selector for files which only require a basic syntax server.
 	 */
-	readonly syntax: vscode.DocumentFilter[];
+	readonly syntax: readonly vscode.DocumentFilter[];
 
 	/**
 	 * Selector for files which require semantic server support.
 	 */
-	readonly semantic: vscode.DocumentFilter[];
+	readonly semantic: readonly vscode.DocumentFilter[];
 }

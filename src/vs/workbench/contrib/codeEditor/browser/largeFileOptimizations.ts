@@ -11,7 +11,6 @@ import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 /**
  * Shows a message when opening a large file which has been memory optimized (and features disabled).
@@ -24,13 +23,8 @@ export class LargeFileOptimizationsWarner extends Disposable implements IEditorC
 		private readonly _editor: ICodeEditor,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		super();
-
-		// opt-in to syncing
-		const neverShowAgainId = 'editor.contrib.largeFileOptimizationsWarner';
-		storageKeysSyncRegistryService.registerStorageKey({ key: neverShowAgainId, version: 1 });
 
 		this._register(this._editor.onDidChangeModel((e) => {
 			const model = this._editor.getModel();
@@ -52,7 +46,7 @@ export class LargeFileOptimizationsWarner extends Disposable implements IEditorC
 
 				this._notificationService.prompt(Severity.Info, message, [
 					{
-						label: nls.localize('removeOptimizations', "Forcefully enable features"),
+						label: nls.localize('removeOptimizations', "Forcefully Enable Features"),
 						run: () => {
 							this._configurationService.updateValue(`editor.largeFileOptimizations`, false).then(() => {
 								this._notificationService.info(nls.localize('reopenFilePrompt', "Please reopen file in order for this setting to take effect."));
@@ -61,7 +55,7 @@ export class LargeFileOptimizationsWarner extends Disposable implements IEditorC
 							});
 						}
 					}
-				], { neverShowAgain: { id: neverShowAgainId } });
+				], { neverShowAgain: { id: 'editor.contrib.largeFileOptimizationsWarner' } });
 			}
 		}));
 	}

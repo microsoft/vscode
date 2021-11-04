@@ -26,7 +26,7 @@ suite('Editor View - OverviewZoneManager', () => {
 		]);
 
 		// one line = 12, but cap is at 6
-		assert.deepEqual(manager.resolveColorZones(), [
+		assert.deepStrictEqual(manager.resolveColorZones(), [
 			new ColorZone(12, 24, 1), //
 			new ColorZone(120, 132, 2), // 120 -> 132
 			new ColorZone(360, 384, 3), // 360 -> 372 [360 -> 384]
@@ -52,7 +52,7 @@ suite('Editor View - OverviewZoneManager', () => {
 		]);
 
 		// one line = 6, cap is at 6
-		assert.deepEqual(manager.resolveColorZones(), [
+		assert.deepStrictEqual(manager.resolveColorZones(), [
 			new ColorZone(6, 12, 1), //
 			new ColorZone(60, 66, 2), // 60 -> 66
 			new ColorZone(180, 192, 3), // 180 -> 192
@@ -78,7 +78,7 @@ suite('Editor View - OverviewZoneManager', () => {
 		]);
 
 		// one line = 6, cap is at 12
-		assert.deepEqual(manager.resolveColorZones(), [
+		assert.deepStrictEqual(manager.resolveColorZones(), [
 			new ColorZone(12, 24, 1), //
 			new ColorZone(120, 132, 2), // 120 -> 132
 			new ColorZone(360, 384, 3), // 360 -> 384

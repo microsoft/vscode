@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { posix, normalize, win32, sep } from 'vs/base/common/path';
-import { startsWithIgnoreCase, rtrim } from 'vs/base/common/strings';
+import { hasDriveLetter, isRootOrDriveLetter } from 'vs/base/common/extpath';
 import { Schemas } from 'vs/base/common/network';
-import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
-import { isEqual, basename, relativePath } from 'vs/base/common/resources';
+import { normalize, posix, sep, win32 } from 'vs/base/common/path';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { basename, isEqual, relativePath } from 'vs/base/common/resources';
+import { rtrim, startsWithIgnoreCase } from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
 
 export interface IWorkspaceFolderProvider {
-	getWorkspaceFolder(resource: URI): { uri: URI, name?: string } | null;
+	getWorkspaceFolder(resource: URI): { uri: URI, name?: string; } | null;
 	getWorkspace(): {
-		folders: { uri: URI, name?: string }[];
+		folders: { uri: URI, name?: string; }[];
 	};
 }
 
@@ -84,15 +85,11 @@ export function getBaseLabel(resource: URI | string | undefined): string | undef
 	const base = basename(resource) || (resource.scheme === Schemas.file ? resource.fsPath : resource.path) /* can be empty string if '/' is passed in */;
 
 	// convert c: => C:
-	if (hasDriveLetter(base)) {
+	if (isWindows && isRootOrDriveLetter(base)) {
 		return normalizeDriveLetter(base);
 	}
 
 	return base;
-}
-
-function hasDriveLetter(path: string): boolean {
-	return !!(isWindows && path && path[1] === ':');
 }
 
 export function normalizeDriveLetter(path: string): string {
@@ -103,7 +100,7 @@ export function normalizeDriveLetter(path: string): string {
 	return path;
 }
 
-let normalizedUserHomeCached: { original: string; normalized: string } = Object.create(null);
+let normalizedUserHomeCached: { original: string; normalized: string; } = Object.create(null);
 export function tildify(path: string, userHome: string): string {
 	if (isWindows || !path || !userHome) {
 		return path; // unsupported
@@ -236,7 +233,7 @@ export function shorten(paths: string[], pathSeparator: string = sep): string[] 
 						result = prefix + result;
 					}
 
-					// add ellipsis at the beginning if neeeded
+					// add ellipsis at the beginning if needed
 					if (start > 0) {
 						result = result + ellipsis + pathSeparator;
 					}
@@ -279,10 +276,10 @@ interface ISegment {
 /**
  * Helper to insert values for specific template variables into the string. E.g. "this $(is) a $(template)" can be
  * passed to this function together with an object that maps "is" and "template" to strings to have them replaced.
- * @param value string to which templating is applied
+ * @param value string to which template is applied
  * @param values the values of the templates to use
  */
-export function template(template: string, values: { [key: string]: string | ISeparator | undefined | null } = Object.create(null)): string {
+export function template(template: string, values: { [key: string]: string | ISeparator | undefined | null; } = Object.create(null)): string {
 	const segments: ISegment[] = [];
 
 	let inVariable = false;
@@ -386,7 +383,7 @@ export function unmnemonicLabel(label: string): string {
 /**
  * Splits a path in name and parent path, supporting both '/' and '\'
  */
-export function splitName(fullPath: string): { name: string, parentPath: string } {
+export function splitName(fullPath: string): { name: string, parentPath: string; } {
 	const p = fullPath.indexOf('/') !== -1 ? posix : win32;
 	const name = p.basename(fullPath);
 	const parentPath = p.dirname(fullPath);

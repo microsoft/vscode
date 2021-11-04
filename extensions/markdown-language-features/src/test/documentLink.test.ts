@@ -20,6 +20,11 @@ async function getLinksForFile(file: vscode.Uri): Promise<vscode.DocumentLink[]>
 
 suite('Markdown Document links', () => {
 
+	setup(async () => {
+		// the tests make the assumption that link providers are already registered
+		await vscode.extensions.getExtension('vscode.markdown-language-features')!.activate();
+	});
+
 	teardown(async () => {
 		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	});
@@ -87,6 +92,17 @@ suite('Markdown Document links', () => {
 
 		assertActiveDocumentUri(workspaceFile('sub', 'c.md'));
 		assert.strictEqual(vscode.window.activeTextEditor!.selection.start.line, 1);
+	});
+
+
+	test('Should navigate to line number within non-md file', async () => {
+		await withFileContents(testFileA, '[b](sub/foo.txt#L3)');
+
+		const [link] = await getLinksForFile(testFileA);
+		await executeLink(link);
+
+		assertActiveDocumentUri(workspaceFile('sub', 'foo.txt'));
+		assert.strictEqual(vscode.window.activeTextEditor!.selection.start.line, 2);
 	});
 
 	test('Should navigate to fragment within current file', async () => {

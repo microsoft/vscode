@@ -22,7 +22,9 @@
           "typescript"
         ],
         "extensions": [
-          ".ts"
+          ".ts",
+          ".cts",
+          ".mts"
         ],
         "configuration": "./language-configuration.json"
       },
@@ -57,6 +59,9 @@
         "scopeName": "source.ts",
         "path": "./syntaxes/TypeScript.tmLanguage.json",
         "tokenTypes": {
+          "meta.template.expression": "other",
+          "meta.template.expression string": "string",
+          "meta.template.expression comment": "comment",
           "entity.name.type.instance.jsdoc": "other",
           "entity.name.function.tagged-template": "other",
           "meta.import string.quoted": "other",
@@ -74,11 +79,30 @@
           "meta.embedded.expression.tsx": "typescriptreact"
         },
         "tokenTypes": {
+          "meta.template.expression": "other",
+          "meta.template.expression string": "string",
+          "meta.template.expression comment": "comment",
           "entity.name.type.instance.jsdoc": "other",
           "entity.name.function.tagged-template": "other",
           "meta.import string.quoted": "other",
           "variable.other.jsdoc": "other"
         }
+      },
+      {
+        "scopeName": "documentation.injection.ts",
+        "path": "./syntaxes/jsdoc.ts.injection.tmLanguage.json",
+        "injectTo": [
+          "source.ts",
+          "source.tsx"
+        ]
+      },
+      {
+        "scopeName": "documentation.injection.js.jsx",
+        "path": "./syntaxes/jsdoc.js.injection.tmLanguage.json",
+        "injectTo": [
+          "source.js",
+          "source.js.jsx"
+        ]
       }
     ],
     "semanticTokenScopes": [
@@ -151,5 +175,9 @@
         "path": "./snippets/typescript.code-snippets"
       }
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

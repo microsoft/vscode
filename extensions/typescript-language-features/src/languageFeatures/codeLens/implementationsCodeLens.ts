@@ -9,7 +9,7 @@ import type * as Proto from '../../protocol';
 import * as PConst from '../../protocol.const';
 import { CachedResponse } from '../../tsServer/cachedResponse';
 import { ClientCapability, ITypeScriptServiceClient } from '../../typescriptService';
-import { conditionalRegistration, requireSomeCapability, requireConfiguration } from '../../utils/dependentRegistration';
+import { conditionalRegistration, requireConfiguration, requireSomeCapability } from '../../utils/dependentRegistration';
 import { DocumentSelector } from '../../utils/documentSelector';
 import * as typeConverters from '../../utils/typeConverters';
 import { getSymbolRange, ReferencesCodeLens, TypeScriptBaseCodeLensProvider } from './baseCodeLensProvider';
@@ -19,11 +19,9 @@ const localize = nls.loadMessageBundle();
 export default class TypeScriptImplementationsCodeLensProvider extends TypeScriptBaseCodeLensProvider {
 
 	public async resolveCodeLens(
-		inputCodeLens: vscode.CodeLens,
+		codeLens: ReferencesCodeLens,
 		token: vscode.CancellationToken,
 	): Promise<vscode.CodeLens> {
-		const codeLens = inputCodeLens as ReferencesCodeLens;
-
 		const args = typeConverters.Position.toFileLocationRequestArgs(codeLens.file, codeLens.range.start);
 		const response = await this.client.execute('implementation', args, token, { lowPriority: true, cancelOnResourceChange: codeLens.document });
 		if (response.type !== 'response' || !response.body) {

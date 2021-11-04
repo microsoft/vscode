@@ -8,7 +8,7 @@ import * as nls from 'vscode-nls';
 import type * as Proto from '../../protocol';
 import * as PConst from '../../protocol.const';
 import { CachedResponse } from '../../tsServer/cachedResponse';
-import { ExectuionTarget } from '../../tsServer/server';
+import { ExecutionTarget } from '../../tsServer/server';
 import { ClientCapability, ITypeScriptServiceClient } from '../../typescriptService';
 import { conditionalRegistration, requireConfiguration, requireSomeCapability } from '../../utils/dependentRegistration';
 import { DocumentSelector } from '../../utils/documentSelector';
@@ -19,19 +19,18 @@ const localize = nls.loadMessageBundle();
 
 export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvider {
 	public constructor(
-		protected client: ITypeScriptServiceClient,
+		client: ITypeScriptServiceClient,
 		protected _cachedResponse: CachedResponse<Proto.NavTreeResponse>,
 		private modeId: string
 	) {
 		super(client, _cachedResponse);
 	}
 
-	public async resolveCodeLens(inputCodeLens: vscode.CodeLens, token: vscode.CancellationToken): Promise<vscode.CodeLens> {
-		const codeLens = inputCodeLens as ReferencesCodeLens;
+	public async resolveCodeLens(codeLens: ReferencesCodeLens, token: vscode.CancellationToken): Promise<vscode.CodeLens> {
 		const args = typeConverters.Position.toFileLocationRequestArgs(codeLens.file, codeLens.range.start);
 		const response = await this.client.execute('references', args, token, {
 			lowPriority: true,
-			executionTarget: ExectuionTarget.Semantic,
+			executionTarget: ExecutionTarget.Semantic,
 			cancelOnResourceChange: codeLens.document,
 		});
 		if (response.type !== 'response' || !response.body) {
@@ -42,12 +41,9 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 		}
 
 		const locations = response.body.refs
+			.filter(reference => !reference.isDefinition)
 			.map(reference =>
-				typeConverters.Location.fromTextSpan(this.client.toResource(reference.file), reference))
-			.filter(location =>
-				// Exclude original definition from references
-				!(location.uri.toString() === codeLens.document.toString() &&
-					location.range.start.isEqual(codeLens.range.start)));
+				typeConverters.Location.fromTextSpan(this.client.toResource(reference.file), reference));
 
 		codeLens.command = {
 			title: this.getCodeLensLabel(locations),

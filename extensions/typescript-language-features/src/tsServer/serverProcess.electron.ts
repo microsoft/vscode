@@ -39,7 +39,7 @@ class ProtocolBuffer {
 		if (this.buffer.length - this.index >= toAppend.length) {
 			toAppend.copy(this.buffer, this.index, 0, toAppend.length);
 		} else {
-			let newSize = (Math.ceil((this.index + toAppend.length) / defaultSize) + 1) * defaultSize;
+			const newSize = (Math.ceil((this.index + toAppend.length) / defaultSize) + 1) * defaultSize;
 			if (this.index === 0) {
 				this.buffer = Buffer.allocUnsafe(newSize);
 				toAppend.copy(this.buffer, 0, 0, toAppend.length);
@@ -61,14 +61,14 @@ class ProtocolBuffer {
 			return result;
 		}
 		current += contentLengthSize;
-		let start = current;
+		const start = current;
 		while (current < this.index && this.buffer[current] !== backslashR) {
 			current++;
 		}
 		if (current + 3 >= this.index || this.buffer[current + 1] !== backslashN || this.buffer[current + 2] !== backslashR || this.buffer[current + 3] !== backslashN) {
 			return result;
 		}
-		let data = this.buffer.toString('utf8', start, current);
+		const data = this.buffer.toString('utf8', start, current);
 		result = parseInt(data);
 		this.buffer = this.buffer.slice(current + 4);
 		this.index = this.index - (current + 4);
@@ -79,7 +79,7 @@ class ProtocolBuffer {
 		if (this.index < length) {
 			return null;
 		}
-		let result = this.buffer.toString('utf8', 0, length);
+		const result = this.buffer.toString('utf8', 0, length);
 		let sourceStart = length;
 		while (sourceStart < this.index && (this.buffer[sourceStart] === backslashR || this.buffer[sourceStart] === backslashN)) {
 			sourceStart++;
@@ -226,7 +226,7 @@ export class ChildServerProcess extends Disposable implements TsServerProcess {
 		this._reader.onData(handler);
 	}
 
-	onExit(handler: (code: number | null) => void): void {
+	onExit(handler: (code: number | null, signal: string | null) => void): void {
 		this._process.on('exit', handler);
 	}
 

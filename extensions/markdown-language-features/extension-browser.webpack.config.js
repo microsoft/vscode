@@ -14,4 +14,6 @@ module.exports = withBrowserDefaults({
 	entry: {
 		extension: './src/extension.ts'
 	}
+}, {
+	configFile: 'tsconfig.browser.json'
 });

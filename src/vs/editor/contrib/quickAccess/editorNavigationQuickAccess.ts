@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IQuickAccessProvider } from 'vs/platform/quickinput/common/quickAccess';
-import { IEditor, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IModelDeltaDecoration, OverviewRulerLane, ITextModel } from 'vs/editor/common/model';
-import { IRange } from 'vs/editor/common/core/range';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRegistry';
-import { IQuickPick, IQuickPickItem, IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable, DisposableStore, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-import { isDiffEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { once } from 'vs/base/common/functional';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import { getCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { IRange } from 'vs/editor/common/core/range';
+import { IDiffEditor, IEditor, ScrollType } from 'vs/editor/common/editorCommon';
+import { IModelDeltaDecoration, ITextModel, OverviewRulerLane } from 'vs/editor/common/model';
+import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRegistry';
+import { IQuickAccessProvider } from 'vs/platform/quickinput/common/quickAccess';
+import { IKeyMods, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 
 interface IEditorLineDecoration {
 	rangeHighlightId: string;
@@ -24,6 +24,20 @@ interface IEditorLineDecoration {
 
 export interface IEditorNavigationQuickAccessOptions {
 	canAcceptInBackground?: boolean;
+}
+
+export interface IQuickAccessTextEditorContext {
+
+	/**
+	 * The current active editor.
+	 */
+	readonly editor: IEditor;
+
+	/**
+	 * If defined, allows to restore the original view state
+	 * the text editor had before quick access opened.
+	 */
+	restoreViewState?: () => void;
 }
 
 /**
@@ -69,6 +83,7 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 		// With text control
 		const editor = this.activeTextEditorControl;
 		if (editor && this.canProvideWithTextEditor(editor)) {
+			const context: IQuickAccessTextEditorContext = { editor };
 
 			// Restore any view state if this picker was closed
 			// without actually going to a line
@@ -84,18 +99,20 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 					lastKnownEditorViewState = withNullAsUndefined(editor.saveViewState());
 				}));
 
-				disposables.add(once(token.onCancellationRequested)(() => {
+				context.restoreViewState = () => {
 					if (lastKnownEditorViewState && editor === this.activeTextEditorControl) {
 						editor.restoreViewState(lastKnownEditorViewState);
 					}
-				}));
+				};
+
+				disposables.add(once(token.onCancellationRequested)(() => context.restoreViewState?.()));
 			}
 
 			// Clean up decorations on dispose
 			disposables.add(toDisposable(() => this.clearDecorations(editor)));
 
 			// Ask subclass for entries
-			disposables.add(this.provideWithTextEditor(editor, picker, token));
+			disposables.add(this.provideWithTextEditor(context, picker, token));
 		}
 
 		// Without text control
@@ -116,14 +133,14 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 	/**
 	 * Subclasses to implement to provide picks for the picker when an editor is active.
 	 */
-	protected abstract provideWithTextEditor(editor: IEditor, picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable;
+	protected abstract provideWithTextEditor(context: IQuickAccessTextEditorContext, picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable;
 
 	/**
 	 * Subclasses to implement to provide picks for the picker when no editor is active.
 	 */
 	protected abstract provideWithoutTextEditor(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable;
 
-	protected gotoLocation(editor: IEditor, options: { range: IRange, keyMods: IKeyMods, forceSideBySide?: boolean, preserveFocus?: boolean }): void {
+	protected gotoLocation({ editor }: IQuickAccessTextEditorContext, options: { range: IRange, keyMods: IKeyMods, forceSideBySide?: boolean, preserveFocus?: boolean }): void {
 		editor.setSelection(options.range);
 		editor.revealRangeInCenter(options.range, ScrollType.Smooth);
 		if (!options.preserveFocus) {
@@ -178,6 +195,7 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 				{
 					range,
 					options: {
+						description: 'quick-access-range-highlight',
 						className: 'rangeHighlight',
 						isWholeLine: true
 					}
@@ -187,6 +205,7 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 				{
 					range,
 					options: {
+						description: 'quick-access-range-highlight-overview',
 						overviewRuler: {
 							color: themeColorFromId(overviewRulerRangeHighlight),
 							position: OverviewRulerLane.Full

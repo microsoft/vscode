@@ -5,9 +5,9 @@
 
 import * as assert from 'assert';
 import * as errors from 'vs/base/common/errors';
-import { DeferredPromise } from 'vs/base/test/common/utils';
 import { QueryType, IFileQuery } from 'vs/workbench/services/search/common/search';
 import { FileQueryCacheState } from 'vs/workbench/contrib/search/common/cacheState';
+import { DeferredPromise } from 'vs/base/common/async';
 
 suite('FileQueryCacheState', () => {
 

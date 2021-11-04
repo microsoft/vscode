@@ -10,7 +10,7 @@ import { ColorId, TokenMetadata } from 'vs/editor/common/modes';
  * A token on a line.
  */
 export class ViewLineToken {
-	_viewLineTokenBrand: void;
+	_viewLineTokenBrand: void = undefined;
 
 	/**
 	 * last char index of this token (not inclusive).
@@ -95,6 +95,11 @@ export class ViewLineTokens implements IViewLineTokens {
 	public findTokenIndexAtOffset(offset: number): number {
 		throw new Error('Not implemented');
 	}
+
+	public getLineContent(): string {
+		throw new Error('Not implemented');
+	}
+
 }
 
 export class ViewLineTokenFactory {

@@ -45,6 +45,6 @@
 }
 
 /* hide check when unchecked */
-.monaco-custom-checkbox.monaco-simple-checkbox.unchecked:not(.checked)::before {
-	visibility: hidden;;
+.monaco-custom-checkbox.monaco-simple-checkbox:not(.checked)::before {
+	visibility: hidden;
 }

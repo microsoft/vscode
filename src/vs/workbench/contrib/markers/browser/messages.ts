@@ -16,11 +16,14 @@ export default class Messages {
 	public static PROBLEMS_PANEL_CONFIGURATION_TITLE: string = nls.localize('problems.panel.configuration.title', "Problems View");
 	public static PROBLEMS_PANEL_CONFIGURATION_AUTO_REVEAL: string = nls.localize('problems.panel.configuration.autoreveal', "Controls whether Problems view should automatically reveal files when opening them.");
 	public static PROBLEMS_PANEL_CONFIGURATION_SHOW_CURRENT_STATUS: string = nls.localize('problems.panel.configuration.showCurrentInStatus', "When enabled shows the current problem in the status bar.");
+	public static PROBLEMS_PANEL_CONFIGURATION_COMPARE_ORDER: string = nls.localize('problems.panel.configuration.compareOrder', "Controls the order in which problems are navigated.");
+	public static PROBLEMS_PANEL_CONFIGURATION_COMPARE_ORDER_SEVERITY: string = nls.localize('problems.panel.configuration.compareOrder.severity', "Navigate problems ordered by severity");
+	public static PROBLEMS_PANEL_CONFIGURATION_COMPARE_ORDER_POSITION: string = nls.localize('problems.panel.configuration.compareOrder.position', "Navigate problems ordered by position");
 
 	public static MARKERS_PANEL_TITLE_PROBLEMS: string = nls.localize('markers.panel.title.problems', "Problems");
 
-	public static MARKERS_PANEL_NO_PROBLEMS_BUILT: string = nls.localize('markers.panel.no.problems.build', "No problems have been detected in the workspace so far.");
-	public static MARKERS_PANEL_NO_PROBLEMS_ACTIVE_FILE_BUILT: string = nls.localize('markers.panel.no.problems.activeFile.build', "No problems have been detected in the current file so far.");
+	public static MARKERS_PANEL_NO_PROBLEMS_BUILT: string = nls.localize('markers.panel.no.problems.build', "No problems have been detected in the workspace.");
+	public static MARKERS_PANEL_NO_PROBLEMS_ACTIVE_FILE_BUILT: string = nls.localize('markers.panel.no.problems.activeFile.build', "No problems have been detected in the current file.");
 	public static MARKERS_PANEL_NO_PROBLEMS_FILTERS: string = nls.localize('markers.panel.no.problems.filters', "No results found with provided filter criteria.");
 
 	public static MARKERS_PANEL_ACTION_TOOLTIP_MORE_FILTERS: string = nls.localize('markers.panel.action.moreFilters', "More Filters...");

@@ -1,10 +1,10 @@
 {
 	"information_for_contributors": [
-		"This file has been converted from https://github.com/ionide/ionide-fsgrammar/blob/master/grammar/fsharp.json",
+		"This file has been converted from https://github.com/ionide/ionide-fsgrammar/blob/master/grammars/fsharp.json",
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/ionide/ionide-fsgrammar/commit/af037b23ca4c61b02799957a61cbd05b44355caf",
+	"version": "https://github.com/ionide/ionide-fsgrammar/commit/fc4cac6d9bc1787f54ce48bbc77bcbb1de8160ff",
 	"name": "fsharp",
 	"scopeName": "source.fsharp",
 	"patterns": [
@@ -560,6 +560,11 @@
 						}
 					},
 					"patterns": [
+						{
+							"comments": "Capture // when inside of (* *) like that the rule which capture comments starting by // is not trigger. See https://github.com/ionide/ionide-fsgrammar/issues/155",
+							"name": "fast-capture.comment.line.double-slash.fsharp",
+							"match": "//"
+						},
 						{
 							"include": "#comments"
 						}

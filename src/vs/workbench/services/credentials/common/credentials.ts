@@ -14,9 +14,15 @@ export interface ICredentialsProvider {
 	deletePassword(service: string, account: string): Promise<boolean>;
 	findPassword(service: string): Promise<string | null>;
 	findCredentials(service: string): Promise<Array<{ account: string, password: string }>>;
+	clear?(): Promise<void>;
+}
+
+export interface ICredentialsChangeEvent {
+	service: string
+	account: string;
 }
 
 export interface ICredentialsService extends ICredentialsProvider {
 	readonly _serviceBrand: undefined;
-	onDidChangePassword: Event<void>;
+	readonly onDidChangePassword: Event<ICredentialsChangeEvent>;
 }

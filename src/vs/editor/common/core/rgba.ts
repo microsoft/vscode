@@ -8,7 +8,7 @@
  * Please don't touch unless you take a look at the IR.
  */
 export class RGBA8 {
-	_rgba8Brand: void;
+	_rgba8Brand: void = undefined;
 
 	static readonly Empty = new RGBA8(0, 0, 0, 0);
 
@@ -45,7 +45,7 @@ export class RGBA8 {
 		);
 	}
 
-	private static _clamp(c: number): number {
+	public static _clamp(c: number): number {
 		if (c < 0) {
 			return 0;
 		}

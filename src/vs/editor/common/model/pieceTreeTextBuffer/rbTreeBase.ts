@@ -394,25 +394,24 @@ export function recomputeTreeMetadata(tree: PieceTreeBase, x: TreeNode) {
 		return;
 	}
 
-	if (delta === 0) {
-		// go upwards till the node whose left subtree is changed.
-		while (x !== tree.root && x === x.parent.right) {
-			x = x.parent;
-		}
-
-		if (x === tree.root) {
-			// well, it means we add a node to the end (inorder)
-			return;
-		}
-
-		// x is the node whose right subtree is changed.
+	// go upwards till the node whose left subtree is changed.
+	while (x !== tree.root && x === x.parent.right) {
 		x = x.parent;
-
-		delta = calculateSize(x.left) - x.size_left;
-		lf_delta = calculateLF(x.left) - x.lf_left;
-		x.size_left += delta;
-		x.lf_left += lf_delta;
 	}
+
+	if (x === tree.root) {
+		// well, it means we add a node to the end (inorder)
+		return;
+	}
+
+	// x is the node whose right subtree is changed.
+	x = x.parent;
+
+	delta = calculateSize(x.left) - x.size_left;
+	lf_delta = calculateLF(x.left) - x.lf_left;
+	x.size_left += delta;
+	x.lf_left += lf_delta;
+
 
 	// go upwards till root. O(logN)
 	while (x !== tree.root && (delta !== 0 || lf_delta !== 0)) {

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IAccessibilityService = createDecorator<IAccessibilityService>('accessibilityService');
 
@@ -18,6 +18,7 @@ export interface IAccessibilityService {
 	isScreenReaderOptimized(): boolean;
 	getAccessibilitySupport(): AccessibilitySupport;
 	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void;
+	alert(message: string): void;
 }
 
 export const enum AccessibilitySupport {

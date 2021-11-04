@@ -1,0 +1,79 @@
+{
+	"name": "ipynb",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"publisher": "vscode",
+	"version": "1.0.0",
+	"license": "MIT",
+	"engines": {
+		"vscode": "^1.57.0"
+	},
+  "enableProposedApi": true,
+	"activationEvents": [
+		"onNotebook:jupyter-notebook"
+	],
+	"extensionKind": [
+		"workspace",
+		"ui"
+	],
+	"main": "./out/ipynbMain.js",
+	"browser": "./dist/browser/ipynbMain.js",
+	"capabilities": {
+		"virtualWorkspaces": true,
+		"untrustedWorkspaces": {
+			"supported": true
+		}
+	},
+	"contributes": {
+		"languages": [
+			{
+				"id": "jupyter",
+				"aliases": [
+					"Jupyter"
+				],
+				"extensions": [
+					".ipynb"
+				]
+			}
+		],
+    "grammars": [
+      {
+        "language": "jupyter",
+        "scopeName": "source.jupyter",
+        "path": "./syntaxes/jupyter.tmLanguage.json",
+        "embeddedLanguages": {
+          "source.json": "json"
+        }
+      }
+    ],
+		"notebooks": [
+			{
+				"type": "jupyter-notebook",
+				"displayName": "Jupyter Notebook",
+				"selector": [
+					{
+						"filenamePattern": "*.ipynb"
+					}
+				],
+				"priority": "default"
+			}
+		]
+	},
+  "scripts": {
+    "compile": "npx gulp compile-extension:ipynb",
+    "watch": "npx gulp watch-extension:ipynb"
+  },
+	"dependencies": {
+		"@enonic/fnv-plus": "^1.3.0",
+		"detect-indent": "^6.0.0",
+		"uuid": "^8.3.2"
+	},
+	"devDependencies": {
+		"@jupyterlab/coreutils": "^3.1.0",
+		"@types/uuid": "^8.3.1"
+	},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
+}

@@ -19,11 +19,11 @@ suite('Debug - Source', () => {
 			presentationHint: 'emphasize'
 		}, 'aDebugSessionId', mockUriIdentityService);
 
-		assert.equal(source.presentationHint, 'emphasize');
-		assert.equal(source.name, 'zz');
-		assert.equal(source.inMemory, false);
-		assert.equal(source.reference, 0);
-		assert.equal(source.uri.toString(), uri.file('/xx/yy/zz').toString());
+		assert.strictEqual(source.presentationHint, 'emphasize');
+		assert.strictEqual(source.name, 'zz');
+		assert.strictEqual(source.inMemory, false);
+		assert.strictEqual(source.reference, 0);
+		assert.strictEqual(source.uri.toString(), uri.file('/xx/yy/zz').toString());
 	});
 
 	test('from raw internal source', () => {
@@ -33,20 +33,20 @@ suite('Debug - Source', () => {
 			presentationHint: 'deemphasize'
 		}, 'aDebugSessionId', mockUriIdentityService);
 
-		assert.equal(source.presentationHint, 'deemphasize');
-		assert.equal(source.name, 'internalModule.js');
-		assert.equal(source.inMemory, true);
-		assert.equal(source.reference, 11);
-		assert.equal(source.uri.toString(), 'debug:internalModule.js?session%3DaDebugSessionId%26ref%3D11');
+		assert.strictEqual(source.presentationHint, 'deemphasize');
+		assert.strictEqual(source.name, 'internalModule.js');
+		assert.strictEqual(source.inMemory, true);
+		assert.strictEqual(source.reference, 11);
+		assert.strictEqual(source.uri.toString(), 'debug:internalModule.js?session%3DaDebugSessionId%26ref%3D11');
 	});
 
 	test('get encoded debug data', () => {
-		const checkData = (uri: uri, expectedName: string, expectedPath: string, expectedSourceReference: number | undefined, expectedSessionId?: number) => {
+		const checkData = (uri: uri, expectedName: string, expectedPath: string, expectedSourceReference: number | undefined, expectedSessionId?: string) => {
 			let { name, path, sourceReference, sessionId } = Source.getEncodedDebugData(uri);
-			assert.equal(name, expectedName);
-			assert.equal(path, expectedPath);
-			assert.equal(sourceReference, expectedSourceReference);
-			assert.equal(sessionId, expectedSessionId);
+			assert.strictEqual(name, expectedName);
+			assert.strictEqual(path, expectedPath);
+			assert.strictEqual(sourceReference, expectedSourceReference);
+			assert.strictEqual(sessionId, expectedSessionId);
 		};
 
 		checkData(uri.file('a/b/c/d'), 'd', isWindows ? '\\a\\b\\c\\d' : '/a/b/c/d', undefined, undefined);
@@ -54,7 +54,7 @@ suite('Debug - Source', () => {
 
 		checkData(uri.from({ scheme: 'http', authority: 'www.msft.com', path: '/my/path' }), 'path', 'http://www.msft.com/my/path', undefined, undefined);
 		checkData(uri.from({ scheme: 'debug', authority: 'www.msft.com', path: '/my/path', query: 'ref=100' }), 'path', '/my/path', 100, undefined);
-		checkData(uri.from({ scheme: 'debug', path: 'a/b/c/d.js', query: 'session=100' }), 'd.js', 'a/b/c/d.js', undefined, 100);
-		checkData(uri.from({ scheme: 'debug', path: 'a/b/c/d/foo.txt', query: 'session=100&ref=10' }), 'foo.txt', 'a/b/c/d/foo.txt', 10, 100);
+		checkData(uri.from({ scheme: 'debug', path: 'a/b/c/d.js', query: 'session=100' }), 'd.js', 'a/b/c/d.js', undefined, '100');
+		checkData(uri.from({ scheme: 'debug', path: 'a/b/c/d/foo.txt', query: 'session=100&ref=10' }), 'foo.txt', 'a/b/c/d/foo.txt', 10, '100');
 	});
 });

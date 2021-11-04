@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; child-src 'self' data: blob:; script-src 'unsafe-eval' 'sha256-cb2sg39EJV8ABaSNFfWu/ou8o1xVXYK7jp90oZ9vpcg=' https:; connect-src https: wss:" />
+	</head>
+	<body>
+	<script>
+(function() {
+	const searchParams = new URL(document.location).searchParams;
+	const vscodeWebWorkerExtHostId = searchParams.get('vscodeWebWorkerExtHostId') || '';
+	const name = searchParams.get('debugged') ? 'WorkerExtensionHost' : 'DebugWorkerExtensionHost';
+
+	function sendError(error) {
+		window.parent.postMessage({
+			vscodeWebWorkerExtHostId,
+			error: {
+				name: error ? error.name : '',
+				message: error ? error.message : '',
+				stack: error ? error.stack : []
+			}
+		}, '*');
+	}
+
+	try {
+		const worker = new Worker('../../../../base/worker/workerMain.js', { name });
+		worker.postMessage('vs/workbench/services/extensions/worker/extensionHostWorker');
+		const nestedWorkers = new Map();
+
+		worker.onmessage = (event) => {
+			const { data } = event;
+
+			if (data?.type === '_newWorker') {
+				const { id, port, url, options } = data;
+				const newWorker = new Worker(url, options);
+				newWorker.postMessage(port, [port]);
+				worker.onerror = console.error.bind(console);
+				nestedWorkers.set(id, newWorker);
+
+			} else if (data?.type === '_terminateWorker') {
+				const { id } = data;
+				if(nestedWorkers.has(id)) {
+					nestedWorkers.get(id).terminate();
+					nestedWorkers.delete(id);
+				}
+			} else {
+				worker.onerror = console.error.bind(console);
+				window.parent.postMessage({
+					vscodeWebWorkerExtHostId,
+					data
+				}, '*', [data]);
+			}
+		};
+
+		worker.onerror = (event) => {
+			console.error(event.message, event.error);
+			sendError(event.error);
+		};
+	} catch(err) {
+		console.error(err);
+		sendError(err);
+	}
+})();
+	</script>
+	</body>
+</html>

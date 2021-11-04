@@ -23,11 +23,11 @@ export function getCSSMode(cssLanguageService: CSSLanguageService, documentRegio
 		async doComplete(document: TextDocument, position: Position, documentContext: DocumentContext, _settings = workspace.settings) {
 			let embedded = embeddedCSSDocuments.get(document);
 			const stylesheet = cssStylesheets.get(embedded);
-			return cssLanguageService.doComplete2(embedded, position, stylesheet, documentContext) || CompletionList.create();
+			return cssLanguageService.doComplete2(embedded, position, stylesheet, documentContext, _settings?.css?.completion) || CompletionList.create();
 		},
-		async doHover(document: TextDocument, position: Position) {
+		async doHover(document: TextDocument, position: Position, settings = workspace.settings) {
 			let embedded = embeddedCSSDocuments.get(document);
-			return cssLanguageService.doHover(embedded, position, cssStylesheets.get(embedded));
+			return cssLanguageService.doHover(embedded, position, cssStylesheets.get(embedded), settings?.css?.hover);
 		},
 		async findDocumentHighlight(document: TextDocument, position: Position) {
 			let embedded = embeddedCSSDocuments.get(document);

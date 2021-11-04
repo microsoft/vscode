@@ -8,14 +8,14 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
-import { isUndefinedOrNull } from 'vs/base/common/types';
 import { equals } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { isWeb } from 'vs/base/common/platform';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
-export const AutoSaveAfterShortDelayContext = new RawContextKey<boolean>('autoSaveAfterShortDelayContext', false);
+export const AutoSaveAfterShortDelayContext = new RawContextKey<boolean>('autoSaveAfterShortDelayContext', false, true);
 
 export interface IAutoSaveConfiguration {
 	autoSaveDelay?: number;
@@ -55,7 +55,7 @@ export interface IFilesConfigurationService {
 
 	readonly hotExitConfiguration: string | undefined;
 
-	preventSaveConflicts(resource: URI, language: string): boolean;
+	preventSaveConflicts(resource: URI, language?: string): boolean;
 }
 
 export class FilesConfigurationService extends Disposable implements IFilesConfigurationService {
@@ -82,7 +82,8 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		super();
 
@@ -168,7 +169,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 			return AutoSaveMode.ON_WINDOW_CHANGE;
 		}
 
-		if (this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0) {
+		if (typeof this.configuredAutoSaveDelay === 'number' && this.configuredAutoSaveDelay >= 0) {
 			return this.configuredAutoSaveDelay <= 1000 ? AutoSaveMode.AFTER_SHORT_DELAY : AutoSaveMode.AFTER_LONG_DELAY;
 		}
 
@@ -177,30 +178,32 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 	getAutoSaveConfiguration(): IAutoSaveConfiguration {
 		return {
-			autoSaveDelay: this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0 ? this.configuredAutoSaveDelay : undefined,
+			autoSaveDelay: typeof this.configuredAutoSaveDelay === 'number' && this.configuredAutoSaveDelay >= 0 ? this.configuredAutoSaveDelay : undefined,
 			autoSaveFocusChange: !!this.configuredAutoSaveOnFocusChange,
 			autoSaveApplicationChange: !!this.configuredAutoSaveOnWindowChange
 		};
 	}
 
 	async toggleAutoSave(): Promise<void> {
-		const setting = this.configurationService.inspect('files.autoSave');
-		let userAutoSaveConfig = setting.userValue;
-		if (isUndefinedOrNull(userAutoSaveConfig)) {
-			userAutoSaveConfig = setting.defaultValue; // use default if setting not defined
-		}
+		const currentSetting = this.configurationService.getValue('files.autoSave');
 
 		let newAutoSaveValue: string;
-		if ([AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE].some(s => s === userAutoSaveConfig)) {
+		if ([AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE].some(setting => setting === currentSetting)) {
 			newAutoSaveValue = AutoSaveConfiguration.OFF;
 		} else {
 			newAutoSaveValue = AutoSaveConfiguration.AFTER_DELAY;
 		}
 
-		return this.configurationService.updateValue('files.autoSave', newAutoSaveValue, ConfigurationTarget.USER);
+		return this.configurationService.updateValue('files.autoSave', newAutoSaveValue);
 	}
 
 	get isHotExitEnabled(): boolean {
+		if (this.contextService.getWorkspace().transient) {
+			// Transient workspace: hot exit is disabled because
+			// transient workspaces are not restored upon restart
+			return false;
+		}
+
 		return this.currentHotExitConfig !== HotExitConfiguration.OFF;
 	}
 
@@ -208,7 +211,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		return this.currentHotExitConfig;
 	}
 
-	preventSaveConflicts(resource: URI, language: string): boolean {
+	preventSaveConflicts(resource: URI, language?: string): boolean {
 		return this.configurationService.getValue('files.saveConflictResolution', { resource, overrideIdentifier: language }) !== 'overwriteFileOnDisk';
 	}
 }

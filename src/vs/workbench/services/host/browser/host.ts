@@ -12,7 +12,7 @@ export const IHostService = createDecorator<IHostService>('hostService');
 /**
  * A set of methods supported in both web and native environments.
  *
- * @see `INativeHostService` for methods that are specific to native
+ * @see {@link INativeHostService} for methods that are specific to native
  * environments.
  */
 export interface IHostService {
@@ -81,7 +81,12 @@ export interface IHostService {
 	/**
 	 * Reload the currently active window.
 	 */
-	reload(): Promise<void>;
+	reload(options?: { disableExtensions?: boolean }): Promise<void>;
+
+	/**
+	 * Attempt to close the active window.
+	 */
+	close(): Promise<void>;
 
 	//#endregion
 }

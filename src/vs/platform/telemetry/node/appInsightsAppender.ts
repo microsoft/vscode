@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as appInsights from 'applicationinsights';
+import type { TelemetryClient } from 'applicationinsights';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { mixin } from 'vs/base/common/objects';
 import { ITelemetryAppender, validateTelemetryData } from 'vs/platform/telemetry/common/telemetryUtils';
 
-function getClient(aiKey: string): appInsights.TelemetryClient {
-
-	let client: appInsights.TelemetryClient;
+async function getClient(aiKey: string, testCollector: boolean): Promise<TelemetryClient> {
+	const appInsights = await import('applicationinsights');
+	let client: TelemetryClient;
 	if (appInsights.defaultClient) {
 		client = new appInsights.TelemetryClient(aiKey);
 		client.channel.setUseDiskRetryCaching(true);
@@ -28,7 +29,7 @@ function getClient(aiKey: string): appInsights.TelemetryClient {
 	}
 
 	if (aiKey.indexOf('AIF-') === 0) {
-		client.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
+		client.config.endpointUrl = testCollector ? 'https://mobile.events.data.microsoft.com/OneCollector/1.0' : 'https://vortex.data.microsoft.com/collect/v1';
 	}
 	return client;
 }
@@ -36,22 +37,51 @@ function getClient(aiKey: string): appInsights.TelemetryClient {
 
 export class AppInsightsAppender implements ITelemetryAppender {
 
-	private _aiClient?: appInsights.TelemetryClient;
+	private _aiClient: string | TelemetryClient | undefined;
+	private _asyncAIClient: Promise<TelemetryClient> | null;
 
 	constructor(
 		private _eventPrefix: string,
 		private _defaultData: { [key: string]: any } | null,
-		aiKeyOrClientFactory: string | (() => appInsights.TelemetryClient), // allow factory function for testing
+		aiKeyOrClientFactory: string | (() => TelemetryClient), // allow factory function for testing
+		private readonly testCollector?: boolean,
+		private readonly mirrored?: boolean
 	) {
 		if (!this._defaultData) {
 			this._defaultData = Object.create(null);
 		}
 
-		if (typeof aiKeyOrClientFactory === 'string') {
-			this._aiClient = getClient(aiKeyOrClientFactory);
-		} else if (typeof aiKeyOrClientFactory === 'function') {
+		if (typeof aiKeyOrClientFactory === 'function') {
 			this._aiClient = aiKeyOrClientFactory();
+		} else {
+			this._aiClient = aiKeyOrClientFactory;
 		}
+		this._asyncAIClient = null;
+	}
+
+	private _withAIClient(callback: (aiClient: TelemetryClient) => void): void {
+		if (!this._aiClient) {
+			return;
+		}
+
+		if (typeof this._aiClient !== 'string') {
+			callback(this._aiClient);
+			return;
+		}
+
+		if (!this._asyncAIClient) {
+			this._asyncAIClient = getClient(this._aiClient, this.testCollector ?? false);
+		}
+
+		this._asyncAIClient.then(
+			(aiClient) => {
+				callback(aiClient);
+			},
+			(err) => {
+				onUnexpectedError(err);
+				console.error(err);
+			}
+		);
 	}
 
 	log(eventName: string, data?: any): void {
@@ -61,22 +91,28 @@ export class AppInsightsAppender implements ITelemetryAppender {
 		data = mixin(data, this._defaultData);
 		data = validateTelemetryData(data);
 
-		this._aiClient.trackEvent({
+		if (this.testCollector) {
+			data.properties['common.useragent'] = this.mirrored ? 'mirror-collector++' : 'collector++';
+		}
+
+		this._withAIClient((aiClient) => aiClient.trackEvent({
 			name: this._eventPrefix + '/' + eventName,
 			properties: data.properties,
 			measurements: data.measurements
-		});
+		}));
 	}
 
 	flush(): Promise<any> {
 		if (this._aiClient) {
 			return new Promise(resolve => {
-				this._aiClient!.flush({
-					callback: () => {
-						// all data flushed
-						this._aiClient = undefined;
-						resolve(undefined);
-					}
+				this._withAIClient((aiClient) => {
+					aiClient.flush({
+						callback: () => {
+							// all data flushed
+							this._aiClient = undefined;
+							resolve(undefined);
+						}
+					});
 				});
 			});
 		}

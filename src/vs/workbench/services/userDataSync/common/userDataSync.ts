@@ -9,6 +9,8 @@ import { Event } from 'vs/base/common/event';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
+import { Codicon } from 'vs/base/common/codicons';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 export interface IUserDataSyncAccount {
 	readonly authenticationProviderId: string;
@@ -56,11 +58,15 @@ export interface IUserDataSyncWorkbenchService {
 	readonly userDataSyncPreview: IUserDataSyncPreview;
 
 	turnOn(): Promise<void>;
+	turnOnUsingCurrentAccount(): Promise<void>;
 	turnoff(everyWhere: boolean): Promise<void>;
 	signIn(): Promise<void>;
 
 	resetSyncedData(): Promise<void>;
 	showSyncActivity(): Promise<void>;
+	syncNow(): Promise<void>;
+
+	synchroniseUserDataSyncStoreType(): Promise<void>;
 }
 
 export function getSyncAreaLabel(source: SyncResource): string {
@@ -80,6 +86,8 @@ export const enum AccountStatus {
 }
 
 export const SYNC_TITLE = localize('sync category', "Settings Sync");
+
+export const SYNC_VIEW_ICON = registerIcon('settings-sync-view-icon', Codicon.sync, localize('syncViewIcon', 'View icon of the Settings Sync view.'));
 
 // Contexts
 export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);

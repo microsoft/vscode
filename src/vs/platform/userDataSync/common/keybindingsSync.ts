@@ -3,26 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import {
-	UserDataSyncError, UserDataSyncErrorCode, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService, SyncResource,
-	IUserDataSynchroniser, IUserDataSyncResourceEnablementService, IUserDataSyncBackupStoreService, USER_DATA_SYNC_SCHEME, ISyncResourceHandle,
-	IRemoteUserData, Change
-} from 'vs/platform/userDataSync/common/userDataSync';
-import { merge } from 'vs/platform/userDataSync/common/keybindingsMerge';
-import { parse } from 'vs/base/common/json';
-import { localize } from 'vs/nls';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { OS, OperatingSystem } from 'vs/base/common/platform';
-import { isUndefined } from 'vs/base/common/types';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { AbstractInitializer, AbstractJsonFileSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { URI } from 'vs/base/common/uri';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { Event } from 'vs/base/common/event';
+import { parse } from 'vs/base/common/json';
+import { OperatingSystem, OS } from 'vs/base/common/platform';
+import { isUndefined } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { AbstractInitializer, AbstractJsonFileSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { merge } from 'vs/platform/userDataSync/common/keybindingsMerge';
+import { Change, IRemoteUserData, ISyncResourceHandle, IUserDataSyncBackupStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncResourceEnablementService, IUserDataSyncStoreService, IUserDataSyncUtilService, SyncResource, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 
 interface ISyncContent {
 	mac?: string;
@@ -35,18 +34,27 @@ interface IKeybindingsResourcePreview extends IFileResourcePreview {
 	previewResult: IMergeResult;
 }
 
-export function getKeybindingsContentFromSyncContent(syncContent: string, platformSpecific: boolean): string | null {
-	const parsed = <ISyncContent>JSON.parse(syncContent);
-	if (!platformSpecific) {
-		return isUndefined(parsed.all) ? null : parsed.all;
-	}
-	switch (OS) {
-		case OperatingSystem.Macintosh:
-			return isUndefined(parsed.mac) ? null : parsed.mac;
-		case OperatingSystem.Linux:
-			return isUndefined(parsed.linux) ? null : parsed.linux;
-		case OperatingSystem.Windows:
-			return isUndefined(parsed.windows) ? null : parsed.windows;
+interface ILastSyncUserData extends IRemoteUserData {
+	platformSpecific?: boolean;
+}
+
+export function getKeybindingsContentFromSyncContent(syncContent: string, platformSpecific: boolean, logService: ILogService): string | null {
+	try {
+		const parsed = <ISyncContent>JSON.parse(syncContent);
+		if (!platformSpecific) {
+			return isUndefined(parsed.all) ? null : parsed.all;
+		}
+		switch (OS) {
+			case OperatingSystem.Macintosh:
+				return isUndefined(parsed.mac) ? null : parsed.mac;
+			case OperatingSystem.Linux:
+				return isUndefined(parsed.linux) ? null : parsed.linux;
+			case OperatingSystem.Windows:
+				return isUndefined(parsed.windows) ? null : parsed.windows;
+		}
+	} catch (e) {
+		logService.error(e);
+		return null;
 	}
 }
 
@@ -70,13 +78,18 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		@IStorageService storageService: IStorageService,
 		@IUserDataSyncUtilService userDataSyncUtilService: IUserDataSyncUtilService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(environmentService.keybindingsResource, SyncResource.Keybindings, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncResourceEnablementService, telemetryService, logService, userDataSyncUtilService, configurationService);
+		super(environmentService.keybindingsResource, SyncResource.Keybindings, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncResourceEnablementService, telemetryService, logService, userDataSyncUtilService, configurationService, uriIdentityService);
+		this._register(Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('settingsSync.keybindingsPerPlatform'))(() => this.triggerLocalChange()));
 	}
 
-	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<IKeybindingsResourcePreview[]> {
-		const remoteContent = remoteUserData.syncData ? this.getKeybindingsContentFromSyncContent(remoteUserData.syncData.content) : null;
-		const lastSyncContent: string | null = lastSyncUserData && lastSyncUserData.syncData ? this.getKeybindingsContentFromSyncContent(lastSyncUserData.syncData.content) : null;
+	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null, isRemoteDataFromCurrentMachine: boolean, userDataSyncConfiguration: IUserDataSyncConfiguration): Promise<IKeybindingsResourcePreview[]> {
+		const remoteContent = remoteUserData.syncData ? getKeybindingsContentFromSyncContent(remoteUserData.syncData.content, userDataSyncConfiguration.keybindingsPerPlatform ?? this.syncKeybindingsPerPlatform(), this.logService) : null;
+
+		// Use remote data as last sync data if last sync data does not exist and remote data is from same machine
+		lastSyncUserData = lastSyncUserData === null && isRemoteDataFromCurrentMachine ? remoteUserData : lastSyncUserData;
+		const lastSyncContent: string | null = lastSyncUserData ? this.getKeybindingsContentFromLastSyncUserData(lastSyncUserData) : null;
 
 		// Get file content last to get the latest
 		const fileContent = await this.getLocalFileContent();
@@ -204,7 +217,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		if (localChange !== Change.None) {
 			this.logService.trace(`${this.syncResourceLogLabel}: Updating local keybindings...`);
 			if (fileContent) {
-				await this.backupLocal(this.toSyncContent(fileContent.value.toString(), null));
+				await this.backupLocal(this.toSyncContent(fileContent.value.toString()));
 			}
 			await this.updateLocalFileContent(content || '[]', fileContent, force);
 			this.logService.info(`${this.syncResourceLogLabel}: Updated local keybindings`);
@@ -212,7 +225,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 
 		if (remoteChange !== Change.None) {
 			this.logService.trace(`${this.syncResourceLogLabel}: Updating remote keybindings...`);
-			const remoteContents = this.toSyncContent(content || '[]', remoteUserData.syncData ? remoteUserData.syncData.content : null);
+			const remoteContents = this.toSyncContent(content || '[]', remoteUserData.syncData?.content);
 			remoteUserData = await this.updateRemoteUserData(remoteContents, force ? null : remoteUserData.ref);
 			this.logService.info(`${this.syncResourceLogLabel}: Updated remote keybindings`);
 		}
@@ -224,15 +237,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 
 		if (lastSyncUserData?.ref !== remoteUserData.ref) {
 			this.logService.trace(`${this.syncResourceLogLabel}: Updating last synchronized keybindings...`);
-			const lastSyncContent = content !== null ? this.toSyncContent(content, null) : remoteUserData.syncData?.content;
-			await this.updateLastSyncUserData({
-				ref: remoteUserData.ref,
-				syncData: lastSyncContent ? {
-					version: remoteUserData.syncData ? remoteUserData.syncData.version : this.version,
-					machineId: remoteUserData.syncData!.machineId,
-					content: lastSyncContent
-				} : null
-			});
+			await this.updateLastSyncUserData(remoteUserData, { platformSpecific: this.syncKeybindingsPerPlatform() });
 			this.logService.info(`${this.syncResourceLogLabel}: Updated last synchronized keybindings`);
 		}
 
@@ -260,7 +265,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		return [{ resource: this.extUri.joinPath(uri, 'keybindings.json'), comparableResource }];
 	}
 
-	async resolveContent(uri: URI): Promise<string | null> {
+	override async resolveContent(uri: URI): Promise<string | null> {
 		if (this.extUri.isEqual(this.remoteResource, uri) || this.extUri.isEqual(this.localResource, uri) || this.extUri.isEqual(this.acceptedResource, uri)) {
 			return this.resolvePreviewContent(uri);
 		}
@@ -274,33 +279,37 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 			if (syncData) {
 				switch (this.extUri.basename(uri)) {
 					case 'keybindings.json':
-						return this.getKeybindingsContentFromSyncContent(syncData.content);
+						return getKeybindingsContentFromSyncContent(syncData.content, this.syncKeybindingsPerPlatform(), this.logService);
 				}
 			}
 		}
 		return null;
 	}
 
-	private getKeybindingsContentFromSyncContent(syncContent: string): string | null {
-		try {
-			return getKeybindingsContentFromSyncContent(syncContent, this.syncKeybindingsPerPlatform());
-		} catch (e) {
-			this.logService.error(e);
+	private getKeybindingsContentFromLastSyncUserData(lastSyncUserData: ILastSyncUserData): string | null {
+		if (!lastSyncUserData.syncData) {
 			return null;
 		}
+
+		// Return null if there is a change in platform specific property from last time sync.
+		if (lastSyncUserData.platformSpecific !== undefined && lastSyncUserData.platformSpecific !== this.syncKeybindingsPerPlatform()) {
+			return null;
+		}
+
+		return getKeybindingsContentFromSyncContent(lastSyncUserData.syncData.content, this.syncKeybindingsPerPlatform(), this.logService);
 	}
 
-	private toSyncContent(keybindingsContent: string, syncContent: string | null): string {
+	private toSyncContent(keybindingsContent: string, syncContent?: string): string {
 		let parsed: ISyncContent = {};
 		try {
 			parsed = JSON.parse(syncContent || '{}');
 		} catch (e) {
 			this.logService.error(e);
 		}
-		if (!this.syncKeybindingsPerPlatform()) {
-			parsed.all = keybindingsContent;
-		} else {
+		if (this.syncKeybindingsPerPlatform()) {
 			delete parsed.all;
+		} else {
+			parsed.all = keybindingsContent;
 		}
 		switch (OS) {
 			case OperatingSystem.Macintosh:
@@ -317,15 +326,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 	}
 
 	private syncKeybindingsPerPlatform(): boolean {
-		let userValue = this.configurationService.inspect<boolean>('settingsSync.keybindingsPerPlatform').userValue;
-		if (userValue !== undefined) {
-			return userValue;
-		}
-		userValue = this.configurationService.inspect<boolean>('sync.keybindingsPerPlatform').userValue;
-		if (userValue !== undefined) {
-			return userValue;
-		}
-		return this.configurationService.getValue<boolean>('settingsSync.keybindingsPerPlatform');
+		return !!this.configurationService.getValue('settingsSync.keybindingsPerPlatform');
 	}
 
 }
@@ -336,8 +337,9 @@ export class KeybindingsInitializer extends AbstractInitializer {
 		@IFileService fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(SyncResource.Keybindings, environmentService, logService, fileService);
+		super(SyncResource.Keybindings, environmentService, logService, fileService, uriIdentityService);
 	}
 
 	async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {
@@ -370,7 +372,7 @@ export class KeybindingsInitializer extends AbstractInitializer {
 
 	private getKeybindingsContentFromSyncContent(syncContent: string): string | null {
 		try {
-			return getKeybindingsContentFromSyncContent(syncContent, true);
+			return getKeybindingsContentFromSyncContent(syncContent, true, this.logService);
 		} catch (e) {
 			this.logService.error(e);
 			return null;

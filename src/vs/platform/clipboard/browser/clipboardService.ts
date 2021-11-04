@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { URI } from 'vs/base/common/uri';
 import { $ } from 'vs/base/browser/dom';
+import { URI } from 'vs/base/common/uri';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 export class BrowserClipboardService implements IClipboardService {
 

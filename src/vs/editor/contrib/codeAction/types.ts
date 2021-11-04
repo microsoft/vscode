@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CodeAction, CodeActionTriggerType } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
+import { CodeAction, CodeActionTriggerType } from 'vs/editor/common/modes';
 
 export class CodeActionKind {
 	private static readonly sep = '.';

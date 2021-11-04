@@ -13,6 +13,7 @@
   "engines": {
     "vscode": "*"
   },
+  "icon": "media/icon.png",
   "scripts": {
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-colorize-tests ./tsconfig.json"
   },
@@ -20,10 +21,7 @@
     "jsonc-parser": "2.2.1"
   },
   "devDependencies": {
-    "@types/node": "^12.11.7",
-    "mocha-junit-reporter": "^1.17.0",
-    "mocha-multi-reporters": "^1.1.7",
-    "vscode": "1.1.5"
+    "@types/node": "14.x"
   },
   "contributes": {
     "semanticTokenTypes": [
@@ -55,5 +53,9 @@
         "_watch": true
       }
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

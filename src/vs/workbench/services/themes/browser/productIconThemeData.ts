@@ -9,22 +9,23 @@ import * as Paths from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import * as Json from 'vs/base/common/json';
 import { ExtensionData, IThemeExtensionPoint, IWorkbenchProductIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IFileService } from 'vs/platform/files/common/files';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { asCSSUrl } from 'vs/base/browser/dom';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { DEFAULT_PRODUCT_ICON_THEME_SETTING_VALUE } from 'vs/workbench/services/themes/common/themeConfiguration';
 import { fontIdRegex, fontWeightRegex, fontStyleRegex } from 'vs/workbench/services/themes/common/productIconThemeSchema';
 import { isString } from 'vs/base/common/types';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-
-const PERSISTED_PRODUCT_ICON_THEME_STORAGE_KEY = 'productIconThemeData';
+import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 
 export const DEFAULT_PRODUCT_ICON_THEME_ID = ''; // TODO
 
 export class ProductIconThemeData implements IWorkbenchProductIconTheme {
+
+	static readonly STORAGE_KEY = 'productIconThemeData';
+
 	id: string;
 	label: string;
 	settingsId: string;
@@ -43,15 +44,15 @@ export class ProductIconThemeData implements IWorkbenchProductIconTheme {
 		this.isLoaded = false;
 	}
 
-	public ensureLoaded(fileService: IFileService, logService: ILogService): Promise<string | undefined> {
+	public ensureLoaded(fileService: IExtensionResourceLoaderService, logService: ILogService): Promise<string | undefined> {
 		return !this.isLoaded ? this.load(fileService, logService) : Promise.resolve(this.styleSheetContent);
 	}
 
-	public reload(fileService: IFileService, logService: ILogService): Promise<string | undefined> {
+	public reload(fileService: IExtensionResourceLoaderService, logService: ILogService): Promise<string | undefined> {
 		return this.load(fileService, logService);
 	}
 
-	private load(fileService: IFileService, logService: ILogService): Promise<string | undefined> {
+	private load(fileService: IExtensionResourceLoaderService, logService: ILogService): Promise<string | undefined> {
 		const location = this.location;
 		if (!location) {
 			return Promise.resolve(this.styleSheetContent);
@@ -104,7 +105,7 @@ export class ProductIconThemeData implements IWorkbenchProductIconTheme {
 	}
 
 	static fromStorageData(storageService: IStorageService): ProductIconThemeData | undefined {
-		const input = storageService.get(PERSISTED_PRODUCT_ICON_THEME_STORAGE_KEY, StorageScope.GLOBAL);
+		const input = storageService.get(ProductIconThemeData.STORAGE_KEY, StorageScope.GLOBAL);
 		if (!input) {
 			return undefined;
 		}
@@ -122,7 +123,7 @@ export class ProductIconThemeData implements IWorkbenchProductIconTheme {
 						(theme as any)[key] = data[key];
 						break;
 					case 'location':
-						theme.location = URI.revive(data.location);
+						// ignore, no longer restore
 						break;
 					case 'extensionData':
 						theme.extensionData = ExtensionData.fromJSONObject(data.extensionData);
@@ -141,12 +142,11 @@ export class ProductIconThemeData implements IWorkbenchProductIconTheme {
 			label: this.label,
 			description: this.description,
 			settingsId: this.settingsId,
-			location: this.location?.toJSON(),
 			styleSheetContent: this.styleSheetContent,
 			watch: this.watch,
 			extensionData: ExtensionData.toJSONObject(this.extensionData),
 		});
-		storageService.store(PERSISTED_PRODUCT_ICON_THEME_STORAGE_KEY, data, StorageScope.GLOBAL);
+		storageService.store(ProductIconThemeData.STORAGE_KEY, data, StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 }
 
@@ -168,10 +168,10 @@ interface ProductIconThemeDocument {
 	fonts: FontDefinition[];
 }
 
-function _loadProductIconThemeDocument(fileService: IFileService, location: URI): Promise<ProductIconThemeDocument> {
-	return fileService.readFile(location).then((content) => {
+function _loadProductIconThemeDocument(fileService: IExtensionResourceLoaderService, location: URI): Promise<ProductIconThemeDocument> {
+	return fileService.readExtensionResource(location).then((content) => {
 		let errors: Json.ParseError[] = [];
-		let contentValue = Json.parse(content.value.toString(), errors);
+		let contentValue = Json.parse(content, errors);
 		if (errors.length > 0) {
 			return Promise.reject(new Error(nls.localize('error.cannotparseicontheme', "Problems parsing product icons file: {0}", errors.map(e => getParseErrorMessage(e.error)).join(', '))));
 		} else if (Json.getNodeType(contentValue) !== 'object') {
@@ -221,7 +221,7 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 				warnings.push(nls.localize('error.fontStyle', 'Invalid font style in font \'{0}\'. Ignoring setting.', font.id));
 			}
 
-			cssRules.push(`@font-face { src: ${src}; font-family: '${fontId}';${fontWeight}${fontStyle} }`);
+			cssRules.push(`@font-face { src: ${src}; font-family: '${fontId}';${fontWeight}${fontStyle}; font-display: block; }`);
 		} else {
 			warnings.push(nls.localize('error.fontId', 'Missing or invalid font id \'{0}\'. Skipping font definition.', font.id));
 		}

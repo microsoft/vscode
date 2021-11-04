@@ -14,7 +14,7 @@ set NAMESHORT=%NAMESHORT:"=%.exe
 set CODE=".build\electron\%NAMESHORT%"
 
 :: Manage built-in extensions
-if "%1"=="--builtin" goto builtin
+if "%~1"=="--builtin" goto builtin
 
 :: Configuration
 set NODE_ENV=development
@@ -22,7 +22,6 @@ set VSCODE_DEV=1
 set VSCODE_CLI=1
 set ELECTRON_ENABLE_LOGGING=1
 set ELECTRON_ENABLE_STACK_DUMPING=1
-set VSCODE_LOGS=
 
 :: Launch Code
 

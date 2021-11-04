@@ -9,7 +9,7 @@ import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewMod
 import { LinePartMetadata } from 'vs/editor/common/viewLayout/viewLineRenderer';
 
 export class LineDecoration {
-	_lineDecorationBrand: void;
+	_lineDecorationBrand: void = undefined;
 
 	constructor(
 		public readonly startColumn: number,
@@ -40,6 +40,24 @@ export class LineDecoration {
 			}
 		}
 		return true;
+	}
+
+	public static extractWrapped(arr: LineDecoration[], startOffset: number, endOffset: number): LineDecoration[] {
+		if (arr.length === 0) {
+			return arr;
+		}
+		const startColumn = startOffset + 1;
+		const endColumn = endOffset + 1;
+		const lineLength = endOffset - startOffset;
+		const r = [];
+		let rLength = 0;
+		for (const dec of arr) {
+			if (dec.endColumn <= startColumn || dec.startColumn >= endColumn) {
+				continue;
+			}
+			r[rLength++] = new LineDecoration(Math.max(1, dec.startColumn - startColumn + 1), Math.min(lineLength + 1, dec.endColumn - startColumn + 1), dec.className, dec.type);
+		}
+		return r;
 	}
 
 	public static filter(lineDecorations: InlineDecoration[], lineNumber: number, minLineColumn: number, maxLineColumn: number): LineDecoration[] {
@@ -78,23 +96,24 @@ export class LineDecoration {
 	}
 
 	public static compare(a: LineDecoration, b: LineDecoration): number {
-		if (a.startColumn === b.startColumn) {
-			if (a.endColumn === b.endColumn) {
-				const typeCmp = LineDecoration._typeCompare(a.type, b.type);
-				if (typeCmp === 0) {
-					if (a.className < b.className) {
-						return -1;
-					}
-					if (a.className > b.className) {
-						return 1;
-					}
-					return 0;
-				}
-				return typeCmp;
-			}
+		if (a.startColumn !== b.startColumn) {
+			return a.startColumn - b.startColumn;
+		}
+
+		if (a.endColumn !== b.endColumn) {
 			return a.endColumn - b.endColumn;
 		}
-		return a.startColumn - b.startColumn;
+
+		const typeCmp = LineDecoration._typeCompare(a.type, b.type);
+		if (typeCmp !== 0) {
+			return typeCmp;
+		}
+
+		if (a.className !== b.className) {
+			return a.className < b.className ? -1 : 1;
+		}
+
+		return 0;
 	}
 }
 

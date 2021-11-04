@@ -34,7 +34,7 @@ export function doHash(obj: any, hashVal: number): number {
 	}
 }
 
-function numberHash(val: number, initialHashVal: number): number {
+export function numberHash(val: number, initialHashVal: number): number {
 	return (((initialHashVal << 5) - initialHashVal) + val) | 0;  // hashVal * 31 + ch, keep as int32
 }
 
@@ -106,8 +106,14 @@ function leftPad(value: string, length: number, char: string = '0'): string {
 	return value;
 }
 
-function toHexString(value: number, bitsize: number = 32): string {
-	return leftPad((value >>> 0).toString(16), bitsize / 4);
+export function toHexString(buffer: ArrayBuffer): string;
+export function toHexString(value: number, bitsize?: number): string;
+export function toHexString(bufferOrValue: ArrayBuffer | number, bitsize: number = 32): string {
+	if (bufferOrValue instanceof ArrayBuffer) {
+		return Array.from(new Uint8Array(bufferOrValue)).map(b => b.toString(16).padStart(2, '0')).join('');
+	}
+
+	return leftPad((bufferOrValue >>> 0).toString(16), bitsize / 4);
 }
 
 /**

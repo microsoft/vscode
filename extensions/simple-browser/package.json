@@ -1,0 +1,80 @@
+{
+  "name": "simple-browser",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "enableProposedApi": true,
+  "version": "1.0.0",
+  "icon": "media/icon.png",
+  "publisher": "vscode",
+  "license": "MIT",
+  "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
+  "engines": {
+    "vscode": "^1.53.0"
+  },
+  "main": "./out/extension",
+  "browser": "./dist/browser/extension",
+  "categories": [
+    "Other"
+  ],
+  "extensionKind": [
+    "ui",
+    "workspace"
+  ],
+  "activationEvents": [
+    "onCommand:simpleBrowser.show",
+    "onCommand:simpleBrowser.api.open",
+    "onOpenExternalUri:http",
+    "onOpenExternalUri:https",
+    "onWebviewPanel:simpleBrowser.view"
+  ],
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "simpleBrowser.show",
+        "title": "Show",
+        "category": "Simple Browser"
+      }
+    ],
+    "configuration": [
+      {
+        "title": "Simple Browser",
+        "properties": {
+          "simpleBrowser.focusLockIndicator.enabled": {
+            "type": "boolean",
+            "default": true,
+            "title": "Focus Lock Indicator Enabled",
+            "description": "%configuration.focusLockIndicator.enabled.description%"
+          }
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "gulp compile-extension:markdown-language-features && npm run build-preview",
+    "watch": "npm run build-preview && gulp watch-extension:markdown-language-features",
+    "vscode:prepublish": "npm run build-ext && npm run build-preview",
+    "build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown-language-features ./tsconfig.json",
+    "build-preview": "npx webpack-cli --mode development",
+    "build-preview-production": "npx webpack-cli --mode production",
+    "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
+    "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
+  },
+  "dependencies": {
+    "vscode-extension-telemetry": "0.4.2",
+    "vscode-nls": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/vscode-webview": "^1.57.0",
+    "vscode-codicons": "^0.0.14"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
+}

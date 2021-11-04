@@ -10,7 +10,7 @@ import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
 import { NOTIFICATIONS_LINKS, NOTIFICATIONS_BACKGROUND, NOTIFICATIONS_FOREGROUND, NOTIFICATIONS_ERROR_ICON_FOREGROUND, NOTIFICATIONS_WARNING_ICON_FOREGROUND, NOTIFICATIONS_INFO_ICON_FOREGROUND } from 'vs/workbench/common/theme';
-import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector, Themable } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, Themable } from 'vs/platform/theme/common/themeService';
 import { contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { INotificationViewItem } from 'vs/workbench/common/notifications';
 import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/browser/parts/notifications/notificationsViewer';
@@ -20,7 +20,12 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { Codicon } from 'vs/base/common/codicons';
 
+export interface INotificationsListOptions extends IListOptions<INotificationViewItem> {
+	widgetAriaLabel?: string;
+}
+
 export class NotificationsList extends Themable {
+
 	private listContainer: HTMLElement | undefined;
 	private list: WorkbenchList<INotificationViewItem> | undefined;
 	private listDelegate: NotificationsListDelegate | undefined;
@@ -29,7 +34,7 @@ export class NotificationsList extends Themable {
 
 	constructor(
 		private readonly container: HTMLElement,
-		private readonly options: IListOptions<INotificationViewItem>,
+		private readonly options: INotificationsListOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService
@@ -75,6 +80,7 @@ export class NotificationsList extends Themable {
 
 		// List
 		const listDelegate = this.listDelegate = new NotificationsListDelegate(this.listContainer);
+		const options = this.options;
 		const list = this.list = <WorkbenchList<INotificationViewItem>>this._register(this.instantiationService.createInstance(
 			WorkbenchList,
 			'NotificationsList',
@@ -82,7 +88,7 @@ export class NotificationsList extends Themable {
 			listDelegate,
 			[renderer],
 			{
-				...this.options,
+				...options,
 				setRowLineHeight: false,
 				horizontalScrolling: false,
 				overrideStyles: {
@@ -97,7 +103,7 @@ export class NotificationsList extends Themable {
 						return localize('notificationWithSourceAriaLabel', "{0}, source: {1}, notification", element.message.raw, element.source);
 					},
 					getWidgetAriaLabel(): string {
-						return localize('notificationsList', "Notifications List");
+						return options.widgetAriaLabel ?? localize('notificationsList', "Notifications List");
 					},
 					getRole(): string {
 						return 'dialog'; // https://github.com/microsoft/vscode/issues/82728
@@ -246,7 +252,7 @@ export class NotificationsList extends Themable {
 		return isAncestor(document.activeElement, this.listContainer);
 	}
 
-	protected updateStyles(): void {
+	protected override updateStyles(): void {
 		if (this.listContainer) {
 			const foreground = this.getColor(NOTIFICATIONS_FOREGROUND);
 			this.listContainer.style.color = foreground ? foreground : '';
@@ -271,14 +277,14 @@ export class NotificationsList extends Themable {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.hide();
 
 		super.dispose();
 	}
 }
 
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+registerThemingParticipant((theme, collector) => {
 	const linkColor = theme.getColor(NOTIFICATIONS_LINKS);
 	if (linkColor) {
 		collector.addRule(`.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-message a { color: ${linkColor}; }`);

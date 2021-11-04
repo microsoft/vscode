@@ -25,7 +25,7 @@ export function activate(context: ExtensionContext) {
 	const serverModule = context.asAbsolutePath(serverMain);
 
 	// The debug options for the server
-	const debugOptions = { execArgv: ['--nolazy', '--inspect=6044'] };
+	const debugOptions = { execArgv: ['--nolazy', '--inspect=' + (6000 + Math.round(Math.random() * 999))] };
 
 	// If the extension is launch in debug mode the debug server options are use
 	// Otherwise the run options are used
@@ -64,12 +64,19 @@ function getPackageInfo(context: ExtensionContext): IPackageInfo {
 
 function getHTTPRequestService(): RequestService {
 	return {
-		getContent(uri: string, _encoding?: string) {
+		getContent(uri: string, _encoding?: string): Promise<string> {
 			const headers = { 'Accept-Encoding': 'gzip, deflate' };
 			return xhr({ url: uri, followRedirects: 5, headers }).then(response => {
 				return response.responseText;
 			}, (error: XHRResponse) => {
-				return Promise.reject(error.responseText || getErrorStatusDescription(error.status) || error.toString());
+				let status = getErrorStatusDescription(error.status);
+				if (status && error.responseText) {
+					status = `${status}\n${error.responseText.substring(0, 200)}`;
+				}
+				if (!status) {
+					status = error.toString();
+				}
+				return Promise.reject(status);
 			});
 		}
 	};

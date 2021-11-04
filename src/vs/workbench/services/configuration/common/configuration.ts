@@ -5,6 +5,10 @@
 
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { URI } from 'vs/base/common/uri';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from 'vs/base/common/event';
+import { ResourceMap } from 'vs/base/common/map';
 
 export const FOLDER_CONFIG_FOLDER_NAME = '.vscode';
 export const FOLDER_SETTINGS_NAME = 'settings';
@@ -41,6 +45,33 @@ export interface IConfigurationCache {
 	write(key: ConfigurationKey, content: string): Promise<void>;
 	remove(key: ConfigurationKey): Promise<void>;
 
+}
+
+export type RestrictedSettings = {
+	default: ReadonlyArray<string>;
+	userLocal?: ReadonlyArray<string>;
+	userRemote?: ReadonlyArray<string>;
+	workspace?: ReadonlyArray<string>;
+	workspaceFolder?: ResourceMap<ReadonlyArray<string>>;
+};
+
+export const IWorkbenchConfigurationService = refineServiceDecorator<IConfigurationService, IWorkbenchConfigurationService>(IConfigurationService);
+export interface IWorkbenchConfigurationService extends IConfigurationService {
+	/**
+	 * Restricted settings defined in each configuraiton target
+	 */
+	readonly restrictedSettings: RestrictedSettings;
+
+	/**
+	 * Event that triggers when the restricted settings changes
+	 */
+	readonly onDidChangeRestrictedSettings: Event<RestrictedSettings>;
+
+	/**
+	 * A promise that resolves when the remote configuration is loaded in a remote window.
+	 * The promise is resolved immediately if the window is not remote.
+	 */
+	whenRemoteConfigurationLoaded(): Promise<void>;
 }
 
 export const TASKS_DEFAULT = '{\n\t\"version\": \"2.0.0\",\n\t\"tasks\": []\n}';

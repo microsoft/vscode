@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { LanguageId } from 'vs/editor/common/modes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const ITextMateService = createDecorator<ITextMateService>('textMateService');
@@ -12,9 +11,9 @@ export const ITextMateService = createDecorator<ITextMateService>('textMateServi
 export interface ITextMateService {
 	readonly _serviceBrand: undefined;
 
-	onDidEncounterLanguage: Event<LanguageId>;
+	onDidEncounterLanguage: Event<string>;
 
-	createGrammar(modeId: string): Promise<IGrammar | null>;
+	createGrammar(languageId: string): Promise<IGrammar | null>;
 
 	startDebugMode(printFn: (str: string) => void, onStop: () => void): void;
 }

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainThreadFileSystemShape, MainContext } from './extHost.protocol';
+import { MainContext } from './extHost.protocol';
 import * as vscode from 'vscode';
 import * as files from 'vs/platform/files/common/files';
 import { FileSystemError } from 'vs/workbench/api/common/extHostTypes';
@@ -12,49 +12,51 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 
-export class ExtHostConsumerFileSystem implements vscode.FileSystem {
+export class ExtHostConsumerFileSystem {
 
 	readonly _serviceBrand: undefined;
 
-	private readonly _proxy: MainThreadFileSystemShape;
+	readonly value: vscode.FileSystem;
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		@IExtHostFileSystemInfo private readonly _fileSystemInfo: IExtHostFileSystemInfo,
+		@IExtHostFileSystemInfo fileSystemInfo: IExtHostFileSystemInfo,
 	) {
-		this._proxy = extHostRpc.getProxy(MainContext.MainThreadFileSystem);
-	}
+		const proxy = extHostRpc.getProxy(MainContext.MainThreadFileSystem);
 
-	stat(uri: vscode.Uri): Promise<vscode.FileStat> {
-		return this._proxy.$stat(uri).catch(ExtHostConsumerFileSystem._handleError);
-	}
-	readDirectory(uri: vscode.Uri): Promise<[string, vscode.FileType][]> {
-		return this._proxy.$readdir(uri).catch(ExtHostConsumerFileSystem._handleError);
-	}
-	createDirectory(uri: vscode.Uri): Promise<void> {
-		return this._proxy.$mkdir(uri).catch(ExtHostConsumerFileSystem._handleError);
-	}
-	async readFile(uri: vscode.Uri): Promise<Uint8Array> {
-		return this._proxy.$readFile(uri).then(buff => buff.buffer).catch(ExtHostConsumerFileSystem._handleError);
-	}
-	writeFile(uri: vscode.Uri, content: Uint8Array): Promise<void> {
-		return this._proxy.$writeFile(uri, VSBuffer.wrap(content)).catch(ExtHostConsumerFileSystem._handleError);
-	}
-	delete(uri: vscode.Uri, options?: { recursive?: boolean; useTrash?: boolean; }): Promise<void> {
-		return this._proxy.$delete(uri, { ...{ recursive: false, useTrash: false }, ...options }).catch(ExtHostConsumerFileSystem._handleError);
-	}
-	rename(oldUri: vscode.Uri, newUri: vscode.Uri, options?: { overwrite?: boolean; }): Promise<void> {
-		return this._proxy.$rename(oldUri, newUri, { ...{ overwrite: false }, ...options }).catch(ExtHostConsumerFileSystem._handleError);
-	}
-	copy(source: vscode.Uri, destination: vscode.Uri, options?: { overwrite?: boolean; }): Promise<void> {
-		return this._proxy.$copy(source, destination, { ...{ overwrite: false }, ...options }).catch(ExtHostConsumerFileSystem._handleError);
-	}
-	isWritableFileSystem(scheme: string): boolean | undefined {
-		const capabilities = this._fileSystemInfo.getCapabilities(scheme);
-		if (typeof capabilities === 'number') {
-			return !(capabilities & files.FileSystemProviderCapabilities.Readonly);
-		}
-		return undefined;
+		this.value = Object.freeze({
+			stat(uri: vscode.Uri): Promise<vscode.FileStat> {
+				return proxy.$stat(uri).catch(ExtHostConsumerFileSystem._handleError);
+			},
+			readDirectory(uri: vscode.Uri): Promise<[string, vscode.FileType][]> {
+				return proxy.$readdir(uri).catch(ExtHostConsumerFileSystem._handleError);
+			},
+			createDirectory(uri: vscode.Uri): Promise<void> {
+				return proxy.$mkdir(uri).catch(ExtHostConsumerFileSystem._handleError);
+			},
+			async readFile(uri: vscode.Uri): Promise<Uint8Array> {
+				return proxy.$readFile(uri).then(buff => buff.buffer).catch(ExtHostConsumerFileSystem._handleError);
+			},
+			writeFile(uri: vscode.Uri, content: Uint8Array): Promise<void> {
+				return proxy.$writeFile(uri, VSBuffer.wrap(content)).catch(ExtHostConsumerFileSystem._handleError);
+			},
+			delete(uri: vscode.Uri, options?: { recursive?: boolean; useTrash?: boolean; }): Promise<void> {
+				return proxy.$delete(uri, { ...{ recursive: false, useTrash: false }, ...options }).catch(ExtHostConsumerFileSystem._handleError);
+			},
+			rename(oldUri: vscode.Uri, newUri: vscode.Uri, options?: { overwrite?: boolean; }): Promise<void> {
+				return proxy.$rename(oldUri, newUri, { ...{ overwrite: false }, ...options }).catch(ExtHostConsumerFileSystem._handleError);
+			},
+			copy(source: vscode.Uri, destination: vscode.Uri, options?: { overwrite?: boolean; }): Promise<void> {
+				return proxy.$copy(source, destination, { ...{ overwrite: false }, ...options }).catch(ExtHostConsumerFileSystem._handleError);
+			},
+			isWritableFileSystem(scheme: string): boolean | undefined {
+				const capabilities = fileSystemInfo.getCapabilities(scheme);
+				if (typeof capabilities === 'number') {
+					return !(capabilities & files.FileSystemProviderCapabilities.Readonly);
+				}
+				return undefined;
+			}
+		});
 	}
 
 	private static _handleError(err: any): never {

@@ -6,7 +6,8 @@
 import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { KeyCode, KeyMod, KeyChord, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
+import { SimpleKeybinding, ScanCodeBinding } from 'vs/base/common/keybindings';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -18,9 +19,8 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { SmartSnippetInserter } from 'vs/workbench/contrib/preferences/common/smartSnippetInserter';
 import { DefineKeybindingOverlayWidget } from 'vs/workbench/contrib/preferences/browser/keybindingWidgets';
-import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
+import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { parseTree, Node } from 'vs/base/common/json';
-import { ScanCodeBinding } from 'vs/base/common/scanCode';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { WindowsNativeResolvedKeybinding } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { themeColorFromId, ThemeColor } from 'vs/platform/theme/common/themeService';
@@ -63,7 +63,7 @@ export class DefineKeybindingController extends Disposable implements IEditorCon
 		return this._keybindingWidgetRenderer;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._disposeKeybindingWidgetRenderer();
 		this._disposeKeybindingDecorationRenderer();
 		super.dispose();
@@ -334,6 +334,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 		return {
 			range: range,
 			options: {
+				description: 'keybindings-widget',
 				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 				className: className,
 				hoverMessage: msg,
@@ -357,7 +358,7 @@ class DefineKeybindingCommand extends EditorCommand {
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.languageId.isEqualTo('jsonc')),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyK),
 				weight: KeybindingWeight.EditorContrib
 			}
 		});

@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./links';
-import * as nls from 'vs/nls';
 import * as async from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
+import * as resources from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import 'vs/css!./links';
 import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { LinkProviderRegistry } from 'vs/editor/common/modes';
 import { ClickLinkGesture, ClickLinkKeyboardEvent, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/link/clickLinkGesture';
-import { Link, getLinks, LinksList } from 'vs/editor/contrib/links/getLinks';
+import { getLinks, Link, LinksList } from 'vs/editor/contrib/links/getLinks';
+import * as nls from 'vs/nls';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import * as resources from 'vs/base/common/resources';
 
 function getHoverMessage(link: Link, useMetaKey: boolean): MarkdownString {
 	const executeCmd = link.url && /^command:/i.test(link.url.toString());
@@ -47,7 +47,17 @@ function getHoverMessage(link: Link, useMetaKey: boolean): MarkdownString {
 			: nls.localize('links.navigate.kb.alt', "alt + click");
 
 	if (link.url) {
-		const hoverMessage = new MarkdownString('', true).appendMarkdown(`[${label}](${link.url.toString()}) (${kb})`);
+		let nativeLabel = '';
+		if (/^command:/i.test(link.url.toString())) {
+			// Don't show complete command arguments in the native tooltip
+			const match = link.url.toString().match(/^command:([^?#]+)/);
+			if (match) {
+				const commandId = match[1];
+				const nativeLabelText = nls.localize('tooltip.explanation', "Execute command {0}", commandId);
+				nativeLabel = ` "${nativeLabelText}"`;
+			}
+		}
+		const hoverMessage = new MarkdownString('', true).appendMarkdown(`[${label}](${link.url.toString(true).replace(/ /g, '%20')}${nativeLabel}) (${kb})`);
 		return hoverMessage;
 	} else {
 		return new MarkdownString().appendText(`${label} (${kb})`);
@@ -56,11 +66,13 @@ function getHoverMessage(link: Link, useMetaKey: boolean): MarkdownString {
 
 const decoration = {
 	general: ModelDecorationOptions.register({
+		description: 'detected-link',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link'
 	}),
 	active: ModelDecorationOptions.register({
+		description: 'detected-link-active',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link-active'
@@ -317,7 +329,7 @@ export class LinkDetector implements IEditorContribution {
 				}
 			}
 
-			return this.openerService.open(uri, { openToSide, fromUserGesture });
+			return this.openerService.open(uri, { openToSide, fromUserGesture, allowContributedOpeners: true, allowCommands: true });
 
 		}, err => {
 			const messageOrError =

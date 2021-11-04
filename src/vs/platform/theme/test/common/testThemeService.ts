@@ -3,17 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { IThemeService, IColorTheme, IFileIconTheme, ITokenStyle } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
+import { Emitter, Event } from 'vs/base/common/event';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { IColorTheme, IFileIconTheme, IThemeService, ITokenStyle } from 'vs/platform/theme/common/themeService';
 
 export class TestColorTheme implements IColorTheme {
 
 	public readonly label = 'test';
 
-	constructor(private colors: { [id: string]: string; } = {}, public type = ColorScheme.DARK) {
-	}
+	constructor(
+		private colors: { [id: string]: string; } = {},
+		public type = ColorScheme.DARK,
+		public readonly semanticHighlighting = false
+	) { }
 
 	getColor(color: string, useDefault?: boolean): Color | undefined {
 		let value = this.colors[color];
@@ -30,8 +33,6 @@ export class TestColorTheme implements IColorTheme {
 	getTokenStyleMetadata(type: string, modifiers: string[], modelLanguage: string): ITokenStyle | undefined {
 		return undefined;
 	}
-
-	readonly semanticHighlighting = false;
 
 	get tokenColorMap(): string[] {
 		return [];

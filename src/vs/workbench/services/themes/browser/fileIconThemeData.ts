@@ -9,14 +9,15 @@ import * as Paths from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import * as Json from 'vs/base/common/json';
 import { ExtensionData, IThemeExtensionPoint, IWorkbenchFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IFileService } from 'vs/platform/files/common/files';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { asCSSUrl } from 'vs/base/browser/dom';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-
-const PERSISTED_FILE_ICON_THEME_STORAGE_KEY = 'iconThemeData';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 
 export class FileIconThemeData implements IWorkbenchFileIconTheme {
+
+	static readonly STORAGE_KEY = 'iconThemeData';
+
 	id: string;
 	label: string;
 	settingsId: string | null;
@@ -41,15 +42,15 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 		this.hidesExplorerArrows = false;
 	}
 
-	public ensureLoaded(fileService: IFileService): Promise<string | undefined> {
+	public ensureLoaded(fileService: IExtensionResourceLoaderService): Promise<string | undefined> {
 		return !this.isLoaded ? this.load(fileService) : Promise.resolve(this.styleSheetContent);
 	}
 
-	public reload(fileService: IFileService): Promise<string | undefined> {
+	public reload(fileService: IExtensionResourceLoaderService): Promise<string | undefined> {
 		return this.load(fileService);
 	}
 
-	private load(fileService: IFileService): Promise<string | undefined> {
+	private load(fileService: IExtensionResourceLoaderService): Promise<string | undefined> {
 		if (!this.location) {
 			return Promise.resolve(this.styleSheetContent);
 		}
@@ -108,7 +109,7 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 
 
 	static fromStorageData(storageService: IStorageService): FileIconThemeData | undefined {
-		const input = storageService.get(PERSISTED_FILE_ICON_THEME_STORAGE_KEY, StorageScope.GLOBAL);
+		const input = storageService.get(FileIconThemeData.STORAGE_KEY, StorageScope.GLOBAL);
 		if (!input) {
 			return undefined;
 		}
@@ -129,7 +130,7 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 						(theme as any)[key] = data[key];
 						break;
 					case 'location':
-						theme.location = URI.revive(data.location);
+						// ignore, no longer restore
 						break;
 					case 'extensionData':
 						theme.extensionData = ExtensionData.fromJSONObject(data.extensionData);
@@ -148,7 +149,6 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 			label: this.label,
 			description: this.description,
 			settingsId: this.settingsId,
-			location: this.location?.toJSON(),
 			styleSheetContent: this.styleSheetContent,
 			hasFileIcons: this.hasFileIcons,
 			hasFolderIcons: this.hasFolderIcons,
@@ -156,7 +156,7 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 			extensionData: ExtensionData.toJSONObject(this.extensionData),
 			watch: this.watch
 		});
-		storageService.store(PERSISTED_FILE_ICON_THEME_STORAGE_KEY, data, StorageScope.GLOBAL);
+		storageService.store(FileIconThemeData.STORAGE_KEY, data, StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 }
 
@@ -197,10 +197,10 @@ interface IconThemeDocument extends IconsAssociation {
 	hidesExplorerArrows?: boolean;
 }
 
-function _loadIconThemeDocument(fileService: IFileService, location: URI): Promise<IconThemeDocument> {
-	return fileService.readFile(location).then((content) => {
+function _loadIconThemeDocument(fileService: IExtensionResourceLoaderService, location: URI): Promise<IconThemeDocument> {
+	return fileService.readExtensionResource(location).then((content) => {
 		let errors: Json.ParseError[] = [];
-		let contentValue = Json.parse(content.value.toString(), errors);
+		let contentValue = Json.parse(content, errors);
 		if (errors.length > 0) {
 			return Promise.reject(new Error(nls.localize('error.cannotparseicontheme', "Problems parsing file icons file: {0}", errors.map(e => getParseErrorMessage(e.error)).join(', '))));
 		} else if (Json.getNodeType(contentValue) !== 'object') {
@@ -343,9 +343,9 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 	if (Array.isArray(fonts)) {
 		fonts.forEach(font => {
 			let src = font.src.map(l => `${asCSSUrl(resolvePath(l.path))} format('${l.format}')`).join(', ');
-			cssRules.push(`@font-face { src: ${src}; font-family: '${font.id}'; font-weight: ${font.weight}; font-style: ${font.style}; }`);
+			cssRules.push(`@font-face { src: ${src}; font-family: '${font.id}'; font-weight: ${font.weight}; font-style: ${font.style}; font-display: block; }`);
 		});
-		cssRules.push(`.show-file-icons .file-icon::before, .show-file-icons .folder-icon::before, .show-file-icons .rootfolder-icon::before { font-family: '${fonts[0].id}'; font-size: ${fonts[0].size || '150%'}}`);
+		cssRules.push(`.show-file-icons .file-icon::before, .show-file-icons .folder-icon::before, .show-file-icons .rootfolder-icon::before { font-family: '${fonts[0].id}'; font-size: ${fonts[0].size || '150%'}; }`);
 	}
 
 	for (let defId in selectorByDefinitionId) {
@@ -377,5 +377,6 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 	return result;
 }
 function escapeCSS(str: string) {
+	str = str.replace(/[\11\12\14\15\40]/g, '/'); // HTML class names can not contain certain whitespace characters, use / instead, which doesn't exist in file names.
 	return window.CSS.escape(str);
 }

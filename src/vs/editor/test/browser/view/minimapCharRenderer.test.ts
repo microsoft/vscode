@@ -78,14 +78,14 @@ suite('MinimapCharRenderer', () => {
 			imageData.data[4 * i + 2] = background.b;
 			imageData.data[4 * i + 3] = 255;
 		}
-		renderer.renderChar(imageData, 0, 0, 'd'.charCodeAt(0), color, background, 2, false, false);
+		renderer.renderChar(imageData, 0, 0, 'd'.charCodeAt(0), color, 255, background, 255, 2, false, false);
 
 		let actual: number[] = [];
 		for (let i = 0; i < imageData.data.length; i++) {
 			actual[i] = imageData.data[i];
 		}
 
-		assert.deepEqual(actual, [
+		assert.deepStrictEqual(actual, [
 			0x2D, 0x2D, 0x2D, 0xFF, 0xAC, 0xAC, 0xAC, 0xFF,
 			0xC6, 0xC6, 0xC6, 0xFF, 0xC8, 0xC8, 0xC8, 0xFF,
 			0xC0, 0xC0, 0xC0, 0xFF, 0xCB, 0xCB, 0xCB, 0xFF,
@@ -108,14 +108,14 @@ suite('MinimapCharRenderer', () => {
 			imageData.data[4 * i + 3] = 255;
 		}
 
-		renderer.renderChar(imageData, 0, 0, 'd'.charCodeAt(0), color, background, 1, false, false);
+		renderer.renderChar(imageData, 0, 0, 'd'.charCodeAt(0), color, 255, background, 255, 1, false, false);
 
 		let actual: number[] = [];
 		for (let i = 0; i < imageData.data.length; i++) {
 			actual[i] = imageData.data[i];
 		}
 
-		assert.deepEqual(actual, [
+		assert.deepStrictEqual(actual, [
 			0xCB, 0xCB, 0xCB, 0xFF,
 			0x81, 0x81, 0x81, 0xFF,
 		]);

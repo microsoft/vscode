@@ -23,7 +23,7 @@ export function terminateProcess(p: cp.ChildProcess, extensionPath: string): Ter
 	} else if (process.platform === 'darwin' || process.platform === 'linux') {
 		try {
 			const cmd = path.join(extensionPath, 'scripts', 'terminateProcess.sh');
-			const result = cp.spawnSync(cmd, [process.pid.toString()]);
+			const result = cp.spawnSync(cmd, [p.pid.toString()]);
 			if (result.error) {
 				return { success: false, error: result.error };
 			}

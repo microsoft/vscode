@@ -24,6 +24,8 @@ export class CodeActionUi extends Disposable {
 	private readonly _lightBulbWidget: Lazy<LightBulbWidget>;
 	private readonly _activeCodeActions = this._register(new MutableDisposable<CodeActionSet>());
 
+	#disposed = false;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		quickFixActionId: string,
@@ -50,6 +52,11 @@ export class CodeActionUi extends Disposable {
 		});
 	}
 
+	override dispose() {
+		this.#disposed = true;
+		super.dispose();
+	}
+
 	public async update(newState: CodeActionsState.State): Promise<void> {
 		if (newState.type !== CodeActionsState.Type.Triggered) {
 			this._lightBulbWidget.rawValue?.hide();
@@ -64,15 +71,20 @@ export class CodeActionUi extends Disposable {
 			return;
 		}
 
+		if (this.#disposed) {
+			return;
+		}
+
 		this._lightBulbWidget.getValue().update(actions, newState.trigger, newState.position);
 
-		if (newState.trigger.type === CodeActionTriggerType.Manual) {
+		if (newState.trigger.type === CodeActionTriggerType.Invoke) {
 			if (newState.trigger.filter?.include) { // Triggered for specific scope
 				// Check to see if we want to auto apply.
 
 				const validActionToApply = this.tryGetValidActionToApply(newState.trigger, actions);
 				if (validActionToApply) {
 					try {
+						this._lightBulbWidget.getValue().hide();
 						await this.delegate.applyCodeAction(validActionToApply, false);
 					} finally {
 						actions.dispose();

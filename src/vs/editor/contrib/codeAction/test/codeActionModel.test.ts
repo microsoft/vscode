@@ -13,9 +13,9 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import * as modes from 'vs/editor/common/modes';
 import { CodeActionModel, CodeActionsState } from 'vs/editor/contrib/codeAction/codeActionModel';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 const testProvider = {
 	provideCodeActions(): modes.CodeActionList {
@@ -29,7 +29,7 @@ const testProvider = {
 };
 suite('CodeActionModel', () => {
 
-	const languageIdentifier = new modes.LanguageIdentifier('foo-lang', 3);
+	const languageId = 'foo-lang';
 	let uri = URI.parse('untitled:path');
 	let model: TextModel;
 	let markerService: MarkerService;
@@ -39,7 +39,7 @@ suite('CodeActionModel', () => {
 	setup(() => {
 		disposables.clear();
 		markerService = new MarkerService();
-		model = createTextModel('foobar  foo bar\nfarboo far boo', undefined, languageIdentifier, uri);
+		model = createTextModel('foobar  foo bar\nfarboo far boo', undefined, languageId, uri);
 		editor = createTestCodeEditor({ model: model });
 		editor.setPosition({ lineNumber: 1, column: 1 });
 	});
@@ -52,7 +52,7 @@ suite('CodeActionModel', () => {
 	});
 
 	test('Orcale -> marker added', done => {
-		const reg = modes.CodeActionProviderRegistry.register(languageIdentifier.language, testProvider);
+		const reg = modes.CodeActionProviderRegistry.register(languageId, testProvider);
 		disposables.add(reg);
 
 		const contextKeys = new MockContextKeyService();
@@ -65,7 +65,7 @@ suite('CodeActionModel', () => {
 
 			e.actions.then(fixes => {
 				model.dispose();
-				assert.equal(fixes.validActions.length, 1);
+				assert.strictEqual(fixes.validActions.length, 1);
 				done();
 			}, done);
 		}));
@@ -82,7 +82,7 @@ suite('CodeActionModel', () => {
 	});
 
 	test('Orcale -> position changed', () => {
-		const reg = modes.CodeActionProviderRegistry.register(languageIdentifier.language, testProvider);
+		const reg = modes.CodeActionProviderRegistry.register(languageId, testProvider);
 		disposables.add(reg);
 
 		markerService.changeOne('fake', uri, [{
@@ -101,11 +101,11 @@ suite('CodeActionModel', () => {
 			disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
 				assertType(e.type === CodeActionsState.Type.Triggered);
 
-				assert.equal(e.trigger.type, modes.CodeActionTriggerType.Auto);
+				assert.strictEqual(e.trigger.type, modes.CodeActionTriggerType.Auto);
 				assert.ok(e.actions);
 				e.actions.then(fixes => {
 					model.dispose();
-					assert.equal(fixes.validActions.length, 1);
+					assert.strictEqual(fixes.validActions.length, 1);
 					resolve(undefined);
 				}, reject);
 			}));
@@ -115,7 +115,7 @@ suite('CodeActionModel', () => {
 	});
 
 	test('Lightbulb is in the wrong place, #29933', async function () {
-		const reg = modes.CodeActionProviderRegistry.register(languageIdentifier.language, {
+		const reg = modes.CodeActionProviderRegistry.register(languageId, {
 			provideCodeActions(_doc, _range): modes.CodeActionList {
 				return { actions: [], dispose() { /* noop*/ } };
 			}
@@ -139,13 +139,14 @@ suite('CodeActionModel', () => {
 			disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
 				assertType(e.type === CodeActionsState.Type.Triggered);
 
-				assert.equal(e.trigger.type, modes.CodeActionTriggerType.Auto);
+				assert.strictEqual(e.trigger.type, modes.CodeActionTriggerType.Auto);
 				const selection = <Selection>e.rangeOrSelection;
-				assert.deepEqual(selection.selectionStartLineNumber, 1);
-				assert.deepEqual(selection.selectionStartColumn, 1);
-				assert.deepEqual(selection.endLineNumber, 4);
-				assert.deepEqual(selection.endColumn, 1);
-				assert.deepEqual(e.position, { lineNumber: 3, column: 1 });
+				assert.strictEqual(selection.selectionStartLineNumber, 1);
+				assert.strictEqual(selection.selectionStartColumn, 1);
+				assert.strictEqual(selection.endLineNumber, 4);
+				assert.strictEqual(selection.endColumn, 1);
+				assert.strictEqual(e.position.lineNumber, 3);
+				assert.strictEqual(e.position.column, 1);
 				model.dispose();
 				resolve(undefined);
 			}, 5));
@@ -155,7 +156,7 @@ suite('CodeActionModel', () => {
 	});
 
 	test('Orcale -> should only auto trigger once for cursor and marker update right after each other', done => {
-		const reg = modes.CodeActionProviderRegistry.register(languageIdentifier.language, testProvider);
+		const reg = modes.CodeActionProviderRegistry.register(languageId, testProvider);
 		disposables.add(reg);
 
 		let triggerCount = 0;
@@ -164,7 +165,7 @@ suite('CodeActionModel', () => {
 		disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
 			assertType(e.type === CodeActionsState.Type.Triggered);
 
-			assert.equal(e.trigger.type, modes.CodeActionTriggerType.Auto);
+			assert.strictEqual(e.trigger.type, modes.CodeActionTriggerType.Auto);
 			++triggerCount;
 
 			// give time for second trigger before completing test

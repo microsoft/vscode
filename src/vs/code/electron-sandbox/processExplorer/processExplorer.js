@@ -4,26 +4,41 @@
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
-'use strict';
-
 (function () {
+	'use strict';
+
 	const bootstrapWindow = bootstrapWindowLib();
 
 	// Load process explorer into window
 	bootstrapWindow.load(['vs/code/electron-sandbox/processExplorer/processExplorerMain'], function (processExplorer, configuration) {
-		processExplorer.startup(configuration.windowId, configuration.data);
-	}, { forceEnableDeveloperKeybindings: true });
-
-
-	//#region Globals
+		return processExplorer.startup(configuration);
+	}, {
+		configureDeveloperSettings: function () {
+			return {
+				forceEnableDeveloperKeybindings: true
+			};
+		},
+	});
 
 	/**
-	 * @returns {{ load: (modules: string[], resultCallback: (result, configuration: object) => any, options?: object) => unknown }}
+	 * @typedef {import('../../../base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
+	 *
+	 * @returns {{
+	 *   load: (
+	 *     modules: string[],
+	 *     resultCallback: (result, configuration: ISandboxConfiguration) => unknown,
+	 *     options?: {
+	 *       configureDeveloperSettings?: (config: ISandboxConfiguration) => {
+	 * 			forceEnableDeveloperKeybindings?: boolean,
+	 * 			disallowReloadKeybinding?: boolean,
+	 * 			removeDeveloperKeybindingsAfterLoad?: boolean
+	 * 		 }
+	 *     }
+	 *   ) => Promise<unknown>
+	 * }}
 	 */
 	function bootstrapWindowLib() {
 		// @ts-ignore (defined in bootstrap-window.js)
 		return window.MonacoBootstrapWindow;
 	}
-
-	//#endregion
 }());
