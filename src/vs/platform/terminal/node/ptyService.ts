@@ -441,9 +441,7 @@ export class PersistentTerminalProcess extends Disposable {
 	}
 
 	setIcon(icon: TerminalIcon, color?: string): void {
-		if (icon) {
-			this._icon = icon;
-		}
+		this._icon = icon;
 		this._color = color;
 	}
 
@@ -472,9 +470,6 @@ export class PersistentTerminalProcess extends Disposable {
 		super();
 		if (name) {
 			this.setTitle(name, TitleEventSource.Api);
-		}
-		if (_icon) {
-			this.setIcon(_icon, _color);
 		}
 		this._logService.trace('persistentTerminalProcess#ctor', _persistentProcessId, arguments);
 		this._wasRevived = reviveBuffer !== undefined;
