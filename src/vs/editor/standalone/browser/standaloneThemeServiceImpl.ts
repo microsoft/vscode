@@ -132,6 +132,19 @@ class StandaloneTheme implements IStandaloneTheme {
 					encodedTokensColors = baseData.encodedTokensColors;
 				}
 			}
+			// Pick up default colors from `editor.foreground` and `editor.background` if available
+			const editorForeground = this.themeData.colors['editor.foreground'];
+			const editorBackground = this.themeData.colors['editor.background'];
+			if (editorForeground || editorBackground) {
+				const rule: ITokenThemeRule = { token: '' };
+				if (editorForeground) {
+					rule.foreground = editorForeground;
+				}
+				if (editorBackground) {
+					rule.background = editorBackground;
+				}
+				rules.push(rule);
+			}
 			rules = rules.concat(this.themeData.rules);
 			if (this.themeData.encodedTokensColors) {
 				encodedTokensColors = this.themeData.encodedTokensColors;
