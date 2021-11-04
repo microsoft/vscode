@@ -345,7 +345,7 @@ export class Menu extends ActionBar {
 	}
 
 	protected override updateFocus(fromRight?: boolean): void {
-		super.updateFocus(fromRight, true);
+		super.updateFocus(fromRight, true, true);
 
 		if (typeof this.focusedItem !== 'undefined') {
 			// Workaround for #80047 caused by an issue in chromium
