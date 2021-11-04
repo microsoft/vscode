@@ -1613,7 +1613,7 @@ export class ExtensionEditor extends EditorPane {
 			$('table', undefined,
 				$('tr', undefined,
 					$('th', undefined, localize('Notebook renderer name', "Name")),
-					$('th', undefined, localize('Notebook name', "Mimetypes")),
+					$('th', undefined, localize('Notebook mimetypes', "Mimetypes")),
 				),
 				...contrib.map(d => $('tr', undefined,
 					$('td', undefined, d.displayName),
