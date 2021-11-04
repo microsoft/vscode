@@ -12,25 +12,16 @@ class ResourcePerformanceMarks {
 
 	constructor(@ITelemetryService telemetryService: ITelemetryService) {
 
-		type Entry = { name: string, duration: number };
-		const data: Entry[] = [];
+		type Entry = { name: string; duration: number; };
+		type EntryClassifify = {
+			name: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; };
+			duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; };
+		};
 		for (const item of performance.getEntriesByType('resource')) {
-			data.push({ name: item.name, duration: item.duration });
-			const out = JSON.stringify(data);
-			if (out.length > 5000) {
-				telemetryService.publicLog2<
-					{ out: string },
-					{ out: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth'; } }
-				>('startup.resource.perf', { out });
-				data.length = 0;
-			}
-		}
-
-		if (data.length > 0) {
-			telemetryService.publicLog2<
-				{ out: string },
-				{ out: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth'; } }
-			>('startup.resource.perf', { out: JSON.stringify(data) });
+			telemetryService.publicLog2<Entry, EntryClassifify>('startup.resource.perf', {
+				name: item.name,
+				duration: item.duration
+			});
 		}
 	}
 }
