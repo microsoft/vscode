@@ -269,7 +269,7 @@ export class CodeCell extends Disposable {
 			return false;
 		}
 
-		this.viewCell.layoutChange({});
+		this.viewCell.layoutChange({ editorHeight: true });
 
 		if (this.viewCell.isInputCollapsed) {
 			this._collapseInput();
