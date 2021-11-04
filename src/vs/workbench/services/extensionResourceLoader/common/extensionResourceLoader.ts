@@ -38,7 +38,7 @@ export interface IExtensionResourceLoaderService {
 	/**
 	 * Computes the URL of a extension gallery resource. Returns `undefined` if gallery does not provide extension resources.
 	 */
-	 getExtensionGalleryResourceURL(galleryExtension: { publisher: string, name: string, version: string }, path?: string): URI | undefined;
+	getExtensionGalleryResourceURL(galleryExtension: { publisher: string, name: string, version: string }, path?: string): URI | undefined;
 }
 
 
@@ -58,7 +58,7 @@ export abstract class AbstractExtensionResourceLoaderService implements IExtensi
 	) {
 		if (_productService.extensionsGallery) {
 			this._extensionGalleryResourceUrlTemplate = _productService.extensionsGallery.resourceUrlTemplate;
-			this._extensionGalleryAuthority = this._getExtensionGalleryAuthority(URI.parse(this._extensionGalleryResourceUrlTemplate));
+			this._extensionGalleryAuthority = this._extensionGalleryResourceUrlTemplate ? this._getExtensionGalleryAuthority(URI.parse(this._extensionGalleryResourceUrlTemplate)) : undefined;
 		}
 	}
 
