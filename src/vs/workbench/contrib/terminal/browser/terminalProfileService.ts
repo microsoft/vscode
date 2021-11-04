@@ -84,7 +84,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 	_serviceBrand: undefined;
 
 	getDefaultProfileName(): string | undefined {
-		return this._defaultProfileName === null ? undefined : this._defaultProfileName;
+		return this._defaultProfileName;
 	}
 
 	@throttle(2000)
