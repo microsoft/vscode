@@ -45,7 +45,7 @@ import { resolveShellEnv } from 'vs/platform/environment/node/shellEnv';
 import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
 import { ExtensionUrlTrustService } from 'vs/platform/extensionManagement/node/extensionUrlTrustService';
 import { IExtensionHostStarter, ipcExtensionHostStarterChannelName } from 'vs/platform/extensions/common/extensionHostStarter';
-import { ExtensionHostStarter } from 'vs/platform/extensions/node/extensionHostStarter';
+import { DirectMainProcessExtensionHostStarter } from 'vs/platform/extensions/electron-main/directMainProcessExtensionHostStarter';
 import { IExternalTerminalMainService } from 'vs/platform/externalTerminal/common/externalTerminal';
 import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -517,7 +517,7 @@ export class CodeApplication extends Disposable {
 		services.set(IExtensionUrlTrustService, new SyncDescriptor(ExtensionUrlTrustService));
 
 		// Extension Host Starter
-		services.set(IExtensionHostStarter, new SyncDescriptor(ExtensionHostStarter));
+		services.set(IExtensionHostStarter, new SyncDescriptor(DirectMainProcessExtensionHostStarter));
 
 		// Storage
 		services.set(IStorageMainService, new SyncDescriptor(StorageMainService));

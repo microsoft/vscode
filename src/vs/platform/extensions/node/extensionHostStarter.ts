@@ -16,6 +16,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { mixin } from 'vs/base/common/objects';
 import { cwd } from 'vs/base/common/process';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { timeout } from 'vs/base/common/async';
 
 export interface IPartialLogService {
 	readonly _serviceBrand: undefined;
@@ -40,16 +41,13 @@ class ExtensionHostProcess extends Disposable {
 	readonly onExit = this._onExit.event;
 
 	private _process: ChildProcess | null = null;
+	private _hasExited: boolean = false;
 
 	constructor(
 		public readonly id: string,
 		@ILogService private readonly _logService: IPartialLogService
 	) {
 		super();
-	}
-
-	register(disposable: IDisposable) {
-		this._register(disposable);
 	}
 
 	start(opts: IExtensionHostProcessOptions): { pid: number; } {
@@ -92,6 +90,7 @@ class ExtensionHostProcess extends Disposable {
 		});
 
 		this._process.on('exit', (code: number, signal: string) => {
+			this._hasExited = true;
 			this._onExit.fire({ pid, code, signal });
 		});
 
@@ -130,6 +129,21 @@ class ExtensionHostProcess extends Disposable {
 		this._logService.info(`Killing extension host with pid ${this._process.pid}.`);
 		this._process.kill();
 	}
+
+	async waitForExit(maxWaitTimeMs: number): Promise<void> {
+		if (!this._process) {
+			return;
+		}
+		const pid = this._process.pid;
+		this._logService.info(`Waiting for extension host with pid ${pid} to exit.`);
+		await Promise.race([Event.toPromise(this.onExit), timeout(maxWaitTimeMs)]);
+
+		if (!this._hasExited) {
+			// looks like we timed out
+			this._logService.info(`Extension host with pid ${pid} did not exit within ${maxWaitTimeMs}ms.`);
+			this._process.kill();
+		}
+	}
 }
 
 export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter {
@@ -137,7 +151,7 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 
 	private static _lastId: number = 0;
 
-	private readonly _extHosts: Map<string, ExtensionHostProcess>;
+	protected readonly _extHosts: Map<string, ExtensionHostProcess>;
 
 	constructor(
 		@ILogService private readonly _logService: IPartialLogService
