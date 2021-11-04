@@ -68,9 +68,10 @@ export type ThemeSettingTarget = ConfigurationTarget | undefined | 'auto' | 'pre
 
 export interface IWorkbenchThemeService extends IThemeService {
 	readonly _serviceBrand: undefined;
-	setColorTheme(themeId: string | undefined, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchColorTheme | null>;
+	setColorTheme(themeId: string | undefined | IWorkbenchColorTheme, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchColorTheme | null>;
 	getColorTheme(): IWorkbenchColorTheme;
 	getColorThemes(): Promise<IWorkbenchColorTheme[]>;
+	getMarketplaceColorThemes(id: string, version: string): Promise<IWorkbenchColorTheme[]>;
 	onDidColorThemeChange: Event<IWorkbenchColorTheme>;
 	restoreColorTheme(): void;
 
@@ -173,6 +174,12 @@ export interface ISemanticTokenColorizationSetting {
 	bold?: boolean;
 	underline?: boolean;
 	italic?: boolean;
+}
+
+export interface ExtensionVersion {
+	publisher: string;
+	name: string;
+	version: string;
 }
 
 export interface ExtensionData {

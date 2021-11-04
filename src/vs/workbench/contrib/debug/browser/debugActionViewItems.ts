@@ -27,6 +27,7 @@ const $ = dom.$;
 
 export class StartDebugActionViewItem extends BaseActionViewItem {
 
+	// allow-any-unicode-next-line
 	private static readonly SEPARATOR = '─────────';
 
 	private container!: HTMLElement;

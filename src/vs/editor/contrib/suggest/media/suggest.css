@@ -56,8 +56,7 @@
 }
 
 .monaco-editor .suggest-widget.with-status-bar .suggest-status-bar .action-label {
-	opacity: 0.5;
-	color: inherit;
+	color: var(--vscode-editorSuggestWidgetStatus-foreground);
 }
 
 .monaco-editor .suggest-widget.with-status-bar .suggest-status-bar .action-item:not(:last-of-type) .action-label {

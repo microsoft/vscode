@@ -99,7 +99,7 @@
       "editor/title": [
         {
           "command": "markdown.showPreviewToSide",
-          "when": "editorLangId == markdown && !notebookEditorFocused",
+          "when": "editorLangId == markdown && !notebookEditorFocused && !hasCustomMarkdownPreview",
           "alt": "markdown.showPreview",
           "group": "navigation"
         },

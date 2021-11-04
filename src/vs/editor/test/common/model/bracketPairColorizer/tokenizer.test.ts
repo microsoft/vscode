@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert = require('assert');
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { LanguageAgnosticBracketTokens } from 'vs/editor/common/model/bracketPairs/bracketPairsTree/brackets';
 import { Length, lengthAdd, lengthsToRange, lengthZero } from 'vs/editor/common/model/bracketPairs/bracketPairsTree/length';
@@ -20,7 +21,8 @@ import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/te
 suite('Bracket Pair Colorizer - Tokenizer', () => {
 	test('Basic', () => {
 		const mode1 = 'testMode1';
-		const [instantiationService, disposableStore] = createModelServices();
+		const disposableStore = new DisposableStore();
+		const instantiationService = createModelServices(disposableStore);
 		const modeService = instantiationService.invokeFunction((accessor) => accessor.get(IModeService));
 		disposableStore.add(ModesRegistry.registerLanguage({ id: mode1 }));
 		const encodedMode1 = modeService.languageIdCodec.encodeLanguageId(mode1);

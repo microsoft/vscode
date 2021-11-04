@@ -139,7 +139,8 @@ suite('SuggestModel - Context', function () {
 	});
 
 	test('shouldAutoTrigger at embedded language boundaries', () => {
-		const [instantiationService, disposables] = createModelServices();
+		const disposables = new DisposableStore();
+		const instantiationService = createModelServices(disposables);
 		const outerMode = disposables.add(instantiationService.createInstance(OuterMode));
 		disposables.add(instantiationService.createInstance(InnerMode));
 

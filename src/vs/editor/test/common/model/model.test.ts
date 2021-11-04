@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Disposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -454,7 +454,8 @@ suite('Editor Model - Words', () => {
 	});
 
 	test('getWordAtPosition at embedded language boundaries', () => {
-		const [instantiationService, disposables] = createModelServices();
+		const disposables = new DisposableStore();
+		const instantiationService = createModelServices(disposables);
 		const outerMode = disposables.add(instantiationService.createInstance(OuterMode));
 		disposables.add(new InnerMode());
 

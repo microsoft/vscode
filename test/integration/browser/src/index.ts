@@ -47,7 +47,9 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 	});
 	page.on('console', async msg => {
 		try {
-			consoleLogFn(msg)(msg.text(), await Promise.all(msg.args().map(async arg => await arg.jsonValue())));
+			if (msg.type() === 'error' || msg.type() === 'warning') {
+				consoleLogFn(msg)(msg.text(), await Promise.all(msg.args().map(async arg => await arg.jsonValue())));
+			}
 		} catch (err) {
 			console.error('Error logging console', err);
 		}

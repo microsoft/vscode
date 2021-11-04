@@ -25,6 +25,7 @@ export const getFileResults = (
 		text = new TextDecoder('utf-16be').decode(bytes);
 	} else {
 		text = new TextDecoder('utf8').decode(bytes);
+		// allow-any-unicode-next-line
 		if (text.slice(0, 1000).includes('�') && bytes.includes(0)) {
 			return [];
 		}

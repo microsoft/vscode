@@ -81,9 +81,6 @@ export interface INotebookCellPreviousExecutionResult {
 }
 
 export interface NotebookCellMetadata {
-	inputCollapsed?: boolean;
-	outputCollapsed?: boolean;
-
 	/**
 	 * custom metadata
 	 */

@@ -69,7 +69,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 			}
 		});
 		this._webExtensionContributedProfileContextKey = TerminalContextKeys.webExtensionContributedProfile.bindTo(this._contextKeyService);
-
+		this._updateWebContextKey();
 		// Wait up to 5 seconds for profiles to be ready so it's assured that we know the actual
 		// default terminal before launching the first terminal. This isn't expected to ever take
 		// this long.
@@ -79,10 +79,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 
 	_serviceBrand: undefined;
 
-	getDefaultProfileName(): string {
-		if (!this._defaultProfileName) {
-			throw new Error('no default profile');
-		}
+	getDefaultProfileName(): string | undefined {
 		return this._defaultProfileName;
 	}
 

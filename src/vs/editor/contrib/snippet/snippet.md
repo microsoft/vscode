@@ -17,7 +17,7 @@ Placeholders can have choices as values. The syntax is a comma-separated enumera
 Variables
 --
 
-With `$name` or `${name:default}` you can insert the value of a variable. When a variable isn’t set its *default* or the empty string is inserted. When a variable is unknown (that is, its name isn’t defined) the name of the variable is inserted and it is transformed into a placeholder. The following variables can be used:
+With `$name` or `${name:default}` you can insert the value of a variable. When a variable isn't set its *default* or the empty string is inserted. When a variable is unknown (that is, its name isn't defined) the name of the variable is inserted and it is transformed into a placeholder. The following variables can be used:
 
 * `TM_SELECTED_TEXT` The currently selected text or the empty string
 * `TM_CURRENT_LINE` The contents of the current line

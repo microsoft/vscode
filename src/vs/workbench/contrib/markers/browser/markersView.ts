@@ -268,7 +268,12 @@ export class MarkersView extends ViewPane implements IMarkersView {
 					} else {
 						// Update resource
 						for (const updated of markerOrChange.updated) {
-							this.tree.setChildren(updated, createResourceMarkersIterator(updated));
+							this.tree.setChildren(updated, createResourceMarkersIterator(updated), {
+								/* Pass Identitiy Provider only when updating while the tree is visible */
+								diffIdentityProvider: {
+									getId(element: MarkerElement): string { return element.id; }
+								}
+							});
 							this.tree.rerender(updated);
 						}
 					}

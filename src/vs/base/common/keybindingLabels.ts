@@ -54,6 +54,7 @@ export class ModifierLabelProvider {
  */
 export const UILabelProvider = new ModifierLabelProvider(
 	{
+		// allow-any-unicode-next-line
 		ctrlKey: '⌃',
 		shiftKey: '⇧',
 		altKey: '⌥',

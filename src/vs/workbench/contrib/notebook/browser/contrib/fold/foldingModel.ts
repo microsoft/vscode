@@ -165,7 +165,7 @@ export class FoldingModel implements IDisposable {
 
 			const content = cell.getText();
 
-			const matches = content.match(/^[ \t]*(\#+)/gm);
+			const matches = content.match(/^[ \t]*(\#+) /gm);
 
 			let min = 7;
 			if (matches && matches.length) {

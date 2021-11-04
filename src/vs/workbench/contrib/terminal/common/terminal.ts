@@ -64,7 +64,7 @@ export interface ITerminalProfileService {
 	readonly contributedProfiles: IExtensionTerminalProfile[];
 	readonly profilesReady: Promise<void>;
 	refreshAvailableProfiles(): void;
-	getDefaultProfileName(): string;
+	getDefaultProfileName(): string | undefined;
 	onDidChangeAvailableProfiles: Event<ITerminalProfile[]>;
 	getContributedDefaultProfile(shellLaunchConfig: IShellLaunchConfig): Promise<IExtensionTerminalProfile | undefined>;
 	registerContributedProfile(extensionIdentifier: string, id: string, title: string, options: ICreateContributedTerminalProfileOptions): Promise<void>;

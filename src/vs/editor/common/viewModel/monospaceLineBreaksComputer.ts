@@ -7,9 +7,8 @@ import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
 import { WrappingIndent, IComputedEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
-import { ILineBreaksComputerFactory } from 'vs/editor/common/viewModel/splitLinesCollection';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { ILineBreaksComputer, LineBreakData } from 'vs/editor/common/viewModel/viewModel';
+import { ILineBreaksComputer, ILineBreaksComputerFactory, LineBreakData } from 'vs/editor/common/viewModel/viewModel';
 import { LineInjectedText } from 'vs/editor/common/model/textModelEvents';
 import { InjectedTextOptions } from 'vs/editor/common/model';
 
@@ -377,7 +376,7 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 		}
 		// creating a `LineBreakData` with an invalid `breakOffsetsVisibleColumn` is OK
 		// because `breakOffsetsVisibleColumn` will never be used because it contains injected text
-		return new LineBreakData([lineText.length], [], 0, injectionOffsets, injectionOptions);
+		return new LineBreakData(injectionOffsets, injectionOptions, [lineText.length], [], 0);
 	}
 
 	const len = lineText.length;
@@ -387,7 +386,7 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 		}
 		// creating a `LineBreakData` with an invalid `breakOffsetsVisibleColumn` is OK
 		// because `breakOffsetsVisibleColumn` will never be used because it contains injected text
-		return new LineBreakData([lineText.length], [], 0, injectionOffsets, injectionOptions);
+		return new LineBreakData(injectionOffsets, injectionOptions, [lineText.length], [], 0);
 	}
 
 	const wrappedTextIndentLength = computeWrappedTextIndentLength(lineText, tabSize, firstLineBreakColumn, columnsForFullWidthChar, wrappingIndent);
@@ -465,7 +464,7 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 	breakingOffsets[breakingOffsetsCount] = len;
 	breakingOffsetsVisibleColumn[breakingOffsetsCount] = visibleColumn;
 
-	return new LineBreakData(breakingOffsets, breakingOffsetsVisibleColumn, wrappedTextIndentLength, injectionOffsets, injectionOptions);
+	return new LineBreakData(injectionOffsets, injectionOptions, breakingOffsets, breakingOffsetsVisibleColumn, wrappedTextIndentLength);
 }
 
 function computeCharWidth(charCode: number, visibleColumn: number, tabSize: number, columnsForFullWidthChar: number): number {

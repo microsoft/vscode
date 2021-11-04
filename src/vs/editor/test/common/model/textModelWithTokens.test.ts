@@ -345,7 +345,8 @@ suite('TextModelWithTokens', () => {
 	});
 
 	test('issue #95843: Highlighting of closing braces is indicating wrong brace when cursor is behind opening brace', () => {
-		const [instantiationService, disposables] = createModelServices();
+		const disposables = new DisposableStore();
+		const instantiationService = createModelServices(disposables);
 		const mode1 = 'testMode1';
 		const mode2 = 'testMode2';
 
@@ -448,7 +449,8 @@ suite('TextModelWithTokens', () => {
 	});
 
 	test('issue #88075: TypeScript brace matching is incorrect in `${}` strings', () => {
-		const [instantiationService, disposables] = createModelServices();
+		const disposables = new DisposableStore();
+		const instantiationService = createModelServices(disposables);
 		const mode = 'testMode';
 
 		const languageIdCodec = instantiationService.invokeFunction((accessor) => accessor.get(IModeService).languageIdCodec);
@@ -662,7 +664,8 @@ suite('TextModelWithTokens regression tests', () => {
 	});
 
 	test('issue #63822: Wrong embedded language detected for empty lines', () => {
-		const [instantiationService, disposables] = createModelServices();
+		const disposables = new DisposableStore();
+		const instantiationService = createModelServices(disposables);
 
 		const outerMode = 'outerMode';
 		const innerMode = 'innerMode';

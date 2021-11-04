@@ -13,6 +13,7 @@ export interface IViewLineTokens {
 	getClassName(tokenIndex: number): string;
 	getInlineStyle(tokenIndex: number, colorMap: string[]): string;
 	findTokenIndexAtOffset(offset: number): number;
+	getLineContent(): string;
 }
 
 export class LineTokens implements IViewLineTokens {
@@ -244,6 +245,10 @@ export class SlicedLineTokens implements IViewLineTokens {
 			}
 			this._tokensCount++;
 		}
+	}
+
+	public getLineContent(): string {
+		return this._source.getLineContent().substring(this._startOffset, this._endOffset);
 	}
 
 	public equals(other: IViewLineTokens): boolean {

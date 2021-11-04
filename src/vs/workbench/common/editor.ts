@@ -114,7 +114,7 @@ export interface IEditorDescriptor<T extends IEditorPane> {
 export interface IEditorPane extends IComposite {
 
 	/**
-	 * An event to notify when the `IEditorControl´ in this
+	 * An event to notify when the `IEditorControl` in this
 	 * editor pane changes.
 	 *
 	 * This can be used for editor panes that are a compound
