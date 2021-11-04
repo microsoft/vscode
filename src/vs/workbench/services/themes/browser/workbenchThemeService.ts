@@ -40,8 +40,6 @@ import { RunOnceScheduler, Sequencer } from 'vs/base/common/async';
 import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
 import { asCssVariableName, getColorRegistry } from 'vs/platform/theme/common/colorRegistry';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { format2 } from 'vs/base/common/strings';
 
 // implementation
 
@@ -113,8 +111,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		@IWorkbenchLayoutService readonly layoutService: IWorkbenchLayoutService,
 		@ILogService private readonly logService: ILogService,
 		@IHostColorSchemeService private readonly hostColorService: IHostColorSchemeService,
-		@IUserDataInitializationService readonly userDataInitializationService: IUserDataInitializationService,
-		@IProductService private readonly productService: IProductService
+		@IUserDataInitializationService readonly userDataInitializationService: IUserDataInitializationService
 	) {
 		this.container = layoutService.container;
 		this.settings = new ThemeConfiguration(configurationService);
@@ -412,13 +409,12 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 	public async getMarketplaceColorThemes(id: string, version: string): Promise<IWorkbenchColorTheme[]> {
-		const resourceUrlTemplate = this.productService.extensionsGallery?.resourceUrlTemplate;
-		if (!resourceUrlTemplate) {
+		const [publisher, name] = id.split('.');
+		const extensionLocation = this.extensionResourceLoaderService.getExtensionGalleryResourceURL({ publisher, name, version}, 'extension');
+		if (!extensionLocation) {
 			return [];
 		}
 		try {
-			const [publisher, name] = id.split('.');
-			const extensionLocation = URI.parse(format2(resourceUrlTemplate, { publisher, name, version, path: 'extension' }));
 			const manifestContent = await this.extensionResourceLoaderService.readExtensionResource(resources.joinPath(extensionLocation, 'package.json'));
 
 			const data: ExtensionData = { extensionPublisher: publisher, extensionId: id, extensionName: name, extensionIsBuiltin: false };
