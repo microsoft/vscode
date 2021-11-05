@@ -214,15 +214,19 @@ export class ConstantTimePrefixSumComputer {
 	}
 
 	/**
-	 * @returns `SUM(0 <= j <= index, values[j])`. Includes `values[index]`!
+	 * Returns the sum of the first `count` many items.
+	 * @returns `SUM(0 <= j < count, values[j])`.
 	 */
-	public getPrefixSum(index: number): number {
+	public getPrefixSum(count: number): number {
 		this._ensureValid();
-		return this._prefixSum[index];
+		if (count === 0) {
+			return 0;
+		}
+		return this._prefixSum[count - 1];
 	}
 
 	/**
-	 * @returns `result`, such that `getPrefixSum(result.index - 1) + result.remainder = sum`
+	 * @returns `result`, such that `getPrefixSum(result.index) + result.remainder = sum`
 	 */
 	public getIndexOf(sum: number): PrefixSumIndexOfResult {
 		this._ensureValid();

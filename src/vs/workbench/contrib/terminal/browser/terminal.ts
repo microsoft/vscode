@@ -8,13 +8,12 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalIcon, TitleEventSource, TerminalShellType, IExtensionTerminalProfile, TerminalLocation, ProcessPropertyType, ProcessCapability } from 'vs/platform/terminal/common/terminal';
-import { ICommandTracker, INavigationMode, IOffProcessTerminalService, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalIcon, TitleEventSource, TerminalShellType, IExtensionTerminalProfile, TerminalLocation, ProcessPropertyType, ProcessCapability } from 'vs/platform/terminal/common/terminal';
+import { ICommandTracker, INavigationMode, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalFont, ITerminalBackend, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
-import { ICompleteTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { IEditableData } from 'vs/workbench/common/views';
 import { DeserializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
@@ -25,12 +24,13 @@ export const ITerminalService = createDecorator<ITerminalService>('terminalServi
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
 export const ITerminalGroupService = createDecorator<ITerminalGroupService>('terminalGroupService');
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
-export const IRemoteTerminalService = createDecorator<IRemoteTerminalService>('remoteTerminalService');
 
 /**
  * A service used by TerminalInstance (and components owned by it) that allows it to break its
  * dependency on electron-browser and node layers, while at the same time avoiding a cyclic
  * dependency on ITerminalService.
+ *
+ * **This service is intended to only be used within the terminal contrib.**
  */
 export interface ITerminalInstanceService {
 	readonly _serviceBrand: undefined;
@@ -48,12 +48,18 @@ export interface ITerminalInstanceService {
 	 * @param executable The executable off the shellLaunchConfig
 	 * @param title The terminal's title
 	 * @param path The path to be escaped and formatted.
-	 * @param isRemote Whether the terminal's pty is remote.
+	 * @param remoteAuthority The remote authority of the terminal's pty.
 	 * @returns An escaped version of the path to be execuded in the terminal.
 	 */
-	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType, isRemote: boolean): Promise<string>;
+	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType, remoteAuthority: string | undefined): Promise<string>;
 
 	createInstance(launchConfig: IShellLaunchConfig, target?: TerminalLocation, resource?: URI): ITerminalInstance;
+
+	/**
+	 * Gets the registered backend for a remote authority (undefined = local). This is a convenience
+	 * method to avoid using the more verbose fetching from the registry.
+	 */
+	getBackend(remoteAuthority?: string): ITerminalBackend | undefined;
 }
 
 export interface IBrowserTerminalConfigHelper extends ITerminalConfigHelper {
@@ -141,7 +147,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	getActiveOrCreateInstance(): Promise<ITerminalInstance>;
 	moveToEditor(source: ITerminalInstance): void;
 	moveToTerminalView(source?: ITerminalInstance | URI): Promise<void>;
-	getOffProcessTerminalService(): IOffProcessTerminalService | undefined;
+	getPrimaryBackend(): ITerminalBackend | undefined;
 
 	/**
 	 * Perform an action with the active terminal instance, if the terminal does
@@ -182,6 +188,8 @@ export interface ITerminalService extends ITerminalInstanceHost {
 
 	resolveLocation(location?: ITerminalLocationOptions): TerminalLocation | undefined
 	setNativeDelegate(nativeCalls: ITerminalServiceNativeDelegate): void;
+
+	handleNewRegisteredBackend(backend: ITerminalBackend): void;
 }
 
 export interface ITerminalServiceNativeDelegate {
@@ -318,18 +326,6 @@ export interface ITerminalFindHost {
 	findPrevious(): void;
 }
 
-export interface IRemoteTerminalService extends IOffProcessTerminalService {
-	createProcess(
-		shellLaunchConfig: IShellLaunchConfig,
-		configuration: ICompleteTerminalConfiguration,
-		activeWorkspaceRootUri: URI | undefined,
-		cols: number,
-		rows: number,
-		unicodeVersion: '6' | '11',
-		shouldPersist: boolean
-	): Promise<ITerminalChildProcess>;
-}
-
 /**
  * Similar to xterm.js' ILinkProvider but using promises and hides xterm.js internals (like buffer
  * positions, decorations, etc.) from the rest of vscode. This is the interface to use for
@@ -435,6 +431,11 @@ export interface ITerminalInstance {
 	 * Whether the terminal's pty is hosted on a remote.
 	 */
 	readonly isRemote: boolean;
+
+	/**
+	 * The remote authority of the terminal's pty.
+	 */
+	readonly remoteAuthority: string | undefined;
 
 	/**
 	 * Whether an element within this terminal is focused.

@@ -59,7 +59,6 @@ export class CellContextKeyManager extends Disposable {
 			this.elementDisposables.add(element.onDidChangeOutputs(() => this.updateForOutputs()));
 		}
 
-		this.elementDisposables.add(element.model.onDidChangeMetadata(() => this.updateForCollapseState()));
 		this.elementDisposables.add(this.notebookEditor.onDidChangeActiveCell(() => this.updateForFocusState()));
 
 		this.element = element;
@@ -98,9 +97,9 @@ export class CellContextKeyManager extends Disposable {
 				this.cellLineNumbers.set(this.element.lineNumbers);
 			}
 
-			// if (e.collapseStateChanged) {
-			// 	this.updateForCollapseState();
-			// }
+			if (e.inputCollapsedChanged || e.outputCollapsedChanged) {
+				this.updateForCollapseState();
+			}
 		});
 	}
 
@@ -151,8 +150,8 @@ export class CellContextKeyManager extends Disposable {
 	}
 
 	private updateForCollapseState() {
-		this.cellContentCollapsed.set(!!this.element.metadata.inputCollapsed);
-		this.cellOutputCollapsed.set(!!this.element.metadata.outputCollapsed);
+		this.cellContentCollapsed.set(!!this.element.isInputCollapsed);
+		this.cellOutputCollapsed.set(!!this.element.isOutputCollapsed);
 	}
 
 	private updateForOutputs() {

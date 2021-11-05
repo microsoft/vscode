@@ -177,6 +177,23 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			}
 		}));
 
+		this._register(this._webviewPanel.onDidChangeViewState(async () => {
+			if (!this._webviewPanel.active) {
+				let document: vscode.TextDocument;
+				try {
+					document = await vscode.workspace.openTextDocument(this._resource);
+				} catch {
+					return;
+				}
+
+				const content = await this._contentProvider.provideTextDocumentContent(document, this, this._previewConfigurations, this.line, this.state);
+				if (!this._webviewPanel.active) {
+					// Update the html so we can show it properly when restoring it
+					this._webviewPanel.webview.html = content.html;
+				}
+			}
+		}));
+
 		this._register(this._webviewPanel.webview.onDidReceiveMessage((e: CacheImageSizesMessage | RevealLineMessage | DidClickMessage | ClickLinkMessage | ShowPreviewSecuritySelectorMessage | PreviewStyleLoadErrorMessage) => {
 			if (e.source !== this._resource.toString()) {
 				return;

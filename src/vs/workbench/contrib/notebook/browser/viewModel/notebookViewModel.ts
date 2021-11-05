@@ -35,6 +35,8 @@ import { cellIndexesToRanges, cellRangesToIndexes, ICellRange, reduceCellRanges 
 
 export interface INotebookEditorViewState {
 	editingCells: { [key: number]: boolean; };
+	collapsedInputCells: { [key: number]: boolean; };
+	collapsedOutputCells: { [key: number]: boolean; };
 	editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState | null; };
 	hiddenFoldingRanges?: ICellRange[];
 	cellTotalHeights?: { [key: number]: number; };
@@ -775,9 +777,20 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	getEditorViewState(): INotebookEditorViewState {
 		const editingCells: { [key: number]: boolean; } = {};
+		const collapsedInputCells: { [key: number]: boolean; } = {};
+		const collapsedOutputCells: { [key: number]: boolean; } = {};
+
 		this._viewCells.forEach((cell, i) => {
 			if (cell.getEditState() === CellEditState.Editing) {
 				editingCells[i] = true;
+			}
+
+			if (cell.isInputCollapsed) {
+				collapsedInputCells[i] = true;
+			}
+
+			if (cell instanceof CodeCellViewModel && cell.isOutputCollapsed) {
+				collapsedOutputCells[i] = true;
 			}
 		});
 		const editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState; } = {};
@@ -790,6 +803,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return {
 			editingCells,
 			editorViewStates,
+			collapsedInputCells,
+			collapsedOutputCells
 		};
 	}
 
@@ -805,6 +820,12 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			cell.updateEditState(isEditing ? CellEditState.Editing : CellEditState.Preview, 'viewState');
 			const cellHeight = viewState.cellTotalHeights ? viewState.cellTotalHeights[index] : undefined;
 			cell.restoreEditorViewState(editorViewState, cellHeight);
+			if (viewState.collapsedInputCells && viewState.collapsedInputCells[index]) {
+				cell.isInputCollapsed = true;
+			}
+			if (viewState.collapsedOutputCells && viewState.collapsedOutputCells[index] && cell instanceof CodeCellViewModel) {
+				cell.isOutputCollapsed = true;
+			}
 		});
 	}
 

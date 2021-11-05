@@ -9,7 +9,6 @@ import { Application } from '../../../../automation';
 import { afterSuite, beforeSuite, retry } from '../../utils';
 
 export function setup(opts: minimist.ParsedArgs) {
-	// https://github.com/microsoft/vscode/issues/115244
 	describe('Search', () => {
 		beforeSuite(opts);
 

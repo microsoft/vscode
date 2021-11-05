@@ -11,10 +11,13 @@ import { SettingsManager, getData } from './settings';
 import throttle = require('lodash.throttle');
 import morphdom from 'morphdom';
 
-let documentVersion = 0;
 let scrollDisabledCount = 0;
+
 const marker = new ActiveLineMarker();
 const settings = new SettingsManager();
+
+let documentVersion = 0;
+let documentResource = settings.settings.source;
 
 const vscode = acquireVsCodeApi();
 
@@ -101,35 +104,84 @@ const onUpdateView = (() => {
 	};
 })();
 
-
 window.addEventListener('resize', () => {
 	scrollDisabledCount += 1;
 	updateScrollProgress();
 }, true);
 
-window.addEventListener('message', event => {
-	if (settings.settings && event.data.source !== settings.settings.source) {
-		return;
-	}
+window.addEventListener('message', async event => {
 
 	switch (event.data.type) {
 		case 'onDidChangeTextEditorSelection':
-			marker.onDidChangeTextEditorSelection(event.data.line, documentVersion);
-			break;
+			if (event.data.source === documentResource) {
+				marker.onDidChangeTextEditorSelection(event.data.line, documentVersion);
+			}
+			return;
 
 		case 'updateView':
-			onUpdateView(event.data.line);
-			break;
+			if (event.data.source === documentResource) {
+				console.log('updateView', event.data.line);
+				onUpdateView(event.data.line);
+			}
+			return;
 
 		case 'updateContent':
 			const root = document.querySelector('.markdown-body')!;
-			morphdom(root, event.data.content);
+
+			const parser = new DOMParser();
+			const newContent = parser.parseFromString(event.data.content, 'text/html');
+
+			if (event.data.source !== documentResource) {
+				root.replaceWith(newContent.querySelector('.markdown-body')!);
+				documentResource = event.data.source;
+			} else {
+				const areEqual = (a: Element, b: Element): boolean => {
+					if (a.isEqualNode(b)) {
+						return true;
+					}
+
+					if (a.tagName !== b.tagName || a.textContent !== b.textContent) {
+						return false;
+					}
+
+					const aChildren = Array.from(a.children);
+					const bChildren = Array.from(b.children);
+
+					return aChildren.length === bChildren.length && aChildren.every((x, i) => areEqual(x, bChildren[i]));
+				};
+
+				const newRoot = newContent.querySelector('.markdown-body')!;
+
+				// Move styles to head
+				// This prevents an ugly flash of unstyled content
+				const styles = newRoot.querySelectorAll('link');
+
+				for (const style of styles) {
+					style.remove();
+				}
+				newRoot.prepend(...styles);
+
+				morphdom(root, newRoot, {
+					childrenOnly: true,
+					onBeforeElUpdated: (fromEl, toEl) => {
+						if (areEqual(fromEl, toEl)) {
+							fromEl.setAttribute('data-line', toEl.getAttribute('data-line')!);
+							return false;
+						}
+
+						return true;
+					}
+				});
+			}
+
 			++documentVersion;
 
 			window.dispatchEvent(new CustomEvent('vscode.markdown.updateContent'));
 			break;
 	}
 }, false);
+
+
 
 document.addEventListener('dblclick', event => {
 	if (!settings.settings.doubleClickToSwitchToEditor) {
@@ -189,7 +241,7 @@ document.addEventListener('click', event => {
 
 window.addEventListener('scroll', throttle(() => {
 	updateScrollProgress();
-
+	console.log('scroll');
 	if (scrollDisabledCount > 0) {
 		scrollDisabledCount -= 1;
 	} else {

@@ -62,7 +62,6 @@ export interface IConstructorSignature8<A1, A2, A3, A4, A5, A6, A7, A8, T> {
 
 export interface ServicesAccessor {
 	get<T>(id: ServiceIdentifier<T>): T;
-	get<T>(id: ServiceIdentifier<T>, isOptional: typeof optional): T | undefined;
 }
 
 export const IInstantiationService = createDecorator<IInstantiationService>('instantiationService');
@@ -157,18 +156,4 @@ export function createDecorator<T>(serviceId: string): ServiceIdentifier<T> {
 
 export function refineServiceDecorator<T1, T extends T1>(serviceIdentifier: ServiceIdentifier<T1>): ServiceIdentifier<T> {
 	return <ServiceIdentifier<T>>serviceIdentifier;
-}
-
-/**
- * Mark a service dependency as optional.
- * @deprecated Avoid, see https://github.com/microsoft/vscode/issues/119440
- */
-export function optional<T>(serviceIdentifier: ServiceIdentifier<T>) {
-
-	return function (target: Function, key: string, index: number) {
-		if (arguments.length !== 3) {
-			throw new Error('@optional-decorator can only be used to decorate a parameter');
-		}
-		storeServiceDependency(serviceIdentifier, target, index, true);
-	};
 }

@@ -6,7 +6,7 @@
 				"git": {
 					"name": "seti-ui",
 					"repositoryUrl": "https://github.com/jesseweed/seti-ui",
-					"commitHash": "8eacb11357be8b79868246f972702b6b2460e9ac"
+					"commitHash": "bc194faed12b10692807f47b97f0ff963e4c9f24"
 				}
 			},
 			"version": "0.1.0"

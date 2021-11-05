@@ -15,6 +15,8 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { ExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/electron-sandbox/extensionResourceLoaderService';
 import { ITokenStyle } from 'vs/platform/theme/common/themeService';
+import { mock, TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
+import { IRequestService } from 'vs/platform/request/common/request';
 
 const undefinedStyle = { bold: undefined, underline: undefined, italic: undefined };
 const unsetStyle = { bold: false, underline: false, italic: false };
@@ -78,7 +80,9 @@ function assertTokenStyles(themeData: ColorThemeData, expected: { [qualifiedClas
 
 suite('Themes - TokenStyleResolving', () => {
 	const fileService = new FileService(new NullLogService());
-	const extensionResourceLoaderService = new ExtensionResourceLoaderService(fileService);
+	const requestService = new (mock<IRequestService>())();
+
+	const extensionResourceLoaderService = new ExtensionResourceLoaderService(fileService, TestProductService, requestService);
 
 	const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
 	fileService.registerProvider(Schemas.file, diskFileSystemProvider);
