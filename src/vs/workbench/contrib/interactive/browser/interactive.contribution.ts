@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { parse } from 'vs/base/common/marshalling';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -52,6 +52,9 @@ import { peekViewBorder /*, peekViewEditorBackground, peekViewResultsBackground 
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ITextModel } from 'vs/editor/common/model';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -218,8 +221,35 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 	}
 }
 
+class InteractiveInputContentProvider implements ITextModelContentProvider {
+
+	private readonly _registration: IDisposable;
+
+	constructor(
+		@ITextModelService textModelService: ITextModelService,
+		@IModelService private readonly _modelService: IModelService,
+	) {
+		this._registration = textModelService.registerTextModelContentProvider(Schemas.vscodeInteractiveInput, this);
+	}
+
+	dispose(): void {
+		this._registration.dispose();
+	}
+
+	async provideTextContent(resource: URI): Promise<ITextModel | null> {
+		const existing = this._modelService.getModel(resource);
+		if (existing) {
+			return existing;
+		}
+		let result: ITextModel | null = this._modelService.createModel('', null, resource, false);
+		return result;
+	}
+}
+
+
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveDocumentContribution, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveInputContentProvider, LifecyclePhase.Starting);
 
 export class InteractiveEditorSerializer implements IEditorSerializer {
 	canSerialize(): boolean {

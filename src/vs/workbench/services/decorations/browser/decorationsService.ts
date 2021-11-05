@@ -263,7 +263,7 @@ export class DecorationsService implements IDecorationsService {
 	}
 
 	registerDecorationsProvider(provider: IDecorationsProvider): IDisposable {
-		const rm = this._provider.push(provider);
+		const rm = this._provider.unshift(provider);
 
 		this._onDidChangeDecorations.fire({
 			// everything might have changed

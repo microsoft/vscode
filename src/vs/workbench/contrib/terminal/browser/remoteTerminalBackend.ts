@@ -296,7 +296,7 @@ class RemoteTerminalBackend extends Disposable implements ITerminalBackend {
 		});
 	}
 
-	async updateProperty(id: number, property: ProcessPropertyType, value: any): Promise<void> {
+	async updateProperty<T extends ProcessPropertyType>(id: number, property: T, value: any): Promise<void> {
 		await this._remoteTerminalChannel?.updateProperty(id, property, value);
 	}
 

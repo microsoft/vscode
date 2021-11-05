@@ -541,7 +541,7 @@ declare module 'vscode' {
 		 * The {@link TextEditorSelectionChangeKind change kind} which has triggered this
 		 * event. Can be `undefined`.
 		 */
-		readonly kind: TextEditorSelectionChangeKind | undefined
+		readonly kind: TextEditorSelectionChangeKind | undefined;
 	}
 
 	/**
@@ -8137,14 +8137,14 @@ declare module 'vscode' {
 		 * If this is provided, your extension should restore the editor from the backup instead of reading the file
 		 * from the user's workspace.
 		 */
-		readonly backupId: string | undefined
+		readonly backupId: string | undefined;
 
 		/**
 		 * If the URI is an untitled file, this will be populated with the byte data of that file
 		 *
 		 * If this is provided, your extension should utilize this byte data rather than executing fs APIs on the URI passed in
 		 */
-		readonly untitledDocumentData: Uint8Array | undefined
+		readonly untitledDocumentData: Uint8Array | undefined;
 	}
 
 	/**
@@ -12926,7 +12926,7 @@ declare module 'vscode' {
 		/**
 		 * Event specific information.
 		 */
-		readonly body: any | undefined;
+		readonly body: any;
 	}
 
 	/**
@@ -13917,12 +13917,12 @@ declare module 'vscode' {
 		/**
 		 * The {@link AuthenticationSession AuthenticationSessions} of the {@link AuthenticationProvider} that have been added.
 		*/
-		readonly added: readonly AuthenticationSession[] | undefined
+		readonly added: readonly AuthenticationSession[] | undefined;
 
 		/**
 		 * The {@link AuthenticationSession AuthenticationSessions} of the {@link AuthenticationProvider} that have been removed.
 		 */
-		readonly removed: readonly AuthenticationSession[] | undefined
+		readonly removed: readonly AuthenticationSession[] | undefined;
 
 		/**
 		 * The {@link AuthenticationSession AuthenticationSessions} of the {@link AuthenticationProvider} that have been changed.

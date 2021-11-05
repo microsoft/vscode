@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isSafari, setFullscreen } from 'vs/base/browser/browser';
-import { addDisposableListener, addDisposableThrottledListener, detectFullscreen, EventHelper, EventType, windowOpenNoOpenerWithSuccess, windowOpenNoOpener } from 'vs/base/browser/dom';
+import { addDisposableListener, addDisposableThrottledListener, detectFullscreen, EventHelper, EventType, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { timeout } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
@@ -135,16 +135,20 @@ export class BrowserWindow extends Disposable {
 		// will trigger the `beforeunload`.
 		this.openerService.setDefaultExternalOpener({
 			openExternal: async (href: string) => {
-				if (this.environmentService.options?.externalURLOpener) {
-					if (await this.environmentService.options?.externalURLOpener.openExternal(href)) {
-						return true;
+				let isAllowedOpener = false;
+				if (this.environmentService.options?.openerAllowedExternalUrlPrefixes) {
+					for (const trustedPopupPrefix of this.environmentService.options.openerAllowedExternalUrlPrefixes) {
+						if (href.startsWith(trustedPopupPrefix)) {
+							isAllowedOpener = true;
+							break;
+						}
 					}
 				}
 
 				// HTTP(s): open in new window and deal with potential popup blockers
 				if (matchesScheme(href, Schemas.http) || matchesScheme(href, Schemas.https)) {
 					if (isSafari) {
-						const opened = windowOpenNoOpenerWithSuccess(href);
+						const opened = windowOpenWithSuccess(href, !isAllowedOpener);
 						if (!opened) {
 							const showResult = await this.dialogService.show(
 								Severity.Warning,
@@ -161,7 +165,9 @@ export class BrowserWindow extends Disposable {
 							);
 
 							if (showResult.choice === 0) {
-								windowOpenNoOpener(href);
+								isAllowedOpener
+									? windowOpenPopup(href)
+									: windowOpenNoOpener(href);
 							}
 
 							if (showResult.choice === 1) {

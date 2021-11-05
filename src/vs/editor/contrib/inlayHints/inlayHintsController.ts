@@ -176,7 +176,7 @@ export class InlayHintsController implements IEditorContribution {
 
 		// update inline hints when content or scroll position changes
 		this._sessionDisposables.add(this._editor.onDidChangeModelContent(() => scheduler.schedule()));
-		this._disposables.add(this._editor.onDidScrollChange(() => scheduler.schedule()));
+		this._sessionDisposables.add(this._editor.onDidScrollChange(() => scheduler.schedule()));
 		scheduler.schedule();
 
 		// update inline hints when any any provider fires an event

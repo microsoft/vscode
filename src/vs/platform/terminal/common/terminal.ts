@@ -296,8 +296,8 @@ export interface IPtyService {
 	 * flow for restoring terminals after reloading.
 	 */
 	reviveTerminalProcesses(state: string): Promise<void>;
-	refreshProperty(id: number, property: ProcessPropertyType): Promise<any>;
-	updateProperty(id: number, property: ProcessPropertyType, value: any): Promise<void>;
+	refreshProperty<T extends ProcessPropertyType>(id: number, property: T): Promise<IProcessPropertyMap[T]>;
+	updateProperty<T extends ProcessPropertyType>(id: number, property: T, value: IProcessPropertyMap[T]): Promise<void>;
 
 	refreshIgnoreProcessNames?(names: string[]): Promise<void>;
 }
@@ -580,8 +580,8 @@ export interface ITerminalChildProcess {
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
 	getLatency(): Promise<number>;
-	refreshProperty<T extends ProcessPropertyType>(property: ProcessPropertyType): Promise<IProcessPropertyMap[T]>;
-	updateProperty<T extends ProcessPropertyType>(property: ProcessPropertyType, value: IProcessPropertyMap[T]): Promise<void>;
+	refreshProperty<T extends ProcessPropertyType>(property: T): Promise<IProcessPropertyMap[T]>;
+	updateProperty<T extends ProcessPropertyType>(property: T, value: IProcessPropertyMap[T]): Promise<void>;
 }
 
 export interface IReconnectConstants {

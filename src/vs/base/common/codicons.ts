@@ -86,6 +86,7 @@ export namespace CSSIcon {
 	export const iconNameSegment = '[A-Za-z0-9]+';
 	export const iconNameExpression = '[A-Za-z0-9\\-]+';
 	export const iconModifierExpression = '~[A-Za-z]+';
+	export const iconNameCharacter = '[A-Za-z0-9\\-~]';
 
 	const cssIconIdRegex = new RegExp(`^(${iconNameExpression})(${iconModifierExpression})?$`);
 
@@ -600,5 +601,6 @@ export namespace Codicon {
 	export const lockSmall = new Codicon('lock-small', { fontCharacter: '\\ebe7' });
 	export const azureDevops = new Codicon('azure-devops', { fontCharacter: '\\ebe8' });
 	export const verifiedFilled = new Codicon('verified-filled', { fontCharacter: '\\ebe9' });
+	export const newLine = new Codicon('newline', { fontCharacter: '\\ebea' });
 }
 
