@@ -482,14 +482,15 @@ class WindowIndicator implements IWindowIndicator {
 		title: localize('home', "Home")
 	};
 
+
 	// Welcome Banner
-	const welcomeBanner: IWelcomeBanner = {
-		message: localize('welcomeBannerMessage', "{0} Web. Browser based playground for testing.", product.nameShort),
-		actions: [{
-			href: 'https://github.com/microsoft/vscode',
-			label: localize('learnMore', "Learn More")
-		}]
-	};
+	const welcomeBanner: undefined | IWelcomeBanner = undefined;
+	// 	message: localize('welcomeBannerMessage', "{0} Web. Browser based playground for testing.", product.nameShort),
+	// 	actions: [{
+	// 		href: 'https://github.com/microsoft/vscode',
+	// 		label: localize('learnMore', "Learn More")
+	// 	}]
+	// };
 
 	// Window indicator (unless connected to a remote)
 	let windowIndicator: WindowIndicator | undefined = undefined;
