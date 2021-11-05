@@ -8,6 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import * as dom from 'vs/base/browser/dom';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { asCssVariableName } from 'vs/platform/theme/common/colorRegistry';
 
 /**
  * A helper to create dynamic css rules, bound to a class name.
@@ -15,13 +16,13 @@ import { ThemeColor } from 'vs/platform/theme/common/themeService';
  * Reference counting and delayed garbage collection ensure that no rules leak.
 */
 export class DynamicCssRules {
-	private counter = 0;
-	private readonly rules = new Map<string, RefCountedCssRule>();
+	private _counter = 0;
+	private readonly _rules = new Map<string, RefCountedCssRule>();
 
 	// We delay garbage collection so that hanging rules can be reused.
-	private readonly garbageCollectionScheduler = new RunOnceScheduler(() => this.garbageCollect(), 1000);
+	private readonly _garbageCollectionScheduler = new RunOnceScheduler(() => this.garbageCollect(), 1000);
 
-	constructor(private readonly editor: ICodeEditor) {
+	constructor(private readonly _editor: ICodeEditor) {
 	}
 
 	public createClassNameRef(options: CssProperties): ClassNameReference {
@@ -32,23 +33,23 @@ export class DynamicCssRules {
 			className: rule.className,
 			dispose: () => {
 				rule.decreaseRefCount();
-				this.garbageCollectionScheduler.schedule();
+				this._garbageCollectionScheduler.schedule();
 			}
 		};
 	}
 
 	private getOrCreateRule(properties: CssProperties): RefCountedCssRule {
 		const key = this.computeUniqueKey(properties);
-		let existingRule = this.rules.get(key);
+		let existingRule = this._rules.get(key);
 		if (!existingRule) {
-			const counter = this.counter++;
+			const counter = this._counter++;
 			existingRule = new RefCountedCssRule(key, `dyn-rule-${counter}`,
-				dom.isInShadowDOM(this.editor.getContainerDomNode())
-					? this.editor.getContainerDomNode()
+				dom.isInShadowDOM(this._editor.getContainerDomNode())
+					? this._editor.getContainerDomNode()
 					: undefined,
 				properties
 			);
-			this.rules.set(key, existingRule);
+			this._rules.set(key, existingRule);
 		}
 		return existingRule;
 	}
@@ -58,9 +59,9 @@ export class DynamicCssRules {
 	}
 
 	private garbageCollect() {
-		for (const rule of this.rules.values()) {
+		for (const rule of this._rules.values()) {
 			if (!rule.hasReferences()) {
-				this.rules.delete(rule.key);
+				this._rules.delete(rule.key);
 				rule.dispose();
 			}
 		}
@@ -92,20 +93,20 @@ export interface CssProperties {
 }
 
 class RefCountedCssRule {
-	private referenceCount: number = 0;
-	private styleElement: HTMLStyleElement;
+	private _referenceCount: number = 0;
+	private _styleElement: HTMLStyleElement;
 
 	constructor(
 		public readonly key: string,
 		public readonly className: string,
-		containerElement: HTMLElement | undefined,
+		_containerElement: HTMLElement | undefined,
 		public readonly properties: CssProperties,
 	) {
-		this.styleElement = dom.createStyleSheet(
-			containerElement
+		this._styleElement = dom.createStyleSheet(
+			_containerElement
 		);
 
-		this.styleElement.textContent = this.getCssText(this.className, this.properties);
+		this._styleElement.textContent = this.getCssText(this.className, this.properties);
 	}
 
 	private getCssText(className: string, properties: CssProperties): string {
@@ -114,7 +115,7 @@ class RefCountedCssRule {
 			const value = (properties as any)[prop] as string | ThemeColor;
 			let cssValue;
 			if (typeof value === 'object') {
-				cssValue = `var(${themeColorToCssVar(value)})`;
+				cssValue = `var(${asCssVariableName(value.id)})`;
 			} else {
 				cssValue = value;
 			}
@@ -127,27 +128,23 @@ class RefCountedCssRule {
 	}
 
 	public dispose(): void {
-		this.styleElement.remove();
+		this._styleElement.remove();
 	}
 
 	public increaseRefCount(): void {
-		this.referenceCount++;
+		this._referenceCount++;
 	}
 
 	public decreaseRefCount(): void {
-		this.referenceCount--;
+		this._referenceCount--;
 	}
 
 	public hasReferences(): boolean {
-		return this.referenceCount > 0;
+		return this._referenceCount > 0;
 	}
 }
 
 function camelToDashes(str: string): string {
 	return str.replace(/(^[A-Z])/, ([first]) => first.toLowerCase())
 		.replace(/([A-Z])/g, ([letter]) => `-${letter.toLowerCase()}`);
-}
-
-function themeColorToCssVar(themeColor: ThemeColor): string {
-	return `--vscode-${themeColor.id.replace('.', '-')}`;
 }

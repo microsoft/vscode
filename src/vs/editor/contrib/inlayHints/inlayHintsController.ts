@@ -24,8 +24,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { DynamicCssRules } from 'vs/editor/contrib/inlayHints/utils';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { editorInlayHintBackground, editorInlayHintForeground, editorInlayHintParameterBackground, editorInlayHintParameterForeground, editorInlayHintTypeBackground, editorInlayHintTypeForeground } from 'vs/platform/theme/common/colorRegistry';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { ThemeColor } from 'vs/workbench/api/common/extHostTypes';
+import { ThemeColor, themeColorFromId } from 'vs/platform/theme/common/themeService';
 
 
 const MAX_DECORATORS = 1500;
@@ -112,6 +111,7 @@ export class InlayHintsController implements IEditorContribution {
 	private readonly _getInlayHintsDelays = new LanguageFeatureRequestDelays(InlayHintsProviderRegistry, 25, 500);
 	private readonly _cache = new InlayHintsCache();
 	private readonly _decorationsMetadata = new Map<string, { hint: InlayHint, classNameRef: IDisposable }>();
+	private readonly _ruleFactory = new DynamicCssRules(this._editor);
 
 	constructor(
 		private readonly _editor: ICodeEditor
@@ -208,8 +208,6 @@ export class InlayHintsController implements IEditorContribution {
 		return result;
 	}
 
-	private readonly ruleFactory = new DynamicCssRules(this._editor);
-
 	private _updateHintsDecorators(ranges: Range[], hints: InlayHint[]): void {
 
 		const { fontSize, fontFamily } = this._getLayoutInfo();
@@ -239,7 +237,7 @@ export class InlayHintsController implements IEditorContribution {
 				color = themeColorFromId(editorInlayHintForeground);
 			}
 
-			const classNameRef = this.ruleFactory.createClassNameRef({
+			const classNameRef = this._ruleFactory.createClassNameRef({
 				fontSize: `${fontSize}px`,
 				margin: `0px ${marginAfter}px 0px ${marginBefore}px`,
 				fontFamily: `var(${fontFamilyVar}), ${EDITOR_FONT_DEFAULTS.fontFamily}`,
