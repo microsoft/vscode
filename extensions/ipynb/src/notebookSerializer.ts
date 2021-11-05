@@ -40,7 +40,7 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 			}
 		}
 
-		if (json.nbformat && json.nbformat < 5) {
+		if (json.nbformat && json.nbformat < 4) {
 			throw new Error('Only Jupyter notebooks version 4+ are supported');
 		}
 
