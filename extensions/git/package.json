@@ -577,7 +577,7 @@
         },
         {
           "command": "git.openChange",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourcePath in git.changedResources"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.stage",
@@ -1324,7 +1324,7 @@
         {
           "command": "git.openChange",
           "group": "navigation",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && resourceScheme == file && resourcePath in git.changedResources"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && resourceScheme == file"
         },
         {
           "command": "git.stageSelectedRanges",
