@@ -62,7 +62,6 @@ type SearchResultSerialization = { text: string[], matchRanges: Range[] };
 function fileMatchToSearchResultFormat(fileMatch: FileMatch, labelFormatter: (x: URI) => string): SearchResultSerialization {
 	const sortedMatches = fileMatch.matches().sort(searchMatchComparer);
 	const longestLineNumber = sortedMatches[sortedMatches.length - 1].range().endLineNumber.toString().length;
-	const serializedMatches = flatten(sortedMatches.map(match => matchToSearchResultFormat(match, longestLineNumber)));
 
 	const uriString = labelFormatter(fileMatch.resource);
 	const text: string[] = [`${uriString}:`];
@@ -77,24 +76,26 @@ function fileMatchToSearchResultFormat(fileMatch: FileMatch, labelFormatter: (x:
 	let lastLine: number | undefined = undefined;
 
 	const seenLines = new Set<string>();
-	serializedMatches.forEach(match => {
-		if (!seenLines.has(match.line)) {
-			while (context.length && context[0].lineNumber < +match.lineNumber) {
-				const { line, lineNumber } = context.shift()!;
-				if (lastLine !== undefined && lineNumber !== lastLine + 1) {
-					text.push('');
+	sortedMatches.forEach(match => {
+		matchToSearchResultFormat(match, longestLineNumber).forEach(match => {
+			if (!seenLines.has(match.line)) {
+				while (context.length && context[0].lineNumber < +match.lineNumber) {
+					const { line, lineNumber } = context.shift()!;
+					if (lastLine !== undefined && lineNumber !== lastLine + 1) {
+						text.push('');
+					}
+					text.push(`  ${' '.repeat(longestLineNumber - `${lineNumber}`.length)}${lineNumber}  ${line}`);
+					lastLine = lineNumber;
 				}
-				text.push(`  ${' '.repeat(longestLineNumber - `${lineNumber}`.length)}${lineNumber}  ${line}`);
-				lastLine = lineNumber;
+
+				targetLineNumberToOffset[match.lineNumber] = text.length;
+				seenLines.add(match.line);
+				text.push(match.line);
+				lastLine = +match.lineNumber;
 			}
 
-			targetLineNumberToOffset[match.lineNumber] = text.length;
-			seenLines.add(match.line);
-			text.push(match.line);
-			lastLine = +match.lineNumber;
-		}
-
-		matchRanges.push(...match.ranges.map(translateRangeLines(targetLineNumberToOffset[match.lineNumber])));
+			matchRanges.push(...match.ranges.map(translateRangeLines(targetLineNumberToOffset[match.lineNumber])));
+		});
 	});
 
 	while (context.length) {
