@@ -44,8 +44,8 @@ class ExtHostOutputChannelBackedByFile extends AbstractExtHostOutputChannel {
 
 	private _appender: OutputAppender;
 
-	constructor(name: string, appender: OutputAppender, extensionId: string, proxy: MainThreadOutputServiceShape) {
-		super(name, false, URI.file(appender.file), extensionId, proxy);
+	constructor(name: string, appender: OutputAppender, extension: IExtensionDescription, proxy: MainThreadOutputServiceShape) {
+		super(name, false, URI.file(appender.file), extension, proxy);
 		this._appender = appender;
 	}
 
@@ -122,11 +122,11 @@ export class ExtHostOutputService2 extends ExtHostOutputService {
 			const fileName = `${this._namePool++}-${name.replace(/[\\/:\*\?"<>\|]/g, '')}`;
 			const file = URI.file(join(outputDirPath, `${fileName}.log`));
 			const appender = await OutputAppender.create(fileName, file.fsPath);
-			return new ExtHostOutputChannelBackedByFile(name, appender, extension.identifier.value, this._proxy);
+			return new ExtHostOutputChannelBackedByFile(name, appender, extension, this._proxy);
 		} catch (error) {
 			// Do not crash if logger cannot be created
 			this.logService.error(error);
-			return new ExtHostPushOutputChannel(name, extension.identifier.value, this._proxy);
+			return new ExtHostPushOutputChannel(name, extension, this._proxy);
 		}
 	}
 }

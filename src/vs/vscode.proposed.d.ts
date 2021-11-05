@@ -2833,4 +2833,19 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/132183
+	export interface OutputChannel {
+
+		/*
+		 * Replaces the existing contents of the channel with the given value.
+		 *
+		 * *Note*: this method should only be used by extensions with smaller output
+		 * channel text sizes. Use of `append` methods is preferred.
+		 */
+		replaceAll(value: string): void;
+
+	}
+
+	//#endregion
 }
