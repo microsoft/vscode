@@ -1621,7 +1621,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		this._fixedRows = this._parseFixedDimension(rows);
-		this._addScrollbar();
+		if (this._fixedRows || this._fixedCols) {
+			this._addScrollbar();
+		} else {
+			this._removeScrollbar();
+		}
 		this._resize();
 		this.focus();
 	}
@@ -1696,6 +1700,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		this._horizontalScrollbar.setScrollDimensions({
 			width: this.xterm.raw.element.clientWidth,
+			// TODO: Use const/property for padding
 			scrollWidth: this._fixedCols * charWidth + 30
 		});
 		this._horizontalScrollbar.getDomNode().style.paddingBottom = '16px';
