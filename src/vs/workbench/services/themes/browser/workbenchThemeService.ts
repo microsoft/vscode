@@ -40,6 +40,8 @@ import { RunOnceScheduler, Sequencer } from 'vs/base/common/async';
 import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
 import { asCssVariableName, getColorRegistry } from 'vs/platform/theme/common/colorRegistry';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { format2 } from 'vs/base/common/strings';
 
 // implementation
 
@@ -49,7 +51,6 @@ const DEFAULT_LIGHT_COLOR_THEME_ID = 'vs vscode-theme-defaults-themes-light_plus
 const PERSISTED_OS_COLOR_SCHEME = 'osColorScheme';
 
 const defaultThemeExtensionId = 'vscode-theme-defaults';
-const oldDefaultThemeExtensionId = 'vscode-theme-colorful-defaults';
 
 const DEFAULT_FILE_ICON_THEME_ID = 'vscode.vscode-theme-seti-vs-seti';
 const fileIconsEnabledClass = 'file-icons-enabled';
@@ -66,8 +67,6 @@ function validateThemeId(theme: string): string {
 		case VS_LIGHT_THEME: return `vs ${defaultThemeExtensionId}-themes-light_vs-json`;
 		case VS_DARK_THEME: return `vs-dark ${defaultThemeExtensionId}-themes-dark_vs-json`;
 		case VS_HC_THEME: return `hc-black ${defaultThemeExtensionId}-themes-hc_black-json`;
-		case `vs ${oldDefaultThemeExtensionId}-themes-light_plus-tmTheme`: return `vs ${defaultThemeExtensionId}-themes-light_plus-json`;
-		case `vs-dark ${oldDefaultThemeExtensionId}-themes-dark_plus-tmTheme`: return `vs-dark ${defaultThemeExtensionId}-themes-dark_plus-json`;
 	}
 	return theme;
 }
@@ -114,7 +113,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		@IWorkbenchLayoutService readonly layoutService: IWorkbenchLayoutService,
 		@ILogService private readonly logService: ILogService,
 		@IHostColorSchemeService private readonly hostColorService: IHostColorSchemeService,
-		@IUserDataInitializationService readonly userDataInitializationService: IUserDataInitializationService
+		@IUserDataInitializationService readonly userDataInitializationService: IUserDataInitializationService,
+		@IProductService private readonly productService: IProductService
 	) {
 		this.container = layoutService.container;
 		this.settings = new ThemeConfiguration(configurationService);
@@ -411,26 +411,44 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.colorThemeRegistry.getThemes();
 	}
 
+	public async getMarketplaceColorThemes(id: string, version: string): Promise<IWorkbenchColorTheme[]> {
+		const resourceUrlTemplate = this.productService.extensionsGallery?.resourceUrlTemplate;
+		if (!resourceUrlTemplate) {
+			return [];
+		}
+		try {
+			const [publisher, name] = id.split('.');
+			const extensionLocation = URI.parse(format2(resourceUrlTemplate, { publisher, name, version, path: 'extension' }));
+			const manifestContent = await this.extensionResourceLoaderService.readExtensionResource(resources.joinPath(extensionLocation, 'package.json'));
+
+			const data: ExtensionData = { extensionPublisher: publisher, extensionId: id, extensionName: name, extensionIsBuiltin: false };
+
+			return this.colorThemeRegistry.getMarketplaceThemes(JSON.parse(manifestContent), extensionLocation, data);
+
+		} catch (e) {
+			this.logService.error(`Problem loading themes from marketplace ${e}`);
+		}
+		return [];
+	}
+
 	public get onDidColorThemeChange(): Event<IWorkbenchColorTheme> {
 		return this.onColorThemeChange.event;
 	}
 
-	public setColorTheme(themeId: string | undefined, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchColorTheme | null> {
+	public setColorTheme(themeIdOrTheme: string | undefined | IWorkbenchColorTheme, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchColorTheme | null> {
 		return this.colorThemeSequencer.queue(() => {
-			if (!themeId) {
+			if (!themeIdOrTheme) {
 				return Promise.resolve(null);
 			}
-			if (themeId === this.currentColorTheme.id && this.currentColorTheme.isLoaded) {
+			if (this.currentColorTheme.isLoaded && (themeIdOrTheme === this.currentColorTheme || themeIdOrTheme === this.currentColorTheme.id)) {
 				if (settingsTarget !== 'preview') {
 					this.currentColorTheme.toStorage(this.storageService);
 				}
 				return this.settings.setColorTheme(this.currentColorTheme, settingsTarget);
 			}
 
-			themeId = validateThemeId(themeId); // migrate theme ids
-
-			const themeData = this.colorThemeRegistry.findThemeById(themeId, DEFAULT_COLOR_THEME_ID);
-			if (!themeData) {
+			const themeData = types.isString(themeIdOrTheme) ? this.colorThemeRegistry.findThemeById(validateThemeId(themeIdOrTheme), DEFAULT_COLOR_THEME_ID) : themeIdOrTheme;
+			if (!(themeData instanceof ColorThemeData)) {
 				return Promise.resolve(null);
 			}
 			return themeData.ensureLoaded(this.extensionResourceLoaderService).then(_ => {

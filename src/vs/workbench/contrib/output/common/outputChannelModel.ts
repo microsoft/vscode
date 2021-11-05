@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import * as resources from 'vs/base/common/resources';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
@@ -30,39 +30,6 @@ export interface IOutputChannelModel extends IDisposable {
 	loadModel(): Promise<ITextModel>;
 	clear(till?: number): void;
 	replaceAll(till: number, value: string): void;
-}
-
-export const IOutputChannelModelService = createDecorator<IOutputChannelModelService>('outputChannelModelService');
-
-export interface IOutputChannelModelService {
-	readonly _serviceBrand: undefined;
-
-	createOutputChannelModel(id: string, modelUri: URI, mimeType: string, file?: URI): IOutputChannelModel;
-
-}
-
-export abstract class AbstractOutputChannelModelService {
-
-	declare readonly _serviceBrand: undefined;
-
-	constructor(
-		private readonly outputLocation: URI,
-		@IFileService protected readonly fileService: IFileService,
-		@IInstantiationService protected readonly instantiationService: IInstantiationService
-	) { }
-
-	createOutputChannelModel(id: string, modelUri: URI, mimeType: string, file?: URI): IOutputChannelModel {
-		return file ? this.instantiationService.createInstance(FileOutputChannelModel, modelUri, mimeType, file) : this.instantiationService.createInstance(DelegatedOutputChannelModel, id, modelUri, mimeType, this.outputDir);
-	}
-
-	private _outputDir: Promise<URI> | null = null;
-	private get outputDir(): Promise<URI> {
-		if (!this._outputDir) {
-			this._outputDir = this.fileService.createFolder(this.outputLocation).then(() => this.outputLocation);
-		}
-		return this._outputDir;
-	}
-
 }
 
 export abstract class AbstractFileOutputChannelModel extends Disposable implements IOutputChannelModel {
@@ -305,7 +272,7 @@ class OutputFileListener extends Disposable {
 /**
  * An output channel driven by a file and does not support appending messages.
  */
-class FileOutputChannelModel extends AbstractFileOutputChannelModel implements IOutputChannelModel {
+export class FileOutputChannelModel extends AbstractFileOutputChannelModel implements IOutputChannelModel {
 
 	private readonly fileHandler: OutputFileListener;
 
@@ -482,44 +449,38 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implement
 		this.appendedMessage = '';
 	}
 
-	loadModel(): Promise<ITextModel> {
+	async loadModel(): Promise<ITextModel> {
 		this.loadingFromFileInProgress = true;
 		if (this.modelUpdater.isScheduled()) {
 			this.modelUpdater.cancel();
 		}
 		this.appendedMessage = '';
-		return this.loadFile()
-			.then(content => {
-				if (this.endOffset !== this.startOffset + VSBuffer.fromString(content).byteLength) {
-					// Queue content is not written into the file
-					// Flush it and load file again
-					this.flush();
-					return this.loadFile();
-				}
-				return content;
-			})
-			.then(content => {
-				if (this.appendedMessage) {
-					this.write(this.appendedMessage);
-					this.appendedMessage = '';
-				}
-				this.loadingFromFileInProgress = false;
-				return this.createModel(content);
-			});
+		let content = await this.loadFile();
+		if (this.endOffset !== this.startOffset + VSBuffer.fromString(content).byteLength) {
+			// Queue content is not written into the file
+			// Flush it and load file again
+			this.flush();
+			content = await this.loadFile();
+		}
+		if (this.appendedMessage) {
+			this.write(this.appendedMessage);
+			this.appendedMessage = '';
+		}
+		this.loadingFromFileInProgress = false;
+		return this.createModel(content);
 	}
 
-	private resetModel(): Promise<void> {
+	private async resetModel(): Promise<void> {
 		this.startOffset = 0;
 		this.endOffset = 0;
 		if (this.model) {
-			return this.loadModel().then(() => undefined);
+			await this.loadModel();
 		}
-		return Promise.resolve(undefined);
 	}
 
-	private loadFile(): Promise<string> {
-		return this.fileService.readFile(this.file, { position: this.startOffset })
-			.then(content => this.appendedMessage ? content.value + this.appendedMessage : content.value.toString());
+	private async loadFile(): Promise<string> {
+		const content = await this.fileService.readFile(this.file, { position: this.startOffset });
+		return this.appendedMessage ? content.value + this.appendedMessage : content.value.toString();
 	}
 
 	protected override updateModel(): void {
@@ -538,7 +499,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implement
 	}
 }
 
-class DelegatedOutputChannelModel extends Disposable implements IOutputChannelModel {
+export class DelegatedOutputChannelModel extends Disposable implements IOutputChannelModel {
 
 	private readonly _onDidAppendedContent: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidAppendedContent: Event<void> = this._onDidAppendedContent.event;

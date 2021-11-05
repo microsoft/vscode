@@ -136,6 +136,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _containerReadyBarrier: AutoOpenBarrier;
 	private _attachBarrier: AutoOpenBarrier;
 
+	private _icon: TerminalIcon | undefined;
+
 	private _messageTitleDisposable: IDisposable | undefined;
 
 	private _widgetManager: TerminalWidgetManager = this._instantiationService.createInstance(TerminalWidgetManager);
@@ -217,6 +219,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get navigationMode(): INavigationMode | undefined { return this._navigationModeAddon; }
 	get isDisconnected(): boolean { return this._processManager.isDisconnected; }
 	get isRemote(): boolean { return this._processManager.remoteAuthority !== undefined; }
+	get remoteAuthority(): string | undefined { return this._processManager.remoteAuthority; }
 	get hasFocus(): boolean { return this._wrapperElement?.contains(document.activeElement) ?? false; }
 	get title(): string { return this._title; }
 	get titleSource(): TitleEventSource { return this._titleSource; }
@@ -314,6 +317,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._fixedRows = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.rows;
 		this._fixedCols = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.cols;
+		this._icon = _shellLaunchConfig.attachPersistentProcess?.icon || _shellLaunchConfig.icon;
 
 		// the resource is already set when it's been moved from another window
 		this._resource = resource || getTerminalUri(this._workspaceContextService.getWorkspace().id, this.instanceId, this.title);
@@ -408,11 +412,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _getIcon(): TerminalIcon | undefined {
-		const icon = this._shellLaunchConfig.icon || this._shellLaunchConfig.attachPersistentProcess?.icon;
-		if (!icon) {
-			return this._processManager.processState >= ProcessState.Launching ? Codicon.terminal : undefined;
+		if (!this._icon) {
+			this._icon = this._processManager.processState >= ProcessState.Launching ? Codicon.terminal : undefined;
 		}
-		return icon;
+		return this._icon;
 	}
 
 	private _getColor(): string | undefined {
@@ -821,7 +824,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const dndController = this._instantiationService.createInstance(TerminalInstanceDragAndDropController, container);
 		dndController.onDropTerminal(e => this._onRequestAddInstanceToGroup.fire(e));
 		dndController.onDropFile(async path => {
-			const preparedPath = await this._terminalInstanceService.preparePathForTerminalAsync(path, this.shellLaunchConfig.executable, this.title, this.shellType, this.isRemote);
+			const preparedPath = await this._terminalInstanceService.preparePathForTerminalAsync(path, this.shellLaunchConfig.executable, this.title, this.shellType, this._processManager.remoteAuthority);
 			this.sendText(preparedPath, false);
 			this.focus();
 		});
@@ -1831,7 +1834,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			matchOnDescription: true
 		});
 		if (result && result.description) {
-			this.shellLaunchConfig.icon = iconRegistry.get(result.description);
+			this._icon = iconRegistry.get(result.description);
 			this._onIconChanged.fire(this);
 		}
 	}

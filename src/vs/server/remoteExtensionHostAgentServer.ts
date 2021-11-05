@@ -33,7 +33,7 @@ import { ConfigurationService } from 'vs/platform/configuration/common/configura
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestService } from 'vs/platform/request/node/requestService';
-import { ITelemetryAppender, NullAppender } from 'vs/platform/telemetry/common/telemetryUtils';
+import { ITelemetryAppender, NullAppender, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionGalleryService, IExtensionManagementCLIService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionGalleryServiceWithNoStorageService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -288,7 +288,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		services.set(IRequestService, new SyncDescriptor(RequestService));
 
 		let appInsightsAppender: ITelemetryAppender = NullAppender;
-		if (!this._environmentService.args['disable-telemetry'] && this._productService.enableTelemetry) {
+		if (supportsTelemetry(this._productService, this._environmentService)) {
 			if (this._productService.aiConfig && this._productService.aiConfig.asimovKey) {
 				appInsightsAppender = new AppInsightsAppender(eventPrefix, null, this._productService.aiConfig.asimovKey);
 				this._register(toDisposable(() => appInsightsAppender!.flush())); // Ensure the AI appender is disposed so that it flushes remaining data

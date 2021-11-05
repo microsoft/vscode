@@ -63,6 +63,11 @@ suite('Icon Labels', () => {
 		filterOk(matchesFuzzyIconAware, 'unt', parseLabelWithIcons('$(primitive-dot) $(file-text) Untitled-1'), [
 			{ start: 30, end: 33 },
 		]);
+
+		// Testing #136172
+		filterOk(matchesFuzzyIconAware, 's', parseLabelWithIcons('$(loading~spin) start'), [
+			{ start: 16, end: 17 },
+		]);
 	});
 
 	test('stripIcons', () => {

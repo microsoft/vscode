@@ -118,6 +118,9 @@ import 'vs/workbench/contrib/output/common/outputChannelModelService';
 // Explorer
 import 'vs/workbench/contrib/files/browser/files.web.contribution';
 
+// Performance
+import 'vs/workbench/contrib/performance/browser/performance.web.contribution';
+
 // Preferences
 import 'vs/workbench/contrib/preferences/browser/keyboardLayoutPicker';
 

@@ -103,7 +103,7 @@ function doParseLabelWithIcons(text: string, firstIconIndex: number): IParsedLab
 		// within icon
 		else if (currentIconStart !== -1) {
 			// Make sure this is a real icon name
-			if (/^[a-z0-9\-]$/i.test(char)) {
+			if (/^[a-z0-9\-~]$/i.test(char)) {
 				currentIconValue += char;
 			} else {
 				// This is not a real icon, treat it as text

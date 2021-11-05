@@ -16,7 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IOffProcessTerminalService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalBackend, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
@@ -544,13 +544,13 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<IT
 class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 	private _autoFocusInstance: ITerminalInstance | undefined;
 	private _autoFocusDisposable: IDisposable = Disposable.None;
-	private _offProcessTerminalService: IOffProcessTerminalService | undefined;
+	private _primaryBackend: ITerminalBackend | undefined;
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 	) {
-		this._offProcessTerminalService = _terminalService.getOffProcessTerminalService();
+		this._primaryBackend = this._terminalService.getPrimaryBackend();
 	}
 
 	getDragURI(instance: ITerminalInstance): string | null {
@@ -626,10 +626,10 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 				if (instance) {
 					sourceInstances = [instance];
 					this._terminalService.moveToTerminalView(instance);
-				} else if (this._offProcessTerminalService) {
+				} else if (this._primaryBackend) {
 					const terminalIdentifier = parseTerminalUri(uri);
 					if (terminalIdentifier.instanceId) {
-						promises.push(this._offProcessTerminalService.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId));
+						promises.push(this._primaryBackend.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId));
 					}
 				}
 			}
@@ -710,7 +710,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 
 		this._terminalService.setActiveInstance(instance);
 
-		const preparedPath = await this._terminalInstanceService.preparePathForTerminalAsync(path, instance.shellLaunchConfig.executable, instance.title, instance.shellType, instance.isRemote);
+		const preparedPath = await this._terminalInstanceService.preparePathForTerminalAsync(path, instance.shellLaunchConfig.executable, instance.title, instance.shellType, instance.remoteAuthority);
 		instance.sendText(preparedPath, false);
 		instance.focus();
 	}

@@ -67,6 +67,11 @@
 	/** Hack to force underline to show **/
 	border-bottom: 1px solid transparent;
 	text-underline-position: under;
+	color: var(--vscode-textLink-foreground);
+}
+
+.monaco-editor .marker-widget .descriptioncontainer .message a.code-link > span {
+	color: var(--vscode-textLink-activeForeground);
 }
 
 .monaco-editor .marker-widget .descriptioncontainer .filename {

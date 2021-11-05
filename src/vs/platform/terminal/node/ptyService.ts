@@ -142,6 +142,9 @@ export class PtyService extends Disposable implements IPtyService {
 				{
 					...state.shellLaunchConfig,
 					cwd: state.processDetails.cwd,
+					color: state.processDetails.color,
+					icon: state.processDetails.icon,
+					name: state.processDetails.title,
 					initialText: state.replayEvent.events[0].data + '\x1b[0m\n\n\r\x1b[1;48;5;252;38;5;234m ' + restoreMessage + ' \x1b[K\x1b[0m\n\r'
 				},
 				state.processDetails.cwd,
@@ -190,7 +193,7 @@ export class PtyService extends Disposable implements IPtyService {
 			executableEnv,
 			windowsEnableConpty
 		};
-		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, processLaunchOptions, unicodeVersion, this._reconnectConstants, this._logService, isReviving ? shellLaunchConfig.initialText : undefined, shellLaunchConfig.icon, shellLaunchConfig.color, shellLaunchConfig.fixedDimensions);
+		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, processLaunchOptions, unicodeVersion, this._reconnectConstants, this._logService, isReviving ? shellLaunchConfig.initialText : undefined, shellLaunchConfig.icon, shellLaunchConfig.color, shellLaunchConfig.name, shellLaunchConfig.fixedDimensions);
 		process.onDidChangeProperty(property => this._onDidChangeProperty.fire({ id, property }));
 		process.onProcessExit(event => {
 			persistentProcess.dispose();
@@ -461,9 +464,13 @@ export class PersistentTerminalProcess extends Disposable {
 		reviveBuffer: string | undefined,
 		private _icon?: TerminalIcon,
 		private _color?: string,
+		name?: string,
 		fixedDimensions?: IFixedTerminalDimensions
 	) {
 		super();
+		if (name) {
+			this.setTitle(name, TitleEventSource.Api);
+		}
 		this._logService.trace('persistentTerminalProcess#ctor', _persistentProcessId, arguments);
 		this._wasRevived = reviveBuffer !== undefined;
 		this._serializer = new XtermSerializer(

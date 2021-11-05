@@ -14,21 +14,33 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationHandle, INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IProcessPropertyMap, IShellLaunchConfig, ITerminalChildProcess, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ILocalTerminalService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalBackend, ITerminalBackendRegistry, TerminalExtensions } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { LocalPty } from 'vs/workbench/contrib/terminal/electron-sandbox/localPty';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
-export class LocalTerminalService extends Disposable implements ILocalTerminalService {
-	declare _serviceBrand: undefined;
+export class LocalTerminalBackendContribution implements IWorkbenchContribution {
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ITerminalService terminalService: ITerminalService
+	) {
+		const backend = instantiationService.createInstance(LocalTerminalBackend, undefined);
+		Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).registerTerminalBackend(backend);
+		terminalService.handleNewRegisteredBackend(backend);
+	}
+}
 
+class LocalTerminalBackend extends Disposable implements ITerminalBackend {
 	private readonly _ptys: Map<number, LocalPty> = new Map();
 	private _isPtyHostUnresponsive: boolean = false;
 
@@ -42,6 +54,7 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 	readonly onDidRequestDetach = this._onDidRequestDetach.event;
 
 	constructor(
+		readonly remoteAuthority: string | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ILogService private readonly _logService: ILogService,
@@ -156,7 +169,16 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		return this._localPtyService.updateProperty(id, property, value);
 	}
 
-	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, unicodeVersion: '6' | '11', env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess> {
+	async createProcess(
+		shellLaunchConfig: IShellLaunchConfig,
+		cwd: string,
+		cols: number,
+		rows: number,
+		unicodeVersion: '6' | '11',
+		env: IProcessEnvironment,
+		windowsEnableConpty: boolean,
+		shouldPersist: boolean
+	): Promise<ITerminalChildProcess> {
 		const executableEnv = await this._shellEnvironmentService.getShellEnv();
 		const id = await this._localPtyService.createProcess(shellLaunchConfig, cwd, cols, rows, unicodeVersion, env, executableEnv, windowsEnableConpty, shouldPersist, this._getWorkspaceId(), this._getWorkspaceName());
 		const pty = this._instantiationService.createInstance(LocalPty, id, shouldPersist);
