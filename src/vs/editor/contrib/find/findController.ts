@@ -14,7 +14,7 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_FIND_WIDGET_VISIBLE, CONTEXT_REPLACE_INPUT_FOCUSED, FindModelBoundToEditorModel, FIND_IDS, ToggleCaseSensitiveKeybinding, TogglePreserveCaseKeybinding, ToggleRegexKeybinding, ToggleSearchScopeKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/findModel';
 import { FindOptionsWidget } from 'vs/editor/contrib/find/findOptionsWidget';
-import { FindOptionOverride, FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState } from 'vs/editor/contrib/find/findState';
+import { FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState } from 'vs/editor/contrib/find/findState';
 import { FindWidget, IFindController } from 'vs/editor/contrib/find/findWidget';
 import * as nls from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
@@ -74,14 +74,10 @@ export interface IFindStartOptions {
 export interface IFindStartArguments {
 	searchString?: string;
 	replaceString?: string;
-	regex?: boolean;
-	regexOverride?: FindOptionOverride;
-	wholeWord?: boolean;
-	wholeWordOverride?: FindOptionOverride;
-	matchCase?: boolean;
-	matchCaseOverride?: FindOptionOverride;
+	isRegex?: boolean;
+	matchWholeWord?: boolean;
+	isCaseSensitive?: boolean;
 	preserveCase?: boolean;
-	preserveCaseOverride?: FindOptionOverride;
 	findInSelection?: boolean;
 }
 
@@ -593,14 +589,14 @@ export class StartFindWithArgsAction extends EditorAction {
 				searchString: args.searchString,
 				replaceString: args.replaceString,
 				isReplaceRevealed: args.replaceString !== undefined,
-				isRegex: args.regex,
-				isRegexOverride: args.regexOverride,
-				wholeWord: args.wholeWord,
-				wholeWordOverride: args.wholeWordOverride,
-				matchCase: args.matchCase,
-				matchCaseOverride: args.matchCaseOverride,
+				isRegex: args.isRegex,
+				// isRegexOverride: args.regexOverride,
+				wholeWord: args.matchWholeWord,
+				// wholeWordOverride: args.wholeWordOverride,
+				matchCase: args.isCaseSensitive,
+				// matchCaseOverride: args.matchCaseOverride,
 				preserveCase: args.preserveCase,
-				preserveCaseOverride: args.preserveCaseOverride,
+				// preserveCaseOverride: args.preserveCaseOverride,
 			} : {};
 
 			await controller.start({
@@ -608,7 +604,7 @@ export class StartFindWithArgsAction extends EditorAction {
 				seedSearchStringFromSelection: (controller.getState().searchString.length === 0) && editor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never' ? 'single' : 'none',
 				seedSearchStringFromNonEmptySelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection === 'selection',
 				seedSearchStringFromGlobalClipboard: true,
-				shouldFocus: FindStartFocusAction.NoFocusChange,
+				shouldFocus: FindStartFocusAction.FocusFindInput,
 				shouldAnimate: true,
 				updateSearchScope: args?.findInSelection || false,
 				loop: editor.getOption(EditorOption.find).loop
@@ -871,6 +867,7 @@ StartFindReplaceAction.addImplementation(0, (accessor: ServicesAccessor, editor:
 
 registerEditorContribution(CommonFindController.ID, FindController);
 
+registerEditorAction(StartFindWithArgsAction);
 registerEditorAction(StartFindWithSelectionAction);
 registerEditorAction(NextMatchFindAction);
 registerEditorAction(PreviousMatchFindAction);
