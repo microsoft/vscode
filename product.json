@@ -110,6 +110,5 @@
 	},
 	"linkProtectionTrustedDomains": [
 		"https://open-vsx.org"
-	],
-	"serverGreeting": []
+	]
 }
