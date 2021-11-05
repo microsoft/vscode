@@ -461,22 +461,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Ignore if dimensions are undefined or 0
 		if (!width || !height) {
 			this._setLastKnownColsAndRows();
-			console.log(`Instance ${this._instanceId}:   set last known 1`);
 			return null;
 		}
 
 		const dimension = this._getDimension(width, height);
-		console.log(`Instance ${this._instanceId}:   dimension`, dimension?.width, dimension?.height);
 		if (!dimension) {
 			this._setLastKnownColsAndRows();
-			console.log(`Instance ${this._instanceId}:   set last known 2`);
 			return null;
 		}
 
 		const font = this.xterm ? this.xterm.getFont() : this._configHelper.getFont();
 		if (!font.charWidth || !font.charHeight) {
 			this._setLastKnownColsAndRows();
-			console.log(`Instance ${this._instanceId}:   set last known 3`);
 			return null;
 		}
 
@@ -499,7 +495,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._rows = newRows;
 			this._fireMaximumDimensionsChanged();
 		}
-		console.log(`Instance ${this._instanceId}:   result`, this._cols, this._rows, dimension.width);
 
 		return dimension.width;
 	}
@@ -1424,7 +1419,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	layout(dimension: dom.Dimension): void {
-		console.log(`Instance ${this._instanceId}: layout`, dimension.width, dimension.height);
 		this._lastLayoutDimensions = dimension;
 		if (this.disableLayout) {
 			return;
