@@ -207,7 +207,7 @@ class ToggleScreencastModeAction extends Action2 {
 			const event = new StandardKeyboardEvent(e);
 			const shortcut = keybindingService.softDispatch(event, event.target);
 
-			if (shortcut || !configurationService.getValue('screencastMode.onlyKeyboardShortcuts')) {
+			if (shortcut?.commandId || !configurationService.getValue('screencastMode.onlyKeyboardShortcuts')) {
 				if (
 					event.ctrlKey || event.altKey || event.metaKey || event.shiftKey
 					|| length > 20
@@ -243,7 +243,7 @@ class ToggleScreencastModeAction extends Action2 {
 					append(keyboardMarker, $('span.title', {}, `${titleLabel} `));
 				}
 
-				if (format === 'keys' || format === 'commandAndKeys' || format === 'commandWithGroupAndKeys') {
+				if (!configurationService.getValue('screencastMode.onlyKeyboardShortcuts') || !titleLabel || shortcut?.commandId && (format === 'keys' || format === 'commandAndKeys' || format === 'commandWithGroupAndKeys')) {
 					append(keyboardMarker, $('span.key', {}, keyLabel || ''));
 				}
 
