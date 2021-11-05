@@ -21,14 +21,14 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { FindInFrameOptions, IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
-import { IFrameWebview, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/webviewElement';
+import { WebviewElement, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/webviewElement';
 import { WindowIgnoreMenuShortcutsManager } from 'vs/workbench/contrib/webview/electron-sandbox/windowIgnoreMenuShortcutsManager';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 /**
  * Webview backed by an iframe but that uses Electron APIs to power the webview.
  */
-export class ElectronIframeWebview extends IFrameWebview {
+export class ElectronWebviewElement extends WebviewElement {
 
 	private readonly _webviewKeyboardHandler: WindowIgnoreMenuShortcutsManager;
 

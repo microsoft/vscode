@@ -22,7 +22,7 @@ import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
-import { IWebviewService, WebviewContentPurpose, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { IOverlayWebview, IWebviewService, WebviewContentPurpose } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/webviewWindowDragMonitor';
 import { IWebviewViewService, WebviewView } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -35,7 +35,7 @@ const storageKeys = {
 
 export class WebviewViewPane extends ViewPane {
 
-	private readonly _webview = this._register(new MutableDisposable<WebviewOverlay>());
+	private readonly _webview = this._register(new MutableDisposable<IOverlayWebview>());
 	private readonly _webviewDisposables = this._register(new DisposableStore());
 	private _activated = false;
 

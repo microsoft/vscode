@@ -50,7 +50,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { getDefaultValue } from 'vs/platform/configuration/common/configurationRegistry';
 import { isUndefined } from 'vs/base/common/types';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IWebviewService, Webview, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, IWebview, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/webview/browser/webview';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { generateUuid } from 'vs/base/common/uuid';
 import { platform } from 'vs/base/common/process';
@@ -554,11 +554,11 @@ export class ExtensionEditor extends EditorPane {
 		this.activeWebview?.runFindAction(previous);
 	}
 
-	public get activeWebview(): Webview | undefined {
-		if (!this.activeElement || !(this.activeElement as Webview).runFindAction) {
+	public get activeWebview(): IWebview | undefined {
+		if (!this.activeElement || !(this.activeElement as IWebview).runFindAction) {
 			return undefined;
 		}
-		return this.activeElement as Webview;
+		return this.activeElement as IWebview;
 	}
 
 	private onNavbarChange(extension: IExtension, { id, focus }: { id: string | null, focus: boolean }, template: IExtensionEditorTemplate): void {

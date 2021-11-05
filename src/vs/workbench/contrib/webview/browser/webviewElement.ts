@@ -32,7 +32,7 @@ import { WebviewPortMappingManager } from 'vs/platform/webview/common/webviewPor
 import { asWebviewUri, decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority } from 'vs/workbench/api/common/shared/webview';
 import { loadLocalResource, WebviewResourceResponse } from 'vs/workbench/contrib/webview/browser/resourceLoading';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
-import { areWebviewContentOptionsEqual, Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewMessageReceivedEvent, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { areWebviewContentOptionsEqual, IWebview, WebviewContentOptions, WebviewExtensionDescription, WebviewMessageReceivedEvent, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewFindDelegate, WebviewFindWidget } from 'vs/workbench/contrib/webview/browser/webviewFindWidget';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
@@ -91,7 +91,7 @@ namespace WebviewState {
 	export type State = typeof Ready | Initializing;
 }
 
-export class IFrameWebview extends Disposable implements Webview, WebviewFindDelegate {
+export class WebviewElement extends Disposable implements IWebview, WebviewFindDelegate {
 
 	protected get platform(): string { return 'browser'; }
 

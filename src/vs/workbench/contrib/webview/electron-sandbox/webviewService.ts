@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewElement, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewService } from 'vs/workbench/contrib/webview/browser/webviewService';
-import { ElectronIframeWebview } from 'vs/workbench/contrib/webview/electron-sandbox/iframeWebviewElement';
+import { ElectronWebviewElement } from 'vs/workbench/contrib/webview/electron-sandbox/webviewElement';
 
 export class ElectronWebviewService extends WebviewService {
 
@@ -14,8 +14,8 @@ export class ElectronWebviewService extends WebviewService {
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
 		extension: WebviewExtensionDescription | undefined,
-	): WebviewElement {
-		const webview = this._instantiationService.createInstance(ElectronIframeWebview, id, options, contentOptions, extension, this._webviewThemeDataProvider);
+	): IWebviewElement {
+		const webview = this._instantiationService.createInstance(ElectronWebviewElement, id, options, contentOptions, extension, this._webviewThemeDataProvider);
 		this.registerNewWebview(webview);
 		return webview;
 	}
