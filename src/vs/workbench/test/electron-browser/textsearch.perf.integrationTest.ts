@@ -37,14 +37,10 @@ import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/sea
 import { SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ISearchService } from 'vs/workbench/services/search/common/search';
-import { LocalSearchService } from 'vs/workbench/services/search/electron-browser/searchService';
 import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { TestEditorGroupsService, TestEditorService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestContextService, TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TestEnvironmentService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
-
-
 
 // declare var __dirname: string;
 
@@ -105,7 +101,6 @@ suite.skip('TextSearch performance (integration)', () => {
 					IUntitledTextEditorService,
 					new SyncDescriptor(UntitledTextEditorService),
 				],
-				[ISearchService, new SyncDescriptor(LocalSearchService)],
 				[ILogService, logService]
 			)
 		);
