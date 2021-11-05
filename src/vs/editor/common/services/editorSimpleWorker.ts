@@ -23,6 +23,7 @@ import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase'
 import * as types from 'vs/base/common/types';
 import { EditorWorkerHost } from 'vs/editor/common/services/editorWorkerServiceImpl';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { UnicodeCharacterSearcher, UnicodeCharacterSearchType } from 'vs/editor/common/modes/unicodeCharactersSearcher';
 
 export interface IMirrorModel extends IMirrorTextModel {
 	readonly uri: URI;
@@ -369,6 +370,14 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			return;
 		}
 		delete this._models[strURL];
+	}
+
+	public async findUnicodeCharacters(url: string, type: UnicodeCharacterSearchType): Promise<IRange[]> {
+		const model = this._getModel(url);
+		if (!model) {
+			return [];
+		}
+		return UnicodeCharacterSearcher.search(model, type);
 	}
 
 	// ---- BEGIN diff --------------------------------------------------------------------------

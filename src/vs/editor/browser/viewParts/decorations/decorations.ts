@@ -202,8 +202,8 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 
 			if (showIfCollapsed && lineVisibleRanges.ranges.length === 1) {
 				const singleVisibleRange = lineVisibleRanges.ranges[0];
-				if (singleVisibleRange.width === 0) {
-					// collapsed range case => make the decoration visible by faking its width
+				if (singleVisibleRange.width < this._typicalHalfwidthCharacterWidth) {
+					// collapsed/very small range case => make the decoration visible by faking its width
 					lineVisibleRanges.ranges[0] = new HorizontalRange(singleVisibleRange.left, this._typicalHalfwidthCharacterWidth);
 				}
 			}

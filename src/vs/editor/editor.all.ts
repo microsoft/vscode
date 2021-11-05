@@ -43,6 +43,7 @@ import 'vs/editor/contrib/snippet/snippetController2';
 import 'vs/editor/contrib/suggest/suggestController';
 import 'vs/editor/contrib/tokenization/tokenization';
 import 'vs/editor/contrib/toggleTabFocusMode/toggleTabFocusMode';
+import 'vs/editor/contrib/unicodeHighlighter/unicodeHighlighter';
 import 'vs/editor/contrib/unusualLineTerminators/unusualLineTerminators';
 import 'vs/editor/contrib/viewportSemanticTokens/viewportSemanticTokens';
 import 'vs/editor/contrib/wordHighlighter/wordHighlighter';

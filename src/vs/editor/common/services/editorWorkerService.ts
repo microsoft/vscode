@@ -7,6 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
 import { IChange, ILineChange } from 'vs/editor/common/editorCommon';
 import { IInplaceReplaceSupportResult, TextEdit } from 'vs/editor/common/modes';
+import { UnicodeCharacterSearchType } from 'vs/editor/common/modes/unicodeCharactersSearcher';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const ID_EDITOR_WORKER_SERVICE = 'editorWorkerService';
@@ -20,6 +21,9 @@ export interface IDiffComputationResult {
 
 export interface IEditorWorkerService {
 	readonly _serviceBrand: undefined;
+
+	canFindUnicodeCharacters(uri: URI): boolean;
+	findUnicodeCharacters(uri: URI, type: UnicodeCharacterSearchType): Promise<IRange[]>;
 
 	computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean, maxComputationTime: number): Promise<IDiffComputationResult | null>;
 

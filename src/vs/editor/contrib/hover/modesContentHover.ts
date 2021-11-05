@@ -31,6 +31,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
+import { UnicodeHighlighterHoverParticipant } from 'vs/editor/contrib/unicodeHighlighter/unicodeHighlighter';
 
 const $ = dom.$;
 
@@ -105,9 +106,17 @@ class ModesContentComputer implements IHoverComputer<IHoverPart[]> {
 
 			const startColumn = (d.range.startLineNumber === lineNumber) ? d.range.startColumn : 1;
 			const endColumn = (d.range.endLineNumber === lineNumber) ? d.range.endColumn : maxColumn;
-			if (startColumn > anchor.range.startColumn || anchor.range.endColumn > endColumn) {
-				return false;
+			if (d.options.showIfCollapsed) {
+				// Relax check around `showIfCollapsed` decorations to also include +/- 1 character
+				if (startColumn > anchor.range.startColumn + 1 || anchor.range.endColumn - 1 > endColumn) {
+					return false;
+				}
+			} else {
+				if (startColumn > anchor.range.startColumn || anchor.range.endColumn > endColumn) {
+					return false;
+				}
 			}
+
 			return true;
 		});
 	}
@@ -215,6 +224,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 			instantiationService.createInstance(ColorHoverParticipant, editor, this),
 			instantiationService.createInstance(MarkdownHoverParticipant, editor, this),
 			instantiationService.createInstance(InlineCompletionsHoverParticipant, editor, this),
+			instantiationService.createInstance(UnicodeHighlighterHoverParticipant, editor, this),
 			instantiationService.createInstance(MarkerHoverParticipant, editor, this),
 		];
 

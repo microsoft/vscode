@@ -142,6 +142,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/browser/parts/paneCompositePart';
 import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
+import { UnicodeCharacterSearchType } from 'vs/editor/common/modes/unicodeCharactersSearcher';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -1833,6 +1834,8 @@ export class TestEditorWorkerService implements IEditorWorkerService {
 
 	declare readonly _serviceBrand: undefined;
 
+	canFindUnicodeCharacters(uri: URI): boolean { return false; }
+	async findUnicodeCharacters(uri: URI, type: UnicodeCharacterSearchType): Promise<IRange[]> { return []; }
 	async computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean, maxComputationTime: number): Promise<IDiffComputationResult | null> { return null; }
 	canComputeDirtyDiff(original: URI, modified: URI): boolean { return false; }
 	async computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[] | null> { return null; }

@@ -23,6 +23,7 @@ import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { canceled } from 'vs/base/common/errors';
+import { UnicodeCharacterSearchType } from 'vs/editor/common/modes/unicodeCharactersSearcher';
 
 /**
  * Stop syncing a model to the worker if it was not needed for 1 min.
@@ -79,6 +80,14 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 
 	public override dispose(): void {
 		super.dispose();
+	}
+
+	public canFindUnicodeCharacters(uri: URI): boolean {
+		return canSyncModel(this._modelService, uri);
+	}
+
+	public findUnicodeCharacters(uri: URI, type: UnicodeCharacterSearchType): Promise<IRange[]> {
+		return this._workerManager.withWorker().then(client => client.findUnicodeCharacters(uri, type));
 	}
 
 	public computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean, maxComputationTime: number): Promise<IDiffComputationResult | null> {
@@ -463,6 +472,12 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 		return this._getProxy().then((proxy) => {
 			this._getOrCreateModelManager(proxy).ensureSyncedResources(resources, forceLargeModels);
 			return proxy;
+		});
+	}
+
+	public findUnicodeCharacters(uri: URI, type: UnicodeCharacterSearchType): Promise<IRange[]> {
+		return this._withSyncedResources([uri]).then(proxy => {
+			return proxy.findUnicodeCharacters(uri.toString(), type);
 		});
 	}
 
