@@ -16,9 +16,6 @@ import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import * as nls from 'vs/nls';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 export class MessageController implements IEditorContribution {
 
@@ -193,21 +190,3 @@ class MessageWidget implements IContentWidget {
 }
 
 registerEditorContribution(MessageController.ID, MessageController);
-
-registerThemingParticipant((theme, collector) => {
-	const border = theme.getColor(inputValidationInfoBorder);
-	if (border) {
-		let borderWidth = theme.type === ColorScheme.HIGH_CONTRAST ? 2 : 1;
-		collector.addRule(`.monaco-editor .monaco-editor-overlaymessage .anchor.below { border-top-color: ${border}; }`);
-		collector.addRule(`.monaco-editor .monaco-editor-overlaymessage .anchor.top { border-bottom-color: ${border}; }`);
-		collector.addRule(`.monaco-editor .monaco-editor-overlaymessage .message { border: ${borderWidth}px solid ${border}; }`);
-	}
-	const background = theme.getColor(inputValidationInfoBackground);
-	if (background) {
-		collector.addRule(`.monaco-editor .monaco-editor-overlaymessage .message { background-color: ${background}; }`);
-	}
-	const foreground = theme.getColor(inputValidationInfoForeground);
-	if (foreground) {
-		collector.addRule(`.monaco-editor .monaco-editor-overlaymessage .message { color: ${foreground}; }`);
-	}
-});

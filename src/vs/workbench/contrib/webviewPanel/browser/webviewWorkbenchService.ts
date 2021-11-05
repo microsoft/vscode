@@ -15,7 +15,7 @@ import { createDecorator, IInstantiationService } from 'vs/platform/instantiatio
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { IWebviewService, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions, IOverlayWebview } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewIconManager, WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
@@ -102,7 +102,7 @@ export class LazilyResolvedWebviewEditorInput extends WebviewInput {
 		id: string,
 		viewType: string,
 		name: string,
-		webview: WebviewOverlay,
+		webview: IOverlayWebview,
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
 	) {
 		super(id, viewType, name, webview, _webviewWorkbenchService.iconManager);

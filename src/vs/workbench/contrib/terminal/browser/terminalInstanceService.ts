@@ -3,34 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRemoteTerminalService, ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import type { Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
-import type { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IShellLaunchConfig, ITerminalProfile, TerminalLocation, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { basename } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { ILocalTerminalService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalBackend, ITerminalBackendRegistry, TerminalExtensions } from 'vs/workbench/contrib/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 let Terminal: typeof XTermTerminal;
 let SearchAddon: typeof XTermSearchAddon;
 let Unicode11Addon: typeof XTermUnicode11Addon;
-let WebglAddon: typeof XTermWebglAddon;
 
 export class TerminalInstanceService extends Disposable implements ITerminalInstanceService {
 	declare _serviceBrand: undefined;
-	private readonly _localTerminalService?: ILocalTerminalService;
 	private _terminalFocusContextKey: IContextKey<boolean>;
 	private _terminalHasFixedWidth: IContextKey<boolean>;
 	private _terminalShellTypeContextKey: IContextKey<string>;
@@ -41,13 +39,10 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	get onDidCreateInstance(): Event<ITerminalInstance> { return this._onDidCreateInstance.event; }
 
 	constructor(
-		@IRemoteTerminalService private readonly _remoteTerminalService: IRemoteTerminalService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
-		this._localTerminalService = localTerminalService;
 		this._terminalFocusContextKey = TerminalContextKeys.focus.bindTo(this._contextKeyService);
 		this._terminalHasFixedWidth = TerminalContextKeys.terminalHasFixedWidth.bindTo(this._contextKeyService);
 		this._terminalShellTypeContextKey = TerminalContextKeys.shellType.bindTo(this._contextKeyService);
@@ -121,14 +116,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		return Unicode11Addon;
 	}
 
-	async getXtermWebglConstructor(): Promise<typeof XTermWebglAddon> {
-		if (!WebglAddon) {
-			WebglAddon = (await import('xterm-addon-webgl')).WebglAddon;
-		}
-		return WebglAddon;
-	}
-
-	async preparePathForTerminalAsync(originalPath: string, executable: string | undefined, title: string, shellType: TerminalShellType, isRemote: boolean): Promise<string> {
+	async preparePathForTerminalAsync(originalPath: string, executable: string | undefined, title: string, shellType: TerminalShellType, remoteAuthority: string | undefined): Promise<string> {
 		return new Promise<string>(c => {
 			if (!executable) {
 				c(originalPath);
@@ -162,7 +150,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 						c(originalPath.replace(/\\/g, '/'));
 					}
 					else if (shellType === WindowsShellType.Wsl) {
-						const offProcService = isRemote ? this._remoteTerminalService : this._localTerminalService;
+						const offProcService = this.getBackend(remoteAuthority);
 						c(offProcService?.getWslPath(originalPath) || originalPath);
 					}
 
@@ -174,7 +162,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 				} else {
 					const lowerExecutable = executable.toLowerCase();
 					if (lowerExecutable.indexOf('wsl') !== -1 || (lowerExecutable.indexOf('bash.exe') !== -1 && lowerExecutable.toLowerCase().indexOf('git') === -1)) {
-						const offProcService = isRemote ? this._remoteTerminalService : this._localTerminalService;
+						const offProcService = this.getBackend(remoteAuthority);
 						c(offProcService?.getWslPath(originalPath) || originalPath);
 					} else if (hasSpace) {
 						c('"' + originalPath + '"');
@@ -188,6 +176,10 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 
 			c(escapeNonWindowsPath(originalPath));
 		});
+	}
+
+	getBackend(remoteAuthority?: string): ITerminalBackend | undefined {
+		return Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).getTerminalBackend(remoteAuthority);
 	}
 }
 

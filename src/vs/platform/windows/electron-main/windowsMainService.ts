@@ -19,8 +19,7 @@ import { basename, join, normalize, posix } from 'vs/base/common/path';
 import { getMarks, mark } from 'vs/base/common/performance';
 import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { cwd } from 'vs/base/common/process';
-import { extUriBiasedIgnorePathCase, normalizePath, originalFSPath, removeTrailingPathSeparator } from 'vs/base/common/resources';
-import { equalsIgnoreCase } from 'vs/base/common/strings';
+import { extUriBiasedIgnorePathCase, isEqualAuthority, normalizePath, originalFSPath, removeTrailingPathSeparator } from 'vs/base/common/resources';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -30,7 +29,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { IFileService } from 'vs/platform/files/common/files';
+import { FileType, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -989,14 +988,21 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 							return undefined;
 						}
 
-						return { workspace: { id: workspace.id, configPath: workspace.configPath }, remoteAuthority: workspace.remoteAuthority, exists: true, transient: workspace.transient };
+						return {
+							workspace: { id: workspace.id, configPath: workspace.configPath },
+							type: FileType.File,
+							exists: true,
+							remoteAuthority: workspace.remoteAuthority,
+							transient: workspace.transient
+						};
 					}
 				}
 
 				return {
 					fileUri: URI.file(path),
-					selection: lineNumber ? { startLineNumber: lineNumber, startColumn: columnNumber || 1 } : undefined,
-					exists: true
+					type: FileType.File,
+					exists: true,
+					selection: lineNumber ? { startLineNumber: lineNumber, startColumn: columnNumber || 1 } : undefined
 				};
 			}
 
@@ -1004,6 +1010,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			else if (pathStat.isDirectory()) {
 				return {
 					workspace: getSingleFolderWorkspaceIdentifier(URI.file(path), pathStat),
+					type: FileType.Directory,
 					exists: true
 				};
 			}
@@ -1015,6 +1022,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			else if (!isWindows && path === '/dev/null') {
 				return {
 					fileUri: URI.file(path),
+					type: FileType.File,
 					exists: true
 				};
 			}
@@ -1028,6 +1036,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			if (options.ignoreFileNotFound) {
 				return {
 					fileUri,
+					type: FileType.File,
 					exists: false
 				};
 			}
@@ -1198,7 +1207,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				return false;
 			}
 
-			return getRemoteAuthority(uri) === remoteAuthority;
+			return isEqualAuthority(getRemoteAuthority(uri), remoteAuthority);
 		});
 
 		folderUris = folderUris.filter(folderUriStr => {
@@ -1207,7 +1216,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				return false;
 			}
 
-			return folderUri ? getRemoteAuthority(folderUri) === remoteAuthority : false;
+			return folderUri ? isEqualAuthority(getRemoteAuthority(folderUri), remoteAuthority) : false;
 		});
 
 		fileUris = fileUris.filter(fileUriStr => {
@@ -1216,7 +1225,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				return false;
 			}
 
-			return fileUri ? getRemoteAuthority(fileUri) === remoteAuthority : false;
+			return fileUri ? isEqualAuthority(getRemoteAuthority(fileUri), remoteAuthority) : false;
 		});
 
 		openConfig.cli._ = cliArgs;
@@ -1476,8 +1485,4 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		return this.getWindowById(browserWindow.id);
 	}
-}
-
-function isEqualAuthority(a1: string | undefined, a2: string | undefined) {
-	return a1 === a2 || (a1 !== undefined && a2 !== undefined && equalsIgnoreCase(a1, a2));
 }

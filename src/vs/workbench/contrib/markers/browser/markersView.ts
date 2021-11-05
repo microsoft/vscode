@@ -49,7 +49,7 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Codicon } from 'vs/base/common/codicons';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { groupBy } from 'vs/base/common/arrays';
 import { ResourceMap } from 'vs/base/common/map';
@@ -268,7 +268,12 @@ export class MarkersView extends ViewPane implements IMarkersView {
 					} else {
 						// Update resource
 						for (const updated of markerOrChange.updated) {
-							this.tree.setChildren(updated, createResourceMarkersIterator(updated));
+							this.tree.setChildren(updated, createResourceMarkersIterator(updated), {
+								/* Pass Identitiy Provider only when updating while the tree is visible */
+								diffIdentityProvider: {
+									getId(element: MarkerElement): string { return element.id; }
+								}
+							});
 							this.tree.rerender(updated);
 						}
 					}

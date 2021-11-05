@@ -21,7 +21,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { deserializeSearchError, FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, isFileMatch, isProgressMessage, ITextQuery, pathIncludedInQuery, QueryType, SearchError, SearchErrorCode, SearchProviderType } from 'vs/workbench/services/search/common/search';
 import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 export class SearchService extends Disposable implements ISearchService {
 

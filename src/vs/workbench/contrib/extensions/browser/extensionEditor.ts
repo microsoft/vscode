@@ -50,7 +50,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { getDefaultValue } from 'vs/platform/configuration/common/configurationRegistry';
 import { isUndefined } from 'vs/base/common/types';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IWebviewService, Webview, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, IWebview, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/webview/browser/webview';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { generateUuid } from 'vs/base/common/uuid';
 import { platform } from 'vs/base/common/process';
@@ -554,11 +554,11 @@ export class ExtensionEditor extends EditorPane {
 		this.activeWebview?.runFindAction(previous);
 	}
 
-	public get activeWebview(): Webview | undefined {
-		if (!this.activeElement || !(this.activeElement as Webview).runFindAction) {
+	public get activeWebview(): IWebview | undefined {
+		if (!this.activeElement || !(this.activeElement as IWebview).runFindAction) {
 			return undefined;
 		}
-		return this.activeElement as Webview;
+		return this.activeElement as IWebview;
 	}
 
 	private onNavbarChange(extension: IExtension, { id, focus }: { id: string | null, focus: boolean }, template: IExtensionEditorTemplate): void {
@@ -920,6 +920,8 @@ export class ExtensionEditor extends EditorPane {
 					this.renderViews(content, manifest, layout),
 					this.renderLocalizations(content, manifest, layout),
 					this.renderCustomEditors(content, manifest, layout),
+					this.renderNotebooks(content, manifest, layout),
+					this.renderNotebookRenderers(content, manifest, layout),
 					this.renderAuthentication(content, manifest, layout),
 					this.renderActivationEvents(content, manifest, layout),
 				];
@@ -1548,7 +1550,9 @@ export class ExtensionEditor extends EditorPane {
 					$('td', undefined, l.id),
 					$('td', undefined, l.name),
 					$('td', undefined, ...join(l.extensions.map(ext => $('code', undefined, ext)), ' ')),
+					// allow-any-unicode-next-line
 					$('td', undefined, document.createTextNode(l.hasGrammar ? '✔︎' : '—')),
+					// allow-any-unicode-next-line
 					$('td', undefined, document.createTextNode(l.hasSnippets ? '✔︎' : '—'))
 				))
 			)
@@ -1567,6 +1571,54 @@ export class ExtensionEditor extends EditorPane {
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', { tabindex: '0' }, localize('activation events', "Activation Events ({0})", activationEvents.length)),
 			$('ul', undefined, ...activationEvents.map(activationEvent => $('li', undefined, $('code', undefined, activationEvent))))
+		);
+
+		append(container, details);
+		return true;
+	}
+
+	private renderNotebooks(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+		const contrib = manifest.contributes?.notebooks || [];
+
+		if (!contrib.length) {
+			return false;
+		}
+
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
+			$('summary', { tabindex: '0' }, localize('Notebooks', "Notebooks ({0})", contrib.length)),
+			$('table', undefined,
+				$('tr', undefined,
+					$('th', undefined, localize('Notebook id', "Id")),
+					$('th', undefined, localize('Notebook name', "Name")),
+				),
+				...contrib.map(d => $('tr', undefined,
+					$('td', undefined, d.type),
+					$('td', undefined, d.displayName)))
+			)
+		);
+
+		append(container, details);
+		return true;
+	}
+
+	private renderNotebookRenderers(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+		const contrib = manifest.contributes?.notebookRenderer || [];
+
+		if (!contrib.length) {
+			return false;
+		}
+
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
+			$('summary', { tabindex: '0' }, localize('NotebookRenderers', "Notebook Renderers ({0})", contrib.length)),
+			$('table', undefined,
+				$('tr', undefined,
+					$('th', undefined, localize('Notebook renderer name', "Name")),
+					$('th', undefined, localize('Notebook mimetypes', "Mimetypes")),
+				),
+				...contrib.map(d => $('tr', undefined,
+					$('td', undefined, d.displayName),
+					$('td', undefined, d.mimeTypes.join(','))))
+			)
 		);
 
 		append(container, details);

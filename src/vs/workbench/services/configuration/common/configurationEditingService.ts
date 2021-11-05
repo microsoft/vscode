@@ -23,7 +23,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IOpenSettingsOptions, IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { withUndefinedAsNull, withNullAsUndefined } from 'vs/base/common/types';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IUserConfigurationFileService, UserConfigurationErrorCode } from 'vs/platform/configuration/common/userConfigurationFileService';
 import { ITextModel } from 'vs/editor/common/model';
 import { IReference } from 'vs/base/common/lifecycle';

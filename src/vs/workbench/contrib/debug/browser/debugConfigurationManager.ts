@@ -35,7 +35,7 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { flatten, distinct } from 'vs/base/common/arrays';
 import { getVisibleAndSorted } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { AdapterManager } from 'vs/workbench/contrib/debug/browser/debugAdapterManager';
 import { debugConfigure } from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';

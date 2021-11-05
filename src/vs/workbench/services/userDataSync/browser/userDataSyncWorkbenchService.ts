@@ -195,9 +195,9 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		this.updateAuthenticationProviders();
 
 		const allAccounts: Map<string, UserDataSyncAccount[]> = new Map<string, UserDataSyncAccount[]>();
-		for (const { id } of this.authenticationProviders) {
+		for (const { id, scopes } of this.authenticationProviders) {
 			this.logService.trace('Settings Sync: Getting accounts for', id);
-			const accounts = await this.getAccounts(id);
+			const accounts = await this.getAccounts(id, scopes);
 			allAccounts.set(id, accounts);
 			this.logService.trace('Settings Sync: Updated accounts for', id);
 		}
@@ -208,11 +208,11 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		this.updateAccountStatus(current ? AccountStatus.Available : AccountStatus.Unavailable);
 	}
 
-	private async getAccounts(authenticationProviderId: string): Promise<UserDataSyncAccount[]> {
+	private async getAccounts(authenticationProviderId: string, scopes: string[]): Promise<UserDataSyncAccount[]> {
 		let accounts: Map<string, UserDataSyncAccount> = new Map<string, UserDataSyncAccount>();
 		let currentAccount: UserDataSyncAccount | null = null;
 
-		const sessions = await this.authenticationService.getSessions(authenticationProviderId) || [];
+		const sessions = await this.authenticationService.getSessions(authenticationProviderId, scopes) || [];
 		for (const session of sessions) {
 			const account: UserDataSyncAccount = new UserDataSyncAccount(authenticationProviderId, session);
 			accounts.set(account.accountName, account);

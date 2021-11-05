@@ -10,7 +10,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService, RawContextKey, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
-import { IDebugService, CONTEXT_DEBUGGERS_AVAILABLE } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_EXTENSION_AVAILABLE } from 'vs/workbench/contrib/debug/common/debug';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -140,5 +140,11 @@ viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 	content: localize({ key: 'customizeRunAndDebugOpenFolder', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
 		"To customize Run and Debug, [open a folder](command:{0}) and create a launch.json file.", (isMacintosh && !isWeb) ? OpenFileFolderAction.ID : OpenFolderAction.ID),
 	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, WorkbenchStateContext.isEqualTo('empty')),
+	group: ViewContentGroups.Debug
+});
+
+viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
+	content: localize('allDebuggersDisabled', "All debug extensions are disabled. Enable a debug extension or install a new one from the Marketplace."),
+	when: CONTEXT_DEBUG_EXTENSION_AVAILABLE.toNegated(),
 	group: ViewContentGroups.Debug
 });

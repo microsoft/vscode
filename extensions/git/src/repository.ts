@@ -1927,8 +1927,9 @@ export class Repository implements Disposable {
 		if (HEAD !== undefined) {
 			const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 			const showActionButton = config.get<string>('showUnpublishedCommitsButton', 'whenEmpty');
+			const postCommitCommand = config.get<string>('postCommitCommand');
 
-			if (showActionButton === 'always' || (showActionButton === 'whenEmpty' && workingTree.length === 0 && index.length === 0 && untracked.length === 0 && merge.length === 0)) {
+			if (showActionButton === 'always' || (showActionButton === 'whenEmpty' && workingTree.length === 0 && index.length === 0 && untracked.length === 0 && merge.length === 0 && postCommitCommand !== 'sync' && postCommitCommand !== 'push')) {
 				if (HEAD.name && HEAD.commit) {
 					if (HEAD.upstream) {
 						if (HEAD.ahead) {
@@ -1936,7 +1937,7 @@ export class Repository implements Disposable {
 
 							actionButton = {
 								command: rebaseWhenSync ? 'git.syncRebase' : 'git.sync',
-								title: localize('scm button sync title', ' Sync Changes $(sync){0}{1}', HEAD.behind ? `${HEAD.behind}$(arrow-down) ` : '', `${HEAD.ahead}$(arrow-up)`),
+								title: localize('scm button sync title', '$(sync) Sync Changes {0}{1}', HEAD.behind ? `${HEAD.behind}$(arrow-down) ` : '', `${HEAD.ahead}$(arrow-up)`),
 								tooltip: this.syncTooltip,
 								arguments: [this._sourceControl],
 							};

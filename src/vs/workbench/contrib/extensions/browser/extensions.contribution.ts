@@ -44,7 +44,7 @@ import { CONTEXT_SYNC_ENABLEMENT } from 'vs/workbench/services/userDataSync/comm
 import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/clipboard';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { MultiCommand } from 'vs/editor/browser/editorExtensions';
-import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
 import { CATEGORIES } from 'vs/workbench/common/actions';
@@ -366,7 +366,7 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-function overrideActionForActiveExtensionEditorWebview(command: MultiCommand | undefined, f: (webview: Webview) => void) {
+function overrideActionForActiveExtensionEditorWebview(command: MultiCommand | undefined, f: (webview: IWebview) => void) {
 	command?.addImplementation(105, 'extensions-editor', (accessor) => {
 		const editorService = accessor.get(IEditorService);
 		const editor = editorService.activeEditorPane;

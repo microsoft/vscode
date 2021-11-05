@@ -33,11 +33,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkbenchAsyncDataTreeOptions, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { FileReferences, OneReference, ReferencesModel } from '../referencesModel';
-
 
 class DecorationsManager implements IDisposable {
 
@@ -557,60 +555,3 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		}
 	}
 }
-
-// theming
-
-
-registerThemingParticipant((theme, collector) => {
-	const findMatchHighlightColor = theme.getColor(peekView.peekViewResultsMatchHighlight);
-	if (findMatchHighlightColor) {
-		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .referenceMatch .highlight { background-color: ${findMatchHighlightColor}; }`);
-	}
-	const referenceHighlightColor = theme.getColor(peekView.peekViewEditorMatchHighlight);
-	if (referenceHighlightColor) {
-		collector.addRule(`.monaco-editor .reference-zone-widget .preview .reference-decoration { background-color: ${referenceHighlightColor}; }`);
-	}
-	const referenceHighlightBorder = theme.getColor(peekView.peekViewEditorMatchHighlightBorder);
-	if (referenceHighlightBorder) {
-		collector.addRule(`.monaco-editor .reference-zone-widget .preview .reference-decoration { border: 2px solid ${referenceHighlightBorder}; box-sizing: border-box; }`);
-	}
-	const hcOutline = theme.getColor(activeContrastBorder);
-	if (hcOutline) {
-		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .referenceMatch .highlight { border: 1px dotted ${hcOutline}; box-sizing: border-box; }`);
-	}
-	const resultsBackground = theme.getColor(peekView.peekViewResultsBackground);
-	if (resultsBackground) {
-		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree { background-color: ${resultsBackground}; }`);
-	}
-	const resultsMatchForeground = theme.getColor(peekView.peekViewResultsMatchForeground);
-	if (resultsMatchForeground) {
-		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree { color: ${resultsMatchForeground}; }`);
-	}
-	const resultsFileForeground = theme.getColor(peekView.peekViewResultsFileForeground);
-	if (resultsFileForeground) {
-		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .reference-file { color: ${resultsFileForeground}; }`);
-	}
-	const resultsSelectedBackground = theme.getColor(peekView.peekViewResultsSelectionBackground);
-	if (resultsSelectedBackground) {
-		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .monaco-list:focus .monaco-list-rows > .monaco-list-row.selected:not(.highlighted) { background-color: ${resultsSelectedBackground}; }`);
-	}
-	const resultsSelectedForeground = theme.getColor(peekView.peekViewResultsSelectionForeground);
-	if (resultsSelectedForeground) {
-		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .monaco-list:focus .monaco-list-rows > .monaco-list-row.selected:not(.highlighted) { color: ${resultsSelectedForeground} !important; }`);
-	}
-	const editorBackground = theme.getColor(peekView.peekViewEditorBackground);
-	if (editorBackground) {
-		collector.addRule(
-			`.monaco-editor .reference-zone-widget .preview .monaco-editor .monaco-editor-background,` +
-			`.monaco-editor .reference-zone-widget .preview .monaco-editor .inputarea.ime-input {` +
-			`	background-color: ${editorBackground};` +
-			`}`);
-	}
-	const editorGutterBackground = theme.getColor(peekView.peekViewEditorGutterBackground);
-	if (editorGutterBackground) {
-		collector.addRule(
-			`.monaco-editor .reference-zone-widget .preview .monaco-editor .margin {` +
-			`	background-color: ${editorGutterBackground};` +
-			`}`);
-	}
-});

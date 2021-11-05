@@ -52,6 +52,8 @@ export class ColorPickerHeader extends Disposable {
 		this._register(model.onDidChangePresentation(this.onDidChangePresentation, this));
 		this.pickedColorNode.style.backgroundColor = Color.Format.CSS.format(model.color) || '';
 		this.pickedColorNode.classList.toggle('light', model.color.rgba.a < 0.5 ? this.backgroundColor.isLighter() : model.color.isLighter());
+
+		this.onDidChangeColor(this.model.color);
 	}
 
 	private onDidChangeColor(color: Color): void {

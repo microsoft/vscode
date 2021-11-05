@@ -6,7 +6,7 @@
 import { IBuiltinExtensionsScannerService, ExtensionType, IExtensionManifest, IExtension } from 'vs/platform/extensions/common/extensions';
 import { isWeb } from 'vs/base/common/platform';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';

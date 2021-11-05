@@ -190,7 +190,7 @@ suite('vscode API - window', () => {
 		}
 	});
 
-	test.only('editor, opening multiple at the same time #134786', async () => {
+	test('editor, opening multiple at the same time #134786', async () => {
 		const fileA = await createRandomFile();
 		const fileB = await createRandomFile();
 		const fileC = await createRandomFile();

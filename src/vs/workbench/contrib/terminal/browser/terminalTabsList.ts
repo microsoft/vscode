@@ -16,7 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IOffProcessTerminalService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalBackend, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
@@ -192,7 +192,11 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		return this._configurationService.getValue<'singleClick' | 'doubleClick'>(TerminalSettingId.TabsFocusMode);
 	}
 
-	refresh(): void {
+	refresh(cancelEditing: boolean = true): void {
+		if (cancelEditing && this._terminalService.isEditable(undefined)) {
+			this.domFocus();
+		}
+
 		this.splice(0, this.length, this._terminalGroupService.instances.slice());
 	}
 
@@ -324,12 +328,12 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			template.actionBar.clear();
 		}
 
-		if (!template.elementDispoables) {
-			template.elementDispoables = new DisposableStore();
+		if (!template.elementDisposables) {
+			template.elementDisposables = new DisposableStore();
 		}
 
 		// Kill terminal on middle click
-		template.elementDispoables.add(DOM.addDisposableListener(template.element, DOM.EventType.AUXCLICK, e => {
+		template.elementDisposables.add(DOM.addDisposableListener(template.element, DOM.EventType.AUXCLICK, e => {
 			e.stopImmediatePropagation();
 			if (e.button === 1/*middle*/) {
 				this._terminalService.safeDisposeTerminal(instance);
@@ -364,14 +368,13 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		const editableData = this._terminalService.getEditableData(instance);
 		template.label.element.classList.toggle('editable-tab', !!editableData);
 		if (editableData) {
-			this._renderInputBox(template.label.element.querySelector('.monaco-icon-label-container')!, instance, editableData);
+			template.elementDisposables.add(this._renderInputBox(template.label.element.querySelector('.monaco-icon-label-container')!, instance, editableData));
 			template.actionBar.clear();
 		}
 	}
 
 	private _renderInputBox(container: HTMLElement, instance: ITerminalInstance, editableData: IEditableData): IDisposable {
 
-		const label = this._labels.create(container);
 		const value = instance.title || '';
 
 		const inputBox = new InputBox(container, this._contextViewService, {
@@ -439,7 +442,6 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
 				done(inputBox.isInputValid(), true);
 			}),
-			label,
 			styler
 		];
 
@@ -449,11 +451,14 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 	}
 
 	disposeElement(instance: ITerminalInstance, index: number, templateData: ITerminalTabEntryTemplate): void {
-		templateData.elementDispoables?.dispose();
-		templateData.elementDispoables = undefined;
+		templateData.elementDisposables?.dispose();
+		templateData.elementDisposables = undefined;
 	}
 
 	disposeTemplate(templateData: ITerminalTabEntryTemplate): void {
+		templateData.elementDisposables?.dispose();
+		templateData.elementDisposables = undefined;
+		templateData.label.dispose();
 	}
 
 	fillActionBar(instance: ITerminalInstance, template: ITerminalTabEntryTemplate): void {
@@ -496,7 +501,7 @@ interface ITerminalTabEntryTemplate {
 	context: {
 		hoverActions?: IHoverAction[];
 	};
-	elementDispoables?: DisposableStore;
+	elementDisposables?: DisposableStore;
 }
 
 
@@ -539,13 +544,13 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<IT
 class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 	private _autoFocusInstance: ITerminalInstance | undefined;
 	private _autoFocusDisposable: IDisposable = Disposable.None;
-	private _offProcessTerminalService: IOffProcessTerminalService | undefined;
+	private _primaryBackend: ITerminalBackend | undefined;
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 	) {
-		this._offProcessTerminalService = _terminalService.getOffProcessTerminalService();
+		this._primaryBackend = this._terminalService.getPrimaryBackend();
 	}
 
 	getDragURI(instance: ITerminalInstance): string | null {
@@ -621,10 +626,10 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 				if (instance) {
 					sourceInstances = [instance];
 					this._terminalService.moveToTerminalView(instance);
-				} else if (this._offProcessTerminalService) {
+				} else if (this._primaryBackend) {
 					const terminalIdentifier = parseTerminalUri(uri);
 					if (terminalIdentifier.instanceId) {
-						promises.push(this._offProcessTerminalService.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId));
+						promises.push(this._primaryBackend.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId));
 					}
 				}
 			}
@@ -705,7 +710,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 
 		this._terminalService.setActiveInstance(instance);
 
-		const preparedPath = await this._terminalInstanceService.preparePathForTerminalAsync(path, instance.shellLaunchConfig.executable, instance.title, instance.shellType, instance.isRemote);
+		const preparedPath = await this._terminalInstanceService.preparePathForTerminalAsync(path, instance.shellLaunchConfig.executable, instance.title, instance.shellType, instance.remoteAuthority);
 		instance.sendText(preparedPath, false);
 		instance.focus();
 	}

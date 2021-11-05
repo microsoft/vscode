@@ -19,7 +19,7 @@ import { ConfigurationScope } from 'vs/platform/configuration/common/configurati
 import { equals } from 'vs/base/common/objects';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { hash } from 'vs/base/common/hash';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { ResourceMap } from 'vs/base/common/map';

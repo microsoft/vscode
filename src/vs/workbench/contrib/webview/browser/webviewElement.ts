@@ -10,7 +10,7 @@ import { IAction } from 'vs/base/common/actions';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { streamToBuffer } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
@@ -22,6 +22,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -31,7 +32,8 @@ import { WebviewPortMappingManager } from 'vs/platform/webview/common/webviewPor
 import { asWebviewUri, decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority } from 'vs/workbench/api/common/shared/webview';
 import { loadLocalResource, WebviewResourceResponse } from 'vs/workbench/contrib/webview/browser/resourceLoading';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
-import { areWebviewContentOptionsEqual, Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewMessageReceivedEvent, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { areWebviewContentOptionsEqual, IWebview, WebviewContentOptions, WebviewExtensionDescription, WebviewMessageReceivedEvent, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewFindDelegate, WebviewFindWidget } from 'vs/workbench/contrib/webview/browser/webviewFindWidget';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export const enum WebviewMessageChannels {
@@ -41,6 +43,7 @@ export const enum WebviewMessageChannels {
 	didFocus = 'did-focus',
 	didBlur = 'did-blur',
 	didLoad = 'did-load',
+	didFind = 'did-find',
 	doUpdateState = 'do-update-state',
 	doReload = 'do-reload',
 	setConfirmBeforeClose = 'set-confirm-before-close',
@@ -88,7 +91,7 @@ namespace WebviewState {
 	export type State = typeof Ready | Initializing;
 }
 
-export class IFrameWebview extends Disposable implements Webview {
+export class WebviewElement extends Disposable implements IWebview, WebviewFindDelegate {
 
 	protected get platform(): string { return 'browser'; }
 
@@ -129,6 +132,9 @@ export class IFrameWebview extends Disposable implements Webview {
 
 	private readonly _messageHandlers = new Map<string, Set<(data: any) => void>>();
 
+	protected readonly _webviewFindWidget: WebviewFindWidget | undefined;
+	public readonly checkImeCompletionState = true;
+
 	constructor(
 		public readonly id: string,
 		private readonly options: WebviewOptions,
@@ -145,6 +151,7 @@ export class IFrameWebview extends Disposable implements Webview {
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ITunnelService private readonly _tunnelService: ITunnelService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -213,6 +220,10 @@ export class IFrameWebview extends Disposable implements Webview {
 
 		this._register(this.on(WebviewMessageChannels.didBlur, () => {
 			this.handleFocusChange(false);
+		}));
+
+		this._register(this.on(WebviewMessageChannels.didFind, (didFind: boolean) => {
+			this._hasFindResult.fire(didFind);
 		}));
 
 		this._register(this.on<{ message: string }>(WebviewMessageChannels.fatalError, (e) => {
@@ -312,13 +323,16 @@ export class IFrameWebview extends Disposable implements Webview {
 			}
 		}));
 
+		if (options.enableFindWidget) {
+			this._webviewFindWidget = this._register(instantiationService.createInstance(WebviewFindWidget, this));
+			this.styledFindWidget();
+		}
+
 		this.initElement(extension, options);
 	}
 
 	override dispose(): void {
-		if (this.element) {
-			this.element.remove();
-		}
+		this.element?.remove();
 		this._element = undefined;
 
 		this._onDidDispose.fire();
@@ -418,9 +432,14 @@ export class IFrameWebview extends Disposable implements Webview {
 	}
 
 	public mountTo(parent: HTMLElement) {
-		if (this.element) {
-			parent.appendChild(this.element);
+		if (!this.element) {
+			return;
 		}
+
+		if (this._webviewFindWidget) {
+			parent.appendChild(this._webviewFindWidget.getDomNode()!);
+		}
+		parent.appendChild(this.element);
 	}
 
 	protected get webviewContentEndpoint(): string {
@@ -467,7 +486,7 @@ export class IFrameWebview extends Disposable implements Webview {
 		}
 		this._hasAlertedAboutMissingCsp = true;
 
-		if (this.extension && this.extension.id) {
+		if (this.extension?.id) {
 			if (this._environmentService.isExtensionDevelopment) {
 				this._onMissingCsp.fire(this.extension.id);
 			}
@@ -586,6 +605,12 @@ export class IFrameWebview extends Disposable implements Webview {
 		}
 
 		this._send('styles', { styles, activeTheme, themeName: themeLabel });
+
+		this.styledFindWidget();
+	}
+
+	private styledFindWidget() {
+		this._webviewFindWidget?.updateTheme(this.webviewThemeDataProvider.getTheme());
 	}
 
 	private handleFocusChange(isFocused: boolean): void {
@@ -757,15 +782,51 @@ export class IFrameWebview extends Disposable implements Webview {
 		});
 	}
 
-	public showFind(): void {
-		// noop
+	protected readonly _hasFindResult = this._register(new Emitter<boolean>());
+	public readonly hasFindResult: Event<boolean> = this._hasFindResult.event;
+
+	protected readonly _onDidStopFind = this._register(new Emitter<void>());
+	public readonly onDidStopFind: Event<void> = this._onDidStopFind.event;
+
+	/**
+	 * Webviews expose a stateful find API.
+	 * Successive calls to find will move forward or backward through onFindResults
+	 * depending on the supplied options.
+	 *
+	 * @param value The string to search for. Empty strings are ignored.
+	 */
+	public find(value: string, previous: boolean): void {
+		if (!this.element) {
+			return;
+		}
+
+		this._send('find', { value, previous });
 	}
 
-	public hideFind(): void {
-		// noop
+	public startFind(value: string) {
+		if (!value || !this.element) {
+			return;
+		}
+		this._send('find', { value });
 	}
 
-	public runFindAction(previous: boolean): void {
-		// noop
+	public stopFind(keepSelection?: boolean): void {
+		if (!this.element) {
+			return;
+		}
+		this._send('find-stop', { keepSelection });
+		this._onDidStopFind.fire();
+	}
+
+	public showFind() {
+		this._webviewFindWidget?.reveal();
+	}
+
+	public hideFind() {
+		this._webviewFindWidget?.hide();
+	}
+
+	public runFindAction(previous: boolean) {
+		this._webviewFindWidget?.find(previous);
 	}
 }

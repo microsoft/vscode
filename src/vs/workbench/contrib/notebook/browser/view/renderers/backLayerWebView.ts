@@ -28,7 +28,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { asWebviewUri, webviewGenericCspSource } from 'vs/workbench/api/common/shared/webview';
-import { CellEditState, ICellOutputViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IFocusNotebookCellOptions, IGenericCellViewModel, IInsetRenderOutput, INotebookEditorCreationOptions, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IFocusNotebookCellOptions, IGenericCellViewModel, IInsetRenderOutput, INotebookEditorCreationOptions, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { preloadsScriptStr, RendererMetadata } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
@@ -36,7 +36,7 @@ import { INotebookRendererInfo, RendererMessagingSpec } from 'vs/workbench/contr
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IScopedRendererMessaging } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, WebviewContentPurpose, IWebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, IContentWidgetTopRequest, IControllerPreload, ICreationRequestMessage, IMarkupCellInitialization, ToWebviewMessage } from './webviewMessages';
 
@@ -60,7 +60,7 @@ export interface INotebookWebviewMessage {
 }
 
 export interface IResolvedBackLayerWebview {
-	webview: WebviewElement;
+	webview: IWebviewElement;
 }
 
 /**
@@ -87,7 +87,7 @@ export interface INotebookDelegateForWebview {
 
 export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	element: HTMLElement;
-	webview: WebviewElement | undefined = undefined;
+	webview: IWebviewElement | undefined = undefined;
 	insetMapping: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
 	readonly markupPreviewMapping = new Map<string, IMarkupCellInitialization>();
 	private hiddenInsetMapping: Set<IDisplayOutputViewModel> = new Set();
@@ -836,7 +836,7 @@ var requirejs = (function() {
 			return false;
 		}
 
-		if (cell.metadata.outputCollapsed) {
+		if ('isOutputCollapsed' in cell && (cell as ICellViewModel).isOutputCollapsed) {
 			return false;
 		}
 

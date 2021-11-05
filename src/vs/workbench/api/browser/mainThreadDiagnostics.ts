@@ -8,7 +8,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { MainThreadDiagnosticsShape, MainContext, IExtHostContext, ExtHostDiagnosticsShape, ExtHostContext } from '../common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 @extHostNamedCustomer(MainContext.MainThreadDiagnostics)
 export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
@@ -37,12 +37,14 @@ export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
 	private _forwardMarkers(resources: readonly URI[]): void {
 		const data: [UriComponents, IMarkerData[]][] = [];
 		for (const resource of resources) {
-			data.push([
-				resource,
-				this._markerService.read({ resource }).filter(marker => !this._activeOwners.has(marker.owner))
-			]);
+			const markerData = this._markerService.read({ resource }).filter(marker => !this._activeOwners.has(marker.owner));
+			if (markerData.length > 0) {
+				data.push([resource, markerData]);
+			}
 		}
-		this._proxy.$acceptMarkersChange(data);
+		if (data.length > 0) {
+			this._proxy.$acceptMarkersChange(data);
+		}
 	}
 
 	$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {

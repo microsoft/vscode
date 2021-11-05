@@ -12,11 +12,11 @@ import { Range } from 'vs/editor/common/core/range';
 import { FindMatch, IModelDeltaDecoration, IReadonlyTextBuffer, ITextModel } from 'vs/editor/common/model';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
-import { CellViewModel, IModelDecorationsChangeAccessor, INotebookViewCellsUpdateEvent, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewState, INotebookViewCellsUpdateEvent, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, NotebookCellMetadata, IOrderedMimeType, INotebookRendererInfo, ICellOutput, INotebookCellStatusBarItem, NotebookCellInternalMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange, cellRangesToIndexes, reduceCellRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IEditorPane } from 'vs/workbench/common/editor';
@@ -254,6 +254,8 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	readonly onDidChangeCellStatusBarItems: Event<void>;
 	readonly editStateSource: string;
 	readonly editorAttached: boolean;
+	isInputCollapsed: boolean;
+	isOutputCollapsed: boolean;
 	dragging: boolean;
 	handle: number;
 	uri: URI;
@@ -325,6 +327,7 @@ export interface INotebookEditorOptions extends ITextEditorOptions {
 	readonly cellOptions?: ITextResourceEditorInput;
 	readonly cellSelections?: ICellRange[];
 	readonly isReadOnly?: boolean;
+	readonly viewState?: INotebookEditorViewState;
 }
 
 export type INotebookEditorContributionCtor = IConstructorSignature1<INotebookEditor, INotebookEditorContribution>;
@@ -398,6 +401,7 @@ export interface INotebookEditor {
 	readonly onDidFocusEditorWidget: Event<void>;
 	readonly onDidScroll: Event<void>;
 	readonly onDidChangeActiveCell: Event<void>;
+	readonly onDidChangeActiveKernel: Event<void>;
 	readonly onMouseUp: Event<INotebookEditorMouseEvent>;
 	readonly onMouseDown: Event<INotebookEditorMouseEvent>;
 
@@ -426,7 +430,7 @@ export interface INotebookEditor {
 	hasModel(): this is IActiveNotebookEditor;
 	dispose(): void;
 	getDomNode(): HTMLElement;
-	getInnerWebview(): Webview | undefined;
+	getInnerWebview(): IWebview | undefined;
 	getSelectionViewModels(): ICellViewModel[];
 
 	/**
@@ -721,6 +725,8 @@ export interface CellViewModelStateChangeEvent {
 	readonly outputIsFocusedChanged?: boolean;
 	readonly cellIsHoveredChanged?: boolean;
 	readonly cellLineNumberChanged?: boolean;
+	readonly inputCollapsedChanged?: boolean;
+	readonly outputCollapsedChanged?: boolean;
 }
 
 export function getVisibleCells(cells: CellViewModel[], hiddenRanges: ICellRange[]) {

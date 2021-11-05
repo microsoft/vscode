@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/a612b96d62aa1ce305c4a55dc9d577316fab39da",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/b0e9d49bdb9ff10332439db26550383b5d13aea7",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -63,7 +63,7 @@
 			"while": "(^|\\G)\\s*(>) ?"
 		},
 		"fenced_code_block_css": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(css|css.erb)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(css|css.erb)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -96,7 +96,7 @@
 			]
 		},
 		"fenced_code_block_basic": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(html|htm|shtml|xhtml|inc|tmpl|tpl)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(html|htm|shtml|xhtml|inc|tmpl|tpl)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -129,7 +129,7 @@
 			]
 		},
 		"fenced_code_block_ini": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(ini|conf)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(ini|conf)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -162,7 +162,7 @@
 			]
 		},
 		"fenced_code_block_java": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(java|bsh)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(java|bsh)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -195,7 +195,7 @@
 			]
 		},
 		"fenced_code_block_lua": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(lua)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(lua)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -228,7 +228,7 @@
 			]
 		},
 		"fenced_code_block_makefile": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(Makefile|makefile|GNUmakefile|OCamlMakefile)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(Makefile|makefile|GNUmakefile|OCamlMakefile)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -261,7 +261,7 @@
 			]
 		},
 		"fenced_code_block_perl": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(perl|pl|pm|pod|t|PL|psgi|vcl)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(perl|pl|pm|pod|t|PL|psgi|vcl)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -294,7 +294,7 @@
 			]
 		},
 		"fenced_code_block_r": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(R|r|s|S|Rprofile|\\{\\.r.+?\\})((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(R|r|s|S|Rprofile|\\{\\.r.+?\\})((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -327,7 +327,7 @@
 			]
 		},
 		"fenced_code_block_ruby": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(ruby|rb|rbx|rjs|Rakefile|rake|cgi|fcgi|gemspec|irbrc|Capfile|ru|prawn|Cheffile|Gemfile|Guardfile|Hobofile|Vagrantfile|Appraisals|Rantfile|Berksfile|Berksfile.lock|Thorfile|Puppetfile)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(ruby|rb|rbx|rjs|Rakefile|rake|cgi|fcgi|gemspec|irbrc|Capfile|ru|prawn|Cheffile|Gemfile|Guardfile|Hobofile|Vagrantfile|Appraisals|Rantfile|Berksfile|Berksfile.lock|Thorfile|Puppetfile)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -360,7 +360,7 @@
 			]
 		},
 		"fenced_code_block_php": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(php|php3|php4|php5|phpt|phtml|aw|ctp)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(php|php3|php4|php5|phpt|phtml|aw|ctp)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -396,7 +396,7 @@
 			]
 		},
 		"fenced_code_block_sql": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(sql|ddl|dml)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(sql|ddl|dml)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -429,7 +429,7 @@
 			]
 		},
 		"fenced_code_block_vs_net": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(vb)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(vb)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -462,7 +462,7 @@
 			]
 		},
 		"fenced_code_block_xml": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(xml|xsd|tld|jsp|pt|cpt|dtml|rss|opml)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(xml|xsd|tld|jsp|pt|cpt|dtml|rss|opml)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -495,7 +495,7 @@
 			]
 		},
 		"fenced_code_block_xsl": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(xsl|xslt)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(xsl|xslt)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -528,7 +528,7 @@
 			]
 		},
 		"fenced_code_block_yaml": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(yaml|yml)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(yaml|yml)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -561,7 +561,7 @@
 			]
 		},
 		"fenced_code_block_dosbatch": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(bat|batch)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(bat|batch)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -594,7 +594,7 @@
 			]
 		},
 		"fenced_code_block_clojure": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(clj|cljs|clojure)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(clj|cljs|clojure)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -627,7 +627,7 @@
 			]
 		},
 		"fenced_code_block_coffee": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(coffee|Cakefile|coffee.erb)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(coffee|Cakefile|coffee.erb)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -660,7 +660,7 @@
 			]
 		},
 		"fenced_code_block_c": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(c|h)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(c|h)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -693,7 +693,7 @@
 			]
 		},
 		"fenced_code_block_cpp": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(cpp|c\\+\\+|cxx)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(cpp|c\\+\\+|cxx)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -726,7 +726,7 @@
 			]
 		},
 		"fenced_code_block_diff": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(patch|diff|rej)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(patch|diff|rej)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -759,7 +759,7 @@
 			]
 		},
 		"fenced_code_block_dockerfile": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(dockerfile|Dockerfile)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(dockerfile|Dockerfile)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -792,7 +792,7 @@
 			]
 		},
 		"fenced_code_block_git_commit": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(COMMIT_EDITMSG|MERGE_MSG)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(COMMIT_EDITMSG|MERGE_MSG)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -825,7 +825,7 @@
 			]
 		},
 		"fenced_code_block_git_rebase": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(git-rebase-todo)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(git-rebase-todo)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -858,7 +858,7 @@
 			]
 		},
 		"fenced_code_block_go": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(go|golang)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(go|golang)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -891,7 +891,7 @@
 			]
 		},
 		"fenced_code_block_groovy": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(groovy|gvy)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(groovy|gvy)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -924,7 +924,7 @@
 			]
 		},
 		"fenced_code_block_pug": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(jade|pug)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(jade|pug)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -957,7 +957,7 @@
 			]
 		},
 		"fenced_code_block_js": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(js|jsx|javascript|es6|mjs|cjs|\\{\\.js.+?\\})((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(js|jsx|javascript|es6|mjs|cjs|\\{\\.js.+?\\})((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -990,7 +990,7 @@
 			]
 		},
 		"fenced_code_block_js_regexp": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(regexp)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(regexp)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -1023,7 +1023,7 @@
 			]
 		},
 		"fenced_code_block_json": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(json|json5|sublime-settings|sublime-menu|sublime-keymap|sublime-mousemap|sublime-theme|sublime-build|sublime-project|sublime-completions)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(json|json5|sublime-settings|sublime-menu|sublime-keymap|sublime-mousemap|sublime-theme|sublime-build|sublime-project|sublime-completions)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -1056,7 +1056,7 @@
 			]
 		},
 		"fenced_code_block_jsonc": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(jsonc)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(jsonc)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -1089,7 +1089,7 @@
 			]
 		},
 		"fenced_code_block_less": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(less)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(less)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -1122,7 +1122,7 @@
 			]
 		},
 		"fenced_code_block_objc": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(objectivec|objective-c|mm|objc|obj-c|m|h)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(objectivec|objective-c|mm|objc|obj-c|m|h)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -1155,7 +1155,7 @@
 			]
 		},
 		"fenced_code_block_swift": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(swift)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(swift)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -1188,7 +1188,7 @@
 			]
 		},
 		"fenced_code_block_scss": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(scss)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(scss)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -1221,7 +1221,7 @@
 			]
 		},
 		"fenced_code_block_perl6": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(perl6|p6|pl6|pm6|nqp)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(perl6|p6|pl6|pm6|nqp)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -1254,7 +1254,7 @@
 			]
 		},
 		"fenced_code_block_powershell": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(powershell|ps1|psm1|psd1)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(powershell|ps1|psm1|psd1)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -1287,7 +1287,7 @@
 			]
 		},
 		"fenced_code_block_python": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(python|py|py3|rpy|pyw|cpy|SConstruct|Sconstruct|sconstruct|SConscript|gyp|gypi|\\{\\.python.+?\\})((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(python|py|py3|rpy|pyw|cpy|SConstruct|Sconstruct|sconstruct|SConscript|gyp|gypi|\\{\\.python.+?\\})((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -1320,7 +1320,7 @@
 			]
 		},
 		"fenced_code_block_regexp_python": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(re)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(re)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -1353,7 +1353,7 @@
 			]
 		},
 		"fenced_code_block_rust": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(rust|rs|\\{\\.rust.+?\\})((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(rust|rs|\\{\\.rust.+?\\})((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -1386,7 +1386,7 @@
 			]
 		},
 		"fenced_code_block_scala": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(scala|sbt)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(scala|sbt)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -1419,7 +1419,7 @@
 			]
 		},
 		"fenced_code_block_shell": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(shell|sh|bash|zsh|bashrc|bash_profile|bash_login|profile|bash_logout|.textmate_init|\\{\\.bash.+?\\})((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(shell|sh|bash|zsh|bashrc|bash_profile|bash_login|profile|bash_logout|.textmate_init|\\{\\.bash.+?\\})((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -1452,7 +1452,7 @@
 			]
 		},
 		"fenced_code_block_ts": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(typescript|ts)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(typescript|ts)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -1485,7 +1485,7 @@
 			]
 		},
 		"fenced_code_block_tsx": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(tsx)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(tsx)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -1518,7 +1518,7 @@
 			]
 		},
 		"fenced_code_block_csharp": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(cs|csharp|c#)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(cs|csharp|c#)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -1551,7 +1551,7 @@
 			]
 		},
 		"fenced_code_block_fsharp": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(fs|fsharp|f#)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(fs|fsharp|f#)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -1584,7 +1584,7 @@
 			]
 		},
 		"fenced_code_block_dart": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(dart)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(dart)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -1617,7 +1617,7 @@
 			]
 		},
 		"fenced_code_block_handlebars": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(handlebars|hbs)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(handlebars|hbs)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -1650,7 +1650,7 @@
 			]
 		},
 		"fenced_code_block_markdown": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(markdown|md)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(markdown|md)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -1683,7 +1683,7 @@
 			]
 		},
 		"fenced_code_block_log": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(log)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(log)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -1716,7 +1716,7 @@
 			]
 		},
 		"fenced_code_block_erlang": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(erlang)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(erlang)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -1749,7 +1749,7 @@
 			]
 		},
 		"fenced_code_block_elixir": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(elixir)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(elixir)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -2222,34 +2222,37 @@
 					"name": "punctuation.definition.link.markdown"
 				},
 				"8": {
-					"name": "string.other.link.description.title.markdown"
+					"name": "markup.underline.link.markdown"
 				},
 				"9": {
-					"name": "punctuation.definition.string.begin.markdown"
+					"name": "string.other.link.description.title.markdown"
 				},
 				"10": {
-					"name": "punctuation.definition.string.end.markdown"
+					"name": "punctuation.definition.string.begin.markdown"
 				},
 				"11": {
-					"name": "string.other.link.description.title.markdown"
-				},
-				"12": {
-					"name": "punctuation.definition.string.begin.markdown"
-				},
-				"13": {
 					"name": "punctuation.definition.string.end.markdown"
 				},
-				"14": {
+				"12": {
 					"name": "string.other.link.description.title.markdown"
 				},
-				"15": {
+				"13": {
 					"name": "punctuation.definition.string.begin.markdown"
 				},
+				"14": {
+					"name": "punctuation.definition.string.end.markdown"
+				},
+				"15": {
+					"name": "string.other.link.description.title.markdown"
+				},
 				"16": {
+					"name": "punctuation.definition.string.begin.markdown"
+				},
+				"17": {
 					"name": "punctuation.definition.string.end.markdown"
 				}
 			},
-			"match": "(?x)\n  \\s*            # Leading whitespace\n  (\\[)([^]]+?)(\\])(:)    # Reference name\n  [ \\t]*          # Optional whitespace\n  (<?)(\\S+?)(>?)      # The url\n  [ \\t]*          # Optional whitespace\n  (?:\n      ((\\().+?(\\)))    # Match title in parens…\n    | ((\").+?(\"))    # or in double quotes…\n    | ((').+?('))    # or in single quotes.\n  )?            # Title is optional\n  \\s*            # Optional whitespace\n  $\n",
+			"match": "(?x)\n  \\s*            # Leading whitespace\n  (\\[)([^]]+?)(\\])(:)    # Reference name\n  [ \\t]*          # Optional whitespace\n  (?:(<)([^\\>]+?)(>)|(\\S+?))      # The url\n  [ \\t]*          # Optional whitespace\n  (?:\n      ((\\().+?(\\)))    # Match title in parens…\n    | ((\").+?(\"))    # or in double quotes…\n    | ((').+?('))    # or in single quotes.\n  )?            # Title is optional\n  \\s*            # Optional whitespace\n  $\n",
 			"name": "meta.link.reference.def.markdown"
 		},
 		"list_paragraph": {
@@ -2550,7 +2553,7 @@
 			"name": "meta.image.reference.markdown"
 		},
 		"italic": {
-			"begin": "(?x) (?<open>(\\*(?=\\w)|(?<!\\w)\\*|(?<!\\w)\\b_))(?=\\S)                # Open\n  (?=\n    (\n      <[^>]*+>              # HTML tags\n      | (?<raw>`+)([^`]|(?!(?<!`)\\k<raw>(?!`))`)*+\\k<raw>\n                        # Raw\n      | \\\\[\\\\`*_{}\\[\\]()#.!+\\->]?+      # Escapes\n      | \\[\n      (\n          (?<square>          # Named group\n            [^\\[\\]\\\\]        # Match most chars\n            | \\\\.            # Escaped chars\n            | \\[ \\g<square>*+ \\]    # Nested brackets\n          )*+\n        \\]\n        (\n          (              # Reference Link\n            [ ]?          # Optional space\n            \\[[^\\]]*+\\]        # Ref name\n          )\n          | (              # Inline Link\n            \\(            # Opening paren\n              [ \\t]*+        # Optional whtiespace\n              <?(.*?)>?      # URL\n              [ \\t]*+        # Optional whtiespace\n              (          # Optional Title\n                (?<title>['\"])\n                (.*?)\n                \\k<title>\n              )?\n            \\)\n          )\n        )\n      )\n      | \\k<open>\\k<open>                # Must be bold closer\n      | (?!(?<=\\S)\\k<open>).            # Everything besides\n                        # style closer\n    )++\n    (?<=\\S)(?=_\\b|\\*)\\k<open>                # Close\n  )\n",
+			"begin": "(?x) (?<open>(\\*(?=\\w)|(?<!\\w)\\*|(?<!\\w)\\b_))(?=\\S)                # Open\n  (?=\n    (\n      <[^>]*+>              # HTML tags\n      | (?<raw>`+)([^`]|(?!(?<!`)\\k<raw>(?!`))`)*+\\k<raw>\n                        # Raw\n      | \\\\[\\\\`*_{}\\[\\]()#.!+\\->]?+      # Escapes\n      | \\[\n      (\n          (?<square>          # Named group\n            [^\\[\\]\\\\]        # Match most chars\n            | \\\\.            # Escaped chars\n            | \\[ \\g<square>*+ \\]    # Nested brackets\n          )*+\n        \\]\n        (\n          (              # Reference Link\n            [ ]?          # Optional space\n            \\[[^\\]]*+\\]        # Ref name\n          )\n          | (              # Inline Link\n            \\(            # Opening paren\n              [ \\t]*+        # Optional whtiespace\n              <?(.*?)>?      # URL\n              [ \\t]*+        # Optional whtiespace\n              (          # Optional Title\n                (?<title>['\"])\n                (.*?)\n                \\k<title>\n              )?\n            \\)\n          )\n        )\n      )\n      | \\k<open>\\k<open>                   # Must be bold closer\n      | (?!(?<=\\S)\\k<open>).            # Everything besides\n                        # style closer\n    )++\n    (?<=\\S)(?=_\\b|\\*)\\k<open>                # Close\n  )\n",
 			"captures": {
 				"1": {
 					"name": "punctuation.definition.italic.markdown"

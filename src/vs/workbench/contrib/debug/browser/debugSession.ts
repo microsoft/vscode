@@ -33,7 +33,7 @@ import { localize } from 'vs/nls';
 import { canceled } from 'vs/base/common/errors';
 import { filterExceptionsFromTelemetry } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';

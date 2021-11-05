@@ -298,12 +298,10 @@ export interface IEditorOptions {
 	wrappingStrategy?: 'simple' | 'advanced';
 	/**
 	 * Configure word wrapping characters. A break will be introduced before these characters.
-	 * Defaults to '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋'.
 	 */
 	wordWrapBreakBeforeCharacters?: string;
 	/**
 	 * Configure word wrapping characters. A break will be introduced after these characters.
-	 * Defaults to ' \t})]?|/&.,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣'.
 	 */
 	wordWrapBreakAfterCharacters?: string;
 	/**
@@ -575,7 +573,7 @@ export interface IEditorOptions {
 	renderWhitespace?: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
 	/**
 	 * Enable rendering of control characters.
-	 * Defaults to false.
+	 * Defaults to true.
 	 */
 	renderControlCharacters?: boolean;
 	/**
@@ -4637,8 +4635,8 @@ export const EditorOptions = {
 		{ description: nls.localize('renameOnType', "Controls whether the editor auto renames on type."), markdownDeprecationMessage: nls.localize('renameOnTypeDeprecate', "Deprecated, use `editor.linkedEditing` instead.") }
 	)),
 	renderControlCharacters: register(new EditorBooleanOption(
-		EditorOption.renderControlCharacters, 'renderControlCharacters', false,
-		{ description: nls.localize('renderControlCharacters', "Controls whether the editor should render control characters.") }
+		EditorOption.renderControlCharacters, 'renderControlCharacters', true,
+		{ description: nls.localize('renderControlCharacters', "Controls whether the editor should render control characters."), restricted: true }
 	)),
 	renderFinalNewline: register(new EditorBooleanOption(
 		EditorOption.renderFinalNewline, 'renderFinalNewline', true,
@@ -4866,10 +4864,12 @@ export const EditorOptions = {
 	)),
 	wordWrapBreakAfterCharacters: register(new EditorStringOption(
 		EditorOption.wordWrapBreakAfterCharacters, 'wordWrapBreakAfterCharacters',
+		// allow-any-unicode-next-line
 		' \t})]?|/&.,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣',
 	)),
 	wordWrapBreakBeforeCharacters: register(new EditorStringOption(
 		EditorOption.wordWrapBreakBeforeCharacters, 'wordWrapBreakBeforeCharacters',
+		// allow-any-unicode-next-line
 		'([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋'
 	)),
 	wordWrapColumn: register(new EditorIntOption(

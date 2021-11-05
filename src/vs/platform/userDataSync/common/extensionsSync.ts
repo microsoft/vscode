@@ -20,6 +20,7 @@ import { ExtensionType, IExtensionIdentifier } from 'vs/platform/extensions/comm
 import { IFileService } from 'vs/platform/files/common/files';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { AbstractInitializer, AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { IMergeResult as IExtensionMergeResult, merge } from 'vs/platform/userDataSync/common/extensionsMerge';
 import { IExtensionsStorageSyncService } from 'vs/platform/userDataSync/common/extensionsStorageSync';
@@ -108,8 +109,9 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		@IUserDataSyncResourceEnablementService userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IExtensionsStorageSyncService private readonly extensionsStorageSyncService: IExtensionsStorageSyncService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(SyncResource.Extensions, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncResourceEnablementService, telemetryService, logService, configurationService);
+		super(SyncResource.Extensions, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncResourceEnablementService, telemetryService, logService, configurationService, uriIdentityService);
 		this._register(
 			Event.debounce(
 				Event.any<any>(
@@ -505,8 +507,9 @@ export abstract class AbstractExtensionsInitializer extends AbstractInitializer 
 		@IFileService fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(SyncResource.Extensions, environmentService, logService, fileService);
+		super(SyncResource.Extensions, environmentService, logService, fileService, uriIdentityService);
 	}
 
 	protected async parseExtensions(remoteUserData: IRemoteUserData): Promise<ISyncExtension[] | null> {

@@ -32,7 +32,6 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	}
 
 	private _terminalGroupCountContextKey: IContextKey<number>;
-	private _terminalCountContextKey: IContextKey<number>;
 
 	private _container: HTMLElement | undefined;
 
@@ -70,10 +69,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		this.onDidDisposeGroup(group => this._removeGroup(group));
 
 		this._terminalGroupCountContextKey = TerminalContextKeys.groupCount.bindTo(this._contextKeyService);
-		this._terminalCountContextKey = TerminalContextKeys.count.bindTo(this._contextKeyService);
 
 		this.onDidChangeGroups(() => this._terminalGroupCountContextKey.set(this.groups.length));
-		this.onDidChangeInstances(() => this._terminalCountContextKey.set(this.instances.length));
 
 		this._findState = new FindReplaceState();
 	}

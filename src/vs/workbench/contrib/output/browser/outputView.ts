@@ -271,6 +271,7 @@ export class OutputEditor extends AbstractTextResourceEditor {
 
 class SwitchOutputActionViewItem extends SelectActionViewItem {
 
+	// allow-any-unicode-next-line
 	private static readonly SEPARATOR = '─────────';
 
 	private outputChannels: IOutputChannelDescriptor[] = [];

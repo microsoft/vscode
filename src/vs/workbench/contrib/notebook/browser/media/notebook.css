@@ -53,7 +53,7 @@
 }
 
 .monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item:not(.disabled):hover {
-	background-color: var(--code-toolbarHoverBackground);
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item .action-label {

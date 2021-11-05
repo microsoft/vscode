@@ -31,7 +31,7 @@ import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as 
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { delta, distinct } from 'vs/base/common/arrays';
 import { forEach, IStringDictionary } from 'vs/base/common/collections';

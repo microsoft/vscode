@@ -239,7 +239,7 @@ export class CellOutputElement extends Disposable {
 	render(previousSibling: HTMLElement | undefined, forceBreakStreaming: boolean = false): IRenderResult | undefined {
 		const index = this.viewCell.outputsViewModels.indexOf(this.output);
 
-		if (this.viewCell.metadata.outputCollapsed || !this.notebookEditor.hasModel()) {
+		if (this.viewCell.isOutputCollapsed || !this.notebookEditor.hasModel()) {
 			return undefined;
 		}
 

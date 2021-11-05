@@ -19,8 +19,8 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 

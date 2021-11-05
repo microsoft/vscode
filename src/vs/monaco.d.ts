@@ -803,6 +803,10 @@ declare namespace monaco {
 		 */
 		getPosition(): Position;
 		/**
+		 * Get the position at the start of the selection.
+		*/
+		getSelectionStart(): Position;
+		/**
 		 * Create a new selection with a different `selectionStartLineNumber` and `selectionStartColumn`.
 		 */
 		setStartPosition(startLineNumber: number, startColumn: number): Selection;
@@ -810,6 +814,10 @@ declare namespace monaco {
 		 * Create a `Selection` from one or two positions
 		 */
 		static fromPositions(start: IPosition, end?: IPosition): Selection;
+		/**
+		 * Creates a `Selection` from a range, given a direction.
+		 */
+		static fromRange(range: Range, direction: SelectionDirection): Selection;
 		/**
 		 * Create a `Selection` from an `ISelection`.
 		 */
@@ -2949,12 +2957,10 @@ declare namespace monaco.editor {
 		wrappingStrategy?: 'simple' | 'advanced';
 		/**
 		 * Configure word wrapping characters. A break will be introduced before these characters.
-		 * Defaults to '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋'.
 		 */
 		wordWrapBreakBeforeCharacters?: string;
 		/**
 		 * Configure word wrapping characters. A break will be introduced after these characters.
-		 * Defaults to ' \t})]?|/&.,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣'.
 		 */
 		wordWrapBreakAfterCharacters?: string;
 		/**
@@ -3226,7 +3232,7 @@ declare namespace monaco.editor {
 		renderWhitespace?: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
 		/**
 		 * Enable rendering of control characters.
-		 * Defaults to false.
+		 * Defaults to true.
 		 */
 		renderControlCharacters?: boolean;
 		/**

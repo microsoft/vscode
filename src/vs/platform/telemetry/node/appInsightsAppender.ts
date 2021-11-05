@@ -8,7 +8,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { mixin } from 'vs/base/common/objects';
 import { ITelemetryAppender, validateTelemetryData } from 'vs/platform/telemetry/common/telemetryUtils';
 
-async function getClient(aiKey: string): Promise<TelemetryClient> {
+async function getClient(aiKey: string, testCollector: boolean): Promise<TelemetryClient> {
 	const appInsights = await import('applicationinsights');
 	let client: TelemetryClient;
 	if (appInsights.defaultClient) {
@@ -29,7 +29,7 @@ async function getClient(aiKey: string): Promise<TelemetryClient> {
 	}
 
 	if (aiKey.indexOf('AIF-') === 0) {
-		client.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
+		client.config.endpointUrl = testCollector ? 'https://mobile.events.data.microsoft.com/collect/v1' : 'https://vortex.data.microsoft.com/collect/v1';
 	}
 	return client;
 }
@@ -44,6 +44,8 @@ export class AppInsightsAppender implements ITelemetryAppender {
 		private _eventPrefix: string,
 		private _defaultData: { [key: string]: any } | null,
 		aiKeyOrClientFactory: string | (() => TelemetryClient), // allow factory function for testing
+		private readonly testCollector?: boolean,
+		private readonly mirrored?: boolean
 	) {
 		if (!this._defaultData) {
 			this._defaultData = Object.create(null);
@@ -68,7 +70,7 @@ export class AppInsightsAppender implements ITelemetryAppender {
 		}
 
 		if (!this._asyncAIClient) {
-			this._asyncAIClient = getClient(this._aiClient);
+			this._asyncAIClient = getClient(this._aiClient, this.testCollector ?? false);
 		}
 
 		this._asyncAIClient.then(
@@ -88,6 +90,10 @@ export class AppInsightsAppender implements ITelemetryAppender {
 		}
 		data = mixin(data, this._defaultData);
 		data = validateTelemetryData(data);
+
+		if (this.testCollector) {
+			data.properties['common.useragent'] = this.mirrored ? 'mirror-collector++' : 'collector++';
+		}
 
 		this._withAIClient((aiClient) => aiClient.trackEvent({
 			name: this._eventPrefix + '/' + eventName,

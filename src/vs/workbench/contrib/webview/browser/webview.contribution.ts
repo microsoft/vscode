@@ -7,14 +7,14 @@ import { MultiCommand, RedoCommand, SelectAllCommand, UndoCommand } from 'vs/edi
 import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/clipboard';
 import * as nls from 'vs/nls';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { IWebviewService, Webview } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, IWebview } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 
 const PRIORITY = 100;
 
-function overrideCommandForWebview(command: MultiCommand | undefined, f: (webview: Webview) => void) {
+function overrideCommandForWebview(command: MultiCommand | undefined, f: (webview: IWebview) => void) {
 	command?.addImplementation(PRIORITY, 'webview', accessor => {
 		const webviewService = accessor.get(IWebviewService);
 		const webview = webviewService.activeWebview;

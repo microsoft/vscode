@@ -27,7 +27,7 @@ import { EditorsObserver } from 'vs/workbench/browser/parts/editor/editorsObserv
 import { Promises, timeout } from 'vs/base/common/async';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { indexOfPath } from 'vs/base/common/extpath';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IEditorResolverService, ResolvedStatus } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkspaceTrustRequestService, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';

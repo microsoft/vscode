@@ -148,7 +148,7 @@ export class ThemeRegistry<T extends IThemeData> {
 					extensionName: ext.description.name,
 					extensionIsBuiltin: ext.description.isBuiltin
 				};
-				this.onThemes(extensionData, ext.description.extensionLocation, ext.value, ext.collector);
+				this.onThemes(extensionData, ext.description.extensionLocation, ext.value, this.extensionThemes, ext.collector);
 			}
 			for (const theme of this.extensionThemes) {
 				if (!previousIds[theme.id]) {
@@ -162,18 +162,18 @@ export class ThemeRegistry<T extends IThemeData> {
 		});
 	}
 
-	private onThemes(extensionData: ExtensionData, extensionLocation: URI, themes: IThemeExtensionPoint[], collector: ExtensionMessageCollector): void {
-		if (!Array.isArray(themes)) {
-			collector.error(nls.localize(
+	private onThemes(extensionData: ExtensionData, extensionLocation: URI, themeContributions: IThemeExtensionPoint[], resultingThemes: T[] = [], log?: ExtensionMessageCollector): T[] {
+		if (!Array.isArray(themeContributions)) {
+			log?.error(nls.localize(
 				'reqarray',
 				"Extension point `{0}` must be an array.",
 				this.themesExtPoint.name
 			));
-			return;
+			return resultingThemes;
 		}
-		themes.forEach(theme => {
+		themeContributions.forEach(theme => {
 			if (!theme.path || !types.isString(theme.path)) {
-				collector.error(nls.localize(
+				log?.error(nls.localize(
 					'reqpath',
 					"Expected string in `contributes.{0}.path`. Provided value: {1}",
 					this.themesExtPoint.name,
@@ -182,7 +182,7 @@ export class ThemeRegistry<T extends IThemeData> {
 				return;
 			}
 			if (this.idRequired && (!theme.id || !types.isString(theme.id))) {
-				collector.error(nls.localize(
+				log?.error(nls.localize(
 					'reqid',
 					"Expected string in `contributes.{0}.id`. Provided value: {1}",
 					this.themesExtPoint.name,
@@ -193,12 +193,13 @@ export class ThemeRegistry<T extends IThemeData> {
 
 			const themeLocation = resources.joinPath(extensionLocation, theme.path);
 			if (!resources.isEqualOrParent(themeLocation, extensionLocation)) {
-				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", this.themesExtPoint.name, themeLocation.path, extensionLocation.path));
+				log?.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", this.themesExtPoint.name, themeLocation.path, extensionLocation.path));
 			}
 
 			let themeData = this.create(theme, themeLocation, extensionData);
-			this.extensionThemes.push(themeData);
+			resultingThemes.push(themeData);
 		});
+		return resultingThemes;
 	}
 
 	public findThemeById(themeId: string, defaultId?: string): T | undefined {
@@ -244,6 +245,14 @@ export class ThemeRegistry<T extends IThemeData> {
 
 	public getThemes(): T[] {
 		return this.extensionThemes;
+	}
+
+	public getMarketplaceThemes(manifest: any, extensionLocation: URI, extensionData: ExtensionData): T[] {
+		const themes = manifest?.contributes?.[this.themesExtPoint.name];
+		if (Array.isArray(themes)) {
+			return this.onThemes(extensionData, extensionLocation, themes);
+		}
+		return [];
 	}
 
 }

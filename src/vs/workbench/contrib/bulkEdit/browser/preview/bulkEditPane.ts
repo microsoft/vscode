@@ -8,8 +8,7 @@ import { WorkbenchAsyncDataTree, IOpenEvent } from 'vs/platform/list/browser/lis
 import { BulkEditElement, BulkEditDelegate, TextEditElementRenderer, FileElementRenderer, BulkEditDataSource, BulkEditIdentityProvider, FileElement, TextEditElement, BulkEditAccessibilityProvider, CategoryElementRenderer, BulkEditNaviLabelProvider, CategoryElement, BulkEditSorter } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditTree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { registerThemingParticipant, IColorTheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
-import { diffInserted, diffRemoved } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { localize } from 'vs/nls';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -378,15 +377,3 @@ export class BulkEditPane extends ViewPane {
 		});
 	}
 }
-
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-
-	const diffInsertedColor = theme.getColor(diffInserted);
-	if (diffInsertedColor) {
-		collector.addRule(`.monaco-workbench .bulk-edit-panel .highlight.insert { background-color: ${diffInsertedColor}; }`);
-	}
-	const diffRemovedColor = theme.getColor(diffRemoved);
-	if (diffRemovedColor) {
-		collector.addRule(`.monaco-workbench .bulk-edit-panel .highlight.remove { background-color: ${diffRemovedColor}; }`);
-	}
-});

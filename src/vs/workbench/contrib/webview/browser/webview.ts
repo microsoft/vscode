@@ -30,17 +30,17 @@ export interface IWebviewService {
 	/**
 	 * The currently focused webview.
 	 */
-	readonly activeWebview: Webview | undefined;
+	readonly activeWebview: IWebview | undefined;
 
 	/**
 	 * All webviews.
 	 */
-	readonly webviews: Iterable<Webview>;
+	readonly webviews: Iterable<IWebview>;
 
 	/**
 	 * Fired when the currently focused webview changes.
 	 */
-	readonly onDidChangeActiveWebview: Event<Webview | undefined>;
+	readonly onDidChangeActiveWebview: Event<IWebview | undefined>;
 
 	/**
 	 * Create a basic webview dom element.
@@ -50,7 +50,7 @@ export interface IWebviewService {
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
 		extension: WebviewExtensionDescription | undefined,
-	): WebviewElement;
+	): IWebviewElement;
 
 	/**
 	 * Create a lazily created webview element that is overlaid on top of another element.
@@ -63,7 +63,7 @@ export interface IWebviewService {
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
 		extension: WebviewExtensionDescription | undefined,
-	): WebviewOverlay;
+	): IOverlayWebview;
 }
 
 export const enum WebviewContentPurpose {
@@ -119,7 +119,7 @@ export interface WebviewMessageReceivedEvent {
 	readonly transfer?: readonly ArrayBuffer[];
 }
 
-export interface Webview extends IDisposable {
+export interface IWebview extends IDisposable {
 
 	readonly id: string;
 
@@ -169,12 +169,12 @@ export interface Webview extends IDisposable {
 /**
  * Basic webview rendered directly in the dom
  */
-export interface WebviewElement extends Webview {
+export interface IWebviewElement extends IWebview {
 	/**
 	 * Append the webview to a HTML element.
 	 *
 	 * Note that the webview content will be destroyed if any part of the parent hierarchy
-	 * changes. You can avoid this by using a {@link WebviewOverlay} instead.
+	 * changes. You can avoid this by using a {@link IOverlayWebview} instead.
 	 *
 	 * @param parent Element to append the webview to.
 	 */
@@ -182,15 +182,15 @@ export interface WebviewElement extends Webview {
 }
 
 /**
- * Lazily created {@link Webview} that is absolutely positioned over another element.
+ * Lazily created {@link IWebview} that is absolutely positioned over another element.
  *
  * Absolute positioning lets us avoid having the webview be re-parented, which would destroy the
  * webview's content.
  *
  * Note that the underlying webview owned by a `WebviewOverlay` can be dynamically created
- * and destroyed depending on who has {@link WebviewOverlay.claim claimed} or {@link WebviewOverlay.release released} it.
+ * and destroyed depending on who has {@link IOverlayWebview.claim claimed} or {@link IOverlayWebview.release released} it.
  */
-export interface WebviewOverlay extends Webview {
+export interface IOverlayWebview extends IWebview {
 	/**
 	 * The HTML element that holds the webview.
 	 */
@@ -204,7 +204,7 @@ export interface WebviewOverlay extends Webview {
 	 * This will create the underlying webview element.
 	 *
 	 * @param claimant Identifier for the object claiming the webview.
-	 *   This must match the `claimant` passed to {@link WebviewOverlay.release}.
+	 *   This must match the `claimant` passed to {@link IOverlayWebview.release}.
 	 */
 	claim(claimant: any, scopedContextKeyService: IContextKeyService | undefined): void;
 
@@ -215,7 +215,7 @@ export interface WebviewOverlay extends Webview {
 	 * cause the underlying webview element to be destoryed.
 	 *
 	 * @param claimant Identifier for the object releasing its claim on the webview.
-	 *   This must match the `claimant` passed to {@link WebviewOverlay.claim}.
+	 *   This must match the `claimant` passed to {@link IOverlayWebview.claim}.
 	 */
 	release(claimant: any): void;
 

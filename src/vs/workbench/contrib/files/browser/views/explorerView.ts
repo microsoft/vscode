@@ -49,7 +49,7 @@ import { Color } from 'vs/base/common/color';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { Codicon } from 'vs/base/common/codicons';
