@@ -421,9 +421,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	async updateProperty<T extends ProcessPropertyType>(type: T, value: IProcessPropertyMap[T]): Promise<void> {
-		//TODO: why is the type check necessary?
-		if (type === ProcessPropertyType.FixedDimensions && typeof value !== 'string' && value && ('cols' in value || 'rows' in value)) {
-			this._properties.fixedDimensions = value;
+		if (type === ProcessPropertyType.FixedDimensions) {
+			this._properties.fixedDimensions = value as IProcessPropertyMap[ProcessPropertyType.FixedDimensions];
 		}
 	}
 
