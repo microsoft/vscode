@@ -1668,13 +1668,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this.focus();
 	}
 
-	// TODO: Add fixed dimensions class
+	// TODO: Ideally don't set fixed rows when sizing to content
 	// TODO: Remove right padding when using fixed diemnsions
 	private async _addScrollbar(): Promise<void> {
 		const charWidth = (this.xterm ? this.xterm.getFont() : this._configHelper.getFont()).charWidth;
 		if (!this.xterm?.raw.element || !this._wrapperElement || !this._container || !charWidth || !this._fixedCols) {
 			return;
 		}
+		this._wrapperElement.classList.add('fixed-dims');
 		// TODO: Look into effects of this; fixed dims always have room for scrollbar
 		// if (this._fixedCols < this.xterm.raw.buffer.active.getLine(0)!.length) {
 		// 	// no scrollbar needed
@@ -1717,6 +1718,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._horizontalScrollbar?.dispose();
 		this._horizontalScrollbar = undefined;
 		this._wrapperElement.remove();
+		this._wrapperElement.classList.remove('fixed-dims');
 		this._container.appendChild(this._wrapperElement);
 	}
 

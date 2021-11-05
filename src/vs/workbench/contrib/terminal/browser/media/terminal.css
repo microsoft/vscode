@@ -56,8 +56,8 @@
     right: 0;
 }
 
-.monaco-workbench .editor-instance .terminal-split-pane > .monaco-scrollable-element > .terminal-wrapper .xterm,
-.monaco-workbench .pane-body.integrated-terminal .terminal-split-pane > .monaco-scrollable-element > .terminal-wrapper .xterm {
+.monaco-workbench .editor-instance .terminal-wrapper.fixed-dims .xterm,
+.monaco-workbench .pane-body.integrated-terminal .terminal-wrapper.fixed-dims .xterm {
 	position: static;
 }
 
@@ -132,15 +132,15 @@
 	box-sizing: border-box;
 }
 
-.monaco-workbench .editor-instance .terminal-split-pane > .monaco-scrollable-element > .terminal-wrapper,
-.monaco-workbench .pane-body.integrated-terminal .terminal-split-pane > .monaco-scrollable-element > .terminal-wrapper {
+.monaco-workbench .editor-instance .terminal-wrapper.fixed-dims,
+.monaco-workbench .pane-body.integrated-terminal .terminal-wrapper.fixed-dims {
 	/* The viewport should be positioned against this so it does't conflict with a fixed dimensions terminal horizontal scroll bar*/
 	position: relative;
 }
 
 /* TODO: Add class for fixed dimensions */
-.monaco-workbench .editor-instance :not(.terminal-split-pane > .monaco-scrollable-element) > .terminal-wrapper .xterm-viewport,
-.monaco-workbench .pane-body.integrated-terminal :not(.terminal-split-pane > .monaco-scrollable-element) > .terminal-wrapper .xterm-viewport {
+.monaco-workbench .editor-instance .terminal-wrapper:not(.fixed-dims) .xterm-viewport,
+.monaco-workbench .pane-body.integrated-terminal .terminal-wrapper:not(.fixed-dims) .xterm-viewport {
 	/* Override xterm.js' width as we want to size the viewport to fill the panel so the scrollbar is on the right edge */
 	width: auto !important;
 }
