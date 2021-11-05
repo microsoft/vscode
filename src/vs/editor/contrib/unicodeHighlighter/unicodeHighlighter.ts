@@ -94,6 +94,11 @@ class DocumentUnicodeHighlighter extends Disposable {
 	}
 
 	private _update(): void {
+		if (!this._model.mightContainNonBasicASCII()) {
+			this._decorationIds = this._editor.deltaDecorations(this._decorationIds, []);
+			return;
+		}
+
 		const modelVersionId = this._model.getVersionId();
 		this._editorWorkerService.findUnicodeCharacters(this._model.uri, UnicodeCharacterSearchType.NonASCII).then((ranges) => {
 			if (this._model.getVersionId() !== modelVersionId) {
@@ -145,6 +150,11 @@ class ViewportUnicodeHighlighter extends Disposable {
 	}
 
 	private _update(): void {
+		if (!this._model.mightContainNonBasicASCII()) {
+			this._decorationIds = this._editor.deltaDecorations(this._decorationIds, []);
+			return;
+		}
+
 		const ranges = this._editor.getVisibleRanges();
 		const decorations: IModelDeltaDecoration[] = [];
 		for (const range of ranges) {
