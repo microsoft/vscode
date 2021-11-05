@@ -102,11 +102,10 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 			this.modelUpdater.cancel();
 			this.onUpdateModelCancelled();
 		}
-		if (this.replaceAllCancellationToken) {
-			this.replaceAllCancellationToken.cancel();
-			this.replaceAllCancellationToken = null;
-			this.replaceAllValue = null;
-		}
+		this.replaceAllCancellationToken?.cancel();
+		this.replaceAllCancellationToken = null;
+		this.replaceAllValue = null;
+
 		if (this.model) {
 			this.model.setValue('');
 		}
@@ -125,10 +124,8 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 		this.startOffset = this.endOffset;
 
 		if (this.model) {
-			if (this.replaceAllCancellationToken) {
-				this.replaceAllCancellationToken.cancel();
-				this.replaceAllCancellationToken = null;
-			}
+			this.replaceAllCancellationToken?.cancel();
+			this.replaceAllCancellationToken = null;
 
 			const myToken = new CancellationTokenSource();
 			this.replaceAllCancellationToken = myToken;
@@ -186,10 +183,8 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 				this.model.applyEdits([EditOperation.insert(new Position(lastLine, lastLineMaxColumn), content)]);
 				this._onDidAppendedContent.fire();
 			} else if (this.replaceAllValue !== null) {
-				if (this.replaceAllCancellationToken) {
-					this.replaceAllCancellationToken.cancel();
-					this.replaceAllCancellationToken = null;
-				}
+				this.replaceAllCancellationToken?.cancel();
+				this.replaceAllCancellationToken = null;
 
 				if (!this.replaceAllValueSeenInAppend && content === this.replaceAllValue) {
 					this.replaceAllValue = null;
