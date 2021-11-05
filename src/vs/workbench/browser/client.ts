@@ -28,9 +28,13 @@ export class CodeServerClientAdditions extends Disposable {
 	static AUTH_KEY = 'code-server.authed';
 	productConfiguration: Partial<IProductConfiguration>;
 
+	private sourceIsTrustedServiceWorker = (source: string): boolean => {
+		return this.productConfiguration.serviceWorker?.url === source;
+	};
+
 	private ServiceWorkerScripts = self.trustedTypes?.createPolicy('ServiceWorkerScripts', {
 		createScriptURL: source => {
-			if (this.productConfiguration.serviceWorker?.url === source) {
+			if (this.sourceIsTrustedServiceWorker(source)) {
 				return source;
 			}
 
@@ -212,7 +216,14 @@ export class CodeServerClientAdditions extends Disposable {
 			return;
 		}
 
-		const trustedUrl = this.ServiceWorkerScripts?.createScriptURL(serviceWorker.url);
+		let trustedUrl: undefined | TrustedScriptURL | string;
+
+		if (this.ServiceWorkerScripts) {
+			trustedUrl = this.ServiceWorkerScripts?.createScriptURL(serviceWorker.url);
+		} else if (this.sourceIsTrustedServiceWorker(serviceWorker.url)) {
+			this.logService.warn('This browser lacks TrustedTypes and cannot verify the service worker path.');
+			trustedUrl = serviceWorker.url;
+		}
 
 		if (!trustedUrl) {
 			throw new Error('Service Worker URL could not be verified');
