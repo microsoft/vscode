@@ -1646,7 +1646,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._fixedCols = undefined;
 			this._fixedRows = undefined;
 			this._hasScrollBar = false;
-			// TODO: Merge into refresh scroll bar that uses fixedCols/Rows?
 			await this._removeScrollbar();
 			this._initDimensions();
 			await this._resize();
@@ -1661,26 +1660,24 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				i = lineInfo.currentIndex;
 			}
 			// Fixed columns should be at least xterm.js' regular column count
-			this._fixedCols = Math.max(this.maxCols, Math.min(maxLineLength, Constants.MaxSupportedCols));
-			await this._addScrollbar();
+			const proposedCols = Math.max(this.maxCols, Math.min(maxLineLength, Constants.MaxSupportedCols));
+			// Don't switch to fixed dimensions if the content already fits as it makes the scroll
+			// bar look bad being off the edge
+			if (proposedCols > this.xterm.raw.cols) {
+				this._fixedCols = proposedCols;
+				await this._addScrollbar();
+			}
 		}
 		this._labelComputer?.refreshLabel();
 		this.focus();
 	}
 
-	// TODO: Ideally don't set fixed rows when sizing to content
-	// TODO: Remove right padding when using fixed diemnsions
 	private async _addScrollbar(): Promise<void> {
 		const charWidth = (this.xterm ? this.xterm.getFont() : this._configHelper.getFont()).charWidth;
 		if (!this.xterm?.raw.element || !this._wrapperElement || !this._container || !charWidth || !this._fixedCols) {
 			return;
 		}
 		this._wrapperElement.classList.add('fixed-dims');
-		// TODO: Look into effects of this; fixed dims always have room for scrollbar
-		// if (this._fixedCols < this.xterm.raw.buffer.active.getLine(0)!.length) {
-		// 	// no scrollbar needed
-		// 	return;
-		// }
 		this._hasScrollBar = true;
 		this._initDimensions();
 		// Always remove a row to make room for the scroll bar
@@ -1699,7 +1696,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		this._horizontalScrollbar.setScrollDimensions({
 			width: this.xterm.raw.element.clientWidth,
-			scrollWidth: this._fixedCols * charWidth
+			scrollWidth: this._fixedCols * charWidth + 30
 		});
 		this._horizontalScrollbar.getDomNode().style.paddingBottom = '16px';
 
@@ -1722,14 +1719,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._container.appendChild(this._wrapperElement);
 	}
 
+	// TODO: Move into XtermTerminal and write tests
 	private _getWrappedLineCount(index: number, buffer: IBuffer): { lineCount: number, currentIndex: number, endSpaces: number } {
 		let line = buffer.getLine(index);
 		if (!line) {
 			throw new Error('Could not get line');
 		}
 		let currentIndex = index;
-		let endSpaces = -1;
-		for (let i = line?.length || 0; i > 0; i--) {
+		let endSpaces = 0;
+		// line.length may exceed cols as it doesn't necessarily trim the backing array on resize
+		for (let i = Math.min(line.length, this.xterm!.raw.cols) - 1; i >= 0; i--) {
 			if (line && !line?.getCell(i)?.getChars()) {
 				endSpaces++;
 			} else {
