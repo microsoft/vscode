@@ -457,7 +457,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	 * @return The terminal's width if it requires a layout.
 	 */
 	private _evaluateColsAndRows(width: number, height: number): number | null {
-		console.trace(`Instance ${this._instanceId}: _evaluateColsAndRows`, width, height);
 		// Ignore if dimensions are undefined or 0
 		if (!width || !height) {
 			this._setLastKnownColsAndRows();
@@ -1611,6 +1610,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		this._fixedCols = this._parseFixedDimension(cols);
+		this._labelComputer?.refreshLabel();
 		this._terminalHasFixedWidth.set(!!this._fixedCols);
 		const rows = await this._quickInputService.input({
 			title: nls.localize('setTerminalDimensionsRow', "Set Fixed Dimensions: Row"),
@@ -1646,39 +1646,44 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._fixedCols = undefined;
 			this._fixedRows = undefined;
 			this._hasScrollBar = false;
+			// TODO: Merge into refresh scroll bar that uses fixedCols/Rows?
+			await this._removeScrollbar();
 			this._initDimensions();
 			await this._resize();
-			this._horizontalScrollbar?.setScrollDimensions({ scrollWidth: 0 });
 		} else {
-			let maxCols = 0;
+			let maxLineLength = 0;
 			if (!this.xterm.raw.buffer.active.getLine(0)) {
 				return;
 			}
-			const lineWidth = this.xterm.raw.buffer.active.getLine(0)!.length;
 			for (let i = this.xterm.raw.buffer.active.length - 1; i >= this.xterm.raw.buffer.active.viewportY; i--) {
 				const lineInfo = this._getWrappedLineCount(i, this.xterm.raw.buffer.active);
-				maxCols = Math.max(maxCols, ((lineInfo.lineCount * lineWidth) - lineInfo.endSpaces) || 0);
+				maxLineLength = Math.max(maxLineLength, ((lineInfo.lineCount * this.xterm.raw.cols) - lineInfo.endSpaces) || 0);
 				i = lineInfo.currentIndex;
 			}
-			maxCols = Math.min(maxCols, Constants.MaxSupportedCols);
-			this._fixedCols = maxCols;
+			// Fixed columns should be at least xterm.js' regular column count
+			this._fixedCols = Math.max(this.maxCols, Math.min(maxLineLength, Constants.MaxSupportedCols));
 			await this._addScrollbar();
 		}
+		this._labelComputer?.refreshLabel();
 		this.focus();
 	}
 
+	// TODO: Add fixed dimensions class
+	// TODO: Remove right padding when using fixed diemnsions
 	private async _addScrollbar(): Promise<void> {
 		const charWidth = (this.xterm ? this.xterm.getFont() : this._configHelper.getFont()).charWidth;
 		if (!this.xterm?.raw.element || !this._wrapperElement || !this._container || !charWidth || !this._fixedCols) {
 			return;
 		}
-		if (this._fixedCols < this.xterm.raw.buffer.active.getLine(0)!.length) {
-			// no scrollbar needed
-			return;
-		}
+		// TODO: Look into effects of this; fixed dims always have room for scrollbar
+		// if (this._fixedCols < this.xterm.raw.buffer.active.getLine(0)!.length) {
+		// 	// no scrollbar needed
+		// 	return;
+		// }
 		this._hasScrollBar = true;
 		this._initDimensions();
-		this._fixedRows = this.rows;
+		// Always remove a row to make room for the scroll bar
+		this._fixedRows = this.rows - 1;
 		await this._resize();
 		this._terminalHasFixedWidth.set(true);
 		if (!this._horizontalScrollbar) {
@@ -1691,18 +1696,28 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}));
 			this._container.appendChild(this._horizontalScrollbar.getDomNode());
 		}
-		this._horizontalScrollbar.setScrollDimensions(
-			{
-				width: this.xterm.raw.element.clientWidth,
-				scrollWidth: this._fixedCols * charWidth
-			});
-		this._horizontalScrollbar!.getDomNode().style.paddingBottom = '16px';
+		this._horizontalScrollbar.setScrollDimensions({
+			width: this.xterm.raw.element.clientWidth,
+			scrollWidth: this._fixedCols * charWidth
+		});
+		this._horizontalScrollbar.getDomNode().style.paddingBottom = '16px';
 
 		// work around for https://github.com/xtermjs/xterm.js/issues/3482
 		for (let i = this.xterm.raw.buffer.active.viewportY; i < this.xterm.raw.buffer.active.length; i++) {
 			let line = this.xterm.raw.buffer.active.getLine(i);
 			(line as any)._line.isWrapped = false;
 		}
+	}
+
+	private async _removeScrollbar(): Promise<void> {
+		if (!this._container || !this._wrapperElement) {
+			return;
+		}
+		this._horizontalScrollbar?.getDomNode().remove();
+		this._horizontalScrollbar?.dispose();
+		this._horizontalScrollbar = undefined;
+		this._wrapperElement.remove();
+		this._container.appendChild(this._wrapperElement);
 	}
 
 	private _getWrappedLineCount(index: number, buffer: IBuffer): { lineCount: number, currentIndex: number, endSpaces: number } {
@@ -2077,6 +2092,7 @@ export interface ITerminalLabelTemplateProperties {
 	process?: string | null | undefined;
 	sequence?: string | null | undefined;
 	task?: string | null | undefined;
+	fixedDimensions?: string | null | undefined;
 	separator?: string | ISeparator | null | undefined;
 }
 
@@ -2095,11 +2111,12 @@ export class TerminalLabelComputer extends Disposable {
 	readonly onDidChangeLabel = this._onDidChangeLabel.event;
 	constructor(
 		private readonly _configHelper: TerminalConfigHelper,
-		private readonly _instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'cwd' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>,
+		private readonly _instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
 		super();
 	}
+
 	refreshLabel(): void {
 		this._title = this.computeLabel(this._configHelper.config.tabs.title, TerminalLabelType.Title);
 		this._description = this.computeLabel(this._configHelper.config.tabs.description, TerminalLabelType.Description);
@@ -2120,6 +2137,9 @@ export class TerminalLabelComputer extends Disposable {
 			process: this._instance.processName,
 			sequence: this._instance.sequence,
 			task: this._instance.shellLaunchConfig.description === 'Task' ? 'Task' : undefined,
+			fixedDimensions: this._instance.fixedCols
+				? (this._instance.fixedRows ? `\u2194${this._instance.fixedCols} \u2195${this._instance.fixedRows}` : `\u2194${this._instance.fixedCols}`)
+				: (this._instance.fixedRows ? `\u2195${this._instance.fixedRows}` : ''),
 			separator: { label: this._configHelper.config.tabs.separator }
 		};
 		labelTemplate = labelTemplate.trim();
