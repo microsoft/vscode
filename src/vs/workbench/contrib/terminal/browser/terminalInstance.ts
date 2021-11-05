@@ -1621,11 +1621,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		this._fixedRows = this._parseFixedDimension(rows);
-		if (this._fixedRows || this._fixedCols) {
-			this._addScrollbar();
-		} else {
-			this._removeScrollbar();
-		}
+		this._labelComputer?.refreshLabel();
+		await this._refreshScrollbar();
 		this._resize();
 		this.focus();
 	}
@@ -1650,7 +1647,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._fixedCols = undefined;
 			this._fixedRows = undefined;
 			this._hasScrollBar = false;
-			await this._removeScrollbar();
 			this._initDimensions();
 			await this._resize();
 		} else {
@@ -1669,11 +1665,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// bar look bad being off the edge
 			if (proposedCols > this.xterm.raw.cols) {
 				this._fixedCols = proposedCols;
-				await this._addScrollbar();
 			}
 		}
+		await this._refreshScrollbar();
 		this._labelComputer?.refreshLabel();
 		this.focus();
+	}
+
+	private _refreshScrollbar(): Promise<void> {
+		if (this._fixedCols || this._fixedRows) {
+			return this._addScrollbar();
+		}
+		return this._removeScrollbar();
 	}
 
 	private async _addScrollbar(): Promise<void> {
@@ -1701,7 +1704,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._horizontalScrollbar.setScrollDimensions({
 			width: this.xterm.raw.element.clientWidth,
 			// TODO: Use const/property for padding
-			scrollWidth: this._fixedCols * charWidth + 30
+			scrollWidth: this._fixedCols * charWidth + 40
 		});
 		this._horizontalScrollbar.getDomNode().style.paddingBottom = '16px';
 
@@ -1713,11 +1716,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private async _removeScrollbar(): Promise<void> {
-		if (!this._container || !this._wrapperElement) {
+		if (!this._container || !this._wrapperElement || !this._horizontalScrollbar) {
 			return;
 		}
-		this._horizontalScrollbar?.getDomNode().remove();
-		this._horizontalScrollbar?.dispose();
+		this._horizontalScrollbar.getDomNode().remove();
+		this._horizontalScrollbar.dispose();
 		this._horizontalScrollbar = undefined;
 		this._wrapperElement.remove();
 		this._wrapperElement.classList.remove('fixed-dims');
