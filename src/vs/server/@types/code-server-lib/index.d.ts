@@ -85,7 +85,7 @@ declare global {
 			serverUrl: URL;
 		}
 
-		export type CreateServer = (address: string | net.AddressInfo | null, args: ServerParsedArgs, REMOTE_DATA_FOLDER: string) => Promise<IServerAPI>;
+		export type CreateServer = (address: string | net.AddressInfo | null, args: ServerParsedArgs) => Promise<IServerAPI>;
 
 		export interface ProductDescription {
 			productName: string;
@@ -106,9 +106,7 @@ declare global {
 		/**
 		 * @deprecated This should be removed when code-server merges with lib/vscode
 		 */
-		export interface IMainCli {
-			main: (argv: NodeJS.Process['argv']) => Promise<void>;
-		}
+		export type SpawnCli = (args: ServerParsedArgs) => Promise<void>;
 
 		/**
 		 * @deprecated This should be removed when code-server merges with lib/vscode

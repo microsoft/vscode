@@ -12,8 +12,11 @@ import { createServer as doCreateServer, IServerAPI } from 'vs/server/remoteExte
 import { parseArgs, ErrorReporter } from 'vs/platform/environment/node/argv';
 import { join, dirname } from 'vs/base/common/path';
 import { performance } from 'perf_hooks';
-import { serverOptions } from 'vs/server/serverEnvironmentService';
+import { serverOptions, ServerParsedArgs } from 'vs/server/serverEnvironmentService';
 import * as perf from 'vs/base/common/performance';
+
+// NOTE@coder: We already have the arguments so this file has been patched to
+// support passing them in.
 
 perf.mark('code/server/codeLoaded');
 (<any>global).vscodeServerCodeLoadedTime = performance.now();
@@ -28,37 +31,43 @@ const errorReporter: ErrorReporter = {
 	}
 };
 
-const args = parseArgs(process.argv.slice(2), serverOptions, errorReporter);
+function parse() {
+	return parseArgs(process.argv.slice(2), serverOptions, errorReporter);
+}
 
 const REMOTE_DATA_FOLDER = process.env['VSCODE_AGENT_FOLDER'] || join(os.homedir(), '.vscode-remote');
 const USER_DATA_PATH = join(REMOTE_DATA_FOLDER, 'data');
 const APP_SETTINGS_HOME = join(USER_DATA_PATH, 'User');
 const GLOBAL_STORAGE_HOME = join(APP_SETTINGS_HOME, 'globalStorage');
 const MACHINE_SETTINGS_HOME = join(USER_DATA_PATH, 'Machine');
-args['user-data-dir'] = USER_DATA_PATH;
 const APP_ROOT = dirname(FileAccess.asFileUri('', require).fsPath);
 const BUILTIN_EXTENSIONS_FOLDER_PATH = join(APP_ROOT, 'extensions');
-args['builtin-extensions-dir'] = BUILTIN_EXTENSIONS_FOLDER_PATH;
-args['extensions-dir'] = args['extensions-dir'] || join(REMOTE_DATA_FOLDER, 'extensions');
 
-[REMOTE_DATA_FOLDER, args['extensions-dir'], USER_DATA_PATH, APP_SETTINGS_HOME, MACHINE_SETTINGS_HOME, GLOBAL_STORAGE_HOME].forEach(f => {
-	try {
-		if (!fs.existsSync(f)) {
-			fs.mkdirSync(f);
-		}
-	} catch (err) { console.error(err); }
-});
-
-/**
- * invoked by vs/server/main.js
- */
-export function spawnCli() {
-	runCli(args, REMOTE_DATA_FOLDER);
+export function createDirs(args: ServerParsedArgs) {
+  args['user-data-dir'] = args['user-data-dir'] || USER_DATA_PATH;
+  args['builtin-extensions-dir'] = args['builtin-extensions-dir'] || BUILTIN_EXTENSIONS_FOLDER_PATH;
+  args['extensions-dir'] = args['extensions-dir'] || join(REMOTE_DATA_FOLDER, 'extensions');
+	[REMOTE_DATA_FOLDER, args['extensions-dir'], USER_DATA_PATH, APP_SETTINGS_HOME, MACHINE_SETTINGS_HOME, GLOBAL_STORAGE_HOME].forEach(f => {
+		try {
+			if (!fs.existsSync(f)) {
+				fs.mkdirSync(f);
+			}
+		} catch (err) { console.error(err); }
+	});
 }
 
 /**
  * invoked by vs/server/main.js
  */
-export function createServer(address: string | net.AddressInfo | null): Promise<IServerAPI> {
-	return doCreateServer(address, args, REMOTE_DATA_FOLDER);
+export function spawnCli(args: ServerParsedArgs = parse()): Promise<void> {
+	createDirs(args)
+	return runCli(args, args["user-data-dir"] ||  REMOTE_DATA_FOLDER);
+}
+
+/**
+ * invoked by vs/server/main.js
+ */
+export function createServer(address: string | net.AddressInfo | null, args: ServerParsedArgs = parse()): Promise<IServerAPI> {
+	createDirs(args)
+	return doCreateServer(address, args, args["user-data-dir"] || REMOTE_DATA_FOLDER);
 }

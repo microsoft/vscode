@@ -94,14 +94,6 @@ const serverEntryPoints = [
 		name: 'vs/server/remoteExtensionHostAgent',
 		exclude: ['vs/css', 'vs/nls']
 	},
-	// NOTE@coder: Normally remoteExtensionHostAgentServer is bundled into
-	// remoteExtensionHostAgent however code-server imports the former directly so
-	// make sure it remains as a separate file by adding it as a separate entry
-	// point.
-	{
-		name: 'vs/server/remoteExtensionHostAgentServer',
-		exclude: ['vs/css', 'vs/nls']
-	},
 	{
 		name: 'vs/server/remoteCli',
 		exclude: ['vs/css', 'vs/nls']
