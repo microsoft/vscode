@@ -586,9 +586,23 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			return;
 		}
 
+		const selection = widget.getSelection();
+		const focus = widget.getFocus()[0];
 		const fakeKeyboardEvent = new KeyboardEvent('keydown');
-		widget.setSelection([], fakeKeyboardEvent);
-		widget.setFocus([], fakeKeyboardEvent);
+
+		if (selection.length > 1) {
+			if (focus) {
+				widget.setSelection([focus], fakeKeyboardEvent);
+			} else {
+				widget.setSelection(selection[0], fakeKeyboardEvent);
+			}
+		} else if (selection.length === 1 && selection[0] !== focus) {
+			widget.setSelection([focus], fakeKeyboardEvent);
+		} else {
+			widget.setSelection([], fakeKeyboardEvent);
+			widget.setFocus([], fakeKeyboardEvent);
+		}
+
 		widget.setAnchor(undefined);
 	}
 });

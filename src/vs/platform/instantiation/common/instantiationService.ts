@@ -7,7 +7,7 @@ import { IdleValue } from 'vs/base/common/async';
 import { illegalState } from 'vs/base/common/errors';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Graph } from 'vs/platform/instantiation/common/graph';
-import { IInstantiationService, optional, ServiceIdentifier, ServicesAccessor, _util } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServiceIdentifier, ServicesAccessor, _util } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
 // TRACING
@@ -45,14 +45,14 @@ export class InstantiationService implements IInstantiationService {
 		let _done = false;
 		try {
 			const accessor: ServicesAccessor = {
-				get: <T>(id: ServiceIdentifier<T>, isOptional?: typeof optional) => {
+				get: <T>(id: ServiceIdentifier<T>) => {
 
 					if (_done) {
 						throw illegalState('service accessor is only valid during the invocation of its target method');
 					}
 
 					const result = this._getOrCreateServiceInstance(id, _trace);
-					if (!result && isOptional !== optional) {
+					if (!result) {
 						throw new Error(`[invokeFunction] unknown service '${id}'`);
 					}
 					return result;

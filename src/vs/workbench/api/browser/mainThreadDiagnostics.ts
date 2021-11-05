@@ -37,12 +37,14 @@ export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
 	private _forwardMarkers(resources: readonly URI[]): void {
 		const data: [UriComponents, IMarkerData[]][] = [];
 		for (const resource of resources) {
-			data.push([
-				resource,
-				this._markerService.read({ resource }).filter(marker => !this._activeOwners.has(marker.owner))
-			]);
+			const markerData = this._markerService.read({ resource }).filter(marker => !this._activeOwners.has(marker.owner));
+			if (markerData.length > 0) {
+				data.push([resource, markerData]);
+			}
 		}
-		this._proxy.$acceptMarkersChange(data);
+		if (data.length > 0) {
+			this._proxy.$acceptMarkersChange(data);
+		}
 	}
 
 	$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {

@@ -980,6 +980,36 @@ onDomReady(() => {
 		assertIsDefined(target.contentDocument).execCommand(data);
 	});
 
+	hostMessaging.onMessage('find', (_event, data) => {
+		const target = getActiveFrame();
+		if (!target) {
+			return;
+		}
+		const didFind = (/** @type {any} */ (target.contentWindow)).find(
+			data.value,
+			false,
+			/* backwards*/ data.previous,
+			/* wrapAround*/ true,
+			false,
+			/*aSearchInFrames*/ true,
+			false);
+		hostMessaging.postMessage('did-find', didFind);
+	});
+
+	hostMessaging.onMessage('find-stop', (_event, data) => {
+		const target = getActiveFrame();
+		if (!target) {
+			return;
+		}
+
+		if (!data.clearSelection) {
+			const selection = target.contentWindow.getSelection();
+			for (let i = 0; i < selection.rangeCount; i++) {
+				selection.removeRange(selection.getRangeAt(i));
+			}
+		}
+	});
+
 	trackFocus({
 		onFocus: () => hostMessaging.postMessage('did-focus'),
 		onBlur: () => hostMessaging.postMessage('did-blur')
