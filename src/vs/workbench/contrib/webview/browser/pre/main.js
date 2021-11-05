@@ -502,7 +502,7 @@ const handleInnerKeydown = (e) => {
 	// make sure we block the browser from dispatching it. Instead VS Code
 	// handles these events and will dispatch a copy/paste back to the webview
 	// if needed
-	if (isUndoRedo(e) || isPrint(e)) {
+	if (isUndoRedo(e) || isPrint(e) || isFindEvent(e)) {
 		e.preventDefault();
 	} else if (isCopyPasteOrCut(e)) {
 		if (onElectron) {
@@ -565,6 +565,15 @@ function isUndoRedo(e) {
 function isPrint(e) {
 	const hasMeta = e.ctrlKey || e.metaKey;
 	return hasMeta && e.key.toLowerCase() === 'p';
+}
+
+/**
+ * @param {KeyboardEvent} e
+ * @return {boolean}
+ */
+function isFindEvent(e) {
+	const hasMeta = e.ctrlKey || e.metaKey;
+	return hasMeta && e.key.toLowerCase() === 'f';
 }
 
 let isHandlingScroll = false;
