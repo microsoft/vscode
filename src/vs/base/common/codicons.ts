@@ -601,5 +601,6 @@ export namespace Codicon {
 	export const lockSmall = new Codicon('lock-small', { fontCharacter: '\\ebe7' });
 	export const azureDevops = new Codicon('azure-devops', { fontCharacter: '\\ebe8' });
 	export const verifiedFilled = new Codicon('verified-filled', { fontCharacter: '\\ebe9' });
+	export const newLine = new Codicon('newline', { fontCharacter: '\\ebea' });
 }
 
