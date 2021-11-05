@@ -10,6 +10,7 @@ import * as url from 'url';
 import * as util from 'util';
 import * as cookie from 'cookie';
 import * as crypto from 'crypto';
+import parseForwardHeader = require('forwarded-parse');
 import { isEqualOrParent, sanitizeFilePath } from 'vs/base/common/extpath';
 import { getMediaMime } from 'vs/base/common/mime';
 import { isLinux } from 'vs/base/common/platform';
@@ -27,7 +28,7 @@ import type { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.a
 import { editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ClientTheme, getPathPrefix, WebManifest } from 'vs/server/common/net';
 import { IServerThemeService } from 'vs/server/serverThemeService';
-import { FileSystemError } from 'vs/workbench/api/common/extHostTypes';
+import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 
 const textMimeType = {
 	'.html': 'text/html',
@@ -84,45 +85,53 @@ export class WebClientServer {
 		private readonly _productService: IProductService
 	) { }
 
+	/**
+	 * @coder Patched to handle an arbitrary path depth, such as in Coder Enterprise.
+	 */
 	async handle(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
 		try {
 			const pathname = parsedUrl.pathname!;
+			const parsedPath = path.parse(pathname);
 			const pathPrefix = getPathPrefix(pathname);
 
-			if (pathname === '/manifest.json' || pathname === '/webmanifest.json') {
+			if (['manifest.json', 'webmanifest.json'].includes(parsedPath.base)) {
 				return this._handleManifest(req, res, parsedUrl);
 			}
 
-			if (pathname === '/favicon.ico' || pathname === '/code-192.png' || pathname === '/code-512.png') {
+			if (['favicon.ico', 'code-192.png', 'code-512.png'].includes(parsedPath.base)) {
 				// always serve icons/manifest, even without a token
-				return serveFile(this._logService, req, res, join(APP_ROOT, 'resources', 'server', pathname.substr(1)));
+				return serveFile(this._logService, req, res, join(APP_ROOT, 'resources', 'server', parsedPath.base));
 			}
 
-			if (pathname === `/${this._environmentService.serviceWorkerFileName}`) {
+			if (parsedPath.base === this._environmentService.serviceWorkerFileName) {
 				return serveFile(this._logService, req, res, this._environmentService.serviceWorkerPath, {
 					'Service-Worker-Allowed': pathPrefix,
 				});
 			}
 
-			if (/^\/static\//.test(pathname)) {
+			if (parsedPath.dir.includes('/static/') && parsedPath.ext) {
+				parsedUrl.pathname = pathname.substring(pathname.indexOf('/static/'));
 				// always serve static requests, even without a token
 				return this._handleStatic(req, res, parsedUrl);
 			}
-			if (pathname === '/') {
-				// the token handling is done inside the handler
-				return this._handleRoot(req, res, parsedUrl);
-			}
-			if (pathname === '/callback') {
+
+			if (parsedPath.base === '/callback') {
 				// callback support
 				return this._handleCallback(req, res, parsedUrl);
 			}
-			if (pathname === '/fetch-callback') {
+
+			if (parsedPath.base === '/fetch-callback') {
 				// callback fetch support
 				return this._handleFetchCallback(req, res, parsedUrl);
 			}
 
+			if (pathname.endsWith('/')) {
+				// the token handling is done inside the handler
+				return this._handleRoot(req, res, parsedUrl);
+			}
+
 			const message = `"${parsedUrl.pathname}" not found.`;
-			const error = FileSystemError.FileNotFound(message);
+			const error = new Error(message);
 			req.emit('error', error);
 			return;
 		} catch (error) {
@@ -160,6 +169,37 @@ export class WebClientServer {
 	}
 
 	private _iconSizes = [192, 512];
+
+	private getRemoteAuthority = (req: http.IncomingMessage): string => {
+		let remoteAuthority: string | undefined;
+
+		if (req.headers.forwarded) {
+			const [parsedHeader] = parseForwardHeader(req.headers.forwarded);
+
+			if (parsedHeader && parsedHeader.host) {
+				return parsedHeader.host;
+			}
+		}
+
+		// Listed in order of priority
+		const headerNames = [
+			'X-Forwarded-Host',
+			'host'
+		];
+
+		for (const headerName of headerNames) {
+			const header = req.headers[headerName]?.toString();
+			if (!isFalsyOrWhitespace(header)) {
+				return header!;
+			}
+		}
+
+		if (isFalsyOrWhitespace(remoteAuthority)) {
+			throw new Error('Remote authority not present in host headers');
+		}
+
+		return null as never;
+	};
 
 	/**
 	 * PWA manifest file. This informs the browser that the app may be installed.
@@ -243,7 +283,7 @@ export class WebClientServer {
 			return this.serveError(req, res, 403, `Forbidden.`, parsedUrl);
 		}
 
-		const remoteAuthority = req.headers.host;
+		const remoteAuthority = this.getRemoteAuthority(req);
 		const transformer = createRemoteURITransformer(remoteAuthority);
 		const { workspacePath, isFolder } = await this._getWorkspaceFromCLI();
 
@@ -266,14 +306,13 @@ export class WebClientServer {
 			scopes: [['user:email'], ['repo']]
 		} : undefined;
 
-		const pathPrefix = getPathPrefix(parsedUrl.pathname!);
 
 		const data = (await util.promisify(fs.readFile)(filePath)).toString()
 			.replace('{{WORKBENCH_WEB_CONFIGURATION}}', escapeAttribute(JSON.stringify(<IWorkbenchConstructionOptions>{
 				productConfiguration: {
-					updateUrl: './update/check',
+					updateUrl: this.createRequestUrl(req, parsedUrl, '/update/check').toString(),
 					serviceWorker: {
-						scope: pathPrefix,
+						scope: './',
 						url: `./${this._environmentService.serviceWorkerFileName}`
 					}
 				},

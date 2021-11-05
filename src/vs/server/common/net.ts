@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
+import { posix } from 'vs/base/common/path';
 
 /**
  * See [Web app manifest on MDN](https://developer.mozilla.org/en-US/docs/Web/Manifest) for additional information.
@@ -38,5 +38,5 @@ export const ICON_SIZES = [192, 512];
  * ```
  */
 export function getPathPrefix(pathname: string) {
-	return path.join(path.dirname(pathname), '/');
+	return posix.join(posix.dirname(pathname), '/');
 }
