@@ -13,6 +13,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 
 export abstract class AbstractExtHostOutputChannel extends Disposable implements vscode.OutputChannel {
 
@@ -21,12 +22,12 @@ export abstract class AbstractExtHostOutputChannel extends Disposable implements
 	protected readonly _proxy: MainThreadOutputServiceShape;
 	private _disposed: boolean;
 	private _offset: number;
-	private _extension: IExtensionDescription | undefined;
+	private _extension: IExtensionDescription;
 
 	protected readonly _onDidAppend: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidAppend: Event<void> = this._onDidAppend.event;
 
-	constructor(name: string, log: boolean, file: URI | undefined, extension: IExtensionDescription | undefined, proxy: MainThreadOutputServiceShape) {
+	constructor(name: string, log: boolean, file: URI | undefined, extension: IExtensionDescription, proxy: MainThreadOutputServiceShape) {
 		super();
 
 		this._name = name;
@@ -62,9 +63,7 @@ export abstract class AbstractExtHostOutputChannel extends Disposable implements
 	}
 
 	replaceAll(value: string): void {
-		if (this._extension) {
-			checkProposedApiEnabled(this._extension);
-		}
+		checkProposedApiEnabled(this._extension);
 
 		this.validate();
 		const till = this._offset;
@@ -115,7 +114,7 @@ export class ExtHostPushOutputChannel extends AbstractExtHostOutputChannel {
 class ExtHostLogFileOutputChannel extends AbstractExtHostOutputChannel {
 
 	constructor(name: string, file: URI, proxy: MainThreadOutputServiceShape) {
-		super(name, true, file, undefined, proxy);
+		super(name, true, file, nullExtensionDescription, proxy);
 	}
 
 	override append(value: string): void {
