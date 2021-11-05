@@ -29,7 +29,7 @@ import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalInstanceService, ITerminalInstance, ITerminalExternalLinkProvider, IRequestAddInstanceToGroupEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
-import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from 'xterm';
+import type { Terminal as XTermTerminal, ITerminalAddon } from 'xterm';
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/xterm/navigationModeAddon';
 import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { EnvironmentVariableInfoWidget } from 'vs/workbench/contrib/terminal/browser/widgets/environmentVariableInfoWidget';
@@ -1650,17 +1650,17 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._initDimensions();
 			await this._resize();
 		} else {
-			let maxLineLength = 0;
-			if (!this.xterm.raw.buffer.active.getLine(0)) {
-				return;
-			}
-			for (let i = this.xterm.raw.buffer.active.length - 1; i >= this.xterm.raw.buffer.active.viewportY; i--) {
-				const lineInfo = this._getWrappedLineCount(i, this.xterm.raw.buffer.active);
-				maxLineLength = Math.max(maxLineLength, ((lineInfo.lineCount * this.xterm.raw.cols) - lineInfo.endSpaces) || 0);
-				i = lineInfo.currentIndex;
-			}
+			// let maxLineLength = 0;
+			// if (!this.xterm.raw.buffer.active.getLine(0)) {
+			// 	return;
+			// }
+			// for (let i = this.xterm.raw.buffer.active.length - 1; i >= this.xterm.raw.buffer.active.viewportY; i--) {
+			// 	const lineInfo = this._getWrappedLineCount(i, this.xterm.raw.buffer.active);
+			// 	maxLineLength = Math.max(maxLineLength, ((lineInfo.lineCount * this.xterm.raw.cols) - lineInfo.endSpaces) || 0);
+			// 	i = lineInfo.currentIndex;
+			// }
 			// Fixed columns should be at least xterm.js' regular column count
-			const proposedCols = Math.max(this.maxCols, Math.min(maxLineLength, Constants.MaxSupportedCols));
+			const proposedCols = Math.max(this.maxCols, Math.min(this.xterm.getLongestViewportWrappedLineLength(), Constants.MaxSupportedCols));
 			// Don't switch to fixed dimensions if the content already fits as it makes the scroll
 			// bar look bad being off the edge
 			if (proposedCols > this.xterm.raw.cols) {
@@ -1728,27 +1728,27 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	// TODO: Move into XtermTerminal and write tests
-	private _getWrappedLineCount(index: number, buffer: IBuffer): { lineCount: number, currentIndex: number, endSpaces: number } {
-		let line = buffer.getLine(index);
-		if (!line) {
-			throw new Error('Could not get line');
-		}
-		let currentIndex = index;
-		let endSpaces = 0;
-		// line.length may exceed cols as it doesn't necessarily trim the backing array on resize
-		for (let i = Math.min(line.length, this.xterm!.raw.cols) - 1; i >= 0; i--) {
-			if (line && !line?.getCell(i)?.getChars()) {
-				endSpaces++;
-			} else {
-				break;
-			}
-		}
-		while (line?.isWrapped && currentIndex > 0) {
-			currentIndex--;
-			line = buffer.getLine(currentIndex);
-		}
-		return { lineCount: index - currentIndex + 1, currentIndex, endSpaces };
-	}
+	// private _getWrappedLineCount(index: number, buffer: IBuffer): { lineCount: number, currentIndex: number, endSpaces: number } {
+	// 	let line = buffer.getLine(index);
+	// 	if (!line) {
+	// 		throw new Error('Could not get line');
+	// 	}
+	// 	let currentIndex = index;
+	// 	let endSpaces = 0;
+	// 	// line.length may exceed cols as it doesn't necessarily trim the backing array on resize
+	// 	for (let i = Math.min(line.length, this.xterm!.raw.cols) - 1; i >= 0; i--) {
+	// 		if (line && !line?.getCell(i)?.getChars()) {
+	// 			endSpaces++;
+	// 		} else {
+	// 			break;
+	// 		}
+	// 	}
+	// 	while (line?.isWrapped && currentIndex > 0) {
+	// 		currentIndex--;
+	// 		line = buffer.getLine(currentIndex);
+	// 	}
+	// 	return { lineCount: index - currentIndex + 1, currentIndex, endSpaces };
+	// }
 
 	private _setResolvedShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig): void {
 		this._shellLaunchConfig.args = shellLaunchConfig.args;
