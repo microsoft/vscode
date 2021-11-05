@@ -13,9 +13,12 @@ const sanitizerOptions: DOMPurify.Config = {
 };
 
 export const activate: ActivationFunction<void> = (ctx) => {
-	let markdownIt = new MarkdownIt({
-		html: true
+	const markdownIt = new MarkdownIt({
+		html: true,
+		linkify: true,
 	});
+	markdownIt.linkify.set({ fuzzyLink: false });
+
 	addNamedHeaderRendering(markdownIt);
 
 	const style = document.createElement('style');
@@ -184,9 +187,9 @@ export const activate: ActivationFunction<void> = (ctx) => {
 				previewNode.classList.remove('emptyMarkdownCell');
 
 				const unsanitizedRenderedMarkdown = markdownIt.render(text);
-				previewNode.innerHTML = ctx.workspace.isTrusted
+				previewNode.innerHTML = (ctx.workspace.isTrusted
 					? unsanitizedRenderedMarkdown
-					: DOMPurify.sanitize(unsanitizedRenderedMarkdown, sanitizerOptions);
+					: DOMPurify.sanitize(unsanitizedRenderedMarkdown, sanitizerOptions)) as string;
 			}
 		},
 		extendMarkdownIt: (f: (md: typeof markdownIt) => void) => {
