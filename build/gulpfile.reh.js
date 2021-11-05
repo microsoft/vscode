@@ -94,6 +94,14 @@ const serverEntryPoints = [
 		name: 'vs/server/remoteExtensionHostAgent',
 		exclude: ['vs/css', 'vs/nls']
 	},
+	// NOTE@coder: Normally remoteExtensionHostAgentServer is bundled into
+	// remoteExtensionHostAgent however code-server imports the former directly so
+	// make sure it remains as a separate file by adding it as a separate entry
+	// point.
+	{
+		name: 'vs/server/remoteExtensionHostAgentServer',
+		exclude: ['vs/css', 'vs/nls']
+	},
 	{
 		name: 'vs/server/remoteCli',
 		exclude: ['vs/css', 'vs/nls']
@@ -126,7 +134,7 @@ const serverWithWebEntryPoints = [
 ];
 
 function getNodeVersion () {
-	// NOTE@coder: Fix version due to .yarnrc removal.
+	// NOTE@coder: Always use the current version to avoid native module errors.
 	return process.versions.node;
 
 	const yarnrc = fs.readFileSync(path.join(REPO_ROOT, 'remote', '.yarnrc'), 'utf8');
@@ -361,7 +369,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 	const minifyTask = task.define(`minify-vscode-${type}`, task.series(
 		optimizeTask,
 		util.rimraf(`out-vscode-${type}-min`),
-		common.minifyTask(`out-vscode-${type}`, `https://ticino.blob.core.windows.net/sourcemaps/${commit}/core`)
+		common.minifyTask(`out-vscode-${type}`, '')
 	));
 	gulp.task(minifyTask);
 
