@@ -163,14 +163,14 @@ export class WebClientServer {
 	 */
 	private createRequestUrl(req: http.IncomingMessage, parsedUrl: url.UrlWithParsedQuery, pathname: string): URL {
 		const pathPrefix = getPathPrefix(parsedUrl.pathname!);
-
+		const remoteAuthority = this.getRemoteAuthority(req);
 		// TODO: there isn't a good way for to determine the protocol. Defaulting to `http` for now.
-		return new URL(path.join('/', pathPrefix, pathname), `http://${req.headers.host}`);
+		return new URL(path.join('/', pathPrefix, pathname), remoteAuthority);
 	}
 
 	private _iconSizes = [192, 512];
 
-	private getRemoteAuthority = (req: http.IncomingMessage): string => {
+	private getRemoteAuthorityHeader = (req: http.IncomingMessage): string => {
 		let remoteAuthority: string | undefined;
 
 		if (req.headers.forwarded) {
@@ -199,6 +199,13 @@ export class WebClientServer {
 		}
 
 		return null as never;
+	};
+
+	private getRemoteAuthority = (req: http.IncomingMessage): URL => {
+		const { protocol } = this._environmentService;
+		const remoteAuthority = new URL(`${protocol}//${this.getRemoteAuthorityHeader(req)}`);
+
+		return remoteAuthority;
 	};
 
 	/**
@@ -284,7 +291,8 @@ export class WebClientServer {
 		}
 
 		const remoteAuthority = this.getRemoteAuthority(req);
-		const transformer = createRemoteURITransformer(remoteAuthority);
+
+		const transformer = createRemoteURITransformer(remoteAuthority.host);
 		const { workspacePath, isFolder } = await this._getWorkspaceFromCLI();
 
 		function escapeAttribute(value: string): string {
@@ -306,7 +314,6 @@ export class WebClientServer {
 			scopes: [['user:email'], ['repo']]
 		} : undefined;
 
-
 		const data = (await util.promisify(fs.readFile)(filePath)).toString()
 			.replace('{{WORKBENCH_WEB_CONFIGURATION}}', escapeAttribute(JSON.stringify(<IWorkbenchConstructionOptions>{
 				productConfiguration: {
@@ -318,7 +325,8 @@ export class WebClientServer {
 				},
 				folderUri: (workspacePath && isFolder) ? transformer.transformOutgoing(URI.file(workspacePath)) : undefined,
 				workspaceUri: (workspacePath && !isFolder) ? transformer.transformOutgoing(URI.file(workspacePath)) : undefined,
-				remoteAuthority,
+				// Add port to prevent client-side mismatch for Coder Link
+				remoteAuthority: `${remoteAuthority.hostname}:${remoteAuthority.port || (remoteAuthority.protocol === 'https:' ? '443' : '80')}`,
 				_wrapWebWorkerExtHostInIframe,
 				developmentOptions: { enableSmokeTestDriver: this._environmentService.driverHandle === 'web' ? true : undefined },
 				settingsSyncOptions: !this._environmentService.isBuilt && this._environmentService.args['enable-sync'] ? { enabled: true } : undefined,
@@ -331,14 +339,15 @@ export class WebClientServer {
 			'default-src \'self\';',
 			'img-src \'self\' https: data: blob:;',
 			'media-src \'none\';',
-			`script-src 'self' 'unsafe-eval' ${this._getScriptCspHashes(data).join(' ')} 'sha256-cb2sg39EJV8ABaSNFfWu/ou8o1xVXYK7jp90oZ9vpcg=' http://${remoteAuthority};`, // the sha is the same as in src/vs/workbench/services/extensions/worker/httpWebWorkerExtensionHostIframe.html
+			// the sha is the same as in src/vs/workbench/services/extensions/worker/httpWebWorkerExtensionHostIframe.html
+			`script-src 'self' 'unsafe-eval' ${this._getScriptCspHashes(data).join(' ')} 'sha256-cb2sg39EJV8ABaSNFfWu/ou8o1xVXYK7jp90oZ9vpcg=' https://cloud.coder.com;`,
 			'child-src \'self\';',
 			`frame-src 'self' https://*.vscode-webview.net ${this._productService.webEndpointUrl || ''} data:;`,
 			'worker-src \'self\' data:;',
 			'style-src \'self\' \'unsafe-inline\';',
 			'connect-src \'self\' ws: wss: https:;',
 			'font-src \'self\' blob:;',
-			'manifest-src \'self\';'
+			'manifest-src \'self\' https://cloud.coder.com https://github.com;'
 		].join(' ');
 
 		res.writeHead(200, {

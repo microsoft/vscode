@@ -65,6 +65,8 @@ declare global {
 			'github-auth'?: string;
 			'log'?: string;
 			'logsPath'?: string;
+			/** @coder Added to support Coder Link and certs. */
+			protocol?: 'http:' | 'https:';
 
 			_: string[];
 		}
