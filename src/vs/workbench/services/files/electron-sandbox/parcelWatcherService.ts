@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { isLinux } from 'vs/base/common/platform';
 import { getDelayedChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { AbstractWatcherService, IDiskFileChange, ILogMessage, IWatcherService } from 'vs/platform/files/common/watcher';
 import { ISharedProcessWorkerWorkbenchService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessWorkerWorkbenchService';
@@ -26,10 +25,10 @@ export class ParcelFileWatcher extends AbstractWatcherService {
 		const service = ProxyChannel.toService<IWatcherService>(getDelayedChannel((async () => {
 
 			// Acquire parcel watcher via shared process worker
-			const { client, onDidTerminate } = await this.sharedProcessWorkerWorkbenchService.createWorker({
+			const { client, onDidTerminate } = disposables.add(await this.sharedProcessWorkerWorkbenchService.createWorker({
 				moduleId: 'vs/platform/files/node/watcher/parcel/watcherApp',
 				type: 'watcherServiceParcelSharedProcess'
-			});
+			}));
 
 			// React on unexpected termination of the watcher process
 			// We never expect the watcher to terminate by its own,
@@ -43,10 +42,10 @@ export class ParcelFileWatcher extends AbstractWatcherService {
 			return client.getChannel('watcher');
 		})()));
 
-		// TODO@bpasero workaround for https://github.com/microsoft/vscode/issues/136264
-		if (isLinux) {
-			disposables.add(toDisposable(() => service.stop()));
-		}
+		// Looks like parcel needs an explicit stop to prevent
+		// access on data structures after process exit
+		// https://github.com/microsoft/vscode/issues/136264
+		disposables.add(toDisposable(() => service.stop()));
 
 		return service;
 	}
