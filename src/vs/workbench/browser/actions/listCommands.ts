@@ -590,7 +590,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const fakeKeyboardEvent = new KeyboardEvent('keydown');
 
 		if (selection.length > 1) {
-			widget.setSelection([], fakeKeyboardEvent);
+			const useSelectionNavigation = WorkbenchListSelectionNavigation.getValue(widget.contextKeyService);
+			if (useSelectionNavigation) {
+				const focus = widget.getFocus();
+				widget.setSelection([focus[0]], fakeKeyboardEvent);
+			} else {
+				widget.setSelection([], fakeKeyboardEvent);
+			}
 		} else {
 			widget.setSelection([], fakeKeyboardEvent);
 			widget.setFocus([], fakeKeyboardEvent);
