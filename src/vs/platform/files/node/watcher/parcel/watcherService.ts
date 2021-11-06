@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
 import { getNextTickChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
@@ -41,13 +41,6 @@ export class FileWatcher extends AbstractWatcherService {
 		// React on unexpected termination of the watcher process
 		disposables.add(client.onDidProcessExit(({ code, signal }) => this.onError(`terminated by itself with code ${code}, signal: ${signal}`)));
 
-		const service = ProxyChannel.toService<IWatcherService>(getNextTickChannel(client.getChannel('watcher')));
-
-		// Looks like parcel needs an explicit stop to prevent
-		// access on data structures after process exit
-		// https://github.com/microsoft/vscode/issues/136264
-		disposables.add(toDisposable(() => service.stop()));
-
-		return service;
+		return ProxyChannel.toService<IWatcherService>(getNextTickChannel(client.getChannel('watcher')));
 	}
 }
