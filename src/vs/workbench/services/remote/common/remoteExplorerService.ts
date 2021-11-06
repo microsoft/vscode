@@ -547,7 +547,8 @@ export class TunnelModel extends Disposable {
 							remote: { host: tunnel.remoteHost, port: tunnel.remotePort },
 							local: tunnel.localPort,
 							name: tunnel.name,
-							privacy: tunnel.privacy
+							privacy: tunnel.privacy,
+							elevateIfNeeded: true
 						});
 					}
 				}

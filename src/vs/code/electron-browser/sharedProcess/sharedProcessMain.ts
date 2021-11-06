@@ -268,7 +268,7 @@ class SharedProcessMain extends Disposable {
 					this._register(toDisposable(() => collectorAppender.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
 					appenders.push(collectorAppender);
 				}
-				const appInsightsAppender = new AppInsightsAppender('monacoworkbench', null, productService.aiConfig.asimovKey, insiders ? false : testCollector);
+				const appInsightsAppender = new AppInsightsAppender('monacoworkbench', null, productService.aiConfig.asimovKey, insiders ? false : testCollector, testCollector && insiders);
 				this._register(toDisposable(() => appInsightsAppender.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
 				appenders.push(appInsightsAppender);
 			}

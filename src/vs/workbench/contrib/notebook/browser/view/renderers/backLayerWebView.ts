@@ -36,7 +36,7 @@ import { INotebookRendererInfo, RendererMessagingSpec } from 'vs/workbench/contr
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IScopedRendererMessaging } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, WebviewContentPurpose, IWebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, IContentWidgetTopRequest, IControllerPreload, ICreationRequestMessage, IMarkupCellInitialization, ToWebviewMessage } from './webviewMessages';
 
@@ -60,7 +60,7 @@ export interface INotebookWebviewMessage {
 }
 
 export interface IResolvedBackLayerWebview {
-	webview: WebviewElement;
+	webview: IWebviewElement;
 }
 
 /**
@@ -87,7 +87,7 @@ export interface INotebookDelegateForWebview {
 
 export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	element: HTMLElement;
-	webview: WebviewElement | undefined = undefined;
+	webview: IWebviewElement | undefined = undefined;
 	insetMapping: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
 	readonly markupPreviewMapping = new Map<string, IMarkupCellInitialization>();
 	private hiddenInsetMapping: Set<IDisplayOutputViewModel> = new Set();

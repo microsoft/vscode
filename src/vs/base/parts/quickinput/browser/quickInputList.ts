@@ -6,7 +6,6 @@
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -88,7 +87,7 @@ interface IListElementTemplateData {
 	checkbox: HTMLInputElement;
 	label: IconLabel;
 	keybinding: KeybindingLabel;
-	detail: HighlightedLabel;
+	detail: IconLabel;
 	separator: HTMLDivElement;
 	actionBar: ActionBar;
 	element: ListElement;
@@ -138,7 +137,7 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 
 		// Detail
 		const detailContainer = dom.append(row2, $('.quick-input-list-label-meta'));
-		data.detail = new HighlightedLabel(detailContainer, true);
+		data.detail = new IconLabel(detailContainer, { supportHighlights: true, supportIcons: true });
 
 		// Separator
 		data.separator = dom.append(data.entry, $('.quick-input-list-separator'));
@@ -173,7 +172,12 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		data.keybinding.set(element.item.keybinding);
 
 		// Meta
-		data.detail.set(element.saneDetail, detailHighlights);
+		if (element.saneDetail) {
+			data.detail.setLabel(element.saneDetail, undefined, {
+				matches: detailHighlights,
+				title: element.saneDetail
+			});
+		}
 
 		// Separator
 		if (element.separator && element.separator.label) {

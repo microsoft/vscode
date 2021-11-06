@@ -58,7 +58,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { editorGutterModifiedBackground } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
-import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
 import { mark } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
 import { readFontInfo } from 'vs/editor/browser/config/configuration';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
@@ -1055,7 +1055,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._overflowContainer;
 	}
 
-	getInnerWebview(): Webview | undefined {
+	getInnerWebview(): IWebview | undefined {
 		return this._webview?.webview;
 	}
 
@@ -2450,7 +2450,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		const cell = this.viewModel?.viewCells.find(vc => vc.handle === cellInfo.cellHandle);
 		if (cell && cell instanceof CodeCellViewModel) {
 			const outputIndex = cell.outputsViewModels.indexOf(output);
-			if (isInit && outputHeight !== 0) {
+			if (outputHeight !== 0) {
 				cell.updateOutputMinHeight(0);
 			}
 			this._debug('update cell output', cell.handle, outputHeight);

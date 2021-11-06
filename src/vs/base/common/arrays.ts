@@ -676,4 +676,16 @@ export class ArrayQueue<T> {
 	peek(): T | undefined {
 		return this.items[this.firstIdx];
 	}
+
+	dequeue(): T | undefined {
+		const result = this.items[this.firstIdx];
+		this.firstIdx++;
+		return result;
+	}
+
+	takeCount(count: number): T[] {
+		const result = this.items.slice(this.firstIdx, this.firstIdx + count);
+		this.firstIdx += count;
+		return result;
+	}
 }

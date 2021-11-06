@@ -8,11 +8,12 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, TerminalLocationString, IProcessProperty, TitleEventSource, ProcessPropertyType, IFixedTerminalDimensions, IExtensionTerminalProfile, ICreateContributedTerminalProfileOptions } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, TerminalLocationString, IProcessProperty, TitleEventSource, ProcessPropertyType, IFixedTerminalDimensions, IExtensionTerminalProfile, ICreateContributedTerminalProfileOptions, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -81,8 +82,8 @@ export interface IShellLaunchConfigResolveOptions {
 	allowAutomationShell?: boolean;
 }
 
-export interface IOffProcessTerminalService {
-	readonly _serviceBrand: undefined;
+export interface ITerminalBackend {
+	readonly remoteAuthority: string | undefined;
 
 	/**
 	 * Fired when the ptyHost process becomes non-responsive, this should disable stdin for all
@@ -117,10 +118,7 @@ export interface IOffProcessTerminalService {
 	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined>;
 	acceptDetachInstanceReply(requestId: number, persistentProcessId?: number): Promise<void>;
 	persistTerminalState(): Promise<void>;
-}
 
-export const ILocalTerminalService = createDecorator<ILocalTerminalService>('localTerminalService');
-export interface ILocalTerminalService extends IOffProcessTerminalService {
 	createProcess(
 		shellLaunchConfig: IShellLaunchConfig,
 		cwd: string,
@@ -132,6 +130,39 @@ export interface ILocalTerminalService extends IOffProcessTerminalService {
 		shouldPersist: boolean
 	): Promise<ITerminalChildProcess>;
 }
+
+export const TerminalExtensions = {
+	Backend: 'workbench.contributions.terminal.processBackend'
+};
+
+export interface ITerminalBackendRegistry {
+	/**
+	 * Registers a terminal backend for a remote authority.
+	 */
+	registerTerminalBackend(backend: ITerminalBackend): void;
+
+	/**
+	 * Returns the registered terminal backend for a remote authority.
+	 */
+	getTerminalBackend(remoteAuthority?: string): ITerminalBackend | undefined;
+}
+
+class TerminalBackendRegistry implements ITerminalBackendRegistry {
+	private readonly _backends = new Map<string, ITerminalBackend>();
+
+	registerTerminalBackend(backend: ITerminalBackend): void {
+		const key = backend.remoteAuthority ?? '';
+		if (this._backends.has(key)) {
+			throw new Error(`A terminal backend with remote authority '${key}' was already registered.`);
+		}
+		this._backends.set(key, backend);
+	}
+
+	getTerminalBackend(remoteAuthority: string | undefined): ITerminalBackend | undefined {
+		return this._backends.get(remoteAuthority ?? '');
+	}
+}
+Registry.add(TerminalExtensions.Backend, new TerminalBackendRegistry());
 
 export type FontWeight = 'normal' | 'bold' | number;
 
@@ -331,8 +362,8 @@ export interface ITerminalProcessManager extends IDisposable {
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
 	getLatency(): Promise<number>;
-	refreshProperty(property: ProcessPropertyType): any;
-	updateProperty(property: ProcessPropertyType, value: any): any;
+	refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]>;
+	updateProperty<T extends ProcessPropertyType>(property: T, value: IProcessPropertyMap[T]): void;
 }
 
 export const enum ProcessState {

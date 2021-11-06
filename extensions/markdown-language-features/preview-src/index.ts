@@ -120,7 +120,6 @@ window.addEventListener('message', async event => {
 
 		case 'updateView':
 			if (event.data.source === documentResource) {
-				console.log('updateView', event.data.line);
 				onUpdateView(event.data.line);
 			}
 			return;
@@ -155,7 +154,6 @@ window.addEventListener('message', async event => {
 				// Move styles to head
 				// This prevents an ugly flash of unstyled content
 				const styles = newRoot.querySelectorAll('link');
-
 				for (const style of styles) {
 					style.remove();
 				}
@@ -165,7 +163,22 @@ window.addEventListener('message', async event => {
 					childrenOnly: true,
 					onBeforeElUpdated: (fromEl, toEl) => {
 						if (areEqual(fromEl, toEl)) {
-							fromEl.setAttribute('data-line', toEl.getAttribute('data-line')!);
+							// areEqual doesn't look at `data-line` so copy those over
+
+							const fromLines = fromEl.querySelectorAll('[data-line]');
+							const toLines = fromEl.querySelectorAll('[data-line]');
+							if (fromLines.length !== toLines.length) {
+								console.log('unexpected line number change');
+							}
+
+							for (let i = 0; i < fromLines.length; ++i) {
+								const fromChild = fromLines[i];
+								const toChild = toLines[i];
+								if (toChild) {
+									fromChild.setAttribute('data-line', toChild.getAttribute('data-line')!);
+								}
+							}
+
 							return false;
 						}
 
@@ -241,7 +254,7 @@ document.addEventListener('click', event => {
 
 window.addEventListener('scroll', throttle(() => {
 	updateScrollProgress();
-	console.log('scroll');
+
 	if (scrollDisabledCount > 0) {
 		scrollDisabledCount -= 1;
 	} else {

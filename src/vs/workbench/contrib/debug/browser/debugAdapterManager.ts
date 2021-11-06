@@ -22,13 +22,14 @@ import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/plat
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { CONTEXT_DEBUGGERS_AVAILABLE, IAdapterDescriptor, IAdapterManager, IConfig, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugAdapterFactory, IDebugConfiguration, IDebugSession, INTERNAL_CONSOLE_OPTIONS_SCHEMA } from 'vs/workbench/contrib/debug/common/debug';
+import { CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_EXTENSION_AVAILABLE, IAdapterDescriptor, IAdapterManager, IConfig, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugAdapterFactory, IDebugConfiguration, IDebugSession, INTERNAL_CONSOLE_OPTIONS_SCHEMA } from 'vs/workbench/contrib/debug/common/debug';
 import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
 import { breakpointsExtPoint, debuggersExtPoint, launchSchema, presentationSchema } from 'vs/workbench/contrib/debug/common/debugSchemas';
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 
@@ -38,6 +39,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 	private adapterDescriptorFactories: IDebugAdapterDescriptorFactory[];
 	private debugAdapterFactories = new Map<string, IDebugAdapterFactory>();
 	private debuggersAvailable: IContextKey<boolean>;
+	private debugExtensionsAvailable: IContextKey<boolean>;
 	private readonly _onDidRegisterDebugger = new Emitter<void>();
 	private readonly _onDidDebuggersExtPointRead = new Emitter<void>();
 	private breakpointModeIdsSet = new Set<string>();
@@ -53,6 +55,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IModeService private readonly modeService: IModeService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super();
 		this.adapterDescriptorFactories = [];
@@ -64,6 +67,13 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 				this.debuggersAvailable.set(this.hasEnabledDebuggers());
 			}
 		}));
+		this.debugExtensionsAvailable = CONTEXT_DEBUG_EXTENSION_AVAILABLE.bindTo(contextKeyService);
+		this.debugExtensionsAvailable.set(true); // Avoid a flash of the default message before extensions load.
+		this._register(this.onDidDebuggersExtPointRead(() => {
+			this.debugExtensionsAvailable.set(this.debuggers.length > 0);
+		}));
+		this.lifecycleService.when(LifecyclePhase.Eventually)
+			.then(() => this.debugExtensionsAvailable.set(this.debuggers.length > 0)); // If no extensions with a debugger contribution are loaded
 	}
 
 	private registerListeners(): void {
