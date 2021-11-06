@@ -79,7 +79,7 @@ function fileMatchToSearchResultFormat(fileMatch: FileMatch, labelFormatter: (x:
 	const seenLines = new Set<string>();
 	sortedMatches.forEach(match => {
 		matchToSearchResultFormat(match, longestLineNumber).forEach(match => {
-			if (!seenLines.has(match.line)) {
+			if (!seenLines.has(match.lineNumber)) {
 				while (context.length && context[0].lineNumber < +match.lineNumber) {
 					const { line, lineNumber } = context.shift()!;
 					if (lastLine !== undefined && lineNumber !== lastLine + 1) {
@@ -90,7 +90,7 @@ function fileMatchToSearchResultFormat(fileMatch: FileMatch, labelFormatter: (x:
 				}
 
 				targetLineNumberToOffset[match.lineNumber] = text.length;
-				seenLines.add(match.line);
+				seenLines.add(match.lineNumber);
 				text.push(match.line);
 				lastLine = +match.lineNumber;
 			}
