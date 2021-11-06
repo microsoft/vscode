@@ -743,6 +743,7 @@ suite('TextModelSearch', () => {
 		assert(!isMultilineRegexSource('\\\\notnewline'));
 
 		assert(isMultilineRegexSource('foo\\nbar'));
+		assert(isMultilineRegexSource('foo\nbar'));
 		assert(isMultilineRegexSource('foo\\nbar\\s'));
 		assert(isMultilineRegexSource('foo\\r\\n'));
 		assert(isMultilineRegexSource('\\n'));

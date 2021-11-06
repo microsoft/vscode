@@ -89,6 +89,9 @@ export function isMultilineRegexSource(searchString: string): boolean {
 				return true;
 			}
 		}
+		if (chCode === CharCode.LineFeed) {
+			return true;
+		}
 	}
 
 	return false;
