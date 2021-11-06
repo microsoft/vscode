@@ -144,7 +144,7 @@ export abstract class SharedDesktopMain extends Disposable {
 		nativeHostService: INativeHostService
 	): void;
 
-	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: NativeStorageService, environmentService: INativeWorkbenchEnvironmentService }> {
+	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: NativeStorageService }> {
 		const serviceCollection = new ServiceCollection();
 
 
@@ -301,7 +301,7 @@ export abstract class SharedDesktopMain extends Disposable {
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-		return { serviceCollection, logService, storageService, environmentService };
+		return { serviceCollection, logService, storageService };
 	}
 
 	private resolveWorkspaceInitializationPayload(environmentService: INativeWorkbenchEnvironmentService): IWorkspaceInitializationPayload {

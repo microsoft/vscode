@@ -9,7 +9,7 @@ import { ChildProcess, spawn } from 'child_process';
 import { join } from 'path';
 import { mkdir } from 'fs';
 import { promisify } from 'util';
-import { IDriver, IDisposable } from './driver';
+import { IDriver } from './driver';
 import { URI } from 'vscode-uri';
 
 const root = join(__dirname, '..', '..', '..');
@@ -30,7 +30,7 @@ const vscodeToPlaywrightKey: { [key: string]: string } = {
 
 let traceCounter = 1;
 
-function buildDriver(app: playwright.ElectronApplication | playwright.Browser, context: playwright.BrowserContext, page: playwright.Page, logsPath: string): IDriver {
+function buildDriver(context: playwright.BrowserContext, page: playwright.Page, logsPath: string): IDriver {
 	const driver: IDriver = {
 		_serviceBrand: undefined,
 		waitForReady: () => page.evaluate('window.driver.waitForReady()'),
@@ -42,7 +42,6 @@ function buildDriver(app: playwright.ElectronApplication | playwright.Browser, c
 				console.warn(`Failed to stop playwright tracing.`); // do not fail the build when this fails
 			}
 			await page.evaluate('window.driver.exitApplication()');
-			await app.close();
 			await teardown();
 		},
 		dispatchKeybinding: async (keybinding) => {
@@ -144,28 +143,12 @@ export async function launchServer(userDataDir: string, _workspacePath: string, 
 		server.stdout?.on('data', data => console.log(`Server stdout: ${data}`));
 	}
 
-	process.on('exit', teardown);
-	process.on('SIGINT', teardown);
-	process.on('SIGTERM', teardown);
-
 	endpoint = await waitForEndpoint();
-}
-
-async function teardown(): Promise<void> {
-	if (server) {
-		try {
-			await new Promise<void>((resolve, reject) => kill(server!.pid, err => err ? reject(err) : resolve()));
-		} catch {
-			// noop
-		}
-
-		server = undefined;
-	}
 }
 
 function waitForEndpoint(): Promise<string> {
 	return new Promise<string>(r => {
-		server!.stdout?.on('data', (d: Buffer) => {
+		server?.stdout?.on('data', (d: Buffer) => {
 			const matches = d.toString('ascii').match(/Web UI available at (.+)/);
 			if (matches !== null) {
 				r(matches[1]);
@@ -179,8 +162,14 @@ interface BrowserOptions {
 	readonly headless?: boolean;
 }
 
-export async function connectBrowser(options: BrowserOptions = {}): Promise<{ client: IDisposable, driver: IDriver }> {
-	const browser = await playwright[options.browser ?? 'chromium'].launch({ headless: options.headless ?? false });
+let browser: playwright.Browser | undefined = undefined;
+
+export interface IAsyncDisposable {
+	dispose(): Promise<void>;
+}
+
+export async function connectBrowser(options: BrowserOptions = {}): Promise<{ client: IAsyncDisposable, driver: IDriver }> {
+	browser = await playwright[options.browser ?? 'chromium'].launch({ headless: options.headless ?? false });
 	const context = await browser.newContext();
 	try {
 		await context.tracing.start({ screenshots: true, snapshots: true });
@@ -204,12 +193,9 @@ export async function connectBrowser(options: BrowserOptions = {}): Promise<{ cl
 
 	return {
 		client: {
-			dispose: () => {
-				browser.close();
-				teardown();
-			}
+			dispose: () => teardown()
 		},
-		driver: buildDriver(browser, context, page, join(root, '.build', 'logs', 'smoke-tests-browser'))
+		driver: buildDriver(context, page, join(root, '.build', 'logs', 'smoke-tests-browser'))
 	};
 }
 
@@ -219,14 +205,16 @@ interface ElectronOptions {
 	readonly env?: NodeJS.ProcessEnv;
 }
 
-export async function connectElectron(options: ElectronOptions): Promise<{ client: IDisposable, driver: IDriver }> {
-	const electronApp = await playwright._electron.launch({
+let electron: playwright.ElectronApplication | undefined = undefined;
+
+export async function connectElectron(options: ElectronOptions): Promise<{ client: IAsyncDisposable, driver: IDriver }> {
+	electron = await playwright._electron.launch({
 		executablePath: options.executablePath,
 		args: options.args,
 		env: options.env as { [key: string]: string; } // Playwright typings fail
 	});
 
-	const window = await electronApp.firstWindow();
+	const window = await electron.firstWindow();
 	const context = window.context();
 	try {
 		await context.tracing.start({ screenshots: true, snapshots: true });
@@ -245,11 +233,58 @@ export async function connectElectron(options: ElectronOptions): Promise<{ clien
 
 	return {
 		client: {
-			dispose: () => {
-				electronApp.close();
-				teardown();
-			}
+			dispose: () => teardown()
 		},
-		driver: buildDriver(electronApp, context, window, join(root, '.build', 'logs', 'smoke-tests'))
+		driver: buildDriver(context, window, join(root, '.build', 'logs', 'smoke-tests'))
 	};
+}
+
+process.on('exit', teardown);
+process.on('SIGINT', teardown);
+process.on('SIGTERM', teardown);
+
+async function teardown(): Promise<void> {
+	let teardownPromises: Promise<void>[] = [];
+
+	if (server) {
+		teardownPromises.push((async () => {
+			try {
+				await new Promise<void>((resolve, reject) => kill(server!.pid, err => err ? reject(err) : resolve()));
+			} catch {
+				// noop
+			}
+
+			server = undefined;
+		})());
+	}
+
+	if (browser) {
+		teardownPromises.push((async () => {
+			try {
+				await browser.close();
+			} catch (error) {
+				// noop
+			}
+
+			browser = undefined;
+		})());
+	}
+
+	if (electron) {
+		teardownPromises.push((async () => {
+			try {
+				await electron.close();
+			} catch (error) {
+				// noop
+			}
+
+			electron = undefined;
+		})());
+	}
+
+	try {
+		await Promise.all(teardownPromises);
+	} catch (error) {
+		console.error(error);
+	}
 }

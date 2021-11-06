@@ -8,7 +8,7 @@ import * as os from 'os';
 import * as fs from 'fs';
 import * as mkdirp from 'mkdirp';
 import { IDriver, IDisposable, IElement, Thenable, ILocalizedStrings, ILocaleInfo } from './driver';
-import { connectBrowser, connectElectron, launchServer } from './playwright';
+import { connectBrowser, connectElectron, IAsyncDisposable, launchServer } from './playwright';
 import { Logger } from './logger';
 import { ncp } from 'ncp';
 import { URI } from 'vscode-uri';
@@ -48,20 +48,27 @@ function getBuildElectronPath(root: string): string {
 	}
 }
 
-async function connect(driverFn: () => Promise<{ client: IDisposable, driver: IDriver }>, logger: Logger): Promise<Code> {
+async function connect(driverFn: () => Promise<{ client: IAsyncDisposable, driver: IDriver }>, logger: Logger): Promise<Code> {
 	let errCount = 0;
 
 	while (true) {
+		let disposable: IAsyncDisposable | undefined = undefined;
 		try {
 			const { client, driver } = await driverFn();
+			disposable = client;
 
 			return new Code(client, driver, logger);
 		} catch (err) {
+			if (disposable) {
+				await disposable.dispose();
+			}
+
 			if (++errCount > 50) {
 				throw err;
 			}
 
 			// retry
+			console.error('Unexpected error connecting to driver, retrying...');
 			await new Promise(resolve => setTimeout(resolve, 100));
 		}
 	}
@@ -116,6 +123,10 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 			`--logsPath=${path.join(repoPath, '.build', 'logs', 'smoke-tests')}`,
 			'--enable-driver'
 		];
+
+		if (options.verbose) {
+			args.push('--verbose');
+		}
 
 		if (process.platform === 'linux') {
 			args.push('--disable-gpu'); // Linux has trouble in VMs to render properly with GPU enabled
@@ -209,7 +220,6 @@ async function poll<T>(
 
 export class Code {
 
-	private ready: Promise<void> | undefined = undefined;
 	private driver: IDriver;
 
 	constructor(
@@ -237,11 +247,7 @@ export class Code {
 	}
 
 	async waitForReady(): Promise<void> {
-		if (!this.ready) {
-			this.ready = this.driver.waitForReady();
-		}
-
-		return this.ready;
+		return this.driver.waitForReady();
 	}
 
 	async dispatchKeybinding(keybinding: string): Promise<void> {

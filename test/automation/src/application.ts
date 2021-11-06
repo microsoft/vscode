@@ -85,8 +85,9 @@ export class Application {
 	}
 
 	async reload(): Promise<any> {
-		this.code.reload()
-			.catch(err => null); // ignore the connection drop errors
+		this.code.reload().catch(err => {
+			// ignore the connection drop errors
+		});
 
 		// needs to be enough to propagate the 'Reload Window' command
 		await new Promise(resolve => setTimeout(resolve, 1500));
