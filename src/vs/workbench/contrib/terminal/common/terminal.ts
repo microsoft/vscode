@@ -63,6 +63,8 @@ export interface ITerminalProfileService {
 	readonly availableProfiles: ITerminalProfile[];
 	readonly contributedProfiles: IExtensionTerminalProfile[];
 	readonly profilesReady: Promise<void>;
+	readonly profilesKey: string;
+	readonly platformKey: string;
 	refreshAvailableProfiles(): void;
 	getDefaultProfileName(): string | undefined;
 	onDidChangeAvailableProfiles: Event<ITerminalProfile[]>;
@@ -70,6 +72,8 @@ export interface ITerminalProfileService {
 	registerContributedProfile(extensionIdentifier: string, id: string, title: string, options: ICreateContributedTerminalProfileOptions): Promise<void>;
 	getContributedProfileProvider(extensionIdentifier: string, id: string): ITerminalProfileProvider | undefined;
 	registerTerminalProfileProvider(extensionIdentifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable;
+	getConfiguredDefaultProfileName(): string;
+	getConfiguredProfiles(): Promise<{ [key: string]: any }>;
 }
 
 export interface ITerminalProfileProvider {
