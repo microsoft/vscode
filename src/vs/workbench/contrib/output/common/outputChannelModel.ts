@@ -5,50 +5,51 @@
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import * as resources from 'vs/base/common/resources';
-import { ITextModel } from 'vs/editor/common/model';
+import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { Emitter, Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { Promises, RunOnceScheduler, ThrottledDelayer } from 'vs/base/common/async';
+import { Promises, ThrottledDelayer } from 'vs/base/common/async';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { Disposable, toDisposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable, IDisposable, dispose, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ILogger, ILoggerService, ILogService } from 'vs/platform/log/common/log';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export interface IOutputChannelModel extends IDisposable {
-	readonly onDidAppendedContent: Event<void>;
 	readonly onDispose: Event<void>;
 	append(output: string): void;
 	update(): void;
 	loadModel(): Promise<ITextModel>;
 	clear(till?: number): void;
-	replaceAll(till: number, value: string): void;
+	replaceAll(till: number, value?: string): void;
+}
+
+const enum ModelUpdateMode {
+	Append = 1,
+	Replace,
+	Clear
 }
 
 export abstract class AbstractFileOutputChannelModel extends Disposable implements IOutputChannelModel {
 
-	protected readonly _onDidAppendedContent = this._register(new Emitter<void>());
-	readonly onDidAppendedContent: Event<void> = this._onDidAppendedContent.event;
-
 	protected readonly _onDispose = this._register(new Emitter<void>());
 	readonly onDispose: Event<void> = this._onDispose.event;
 
-	protected modelUpdater: RunOnceScheduler;
 	protected model: ITextModel | null = null;
+	private modelUpdateInProgress: boolean = false;
+	private modelUpdateCancellationSource = this._register(new MutableDisposable<CancellationTokenSource>());
+	private appendThrottler = this._register(new ThrottledDelayer(300));
+	private replacePromise: Promise<void> | undefined;
 
 	protected startOffset: number = 0;
 	protected endOffset: number = 0;
-
-	protected replaceAllValue: string | null = null;
-	protected replaceAllValueSeenInAppend: boolean = false;
-	protected replaceAllCancellationToken: CancellationTokenSource | null = null;
 
 	constructor(
 		private readonly modelUri: URI,
@@ -60,69 +61,16 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 		protected editorWorkerService: IEditorWorkerService,
 	) {
 		super();
-		this.modelUpdater = new RunOnceScheduler(() => this.updateModel(), 300);
-		this._register(toDisposable(() => this.modelUpdater.cancel()));
 	}
 
 	clear(till?: number): void {
-		if (this.modelUpdater.isScheduled()) {
-			this.modelUpdater.cancel();
-			this.onUpdateModelCancelled();
-		}
-		this.replaceAllCancellationToken?.cancel();
-		this.replaceAllCancellationToken = null;
-		this.replaceAllValue = null;
-
-		if (this.model) {
-			this.model.setValue('');
-		}
-		this.endOffset = isNumber(till) ? till : this.endOffset;
-		this.startOffset = this.endOffset;
+		this.startOffset = this.endOffset = isNumber(till) ? till : this.endOffset;
+		this.updateModel(ModelUpdateMode.Clear);
 	}
 
-	replaceAll(till: number, value: string): void {
-		if (this.modelUpdater.isScheduled()) {
-			this.modelUpdater.cancel();
-			this.onUpdateModelCancelled();
-		}
-		this.replaceAllValue = value;
-		this.replaceAllValueSeenInAppend = false;
-		this.endOffset = isNumber(till) ? till : this.endOffset;
-		this.startOffset = this.endOffset;
-
-		if (this.model) {
-			this.replaceAllCancellationToken?.cancel();
-			this.replaceAllCancellationToken = null;
-
-			const myToken = new CancellationTokenSource();
-			this.replaceAllCancellationToken = myToken;
-
-			this.editorWorkerService.computeMoreMinimalEdits(this.model.uri, [{ text: value, range: this.model.getFullModelRange() }]).then(edits => {
-				if (myToken.token.isCancellationRequested) {
-					return;
-				}
-
-				this.replaceAllCancellationToken = null;
-
-				if (edits && edits.length > 0) {
-					if (this.model) {
-						this.model.applyEdits(edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
-						this._onDidAppendedContent.fire();
-					}
-				}
-			}).catch((e) => {
-				if (myToken.token.isCancellationRequested) {
-					return;
-				}
-
-				this.replaceAllCancellationToken = null;
-
-				if (this.model) {
-					this.model.setValue(value);
-					this._onDidAppendedContent.fire();
-				}
-			});
-		}
+	replaceAll(till: number, message: string): void {
+		this.startOffset = this.endOffset = till;
+		this.updateModel(ModelUpdateMode.Replace);
 	}
 
 	update(): void { }
@@ -134,6 +82,7 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 			this.model = this.modelService.createModel(content, this.modeService.create(this.mimeType), this.modelUri);
 			this.onModelCreated(this.model);
 			const disposable = this.model.onWillDispose(() => {
+				this.cancelModelUpdate();
 				this.onModelWillDispose(this.model);
 				this.model = null;
 				dispose(disposable);
@@ -142,63 +91,118 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 		return this.model;
 	}
 
-	appendToModel(content: string): void {
-		if (this.model) {
-			if (this.replaceAllValue === null && content) {
-				const lastLine = this.model.getLineCount();
-				const lastLineMaxColumn = this.model.getLineMaxColumn(lastLine);
-				this.model.applyEdits([EditOperation.insert(new Position(lastLine, lastLineMaxColumn), content)]);
-				this._onDidAppendedContent.fire();
-			} else if (this.replaceAllValue !== null) {
-				this.replaceAllCancellationToken?.cancel();
-				this.replaceAllCancellationToken = null;
+	protected updateModel(mode: ModelUpdateMode): void {
+		if (mode !== ModelUpdateMode.Append) {
+			this.cancelModelUpdate();
+		}
+		if (!this.model) {
+			return;
+		}
+		if (!this.modelUpdateCancellationSource.value) {
+			this.modelUpdateCancellationSource.value = new CancellationTokenSource();
+		}
+		this.modelUpdateInProgress = true;
+		const token = this.modelUpdateCancellationSource.value.token;
+		switch (mode) {
+			case ModelUpdateMode.Clear:
+				this.clearContent(this.model);
+				break;
+			case ModelUpdateMode.Replace:
+				this.replacePromise = this.replaceContent(this.model, token).finally(() => this.replacePromise = undefined);
+				break;
+			case ModelUpdateMode.Append:
+				this.appendContent(this.model, token);
+				break;
+		}
+	}
 
-				if (!this.replaceAllValueSeenInAppend && content === this.replaceAllValue) {
-					this.replaceAllValue = null;
+	private clearContent(model: ITextModel): void {
+		this.doUpdateModel(model, [EditOperation.delete(model.getFullModelRange())], VSBuffer.fromString(''));
+	}
+
+	private async appendContent(model: ITextModel, token: CancellationToken): Promise<void> {
+		this.appendThrottler.trigger(async () => {
+			/* Abort if operation is cancelled */
+			if (token.isCancellationRequested) {
+				return;
+			}
+
+			/* Wait for replace to finish */
+			if (this.replacePromise) {
+				try { await this.replacePromise; } catch (e) { /* Ignore */ }
+				/* Abort if operation is cancelled */
+				if (token.isCancellationRequested) {
 					return;
 				}
+			}
 
-				if (content) {
-					if (!this.replaceAllValueSeenInAppend && content.length >= this.replaceAllValue.length && content.startsWith(this.replaceAllValue)) {
-						this.replaceAllValue += content.substring(this.replaceAllValue.length);
-						this.replaceAllValueSeenInAppend = true;
-					} else {
-						this.replaceAllValue += content;
-					}
-				}
+			/* Get content to append */
+			const contentToAppend = await this.getContentToUpdate();
+			/* Abort if operation is cancelled */
+			if (token.isCancellationRequested) {
+				return;
+			}
 
-				const myToken = new CancellationTokenSource();
-				this.replaceAllCancellationToken = myToken;
+			/* Appned Content */
+			const lastLine = model.getLineCount();
+			const lastLineMaxColumn = model.getLineMaxColumn(lastLine);
+			const edits = [EditOperation.insert(new Position(lastLine, lastLineMaxColumn), contentToAppend.toString())];
+			this.doUpdateModel(model, edits, contentToAppend);
+		});
+	}
 
-				this.editorWorkerService.computeMoreMinimalEdits(this.model.uri, [{ text: this.replaceAllValue, range: this.model.getFullModelRange() }]).then(edits => {
-					if (myToken.token.isCancellationRequested) {
-						return;
-					}
+	private async replaceContent(model: ITextModel, token: CancellationToken): Promise<void> {
+		/* Get content to replace */
+		const contentToReplace = await this.getContentToUpdate();
+		/* Abort if operation is cancelled */
+		if (token.isCancellationRequested) {
+			return;
+		}
 
-					this.replaceAllCancellationToken = null;
-					this.replaceAllValue = null;
+		/* Compute Edits */
+		const edits = await this.getReplaceEdits(model, contentToReplace.toString());
+		/* Abort if operation is cancelled */
+		if (token.isCancellationRequested) {
+			return;
+		}
 
-					if (edits && edits.length > 0) {
-						if (this.model) {
-							this.model.applyEdits(edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
-							this._onDidAppendedContent.fire();
-						}
-					}
-				}).catch(() => {
-					if (myToken.token.isCancellationRequested) {
-						return;
-					}
+		/* Apply Edits */
+		this.doUpdateModel(model, edits, contentToReplace);
+	}
 
-					if (this.model && this.replaceAllValue !== null) {
-						this.model.setValue(this.replaceAllValue);
-						this._onDidAppendedContent.fire();
-					}
-
-					this.replaceAllCancellationToken = null;
-					this.replaceAllValue = null;
-				});
+	private async getReplaceEdits(model: ITextModel, contentToReplace: string): Promise<IIdentifiedSingleEditOperation[]> {
+		if (!contentToReplace) {
+			return [EditOperation.delete(model.getFullModelRange())];
+		}
+		if (contentToReplace !== model.getValue()) {
+			const edits = await this.editorWorkerService.computeMoreMinimalEdits(model.uri, [{ text: contentToReplace.toString(), range: model.getFullModelRange() }]);
+			if (edits?.length) {
+				return edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
 			}
 		}
+		return [];
+	}
+
+	private doUpdateModel(model: ITextModel, edits: IIdentifiedSingleEditOperation[], content: VSBuffer): void {
+		if (edits.length) {
+			model.applyEdits(edits);
+		}
+		this.modelUpdateInProgress = false;
+		this.onDidModelUpdate(content);
+	}
+
+	protected cancelModelUpdate(): void {
+		if (this.modelUpdateCancellationSource.value) {
+			this.modelUpdateCancellationSource.value.cancel();
+		}
+		this.modelUpdateCancellationSource.value = undefined;
+		this.appendThrottler.cancel();
+		this.replacePromise = undefined;
+		this.modelUpdateInProgress = false;
+	}
+
+	protected isModelUpdateInProgress(): boolean {
+		return this.modelUpdateInProgress;
 	}
 
 	abstract loadModel(): Promise<ITextModel>;
@@ -206,8 +210,8 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 
 	protected onModelCreated(model: ITextModel) { }
 	protected onModelWillDispose(model: ITextModel | null) { }
-	protected onUpdateModelCancelled() { }
-	protected updateModel() { }
+	protected abstract getContentToUpdate(): Promise<VSBuffer>;
+	protected abstract onDidModelUpdate(content: VSBuffer): void;
 
 	override dispose(): void {
 		this._onDispose.fire();
@@ -276,7 +280,6 @@ export class FileOutputChannelModel extends AbstractFileOutputChannelModel imple
 
 	private readonly fileHandler: OutputFileListener;
 
-	private updateInProgress: boolean = false;
 	private etag: string | undefined = '';
 	private loadModelPromise: Promise<ITextModel> | null = null;
 
@@ -326,32 +329,18 @@ export class FileOutputChannelModel extends AbstractFileOutputChannelModel imple
 		});
 	}
 
-	override replaceAll(till: number, value: string): void {
-		const loadModelPromise: Promise<any> = this.loadModelPromise ? this.loadModelPromise : Promise.resolve();
-		loadModelPromise.then(() => {
-			super.replaceAll(till, value);
-			this.update();
-		});
-	}
-
 	append(message: string): void {
 		throw new Error('Not supported');
 	}
 
-	protected override updateModel(): void {
-		if (this.model) {
-			this.fileService.readFile(this.file, { position: this.endOffset })
-				.then(content => {
-					this.etag = content.etag;
-					if (content.value) {
-						this.endOffset = this.endOffset + content.value.byteLength;
-						this.appendToModel(content.value.toString());
-					}
-					this.updateInProgress = false;
-				}, () => this.updateInProgress = false);
-		} else {
-			this.updateInProgress = false;
-		}
+	protected async getContentToUpdate(): Promise<VSBuffer> {
+		const content = await this.fileService.readFile(this.file, { position: this.endOffset });
+		this.etag = content.etag;
+		return content.value;
+	}
+
+	protected override onDidModelUpdate(content: VSBuffer): void {
+		this.endOffset = this.endOffset + content.byteLength;
 	}
 
 	protected override onModelCreated(model: ITextModel): void {
@@ -362,24 +351,16 @@ export class FileOutputChannelModel extends AbstractFileOutputChannelModel imple
 		this.fileHandler.unwatch();
 	}
 
-	protected override onUpdateModelCancelled(): void {
-		this.updateInProgress = false;
-	}
-
-	protected getByteLength(str: string): number {
-		return VSBuffer.fromString(str).byteLength;
-	}
-
 	override update(size?: number): void {
 		if (this.model) {
-			if (!this.updateInProgress) {
-				this.updateInProgress = true;
-				if (isNumber(size) && this.endOffset > size) { // Reset - Content is removed
+			if (!this.isModelUpdateInProgress()) {
+				if (isNumber(size) && this.endOffset > size) {
+					// Reset - Content is removed
 					this.startOffset = this.endOffset = 0;
-					this.model.setValue('');
+					this.updateModel(ModelUpdateMode.Clear);
 				}
-				this.modelUpdater.schedule();
 			}
+			this.updateModel(ModelUpdateMode.Append);
 		}
 	}
 }
@@ -432,16 +413,14 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implement
 			this.write(message);
 			if (this.model) {
 				this.appendedMessage += message;
-				if (!this.modelUpdater.isScheduled()) {
-					this.modelUpdater.schedule();
-				}
+				this.updateModel(ModelUpdateMode.Append);
 			}
 		}
 	}
 
 	override replaceAll(till: number, value: string): void {
+		this.appendedMessage = value;
 		super.replaceAll(till, value);
-		this.appendedMessage = '';
 	}
 
 	override clear(till?: number): void {
@@ -451,9 +430,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implement
 
 	async loadModel(): Promise<ITextModel> {
 		this.loadingFromFileInProgress = true;
-		if (this.modelUpdater.isScheduled()) {
-			this.modelUpdater.cancel();
-		}
+		this.cancelModelUpdate();
 		this.appendedMessage = '';
 		let content = await this.loadFile();
 		if (this.endOffset !== this.startOffset + VSBuffer.fromString(content).byteLength) {
@@ -483,11 +460,12 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implement
 		return this.appendedMessage ? content.value + this.appendedMessage : content.value.toString();
 	}
 
-	protected override updateModel(): void {
-		if (this.model && this.appendedMessage) {
-			this.appendToModel(this.appendedMessage);
-			this.appendedMessage = '';
-		}
+	protected async getContentToUpdate(): Promise<VSBuffer> {
+		return VSBuffer.fromString(this.appendedMessage);
+	}
+
+	protected override onDidModelUpdate(content: VSBuffer): void {
+		this.appendedMessage = '';
 	}
 
 	private write(content: string): void {
@@ -500,9 +478,6 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implement
 }
 
 export class DelegatedOutputChannelModel extends Disposable implements IOutputChannelModel {
-
-	private readonly _onDidAppendedContent: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidAppendedContent: Event<void> = this._onDidAppendedContent.event;
 
 	private readonly _onDispose: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDispose: Event<void> = this._onDispose.event;
@@ -526,7 +501,6 @@ export class DelegatedOutputChannelModel extends Disposable implements IOutputCh
 		const file = resources.joinPath(outputDir, `${id.replace(/[\\/:\*\?"<>\|]/g, '')}.log`);
 		await this.fileService.createFile(file);
 		const outputChannelModel = this._register(this.instantiationService.createInstance(OutputChannelBackedByFile, id, modelUri, mimeType, file));
-		this._register(outputChannelModel.onDidAppendedContent(() => this._onDidAppendedContent.fire()));
 		this._register(outputChannelModel.onDispose(() => this._onDispose.fire()));
 		return outputChannelModel;
 	}

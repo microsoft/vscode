@@ -447,7 +447,7 @@ export interface MainThreadOutputServiceShape extends IDisposable {
 	$append(channelId: string, value: string): Promise<void> | undefined;
 	$update(channelId: string): Promise<void> | undefined;
 	$clear(channelId: string, till: number): Promise<void> | undefined;
-	$replaceAll(channelId: string, till: number, value: string): Promise<void> | undefined;
+	$replaceAll(channelId: string, till: number, value?: string): Promise<void> | undefined;
 	$reveal(channelId: string, preserveFocus: boolean): Promise<void> | undefined;
 	$close(channelId: string): Promise<void> | undefined;
 	$dispose(channelId: string): Promise<void> | undefined;
