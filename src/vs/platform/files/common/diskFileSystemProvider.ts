@@ -75,7 +75,6 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable {
 		// Create watcher if this is the first time
 		if (!this.recursiveWatcher) {
 			this.recursiveWatcher = this._register(this.createRecursiveWatcher(
-				this.recursiveFoldersToWatch.length,
 				changes => this._onDidChangeFile.fire(toFileChanges(changes)),
 				msg => this.onWatcherLogMessage(msg),
 				this.logService.getLevel() === LogLevel.Trace
@@ -96,7 +95,6 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable {
 	}
 
 	protected abstract createRecursiveWatcher(
-		folders: number,
 		onChange: (changes: IDiskFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean

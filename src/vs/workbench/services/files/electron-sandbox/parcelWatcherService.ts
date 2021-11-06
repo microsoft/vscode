@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { isLinux } from 'vs/base/common/platform';
 import { getDelayedChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { AbstractWatcherService, IDiskFileChange, ILogMessage, IWatcherService } from 'vs/platform/files/common/watcher';
 import { ISharedProcessWorkerWorkbenchService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessWorkerWorkbenchService';
@@ -22,7 +23,7 @@ export class ParcelFileWatcher extends AbstractWatcherService {
 	}
 
 	protected override createService(disposables: DisposableStore): IWatcherService {
-		return ProxyChannel.toService<IWatcherService>(getDelayedChannel((async () => {
+		const service = ProxyChannel.toService<IWatcherService>(getDelayedChannel((async () => {
 
 			// Acquire parcel watcher via shared process worker
 			const { client, onDidTerminate } = await this.sharedProcessWorkerWorkbenchService.createWorker({
@@ -41,5 +42,12 @@ export class ParcelFileWatcher extends AbstractWatcherService {
 
 			return client.getChannel('watcher');
 		})()));
+
+		// TODO@bpasero workaround for https://github.com/microsoft/vscode/issues/136264
+		if (isLinux) {
+			disposables.add(toDisposable(() => service.stop()));
+		}
+
+		return service;
 	}
 }
