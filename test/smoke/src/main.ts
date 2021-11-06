@@ -329,7 +329,8 @@ after(async function () {
 });
 
 if (!opts.web && opts['build'] && !opts['remote']) {
-	describe(`Stable vs Insiders Smoke Tests: This test MUST run before releasing`, () => {
+	// TODO@bpasero can only enable in 1month given playwright usage for electron
+	describe.skip(`Stable vs Insiders Smoke Tests: This test MUST run before releasing`, () => {
 		setupDataMigrationTests(opts, testDataPath);
 	});
 }

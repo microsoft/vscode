@@ -59,36 +59,6 @@ function getBuildElectronPath(root: string): string {
 	}
 }
 
-async function connect(driverFn: () => Promise<{ client: IAsyncDisposable, driver: IDriver }>, logger: Logger): Promise<Code> {
-	let errCount = 0;
-
-	while (true) {
-		if (terminated) {
-			throw new Error('Process terminated.');
-		}
-
-		let disposable: IAsyncDisposable | undefined = undefined;
-		try {
-			const { client, driver } = await driverFn();
-			disposable = client;
-
-			return new Code(client, driver, logger);
-		} catch (err) {
-			if (disposable) {
-				await disposable.dispose();
-			}
-
-			if (++errCount > 50) {
-				throw err;
-			}
-
-			// retry
-			console.error('Unexpected error connecting to driver, retrying...');
-			await new Promise(resolve => setTimeout(resolve, 100));
-		}
-	}
-}
-
 export interface SpawnOptions {
 	codePath?: string;
 	workspacePath: string;
@@ -105,6 +75,9 @@ export interface SpawnOptions {
 }
 
 export async function spawn(options: SpawnOptions): Promise<Code> {
+	if (terminated) {
+		throw new Error('Process terminated or interrupted.');
+	}
 
 	// Copy notebook smoketests over
 	copyExtension(options.extensionsPath, 'vscode-notebook-tests');
@@ -116,7 +89,9 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		await connectServer(options.userDataDir, options.workspacePath, options.codePath, options.extensionsPath, Boolean(options.verbose));
 
 		// Then connect via browser
-		return connect(() => connectBrowser(options), options.logger);
+		const { client, driver } = await connectBrowser(options);
+
+		return new Code(client, driver, options.logger);
 	}
 
 	// Electron Smoke Test
@@ -185,7 +160,10 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		}
 
 		const executablePath = options.codePath ? getBuildElectronPath(options.codePath) : getDevElectronPath();
-		return connect(() => connectElectron({ executablePath, args, env }), options.logger);
+
+		const { client, driver } = await connectElectron({ executablePath, args, env });
+
+		return new Code(client, driver, options.logger);
 	}
 }
 
