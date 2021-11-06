@@ -7,11 +7,22 @@ import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
 import * as mkdirp from 'mkdirp';
-import { IDriver, IDisposable, IElement, Thenable, ILocalizedStrings, ILocaleInfo } from './driver';
-import { connectBrowser, connectElectron, IAsyncDisposable, launchServer } from './playwright';
+import { IDriver, IElement, Thenable, ILocalizedStrings, ILocaleInfo } from './driver';
+import { connectBrowser, connectElectron, IAsyncDisposable, connectServer, disconnect } from './playwright';
 import { Logger } from './logger';
 import { ncp } from 'ncp';
 import { URI } from 'vscode-uri';
+
+let terminated = false;
+
+function onTerminate() {
+	terminated = true;
+	disconnect();
+}
+
+process.on('SIGINT', onTerminate);
+process.on('exit', onTerminate);
+process.on('SIGTERM', onTerminate);
 
 const repoPath = path.join(__dirname, '../../..');
 
@@ -52,6 +63,10 @@ async function connect(driverFn: () => Promise<{ client: IAsyncDisposable, drive
 	let errCount = 0;
 
 	while (true) {
+		if (terminated) {
+			throw new Error('Process terminated.');
+		}
+
 		let disposable: IAsyncDisposable | undefined = undefined;
 		try {
 			const { client, driver } = await driverFn();
@@ -98,7 +113,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 	if (options.web) {
 
 		// We need a server first
-		await launchServer(options.userDataDir, options.workspacePath, options.codePath, options.extensionsPath, Boolean(options.verbose));
+		await connectServer(options.userDataDir, options.workspacePath, options.codePath, options.extensionsPath, Boolean(options.verbose));
 
 		// Then connect via browser
 		return connect(() => connectBrowser(options), options.logger);
@@ -223,7 +238,7 @@ export class Code {
 	private driver: IDriver;
 
 	constructor(
-		private client: IDisposable,
+		private client: IAsyncDisposable,
 		driver: IDriver,
 		readonly logger: Logger
 	) {
@@ -323,8 +338,8 @@ export class Code {
 		return this.driver.getLocalizedStrings();
 	}
 
-	dispose(): void {
-		this.client.dispose();
+	dispose(): Promise<void> {
+		return this.client.dispose();
 	}
 }
 

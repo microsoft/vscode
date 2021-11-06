@@ -42,7 +42,7 @@ function buildDriver(context: playwright.BrowserContext, page: playwright.Page, 
 				console.warn(`Failed to stop playwright tracing.`); // do not fail the build when this fails
 			}
 			await page.evaluate('window.driver.exitApplication()');
-			await teardown();
+			await disconnect();
 		},
 		dispatchKeybinding: async (keybinding) => {
 			const chords = keybinding.split(' ');
@@ -98,7 +98,7 @@ let server: ChildProcess | undefined;
 let endpoint: string | undefined;
 let workspacePath: string | undefined;
 
-export async function launchServer(userDataDir: string, _workspacePath: string, codeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH, extPath: string, verbose: boolean): Promise<void> {
+export async function connectServer(userDataDir: string, _workspacePath: string, codeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH, extPath: string, verbose: boolean): Promise<void> {
 	workspacePath = _workspacePath;
 
 	const logsPath = join(root, '.build', 'logs', 'smoke-tests-browser');
@@ -193,7 +193,7 @@ export async function connectBrowser(options: BrowserOptions = {}): Promise<{ cl
 
 	return {
 		client: {
-			dispose: () => teardown()
+			dispose: () => disconnect()
 		},
 		driver: buildDriver(context, page, join(root, '.build', 'logs', 'smoke-tests-browser'))
 	};
@@ -233,17 +233,13 @@ export async function connectElectron(options: ElectronOptions): Promise<{ clien
 
 	return {
 		client: {
-			dispose: () => teardown()
+			dispose: () => disconnect()
 		},
 		driver: buildDriver(context, window, join(root, '.build', 'logs', 'smoke-tests'))
 	};
 }
 
-process.on('exit', teardown);
-process.on('SIGINT', teardown);
-process.on('SIGTERM', teardown);
-
-async function teardown(): Promise<void> {
+export async function disconnect(): Promise<void> {
 	let teardownPromises: Promise<void>[] = [];
 
 	if (server) {
