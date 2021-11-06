@@ -316,7 +316,7 @@ export abstract class AbstractProblemCollector implements IDisposable {
 		if (markers.size !== reported.get(resource)) {
 			let toSet: IMarkerData[] = [];
 			markers.forEach(value => toSet.push(value));
-			this.markerService.changeOne(owner, URI.parse(resource), toSet);
+			this.markerService.changeOne(owner, URI.file(resource), toSet);
 			reported.set(resource, markers.size);
 		}
 	}

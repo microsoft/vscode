@@ -302,6 +302,10 @@ export class URI implements UriComponents {
 	 */
 	static file(path: string): URI {
 
+		if (path.startsWith('file:///')) {
+			path = path.replace('file:///', '');
+		}
+
 		let authority = _empty;
 
 		// normalize to fwd-slashes on windows,
@@ -324,7 +328,7 @@ export class URI implements UriComponents {
 			}
 		}
 
-		return new Uri('file', authority, path, _empty, _empty);
+		return new Uri('file', authority, percentDecode(path), _empty, _empty);
 	}
 
 	static from(components: { scheme: string; authority?: string; path?: string; query?: string; fragment?: string }): URI {
