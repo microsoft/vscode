@@ -72,6 +72,7 @@ export interface LanguageMode {
 	format?: (document: TextDocument, range: Range, options: FormattingOptions, settings?: Settings) => Promise<TextEdit[]>;
 	findDocumentColors?: (document: TextDocument) => Promise<ColorInformation[]>;
 	getColorPresentations?: (document: TextDocument, color: Color, range: Range) => Promise<ColorPresentation[]>;
+	doAutoQuote?: (document: TextDocument, position: Position) => Promise<string | null>;
 	doAutoClose?: (document: TextDocument, position: Position) => Promise<string | null>;
 	findMatchingTagPosition?: (document: TextDocument, position: Position) => Promise<Position | null>;
 	getFoldingRanges?: (document: TextDocument) => Promise<FoldingRange[]>;

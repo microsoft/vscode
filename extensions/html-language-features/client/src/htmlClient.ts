@@ -15,9 +15,9 @@ import {
 	LanguageClientOptions, RequestType, TextDocumentPositionParams, DocumentRangeFormattingParams,
 	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, TextDocumentIdentifier, RequestType0, Range as LspRange, NotificationType, CommonLanguageClient
 } from 'vscode-languageclient';
-import { activateTagClosing } from './tagClosing';
 import { FileSystemProvider, serveFileSystemRequests } from './requests';
 import { getCustomDataSource } from './customData';
+import { activateAutoInsertion } from './autoInsertion';
 
 namespace CustomDataChangedNotification {
 	export const type: NotificationType<string[]> = new NotificationType('html/customDataChanged');
@@ -27,9 +27,6 @@ namespace CustomDataContent {
 	export const type: RequestType<string, string, any> = new RequestType('html/customDataContent');
 }
 
-namespace TagCloseRequest {
-	export const type: RequestType<TextDocumentPositionParams, string, any> = new RequestType('html/tag');
-}
 // experimental: semantic tokens
 interface SemanticTokenParams {
 	textDocument: TextDocumentIdentifier;
@@ -133,11 +130,20 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 		client.onRequest(CustomDataContent.type, customDataSource.getContent);
 
 
-		let tagRequestor = (document: TextDocument, position: Position) => {
+		let insertRequestor = (kind: 'autoQuote' | 'autoClose', document: TextDocument, position: Position) => {
 			let param = client.code2ProtocolConverter.asTextDocumentPositionParams(document, position);
-			return client.sendRequest(TagCloseRequest.type, param);
+			let request: RequestType<TextDocumentPositionParams, string, any>;
+			switch (kind) {
+				case 'autoQuote':
+					request = new RequestType('html/quote');
+					break;
+				case 'autoClose':
+					request = new RequestType('html/tag');
+					break;
+			}
+			return client.sendRequest(request, param);
 		};
-		disposable = activateTagClosing(tagRequestor, { html: true, handlebars: true }, 'html.autoClosingTags', runtime);
+		let disposable = activateAutoInsertion(insertRequestor, { html: true, handlebars: true }, runtime);
 		toDispose.push(disposable);
 
 		disposable = client.onTelemetry(e => {

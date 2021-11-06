@@ -34,6 +34,10 @@ namespace CustomDataContent {
 	export const type: RequestType<string, string, any> = new RequestType('html/customDataContent');
 }
 
+namespace QuoteCreateRequest {
+	export const type: RequestType<TextDocumentPositionParams, string, any> = new RequestType('html/quote');
+}
+
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string | null, any> = new RequestType('html/tag');
 }
@@ -83,7 +87,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	let workspaceFoldersSupport = false;
 	let foldingRangeLimit = Number.MAX_VALUE;
 
-	const customDataRequestService : CustomDataRequestService = {
+	const customDataRequestService: CustomDataRequestService = {
 		getContent(uri: string) {
 			return connection.sendRequest(CustomDataContent.type, uri);
 		}
@@ -481,6 +485,22 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			}
 			return [];
 		}, [], `Error while computing color presentations for ${params.textDocument.uri}`, token);
+	});
+
+	connection.onRequest(QuoteCreateRequest.type, (params, token) => {
+		return runSafe(runtime, async () => {
+			const document = documents.get(params.textDocument.uri);
+			if (document) {
+				const pos = params.position;
+				if (pos.character > 0) {
+					const mode = languageModes.getModeAtPosition(document, Position.create(pos.line, pos.character - 1));
+					if (mode && mode.doAutoQuote) {
+						return mode.doAutoQuote(document, pos);
+					}
+				}
+			}
+			return null;
+		}, null, `Error while computing tag close actions for ${params.textDocument.uri}`, token);
 	});
 
 	connection.onRequest(TagCloseRequest.type, (params, token) => {
