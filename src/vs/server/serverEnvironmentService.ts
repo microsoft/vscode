@@ -11,7 +11,7 @@ import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/envi
 
 export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	'port': { type: 'string' },
-	'connectionToken': { type: 'string' },
+	'connection-token': { type: 'string' },
 	'connection-secret': { type: 'string', description: nls.localize('connection-secret', "Path to file that contains the connection token. This will require that all incoming connections know the secret.") },
 	'host': { type: 'string' },
 	'socket-path': { type: 'string' },
@@ -58,7 +58,7 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 
 export interface ServerParsedArgs {
 	port?: string;
-	connectionToken?: string;
+	'connection-token'?: string;
 	/**
 	 * A path to a filename which will be read on startup.
 	 * Consider placing this file in a folder readable only by the same user (a `chmod 0700` directory).
