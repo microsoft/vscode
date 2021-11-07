@@ -4747,6 +4747,53 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('Issue #136592: onEnterRules should be considered for new line indentation', () => {
+		const languageId = 'onEnterRules';
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			indentationRules: {
+				increaseIndentPattern: /if/,
+				decreaseIndentPattern: /never/
+			},
+			onEnterRules: [{
+				beforeText: /outdent/,
+				action: {
+					indentAction: IndentAction.Outdent
+				}
+			}]
+		}));
+		usingCursor({
+			text: [
+				'if (1)',
+				'    outdent',
+				'',
+				'if (1) {',
+				'    keep indent',
+				'',
+				'}'
+			],
+			languageId: languageId,
+		}, (editor, model, viewModel) => {
+
+			// Use indent
+			moveTo(editor, viewModel, 6, 1);
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getLineContent(5), '    keep indent');
+			assert.strictEqual(model.getLineContent(6), '');
+			assert.strictEqual(model.getLineContent(7), '    ');
+			assertCursor(viewModel, new Position(7, 5));
+
+			// No indent
+			moveTo(editor, viewModel, 3, 1);
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'if (1)');
+			assert.strictEqual(model.getLineContent(2), '    outdent');
+			assert.strictEqual(model.getLineContent(3), '');
+			assert.strictEqual(model.getLineContent(4), '');
+			assertCursor(viewModel, new Position(4, 1));
+		});
+	});
+
 	test('ElectricCharacter - does nothing if no electric char', () => {
 		usingCursor({
 			text: [
