@@ -821,12 +821,14 @@ class SelectionHighlighterState {
 	public readonly matchCase: boolean;
 	public readonly wordSeparators: string | null;
 	public readonly modelVersionId: number;
+	public selections: SelectionHighlighterState[];
 
-	constructor(searchText: string, matchCase: boolean, wordSeparators: string | null, modelVersionId: number) {
+	constructor(searchText: string, matchCase: boolean, wordSeparators: string | null, modelVersionId: number, selections: any[]) {
 		this.searchText = searchText;
 		this.matchCase = matchCase;
 		this.wordSeparators = wordSeparators;
 		this.modelVersionId = modelVersionId;
+		this.selections = selections;
 	}
 
 	/**
@@ -840,7 +842,8 @@ class SelectionHighlighterState {
 			return false;
 		}
 		return (
-			a.searchText === b.searchText
+			a.selections === b.selections
+			&& a.searchText === b.searchText
 			&& a.matchCase === b.matchCase
 			&& a.wordSeparators === b.wordSeparators
 			&& a.modelVersionId === b.modelVersionId
@@ -980,7 +983,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 			}
 		}
 
-		return new SelectionHighlighterState(r.searchText, r.matchCase, r.wholeWord ? editor.getOption(EditorOption.wordSeparators) : null, editor.getModel().getVersionId());
+		return new SelectionHighlighterState(r.searchText, r.matchCase, r.wholeWord ? editor.getOption(EditorOption.wordSeparators) : null, editor.getModel().getVersionId(), editor.getSelections());
 	}
 
 	private _setState(state: SelectionHighlighterState | null): void {
