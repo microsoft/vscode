@@ -54,7 +54,6 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	'github-auth': { type: 'string' },
 	'log': { type: 'string' },
 	'logsPath': { type: 'string' },
-	'protocol': { type: 'string' },
 	_: OPTIONS['_']
 };
 
@@ -113,8 +112,6 @@ export interface ServerParsedArgs {
 	'github-auth'?: string;
 	'log'?: string;
 	'logsPath'?: string;
-	/** @coder Added to support Coder Link and certs. */
-	protocol?: 'http:' | 'https:';
 	_: string[];
 }
 
@@ -125,7 +122,6 @@ export interface IServerEnvironmentService extends INativeEnvironmentService {
 	readonly serviceWorkerFileName: string;
 	readonly serviceWorkerPath: string;
 	readonly proxyUri: string;
-	readonly protocol: 'http:' | 'https:';
 }
 
 export class ServerEnvironmentService extends NativeEnvironmentService implements IServerEnvironmentService {
@@ -142,9 +138,5 @@ export class ServerEnvironmentService extends NativeEnvironmentService implement
 
 	public get proxyUri(): string {
 		return '/proxy/{port}';
-	}
-
-	public get protocol(): 'http:' | 'https:' {
-		return this.args.protocol || 'http:';
 	}
 }

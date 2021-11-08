@@ -164,49 +164,33 @@ export class WebClientServer {
 	private createRequestUrl(req: http.IncomingMessage, parsedUrl: url.UrlWithParsedQuery, pathname: string): URL {
 		const pathPrefix = getPathPrefix(parsedUrl.pathname!);
 		const remoteAuthority = this.getRemoteAuthority(req);
-		// TODO: there isn't a good way for to determine the protocol. Defaulting to `http` for now.
 		return new URL(path.join('/', pathPrefix, pathname), remoteAuthority);
 	}
 
 	private _iconSizes = [192, 512];
 
-	private getRemoteAuthorityHeader = (req: http.IncomingMessage): string => {
-		let remoteAuthority: string | undefined;
-
+	private getRemoteAuthority(req: http.IncomingMessage): URL {
 		if (req.headers.forwarded) {
 			const [parsedHeader] = parseForwardHeader(req.headers.forwarded);
+			return new URL(`${parsedHeader.proto}://${parsedHeader.host}`);
+		}
 
-			if (parsedHeader && parsedHeader.host) {
-				return parsedHeader.host;
+		/* Return first non-empty header. */
+		const parseHeaders = (headerNames: string[]): string | undefined => {
+			for (const headerName of headerNames) {
+				const header = req.headers[headerName]?.toString();
+				if (!isFalsyOrWhitespace(header)) {
+					return header;
+				}
 			}
-		}
+			return undefined;
+		};
 
-		// Listed in order of priority
-		const headerNames = [
-			'X-Forwarded-Host',
-			'host'
-		];
+		const proto = parseHeaders(["X-Forwarded-Proto"]) || "http";
+		const host = parseHeaders(["X-Forwarded-Host", "host"]) || "localhost";
 
-		for (const headerName of headerNames) {
-			const header = req.headers[headerName]?.toString();
-			if (!isFalsyOrWhitespace(header)) {
-				return header!;
-			}
-		}
-
-		if (isFalsyOrWhitespace(remoteAuthority)) {
-			throw new Error('Remote authority not present in host headers');
-		}
-
-		return null as never;
-	};
-
-	private getRemoteAuthority = (req: http.IncomingMessage): URL => {
-		const { protocol } = this._environmentService;
-		const remoteAuthority = new URL(`${protocol}//${this.getRemoteAuthorityHeader(req)}`);
-
-		return remoteAuthority;
-	};
+		return new URL(`${proto}://${host}`);
+	}
 
 	/**
 	 * PWA manifest file. This informs the browser that the app may be installed.
@@ -325,7 +309,7 @@ export class WebClientServer {
 				},
 				folderUri: (workspacePath && isFolder) ? transformer.transformOutgoing(URI.file(workspacePath)) : undefined,
 				workspaceUri: (workspacePath && !isFolder) ? transformer.transformOutgoing(URI.file(workspacePath)) : undefined,
-				// Add port to prevent client-side mismatch for Coder Link
+				// Add port to prevent client-side mismatch for reverse proxies.
 				remoteAuthority: `${remoteAuthority.hostname}:${remoteAuthority.port || (remoteAuthority.protocol === 'https:' ? '443' : '80')}`,
 				_wrapWebWorkerExtHostInIframe,
 				developmentOptions: { enableSmokeTestDriver: this._environmentService.driverHandle === 'web' ? true : undefined },
@@ -340,7 +324,7 @@ export class WebClientServer {
 			'img-src \'self\' https: data: blob:;',
 			'media-src \'none\';',
 			// the sha is the same as in src/vs/workbench/services/extensions/worker/httpWebWorkerExtensionHostIframe.html
-			`script-src 'self' 'unsafe-eval' ${this._getScriptCspHashes(data).join(' ')} 'sha256-cb2sg39EJV8ABaSNFfWu/ou8o1xVXYK7jp90oZ9vpcg=' https://cloud.coder.com;`,
+			`script-src 'self' 'unsafe-eval' ${this._getScriptCspHashes(data).join(' ')} 'sha256-cb2sg39EJV8ABaSNFfWu/ou8o1xVXYK7jp90oZ9vpcg=';`,
 			'child-src \'self\';',
 			`frame-src 'self' https://*.vscode-webview.net ${this._productService.webEndpointUrl || ''} data:;`,
 			'worker-src \'self\' data:;',
@@ -508,7 +492,7 @@ export class WebClientServer {
 			.replace(/{{ERROR_HEADER}}/g, () => `${applicationName}`)
 			.replace(/{{ERROR_CODE}}/g, () => code.toString())
 			.replace(/{{ERROR_MESSAGE}}/g, () => message)
-			.replace(/{{ERROR_FOOTER}}/g, () => `${version} — ${commit}`)
+			.replace(/{{ERROR_FOOTER}}/g, () => `${version} - ${commit}`)
 			.replace(/{{CLIENT_BACKGROUND_COLOR}}/g, () => clientTheme.backgroundColor)
 			.replace(/{{CLIENT_FOREGROUND_COLOR}}/g, () => clientTheme.foregroundColor);
 
