@@ -461,16 +461,33 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		return this.getBoolean(IS_NEW_KEY, scope) === true;
 	}
 
-	async flush(reason: WillSaveStateReason = WillSaveStateReason.NONE): Promise<void> {
+	async flush(reason = WillSaveStateReason.NONE): Promise<void> {
 
 		// Signal event to collect changes
 		this._onWillSaveState.fire({ reason });
 
-		// Await flush
-		await Promises.settled([
-			this.getStorage(StorageScope.GLOBAL)?.whenFlushed() ?? Promise.resolve(),
-			this.getStorage(StorageScope.WORKSPACE)?.whenFlushed() ?? Promise.resolve()
-		]);
+		const globalStorage = this.getStorage(StorageScope.GLOBAL);
+		const workspaceStorage = this.getStorage(StorageScope.WORKSPACE);
+
+		switch (reason) {
+
+			// Unspecific reason: just wait when data is flushed
+			case WillSaveStateReason.NONE:
+				await Promises.settled([
+					globalStorage?.whenFlushed() ?? Promise.resolve(),
+					workspaceStorage?.whenFlushed() ?? Promise.resolve()
+				]);
+				break;
+
+			// Shutdown: we want to flush as soon as possible
+			// and not hit any delays that might be there
+			case WillSaveStateReason.SHUTDOWN:
+				await Promises.settled([
+					globalStorage?.flush(0) ?? Promise.resolve(),
+					workspaceStorage?.flush(0) ?? Promise.resolve()
+				]);
+				break;
+		}
 	}
 
 	async logStorage(): Promise<void> {

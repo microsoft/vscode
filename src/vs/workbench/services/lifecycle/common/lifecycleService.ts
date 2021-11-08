@@ -38,7 +38,7 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 
 	constructor(
 		@ILogService protected readonly logService: ILogService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService protected readonly storageService: IStorageService
 	) {
 		super();
 

@@ -12,7 +12,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { parse, ParsedPattern } from 'vs/base/common/glob';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { normalizeNFC } from 'vs/base/common/normalization';
 import { dirname, isAbsolute, join, normalize, sep } from 'vs/base/common/path';
@@ -24,7 +24,7 @@ import { watchFolder } from 'vs/base/node/watcher';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { IDiskFileChange, ILogMessage, normalizeFileChanges, IWatchRequest, IWatcherService } from 'vs/platform/files/common/watcher';
 
-export interface IWatcher extends IDisposable {
+export interface IWatcher {
 
 	/**
 	 * Signals when the watcher is ready to watch.
@@ -48,8 +48,8 @@ export interface IWatcher extends IDisposable {
 	readonly token: CancellationToken;
 
 	/**
-	 * Stops and disposes the watcher. Same as `dispose` but allows to await
-	 * the watcher getting unsubscribed.
+	 * Stops and disposes the watcher. This operation is async to await
+	 * unsubscribe call in Parcel.
 	 */
 	stop(): Promise<void>;
 }
@@ -259,9 +259,6 @@ export class ParcelWatcherService extends Disposable implements IWatcherService 
 				cts.dispose(true);
 				pollingWatcher.dispose();
 				unlinkSync(snapshotFile);
-			},
-			dispose: () => {
-				watcher.stop();
 			}
 		};
 		this.watchers.set(request.path, watcher);
@@ -332,9 +329,6 @@ export class ParcelWatcherService extends Disposable implements IWatcherService 
 
 				const watcherInstance = await instance;
 				await watcherInstance?.unsubscribe();
-			},
-			dispose: () => {
-				watcher.stop();
 			}
 		};
 		this.watchers.set(request.path, watcher);

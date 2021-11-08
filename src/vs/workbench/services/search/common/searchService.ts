@@ -196,7 +196,6 @@ export class SearchService extends Disposable implements ISearchService {
 	}
 
 	private async searchWithProviders(query: ISearchQuery, onProviderProgress: (progress: ISearchProgressItem) => void, token?: CancellationToken) {
-		console.log(`searchWithProviders`);
 		const e2eSW = StopWatch.create(false);
 
 		const searchPs: Promise<ISearchComplete>[] = [];
