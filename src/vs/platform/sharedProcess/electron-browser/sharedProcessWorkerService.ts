@@ -322,7 +322,7 @@ class SharedProcessWebWorker extends Disposable {
 			// working directory. Setting the env BREAKPAD_DUMP_LOCATION will force electron to create the file in that location,
 			// For https://github.com/microsoft/vscode/issues/105743
 			const extHostCrashDirectory = this.environmentService.args['crash-reporter-directory'] || this.environmentService.userDataPath;
-			sharedProcessWorkerEnvironment.env.BREAKPAD_DUMP_LOCATION = join(extHostCrashDirectory, this.type);
+			sharedProcessWorkerEnvironment.env.BREAKPAD_DUMP_LOCATION = join(extHostCrashDirectory, `Parcel Watcher Crash Reports`);
 			sharedProcessWorkerEnvironment.env.VSCODE_CRASH_REPORTER_START_OPTIONS = JSON.stringify(crashReporterStartOptions);
 		}
 
