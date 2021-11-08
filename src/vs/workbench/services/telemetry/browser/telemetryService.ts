@@ -69,6 +69,10 @@ class WebAppInsightsAppender implements ITelemetryAppender {
 
 		data = validateTelemetryData(data);
 
+		// Web does not expect properties and measurements so we must
+		// spread them out. This is different from desktop which expects them
+		data = { ...data.properties, ...data.measurements };
+
 		// undefined assertion is ok since above two if statements cover both cases
 		this._aiClient!.trackEvent({ name: this._eventPrefix + '/' + eventName }, data);
 	}
