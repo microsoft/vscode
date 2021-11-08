@@ -31,7 +31,7 @@ import { ConfigurationScope } from 'vs/platform/configuration/common/configurati
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as files from 'vs/platform/files/common/files';
 import { ResourceLabelFormatter } from 'vs/platform/label/common/label';
-import { LogLevel } from 'vs/platform/log/common/log';
+import { ILoggerOptions, LogLevel } from 'vs/platform/log/common/log';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/progress';
 import * as quickInput from 'vs/platform/quickinput/common/quickInput';
@@ -1895,12 +1895,13 @@ export interface ExtHostWindowShape {
 	$onDidChangeWindowFocus(value: boolean): void;
 }
 
-export interface ExtHostLogServiceShape {
+export interface ExtHostLogLevelServiceShape {
 	$setLevel(level: LogLevel): void;
 }
 
-export interface MainThreadLogShape {
-	$log(file: UriComponents, level: LogLevel, args: any[]): void;
+export interface MainThreadLoggerShape {
+	$log(file: UriComponents, messages: [LogLevel, string][]): void;
+	$createLogger(file: UriComponents, options?: ILoggerOptions): Promise<void>;
 }
 
 export interface ExtHostOutputServiceShape {
@@ -2213,7 +2214,7 @@ export const MainContext = {
 	MainThreadKeytar: createMainId<MainThreadKeytarShape>('MainThreadKeytar'),
 	MainThreadLanguageFeatures: createMainId<MainThreadLanguageFeaturesShape>('MainThreadLanguageFeatures'),
 	MainThreadLanguages: createMainId<MainThreadLanguagesShape>('MainThreadLanguages'),
-	MainThreadLog: createMainId<MainThreadLogShape>('MainThread'),
+	MainThreadLogger: createMainId<MainThreadLoggerShape>('MainThreadLogger'),
 	MainThreadMessageService: createMainId<MainThreadMessageServiceShape>('MainThreadMessageService'),
 	MainThreadOutputService: createMainId<MainThreadOutputServiceShape>('MainThreadOutputService'),
 	MainThreadProgress: createMainId<MainThreadProgressShape>('MainThreadProgress'),
@@ -2268,7 +2269,7 @@ export const ExtHostContext = {
 	ExtHostLanguageFeatures: createExtId<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures'),
 	ExtHostQuickOpen: createExtId<ExtHostQuickOpenShape>('ExtHostQuickOpen'),
 	ExtHostExtensionService: createExtId<ExtHostExtensionServiceShape>('ExtHostExtensionService'),
-	ExtHostLogService: createExtId<ExtHostLogServiceShape>('ExtHostLogService'),
+	ExtHostLogLevelServiceShape: createExtId<ExtHostLogLevelServiceShape>('ExtHostLogLevelServiceShape'),
 	ExtHostTerminalService: createExtId<ExtHostTerminalServiceShape>('ExtHostTerminalService'),
 	ExtHostSCM: createExtId<ExtHostSCMShape>('ExtHostSCM'),
 	ExtHostSearch: createExtId<ExtHostSearchShape>('ExtHostSearch'),
