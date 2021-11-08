@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const MarkdownIt: typeof import('markdown-it') = require('markdown-it');
 import * as DOMPurify from 'dompurify';
+import MarkdownIt from 'markdown-it';
 import type * as MarkdownItToken from 'markdown-it/lib/token';
 import type { ActivationFunction } from 'vscode-notebook-renderer';
 
@@ -13,9 +13,15 @@ const sanitizerOptions: DOMPurify.Config = {
 };
 
 export const activate: ActivationFunction<void> = (ctx) => {
-	const markdownIt = new MarkdownIt({
+	const markdownIt: MarkdownIt = new MarkdownIt({
 		html: true,
 		linkify: true,
+		highlight: (str: string, lang?: string) => {
+			if (lang) {
+				return `<code class="vscode-code-block" data-vscode-code-block-lang="${markdownIt.utils.escapeHtml(lang)}">${markdownIt.utils.escapeHtml(str)}</code>`;
+			}
+			return `<code>${markdownIt.utils.escapeHtml(str)}</code>`;
+		}
 	});
 	markdownIt.linkify.set({ fuzzyLink: false });
 
