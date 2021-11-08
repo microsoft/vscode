@@ -175,7 +175,9 @@ export class BrowserWindow extends Disposable {
 							}
 						}
 					} else {
-						windowOpenNoOpener(href);
+						isAllowedOpener
+							? windowOpenPopup(href)
+							: windowOpenNoOpener(href);
 					}
 				}
 
