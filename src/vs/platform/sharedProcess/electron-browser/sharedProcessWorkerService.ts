@@ -3,19 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CrashReporterStartOptions, ipcRenderer } from 'electron';
-import { join } from 'path';
+import { ipcRenderer } from 'electron';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
-import { isLinux } from 'vs/base/common/platform';
-import { generateUuid, isUUID } from 'vs/base/common/uuid';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { generateUuid } from 'vs/base/common/uuid';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { hash, IOnDidTerminateSharedProcessWorkerProcess, ISharedProcessWorkerConfiguration, ISharedProcessWorkerProcessExit, ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
-import { SharedProcessWorkerMessages, ISharedProcessToWorkerMessage, IWorkerToSharedProcessMessage, ISharedProcessWorkerEnvironment } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorker';
+import { SharedProcessWorkerMessages, ISharedProcessToWorkerMessage, IWorkerToSharedProcessMessage } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorker';
 
 export class SharedProcessWorkerService implements ISharedProcessWorkerService {
 
@@ -27,9 +23,7 @@ export class SharedProcessWorkerService implements ISharedProcessWorkerService {
 	private readonly processResolvers = new Map<number /* process configuration hash */, (process: IOnDidTerminateSharedProcessWorkerProcess) => void>();
 
 	constructor(
-		@ILogService private readonly logService: ILogService,
-		@IProductService private readonly productService: IProductService,
-		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService
+		@ILogService private readonly logService: ILogService
 	) {
 	}
 
@@ -123,7 +117,7 @@ export class SharedProcessWorkerService implements ISharedProcessWorkerService {
 		if (!webWorkerPromise) {
 			this.logService.trace(`SharedProcess: creating new web worker (${configuration.process.moduleId})`);
 
-			const sharedProcessWorker = new SharedProcessWebWorker(configuration.process.type, this.logService, this.productService, this.environmentService);
+			const sharedProcessWorker = new SharedProcessWebWorker(configuration.process.type, this.logService);
 			webWorkerPromise = sharedProcessWorker.init();
 
 			// Make sure to run through our normal `disposeWorker` call
@@ -162,9 +156,7 @@ class SharedProcessWebWorker extends Disposable {
 
 	constructor(
 		private readonly type: string,
-		private readonly logService: ILogService,
-		private readonly productService: IProductService,
-		private readonly environmentService: INativeEnvironmentService
+		private readonly logService: ILogService
 	) {
 		super();
 	}
@@ -288,45 +280,12 @@ class SharedProcessWebWorker extends Disposable {
 		const workerMessage: ISharedProcessToWorkerMessage = {
 			id: SharedProcessWorkerMessages.Spawn,
 			configuration,
-			environment: this.getSharedProcessWorkerEnvironment()
+			environment: {
+				bootstrapPath: FileAccess.asFileUri('bootstrap-fork', require).fsPath
+			}
 		};
 
 		return this.send(workerMessage, token, port);
-	}
-
-	private getSharedProcessWorkerEnvironment(): ISharedProcessWorkerEnvironment {
-		const sharedProcessWorkerEnvironment = {
-			bootstrapPath: FileAccess.asFileUri('bootstrap-fork', require).fsPath,
-			env: Object.create(null)
-		};
-
-		// Crash reporter support
-		// TODO@bpasero TODO@deepak1556 remove once we updated to Electron 15
-		if (isLinux) {
-			const crashReporterStartOptions: CrashReporterStartOptions = {
-				companyName: this.productService.crashReporter?.companyName || 'Microsoft',
-				productName: this.productService.crashReporter?.productName || this.productService.nameShort,
-				submitURL: '',
-				uploadToServer: false
-			};
-
-			const crashReporterId = this.environmentService.args['crash-reporter-id']; // crashReporterId is set by the main process only when crash reporting is enabled by the user.
-			const appcenter = this.productService.appCenter;
-			const uploadCrashesToServer = !this.environmentService.args['crash-reporter-directory']; // only upload unless --crash-reporter-directory is provided
-			if (uploadCrashesToServer && appcenter && crashReporterId && isUUID(crashReporterId)) {
-				const submitURL = appcenter[`linux-x64`];
-				crashReporterStartOptions.submitURL = submitURL.concat('&uid=', crashReporterId, '&iid=', crashReporterId, '&sid=', crashReporterId);
-				crashReporterStartOptions.uploadToServer = true;
-			}
-			// In the upload to server case, there is a bug in electron that creates client_id file in the current
-			// working directory. Setting the env BREAKPAD_DUMP_LOCATION will force electron to create the file in that location,
-			// For https://github.com/microsoft/vscode/issues/105743
-			const extHostCrashDirectory = this.environmentService.args['crash-reporter-directory'] || this.environmentService.userDataPath;
-			sharedProcessWorkerEnvironment.env.BREAKPAD_DUMP_LOCATION = join(extHostCrashDirectory, `Parcel Watcher Crash Reports`);
-			sharedProcessWorkerEnvironment.env.VSCODE_CRASH_REPORTER_START_OPTIONS = JSON.stringify(crashReporterStartOptions);
-		}
-
-		return sharedProcessWorkerEnvironment;
 	}
 
 	terminate(configuration: ISharedProcessWorkerConfiguration, token: CancellationToken): Promise<void> {
