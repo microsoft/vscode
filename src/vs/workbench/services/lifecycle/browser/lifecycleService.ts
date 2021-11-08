@@ -16,7 +16,7 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 
 	private beforeUnloadListener: IDisposable | undefined = undefined;
 
-	private disableBeforeUnloadVeto = false;
+	private ignoreBeforeUnload = false;
 
 	private didBeforeUnload = false;
 	private didUnload = false;
@@ -79,14 +79,14 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 
 	private onBeforeUnload(event: BeforeUnloadEvent): void {
 
-		// Unload without veto support
-		if (this.disableBeforeUnloadVeto) {
-			this.logService.info('[lifecycle] onBeforeUnload triggered and handled without veto support');
+		// Before unload ignored (once)
+		if (this.ignoreBeforeUnload) {
+			this.logService.info('[lifecycle] onBeforeUnload triggered but ignored once');
 
-			this.doShutdown();
+			this.ignoreBeforeUnload = false;
 		}
 
-		// Unload with veto support
+		// Before unload with veto support
 		else {
 			this.logService.info('[lifecycle] onBeforeUnload triggered and handled with veto support');
 
@@ -108,13 +108,13 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 			this.shutdownReason = reason;
 		}
 
-		// Veto handling disabled for duration of callback
+		// Before unload handling ignored for duration of callback
 		else {
-			this.disableBeforeUnloadVeto = true;
+			this.ignoreBeforeUnload = true;
 			try {
 				callback?.();
 			} finally {
-				this.disableBeforeUnloadVeto = false;
+				this.ignoreBeforeUnload = false;
 			}
 		}
 
