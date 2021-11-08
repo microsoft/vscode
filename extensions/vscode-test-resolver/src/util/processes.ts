@@ -11,6 +11,9 @@ export interface TerminateResponse {
 }
 
 export function terminateProcess(p: cp.ChildProcess, extensionPath: string): TerminateResponse {
+	if (!p.pid) {
+		return { success: false };
+	}
 	if (process.platform === 'win32') {
 		try {
 			const options: any = {

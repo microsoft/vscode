@@ -42,7 +42,7 @@
     "vscode-nls": "^5.0.0"
   },
   "devDependencies": {
-    "@types/node": "14.x",
+    "@types/node": "16.x",
     "@types/semver": "^5.5.0"
   },
   "scripts": {

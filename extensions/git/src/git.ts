@@ -7,6 +7,8 @@ import { promises as fs, exists, realpath } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as cp from 'child_process';
+import { fileURLToPath } from 'url';
+import { URL } from 'node:url';
 import * as which from 'which';
 import { EventEmitter } from 'events';
 import * as iconv from 'iconv-lite-umd';
@@ -348,6 +350,12 @@ function getGitErrorCode(stderr: string): string | undefined {
 	return undefined;
 }
 
+function toPathIfFileURL(fileURLOrPath: string | URL): string {
+	if ((typeof fileURLOrPath !== 'string' && fileURLOrPath.protocol === 'file:'))
+		return fileURLToPath(fileURLOrPath);
+	return fileURLOrPath as string;
+}
+
 // https://github.com/microsoft/vscode/issues/89373
 // https://github.com/git-for-windows/git/issues/2478
 function sanitizePath(path: string): string {
@@ -582,7 +590,7 @@ export class Git {
 		});
 
 		if (options.cwd) {
-			options.cwd = sanitizePath(options.cwd);
+			options.cwd = sanitizePath(toPathIfFileURL(options.cwd));
 		}
 
 		if (options.log !== false) {

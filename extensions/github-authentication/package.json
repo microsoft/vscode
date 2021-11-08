@@ -65,7 +65,7 @@
     "vscode-tas-client": "^0.1.22"
   },
   "devDependencies": {
-    "@types/node": "14.x",
+    "@types/node": "16.x",
     "@types/node-fetch": "^2.5.7",
     "@types/uuid": "8.0.0"
   },

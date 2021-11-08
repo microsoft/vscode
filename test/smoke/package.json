@@ -21,7 +21,7 @@
     "@types/mkdirp": "^1.0.1",
     "@types/mocha": "^8.2.0",
     "@types/ncp": "2.0.1",
-    "@types/node": "14.x",
+    "@types/node": "16.x",
     "@types/node-fetch": "^2.5.10",
     "@types/rimraf": "^2.0.4",
     "npm-run-all": "^4.1.5",

@@ -2376,7 +2376,7 @@
     "@types/byline": "4.2.31",
     "@types/file-type": "^5.2.1",
     "@types/mocha": "^8.2.0",
-    "@types/node": "14.x",
+    "@types/node": "16.x",
     "@types/which": "^1.0.28"
   },
   "repository": {

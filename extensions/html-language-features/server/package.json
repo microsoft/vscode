@@ -18,7 +18,7 @@
   },
   "devDependencies": {
     "@types/mocha": "^8.2.0",
-    "@types/node": "14.x"
+    "@types/node": "16.x"
   },
   "scripts": {
     "compile": "npx gulp compile-extension:html-language-features-server",

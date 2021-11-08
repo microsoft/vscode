@@ -1,7 +1,7 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "14.x"
+      versionSpec: "16.x"
 
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
@@ -75,7 +75,7 @@ steps:
 
       if [ -z "$CC" ] || [ -z "$CXX" ]; then
         # Download clang based on chromium revision used by vscode
-        curl -s https://raw.githubusercontent.com/chromium/chromium/91.0.4472.164/tools/clang/scripts/update.py | python - --output-dir=$PWD/.build/CR_Clang --host-os=linux
+        curl -s https://raw.githubusercontent.com/chromium/chromium/94.0.4606.81/tools/clang/scripts/update.py | python - --output-dir=$PWD/.build/CR_Clang --host-os=linux
         # Download libcxx headers and objects from upstream electron releases
         DEBUG=libcxx-fetcher \
         VSCODE_LIBCXX_OBJECTS_DIR=$PWD/.build/libcxx-objects \
