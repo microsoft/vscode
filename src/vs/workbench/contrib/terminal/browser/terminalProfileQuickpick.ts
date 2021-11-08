@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { iconRegistry, Codicon } from 'vs/base/common/codicons';
-import { URI } from 'vs/base/common/uri';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IQuickInputService, IKeyMods, IPickOptions, IQuickPickSeparator, IQuickInputButton, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IExtensionTerminalProfile, ITerminalProfile, ITerminalProfileObject, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
@@ -22,10 +21,10 @@ export class TerminalProfileQuickpick {
 		@IThemeService private readonly _themeService: IThemeService
 	) { }
 
-	async showAndGetResult(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<IProfileQuickPickItem | undefined> {
+	async showAndGetResult(type: 'setDefault' | 'createInstance'): Promise<IProfileQuickPickItem | undefined> {
 		const profiles = this._terminalProfileService.availableProfiles;
 		const profilesKey = this._terminalProfileService.profilesKey;
-		const defaultProfileName = this._terminalProfileService.getConfiguredDefaultProfileName();
+		const defaultProfileName = this._terminalProfileService.getDefaultProfileName();
 		let keyMods: IKeyMods | undefined;
 		const options: IPickOptions<IProfileQuickPickItem> = {
 			placeHolder: type === 'createInstance' ? nls.localize('terminal.integrated.selectProfileToCreate', "Select the terminal profile to create") : nls.localize('terminal.integrated.chooseDefaultProfile', "Select your default terminal profile"),
@@ -68,7 +67,7 @@ export class TerminalProfileQuickpick {
 
 		if (configProfiles.length > 0) {
 			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles', "profiles") });
-			quickPickItems.push(...this._sortProfileQuickPickItems(configProfiles.map(e => this._createProfileQuickPickItem(e)), defaultProfileName));
+			quickPickItems.push(...this._sortProfileQuickPickItems(configProfiles.map(e => this._createProfileQuickPickItem(e)), defaultProfileName!));
 		}
 
 		quickPickItems.push({ type: 'separator', label: nls.localize('ICreateContributedTerminalProfileOptions', "contributed") });
@@ -102,57 +101,55 @@ export class TerminalProfileQuickpick {
 		}
 
 		if (contributedProfiles.length > 0) {
-			quickPickItems.push(...this._sortProfileQuickPickItems(contributedProfiles, defaultProfileName));
+			quickPickItems.push(...this._sortProfileQuickPickItems(contributedProfiles, defaultProfileName!));
 		}
 
 		if (autoDetectedProfiles.length > 0) {
 			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles.detected', "detected") });
-			quickPickItems.push(...this._sortProfileQuickPickItems(autoDetectedProfiles.map(e => this._createProfileQuickPickItem(e)), defaultProfileName));
+			quickPickItems.push(...this._sortProfileQuickPickItems(autoDetectedProfiles.map(e => this._createProfileQuickPickItem(e)), defaultProfileName!));
 		}
 		const styleElement = getColorStyleElement(this._themeService.getColorTheme());
 		document.body.appendChild(styleElement);
 
-		const value = await this._quickInputService.pick(quickPickItems, options);
+		const result = await this._quickInputService.pick(quickPickItems, options);
 		document.body.removeChild(styleElement);
-		if (!value) {
+		if (!result) {
 			return undefined;
 		}
-		value.keyMods = keyMods;
+		result.keyMods = keyMods;
 		const defaultProfileKey = `${TerminalSettingPrefix.DefaultProfile}${this._terminalProfileService.platformKey}`;
 		if (type === 'setDefault') {
-			console.log(value.profile);
-			if ('command' in value.profile) {
+			if ('command' in result.profile) {
 				return; // Should never happen
-			} else if ('id' in value.profile) {
+			} else if ('id' in result.profile) {
 				// extension contributed profile
-				await this._configurationService.updateValue(defaultProfileKey, value.profile.title, ConfigurationTarget.USER);
+				await this._configurationService.updateValue(defaultProfileKey, result.profile.title, ConfigurationTarget.USER);
 
-				this._terminalProfileService.registerContributedProfile(value.profile.extensionIdentifier, value.profile.id, value.profile.title, {
-					color: value.profile.color,
-					icon: value.profile.icon
+				this._terminalProfileService.registerContributedProfile(result.profile.extensionIdentifier, result.profile.id, result.profile.title, {
+					color: result.profile.color,
+					icon: result.profile.icon
 				});
 				return;
 			}
 
 			// Add the profile to settings if necessary
-			if ('isAutoDetected' in value.profile) {
+			if ('isAutoDetected' in result.profile) {
 				const profilesConfig = await this._configurationService.getValue(profilesKey);
 				if (typeof profilesConfig === 'object') {
 					const newProfile: ITerminalProfileObject = {
-						path: value.profile.path
+						path: result.profile.path
 					};
-					if (value.profile.args) {
-						newProfile.args = value.profile.args;
+					if (result.profile.args) {
+						newProfile.args = result.profile.args;
 					}
-					(profilesConfig as { [key: string]: ITerminalProfileObject })[value.profile.profileName] = newProfile;
+					(profilesConfig as { [key: string]: ITerminalProfileObject })[result.profile.profileName] = newProfile;
 				}
 				await this._configurationService.updateValue(profilesKey, profilesConfig, ConfigurationTarget.USER);
 			}
 			// Set the default profile
-			await this._configurationService.updateValue(defaultProfileKey, value.profileName, ConfigurationTarget.USER);
-			this._terminalProfileService.refreshAvailableProfiles();
+			await this._configurationService.updateValue(defaultProfileKey, result.profileName, ConfigurationTarget.USER);
 		}
-		return value;
+		return result;
 	}
 
 	private _createProfileQuickPickItem(profile: ITerminalProfile): IProfileQuickPickItem {
@@ -196,7 +193,7 @@ export class TerminalProfileQuickpick {
 	}
 }
 
-interface IProfileQuickPickItem extends IQuickPickItem {
+export interface IProfileQuickPickItem extends IQuickPickItem {
 	profile: ITerminalProfile | IExtensionTerminalProfile;
 	profileName: string;
 	keyMods?: IKeyMods | undefined;

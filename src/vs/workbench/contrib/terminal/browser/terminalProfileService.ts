@@ -78,10 +78,11 @@ export class TerminalProfileService implements ITerminalProfileService {
 		this._extensionService.onDidChangeExtensions(() => this.refreshAvailableProfiles());
 		this._updatePlatformKey();
 		this._configurationService.onDidChangeConfiguration(async e => {
-			if (e.affectsConfiguration(TerminalSettingPrefix.DefaultProfile + this._platformKey) ||
-				e.affectsConfiguration(TerminalSettingPrefix.Profiles + this._platformKey) ||
+			if (e.affectsConfiguration(TerminalSettingPrefix.Profiles + this._platformKey) ||
 				e.affectsConfiguration(TerminalSettingId.UseWslProfiles)) {
 				this.refreshAvailableProfiles();
+			} else if (e.affectsConfiguration(TerminalSettingPrefix.DefaultProfile + this._platformKey)) {
+				this._defaultProfileName = await this._configurationService.getValue(TerminalSettingPrefix.DefaultProfile + this._platformKey);
 			}
 		});
 		this._webExtensionContributedProfileContextKey = TerminalContextKeys.webExtensionContributedProfile.bindTo(this._contextKeyService);
@@ -174,13 +175,8 @@ export class TerminalProfileService implements ITerminalProfileService {
 		this._profilesKey = `${TerminalSettingPrefix.Profiles}${this._platformKey}`;
 	}
 
-	getConfiguredDefaultProfileName(): string {
-		this._defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${this._platformKey}`) ?? undefined;
-		return this._defaultProfileName;
-	}
-
 	getConfiguredProfiles(): Promise<{ [key: string]: any }> {
-		return this._configurationService.getValue();
+		return this._configurationService.getValue(`${TerminalSettingPrefix.Profiles}${this._platformKey}`);
 	}
 
 	registerTerminalProfileProvider(extensionIdentifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable {
@@ -214,8 +210,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 		// prevents recursion with the MainThreadTerminalService call to create terminal
 		// and defers to the provided launch config when an executable is provided
 		if (shellLaunchConfig && !shellLaunchConfig.extHostTerminalId && !('executable' in shellLaunchConfig)) {
-			const defaultProfileName = this.getConfiguredDefaultProfileName();
-			const contributedDefaultProfile = this.contributedProfiles.find(p => p.title === defaultProfileName);
+			const contributedDefaultProfile = this.contributedProfiles.find(p => p.title === this._defaultProfileName);
 			return contributedDefaultProfile;
 		}
 		return undefined;

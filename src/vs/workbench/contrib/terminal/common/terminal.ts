@@ -72,7 +72,6 @@ export interface ITerminalProfileService {
 	registerContributedProfile(extensionIdentifier: string, id: string, title: string, options: ICreateContributedTerminalProfileOptions): Promise<void>;
 	getContributedProfileProvider(extensionIdentifier: string, id: string): ITerminalProfileProvider | undefined;
 	registerTerminalProfileProvider(extensionIdentifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable;
-	getConfiguredDefaultProfileName(): string;
 	getConfiguredProfiles(): Promise<{ [key: string]: any }>;
 }
 

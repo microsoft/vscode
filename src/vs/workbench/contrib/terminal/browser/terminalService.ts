@@ -257,7 +257,7 @@ export class TerminalService implements ITerminalService {
 		if (!this._profileQuickpick) {
 			this._profileQuickpick = this._instantiationService.createInstance(TerminalProfileQuickpick);
 		}
-		const result = await this._profileQuickpick.showAndGetResult(type, cwd);
+		const result = await this._profileQuickpick.showAndGetResult(type);
 		if (!result) {
 			return;
 		}
