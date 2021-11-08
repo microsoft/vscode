@@ -270,7 +270,7 @@ export class LineBreakData {
 
 	public normalizeOutputPosition(outputLineIndex: number, outputOffset: number, affinity: PositionAffinity): OutputPosition {
 		if (this.injectionOffsets !== null) {
-			const offsetInInputWithInjections = this.outputPositionToOffsetInInputWithInjections(outputLineIndex, outputOffset + this.wrappedTextIndentLength);
+			const offsetInInputWithInjections = this.outputPositionToOffsetInInputWithInjections(outputLineIndex, outputOffset);
 			const normalizedOffsetInUnwrappedLine = this.normalizeOffsetInInputWithInjectionsAroundInjections(offsetInInputWithInjections, affinity);
 			if (normalizedOffsetInUnwrappedLine !== offsetInInputWithInjections) {
 				// injected text caused a change
@@ -295,7 +295,7 @@ export class LineBreakData {
 
 	private outputPositionToOffsetInInputWithInjections(outputLineIndex: number, outputOffset: number): number {
 		if (outputLineIndex > 0) {
-			outputOffset -= this.wrappedTextIndentLength;
+			outputOffset = Math.max(0, outputOffset - this.wrappedTextIndentLength);
 		}
 		const result = (outputLineIndex > 0 ? this.breakOffsets[outputLineIndex - 1] : 0) + outputOffset;
 		return result;
