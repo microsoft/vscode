@@ -1816,10 +1816,7 @@ export class Repository {
 		return new Promise<{ status: IFileStatus[]; didHitLimit: boolean; }>((c, e) => {
 			const parser = new GitStatusParser();
 			const env = { GIT_OPTIONAL_LOCKS: '0' };
-			const args = ['status', '-z'];
-			if (untrackedChanges !== 'hidden') {
-				args.push('-u');
-			}
+			const args = ['status', '-z', untrackedChanges === 'hidden' ? '-uno' : '-u'];
 
 			if (opts?.ignoreSubmodules) {
 				args.push('--ignore-submodules');
