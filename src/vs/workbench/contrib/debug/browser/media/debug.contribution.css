@@ -30,7 +30,13 @@
 	left: -8px !important;
 }
 
-.monaco-editor .debug-breakpoint-placeholder::before,
+.monaco-editor .debug-breakpoint-placeholder {
+	width: 0.9em;
+	display: inline-flex;
+	vertical-align: middle;
+	margin-top: -1px;
+}
+
 .monaco-editor .debug-top-stack-frame-column::before {
 	content: ' ';
 	width: 0.9em;

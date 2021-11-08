@@ -73,6 +73,8 @@ export function createBreakpointDecorations(model: ITextModel, breakpoints: Read
 	return result;
 }
 
+const noBreakWhitespace = '\xa0';
+
 function getBreakpointDecorationOptions(model: ITextModel, breakpoint: IBreakpoint, state: State, breakpointsActivated: boolean, showBreakpointsInOverviewRuler: boolean): IModelDecorationOptions {
 	const { icon, message } = getBreakpointMessageAndIcon(state, breakpointsActivated, breakpoint, undefined);
 	let glyphMarginHoverMessage: MarkdownString | undefined;
@@ -100,7 +102,11 @@ function getBreakpointDecorationOptions(model: ITextModel, breakpoint: IBreakpoi
 		glyphMarginClassName: ThemeIcon.asClassName(icon),
 		glyphMarginHoverMessage,
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		beforeContentClassName: renderInline ? `debug-breakpoint-placeholder` : undefined,
+		before: renderInline ? {
+			content: noBreakWhitespace,
+			inlineClassName: `debug-breakpoint-placeholder`,
+			inlineClassNameAffectsLetterSpacing: true
+		} : undefined,
 		overviewRuler: overviewRulerDecoration
 	};
 }
@@ -133,7 +139,11 @@ async function createCandidateDecorations(model: ITextModel, breakpointDecoratio
 							options: {
 								description: 'breakpoint-placeholder-decoration',
 								stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-								beforeContentClassName: breakpointAtPosition ? undefined : `debug-breakpoint-placeholder`
+								before: breakpointAtPosition ? undefined : {
+									content: noBreakWhitespace,
+									inlineClassName: `debug-breakpoint-placeholder`,
+									inlineClassNameAffectsLetterSpacing: true
+								},
 							},
 							breakpoint: breakpointAtPosition ? breakpointAtPosition.breakpoint : undefined
 						});
@@ -466,7 +476,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 			this.breakpointDecorations = decorationIds.map((decorationId, index) => {
 				let inlineWidget: InlineBreakpointWidget | undefined = undefined;
 				const breakpoint = breakpoints[index];
-				if (desiredBreakpointDecorations[index].options.beforeContentClassName) {
+				if (desiredBreakpointDecorations[index].options.before) {
 					const contextMenuActions = () => this.getContextMenuActions([breakpoint], activeCodeEditor.getModel().uri, breakpoint.lineNumber, breakpoint.column);
 					inlineWidget = new InlineBreakpointWidget(activeCodeEditor, decorationId, desiredBreakpointDecorations[index].options.glyphMarginClassName, breakpoint, this.debugService, this.contextMenuService, contextMenuActions);
 				}
