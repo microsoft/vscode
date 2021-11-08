@@ -48,6 +48,7 @@ import { hash } from 'vs/base/common/hash';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { OPEN_IN_NEW_WINDOW_ID } from 'vs/workbench/contrib/files/browser/fileActions';
 
 // Commands
 
@@ -370,6 +371,15 @@ CommandsRegistry.registerCommand({
 		}
 
 		return undefined;
+	}
+});
+
+// mahee96 - added command processing for "open in new window request"
+CommandsRegistry.registerCommand({
+	id: OPEN_IN_NEW_WINDOW_ID,
+	handler: async (accessor: ServicesAccessor, resource: URI) => {
+		const hostService = accessor.get(IHostService);
+		return hostService.openWindow([{ workspaceUri: resource }], { forceNewWindow: true });
 	}
 });
 
