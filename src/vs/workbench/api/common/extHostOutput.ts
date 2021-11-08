@@ -21,7 +21,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 
 export class ExtHostOutputChannel extends Disposable implements vscode.OutputChannel {
 
-	private _offset: number = 0;
+	private offset: number = 0;
 	public visible: boolean = false;
 
 	private _disposed: boolean = false;
@@ -48,13 +48,13 @@ export class ExtHostOutputChannel extends Disposable implements vscode.OutputCha
 	}
 
 	clear(): void {
-		const till = this._offset;
+		const till = this.offset;
 		this.logger.flush();
 		this.proxy.$update(this.id, OutputChannelUpdateMode.Clear, till);
 	}
 
 	replace(value: string): void {
-		const till = this._offset;
+		const till = this.offset;
 		this.write(value);
 		this.proxy.$update(this.id, OutputChannelUpdateMode.Replace, till);
 		if (this.visible) {
@@ -72,7 +72,7 @@ export class ExtHostOutputChannel extends Disposable implements vscode.OutputCha
 	}
 
 	private write(value: string): void {
-		this._offset += VSBuffer.fromString(value).byteLength;
+		this.offset += VSBuffer.fromString(value).byteLength;
 		this.logger.info(value);
 	}
 
@@ -93,11 +93,11 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 
 	private readonly proxy: MainThreadOutputServiceShape;
 
-	private readonly _outputsLocation: URI;
+	private readonly outputsLocation: URI;
 	private outputDirectoryPromise: Thenable<URI> | undefined;
-	private _namePool: number = 1;
+	private namePool: number = 1;
 
-	private readonly _channels: Map<string, ExtHostOutputChannel> = new Map<string, ExtHostOutputChannel>();
+	private readonly channels: Map<string, ExtHostOutputChannel> = new Map<string, ExtHostOutputChannel>();
 	private visibleChannelId: string | null = null;
 
 	constructor(
@@ -108,12 +108,12 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 		@ILoggerService private readonly loggerService: ILoggerService,
 	) {
 		this.proxy = extHostRpc.getProxy(MainContext.MainThreadOutputService);
-		this._outputsLocation = this.extHostFileSystemInfo.extUri.joinPath(initData.logsLocation, `output_logging_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
+		this.outputsLocation = this.extHostFileSystemInfo.extUri.joinPath(initData.logsLocation, `output_logging_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
 	}
 
 	$setVisibleChannel(visibleChannelId: string | null): void {
 		this.visibleChannelId = visibleChannelId;
-		for (const [id, channel] of this._channels) {
+		for (const [id, channel] of this.channels) {
 			channel.visible = id === this.visibleChannelId;
 		}
 	}
@@ -125,7 +125,7 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 		}
 		const extHostOutputChannel = this.doCreateOutputChannel(name, extension);
 		extHostOutputChannel.then(channel => {
-			this._channels.set(channel.id, channel);
+			this.channels.set(channel.id, channel);
 			channel.visible = channel.id === this.visibleChannelId;
 		});
 		return this.createExtHostOutputChannel(name, extHostOutputChannel, extension);
@@ -133,7 +133,7 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 
 	private async doCreateOutputChannel(name: string, extension: IExtensionDescription): Promise<ExtHostOutputChannel> {
 		const outputDir = await this.createOutputDirectory();
-		const file = this.extHostFileSystemInfo.extUri.joinPath(outputDir, `${this._namePool++}-${name.replace(/[\\/:\*\?"<>\|]/g, '')}.log`);
+		const file = this.extHostFileSystemInfo.extUri.joinPath(outputDir, `${this.namePool++}-${name.replace(/[\\/:\*\?"<>\|]/g, '')}.log`);
 		const logger = this.loggerService.createLogger(file, { always: true, donotRotate: true, donotUseFormatters: true });
 		const id = await this.proxy.$register(name, false, file, extension.identifier.value);
 		return new ExtHostOutputChannel(id, name, logger, this.proxy);
@@ -141,7 +141,7 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 
 	private createOutputDirectory(): Thenable<URI> {
 		if (!this.outputDirectoryPromise) {
-			this.outputDirectoryPromise = this.extHostFileSystem.value.createDirectory(this._outputsLocation).then(() => this._outputsLocation);
+			this.outputDirectoryPromise = this.extHostFileSystem.value.createDirectory(this.outputsLocation).then(() => this.outputsLocation);
 		}
 		return this.outputDirectoryPromise;
 	}
