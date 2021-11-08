@@ -100,6 +100,22 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	const withInnerHTML = new Promise<void>(c => signalInnerHTML = c);
 
 	const renderer = new marked.Renderer();
+
+	const htmlParser = new DOMParser();
+	renderer.html = (rawHtml: string) => {
+		const sanitizedHtml = sanitizeRenderedMarkdown(markdown, rawHtml);
+		const doc = htmlParser.parseFromString(sanitizedHtml as unknown as string, 'text/html');
+
+		doc.body.querySelectorAll('img')
+			.forEach(img => {
+				if (img.src) {
+					img.src = _href(img.src, true);
+				}
+			});
+
+		return doc.body.innerHTML;
+	};
+
 	renderer.image = (href: string, title: string, text: string) => {
 		let dimensions: string[] = [];
 		let attributes: string[] = [];
