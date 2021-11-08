@@ -386,11 +386,6 @@ interface IWorkbenchConstructionOptions {
 	readonly resolveExternalUri?: IExternalUriResolver;
 
 	/**
-	 * Support for URL callbacks.
-	 */
-	readonly externalURLOpener?: IExternalURLOpener;
-
-	/**
 	 * A provider for supplying tunneling functionality,
 	 * such as creating tunnels and showing candidate ports to forward.
 	 */

@@ -40,6 +40,10 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 			}
 		}
 
+		if (json.nbformat && json.nbformat < 4) {
+			throw new Error('Only Jupyter notebooks version 4+ are supported');
+		}
+
 		// Then compute indent from the contents (only use first 1K characters as a perf optimization)
 		const indentAmount = contents ? detectIndent(contents.substring(0, 1_000)).indent : ' ';
 

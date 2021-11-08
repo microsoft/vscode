@@ -10467,10 +10467,10 @@ vscode-ripgrep@^1.12.1:
     https-proxy-agent "^4.0.0"
     proxy-from-env "^1.1.0"
 
-vscode-telemetry-extractor@^1.9.3:
-  version "1.9.3"
-  resolved "https://registry.yarnpkg.com/vscode-telemetry-extractor/-/vscode-telemetry-extractor-1.9.3.tgz#239d89a13b49c5ffe49eb7b2a6f8c1021ff584c7"
-  integrity sha512-NWmao/CzDj347Minf+xuP/eDxSL7T6+bEABs3z/YcwXV9sHpcorXBqOVL7cZj1n+p0DQmyZUYo9byh3iXsx72g==
+vscode-telemetry-extractor@^1.9.5:
+  version "1.9.5"
+  resolved "https://registry.yarnpkg.com/vscode-telemetry-extractor/-/vscode-telemetry-extractor-1.9.5.tgz#9f397438285474e6bb162033310a0b83c6d0d797"
+  integrity sha512-saUkRZrXVi9sKNqT6xqjky3oqybrj6ipdRCA257Ao1MgU260A2K4mD5kEZhupBdSD4+t+QwCv8WCFIcZDRD0Aw==
   dependencies:
     command-line-args "^5.2.0"
     ts-morph "^12.2.0"

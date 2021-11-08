@@ -26,6 +26,9 @@ import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IAction, Separator } from 'vs/base/common/actions';
 import { ToggleAuxiliaryBarAction } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions';
 import { assertIsDefined } from 'vs/base/common/types';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+
+export const AUXILIARYBAR_ENABLED: string = 'workbench.experimental.sidePanel.enabled';
 
 export class AuxiliaryBarPart extends BasePanelPart {
 	static readonly activePanelSettingsKey = 'workbench.auxiliarybar.activepanelid';
@@ -33,12 +36,13 @@ export class AuxiliaryBarPart extends BasePanelPart {
 	static readonly placeholdeViewContainersKey = 'workbench.auxiliarybar.placeholderPanels';
 
 	// Use the side bar dimensions
-	override readonly minimumWidth: number = 170;
-	override readonly maximumWidth: number = Number.POSITIVE_INFINITY;
+	override readonly minimumWidth: number = this.isEnabled ? 170 : 0;
+	override readonly maximumWidth: number = this.isEnabled ? Number.POSITIVE_INFINITY : 0;
 	override readonly minimumHeight: number = 0;
 	override readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 
 	constructor(
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -76,10 +80,9 @@ export class AuxiliaryBarPart extends BasePanelPart {
 		);
 	}
 
-	// override layout(width: number, height: number, top: number, left: number): void {
-	// 	// Layout contents
-	// 	super.layout(width, height, top, left); // Take into account the 1px border when layouting
-	// }
+	get isEnabled(): boolean {
+		return !!this.configurationService.getValue<boolean>(AUXILIARYBAR_ENABLED);
+	}
 
 	override updateStyles(): void {
 		super.updateStyles();

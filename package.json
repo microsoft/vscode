@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.63.0",
-  "distro": "68b7698bb44bb140dfd35df9825ea6825edf87af",
+  "distro": "f4a21145f5ec390f681f48c7140bf4f60d2987ac",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -205,7 +205,7 @@
     "vinyl-fs": "^3.0.0",
     "vscode-debugprotocol": "1.50.0",
     "vscode-nls-dev": "^3.3.1",
-    "vscode-telemetry-extractor": "^1.9.3",
+    "vscode-telemetry-extractor": "^1.9.5",
     "webpack": "^5.42.0",
     "webpack-cli": "^4.7.2",
     "webpack-stream": "^6.1.2",

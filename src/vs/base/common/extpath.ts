@@ -300,8 +300,9 @@ export function isRootOrDriveLetter(path: string): boolean {
 	return pathNormalized === posix.sep;
 }
 
-export function hasDriveLetter(path: string): boolean {
-	if (isWindows) {
+export function hasDriveLetter(path: string, continueAsWindows?: boolean): boolean {
+	const isWindowsPath: boolean = ((continueAsWindows !== undefined) ? continueAsWindows : isWindows);
+	if (isWindowsPath) {
 		return isWindowsDriveLetter(path.charCodeAt(0)) && path.charCodeAt(1) === CharCode.Colon;
 	}
 
