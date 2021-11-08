@@ -79,5 +79,5 @@
 	},
 	"typescript.tsc.autoDetect": "off",
 	"testing.autoRun.mode": "rerun",
-	"conventionalCommits.scopes": ["tree", "scm", "grid"]
+	"conventionalCommits.scopes": ["tree", "scm", "grid", "splitview"]
 }
