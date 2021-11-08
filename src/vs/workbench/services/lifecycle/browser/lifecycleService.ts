@@ -10,7 +10,7 @@ import { localize } from 'vs/nls';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 
 export class BrowserLifecycleService extends AbstractLifecycleService {
 
@@ -99,9 +99,9 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 		event.returnValue = localize('lifecycleVeto', "Changes that you made may not be saved. Please check press 'Cancel' and try again.");
 	}
 
-	withExpectedShutdown(reason: ShutdownReason): void;
-	withExpectedShutdown(reason: { disableShutdownHandling: true }, callback: Function): void;
-	withExpectedShutdown(reason: ShutdownReason | { disableShutdownHandling: true }, callback?: Function): void {
+	withExpectedShutdown(reason: ShutdownReason): Promise<void>;
+	withExpectedShutdown(reason: { disableShutdownHandling: true }, callback: Function): Promise<void>;
+	withExpectedShutdown(reason: ShutdownReason | { disableShutdownHandling: true }, callback?: Function): Promise<void> {
 
 		// Standard shutdown
 		if (typeof reason === 'number') {
@@ -117,6 +117,9 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 				this.disableBeforeUnloadVeto = false;
 			}
 		}
+
+		// Ensure UI state is persisted
+		return this.storageService.flush(WillSaveStateReason.SHUTDOWN);
 	}
 
 	shutdown(): void {
@@ -134,6 +137,13 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 		const logService = this.logService;
 
 		this.didBeforeUnload = true;
+
+		// Optimistically trigger a UI state flush
+		// without waiting for it. The browser does
+		// not guarantee that this is being executed
+		// but if a dialog opens, we have a chance
+		// to succeed.
+		this.storageService.flush(WillSaveStateReason.SHUTDOWN);
 
 		let veto = false;
 

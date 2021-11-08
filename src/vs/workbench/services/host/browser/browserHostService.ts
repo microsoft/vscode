@@ -32,7 +32,6 @@ import Severity from 'vs/base/common/severity';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DomEmitter } from 'vs/base/browser/event';
 import { isUndefined } from 'vs/base/common/types';
-import { IStorageService, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 
 /**
  * A workspace to open in the workbench can either be:
@@ -109,8 +108,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILifecycleService private readonly lifecycleService: BrowserLifecycleService,
 		@ILogService private readonly logService: ILogService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IStorageService private readonly storageService: IStorageService
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super();
 
@@ -137,13 +135,6 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	private onBeforeShutdown(e: BeforeShutdownEvent): void {
-
-		// Optimistically trigger a UI state flush
-		// without waiting for it. The browser does
-		// not guarantee that this is being executed
-		// but if a dialog opens, we have a chance
-		// to succeed.
-		this.storageService.flush(WillSaveStateReason.SHUTDOWN);
 
 		switch (this.shutdownReason) {
 
@@ -469,10 +460,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		this.shutdownReason = HostShutdownReason.Api;
 
 		// Signal shutdown reason to lifecycle
-		this.lifecycleService.withExpectedShutdown(reason);
-
-		// Ensure UI state is persisted
-		await this.storageService.flush(WillSaveStateReason.SHUTDOWN);
+		return this.lifecycleService.withExpectedShutdown(reason);
 	}
 
 	//#endregion

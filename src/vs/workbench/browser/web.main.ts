@@ -70,7 +70,7 @@ import { IndexedDB } from 'vs/base/browser/indexedDB';
 
 class BrowserMain extends Disposable {
 
-	private readonly onWillShutdownDisposables = new DisposableStore();
+	private readonly onWillShutdownDisposables = this._register(new DisposableStore());
 
 	constructor(
 		private readonly domElement: HTMLElement,
@@ -138,11 +138,6 @@ class BrowserMain extends Disposable {
 	private registerListeners(workbench: Workbench, storageService: BrowserStorageService, logService: ILogService): void {
 
 		// Workbench Lifecycle
-		this._register(workbench.onBeforeShutdown(event => {
-			if (storageService.hasPendingUpdate) {
-				event.veto(true, 'veto.pendingStorageUpdate'); // prevent data loss from pending storage update
-			}
-		}));
 		this._register(workbench.onWillShutdown(() => this.onWillShutdownDisposables.clear()));
 		this._register(workbench.onDidShutdown(() => this.dispose()));
 	}
@@ -348,7 +343,7 @@ class BrowserMain extends Disposable {
 		try {
 			await storageService.initialize();
 
-			// Close onWillShutdown
+			// Register to close on shutdown
 			this.onWillShutdownDisposables.add(toDisposable(() => storageService.close()));
 
 			return storageService;
