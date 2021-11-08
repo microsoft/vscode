@@ -12,6 +12,7 @@ import { IRange } from 'vs/base/common/range';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { DynamicCssRules } from 'vs/editor/browser/editorDom';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
@@ -21,7 +22,6 @@ import { IModelDeltaDecoration, InjectedTextOptions, ITextModel, IWordAtPosition
 import { InlayHint, InlayHintKind, InlayHintsProvider, InlayHintsProviderRegistry } from 'vs/editor/common/modes';
 import { LanguageFeatureRequestDelays } from 'vs/editor/common/modes/languageFeatureRegistry';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { DynamicCssRules } from 'vs/editor/contrib/inlayHints/utils';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { editorInlayHintBackground, editorInlayHintForeground, editorInlayHintParameterBackground, editorInlayHintParameterForeground, editorInlayHintTypeBackground, editorInlayHintTypeForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ThemeColor, themeColorFromId } from 'vs/platform/theme/common/themeService';
