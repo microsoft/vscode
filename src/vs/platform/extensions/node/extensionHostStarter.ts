@@ -7,7 +7,7 @@ import { SerializedError, transformErrorForSerialization } from 'vs/base/common/
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IExtensionHostProcessOptions, IExtensionHostStarter } from 'vs/platform/extensions/common/extensionHostStarter';
 import { Emitter, Event } from 'vs/base/common/event';
-import { ChildProcess, spawn } from 'child_process';
+import { ChildProcess, fork } from 'child_process';
 import { FileAccess } from 'vs/base/common/network';
 import { StringDecoder } from 'string_decoder';
 import * as platform from 'vs/base/common/platform';
@@ -52,18 +52,18 @@ class ExtensionHostProcess extends Disposable {
 
 	start(opts: IExtensionHostProcessOptions): { pid: number; } {
 		const sw = StopWatch.create(false);
-		opts.env = opts.env || {};
-		opts.env.ELECTRON_RUN_AS_NODE = '1';
-		this._process = spawn(
-			process.execPath,
-			[FileAccess.asFileUri('bootstrap-fork', require).fsPath, '--type=extensionHost', '--skipWorkspaceStorageLock'],
-			mixin({ cwd: cwd() }, opts),
-		);
-		// this._process = fork(
-		// 	FileAccess.asFileUri('bootstrap-fork', require).fsPath,
-		// 	['--type=extensionHost', '--skipWorkspaceStorageLock'],
+		// opts.env = opts.env || {};
+		// opts.env.ELECTRON_RUN_AS_NODE = '1';
+		// this._process = spawn(
+		// 	process.execPath,
+		// 	[FileAccess.asFileUri('bootstrap-fork', require).fsPath, '--type=extensionHost', '--skipWorkspaceStorageLock'],
 		// 	mixin({ cwd: cwd() }, opts),
 		// );
+		this._process = fork(
+			FileAccess.asFileUri('bootstrap-fork', require).fsPath,
+			['--type=extensionHost', '--skipWorkspaceStorageLock'],
+			mixin({ cwd: cwd() }, opts),
+		);
 		const forkTime = sw.elapsed();
 		const pid = this._process.pid;
 
@@ -81,9 +81,9 @@ class ExtensionHostProcess extends Disposable {
 			this._onStderr.fire(strChunk);
 		});
 
-		// this._process.on('message', msg => {
-		// 	this._onMessage.fire(msg);
-		// });
+		this._process.on('message', msg => {
+			this._onMessage.fire(msg);
+		});
 
 		this._process.on('error', (err) => {
 			this._onError.fire({ error: transformErrorForSerialization(err) });
