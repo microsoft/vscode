@@ -10,6 +10,7 @@ import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileSer
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, ExtHostFileSystemShape, IExtHostContext, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../common/extHost.protocol';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 @extHostNamedCustomer(MainContext.MainThreadFileSystem)
 export class MainThreadFileSystem implements MainThreadFileSystemShape {
@@ -21,6 +22,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IFileService private readonly _fileService: IFileService,
+		@IExtensionService private readonly _extensionService: IExtensionService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystem);
 
@@ -148,6 +150,10 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		}
 
 		throw err;
+	}
+
+	$ensureActivation(scheme: string): Promise<void> {
+		return this._extensionService.activateByEvent(`onFileSystem:${scheme}`);
 	}
 }
 

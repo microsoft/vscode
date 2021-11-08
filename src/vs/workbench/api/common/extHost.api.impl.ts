@@ -91,6 +91,7 @@ import { matchesScheme } from 'vs/platform/opener/common/opener';
 import { ExtHostNotebookEditors } from 'vs/workbench/api/common/extHostNotebookEditors';
 import { ExtHostNotebookDocuments } from 'vs/workbench/api/common/extHostNotebookDocuments';
 import { ExtHostInteractive } from 'vs/workbench/api/common/extHostInteractive';
+import { combinedDisposable } from 'vs/base/common/lifecycle';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -913,7 +914,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostTask.registerTaskProvider(extension, type, provider);
 			},
 			registerFileSystemProvider(scheme, provider, options) {
-				return extHostFileSystem.registerFileSystemProvider(extension.identifier, scheme, provider, options);
+				return combinedDisposable(
+					extHostFileSystem.registerFileSystemProvider(extension.identifier, scheme, provider, options),
+					extHostConsumerFileSystem.addFileSystemProvider(scheme, provider)
+				);
 			},
 			get fs() {
 				return extHostConsumerFileSystem.value;
