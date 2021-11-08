@@ -12,7 +12,7 @@ import { EventEmitter } from 'events';
 import * as iconv from 'iconv-lite-umd';
 import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions } from './util';
-import { CancellationToken, Progress, Uri } from 'vscode';
+import { CancellationToken, Progress, Uri, workspace } from 'vscode';
 import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, BranchQuery } from './api/git';
 import * as byline from 'byline';
@@ -1811,10 +1811,15 @@ export class Repository {
 	}
 
 	getStatus(opts?: { limit?: number, ignoreSubmodules?: boolean }): Promise<{ status: IFileStatus[]; didHitLimit: boolean; }> {
+		const untrackedChanges = workspace.getConfiguration('git').get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
+
 		return new Promise<{ status: IFileStatus[]; didHitLimit: boolean; }>((c, e) => {
 			const parser = new GitStatusParser();
 			const env = { GIT_OPTIONAL_LOCKS: '0' };
-			const args = ['status', '-z', '-u'];
+			const args = ['status', '-z'];
+			if (untrackedChanges !== 'hidden') {
+				args.push('-u');
+			}
 
 			if (opts?.ignoreSubmodules) {
 				args.push('--ignore-submodules');
