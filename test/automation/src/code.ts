@@ -287,7 +287,6 @@ export class Code {
 	}
 
 	async waitForActiveElement(selector: string, retryCount: number = 200): Promise<void> {
-		await this.waitForReady();
 		await poll(() => this.driver.isActiveElement(selector), r => r, `is active element '${selector}'`, retryCount);
 	}
 
@@ -296,7 +295,6 @@ export class Code {
 	}
 
 	async waitForTypeInEditor(selector: string, text: string): Promise<void> {
-		await this.waitForReady();
 		await poll(() => this.driver.typeInEditor(selector, text), () => true, `type in editor '${selector}'`);
 	}
 
