@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ExtHostOutputService2 } from 'vs/workbench/api/node/extHostOutputService';
+import { ExtHostOutputService } from 'vs/workbench/api/node/extHostOutputService';
 import { ExtHostTerminalService } from 'vs/workbench/api/node/extHostTerminalService';
 import { ExtHostTask } from 'vs/workbench/api/node/extHostTask';
 import { ExtHostDebugService } from 'vs/workbench/api/node/extHostDebugService';
@@ -34,7 +34,7 @@ registerSingleton(ILogService, ExtHostLogService);
 registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths);
 
 registerSingleton(IExtHostDebugService, ExtHostDebugService);
-registerSingleton(IExtHostOutputService, ExtHostOutputService2);
+registerSingleton(IExtHostOutputService, ExtHostOutputService);
 registerSingleton(IExtHostSearch, NativeExtHostSearch);
 registerSingleton(IExtHostTask, ExtHostTask);
 registerSingleton(IExtHostTerminalService, ExtHostTerminalService);

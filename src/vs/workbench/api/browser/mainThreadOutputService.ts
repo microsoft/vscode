@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IOutputService, IOutputChannel, OUTPUT_VIEW_ID } from 'vs/workbench/contrib/output/common/output';
+import { IOutputService, IOutputChannel, OUTPUT_VIEW_ID, OutputChannelUpdateMode } from 'vs/workbench/contrib/output/common/output';
 import { Extensions, IOutputChannelRegistry } from 'vs/workbench/services/output/common/output';
 import { MainThreadOutputServiceShape, MainContext, IExtHostContext, ExtHostOutputServiceShape, ExtHostContext } from '../common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
@@ -12,6 +12,7 @@ import { UriComponents, URI } from 'vs/base/common/uri';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { IViewsService } from 'vs/workbench/common/views';
+import { isNumber } from 'vs/base/common/types';
 
 @extHostNamedCustomer(MainContext.MainThreadOutputService)
 export class MainThreadOutputService extends Disposable implements MainThreadOutputServiceShape {
@@ -65,26 +66,30 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 		return undefined;
 	}
 
-	public $update(channelId: string): Promise<void> | undefined {
+	public $update(channelId: string, mode: OutputChannelUpdateMode, till?: number): Promise<void> | undefined {
 		const channel = this._getChannel(channelId);
 		if (channel) {
-			channel.update();
+			if (mode === OutputChannelUpdateMode.Append) {
+				channel.update(mode);
+			} else if (isNumber(till)) {
+				channel.update(mode, till);
+			}
 		}
 		return undefined;
 	}
 
-	public $clear(channelId: string, till: number): Promise<void> | undefined {
+	public $clear(channelId: string): Promise<void> | undefined {
 		const channel = this._getChannel(channelId);
 		if (channel) {
-			channel.clear(till);
+			channel.clear();
 		}
 		return undefined;
 	}
 
-	public $replaceAll(channelId: string, till: number, value: string): Promise<void> | undefined {
+	public $replace(channelId: string, value: string): Promise<void> | undefined {
 		const channel = this._getChannel(channelId);
 		if (channel) {
-			channel.replaceAll(till, value);
+			channel.replace(value);
 		}
 		return undefined;
 	}

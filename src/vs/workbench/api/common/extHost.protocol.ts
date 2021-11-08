@@ -56,6 +56,7 @@ import { IAdapterDescriptor, IConfig, IDebugSessionReplMode } from 'vs/workbench
 import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType, ICellExecutionComplete, ICellExecutionStateUpdate } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { OutputChannelUpdateMode } from 'vs/workbench/contrib/output/common/output';
 import { InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
@@ -445,9 +446,10 @@ export interface MainThreadMessageServiceShape extends IDisposable {
 export interface MainThreadOutputServiceShape extends IDisposable {
 	$register(label: string, log: boolean, file?: UriComponents, extensionId?: string): Promise<string>;
 	$append(channelId: string, value: string): Promise<void> | undefined;
-	$update(channelId: string): Promise<void> | undefined;
-	$clear(channelId: string, till: number): Promise<void> | undefined;
-	$replaceAll(channelId: string, till: number, value?: string): Promise<void> | undefined;
+	$clear(channelId: string): Promise<void> | undefined;
+	$replace(channelId: string, value: string): Promise<void> | undefined;
+	$update(channelId: string, mode: OutputChannelUpdateMode.Append): Promise<void> | undefined;
+	$update(channelId: string, mode: OutputChannelUpdateMode, till: number): Promise<void> | undefined;
 	$reveal(channelId: string, preserveFocus: boolean): Promise<void> | undefined;
 	$close(channelId: string): Promise<void> | undefined;
 	$dispose(channelId: string): Promise<void> | undefined;
