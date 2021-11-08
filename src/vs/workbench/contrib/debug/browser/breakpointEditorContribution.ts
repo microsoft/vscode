@@ -36,6 +36,7 @@ import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { noBreakWhitespace } from 'vs/base/common/strings';
 
 const $ = dom.$;
 
@@ -72,8 +73,6 @@ export function createBreakpointDecorations(model: ITextModel, breakpoints: Read
 
 	return result;
 }
-
-const noBreakWhitespace = '\xa0';
 
 function getBreakpointDecorationOptions(model: ITextModel, breakpoint: IBreakpoint, state: State, breakpointsActivated: boolean, showBreakpointsInOverviewRuler: boolean): IModelDecorationOptions {
 	const { icon, message } = getBreakpointMessageAndIcon(state, breakpointsActivated, breakpoint, undefined);
