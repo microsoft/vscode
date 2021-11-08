@@ -37,8 +37,7 @@
 	margin-top: -1px;
 }
 
-.monaco-editor .debug-top-stack-frame-column::before {
-	content: ' ';
+.monaco-editor .debug-top-stack-frame-column {
 	width: 0.9em;
 	display: inline-flex;
 	vertical-align: middle;
@@ -46,7 +45,7 @@
 }
 
 /* Do not push text with inline decoration when decoration on start of line */
-.monaco-editor .debug-top-stack-frame-column.start-of-line::before {
+.monaco-editor .debug-top-stack-frame-column.start-of-line {
 	position: absolute;
 	top: 50%;
 	transform: translate(-17px, -50%);
