@@ -17,7 +17,6 @@ import { isNumber } from 'vs/base/common/types';
 @extHostNamedCustomer(MainContext.MainThreadOutputService)
 export class MainThreadOutputService extends Disposable implements MainThreadOutputServiceShape {
 
-	private static _idPool = 1;
 	private static _extensionIdPool = new Map<string, number>();
 
 	private readonly _proxy: ExtHostOutputServiceShape;
@@ -43,30 +42,17 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 		setVisibleChannel();
 	}
 
-	public $register(label: string, log: boolean, file?: UriComponents, extensionId?: string): Promise<string> {
-		let id: string;
-		if (extensionId) {
-			const idCounter = (MainThreadOutputService._extensionIdPool.get(extensionId) || 0) + 1;
-			MainThreadOutputService._extensionIdPool.set(extensionId, idCounter);
-			id = `extension-output-${extensionId}-#${idCounter}`;
-		} else {
-			id = `extension-output-#${(MainThreadOutputService._idPool++)}`;
-		}
+	public async $register(label: string, log: boolean, file: UriComponents, extensionId: string): Promise<string> {
+		const idCounter = (MainThreadOutputService._extensionIdPool.get(extensionId) || 0) + 1;
+		MainThreadOutputService._extensionIdPool.set(extensionId, idCounter);
+		const id = `extension-output-${extensionId}-#${idCounter}`;
 
-		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id, label, file: file ? URI.revive(file) : undefined, log });
+		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id, label, file: URI.revive(file), log });
 		this._register(toDisposable(() => this.$dispose(id)));
-		return Promise.resolve(id);
+		return id;
 	}
 
-	public $append(channelId: string, value: string): Promise<void> | undefined {
-		const channel = this._getChannel(channelId);
-		if (channel) {
-			channel.append(value);
-		}
-		return undefined;
-	}
-
-	public $update(channelId: string, mode: OutputChannelUpdateMode, till?: number): Promise<void> | undefined {
+	public async $update(channelId: string, mode: OutputChannelUpdateMode, till?: number): Promise<void> {
 		const channel = this._getChannel(channelId);
 		if (channel) {
 			if (mode === OutputChannelUpdateMode.Append) {
@@ -75,50 +61,29 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 				channel.update(mode, till);
 			}
 		}
-		return undefined;
 	}
 
-	public $clear(channelId: string): Promise<void> | undefined {
-		const channel = this._getChannel(channelId);
-		if (channel) {
-			channel.clear();
-		}
-		return undefined;
-	}
-
-	public $replace(channelId: string, value: string): Promise<void> | undefined {
-		const channel = this._getChannel(channelId);
-		if (channel) {
-			channel.replace(value);
-		}
-		return undefined;
-	}
-
-	public $reveal(channelId: string, preserveFocus: boolean): Promise<void> | undefined {
+	public async $reveal(channelId: string, preserveFocus: boolean): Promise<void> {
 		const channel = this._getChannel(channelId);
 		if (channel) {
 			this._outputService.showChannel(channel.id, preserveFocus);
 		}
-		return undefined;
 	}
 
-	public $close(channelId: string): Promise<void> | undefined {
+	public async $close(channelId: string): Promise<void> {
 		if (this._viewsService.isViewVisible(OUTPUT_VIEW_ID)) {
 			const activeChannel = this._outputService.getActiveChannel();
 			if (activeChannel && channelId === activeChannel.id) {
 				this._viewsService.closeView(OUTPUT_VIEW_ID);
 			}
 		}
-
-		return undefined;
 	}
 
-	public $dispose(channelId: string): Promise<void> | undefined {
+	public async $dispose(channelId: string): Promise<void> {
 		const channel = this._getChannel(channelId);
 		if (channel) {
 			channel.dispose();
 		}
-		return undefined;
 	}
 
 	private _getChannel(channelId: string): IOutputChannel | undefined {

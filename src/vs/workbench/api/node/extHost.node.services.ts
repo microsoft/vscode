@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ExtHostOutputService } from 'vs/workbench/api/node/extHostOutputService';
 import { ExtHostTerminalService } from 'vs/workbench/api/node/extHostTerminalService';
 import { ExtHostTask } from 'vs/workbench/api/node/extHostTask';
 import { ExtHostDebugService } from 'vs/workbench/api/node/extHostDebugService';
@@ -13,7 +12,6 @@ import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionS
 import { ExtHostTunnelService } from 'vs/workbench/api/node/extHostTunnelService';
 import { IExtHostDebugService } from 'vs/workbench/api/common/extHostDebugService';
 import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
-import { IExtHostOutputService } from 'vs/workbench/api/common/extHostOutput';
 import { IExtHostSearch } from 'vs/workbench/api/common/extHostSearch';
 import { IExtHostTask } from 'vs/workbench/api/common/extHostTask';
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
@@ -34,7 +32,6 @@ registerSingleton(ILoggerService, ExtHostLoggerService);
 registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths);
 
 registerSingleton(IExtHostDebugService, ExtHostDebugService);
-registerSingleton(IExtHostOutputService, ExtHostOutputService);
 registerSingleton(IExtHostSearch, NativeExtHostSearch);
 registerSingleton(IExtHostTask, ExtHostTask);
 registerSingleton(IExtHostTerminalService, ExtHostTerminalService);
