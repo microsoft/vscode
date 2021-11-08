@@ -1850,15 +1850,17 @@ export class Repository {
 	}
 
 	getStatus(opts?: { limit?: number; ignoreSubmodules?: boolean; untrackedChanges?: 'mixed' | 'separate' | 'hidden' }): Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }> {
+
 		return new Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }>((c, e) => {
 			const parser = new GitStatusParser();
 			const env = { GIT_OPTIONAL_LOCKS: '0' };
+			const untrackedChangesArg = workspace.getConfiguration('git').get<string>('statusArgs.untrackedFiles', 'all');
 			const args = ['status', '-z'];
 
 			if (opts?.untrackedChanges === 'hidden') {
 				args.push('-uno');
 			} else {
-				args.push('-uall');
+				args.push(`--untracked-files=${untrackedChangesArg}`);
 			}
 
 			if (opts?.ignoreSubmodules) {

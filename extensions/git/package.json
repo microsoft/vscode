@@ -2233,6 +2233,22 @@
           "description": "%config.showUnpublishedCommitsButton%",
           "scope": "resource"
         },
+        "git.statusArgs.untrackedFiles": {
+          "type": "string",
+          "enum": [
+            "all",
+            "no",
+            "normal"
+          ],
+          "enumDescriptions": [
+            "%config.git.statusArgs.untrackedFiles.all%",
+            "%config.git.statusArgs.untrackedFiles.no%",
+            "%config.git.statusArgs.untrackedFiles.normal%"
+          ],
+          "default": "all",
+          "description": "%git.statusArgs.untrackedFiles%",
+          "scope": "window"
+        },
         "git.statusLimit": {
           "type": "number",
           "scope": "resource",
