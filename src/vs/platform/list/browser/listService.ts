@@ -62,7 +62,16 @@ export class ListService implements IListService {
 		return this._lastFocusedWidget;
 	}
 
-	constructor(@IThemeService private readonly _themeService: IThemeService) {
+	constructor(@IThemeService private readonly _themeService: IThemeService) { }
+
+	private setLastFocusedList(widget: WorkbenchListWidget | undefined): void {
+		if (widget === this._lastFocusedWidget) {
+			return;
+		}
+
+		this._lastFocusedWidget?.getHTMLElement().classList.remove('last-focused');
+		this._lastFocusedWidget = widget;
+		this._lastFocusedWidget?.getHTMLElement().classList.add('last-focused');
 	}
 
 	register(widget: WorkbenchListWidget, extraContextKeys?: (IContextKey<boolean>)[]): IDisposable {
@@ -83,16 +92,16 @@ export class ListService implements IListService {
 
 		// Check for currently being focused
 		if (widget.getHTMLElement() === document.activeElement) {
-			this._lastFocusedWidget = widget;
+			this.setLastFocusedList(widget);
 		}
 
 		return combinedDisposable(
-			widget.onDidFocus(() => this._lastFocusedWidget = widget),
+			widget.onDidFocus(() => this.setLastFocusedList(widget)),
 			toDisposable(() => this.lists.splice(this.lists.indexOf(registeredList), 1)),
 			widget.onDidDispose(() => {
 				this.lists = this.lists.filter(l => l !== registeredList);
 				if (this._lastFocusedWidget === widget) {
-					this._lastFocusedWidget = undefined;
+					this.setLastFocusedList(undefined);
 				}
 			})
 		);

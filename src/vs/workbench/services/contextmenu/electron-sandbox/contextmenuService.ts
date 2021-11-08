@@ -24,7 +24,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { coalesce } from 'vs/base/common/arrays';
-import { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
 export class ContextMenuService extends Disposable implements IContextMenuService {
 
@@ -32,8 +32,8 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 
 	private impl: IContextMenuService;
 
-	private readonly _onDidShowContextMenu = this._register(new Emitter<void>());
-	readonly onDidShowContextMenu = this._onDidShowContextMenu.event;
+	get onDidShowContextMenu(): Event<void> { return this.impl.onDidShowContextMenu; }
+	get onDidHideContextMenu(): Event<void> { return this.impl.onDidHideContextMenu; }
 
 	constructor(
 		@INotificationService notificationService: INotificationService,
@@ -58,7 +58,6 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 
 	showContextMenu(delegate: IContextMenuDelegate): void {
 		this.impl.showContextMenu(delegate);
-		this._onDidShowContextMenu.fire();
 	}
 }
 
@@ -66,7 +65,11 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 
 	declare readonly _serviceBrand: undefined;
 
-	readonly onDidShowContextMenu = new Emitter<void>().event;
+	private readonly _onDidShowContextMenu = new Emitter<void>();
+	readonly onDidShowContextMenu = this._onDidShowContextMenu.event;
+
+	private readonly _onDidHideContextMenu = new Emitter<void>();
+	readonly onDidHideContextMenu = this._onDidHideContextMenu.event;
 
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
@@ -85,6 +88,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 				}
 
 				dom.ModifierKeyEmitter.getInstance().resetKeyStatus();
+				this._onDidHideContextMenu.fire();
 			});
 
 			const menu = this.createMenu(delegate, actions, onHide);
@@ -120,6 +124,8 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 				y: Math.floor(y),
 				positioningItem: delegate.autoSelectFirstItem ? 0 : undefined,
 			}, () => onHide());
+
+			this._onDidShowContextMenu.fire();
 		}
 	}
 
