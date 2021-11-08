@@ -53,6 +53,10 @@ class OutputChannel extends Disposable implements IOutputChannel {
 	clear(till?: number): void {
 		this.model.clear(till);
 	}
+
+	replaceAll(till: number, value: string): void {
+		this.model.replaceAll(till, value);
+	}
 }
 
 export class OutputService extends Disposable implements IOutputService, ITextModelContentProvider {
