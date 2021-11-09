@@ -33,7 +33,7 @@ export interface IExtensionResourceLoaderService {
 	/**
 	 * Returns whether the gallery provides extension resources.
 	 */
-	supportsExtensionGalleryResources: boolean;
+	readonly supportsExtensionGalleryResources: boolean;
 
 	/**
 	 * Computes the URL of a extension gallery resource. Returns `undefined` if gallery does not provide extension resources.
@@ -50,11 +50,11 @@ export abstract class AbstractExtensionResourceLoaderService implements IExtensi
 	private readonly _extensionGalleryAuthority: string | undefined;
 
 	constructor(
-		readonly _fileService: IFileService,
-		readonly _storageService: IStorageService,
-		readonly _productService: IProductService,
-		readonly _environmentService: IEnvironmentService,
-		readonly _configurationService: IConfigurationService,
+		protected readonly _fileService: IFileService,
+		private readonly _storageService: IStorageService,
+		private readonly _productService: IProductService,
+		private readonly _environmentService: IEnvironmentService,
+		private readonly _configurationService: IConfigurationService,
 	) {
 		if (_productService.extensionsGallery) {
 			this._extensionGalleryResourceUrlTemplate = _productService.extensionsGallery.resourceUrlTemplate;

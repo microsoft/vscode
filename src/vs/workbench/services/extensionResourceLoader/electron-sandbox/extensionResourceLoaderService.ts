@@ -22,7 +22,7 @@ export class ExtensionResourceLoaderService extends AbstractExtensionResourceLoa
 		@IProductService productService: IProductService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IRequestService readonly _requestService: IRequestService,
+		@IRequestService private readonly _requestService: IRequestService,
 	) {
 		super(fileService, storageService, productService, environmentService, configurationService);
 	}

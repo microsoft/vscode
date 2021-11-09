@@ -24,7 +24,7 @@ class ExtensionResourceLoaderService extends AbstractExtensionResourceLoaderServ
 		@IProductService productService: IProductService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@ILogService readonly _logService: ILogService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super(fileService, storageService, productService, environmentService, configurationService);
 	}
