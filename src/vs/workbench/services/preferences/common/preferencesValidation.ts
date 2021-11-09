@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { JSONSchemaType } from 'vs/base/common/jsonSchema';
 import { Color } from 'vs/base/common/color';
-import { isArray, isObject, isUndefinedOrNull, isString, isStringArray } from 'vs/base/common/types';
+import { isArray, isObject, isUndefinedOrNull, isString, isStringArray, isNumber } from 'vs/base/common/types';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 
 type Validator<T> = { enabled: boolean, isValid: (value: T) => boolean; message: string };
@@ -52,7 +52,7 @@ export function createValidator(prop: IConfigurationPropertySchema): (value: any
 		}
 
 		if (isNumeric) {
-			if (isNullOrEmpty(value) || isNaN(+value)) {
+			if (isNullOrEmpty(value) || typeof value === 'boolean' || Array.isArray(value) || isNaN(+value)) {
 				errors.push(nls.localize('validations.expectedNumeric', "Value must be a number."));
 			} else {
 				errors.push(...numericValidations.filter(validator => !validator.isValid(+value)).map(validator => validator.message));

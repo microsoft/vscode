@@ -279,6 +279,31 @@ suite('Preferences Validation', () => {
 		}
 	});
 
+	test('numerical objects work', () => {
+		{
+			const obj = new Tester({ type: 'object', properties: { 'b': { type: 'number' } } });
+			obj.accepts({ 'b': 2.5 });
+			obj.accepts({ 'b': -2.5 });
+			obj.accepts({ 'b': 0 });
+			obj.accepts({ 'b': '0.12' });
+			obj.rejects({ 'b': 'abc' });
+			obj.rejects({ 'b': [] });
+			obj.rejects({ 'b': false });
+			obj.rejects({ 'b': null });
+			obj.rejects({ 'b': undefined });
+		}
+		{
+			const obj = new Tester({ type: 'object', properties: { 'b': { type: 'integer', minimum: 2, maximum: 5.5 } } });
+			obj.accepts({ 'b': 2 });
+			obj.accepts({ 'b': 3 });
+			obj.accepts({ 'b': '3.0' });
+			obj.accepts({ 'b': 5 });
+			obj.rejects({ 'b': 1 });
+			obj.rejects({ 'b': 6 });
+			obj.rejects({ 'b': 5.5 });
+		}
+	});
+
 	test('patterns work', () => {
 		{
 			const urls = new Tester({ pattern: '^(hello)*$', type: 'string' });
