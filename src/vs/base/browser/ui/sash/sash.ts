@@ -163,7 +163,6 @@ export class Sash extends Disposable {
 
 	private el: HTMLElement;
 	private layoutProvider: ISashLayoutProvider;
-	private hidden: boolean;
 	private orientation!: Orientation;
 	private size: number;
 	private hoverDelay = globalHoverDelay;
@@ -317,7 +316,6 @@ export class Sash extends Disposable {
 
 		this._register(onDidChangeHoverDelay.event(delay => this.hoverDelay = delay));
 
-		this.hidden = false;
 		this.layoutProvider = layoutProvider;
 
 		this.orthogonalStartSash = options.orthogonalStartSash;
@@ -502,22 +500,6 @@ export class Sash extends Disposable {
 				this.el.style.width = horizontalProvider.getHorizontalSashWidth(this) + 'px';
 			}
 		}
-	}
-
-	show(): void {
-		this.hidden = false;
-		this.el.style.removeProperty('display');
-		this.el.setAttribute('aria-hidden', 'false');
-	}
-
-	hide(): void {
-		this.hidden = true;
-		this.el.style.display = 'none';
-		this.el.setAttribute('aria-hidden', 'true');
-	}
-
-	isHidden(): boolean {
-		return this.hidden;
 	}
 
 	private getOrthogonalSash(e: PointerEvent): Sash | undefined {
