@@ -1120,18 +1120,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region https://github.com/microsoft/vscode/issues/132068
-
-	export interface QuickPick<T extends QuickPickItem> extends QuickInput {
-
-		/*
-		 * An optional flag to maintain the scroll position of the quick pick when the quick pick items are updated. Defaults to false.
-		 */
-		keepScrollPosition?: boolean;
-	}
-
-	//#endregion
-
 	//#region https://github.com/microsoft/vscode/issues/124970, Cell Execution State
 
 	/**
@@ -2799,20 +2787,6 @@ declare module 'vscode' {
 
 	namespace languages {
 		export function createLanguageStatusItem(id: string, selector: DocumentSelector): LanguageStatusItem;
-	}
-
-	//#endregion
-
-	//#region https://github.com/microsoft/vscode/issues/88716
-	export interface QuickPickItem {
-		buttons?: QuickInputButton[];
-	}
-	export interface QuickPick<T extends QuickPickItem> extends QuickInput {
-		readonly onDidTriggerItemButton: Event<QuickPickItemButtonEvent<T>>;
-	}
-	export interface QuickPickItemButtonEvent<T extends QuickPickItem> {
-		button: QuickInputButton;
-		item: T;
 	}
 
 	//#endregion

@@ -1672,6 +1672,12 @@ declare module 'vscode' {
 		 * Always show this item.
 		 */
 		alwaysShow?: boolean;
+
+		/**
+		 * Optional buttons that will be rendered on this particular item. These buttons will trigger
+		 * an {@link QuickPickItemButtonEvent} when clicked.
+		 */
+		readonly buttons?: QuickInputButton[];
 	}
 
 	/**
@@ -10200,6 +10206,12 @@ declare module 'vscode' {
 		readonly onDidTriggerButton: Event<QuickInputButton>;
 
 		/**
+		 * An event signaling when a button in a particular {@link QuickPickItem} was triggered.
+		 * This event does not fire for buttons in the title bar.
+		 */
+		readonly onDidTriggerItemButton: Event<QuickPickItemButtonEvent<T>>;
+
+		/**
 		 * Items to pick from. This can be read and updated by the extension.
 		 */
 		items: readonly T[];
@@ -10218,6 +10230,11 @@ declare module 'vscode' {
 		 * If the filter text should also be matched against the detail of the items. Defaults to false.
 		 */
 		matchOnDetail: boolean;
+
+		/*
+		 * An optional flag to maintain the scroll position of the quick pick when the quick pick items are updated. Defaults to false.
+		 */
+		keepScrollPosition?: boolean;
 
 		/**
 		 * Active items. This can be read and updated by the extension.
@@ -10328,6 +10345,21 @@ declare module 'vscode' {
 		 * @hidden
 		 */
 		private constructor();
+	}
+
+	/**
+	 * An event signaling when a button in a particular {@link QuickPickItem} was triggered.
+	 * This event does not fire for buttons in the title bar.
+	 */
+	export interface QuickPickItemButtonEvent<T extends QuickPickItem> {
+		/**
+		 * The button that was clicked.
+		 */
+		readonly button: QuickInputButton;
+		/**
+		 * The item that the button belongs to.
+		 */
+		readonly item: T;
 	}
 
 	/**
