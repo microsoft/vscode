@@ -15,6 +15,10 @@ import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { dirname, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
+import { TokenizationRegistry } from 'vs/editor/common/modes';
+import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
+import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { IModeService } from 'vs/editor/common/services/modeService';
 import * as nls from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
@@ -36,7 +40,7 @@ import { INotebookRendererInfo, RendererMessagingSpec } from 'vs/workbench/contr
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IScopedRendererMessaging } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IWebviewService, WebviewContentPurpose, IWebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewElement, IWebviewService, WebviewContentPurpose } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, IContentWidgetTopRequest, IControllerPreload, ICreationRequestMessage, IMarkupCellInitialization, ToWebviewMessage } from './webviewMessages';
 
@@ -131,6 +135,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IModeService private readonly modeService: IModeService,
 	) {
 		super();
 
@@ -161,6 +166,13 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			this._sendMessageToWebview({
 				type: 'updateWorkspaceTrust',
 				isTrusted: e,
+			});
+		}));
+
+		this._register(TokenizationRegistry.onDidChange(() => {
+			this._sendMessageToWebview({
+				type: 'tokenizedStylesChanged',
+				css: getTokenizationCss(),
 			});
 		}));
 	}
@@ -353,8 +365,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					tbody th {
 						font-weight: normal;
 					}
-
 				</style>
+				<style id="vscode-tokenization-styles" nonce="${this.nonce}">${getTokenizationCss()}</style>
 			</head>
 			<body style="overflow: hidden;">
 				<script>
@@ -718,6 +730,27 @@ var requirejs = (function() {
 						const cell = this.notebookEditor.getCellById(data.cellId);
 						if (cell instanceof MarkupCellViewModel) {
 							cell.renderedHtml = data.html;
+						}
+
+						for (const { id, value, lang } of data.codeBlocks) {
+							// The language id may be a language aliases (e.g.js instead of javascript)
+							const languageId = this.modeService.getModeIdForLanguageName(lang);
+							if (!languageId) {
+								continue;
+							}
+
+							this.modeService.triggerMode(languageId);
+							TokenizationRegistry.getPromise(languageId)?.then(tokenization => {
+								if (this._disposed) {
+									return;
+								}
+								const html = tokenizeToString(value, this.modeService.languageIdCodec, tokenization);
+								this._sendMessageToWebview({
+									type: 'tokenizedCodeBlock',
+									html,
+									codeBlockId: id
+								});
+							});
 						}
 						break;
 					}
@@ -1282,3 +1315,10 @@ var requirejs = (function() {
 		super.dispose();
 	}
 }
+
+function getTokenizationCss() {
+	const colorMap = TokenizationRegistry.getColorMap();
+	const tokenizationCss = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
+	return tokenizationCss;
+}
+

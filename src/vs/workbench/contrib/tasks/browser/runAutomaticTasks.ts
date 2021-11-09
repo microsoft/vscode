@@ -44,6 +44,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 
 		this.logService.trace('RunAutomaticTasks: Checking if automatic tasks should run.');
 		const isFolderAutomaticAllowed = this.storageService.getBoolean(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, StorageScope.WORKSPACE, undefined);
+		await this.workspaceTrustManagementService.workspaceTrustInitialized;
 		const isWorkspaceTrusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
 		// Only run if allowed. Prompting for permission occurs when a user first tries to run a task.
 		if (isFolderAutomaticAllowed && isWorkspaceTrusted) {

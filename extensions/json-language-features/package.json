@@ -135,7 +135,7 @@
   },
   "dependencies": {
     "request-light": "^0.5.4",
-    "vscode-extension-telemetry": "0.4.2",
+    "vscode-extension-telemetry": "0.4.3",
     "vscode-languageclient": "^7.0.0",
     "vscode-nls": "^5.0.0"
   },

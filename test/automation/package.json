@@ -19,20 +19,21 @@
     "copy-package-version": "node tools/copy-package-version.js",
     "prepublishOnly": "npm run copy-package-version"
   },
+  "dependencies": {
+    "mkdirp": "^1.0.4",
+    "ncp": "^2.0.0",
+    "tmp": "0.1.0",
+    "tree-kill": "1.2.2",
+    "vscode-uri": "^2.0.3"
+  },
   "devDependencies": {
-    "@types/debug": "4.1.5",
     "@types/mkdirp": "^1.0.1",
     "@types/ncp": "2.0.1",
     "@types/node": "14.x",
     "@types/tmp": "0.1.0",
     "cpx2": "3.0.0",
-    "mkdirp": "^1.0.4",
-    "ncp": "^2.0.0",
     "npm-run-all": "^4.1.5",
-    "tmp": "0.1.0",
-    "tree-kill": "1.2.2",
     "typescript": "^4.3.2",
-    "vscode-uri": "^2.0.3",
     "watch": "^1.0.2"
   }
 }

@@ -152,6 +152,12 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	 * Otherwise, the presentation format defaults to `singleline`.
 	 */
 	editPresentation?: EditPresentationTypes;
+
+	/**
+	 * When specified, gives an order number for the setting
+	 * within the settings editor. Otherwise, the setting is placed at the end.
+	 */
+	order?: number;
 }
 
 export interface IConfigurationExtensionInfo {

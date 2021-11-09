@@ -21,7 +21,7 @@ import { MinimapTokensColorTracker } from 'vs/editor/common/viewModel/minimapTok
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
 import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from 'vs/editor/common/viewModel/viewModelLines';
-import { ICoordinatesConverter, InjectedText, ILineBreaksComputer, IViewModel, MinimapLinesRenderingData, ViewLineData, ViewLineRenderingData, ViewModelDecoration, OverviewRulerDecorationsGroup, ILineBreaksComputerFactory } from 'vs/editor/common/viewModel/viewModel';
+import { ICoordinatesConverter, IViewModel, MinimapLinesRenderingData, ViewLineData, ViewLineRenderingData, ViewModelDecoration, OverviewRulerDecorationsGroup } from 'vs/editor/common/viewModel/viewModel';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as platform from 'vs/base/common/platform';
@@ -34,6 +34,7 @@ import { ViewModelEventDispatcher, OutgoingViewModelEvent, FocusChangedEvent, Sc
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { ArrayQueue } from 'vs/base/common/arrays';
+import { ILineBreaksComputerFactory, ILineBreaksComputer, InjectedText } from 'vs/editor/common/viewModel/modelLineProjectionData';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 

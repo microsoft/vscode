@@ -6,7 +6,7 @@ import * as assert from 'assert';
 import { WrappingIndent, EditorOptions } from 'vs/editor/common/config/editorOptions';
 import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { ILineBreaksComputerFactory, LineBreakData } from 'vs/editor/common/viewModel/viewModel';
+import { ModelLineProjectionData, ILineBreaksComputerFactory } from 'vs/editor/common/viewModel/modelLineProjectionData';
 
 function parseAnnotatedText(annotatedText: string): { text: string; indices: number[]; } {
 	let text = '';
@@ -23,7 +23,7 @@ function parseAnnotatedText(annotatedText: string): { text: string; indices: num
 	return { text: text, indices: indices };
 }
 
-function toAnnotatedText(text: string, lineBreakData: LineBreakData | null): string {
+function toAnnotatedText(text: string, lineBreakData: ModelLineProjectionData | null): string {
 	// Insert line break markers again, according to algorithm
 	let actualAnnotatedText = '';
 	if (lineBreakData) {
@@ -43,7 +43,7 @@ function toAnnotatedText(text: string, lineBreakData: LineBreakData | null): str
 	return actualAnnotatedText;
 }
 
-function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, text: string, previousLineBreakData: LineBreakData | null): LineBreakData | null {
+function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, text: string, previousLineBreakData: ModelLineProjectionData | null): ModelLineProjectionData | null {
 	const fontInfo = new FontInfo({
 		zoomLevel: 0,
 		pixelRatio: 1,
@@ -63,12 +63,12 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, 
 		maxDigitWidth: 7
 	}, false);
 	const lineBreaksComputer = factory.createLineBreaksComputer(fontInfo, tabSize, breakAfter, wrappingIndent);
-	const previousLineBreakDataClone = previousLineBreakData ? new LineBreakData(null, null, previousLineBreakData.breakOffsets.slice(0), previousLineBreakData.breakOffsetsVisibleColumn.slice(0), previousLineBreakData.wrappedTextIndentLength) : null;
+	const previousLineBreakDataClone = previousLineBreakData ? new ModelLineProjectionData(null, null, previousLineBreakData.breakOffsets.slice(0), previousLineBreakData.breakOffsetsVisibleColumn.slice(0), previousLineBreakData.wrappedTextIndentLength) : null;
 	lineBreaksComputer.addRequest(text, null, previousLineBreakDataClone);
 	return lineBreaksComputer.finalize()[0];
 }
 
-function assertLineBreaks(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, annotatedText: string, wrappingIndent = WrappingIndent.None): LineBreakData | null {
+function assertLineBreaks(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, annotatedText: string, wrappingIndent = WrappingIndent.None): ModelLineProjectionData | null {
 	// Create version of `annotatedText` with line break markers removed
 	const text = parseAnnotatedText(annotatedText).text;
 	const lineBreakData = getLineBreakData(factory, tabSize, breakAfter, 2, wrappingIndent, text, null);
@@ -122,7 +122,7 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 		assertLineBreaks(factory, 4, 5, 'aa.(.|).aaa');
 	});
 
-	function assertLineBreakDataEqual(a: LineBreakData | null, b: LineBreakData | null): void {
+	function assertLineBreakDataEqual(a: ModelLineProjectionData | null, b: ModelLineProjectionData | null): void {
 		if (!a || !b) {
 			assert.deepStrictEqual(a, b);
 			return;

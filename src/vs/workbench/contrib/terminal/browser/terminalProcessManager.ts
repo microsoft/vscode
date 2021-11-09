@@ -536,14 +536,14 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		return Promise.resolve(this._latency);
 	}
 
-	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
+	async refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]> {
 		if (!this._process) {
 			throw new Error('Cannot refresh property when process is undefined');
 		}
 		return this._process.refreshProperty(type);
 	}
 
-	async updateProperty<T extends ProcessPropertyType>(type: ProcessPropertyType, value: any): Promise<void> {
+	async updateProperty<T extends ProcessPropertyType>(type: T, value: IProcessPropertyMap[T]): Promise<void> {
 		return this._process?.updateProperty(type, value);
 	}
 

@@ -1372,8 +1372,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region closeEditor()
 
-	async closeEditor(editor: EditorInput | undefined = this.activeEditor || undefined, options?: ICloseEditorOptions): Promise<void> {
-		await this.doCloseEditorWithDirtyHandling(editor, options);
+	async closeEditor(editor: EditorInput | undefined = this.activeEditor || undefined, options?: ICloseEditorOptions): Promise<boolean> {
+		return this.doCloseEditorWithDirtyHandling(editor, options);
 	}
 
 	private async doCloseEditorWithDirtyHandling(editor: EditorInput | undefined = this.activeEditor || undefined, options?: ICloseEditorOptions, internalOptions?: IInternalEditorCloseOptions): Promise<boolean> {

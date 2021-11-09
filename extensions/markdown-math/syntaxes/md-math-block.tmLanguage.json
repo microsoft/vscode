@@ -48,7 +48,7 @@
 		"single_dollar_math_block": {
 			"name": "markup.math.block.markdown",
 			"contentName": "meta.embedded.math.markdown",
-			"begin": "(?<=^\\s*)(\\${1})(?![^$]*\\${1})",
+			"begin": "(?<=^\\s*)(\\$)(?![^$]*\\$|\\d)",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.definition.math.begin.markdown"

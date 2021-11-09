@@ -157,6 +157,9 @@ import 'vs/workbench/contrib/preferences/browser/preferencesSearch';
 // Performance
 import 'vs/workbench/contrib/performance/browser/performance.contribution';
 
+// Context Menus
+import 'vs/workbench/contrib/contextmenu/browser/contextmenu.contribution';
+
 // Notebook
 import 'vs/workbench/contrib/notebook/browser/notebook.contribution';
 

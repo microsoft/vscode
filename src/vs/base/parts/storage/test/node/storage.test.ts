@@ -222,6 +222,25 @@ flakySuite('Storage Library', function () {
 		await storage.close();
 	});
 
+	test('explicit flush', async () => {
+		let storage = new Storage(new SQLiteStorageDatabase(join(testDir, 'storage.db')));
+		await storage.init();
+
+		storage.set('foo', 'bar');
+		storage.set('bar', 'foo');
+
+		let flushPromiseResolved = false;
+		storage.whenFlushed().then(() => flushPromiseResolved = true);
+
+		strictEqual(flushPromiseResolved, false);
+
+		await storage.flush(0);
+
+		strictEqual(flushPromiseResolved, true);
+
+		await storage.close();
+	});
+
 	test('conflicting updates', () => {
 		return runWithFakedTimers({}, async function () {
 			let storage = new Storage(new SQLiteStorageDatabase(join(testDir, 'storage.db')));

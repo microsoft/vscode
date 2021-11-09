@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManifest, isProposedApiEnabled } from 'vs/platform/extensions/common/extensions';
 import { ExtHostNotebookRenderersShape, IMainContext, MainContext, MainThreadNotebookRenderersShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import { ExtHostNotebookEditor } from 'vs/workbench/api/common/extHostNotebookEditor';
@@ -31,7 +31,7 @@ export class ExtHostNotebookRenderers implements ExtHostNotebookRenderersShape {
 
 		// In the stable API, the editor is given as an empty object, and this map
 		// is used to maintain references. This can be removed after editor finalization.
-		const notebookEditorVisible = !!manifest.enableProposedApi;
+		const notebookEditorVisible = isProposedApiEnabled(manifest);
 		const notebookEditorAliases = new WeakMap<{}, vscode.NotebookEditor>();
 
 		const messaging: vscode.NotebookRendererMessaging = {

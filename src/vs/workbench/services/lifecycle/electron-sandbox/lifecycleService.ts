@@ -163,8 +163,8 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 		onUnexpectedError(error);
 	}
 
-	shutdown(): void {
-		this.nativeHostService.closeWindow();
+	shutdown(): Promise<void> {
+		return this.nativeHostService.closeWindow();
 	}
 }
 

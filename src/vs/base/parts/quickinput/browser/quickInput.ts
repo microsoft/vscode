@@ -26,7 +26,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { isIOS } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
-import { isString } from 'vs/base/common/types';
+import { isString, withNullAsUndefined } from 'vs/base/common/types';
 import { getIconClass } from 'vs/base/parts/quickinput/browser/quickInputUtils';
 import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickWillAcceptEvent, ItemActivation, NO_KEY_MODS, QuickInputHideReason, QuickPickInput } from 'vs/base/parts/quickinput/common/quickInput';
 import 'vs/css!./media/quickInput';
@@ -1686,8 +1686,12 @@ export class QuickInputController extends Disposable {
 			this.onHideEmitter.fire();
 			this.getUI().container.style.display = 'none';
 			if (!focusChanged) {
-				if (this.previousFocusElement && this.previousFocusElement.offsetParent) {
-					this.previousFocusElement.focus();
+				let currentElement = this.previousFocusElement;
+				while (currentElement && !currentElement.offsetParent) {
+					currentElement = withNullAsUndefined(currentElement.parentElement);
+				}
+				if (currentElement?.offsetParent && !currentElement.parentElement?.classList.contains('monaco-editor')) {
+					currentElement.focus();
 					this.previousFocusElement = undefined;
 				} else {
 					this.options.returnFocus();

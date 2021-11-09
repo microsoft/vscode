@@ -17,6 +17,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { distinct } from 'vs/base/common/arrays';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { debugStackframe, debugStackframeFocused } from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { noBreakWhitespace } from 'vs/base/common/strings';
 
 export const topStackFrameColor = registerColor('editor.stackFrameHighlightBackground', { dark: '#ffff0033', light: '#ffff6673', hc: '#ffff0033' }, localize('topStackFrameLineHighlight', 'Background color for the highlight of line at the top stack frame position.'));
 export const focusedStackFrameColor = registerColor('editor.focusedStackFrameHighlightBackground', { dark: '#7abd7a4d', light: '#cee7ce73', hc: '#7abd7a4d' }, localize('focusedStackFrameLineHighlight', 'Background color for the highlight of line at focused stack frame position.'));
@@ -80,7 +81,11 @@ export function createDecorationsForStackFrame(stackFrame: IStackFrame, isFocuse
 			result.push({
 				options: {
 					description: 'top-stack-frame-inline-decoration',
-					beforeContentClassName: noCharactersBefore ? 'debug-top-stack-frame-column start-of-line' : 'debug-top-stack-frame-column'
+					before: {
+						content: noBreakWhitespace,
+						inlineClassName: noCharactersBefore ? 'debug-top-stack-frame-column start-of-line' : 'debug-top-stack-frame-column',
+						inlineClassNameAffectsLetterSpacing: true
+					},
 				},
 				range: columnUntilEOLRange
 			});

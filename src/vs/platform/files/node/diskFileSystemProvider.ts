@@ -552,7 +552,6 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	//#region File Watching
 
 	protected createRecursiveWatcher(
-		folders: number,
 		onChange: (changes: IDiskFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
