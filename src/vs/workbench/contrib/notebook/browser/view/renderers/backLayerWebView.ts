@@ -51,14 +51,6 @@ export interface ICachedInset<K extends ICommonCellInfo> {
 	cachedCreation: ICreationRequestMessage;
 }
 
-function html(strings: TemplateStringsArray, ...values: any[]): string {
-	let str = '';
-	strings.forEach((string, i) => {
-		str += string + (values[i] || '');
-	});
-	return str;
-}
-
 export interface INotebookWebviewMessage {
 	message: unknown;
 }
@@ -232,7 +224,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			this.nonce);
 
 		const enableCsp = this.configurationService.getValue('notebook.experimental.enableCsp');
-		return html`
+		return /* html */`
 		<html lang="en">
 			<head>
 				<meta charset="UTF-8">
