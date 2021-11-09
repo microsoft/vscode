@@ -22,6 +22,7 @@
     "p-limit": "^3.0.2"
   },
   "devDependencies": {
+    "@types/mocha": "^8.2.0",
     "@types/node": "14.x",
     "@types/p-limit": "^2.2.0"
   },
