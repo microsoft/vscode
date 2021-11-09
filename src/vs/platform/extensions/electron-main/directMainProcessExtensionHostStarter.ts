@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { Promises } from 'vs/base/common/async';
 import { ExtensionHostStarter, IPartialLogService } from 'vs/platform/extensions/node/extensionHostStarter';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -12,24 +12,24 @@ export class DirectMainProcessExtensionHostStarter extends ExtensionHostStarter 
 
 	constructor(
 		@ILogService logService: IPartialLogService,
-		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
-		@IEnvironmentMainService environmentService: IEnvironmentMainService,
+		@ILifecycleMainService lifecycleMainService: ILifecycleMainService
 	) {
 		super(logService);
 
-		lifecycleMainService.onWillShutdown((e) => {
-			if (environmentService.extensionTestsLocationURI) {
-				// extension testing => don't wait for graceful shutdown
-				for (const [, extHost] of this._extHosts) {
-					extHost.kill();
-				}
-			} else {
-				const exitPromises: Promise<void>[] = [];
-				for (const [, extHost] of this._extHosts) {
-					exitPromises.push(extHost.waitForExit(6000));
-				}
-				e.join(Promise.all(exitPromises).then(() => { }));
+		// Abnormal shutdown: terminate extension hosts asap
+		lifecycleMainService.onWillKill(() => {
+			for (const [, extHost] of this._extHosts) {
+				extHost.kill();
 			}
+		});
+
+		// Normal shutdown: gracefully await extension host shutdowns
+		lifecycleMainService.onWillShutdown((e) => {
+			const exitPromises: Promise<void>[] = [];
+			for (const [, extHost] of this._extHosts) {
+				exitPromises.push(extHost.waitForExit(6000));
+			}
+			e.join(Promises.settled(exitPromises).then(() => { }));
 		});
 	}
 
