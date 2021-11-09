@@ -12,53 +12,7 @@ import { LineInjectedText } from 'vs/editor/common/model/textModelEvents';
 import { InjectedTextOptions } from 'vs/editor/common/model';
 import { ILineBreaksComputerFactory, ILineBreaksComputer, ModelLineProjectionData } from 'vs/editor/common/viewModel/modelLineProjectionData';
 
-const enum CharacterClass {
-	NONE = 0,
-	BREAK_BEFORE = 1,
-	BREAK_AFTER = 2,
-	BREAK_IDEOGRAPHIC = 3 // for Han and Kana.
-}
-
-class WrappingCharacterClassifier extends CharacterClassifier<CharacterClass> {
-
-	constructor(BREAK_BEFORE: string, BREAK_AFTER: string) {
-		super(CharacterClass.NONE);
-
-		for (let i = 0; i < BREAK_BEFORE.length; i++) {
-			this.set(BREAK_BEFORE.charCodeAt(i), CharacterClass.BREAK_BEFORE);
-		}
-
-		for (let i = 0; i < BREAK_AFTER.length; i++) {
-			this.set(BREAK_AFTER.charCodeAt(i), CharacterClass.BREAK_AFTER);
-		}
-	}
-
-	public override get(charCode: number): CharacterClass {
-		if (charCode >= 0 && charCode < 256) {
-			return <CharacterClass>this._asciiMap[charCode];
-		} else {
-			// Initialize CharacterClass.BREAK_IDEOGRAPHIC for these Unicode ranges:
-			// 1. CJK Unified Ideographs (0x4E00 -- 0x9FFF)
-			// 2. CJK Unified Ideographs Extension A (0x3400 -- 0x4DBF)
-			// 3. Hiragana and Katakana (0x3040 -- 0x30FF)
-			if (
-				(charCode >= 0x3040 && charCode <= 0x30FF)
-				|| (charCode >= 0x3400 && charCode <= 0x4DBF)
-				|| (charCode >= 0x4E00 && charCode <= 0x9FFF)
-			) {
-				return CharacterClass.BREAK_IDEOGRAPHIC;
-			}
-
-			return <CharacterClass>(this._map.get(charCode) || this._defaultValue);
-		}
-	}
-}
-
-let arrPool1: number[] = [];
-let arrPool2: number[] = [];
-
 export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFactory {
-
 	public static create(options: IComputedEditorOptions): MonospaceLineBreaksComputerFactory {
 		return new MonospaceLineBreaksComputerFactory(
 			options.get(EditorOption.wordWrapBreakBeforeCharacters),
@@ -104,6 +58,51 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 		};
 	}
 }
+
+const enum CharacterClass {
+	NONE = 0,
+	BREAK_BEFORE = 1,
+	BREAK_AFTER = 2,
+	BREAK_IDEOGRAPHIC = 3 // for Han and Kana.
+}
+
+class WrappingCharacterClassifier extends CharacterClassifier<CharacterClass> {
+
+	constructor(BREAK_BEFORE: string, BREAK_AFTER: string) {
+		super(CharacterClass.NONE);
+
+		for (let i = 0; i < BREAK_BEFORE.length; i++) {
+			this.set(BREAK_BEFORE.charCodeAt(i), CharacterClass.BREAK_BEFORE);
+		}
+
+		for (let i = 0; i < BREAK_AFTER.length; i++) {
+			this.set(BREAK_AFTER.charCodeAt(i), CharacterClass.BREAK_AFTER);
+		}
+	}
+
+	public override get(charCode: number): CharacterClass {
+		if (charCode >= 0 && charCode < 256) {
+			return <CharacterClass>this._asciiMap[charCode];
+		} else {
+			// Initialize CharacterClass.BREAK_IDEOGRAPHIC for these Unicode ranges:
+			// 1. CJK Unified Ideographs (0x4E00 -- 0x9FFF)
+			// 2. CJK Unified Ideographs Extension A (0x3400 -- 0x4DBF)
+			// 3. Hiragana and Katakana (0x3040 -- 0x30FF)
+			if (
+				(charCode >= 0x3040 && charCode <= 0x30FF)
+				|| (charCode >= 0x3400 && charCode <= 0x4DBF)
+				|| (charCode >= 0x4E00 && charCode <= 0x9FFF)
+			) {
+				return CharacterClass.BREAK_IDEOGRAPHIC;
+			}
+
+			return <CharacterClass>(this._map.get(charCode) || this._defaultValue);
+		}
+	}
+}
+
+let arrPool1: number[] = [];
+let arrPool2: number[] = [];
 
 function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterClassifier, previousBreakingData: ModelLineProjectionData, lineText: string, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent): ModelLineProjectionData | null {
 	if (firstLineBreakColumn === -1) {

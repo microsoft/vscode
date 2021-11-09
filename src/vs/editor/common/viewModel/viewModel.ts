@@ -19,79 +19,6 @@ import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewL
 import { ILineBreaksComputer, InjectedText } from 'vs/editor/common/viewModel/modelLineProjectionData';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 
-export interface IViewWhitespaceViewportData {
-	readonly id: string;
-	readonly afterLineNumber: number;
-	readonly verticalOffset: number;
-	readonly height: number;
-}
-
-export class Viewport {
-	readonly _viewportBrand: void = undefined;
-
-	readonly top: number;
-	readonly left: number;
-	readonly width: number;
-	readonly height: number;
-
-	constructor(top: number, left: number, width: number, height: number) {
-		this.top = top | 0;
-		this.left = left | 0;
-		this.width = width | 0;
-		this.height = height | 0;
-	}
-}
-
-export interface IViewLayout {
-
-	getScrollable(): Scrollable;
-
-	getScrollWidth(): number;
-	getScrollHeight(): number;
-
-	getCurrentScrollLeft(): number;
-	getCurrentScrollTop(): number;
-	getCurrentViewport(): Viewport;
-
-	getFutureViewport(): Viewport;
-
-	validateScrollPosition(scrollPosition: INewScrollPosition): IScrollPosition;
-
-	getLinesViewportData(): IPartialViewLinesViewportData;
-	getLinesViewportDataAtScrollTop(scrollTop: number): IPartialViewLinesViewportData;
-	getWhitespaces(): IEditorWhitespace[];
-
-	isAfterLines(verticalOffset: number): boolean;
-	isInTopPadding(verticalOffset: number): boolean;
-	isInBottomPadding(verticalOffset: number): boolean;
-	getLineNumberAtVerticalOffset(verticalOffset: number): number;
-	getVerticalOffsetForLineNumber(lineNumber: number): number;
-	getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData | null;
-
-	/**
-	 * Get the layout information for whitespaces currently in the viewport
-	 */
-	getWhitespaceViewportData(): IViewWhitespaceViewportData[];
-}
-
-export interface ICoordinatesConverter {
-	// View -> Model conversion and related methods
-	convertViewPositionToModelPosition(viewPosition: Position): Position;
-	convertViewRangeToModelRange(viewRange: Range): Range;
-	validateViewPosition(viewPosition: Position, expectedModelPosition: Position): Position;
-	validateViewRange(viewRange: Range, expectedModelRange: Range): Range;
-
-	// Model -> View conversion and related methods
-	convertModelPositionToViewPosition(modelPosition: Position, affinity?: PositionAffinity): Position;
-	/**
-	 * @param affinity Only has an effect if the range is empty.
-	*/
-	convertModelRangeToViewRange(modelRange: Range, affinity?: PositionAffinity): Range;
-	modelPositionIsVisible(modelPosition: Position): boolean;
-	getModelLineViewLineCount(modelLineNumber: number): number;
-	getViewLineNumberOfModelPosition(modelLineNumber: number, modelColumn: number): number;
-}
-
 export interface IViewModel extends ICursorSimpleModel {
 
 	readonly model: ITextModel;
@@ -182,6 +109,79 @@ export interface IViewModel extends ICursorSimpleModel {
 	changeWhitespace(callback: (accessor: IWhitespaceChangeAccessor) => void): void;
 	setMaxLineWidth(maxLineWidth: number): void;
 	//#endregion
+}
+
+export interface IViewLayout {
+
+	getScrollable(): Scrollable;
+
+	getScrollWidth(): number;
+	getScrollHeight(): number;
+
+	getCurrentScrollLeft(): number;
+	getCurrentScrollTop(): number;
+	getCurrentViewport(): Viewport;
+
+	getFutureViewport(): Viewport;
+
+	validateScrollPosition(scrollPosition: INewScrollPosition): IScrollPosition;
+
+	getLinesViewportData(): IPartialViewLinesViewportData;
+	getLinesViewportDataAtScrollTop(scrollTop: number): IPartialViewLinesViewportData;
+	getWhitespaces(): IEditorWhitespace[];
+
+	isAfterLines(verticalOffset: number): boolean;
+	isInTopPadding(verticalOffset: number): boolean;
+	isInBottomPadding(verticalOffset: number): boolean;
+	getLineNumberAtVerticalOffset(verticalOffset: number): number;
+	getVerticalOffsetForLineNumber(lineNumber: number): number;
+	getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData | null;
+
+	/**
+	 * Get the layout information for whitespaces currently in the viewport
+	 */
+	getWhitespaceViewportData(): IViewWhitespaceViewportData[];
+}
+
+export interface IViewWhitespaceViewportData {
+	readonly id: string;
+	readonly afterLineNumber: number;
+	readonly verticalOffset: number;
+	readonly height: number;
+}
+
+export class Viewport {
+	readonly _viewportBrand: void = undefined;
+
+	readonly top: number;
+	readonly left: number;
+	readonly width: number;
+	readonly height: number;
+
+	constructor(top: number, left: number, width: number, height: number) {
+		this.top = top | 0;
+		this.left = left | 0;
+		this.width = width | 0;
+		this.height = height | 0;
+	}
+}
+
+export interface ICoordinatesConverter {
+	// View -> Model conversion and related methods
+	convertViewPositionToModelPosition(viewPosition: Position): Position;
+	convertViewRangeToModelRange(viewRange: Range): Range;
+	validateViewPosition(viewPosition: Position, expectedModelPosition: Position): Position;
+	validateViewRange(viewRange: Range, expectedModelRange: Range): Range;
+
+	// Model -> View conversion and related methods
+	convertModelPositionToViewPosition(modelPosition: Position, affinity?: PositionAffinity): Position;
+	/**
+	 * @param affinity Only has an effect if the range is empty.
+	*/
+	convertModelRangeToViewRange(modelRange: Range, affinity?: PositionAffinity): Range;
+	modelPositionIsVisible(modelPosition: Position): boolean;
+	getModelLineViewLineCount(modelLineNumber: number): number;
+	getViewLineNumberOfModelPosition(modelLineNumber: number, modelColumn: number): number;
 }
 
 export class MinimapLinesRenderingData {
