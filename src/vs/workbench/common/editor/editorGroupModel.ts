@@ -70,6 +70,25 @@ export interface IMatchOptions {
 	strictEquals?: boolean;
 }
 
+export enum EditorModelChangeKind {
+	LOCK,
+	ACTIVATE,
+	OPEN,
+	CLOSE,
+	DISPOSE,
+	DIRTY,
+	LABEL,
+	CAPABILITIES,
+	MOVE,
+	PINNED,
+	STICKY
+}
+
+export interface EditorModelChangeEvent {
+	kind: EditorModelChangeKind;
+	editorInputOrEvent?: EditorInput | IEditorOpenEvent | IEditorCloseEvent | IEditorMoveEvent;
+}
+
 export class EditorGroupModel extends Disposable {
 
 	private static IDS = 0;
@@ -108,6 +127,9 @@ export class EditorGroupModel extends Disposable {
 
 	private readonly _onDidChangeEditorSticky = this._register(new Emitter<EditorInput>());
 	readonly onDidChangeEditorSticky = this._onDidChangeEditorSticky.event;
+
+	private readonly _onDidModelChange = this._register(new Emitter<EditorModelChangeEvent>());
+	readonly onDidModelChange = this._onDidModelChange.event;
 
 	//#endregion
 
@@ -287,6 +309,7 @@ export class EditorGroupModel extends Disposable {
 
 			// Event
 			this._onDidOpenEditor.fire({ editor: newEditor, groupId: this.id, index: targetIndex });
+			this._onDidModelChange.fire(({ kind: EditorModelChangeKind.OPEN, editorInputOrEvent: { editor: newEditor, groupId: this.id, index: targetIndex } }));
 
 			// Handle active
 			if (makeActive) {
@@ -338,22 +361,26 @@ export class EditorGroupModel extends Disposable {
 		listeners.add(Event.once(editor.onWillDispose)(() => {
 			if (this.indexOf(editor) >= 0) {
 				this._onWillDisposeEditor.fire(editor);
+				this._onDidModelChange.fire(({ kind: EditorModelChangeKind.DISPOSE, editorInputOrEvent: editor }));
 			}
 		}));
 
 		// Re-Emit dirty state changes
 		listeners.add(editor.onDidChangeDirty(() => {
 			this._onDidChangeEditorDirty.fire(editor);
+			this._onDidModelChange.fire(({ kind: EditorModelChangeKind.DIRTY, editorInputOrEvent: editor }));
 		}));
 
 		// Re-Emit label changes
 		listeners.add(editor.onDidChangeLabel(() => {
 			this._onDidChangeEditorLabel.fire(editor);
+			this._onDidModelChange.fire(({ kind: EditorModelChangeKind.LABEL, editorInputOrEvent: editor }));
 		}));
 
 		// Re-Emit capability changes
 		listeners.add(editor.onDidChangeCapabilities(() => {
 			this._onDidChangeEditorCapabilities.fire(editor);
+			this._onDidModelChange.fire(({ kind: EditorModelChangeKind.CAPABILITIES, editorInputOrEvent: editor }));
 		}));
 
 		// Clean up dispose listeners once the editor gets closed
@@ -374,6 +401,7 @@ export class EditorGroupModel extends Disposable {
 
 		if (event) {
 			this._onDidCloseEditor.fire(event);
+			this._onDidModelChange.fire({ kind: EditorModelChangeKind.CLOSE, editorInputOrEvent: event });
 		}
 	}
 
@@ -382,6 +410,7 @@ export class EditorGroupModel extends Disposable {
 
 		if (event) {
 			this._onDidCloseEditor.fire(event);
+			this._onDidModelChange.fire({ kind: EditorModelChangeKind.CLOSE, editorInputOrEvent: event });
 
 			return event;
 		}
@@ -467,6 +496,7 @@ export class EditorGroupModel extends Disposable {
 
 		// Event
 		this._onDidMoveEditor.fire({ editor, groupId: this.id, index, newIndex: toIndex, target: this.id });
+		this._onDidModelChange.fire({ kind: EditorModelChangeKind.MOVE, editorInputOrEvent: { editor, groupId: this.id, index, newIndex: toIndex, target: this.id } });
 
 		return editor;
 	}
@@ -498,6 +528,7 @@ export class EditorGroupModel extends Disposable {
 
 		// Event
 		this._onDidActivateEditor.fire(editor);
+		this._onDidModelChange.fire({ kind: EditorModelChangeKind.ACTIVATE, editorInputOrEvent: editor });
 	}
 
 	pin(candidate: EditorInput): EditorInput | undefined {
@@ -523,6 +554,7 @@ export class EditorGroupModel extends Disposable {
 
 		// Event
 		this._onDidChangeEditorPinned.fire(editor);
+		this._onDidModelChange.fire({ kind: EditorModelChangeKind.PINNED, editorInputOrEvent: editor });
 	}
 
 	unpin(candidate: EditorInput): EditorInput | undefined {
@@ -549,6 +581,7 @@ export class EditorGroupModel extends Disposable {
 
 		// Event
 		this._onDidChangeEditorPinned.fire(editor);
+		this._onDidModelChange.fire({ kind: EditorModelChangeKind.PINNED, editorInputOrEvent: editor });
 
 		// Close old preview editor if any
 		if (oldPreview) {
@@ -775,6 +808,7 @@ export class EditorGroupModel extends Disposable {
 			this.locked = locked;
 
 			this._onDidChangeLocked.fire();
+			this._onDidModelChange.fire({ kind: EditorModelChangeKind.LOCK });
 		}
 	}
 
