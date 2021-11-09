@@ -664,8 +664,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 				}
 
 				// Re-add new properties
-				for (const variable of Object.keys(event.data.styles)) {
-					documentStyle.setProperty(`--${variable}`, event.data.styles[variable]);
+				for (const [name, value] of Object.entries(event.data.styles)) {
+					documentStyle.setProperty(`--${name}`, value);
 				}
 				break;
 			case 'notebookOptions':
