@@ -64,25 +64,25 @@ export interface NotebookLayoutConfiguration {
 }
 
 export interface NotebookOptionsChangeEvent {
-	cellStatusBarVisibility?: boolean;
-	cellToolbarLocation?: boolean;
-	cellToolbarInteraction?: boolean;
-	editorTopPadding?: boolean;
-	compactView?: boolean;
-	focusIndicator?: boolean;
-	insertToolbarPosition?: boolean;
-	insertToolbarAlignment?: boolean;
-	globalToolbar?: boolean;
-	showFoldingControls?: boolean;
-	consolidatedOutputButton?: boolean;
-	consolidatedRunButton?: boolean;
-	dragAndDropEnabled?: boolean;
-	fontSize?: boolean;
-	editorOptionsCustomizations?: boolean;
-	cellBreakpointMargin?: boolean;
+	readonly cellStatusBarVisibility?: boolean;
+	readonly cellToolbarLocation?: boolean;
+	readonly cellToolbarInteraction?: boolean;
+	readonly editorTopPadding?: boolean;
+	readonly compactView?: boolean;
+	readonly focusIndicator?: boolean;
+	readonly insertToolbarPosition?: boolean;
+	readonly insertToolbarAlignment?: boolean;
+	readonly globalToolbar?: boolean;
+	readonly showFoldingControls?: boolean;
+	readonly consolidatedOutputButton?: boolean;
+	readonly consolidatedRunButton?: boolean;
+	readonly dragAndDropEnabled?: boolean;
+	readonly fontSize?: boolean;
+	readonly editorOptionsCustomizations?: boolean;
+	readonly cellBreakpointMargin?: boolean;
 }
 
-const defaultConfigConstants = {
+const defaultConfigConstants = Object.freeze({
 	codeCellLeftMargin: 28,
 	cellRunGutter: 32,
 	markdownCellTopMargin: 8,
@@ -90,9 +90,9 @@ const defaultConfigConstants = {
 	markdownCellLeftMargin: 0,
 	markdownCellGutter: 32,
 	focusIndicatorLeftMargin: 4
-};
+});
 
-const compactConfigConstants = {
+const compactConfigConstants = Object.freeze({
 	codeCellLeftMargin: 8,
 	cellRunGutter: 36,
 	markdownCellTopMargin: 6,
@@ -100,7 +100,7 @@ const compactConfigConstants = {
 	markdownCellLeftMargin: 8,
 	markdownCellGutter: 36,
 	focusIndicatorLeftMargin: 4
-};
+});
 
 export class NotebookOptions extends Disposable {
 	private _layoutConfiguration: NotebookLayoutConfiguration;
