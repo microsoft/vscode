@@ -46,7 +46,7 @@ import { ExtHostUrls } from 'vs/workbench/api/common/extHostUrls';
 import { ExtHostWebviews } from 'vs/workbench/api/common/extHostWebview';
 import { IExtHostWindow } from 'vs/workbench/api/common/extHostWindow';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { throwProposedApiError, checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import type * as vscode from 'vscode';
@@ -200,8 +200,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		// We only inform once, it is not a warning because we just want to raise awareness and because
 		// we cannot say if the extension is doing it right or wrong...
 		const checkSelector = (function () {
-			let done = (!extension.isUnderDevelopment);
-			function informOnce(selector: vscode.DocumentSelector) {
+			let done = !extension.isUnderDevelopment;
+			function informOnce() {
 				if (!done) {
 					extHostLogService.info(`Extension '${extension.identifier.value}' uses a document selector without scheme. Learn more about this: https://go.microsoft.com/fwlink/?linkid=872305`);
 					done = true;
@@ -211,14 +211,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				if (Array.isArray(selector)) {
 					selector.forEach(perform);
 				} else if (typeof selector === 'string') {
-					informOnce(selector);
+					informOnce();
 				} else {
 					const filter = selector as vscode.DocumentFilter; // TODO: microsoft/TypeScript#42768
 					if (typeof filter.scheme === 'undefined') {
-						informOnce(selector);
+						informOnce();
 					}
-					if (!extension.enableProposedApi && typeof filter.exclusive === 'boolean') {
-						throwProposedApiError(extension);
+					if (typeof filter.exclusive === 'boolean') {
+						checkProposedApiEnabled(extension);
 					}
 				}
 				return selector;

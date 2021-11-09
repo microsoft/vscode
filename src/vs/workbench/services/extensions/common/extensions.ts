@@ -321,12 +321,8 @@ export interface ProfileSession {
 
 export function checkProposedApiEnabled(extension: IExtensionDescription): void {
 	if (!extension.enableProposedApi) {
-		throwProposedApiError(extension);
+		throw new Error(`[${extension.identifier.value}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
 	}
-}
-
-export function throwProposedApiError(extension: IExtensionDescription): never {
-	throw new Error(`[${extension.identifier.value}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
 }
 
 export function toExtension(extensionDescription: IExtensionDescription): IExtension {
