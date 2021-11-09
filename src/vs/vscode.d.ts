@@ -13856,6 +13856,17 @@ declare module 'vscode' {
 	 */
 	export interface AuthenticationGetSessionOptions {
 		/**
+		 * Whether the existing user session preference should be cleared.
+		 *
+		 * For authentication providers that support being signed into multiple accounts at once, the user will be
+		 * prompted to select an account to use when {@link authentication.getSession getSession} is called. This preference
+		 * is remembered until {@link authentication.getSession getSession} is called with this flag.
+		 *
+		 * Defaults to false.
+		 */
+		clearSessionPreference?: boolean;
+
+		/**
 		 * Whether login should be performed if there is no matching session.
 		 *
 		 * If true, a modal dialog will be shown asking the user to sign in. If false, a numbered badge will be shown
@@ -13866,19 +13877,23 @@ declare module 'vscode' {
 		 * will also result in an immediate modal dialog, and false will add a numbered badge to the accounts icon.
 		 *
 		 * Defaults to false.
+		 *
+		 * Note: you cannot use this option with {@link silent}.
 		 */
 		createIfNone?: boolean;
 
+
 		/**
-		 * Whether the existing user session preference should be cleared.
+		 * Whether we should show the indication to sign in in the Accounts menu.
 		 *
-		 * For authentication providers that support being signed into multiple accounts at once, the user will be
-		 * prompted to select an account to use when {@link authentication.getSession getSession} is called. This preference
-		 * is remembered until {@link authentication.getSession getSession} is called with this flag.
+		 * If false, the user will be shown a badge on the Accounts menu with an option to sign in for the extension.
+		 * If true, no indication will be shown.
 		 *
 		 * Defaults to false.
+		 *
+		 * Note: you cannot use this option with any other options that prompt the user like {@link createIfNone}.
 		 */
-		clearSessionPreference?: boolean;
+		silent?: boolean;
 	}
 
 	/**
