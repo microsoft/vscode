@@ -15,11 +15,12 @@ import * as modes from 'vs/editor/common/modes';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
 import { ViewModelLinesFromProjectedModel } from 'vs/editor/common/viewModel/viewModelLines';
-import { ModelLineProjectionData, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
+import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { ISimpleModel, IModelLineProjection, createModelLineProjection } from 'vs/editor/common/viewModel/modelLineProjection';
+import { ModelLineProjectionData } from 'vs/editor/common/viewModel/modelLineProjectionData';
 
 suite('Editor ViewModel - SplitLinesCollection', () => {
 	test('SplitLine', () => {
