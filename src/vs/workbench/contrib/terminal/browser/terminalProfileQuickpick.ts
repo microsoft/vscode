@@ -95,7 +95,7 @@ export class TerminalProfileQuickpick {
 		const profiles = this._terminalProfileService.availableProfiles;
 		const profilesKey = TerminalSettingPrefix.Profiles + platformKey;
 		const defaultProfileName = this._terminalProfileService.getDefaultProfileName();
-
+		let keyMods: IKeyMods | undefined;
 		const options: IPickOptions<IProfileQuickPickItem> = {
 			placeHolder: type === 'createInstance' ? nls.localize('terminal.integrated.selectProfileToCreate', "Select the terminal profile to create") : nls.localize('terminal.integrated.chooseDefaultProfile', "Select your default terminal profile"),
 			onDidTriggerItemButton: async (context) => {
@@ -126,7 +126,8 @@ export class TerminalProfileQuickpick {
 					args: context.item.profile.args
 				};
 				await this._configurationService.updateValue(profilesKey, newConfigValue, ConfigurationTarget.USER);
-			}
+			},
+			onKeyMods: mods => keyMods = mods
 		};
 
 		// Build quick pick items
@@ -184,6 +185,9 @@ export class TerminalProfileQuickpick {
 		document.body.removeChild(styleElement);
 		if (!result) {
 			return undefined;
+		}
+		if (keyMods) {
+			result.keyMods = keyMods;
 		}
 		return result;
 	}
