@@ -781,7 +781,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout']
 		},
 		[NotebookSetting.markupFontSize]: {
-			markdownDescription: nls.localize('notebook.markup.fontSize', "Controls the font size of rendered markup in notebooks. When set to `0`, the value of `#editor.fontSize#` is used."),
+			markdownDescription: nls.localize('notebook.markup.fontSize', "Controls the font size of rendered markup in notebooks. When set to `0`, 120% `#editor.fontSize#` is used."),
 			type: 'number',
 			default: 0,
 			tags: ['notebookLayout']

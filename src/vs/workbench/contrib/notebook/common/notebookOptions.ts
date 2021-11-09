@@ -156,7 +156,7 @@ export class NotebookOptions extends Disposable {
 			insertToolbarAlignment,
 			showFoldingControls,
 			fontSize,
-			markupFontSize: markupFontSize > 0 ? markupFontSize : fontSize,
+			markupFontSize,
 			editorOptionsCustomizations,
 		};
 
@@ -267,7 +267,7 @@ export class NotebookOptions extends Disposable {
 		}
 
 		if (markupFontSize) {
-			configuration.markupFontSize = this.configurationService.getValue<number>(NotebookSetting.markupFontSize) || configuration.fontSize;
+			configuration.markupFontSize = this.configurationService.getValue<number>(NotebookSetting.markupFontSize);
 		}
 
 		if (editorOptionsCustomizations) {
