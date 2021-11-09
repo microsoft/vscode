@@ -143,6 +143,24 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		.code {
 			white-space: pre-wrap;
 		}
+
+		pre {
+			background-color: var(--vscode-textCodeBlock-background);
+		}
+		pre:not(.hljs), pre.hljs code > div {
+			padding: 16px;
+			border-radius: 3px;
+			overflow: auto;
+		}
+		pre code {
+			color: var(--vscode-editor-foreground);
+			tab-size: 4;
+		}
+		code {
+			font-family: var(--vscode-editor-font-family, "SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace);
+			font-size: 1em;
+			line-height: 1.357em;
+		}
 	`;
 	const template = document.createElement('template');
 	template.classList.add('markdown-style');
