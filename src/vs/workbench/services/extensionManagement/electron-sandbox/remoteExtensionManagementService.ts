@@ -68,7 +68,7 @@ export class NativeRemoteExtensionManagementService extends ExtensionManagementC
 						throw e;
 					}
 				default:
-					this.logService.debug(error.name);
+					this.logService.debug('Remote Install Error Name', error.name);
 					throw error;
 			}
 		}
