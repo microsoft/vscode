@@ -14,8 +14,9 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { LineInjectedText } from 'vs/editor/common/model/textModelEvents';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { createModelLineProjection, IModelLineProjection } from 'vs/editor/common/viewModel/modelLineProjection';
+import { ILineBreaksComputer, ModelLineProjectionData, InjectedText, ILineBreaksComputerFactory } from 'vs/editor/common/viewModel/modelLineProjectionData';
 import { ConstantTimePrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { ICoordinatesConverter, ILineBreaksComputer, ILineBreaksComputerFactory, InjectedText, LineBreakData, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
+import { ICoordinatesConverter, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 
 export interface IViewModelLines extends IDisposable {
 	createCoordinatesConverter(): ICoordinatesConverter;
@@ -28,8 +29,8 @@ export interface IViewModelLines extends IDisposable {
 	createLineBreaksComputer(): ILineBreaksComputer;
 	onModelFlushed(): void;
 	onModelLinesDeleted(versionId: number | null, fromLineNumber: number, toLineNumber: number): viewEvents.ViewLinesDeletedEvent | null;
-	onModelLinesInserted(versionId: number | null, fromLineNumber: number, toLineNumber: number, lineBreaks: (LineBreakData | null)[]): viewEvents.ViewLinesInsertedEvent | null;
-	onModelLineChanged(versionId: number | null, lineNumber: number, lineBreakData: LineBreakData | null): [boolean, viewEvents.ViewLinesChangedEvent | null, viewEvents.ViewLinesInsertedEvent | null, viewEvents.ViewLinesDeletedEvent | null];
+	onModelLinesInserted(versionId: number | null, fromLineNumber: number, toLineNumber: number, lineBreaks: (ModelLineProjectionData | null)[]): viewEvents.ViewLinesInsertedEvent | null;
+	onModelLineChanged(versionId: number | null, lineNumber: number, lineBreakData: ModelLineProjectionData | null): [boolean, viewEvents.ViewLinesChangedEvent | null, viewEvents.ViewLinesInsertedEvent | null, viewEvents.ViewLinesDeletedEvent | null];
 	acceptVersionId(versionId: number): void;
 
 	getViewLineCount(): number;
@@ -76,7 +77,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	*/
 	private projectedModelLineLineCounts!: ConstantTimePrefixSumComputer;
 
-	private hiddenAreasIds!: string[];
+	private hiddenAreasDecorationIds!: string[];
 
 	constructor(
 		editorId: number,
@@ -104,18 +105,18 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	public dispose(): void {
-		this.hiddenAreasIds = this.model.deltaDecorations(this.hiddenAreasIds, []);
+		this.hiddenAreasDecorationIds = this.model.deltaDecorations(this.hiddenAreasDecorationIds, []);
 	}
 
 	public createCoordinatesConverter(): ICoordinatesConverter {
 		return new CoordinatesConverter(this);
 	}
 
-	private _constructLines(resetHiddenAreas: boolean, previousLineBreaks: ((LineBreakData | null)[]) | null): void {
+	private _constructLines(resetHiddenAreas: boolean, previousLineBreaks: ((ModelLineProjectionData | null)[]) | null): void {
 		this.modelLineProjections = [];
 
 		if (resetHiddenAreas) {
-			this.hiddenAreasIds = [];
+			this.hiddenAreasDecorationIds = this.model.deltaDecorations(this.hiddenAreasDecorationIds, []);
 		}
 
 		const linesContent = this.model.getLinesContent();
@@ -132,7 +133,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 		let values: number[] = [];
 
-		let hiddenAreas = this.hiddenAreasIds.map((areaId) => this.model.getDecorationRange(areaId)!).sort(Range.compareRangesUsingStarts);
+		let hiddenAreas = this.hiddenAreasDecorationIds.map((areaId) => this.model.getDecorationRange(areaId)!).sort(Range.compareRangesUsingStarts);
 		let hiddenAreaStart = 1, hiddenAreaEnd = 0;
 		let hiddenAreaIdx = -1;
 		let nextLineNumberToUpdateHiddenArea = (hiddenAreaIdx + 1 < hiddenAreas.length) ? hiddenAreaEnd + 1 : lineCount + 2;
@@ -159,43 +160,19 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	public getHiddenAreas(): Range[] {
-		return this.hiddenAreasIds.map((decId) => {
-			return this.model.getDecorationRange(decId)!;
-		});
-	}
-
-	private _reduceRanges(_ranges: Range[]): Range[] {
-		if (_ranges.length === 0) {
-			return [];
-		}
-		let ranges = _ranges.map(r => this.model.validateRange(r)).sort(Range.compareRangesUsingStarts);
-
-		let result: Range[] = [];
-		let currentRangeStart = ranges[0].startLineNumber;
-		let currentRangeEnd = ranges[0].endLineNumber;
-
-		for (let i = 1, len = ranges.length; i < len; i++) {
-			let range = ranges[i];
-
-			if (range.startLineNumber > currentRangeEnd + 1) {
-				result.push(new Range(currentRangeStart, 1, currentRangeEnd, 1));
-				currentRangeStart = range.startLineNumber;
-				currentRangeEnd = range.endLineNumber;
-			} else if (range.endLineNumber > currentRangeEnd) {
-				currentRangeEnd = range.endLineNumber;
-			}
-		}
-		result.push(new Range(currentRangeStart, 1, currentRangeEnd, 1));
-		return result;
+		return this.hiddenAreasDecorationIds.map(
+			(decId) => this.model.getDecorationRange(decId)!
+		);
 	}
 
 	public setHiddenAreas(_ranges: Range[]): boolean {
+		const validatedRanges = _ranges.map(r => this.model.validateRange(r));
+		let newRanges = normalizeLineRanges(validatedRanges);
 
-		let newRanges = this._reduceRanges(_ranges);
+		// TODO@Martin: Please stop calling this method on each model change!
 
-		// BEGIN TODO@Martin: Please stop calling this method on each model change!
-		let oldRanges = this.hiddenAreasIds.map((areaId) => this.model.getDecorationRange(areaId)!).sort(Range.compareRangesUsingStarts);
-
+		// This checks if there really was a change
+		let oldRanges = this.hiddenAreasDecorationIds.map((areaId) => this.model.getDecorationRange(areaId)!).sort(Range.compareRangesUsingStarts);
 		if (newRanges.length === oldRanges.length) {
 			let hasDifference = false;
 			for (let i = 0; i < newRanges.length; i++) {
@@ -208,17 +185,16 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 				return false;
 			}
 		}
-		// END TODO@Martin: Please stop calling this method on each model change!
 
-		let newDecorations: IModelDeltaDecoration[] = [];
-		for (const newRange of newRanges) {
-			newDecorations.push({
-				range: newRange,
-				options: ModelDecorationOptions.EMPTY
-			});
-		}
+		const newDecorations = newRanges.map<IModelDeltaDecoration>(
+			(r) =>
+			({
+				range: r,
+				options: ModelDecorationOptions.EMPTY,
+			})
+		);
 
-		this.hiddenAreasIds = this.model.deltaDecorations(this.hiddenAreasIds, newDecorations);
+		this.hiddenAreasDecorationIds = this.model.deltaDecorations(this.hiddenAreasDecorationIds, newDecorations);
 
 		let hiddenAreas = newRanges;
 		let hiddenAreaStart = 1, hiddenAreaEnd = 0;
@@ -308,7 +284,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		this.wrappingColumn = wrappingColumn;
 		this.wrappingIndent = wrappingIndent;
 
-		let previousLineBreaks: ((LineBreakData | null)[]) | null = null;
+		let previousLineBreaks: ((ModelLineProjectionData | null)[]) | null = null;
 		if (onlyWrappingColumnChanged) {
 			previousLineBreaks = [];
 			for (let i = 0, len = this.modelLineProjections.length; i < len; i++) {
@@ -350,7 +326,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		return new viewEvents.ViewLinesDeletedEvent(outputFromLineNumber, outputToLineNumber);
 	}
 
-	public onModelLinesInserted(versionId: number | null, fromLineNumber: number, _toLineNumber: number, lineBreaks: (LineBreakData | null)[]): viewEvents.ViewLinesInsertedEvent | null {
+	public onModelLinesInserted(versionId: number | null, fromLineNumber: number, _toLineNumber: number, lineBreaks: (ModelLineProjectionData | null)[]): viewEvents.ViewLinesInsertedEvent | null {
 		if (!versionId || versionId <= this._validModelVersionId) {
 			// Here we check for versionId in case the lines were reconstructed in the meantime.
 			// We don't want to apply stale change events on top of a newer read model state.
@@ -386,7 +362,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		return new viewEvents.ViewLinesInsertedEvent(outputFromLineNumber, outputFromLineNumber + totalOutputLineCount - 1);
 	}
 
-	public onModelLineChanged(versionId: number | null, lineNumber: number, lineBreakData: LineBreakData | null): [boolean, viewEvents.ViewLinesChangedEvent | null, viewEvents.ViewLinesInsertedEvent | null, viewEvents.ViewLinesDeletedEvent | null] {
+	public onModelLineChanged(versionId: number | null, lineNumber: number, lineBreakData: ModelLineProjectionData | null): [boolean, viewEvents.ViewLinesChangedEvent | null, viewEvents.ViewLinesInsertedEvent | null, viewEvents.ViewLinesDeletedEvent | null] {
 		if (versionId !== null && versionId <= this._validModelVersionId) {
 			// Here we check for versionId in case the lines were reconstructed in the meantime.
 			// We don't want to apply stale change events on top of a newer read model state.
@@ -931,7 +907,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 	normalizePosition(position: Position, affinity: PositionAffinity): Position {
 		const info = this.getViewLineInfo(position.lineNumber);
-		return this.modelLineProjections[info.modelLineNumber - 1].normalizePosition(this.model, info.modelLineNumber, info.modelLineWrappedLineIdx, position, affinity);
+		return this.modelLineProjections[info.modelLineNumber - 1].normalizePosition(info.modelLineWrappedLineIdx, position, affinity);
 	}
 
 	public getLineIndentColumn(lineNumber: number): number {
@@ -945,6 +921,43 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		// to avoid two view lines reporting indentation for the very same model line.
 		return 0;
 	}
+}
+
+/**
+ * Overlapping unsorted ranges:
+ * [   )      [ )       [  )
+ *    [    )      [       )
+ * ->
+ * Non overlapping sorted ranges:
+ * [       )  [ ) [        )
+ *
+ * Note: This function only considers line information! Columns are ignored.
+*/
+function normalizeLineRanges(ranges: Range[]): Range[] {
+	if (ranges.length === 0) {
+		return [];
+	}
+
+	const sortedRanges = ranges.slice();
+	sortedRanges.sort(Range.compareRangesUsingStarts);
+
+	const result: Range[] = [];
+	let currentRangeStart = sortedRanges[0].startLineNumber;
+	let currentRangeEnd = sortedRanges[0].endLineNumber;
+
+	for (let i = 1, len = sortedRanges.length; i < len; i++) {
+		let range = sortedRanges[i];
+
+		if (range.startLineNumber > currentRangeEnd + 1) {
+			result.push(new Range(currentRangeStart, 1, currentRangeEnd, 1));
+			currentRangeStart = range.startLineNumber;
+			currentRangeEnd = range.endLineNumber;
+		} else if (range.endLineNumber > currentRangeEnd) {
+			currentRangeEnd = range.endLineNumber;
+		}
+	}
+	result.push(new Range(currentRangeStart, 1, currentRangeEnd, 1));
+	return result;
 }
 
 /**
@@ -1056,7 +1069,7 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 	public createLineBreaksComputer(): ILineBreaksComputer {
 		let result: null[] = [];
 		return {
-			addRequest: (lineText: string, injectedText: LineInjectedText[] | null, previousLineBreakData: LineBreakData | null) => {
+			addRequest: (lineText: string, injectedText: LineInjectedText[] | null, previousLineBreakData: ModelLineProjectionData | null) => {
 				result.push(null);
 			},
 			finalize: () => {
@@ -1072,11 +1085,11 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 		return new viewEvents.ViewLinesDeletedEvent(fromLineNumber, toLineNumber);
 	}
 
-	public onModelLinesInserted(_versionId: number | null, fromLineNumber: number, toLineNumber: number, lineBreaks: (LineBreakData | null)[]): viewEvents.ViewLinesInsertedEvent | null {
+	public onModelLinesInserted(_versionId: number | null, fromLineNumber: number, toLineNumber: number, lineBreaks: (ModelLineProjectionData | null)[]): viewEvents.ViewLinesInsertedEvent | null {
 		return new viewEvents.ViewLinesInsertedEvent(fromLineNumber, toLineNumber);
 	}
 
-	public onModelLineChanged(_versionId: number | null, lineNumber: number, lineBreakData: LineBreakData | null): [boolean, viewEvents.ViewLinesChangedEvent | null, viewEvents.ViewLinesInsertedEvent | null, viewEvents.ViewLinesDeletedEvent | null] {
+	public onModelLineChanged(_versionId: number | null, lineNumber: number, lineBreakData: ModelLineProjectionData | null): [boolean, viewEvents.ViewLinesChangedEvent | null, viewEvents.ViewLinesInsertedEvent | null, viewEvents.ViewLinesDeletedEvent | null] {
 		return [false, new viewEvents.ViewLinesChangedEvent(lineNumber, lineNumber), null, null];
 	}
 

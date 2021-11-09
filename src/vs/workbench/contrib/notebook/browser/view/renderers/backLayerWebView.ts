@@ -120,6 +120,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			runGutter: number,
 			dragAndDropEnabled: boolean,
 			fontSize: number
+			markupFontSize: number
 		},
 		private readonly rendererMessaging: IScopedRendererMessaging | undefined,
 		@IWebviewService readonly webviewService: IWebviewService,
@@ -187,6 +188,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		runGutter: number,
 		dragAndDropEnabled: boolean,
 		fontSize: number
+		markupFontSize: number
 	}) {
 		this.options = options;
 		this._updateStyles();
@@ -215,10 +217,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			'notebook-output-width': `calc(100% - ${this.options.leftMargin + this.options.rightMargin + this.options.runGutter}px)`,
 			'notebook-output-node-padding': `${this.options.outputNodePadding}px`,
 			'notebook-run-gutter': `${this.options.runGutter}px`,
-			'notebook-preivew-node-padding': `${this.options.previewNodePadding}px`,
+			'notebook-preview-node-padding': `${this.options.previewNodePadding}px`,
 			'notebook-markdown-left-margin': `${this.options.markdownLeftMargin}px`,
 			'notebook-output-node-left-padding': `${this.options.outputNodeLeftPadding}px`,
 			'notebook-markdown-min-height': `${this.options.previewNodePadding * 2}px`,
+			'notebook-markup-font-size': typeof this.options.markupFontSize === 'number' && this.options.markupFontSize > 0 ? `${this.options.markupFontSize}px` : `calc(${this.options.fontSize}px * 1.2)`,
 			'notebook-cell-output-font-size': `${this.options.fontSize}px`,
 			'notebook-cell-markup-empty-content': nls.localize('notebook.emptyMarkdownPlaceholder', "Empty markdown cell, double click or press enter to edit."),
 			'notebook-cell-renderer-not-found-error': nls.localize({
@@ -279,15 +282,17 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					/* markdown */
 					#container > div.preview {
 						width: 100%;
-						padding-right: var(--notebook-preivew-node-padding);
+						padding-right: var(--notebook-preview-node-padding);
 						padding-left: var(--notebook-markdown-left-margin);
-						padding-top: var(--notebook-preivew-node-padding);
-						padding-bottom: var(--notebook-preivew-node-padding);
+						padding-top: var(--notebook-preview-node-padding);
+						padding-bottom: var(--notebook-preview-node-padding);
 
 						box-sizing: border-box;
 						white-space: nowrap;
 						overflow: hidden;
 						white-space: initial;
+
+						font-size: var(--notebook-markup-font-size);
 						color: var(--theme-ui-foreground);
 					}
 

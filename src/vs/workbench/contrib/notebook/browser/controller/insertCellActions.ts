@@ -16,7 +16,7 @@ import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cel
 import { INotebookActionContext, NotebookAction } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_EDITABLE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellKind, GlobalToolbarShowLabel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const INSERT_CODE_CELL_ABOVE_COMMAND_ID = 'notebook.cell.insertCodeCellAbove';
 const INSERT_CODE_CELL_BELOW_COMMAND_ID = 'notebook.cell.insertCodeCellBelow';
@@ -323,7 +323,7 @@ MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
 		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
 		ContextKeyExpr.notEquals('config.notebook.insertToolbarLocation', 'betweenCells'),
 		ContextKeyExpr.notEquals('config.notebook.insertToolbarLocation', 'hidden'),
-		ContextKeyExpr.notEquals(`config.${GlobalToolbarShowLabel}`, false)
+		ContextKeyExpr.notEquals(`config.${NotebookSetting.globalToolbarShowLabel}`, false)
 	)
 });
 

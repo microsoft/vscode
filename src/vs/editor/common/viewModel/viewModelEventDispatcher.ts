@@ -171,6 +171,16 @@ export class ViewModelEventsCollector {
 	}
 }
 
+export type OutgoingViewModelEvent = (
+	ContentSizeChangedEvent
+	| FocusChangedEvent
+	| ScrollChangedEvent
+	| ViewZonesChangedEvent
+	| HiddenAreasChangedEvent
+	| ReadOnlyEditAttemptEvent
+	| CursorStateChangedEvent
+);
+
 export const enum OutgoingViewModelEventKind {
 	ContentSizeChanged,
 	FocusChanged,
@@ -399,13 +409,3 @@ export class ReadOnlyEditAttemptEvent {
 		return this;
 	}
 }
-
-export type OutgoingViewModelEvent = (
-	ContentSizeChangedEvent
-	| FocusChangedEvent
-	| ScrollChangedEvent
-	| ViewZonesChangedEvent
-	| HiddenAreasChangedEvent
-	| ReadOnlyEditAttemptEvent
-	| CursorStateChangedEvent
-);

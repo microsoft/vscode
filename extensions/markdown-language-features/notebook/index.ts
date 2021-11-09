@@ -29,10 +29,6 @@ export const activate: ActivationFunction<void> = (ctx) => {
 
 	const style = document.createElement('style');
 	style.textContent = `
-		#preview {
-			font-size: 1.1em;
-		}
-
 		.emptyMarkdownCell::before {
 			content: "${document.documentElement.style.getPropertyValue('--notebook-cell-markup-empty-content')}";
 			font-style: italic;

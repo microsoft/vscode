@@ -1030,3 +1030,5 @@ const enum CodePoint {
 	 */
 	enclosingKeyCap = 0x20E3,
 }
+
+export const noBreakWhitespace = '\xa0';

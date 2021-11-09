@@ -10,7 +10,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ILogger, ILoggerService } from 'vs/platform/log/common/log';
 import { OutputChannelUpdateMode } from 'vs/workbench/contrib/output/common/output';
 import { IExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
@@ -128,7 +127,7 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 			this.channels.set(channel.id, channel);
 			channel.visible = channel.id === this.visibleChannelId;
 		});
-		return this.createExtHostOutputChannel(name, extHostOutputChannel, extension);
+		return this.createExtHostOutputChannel(name, extHostOutputChannel);
 	}
 
 	private async doCreateOutputChannel(name: string, extension: IExtensionDescription): Promise<ExtHostOutputChannel> {
@@ -146,58 +145,42 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 		return this.outputDirectoryPromise;
 	}
 
-	private createExtHostOutputChannel(name: string, channelPromise: Promise<ExtHostOutputChannel>, extensionDescription: IExtensionDescription): vscode.OutputChannel {
-		const validate = (channel: ExtHostOutputChannel, checkProposedApi?: boolean) => {
-			if (checkProposedApi) {
-				checkProposedApiEnabled(extensionDescription);
-			}
-			if (channel.disposed) {
+	private createExtHostOutputChannel(name: string, channelPromise: Promise<ExtHostOutputChannel>): vscode.OutputChannel {
+		let disposed = false;
+		const validate = () => {
+			if (disposed) {
 				throw new Error('Channel has been closed');
 			}
 		};
 		return {
 			get name(): string { return name; },
 			append(value: string): void {
-				channelPromise.then(channel => {
-					validate(channel);
-					channel.append(value);
-				});
+				validate();
+				channelPromise.then(channel => channel.append(value));
 			},
 			appendLine(value: string): void {
-				channelPromise.then(channel => {
-					validate(channel);
-					channel.appendLine(value);
-				});
+				validate();
+				channelPromise.then(channel => channel.appendLine(value));
 			},
 			clear(): void {
-				channelPromise.then(channel => {
-					validate(channel);
-					channel.clear();
-				});
+				validate();
+				channelPromise.then(channel => channel.clear());
 			},
 			replace(value: string): void {
-				channelPromise.then(channel => {
-					validate(channel, true);
-					channel.replace(value);
-				});
+				validate();
+				channelPromise.then(channel => channel.replace(value));
 			},
 			show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
-				channelPromise.then(channel => {
-					validate(channel);
-					channel.show(columnOrPreserveFocus, preserveFocus);
-				});
+				validate();
+				channelPromise.then(channel => channel.show(columnOrPreserveFocus, preserveFocus));
 			},
 			hide(): void {
-				channelPromise.then(channel => {
-					validate(channel);
-					channel.hide();
-				});
+				validate();
+				channelPromise.then(channel => channel.hide());
 			},
 			dispose(): void {
-				channelPromise.then(channel => {
-					validate(channel);
-					channel.dispose();
-				});
+				disposed = true;
+				channelPromise.then(channel => channel.dispose());
 			}
 		};
 	}

@@ -6,11 +6,11 @@
 import assert = require('assert');
 import { PositionAffinity } from 'vs/editor/common/model';
 import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
-import { LineBreakData } from 'vs/editor/common/viewModel/viewModel';
+import { ModelLineProjectionData } from 'vs/editor/common/viewModel/modelLineProjectionData';
 
 suite('Editor ViewModel - LineBreakData', () => {
 	test('Basic', () => {
-		const data = new LineBreakData([], [], [100], [0], 10);
+		const data = new ModelLineProjectionData([], [], [100], [0], 10);
 
 		assert.strictEqual(data.translateToInputOffset(0, 50), 50);
 		assert.strictEqual(data.translateToInputOffset(1, 60), 150);
@@ -24,18 +24,18 @@ suite('Editor ViewModel - LineBreakData', () => {
 		return result;
 	}
 
-	function testInverse(data: LineBreakData) {
+	function testInverse(data: ModelLineProjectionData) {
 		for (let i = 0; i < 100; i++) {
 			const output = data.translateToOutputPosition(i);
 			assert.deepStrictEqual(data.translateToInputOffset(output.outputLineIndex, output.outputOffset), i);
 		}
 	}
 
-	function getInputOffsets(data: LineBreakData, outputLineIdx: number): number[] {
+	function getInputOffsets(data: ModelLineProjectionData, outputLineIdx: number): number[] {
 		return sequence(20).map(i => data.translateToInputOffset(outputLineIdx, i));
 	}
 
-	function getOutputOffsets(data: LineBreakData, affinity: PositionAffinity): string[] {
+	function getOutputOffsets(data: ModelLineProjectionData, affinity: PositionAffinity): string[] {
 		return sequence(25).map(i => data.translateToOutputPosition(i, affinity).toString());
 	}
 
@@ -44,7 +44,7 @@ suite('Editor ViewModel - LineBreakData', () => {
 	}
 
 	suite('Injected Text 1', () => {
-		const data = new LineBreakData([2, 3, 10], mapTextToInjectedTextOptions(['1', '22', '333']), [10, 100], [], 10);
+		const data = new ModelLineProjectionData([2, 3, 10], mapTextToInjectedTextOptions(['1', '22', '333']), [10, 100], [], 10);
 
 		test('getInputOffsetOfOutputPosition', () => {
 			// For every view model position, what is the model position?
@@ -183,7 +183,7 @@ suite('Editor ViewModel - LineBreakData', () => {
 	});
 
 	suite('Injected Text 2', () => {
-		const data = new LineBreakData([2, 2, 6], mapTextToInjectedTextOptions(['1', '22', '333']), [10, 100], [], 0);
+		const data = new ModelLineProjectionData([2, 2, 6], mapTextToInjectedTextOptions(['1', '22', '333']), [10, 100], [], 0);
 
 		test('getInputOffsetOfOutputPosition', () => {
 			assert.deepStrictEqual(
@@ -205,7 +205,7 @@ suite('Editor ViewModel - LineBreakData', () => {
 	});
 
 	suite('Injected Text 3', () => {
-		const data = new LineBreakData([2, 2, 7], mapTextToInjectedTextOptions(['1', '22', '333']), [10, 100], [], 0);
+		const data = new ModelLineProjectionData([2, 2, 7], mapTextToInjectedTextOptions(['1', '22', '333']), [10, 100], [], 0);
 
 		test('getInputOffsetOfOutputPosition', () => {
 			assert.deepStrictEqual(
