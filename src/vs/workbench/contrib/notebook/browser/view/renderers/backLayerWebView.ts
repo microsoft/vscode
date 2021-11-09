@@ -89,6 +89,19 @@ export interface INotebookDelegateForWebview {
 	triggerScroll(event: IMouseWheelEvent): void;
 }
 
+interface BacklayerWebviewOptions {
+	readonly outputNodePadding: number;
+	readonly outputNodeLeftPadding: number;
+	readonly previewNodePadding: number;
+	readonly markdownLeftMargin: number;
+	readonly leftMargin: number;
+	readonly rightMargin: number;
+	readonly runGutter: number;
+	readonly dragAndDropEnabled: boolean;
+	readonly fontSize: number;
+	readonly markupFontSize: number;
+}
+
 export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	element: HTMLElement;
 	webview: IWebviewElement | undefined = undefined;
@@ -110,18 +123,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		public readonly notebookEditor: INotebookDelegateForWebview,
 		public readonly id: string,
 		public readonly documentUri: URI,
-		private options: {
-			outputNodePadding: number,
-			outputNodeLeftPadding: number,
-			previewNodePadding: number,
-			markdownLeftMargin: number,
-			leftMargin: number,
-			rightMargin: number,
-			runGutter: number,
-			dragAndDropEnabled: boolean,
-			fontSize: number
-			markupFontSize: number
-		},
+		private options: BacklayerWebviewOptions,
 		private readonly rendererMessaging: IScopedRendererMessaging | undefined,
 		@IWebviewService readonly webviewService: IWebviewService,
 		@IOpenerService readonly openerService: IOpenerService,
@@ -178,18 +180,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		}));
 	}
 
-	updateOptions(options: {
-		outputNodePadding: number,
-		outputNodeLeftPadding: number,
-		previewNodePadding: number,
-		markdownLeftMargin: number,
-		leftMargin: number,
-		rightMargin: number,
-		runGutter: number,
-		dragAndDropEnabled: boolean,
-		fontSize: number
-		markupFontSize: number
-	}) {
+	updateOptions(options: BacklayerWebviewOptions) {
 		this.options = options;
 		this._updateStyles();
 		this._updateOptions();
