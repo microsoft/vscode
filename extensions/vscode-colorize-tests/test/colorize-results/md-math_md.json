@@ -6292,7 +6292,7 @@
 		}
 	},
 	{
-		"c": " Should allow inline code to be followed by non word character  #136584 ",
+		"c": " Should allow inline code to be followed by non word character #136584 ",
 		"t": "text.html.markdown comment.block.html",
 		"r": {
 			"dark_plus": "comment: #6A9955",
@@ -6458,6 +6458,72 @@
 	},
 	{
 		"c": "Should not be highlighted $\\frac{1}{2}$10",
+		"t": "text.html.markdown meta.paragraph.markdown",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "<!--",
+		"t": "text.html.markdown comment.block.html punctuation.definition.comment.html",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": " Should not highlight dollar amount at start of line #136535 ",
+		"t": "text.html.markdown comment.block.html",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "-->",
+		"t": "text.html.markdown comment.block.html punctuation.definition.comment.html",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "$12.45",
+		"t": "text.html.markdown meta.paragraph.markdown",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "$12.45 x",
+		"t": "text.html.markdown meta.paragraph.markdown",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "x $12.45",
 		"t": "text.html.markdown meta.paragraph.markdown",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
