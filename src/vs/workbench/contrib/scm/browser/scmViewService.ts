@@ -11,7 +11,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { SCMMenus } from 'vs/workbench/contrib/scm/browser/menus';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { debounce } from 'vs/base/common/decorators';
-import { ILogService } from 'vs/platform/log/common/log';
 
 function getProviderStorageKey(provider: ISCMProvider): string {
 	return `${provider.contextValue}:${provider.label}${provider.rootUri ? `:${provider.rootUri.toString()}` : ''}`;
