@@ -92,6 +92,13 @@ export interface ILifecycleMainService {
 	readonly onBeforeCloseWindow: Event<ICodeWindow>;
 
 	/**
+	 * An event that fires in the rare cases where `app.exit` is triggered
+	 * and thus we Forcefully shutdown the application. No other lifecycle
+	 * event handlers are triggered.
+	 */
+	readonly onWillKill: Event<void>;
+
+	/**
 	 * Make a `ICodeWindow` known to the lifecycle main service.
 	 */
 	registerWindow(window: ICodeWindow): void;
@@ -117,7 +124,8 @@ export interface ILifecycleMainService {
 	quit(willRestart?: boolean): Promise<boolean /* veto */>;
 
 	/**
-	 * Forcefully shutdown the application. No livecycle event handlers are triggered.
+	 * Forcefully shutdown the application. The only lifecycle event handler
+	 * that is triggered is `onWillKill`.
 	 */
 	kill(code?: number): Promise<void>;
 
@@ -168,6 +176,9 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 	private readonly _onBeforeUnloadWindow = this._register(new Emitter<IWindowUnloadEvent>());
 	readonly onBeforeUnloadWindow = this._onBeforeUnloadWindow.event;
+
+	private readonly _onWillKill = this._register(new Emitter<void>());
+	readonly onWillKill = this._onWillKill.event;
 
 	private _quitRequested = false;
 	get quitRequested(): boolean { return this._quitRequested; }
@@ -588,6 +599,9 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 	async kill(code?: number): Promise<void> {
 		this.logService.trace('Lifecycle#kill()');
+
+		// Event
+		this._onWillKill.fire();
 
 		// The kill() method is only used in 2 situations:
 		// - when an instance fails to start at all
