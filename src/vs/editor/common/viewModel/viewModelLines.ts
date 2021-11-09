@@ -185,14 +185,14 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 				return false;
 			}
 		}
-		
-		let newDecorations: IModelDeltaDecoration[] = [];
-		for (const newRange of newRanges) {
-			newDecorations.push({
-				range: newRange,
-				options: ModelDecorationOptions.EMPTY
-			});
-		}
+
+		const newDecorations = newRanges.map<IModelDeltaDecoration>(
+			(r) =>
+			({
+				range: r,
+				options: ModelDecorationOptions.EMPTY,
+			})
+		);
 
 		this.hiddenAreasDecorationIds = this.model.deltaDecorations(this.hiddenAreasDecorationIds, newDecorations);
 
