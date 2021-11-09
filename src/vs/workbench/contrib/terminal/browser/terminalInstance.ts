@@ -1692,9 +1692,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._horizontalScrollbar.getDomNode().style.paddingBottom = '16px';
 
 		// work around for https://github.com/xtermjs/xterm.js/issues/3482
-		for (let i = this.xterm.raw.buffer.active.viewportY; i < this.xterm.raw.buffer.active.length; i++) {
-			let line = this.xterm.raw.buffer.active.getLine(i);
-			(line as any)._line.isWrapped = false;
+		if (isWindows) {
+			for (let i = this.xterm.raw.buffer.active.viewportY; i < this.xterm.raw.buffer.active.length; i++) {
+				let line = this.xterm.raw.buffer.active.getLine(i);
+				(line as any)._line.isWrapped = false;
+			}
 		}
 	}
 
