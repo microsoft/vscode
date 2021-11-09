@@ -29,7 +29,7 @@ fi
 
 export REMOTE_VSCODE=$AUTHORITY$EXT_PATH
 VSCODECRASHDIR=$ROOT/.build/crashes
-VSCODELOGSDIR=$ROOT/.build/logs/remote-integration-tests
+VSCODELOGSDIR=$ROOT/.build/logs/integration-tests-remote
 
 # Figure out which Electron to use for running tests
 if [ -z "$INTEGRATION_TEST_ELECTRON_PATH" ]

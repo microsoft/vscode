@@ -21,7 +21,7 @@ IF "%VSCODEUSERDATADIR%" == "" (
 
 set REMOTE_VSCODE=%AUTHORITY%%EXT_PATH%
 set VSCODECRASHDIR=%~dp0\..\..\..\.build\crashes
-set VSCODELOGSDIR=%~dp0\..\..\..\.build\logs\remote-integration-tests
+set VSCODELOGSDIR=%~dp0\..\..\..\.build\logs\integration-tests-remote
 set TESTRESOLVER_DATA_FOLDER=%TMP%\testresolverdatafolder-%RANDOM%-%TIME:~6,5%
 
 if "%VSCODE_REMOTE_SERVER_PATH%"=="" (
