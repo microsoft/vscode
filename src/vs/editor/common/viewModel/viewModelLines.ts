@@ -77,7 +77,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	*/
 	private projectedModelLineLineCounts!: ConstantTimePrefixSumComputer;
 
-	private hiddenAreasIds!: string[];
+	private hiddenAreasDecorationIds!: string[];
 
 	constructor(
 		editorId: number,
@@ -105,7 +105,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	public dispose(): void {
-		this.hiddenAreasIds = this.model.deltaDecorations(this.hiddenAreasIds, []);
+		this.hiddenAreasDecorationIds = this.model.deltaDecorations(this.hiddenAreasDecorationIds, []);
 	}
 
 	public createCoordinatesConverter(): ICoordinatesConverter {
@@ -116,7 +116,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		this.modelLineProjections = [];
 
 		if (resetHiddenAreas) {
-			this.hiddenAreasIds = [];
+			this.hiddenAreasDecorationIds = this.model.deltaDecorations(this.hiddenAreasDecorationIds, []);
 		}
 
 		const linesContent = this.model.getLinesContent();
@@ -133,7 +133,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 		let values: number[] = [];
 
-		let hiddenAreas = this.hiddenAreasIds.map((areaId) => this.model.getDecorationRange(areaId)!).sort(Range.compareRangesUsingStarts);
+		let hiddenAreas = this.hiddenAreasDecorationIds.map((areaId) => this.model.getDecorationRange(areaId)!).sort(Range.compareRangesUsingStarts);
 		let hiddenAreaStart = 1, hiddenAreaEnd = 0;
 		let hiddenAreaIdx = -1;
 		let nextLineNumberToUpdateHiddenArea = (hiddenAreaIdx + 1 < hiddenAreas.length) ? hiddenAreaEnd + 1 : lineCount + 2;
@@ -160,9 +160,9 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	public getHiddenAreas(): Range[] {
-		return this.hiddenAreasIds.map((decId) => {
-			return this.model.getDecorationRange(decId)!;
-		});
+		return this.hiddenAreasDecorationIds.map(
+			(decId) => this.model.getDecorationRange(decId)!
+		);
 	}
 
 	public setHiddenAreas(_ranges: Range[]): boolean {
@@ -170,7 +170,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		let newRanges = normalizeLineRanges(validatedRanges);
 
 		// BEGIN TODO@Martin: Please stop calling this method on each model change!
-		let oldRanges = this.hiddenAreasIds.map((areaId) => this.model.getDecorationRange(areaId)!).sort(Range.compareRangesUsingStarts);
+		let oldRanges = this.hiddenAreasDecorationIds.map((areaId) => this.model.getDecorationRange(areaId)!).sort(Range.compareRangesUsingStarts);
 
 		if (newRanges.length === oldRanges.length) {
 			let hasDifference = false;
@@ -194,7 +194,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 			});
 		}
 
-		this.hiddenAreasIds = this.model.deltaDecorations(this.hiddenAreasIds, newDecorations);
+		this.hiddenAreasDecorationIds = this.model.deltaDecorations(this.hiddenAreasDecorationIds, newDecorations);
 
 		let hiddenAreas = newRanges;
 		let hiddenAreaStart = 1, hiddenAreaEnd = 0;
