@@ -257,6 +257,9 @@ export class TerminalService implements ITerminalService {
 		if (!result) {
 			return;
 		}
+		if (typeof result === 'string') {
+			return;
+		}
 		let keyMods: IKeyMods | undefined = result.keyMods;
 		if (type === 'createInstance') {
 			const activeInstance = this.getDefaultInstanceHost().activeInstance;

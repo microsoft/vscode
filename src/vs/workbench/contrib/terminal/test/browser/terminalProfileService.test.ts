@@ -23,10 +23,10 @@ import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService'
 import { Codicon } from 'vs/base/common/codicons';
 import { deepStrictEqual } from 'assert';
 import { Emitter } from 'vs/base/common/event';
-import { TerminalProfileQuickpick } from 'vs/workbench/contrib/terminal/browser/terminalProfileQuickpick';
-import { TestQuickInputService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { IProfileQuickPickItem, TerminalProfileQuickpick } from 'vs/workbench/contrib/terminal/browser/terminalProfileQuickpick';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IPickOptions, IQuickInputService, Omit, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 class TestTerminalProfileService extends TerminalProfileService implements Partial<ITerminalProfileService>{
 	hasRefreshedProfiles: Promise<void> | undefined;
@@ -53,8 +53,28 @@ class MockTerminalProfileService implements Partial<ITerminalProfileService>{
 	getDefaultProfileName(): string | undefined {
 		return this._defaultProfileName;
 	}
+	setProfiles(profiles: ITerminalProfile[], contributed: IExtensionTerminalProfile[]): void {
+		this.availableProfiles = profiles;
+		this.contributedProfiles = contributed;
+	}
 	setDefaultProfileName(name: string): void {
 		this._defaultProfileName = name;
+	}
+}
+
+
+class MockQuickInputService implements Partial<IQuickInputService> {
+	_pick: IProfileQuickPickItem = powershellPick;
+	pick(picks: QuickPickInput<IProfileQuickPickItem>[] | Promise<QuickPickInput<IProfileQuickPickItem>[]>, options?: IPickOptions<IProfileQuickPickItem> & { canPickMany: true; }, token?: CancellationToken): Promise<IProfileQuickPickItem[] | undefined>;
+	pick(picks: QuickPickInput<IProfileQuickPickItem>[] | Promise<QuickPickInput<IProfileQuickPickItem>[]>, options?: IPickOptions<IProfileQuickPickItem> & { canPickMany: false; }, token?: CancellationToken): Promise<IProfileQuickPickItem | undefined>;
+	pick(picks: QuickPickInput<IProfileQuickPickItem>[] | Promise<QuickPickInput<IProfileQuickPickItem>[]>, options?: Omit<IPickOptions<IProfileQuickPickItem>, 'canPickMany'>, token?: CancellationToken): Promise<IProfileQuickPickItem | undefined>;
+	async pick(picks: any, options?: any, token?: any): Promise<IProfileQuickPickItem | IProfileQuickPickItem[] | undefined> {
+		Promise.resolve(picks);
+		return this._pick;
+	}
+
+	setPick(pick: IProfileQuickPickItem) {
+		this._pick = pick;
 	}
 }
 
@@ -120,9 +140,11 @@ let jsdebugProfile = {
 	id: 'extension.js-debug.debugTerminal',
 	title: 'JavaScript Debug Terminal'
 };
+let powershellPick = { label: 'Powershell', profile: powershellProfile, profileName: powershellProfile.profileName };
+let jsdebugPick = { label: 'Javascript Debug Terminal', profile: jsdebugProfile, profileName: jsdebugProfile.title };
 
 
-suite.only('TerminalProfileService', () => {
+suite('TerminalProfileService', () => {
 	let configurationService: TestConfigurationService;
 	let terminalInstanceService: TestTerminalInstanceService;
 	let terminalProfileService: TestTerminalProfileService;
@@ -130,7 +152,6 @@ suite.only('TerminalProfileService', () => {
 	let extensionService: TestTerminalExtensionService;
 	let environmentService: IWorkbenchEnvironmentService;
 	let instantiationService: TestInstantiationService;
-	let terminalProfileQuickpick: TestTerminalProfileQuickpick;
 
 	setup(async () => {
 		configurationService = new TestConfigurationService({ terminal: { integrated: defaultTerminalConfig } });
@@ -140,11 +161,10 @@ suite.only('TerminalProfileService', () => {
 		environmentService = { configuration: {}, remoteAuthority: undefined } as IWorkbenchEnvironmentService;
 		instantiationService = new TestInstantiationService();
 
-		let quickInputService = new TestQuickInputService();
+
 		let themeService = new TestThemeService();
 		let terminalContributionService = new TestTerminalContributionService();
 		let contextKeyService = new MockContextKeyService();
-		let mockTerminalProfileService = new MockTerminalProfileService();
 
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IExtensionService, extensionService);
@@ -154,9 +174,7 @@ suite.only('TerminalProfileService', () => {
 		instantiationService.stub(ITerminalInstanceService, terminalInstanceService);
 		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
 		instantiationService.stub(IThemeService, themeService);
-		instantiationService.stub(IQuickInputService, quickInputService);
-		instantiationService.stub(ITerminalProfileService, mockTerminalProfileService);
-		terminalProfileQuickpick = instantiationService.createInstance(TestTerminalProfileQuickpick);
+
 		terminalProfileService = instantiationService.createInstance(TestTerminalProfileService);
 
 		//reset as these properties are changed in each test
@@ -315,61 +333,61 @@ suite.only('TerminalProfileService', () => {
 		deepStrictEqual(terminalProfileService.contributedProfiles, [jsdebugProfile]);
 	});
 	suite('Profiles Quickpick', () => {
+		let quickInputService: MockQuickInputService;
+		let mockTerminalProfileService: MockTerminalProfileService;
+		let terminalProfileQuickpick: TestTerminalProfileQuickpick;
+		setup(async () => {
+			quickInputService = new MockQuickInputService();
+			mockTerminalProfileService = new MockTerminalProfileService();
+			instantiationService.stub(IQuickInputService, quickInputService);
+			instantiationService.stub(ITerminalProfileService, mockTerminalProfileService);
+			terminalProfileQuickpick = instantiationService.createInstance(TestTerminalProfileQuickpick);
+		});
 		test('setDefault', async () => {
-			remoteAgentService.setEnvironment(OperatingSystem.Linux);
-			await configurationService.setUserConfiguration('terminal', {
-				integrated: {
-					defaultProfile: {
-						linux: jsdebugProfile.title
-					}
-				}
-			});
-			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
+			powershellProfile.isDefault = false;
+			mockTerminalProfileService.setProfiles([powershellProfile], [jsdebugProfile]);
+			mockTerminalProfileService.setDefaultProfileName(jsdebugProfile.title);
 			const result = await terminalProfileQuickpick.showAndGetResult('setDefault');
-			deepStrictEqual(result, { profile: powershellProfile, profileName: powershellProfile.profileName, keyMods: { alt: true, ctrlCmd: false } });
+			deepStrictEqual(result, powershellProfile.profileName);
 		});
 		test('setDefault to contributed', async () => {
-			remoteAgentService.setEnvironment(OperatingSystem.Linux);
-			await configurationService.setUserConfiguration('terminal', {
-				integrated: {
-					defaultProfile: {
-						linux: powershellProfile.profileName
-					}
-				}
-			});
-			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
+			mockTerminalProfileService.setDefaultProfileName(powershellProfile.profileName);
+			quickInputService.setPick(jsdebugPick);
 			const result = await terminalProfileQuickpick.showAndGetResult('setDefault');
-			deepStrictEqual(result, { profile: powershellProfile, profileName: powershellProfile.profileName, keyMods: { alt: true, ctrlCmd: false } });
+			const expected = {
+				config: {
+					extensionIdentifier: jsdebugProfile.extensionIdentifier,
+					id: jsdebugProfile.id,
+					options: { color: undefined, icon: 'debug' },
+					title: jsdebugProfile.title,
+				},
+				keyMods: undefined
+			};
+			deepStrictEqual(result, expected);
 		});
 
 		test('createInstance', async () => {
-			remoteAgentService.setEnvironment(OperatingSystem.Linux);
-			await configurationService.setUserConfiguration('terminal', {
-				integrated: {
-					profiles: {
-						defaultProfile: {
-							linux: 'JavaScript Debug Terminal'
-						}
-					}
-				}
-			});
-			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
+			mockTerminalProfileService.setDefaultProfileName(powershellProfile.profileName);
+			const pick = { ...powershellPick, keyMods: { alt: true, ctrlCmd: false } };
+			quickInputService.setPick(pick);
 			const result = await terminalProfileQuickpick.showAndGetResult('createInstance');
-			deepStrictEqual(result, { profile: powershellProfile, profileName: powershellProfile.profileName, keyMods: { alt: true, ctrlCmd: false } });
+			deepStrictEqual(result, { config: powershellProfile, keyMods: { alt: true, ctrlCmd: false } });
 		});
 
 		test('createInstance with contributed', async () => {
-			remoteAgentService.setEnvironment(OperatingSystem.Linux);
-			await configurationService.setUserConfiguration('terminal', {
-				integrated: {
-					defaultProfile: {
-						linux: powershellProfile.profileName
-					}
-				}
-			});
-			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
+			const pick = { ...jsdebugPick, keyMods: { alt: true, ctrlCmd: false } };
+			quickInputService.setPick(pick);
 			const result = await terminalProfileQuickpick.showAndGetResult('createInstance');
-			deepStrictEqual(result, { profile: powershellProfile, profileName: powershellProfile.profileName, keyMods: { alt: true, ctrlCmd: false } });
+			const expected = {
+				config: {
+					extensionIdentifier: jsdebugProfile.extensionIdentifier,
+					id: jsdebugProfile.id,
+					options: { color: undefined, icon: 'debug' },
+					title: jsdebugProfile.title,
+				},
+				keyMods: { alt: true, ctrlCmd: false }
+			};
+			deepStrictEqual(result, expected);
 		});
 	});
 });

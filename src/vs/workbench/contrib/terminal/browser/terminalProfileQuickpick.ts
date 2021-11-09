@@ -15,6 +15,7 @@ import { ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/te
 import { IQuickPickTerminalObject } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 
+type DefaultProfileName = string;
 export class TerminalProfileQuickpick {
 	constructor(
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
@@ -25,7 +26,7 @@ export class TerminalProfileQuickpick {
 
 	}
 
-	async showAndGetResult(type: 'setDefault' | 'createInstance'): Promise<IQuickPickTerminalObject | undefined> {
+	async showAndGetResult(type: 'setDefault' | 'createInstance'): Promise<IQuickPickTerminalObject | DefaultProfileName | undefined> {
 		const platformKey = await this._terminalProfileService.getPlatformKey();
 		const profilesKey = TerminalSettingPrefix.Profiles + platformKey;
 		const result = await this._createAndShow(type);
@@ -87,7 +88,8 @@ export class TerminalProfileQuickpick {
 				return { config: result.profile, keyMods: result.keyMods };
 			}
 		}
-		return undefined;
+		// for tests
+		return 'profileName' in result.profile ? result.profile.profileName : result.profile.title;
 	}
 
 	private async _createAndShow(type: 'setDefault' | 'createInstance'): Promise<IProfileQuickPickItem | undefined> {
@@ -95,7 +97,6 @@ export class TerminalProfileQuickpick {
 		const profiles = this._terminalProfileService.availableProfiles;
 		const profilesKey = TerminalSettingPrefix.Profiles + platformKey;
 		const defaultProfileName = this._terminalProfileService.getDefaultProfileName();
-		let keyMods: IKeyMods | undefined;
 
 		const options: IPickOptions<IProfileQuickPickItem> = {
 			placeHolder: type === 'createInstance' ? nls.localize('terminal.integrated.selectProfileToCreate', "Select the terminal profile to create") : nls.localize('terminal.integrated.chooseDefaultProfile', "Select your default terminal profile"),
@@ -127,8 +128,7 @@ export class TerminalProfileQuickpick {
 					args: context.item.profile.args
 				};
 				await this._configurationService.updateValue(profilesKey, newConfigValue, ConfigurationTarget.USER);
-			},
-			onKeyMods: mods => keyMods = mods
+			}
 		};
 
 		// Build quick pick items
@@ -187,7 +187,6 @@ export class TerminalProfileQuickpick {
 		if (!result) {
 			return undefined;
 		}
-		result.keyMods = keyMods;
 		return result;
 	}
 
