@@ -169,9 +169,10 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		const validatedRanges = _ranges.map(r => this.model.validateRange(r));
 		let newRanges = normalizeLineRanges(validatedRanges);
 
-		// BEGIN TODO@Martin: Please stop calling this method on each model change!
-		let oldRanges = this.hiddenAreasDecorationIds.map((areaId) => this.model.getDecorationRange(areaId)!).sort(Range.compareRangesUsingStarts);
+		// TODO@Martin: Please stop calling this method on each model change!
 
+		// This checks if there really was a change
+		let oldRanges = this.hiddenAreasDecorationIds.map((areaId) => this.model.getDecorationRange(areaId)!).sort(Range.compareRangesUsingStarts);
 		if (newRanges.length === oldRanges.length) {
 			let hasDifference = false;
 			for (let i = 0; i < newRanges.length; i++) {
@@ -184,8 +185,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 				return false;
 			}
 		}
-		// END TODO@Martin: Please stop calling this method on each model change!
-
+		
 		let newDecorations: IModelDeltaDecoration[] = [];
 		for (const newRange of newRanges) {
 			newDecorations.push({
