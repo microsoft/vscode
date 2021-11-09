@@ -151,3 +151,11 @@ a **b**
     \frac{1}{2}
     $$
     **b**
+
+<!-- Should allow inline code to be followed by non word character  #136584 -->
+
+Should be highlighted $\frac{1}{2}$.
+
+Should not be highlighted $\frac{1}{2}$text
+
+Should not be highlighted $\frac{1}{2}$10
