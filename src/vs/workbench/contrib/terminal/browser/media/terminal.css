@@ -63,12 +63,12 @@
 
 .monaco-workbench .editor-instance .xterm-viewport,
 .monaco-workbench .pane-body.integrated-terminal .xterm-viewport {
-	z-index: 100;
+	z-index: 30;
 }
 
 .monaco-workbench .editor-instance .xterm-screen,
 .monaco-workbench .pane-body.integrated-terminal .xterm-screen {
-	z-index: 101;
+	z-index: 31;
 }
 
 .xterm .xterm-screen {

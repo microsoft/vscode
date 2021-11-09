@@ -443,7 +443,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 
-		const computedStyle = window.getComputedStyle(this._wrapperElement!);
+		const computedStyle = window.getComputedStyle(this._container);
 		const width = parseInt(computedStyle.width);
 		const height = parseInt(computedStyle.height);
 
@@ -1679,6 +1679,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._hasScrollBar = true;
 		this._initDimensions();
 		// Always remove a row to make room for the scroll bar
+		console.log('_rows', this._rows);
 		this._fixedRows = this._rows - 1;
 		await this._resize();
 		this._terminalHasFixedWidth.set(true);
