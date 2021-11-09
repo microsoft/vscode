@@ -105,7 +105,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	private readonly _onMessage = this._register(new Emitter<INotebookWebviewMessage>());
 	private readonly _preloadsCache = new Set<string>();
 	public readonly onMessage: Event<INotebookWebviewMessage> = this._onMessage.event;
-	private _initalized?: Promise<void>;
+	private _initialized?: Promise<void>;
 	private _disposed = false;
 	private _currentKernel?: INotebookKernel;
 
@@ -422,7 +422,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		let coreDependencies = '';
 		let resolveFunc: () => void;
 
-		this._initalized = new Promise<void>((resolve, reject) => {
+		this._initialized = new Promise<void>((resolve) => {
 			resolveFunc = resolve;
 		});
 
@@ -471,7 +471,7 @@ var requirejs = (function() {
 			});
 		}
 
-		await this._initalized;
+		await this._initialized;
 	}
 
 	private _initialize(content: string) {
