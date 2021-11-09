@@ -40,20 +40,19 @@
 .monaco-workbench .editor-instance .terminal-wrapper,
 .monaco-workbench .pane-body.integrated-terminal .terminal-wrapper {
 	display: none;
-	/* margin: 0 10px; */
 	height: 100%;
-	/* padding-bottom: 2px; */
 	box-sizing: border-box;
 }
 
 .monaco-workbench .editor-instance .xterm,
 .monaco-workbench .pane-body.integrated-terminal .xterm {
+	/* All terminals have at least 10px left/right edge padding and 2 padding on the bottom (so underscores on last line are visible */
 	padding: 0 10px 2px;
 	/* Bottom align the terminal withing the split pane */
 	position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
+	bottom: 0;
+	left: 0;
+	right: 0;
 }
 
 .monaco-workbench .editor-instance .terminal-wrapper.fixed-dims .xterm,
@@ -72,22 +71,13 @@
 }
 
 .xterm .xterm-screen {
-    cursor: text;
+	cursor: text;
 }
 
-.xterm.enable-mouse-events .xterm-screen {
-    /* When mouse events are enabled (eg. tmux), revert to the standard pointer cursor */
-    cursor: default;
-}
-
-.xterm.xterm-cursor-pointer .xterm-screen {
-    cursor: pointer;
-}
-
-.xterm.column-select.focus .xterm-screen {
-    /* Column selection mode */
-    cursor: crosshair;
-}
+/* Apply cursor styles to xterm-screen as well due to how .xterm-viewport/.xterm are positioned */
+.xterm.enable-mouse-events .xterm-screen  { cursor: default; }
+.xterm.xterm-cursor-pointer .xterm-screen { cursor: pointer; }
+.xterm.column-select.focus .xterm-screen  { cursor: crosshair; }
 
 .monaco-workbench .editor-instance .terminal-wrapper.active,
 .monaco-workbench .pane-body.integrated-terminal .terminal-wrapper.active {
@@ -125,7 +115,6 @@
 	position: relative;
 }
 
-/* TODO: Add class for fixed dimensions */
 .monaco-workbench .editor-instance .terminal-wrapper:not(.fixed-dims) .xterm-viewport,
 .monaco-workbench .pane-body.integrated-terminal .terminal-wrapper:not(.fixed-dims) .xterm-viewport {
 	/* Override xterm.js' width as we want to size the viewport to fill the panel so the scrollbar is on the right edge */

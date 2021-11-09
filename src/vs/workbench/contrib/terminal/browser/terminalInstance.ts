@@ -1679,7 +1679,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._hasScrollBar = true;
 		this._initDimensions();
 		// Always remove a row to make room for the scroll bar
-		console.log('_rows', this._rows);
 		this._fixedRows = this._rows - 1;
 		await this._resize();
 		this._terminalHasFixedWidth.set(true);
@@ -1695,8 +1694,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		this._horizontalScrollbar.setScrollDimensions({
 			width: this.xterm.raw.element.clientWidth,
-			// TODO: Use const/property for padding
-			scrollWidth: this._fixedCols * charWidth + 40
+			scrollWidth: this._fixedCols * charWidth + 40 // Padding + scroll bar
 		});
 		this._horizontalScrollbar.getDomNode().style.paddingBottom = '16px';
 
