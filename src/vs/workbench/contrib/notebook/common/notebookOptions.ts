@@ -6,7 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CellToolbarLocation, CellToolbarVisibility, CompactView, ConsolidatedOutputButton, ConsolidatedRunButton, DragAndDropEnabled, ExperimentalInsertToolbarAlignment, FocusIndicator, GlobalToolbar, InsertToolbarLocation, NotebookCellEditorOptionsCustomizations, NotebookCellInternalMetadata, ShowCellStatusBar, ShowCellStatusBarType, ShowFoldingControls } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellToolbarLocation, CellToolbarVisibility, CompactView, ConsolidatedOutputButton, ConsolidatedRunButton, DragAndDropEnabled, ExperimentalInsertToolbarAlignment, FocusIndicator, GlobalToolbar, InsertToolbarLocation, NotebookCellEditorOptionsCustomizations, NotebookCellInternalMetadata, NotebookMarkupFontSize, ShowCellStatusBar, ShowCellStatusBarType, ShowFoldingControls } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const SCROLLABLE_ELEMENT_PADDING_TOP = 18;
 
@@ -59,30 +59,32 @@ export interface NotebookLayoutConfiguration {
 	showFoldingControls: 'always' | 'mouseover';
 	dragAndDropEnabled: boolean;
 	fontSize: number;
+	markupFontSize: number;
 	focusIndicatorLeftMargin: number;
 	editorOptionsCustomizations: any | undefined;
 }
 
 export interface NotebookOptionsChangeEvent {
-	cellStatusBarVisibility?: boolean;
-	cellToolbarLocation?: boolean;
-	cellToolbarInteraction?: boolean;
-	editorTopPadding?: boolean;
-	compactView?: boolean;
-	focusIndicator?: boolean;
-	insertToolbarPosition?: boolean;
-	insertToolbarAlignment?: boolean;
-	globalToolbar?: boolean;
-	showFoldingControls?: boolean;
-	consolidatedOutputButton?: boolean;
-	consolidatedRunButton?: boolean;
-	dragAndDropEnabled?: boolean;
-	fontSize?: boolean;
-	editorOptionsCustomizations?: boolean;
-	cellBreakpointMargin?: boolean;
+	readonly cellStatusBarVisibility?: boolean;
+	readonly cellToolbarLocation?: boolean;
+	readonly cellToolbarInteraction?: boolean;
+	readonly editorTopPadding?: boolean;
+	readonly compactView?: boolean;
+	readonly focusIndicator?: boolean;
+	readonly insertToolbarPosition?: boolean;
+	readonly insertToolbarAlignment?: boolean;
+	readonly globalToolbar?: boolean;
+	readonly showFoldingControls?: boolean;
+	readonly consolidatedOutputButton?: boolean;
+	readonly consolidatedRunButton?: boolean;
+	readonly dragAndDropEnabled?: boolean;
+	readonly fontSize?: boolean;
+	readonly markupFontSize?: boolean;
+	readonly editorOptionsCustomizations?: boolean;
+	readonly cellBreakpointMargin?: boolean;
 }
 
-const defaultConfigConstants = {
+const defaultConfigConstants = Object.freeze({
 	codeCellLeftMargin: 28,
 	cellRunGutter: 32,
 	markdownCellTopMargin: 8,
@@ -90,9 +92,9 @@ const defaultConfigConstants = {
 	markdownCellLeftMargin: 0,
 	markdownCellGutter: 32,
 	focusIndicatorLeftMargin: 4
-};
+});
 
-const compactConfigConstants = {
+const compactConfigConstants = Object.freeze({
 	codeCellLeftMargin: 8,
 	cellRunGutter: 36,
 	markdownCellTopMargin: 6,
@@ -100,7 +102,7 @@ const compactConfigConstants = {
 	markdownCellLeftMargin: 8,
 	markdownCellGutter: 36,
 	focusIndicatorLeftMargin: 4
-};
+});
 
 export class NotebookOptions extends Disposable {
 	private _layoutConfiguration: NotebookLayoutConfiguration;
@@ -123,6 +125,7 @@ export class NotebookOptions extends Disposable {
 		const showFoldingControls = this._computeShowFoldingControlsOption();
 		// const { bottomToolbarGap, bottomToolbarHeight } = this._computeBottomToolbarDimensions(compactView, insertToolbarPosition, insertToolbarAlignment);
 		const fontSize = this.configurationService.getValue<number>('editor.fontSize');
+		const markupFontSize = this.configurationService.getValue<number>(NotebookMarkupFontSize);
 		const editorOptionsCustomizations = this.configurationService.getValue(NotebookCellEditorOptionsCustomizations);
 
 		this._layoutConfiguration = {
@@ -153,6 +156,7 @@ export class NotebookOptions extends Disposable {
 			insertToolbarAlignment,
 			showFoldingControls,
 			fontSize,
+			markupFontSize: markupFontSize > 0 ? markupFontSize : fontSize,
 			editorOptionsCustomizations,
 		};
 
@@ -182,6 +186,7 @@ export class NotebookOptions extends Disposable {
 		const showFoldingControls = e.affectsConfiguration(ShowFoldingControls);
 		const dragAndDropEnabled = e.affectsConfiguration(DragAndDropEnabled);
 		const fontSize = e.affectsConfiguration('editor.fontSize');
+		const markupFontSize = e.affectsConfiguration(NotebookMarkupFontSize);
 		const editorOptionsCustomizations = e.affectsConfiguration(NotebookCellEditorOptionsCustomizations);
 
 		if (
@@ -198,6 +203,7 @@ export class NotebookOptions extends Disposable {
 			&& !showFoldingControls
 			&& !dragAndDropEnabled
 			&& !fontSize
+			&& !markupFontSize
 			&& !editorOptionsCustomizations) {
 			return;
 		}
@@ -260,6 +266,10 @@ export class NotebookOptions extends Disposable {
 			configuration.fontSize = this.configurationService.getValue<number>('editor.fontSize');
 		}
 
+		if (markupFontSize) {
+			configuration.markupFontSize = this.configurationService.getValue<number>(NotebookMarkupFontSize) || configuration.fontSize;
+		}
+
 		if (editorOptionsCustomizations) {
 			configuration.editorOptionsCustomizations = this.configurationService.getValue(NotebookCellEditorOptionsCustomizations);
 		}
@@ -281,6 +291,7 @@ export class NotebookOptions extends Disposable {
 			consolidatedRunButton,
 			dragAndDropEnabled,
 			fontSize,
+			markupFontSize,
 			editorOptionsCustomizations
 		});
 	}
@@ -456,7 +467,8 @@ export class NotebookOptions extends Disposable {
 			rightMargin: this._layoutConfiguration.cellRightMargin,
 			runGutter: this._layoutConfiguration.cellRunGutter,
 			dragAndDropEnabled: this._layoutConfiguration.dragAndDropEnabled,
-			fontSize: this._layoutConfiguration.fontSize
+			fontSize: this._layoutConfiguration.fontSize,
+			markupFontSize: this._layoutConfiguration.markupFontSize,
 		};
 	}
 
@@ -470,7 +482,8 @@ export class NotebookOptions extends Disposable {
 			rightMargin: 0,
 			runGutter: 0,
 			dragAndDropEnabled: false,
-			fontSize: this._layoutConfiguration.fontSize
+			fontSize: this._layoutConfiguration.fontSize,
+			markupFontSize: this._layoutConfiguration.markupFontSize,
 		};
 	}
 

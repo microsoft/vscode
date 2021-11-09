@@ -261,11 +261,11 @@ export class RemoteTerminalChannelClient {
 		return this._channel.call('$getWslPath', [original]);
 	}
 
-	setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void> {
+	setTerminalLayoutInfo(layout?: ITerminalsLayoutInfoById): Promise<void> {
 		const workspace = this._workspaceContextService.getWorkspace();
 		const args: ISetTerminalLayoutInfoArgs = {
 			workspaceId: workspace.id,
-			tabs: layout.tabs
+			tabs: layout ? layout.tabs : []
 		};
 		return this._channel.call<void>('$setTerminalLayoutInfo', args);
 	}
