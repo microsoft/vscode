@@ -29,7 +29,7 @@ import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { listHighlightForeground, badgeBackground, contrastBorder, badgeForeground, listActiveSelectionForeground, listInactiveSelectionForeground, listHoverForeground, listFocusForeground, editorBackground, foreground, listActiveSelectionBackground, listInactiveSelectionBackground, listFocusBackground, listHoverBackground, registerColor, transparent, tableOddRowsBackgroundColor } from 'vs/platform/theme/common/colorRegistry';
+import { listHighlightForeground, badgeBackground, contrastBorder, badgeForeground, listActiveSelectionForeground, listInactiveSelectionForeground, listHoverForeground, listFocusForeground, editorBackground, foreground, listActiveSelectionBackground, listInactiveSelectionBackground, listFocusBackground, listHoverBackground, registerColor, tableOddRowsBackgroundColor } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { WorkbenchTable } from 'vs/platform/list/browser/listService';
@@ -1165,7 +1165,7 @@ class AccessibilityProvider implements IListAccessibilityProvider<IKeybindingIte
 
 }
 
-const keybindingTableHeader = registerColor('keybindingTable.headerBackground', { dark: transparent(foreground, 0.04), light: transparent(foreground, 0.04), hc: null }, 'Background color for the keyboard shortcuts table header.');
+const keybindingTableHeader = registerColor('keybindingTable.headerBackground', { dark: tableOddRowsBackgroundColor, light: tableOddRowsBackgroundColor, hc: tableOddRowsBackgroundColor }, 'Background color for the keyboard shortcuts table header.');
 const keybindingTableRows = registerColor('keybindingTable.rowsBackground', { light: tableOddRowsBackgroundColor, dark: tableOddRowsBackgroundColor, hc: tableOddRowsBackgroundColor }, 'Background color for the keyboard shortcuts table alternating rows.');
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
