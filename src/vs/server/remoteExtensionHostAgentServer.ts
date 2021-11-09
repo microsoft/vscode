@@ -913,6 +913,10 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 }
 
 function parseConnectionToken(args: ServerParsedArgs): { connectionToken: string; connectionTokenIsMandatory: boolean; } {
+	if (args['connectionToken']) {
+		console.warn(`The argument connectionToken is deprecated, please use connection-token instead`);
+	}
+
 	if (args['connection-secret']) {
 		if (args['connection-token']) {
 			console.warn(`Please do not use the argument connection-token at the same time as connection-secret.`);
@@ -926,7 +930,7 @@ function parseConnectionToken(args: ServerParsedArgs): { connectionToken: string
 		}
 		return { connectionToken: rawConnectionToken, connectionTokenIsMandatory: true };
 	} else {
-		return { connectionToken: args['connection-token'] || generateUuid(), connectionTokenIsMandatory: false };
+		return { connectionToken: args['connection-token'] || args['connectionToken'] || generateUuid(), connectionTokenIsMandatory: false };
 	}
 }
 

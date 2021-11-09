@@ -60,6 +60,10 @@ export interface ServerParsedArgs {
 	port?: string;
 	'connection-token'?: string;
 	/**
+	 * @deprecated use `connection-token` instead
+	 */
+	connectionToken?: string;
+	/**
 	 * A path to a filename which will be read on startup.
 	 * Consider placing this file in a folder readable only by the same user (a `chmod 0700` directory).
 	 *
