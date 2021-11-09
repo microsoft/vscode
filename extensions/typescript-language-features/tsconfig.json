@@ -3,10 +3,12 @@
 	"compilerOptions": {
 		"outDir": "./out",
 		"experimentalDecorators": true,
-		"types": ["node"],
+		"types": [
+			"node"
+		],
 		"paths": {
 			"vscode": [
-				"../../src/vs/vscode.d.ts"
+				"../../src/vsode/vscode.d.ts"
 			]
 		}
 	},

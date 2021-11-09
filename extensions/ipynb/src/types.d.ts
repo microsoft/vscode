@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-/// <reference path='../../../src/vs/vscode.d.ts'/>
-/// <reference path='../../../src/vs/vscode.proposed.d.ts'/>
+/// <reference path='../../../src/vscode-dts/vscode.d.ts'/>
+/// <reference path='../../../src/vscode-dts/vscode.proposed.d.ts'/>
 
 declare module '@enonic/fnv-plus';
