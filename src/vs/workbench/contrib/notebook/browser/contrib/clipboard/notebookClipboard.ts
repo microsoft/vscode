@@ -24,7 +24,7 @@ import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkey
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
-import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { rendererLogChannelId } from 'vs/workbench/contrib/logs/common/logConstants';
@@ -41,7 +41,7 @@ function _log(loggerService: ILogService, str: string) {
 	}
 }
 
-function getFocusedWebviewDelegate(accessor: ServicesAccessor): Webview | undefined {
+function getFocusedWebviewDelegate(accessor: ServicesAccessor): IWebview | undefined {
 	const loggerService = accessor.get(ILogService);
 	const editorService = accessor.get(IEditorService);
 	const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
@@ -65,7 +65,7 @@ function getFocusedWebviewDelegate(accessor: ServicesAccessor): Webview | undefi
 	return webview;
 }
 
-function withWebview(accessor: ServicesAccessor, f: (webviewe: Webview) => void) {
+function withWebview(accessor: ServicesAccessor, f: (webviewe: IWebview) => void) {
 	const webview = getFocusedWebviewDelegate(accessor);
 	if (webview) {
 		f(webview);

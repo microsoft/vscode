@@ -99,6 +99,7 @@ class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.
 export class AzureActiveDirectoryService {
 	private _tokens: IToken[] = [];
 	private _refreshTimeouts: Map<string, NodeJS.Timeout> = new Map<string, NodeJS.Timeout>();
+	private _refreshingPromise: Promise<any> | undefined;
 	private _uriHandler: UriEventHandler;
 	private _disposable: vscode.Disposable;
 
@@ -310,6 +311,14 @@ export class AzureActiveDirectoryService {
 
 	async getSessions(scopes?: string[]): Promise<vscode.AuthenticationSession[]> {
 		Logger.info(`Getting sessions for ${scopes?.join(',') ?? 'all scopes'}...`);
+		if (this._refreshingPromise) {
+			Logger.info('Refreshing in progress. Waiting for completion before continuing.');
+			try {
+				await this._refreshingPromise;
+			} catch (e) {
+				// this will get logged in the refresh function.
+			}
+		}
 		if (!scopes) {
 			const sessions = await this.sessions;
 			Logger.info(`Got ${sessions.length} sessions for all scopes...`);
@@ -600,6 +609,16 @@ export class AzureActiveDirectoryService {
 	}
 
 	private async refreshToken(refreshToken: string, scope: string, sessionId: string): Promise<IToken> {
+		this._refreshingPromise = this.doRefreshToken(refreshToken, scope, sessionId);
+		try {
+			const result = await this._refreshingPromise;
+			return result;
+		} finally {
+			this._refreshingPromise = undefined;
+		}
+	}
+
+	private async doRefreshToken(refreshToken: string, scope: string, sessionId: string): Promise<IToken> {
 		Logger.info(`Refreshing token for scopes: ${scope}`);
 		const postData = querystring.stringify({
 			refresh_token: refreshToken,

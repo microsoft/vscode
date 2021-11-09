@@ -3,11 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Server } from 'vs/base/parts/ipc/node/ipc.cp';
-import { SearchChannel } from './searchIpc';
-import { SearchService } from './rawSearchService';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ISearchService } from 'vs/workbench/services/search/common/search';
+import { SearchService } from 'vs/workbench/services/search/common/searchService';
 
-const server = new Server('search');
-const service = new SearchService();
-const channel = new SearchChannel(service);
-server.registerChannel('search', channel);
+registerSingleton(ISearchService, SearchService, true);

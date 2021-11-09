@@ -4,48 +4,44 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { ILoggerOptions, ILoggerService, ILogService, log, LogLevel } from 'vs/platform/log/common/log';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IExtHostContext, ExtHostContext, MainThreadLogShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
+import { IExtHostContext, ExtHostContext, MainThreadLoggerShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { UriComponents, URI } from 'vs/base/common/uri';
-import { FileLogger } from 'vs/platform/log/common/fileLog';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { basename } from 'vs/base/common/path';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
-@extHostNamedCustomer(MainContext.MainThreadLog)
-export class MainThreadLogService implements MainThreadLogShape {
+@extHostNamedCustomer(MainContext.MainThreadLogger)
+export class MainThreadLoggerService implements MainThreadLoggerShape {
 
-	private readonly _loggers = new Map<string, FileLogger>();
 	private readonly _logListener: IDisposable;
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@ILogService private readonly _logService: ILogService,
-		@IInstantiationService private readonly _instaService: IInstantiationService,
+		@ILogService logService: ILogService,
+		@ILoggerService private readonly _loggerService: ILoggerService,
 	) {
-		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostLogService);
-		this._logListener = _logService.onDidChangeLogLevel(level => {
-			proxy.$setLevel(level);
-			this._loggers.forEach(value => value.setLevel(level));
-		});
+		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostLogLevelServiceShape);
+		this._logListener = logService.onDidChangeLogLevel(level => proxy.$setLevel(level));
+	}
+
+	$log(file: UriComponents, messages: [LogLevel, string][]): void {
+		const logger = this._loggerService.getLogger(URI.revive(file));
+		if (!logger) {
+			throw new Error('Create the logger before logging');
+		}
+		for (const [level, message] of messages) {
+			log(logger, level, message);
+		}
+	}
+
+	async $createLogger(file: UriComponents, options?: ILoggerOptions): Promise<void> {
+		this._loggerService.createLogger(URI.revive(file), options);
 	}
 
 	dispose(): void {
 		this._logListener.dispose();
-		this._loggers.forEach(value => value.dispose());
-		this._loggers.clear();
-	}
-
-	$log(file: UriComponents, level: LogLevel, message: any[]): void {
-		const uri = URI.revive(file);
-		let logger = this._loggers.get(uri.toString());
-		if (!logger) {
-			logger = this._instaService.createInstance(FileLogger, basename(file.path), URI.revive(file), this._logService.getLevel(), false);
-			this._loggers.set(uri.toString(), logger);
-		}
-		logger.log(level, message);
 	}
 }
 

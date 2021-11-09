@@ -38,7 +38,7 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 
 	constructor(
 		@ILogService protected readonly logService: ILogService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService protected readonly storageService: IStorageService
 	) {
 		super();
 
@@ -115,5 +115,5 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 	/**
 	 * Subclasses to implement the explicit shutdown method.
 	 */
-	abstract shutdown(): void;
+	abstract shutdown(): Promise<void>;
 }

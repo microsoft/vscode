@@ -255,7 +255,9 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 								if (e && e.stack) {
 									console.warn(`stack trace: ${e.stack}`);
 								}
-								onUnexpectedError(reason);
+								if (reason) {
+									onUnexpectedError(reason);
+								}
 							}
 						});
 					}

@@ -11,18 +11,18 @@ import { URI } from 'vs/base/common/uri';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, Webview, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewMessageReceivedEvent, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, IWebview, WebviewContentOptions, IWebviewElement, WebviewExtensionDescription, WebviewMessageReceivedEvent, WebviewOptions, IOverlayWebview } from 'vs/workbench/contrib/webview/browser/webview';
 
 /**
- * Webview editor overlay that creates and destroys the underlying webview as needed.
+ * Webview that is absolutely positioned over another element and that can creates and destroys an underlying webview as needed.
  */
-export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOverlay {
+export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 	private readonly _onDidWheel = this._register(new Emitter<IMouseWheelEvent>());
 	public readonly onDidWheel = this._onDidWheel.event;
 
 	private readonly _pendingMessages = new Set<{ readonly message: any, readonly transfer?: readonly ArrayBuffer[] }>();
-	private readonly _webview = this._register(new MutableDisposable<WebviewElement>());
+	private readonly _webview = this._register(new MutableDisposable<IWebviewElement>());
 	private readonly _webviewEvents = this._register(new DisposableStore());
 
 	private _html: string = '';
@@ -299,7 +299,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 
 	runFindAction(previous: boolean): void { this._webview.value?.runFindAction(previous); }
 
-	private withWebview(f: (webview: Webview) => void): void {
+	private withWebview(f: (webview: IWebview) => void): void {
 		if (this._webview.value) {
 			f(this._webview.value);
 		}

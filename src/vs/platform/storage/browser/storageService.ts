@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isSafari } from 'vs/base/browser/browser';
 import { IndexedDB } from 'vs/base/browser/indexedDB';
 import { Promises } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -105,13 +106,20 @@ export class BrowserStorageService extends AbstractStorageService {
 	}
 
 	close(): void {
-		// We explicitly do not close our DBs because writing data onBeforeUnload()
-		// can result in unexpected results. Namely, it seems that - even though this
-		// operation is async - sometimes it is being triggered on unload and
-		// succeeds. Often though, the DBs turn out to be empty because the write
-		// never had a chance to complete.
+
+		// Safari: there is an issue where the page can hang on load when
+		// a previous session has kept IndexedDB transactions running.
+		// The only fix seems to be to cancel any pending transactions
+		// (https://github.com/microsoft/vscode/issues/136295)
 		//
-		// Instead we trigger dispose() to ensure that no timeouts or callbacks
+		// On all other browsers, we keep the databases opened because
+		// we expect data to be written when the unload happens.
+		if (isSafari) {
+			this.globalStorageDatabase?.close();
+			this.workspaceStorageDatabase?.close();
+		}
+
+		// Always dispose to ensure that no timeouts or callbacks
 		// get triggered in this phase.
 		this.dispose();
 	}
