@@ -965,6 +965,8 @@ async function doStart(): Promise<IDisposable> {
 		},
 		configurationDefaults: {
 			'workbench.colorTheme': 'Gitpod Light',
+			'workbench.preferredLightColorTheme': 'Gitpod Light',
+			'workbench.preferredDarkColorTheme': 'Gitpod Dark',
 		},
 		urlCallbackProvider: new LocalStorageURLCallbackProvider('/callback'),
 		credentialsProvider,
