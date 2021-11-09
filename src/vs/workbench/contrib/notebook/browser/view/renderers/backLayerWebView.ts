@@ -120,6 +120,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			runGutter: number,
 			dragAndDropEnabled: boolean,
 			fontSize: number
+			markupFontSize: number
 		},
 		private readonly rendererMessaging: IScopedRendererMessaging | undefined,
 		@IWebviewService readonly webviewService: IWebviewService,
@@ -187,6 +188,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		runGutter: number,
 		dragAndDropEnabled: boolean,
 		fontSize: number
+		markupFontSize: number
 	}) {
 		this.options = options;
 		this._updateStyles();
@@ -219,6 +221,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			'notebook-markdown-left-margin': `${this.options.markdownLeftMargin}px`,
 			'notebook-output-node-left-padding': `${this.options.outputNodeLeftPadding}px`,
 			'notebook-markdown-min-height': `${this.options.previewNodePadding * 2}px`,
+			'notebook-markup-font-size': `${this.options.markupFontSize}px`,
 			'notebook-cell-output-font-size': `${this.options.fontSize}px`,
 			'notebook-cell-markup-empty-content': nls.localize('notebook.emptyMarkdownPlaceholder', "Empty markdown cell, double click or press enter to edit."),
 			'notebook-cell-renderer-not-found-error': nls.localize({
@@ -288,6 +291,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						white-space: nowrap;
 						overflow: hidden;
 						white-space: initial;
+
+						font-size: var(--notebook-markup-font-size);
 						color: var(--theme-ui-foreground);
 					}
 

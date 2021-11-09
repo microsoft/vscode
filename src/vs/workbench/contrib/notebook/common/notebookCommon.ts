@@ -921,6 +921,7 @@ export const ConsolidatedRunButton = 'notebook.consolidatedRunButton';
 export const OpenGettingStarted = 'notebook.experimental.openGettingStarted';
 export const TextOutputLineLimit = 'notebook.output.textLineLimit';
 export const GlobalToolbarShowLabel = 'notebook.globalToolbarShowLabel';
+export const NotebookMarkupFontSize = 'notebook.markup.fontSize';
 
 export const enum CellStatusbarAlignment {
 	Left = 1,
