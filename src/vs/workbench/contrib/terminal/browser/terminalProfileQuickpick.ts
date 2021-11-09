@@ -12,6 +12,8 @@ import { configureTerminalProfileIcon } from 'vs/workbench/contrib/terminal/brow
 import * as nls from 'vs/nls';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IQuickPickTerminalObject } from 'vs/workbench/contrib/terminal/browser/terminal';
+
 
 export class TerminalProfileQuickpick {
 	constructor(
@@ -19,13 +21,82 @@ export class TerminalProfileQuickpick {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IThemeService private readonly _themeService: IThemeService
-	) { }
+	) {
 
-	async showAndGetResult(type: 'setDefault' | 'createInstance'): Promise<IProfileQuickPickItem | undefined> {
+	}
+
+	async showAndGetResult(type: 'setDefault' | 'createInstance'): Promise<IQuickPickTerminalObject | undefined> {
+		const platformKey = await this._terminalProfileService.getPlatformKey();
+		const profilesKey = TerminalSettingPrefix.Profiles + platformKey;
+		const result = await this._createAndShow(type);
+		const defaultProfileKey = `${TerminalSettingPrefix.DefaultProfile}${platformKey}`;
+		if (!result) {
+			return;
+		}
+		if (type === 'setDefault') {
+			if ('command' in result.profile) {
+				return; // Should never happen
+			} else if ('id' in result.profile) {
+				// extension contributed profile
+				await this._configurationService.updateValue(defaultProfileKey, result.profile.title, ConfigurationTarget.USER);
+				return {
+					config: {
+						extensionIdentifier: result.profile.extensionIdentifier,
+						id: result.profile.id,
+						title: result.profile.title,
+						options: {
+							color: result.profile.color,
+							icon: result.profile.icon
+						}
+					},
+					keyMods: result.keyMods
+				};
+			}
+
+			// Add the profile to settings if necessary
+			if ('isAutoDetected' in result.profile) {
+				const profilesConfig = await this._configurationService.getValue(profilesKey);
+				if (typeof profilesConfig === 'object') {
+					const newProfile: ITerminalProfileObject = {
+						path: result.profile.path
+					};
+					if (result.profile.args) {
+						newProfile.args = result.profile.args;
+					}
+					(profilesConfig as { [key: string]: ITerminalProfileObject })[result.profile.profileName] = newProfile;
+				}
+				await this._configurationService.updateValue(profilesKey, profilesConfig, ConfigurationTarget.USER);
+			}
+			// Set the default profile
+			await this._configurationService.updateValue(defaultProfileKey, result.profileName, ConfigurationTarget.USER);
+		} else if (type === 'createInstance') {
+			if ('id' in result.profile) {
+				return {
+					config: {
+						extensionIdentifier: result.profile.extensionIdentifier,
+						id: result.profile.id,
+						title: result.profile.title,
+						options: {
+							icon: result.profile.icon,
+							color: result.profile.color,
+						}
+					},
+					keyMods: result.keyMods
+				};
+			} else {
+				return { config: result.profile, keyMods: result.keyMods };
+			}
+		}
+		return undefined;
+	}
+
+	private async _createAndShow(type: 'setDefault' | 'createInstance'): Promise<IProfileQuickPickItem | undefined> {
+		const platformKey = await this._terminalProfileService.getPlatformKey();
 		const profiles = this._terminalProfileService.availableProfiles;
-		const profilesKey = this._terminalProfileService.profilesKey;
+		const profilesKey = TerminalSettingPrefix.Profiles + platformKey;
 		const defaultProfileName = this._terminalProfileService.getDefaultProfileName();
 		let keyMods: IKeyMods | undefined;
+
 		const options: IPickOptions<IProfileQuickPickItem> = {
 			placeHolder: type === 'createInstance' ? nls.localize('terminal.integrated.selectProfileToCreate', "Select the terminal profile to create") : nls.localize('terminal.integrated.chooseDefaultProfile', "Select your default terminal profile"),
 			onDidTriggerItemButton: async (context) => {
@@ -35,7 +106,7 @@ export class TerminalProfileQuickpick {
 				if ('id' in context.item.profile) {
 					return;
 				}
-				const configProfiles = await this._terminalProfileService.getConfiguredProfiles();
+				const configProfiles: { [key: string]: any } = this._configurationService.getValue(TerminalSettingPrefix.Profiles + platformKey);
 				const existingProfiles = !!configProfiles ? Object.keys(configProfiles) : [];
 				const name = await this._quickInputService.input({
 					prompt: nls.localize('enterTerminalProfileName', "Enter terminal profile name"),
@@ -117,38 +188,6 @@ export class TerminalProfileQuickpick {
 			return undefined;
 		}
 		result.keyMods = keyMods;
-		const defaultProfileKey = `${TerminalSettingPrefix.DefaultProfile}${this._terminalProfileService.platformKey}`;
-		if (type === 'setDefault') {
-			if ('command' in result.profile) {
-				return; // Should never happen
-			} else if ('id' in result.profile) {
-				// extension contributed profile
-				await this._configurationService.updateValue(defaultProfileKey, result.profile.title, ConfigurationTarget.USER);
-
-				this._terminalProfileService.registerContributedProfile(result.profile.extensionIdentifier, result.profile.id, result.profile.title, {
-					color: result.profile.color,
-					icon: result.profile.icon
-				});
-				return;
-			}
-
-			// Add the profile to settings if necessary
-			if ('isAutoDetected' in result.profile) {
-				const profilesConfig = await this._configurationService.getValue(profilesKey);
-				if (typeof profilesConfig === 'object') {
-					const newProfile: ITerminalProfileObject = {
-						path: result.profile.path
-					};
-					if (result.profile.args) {
-						newProfile.args = result.profile.args;
-					}
-					(profilesConfig as { [key: string]: ITerminalProfileObject })[result.profile.profileName] = newProfile;
-				}
-				await this._configurationService.updateValue(profilesKey, profilesConfig, ConfigurationTarget.USER);
-			}
-			// Set the default profile
-			await this._configurationService.updateValue(defaultProfileKey, result.profileName, ConfigurationTarget.USER);
-		}
 		return result;
 	}
 

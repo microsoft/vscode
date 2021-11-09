@@ -44,7 +44,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { TerminalProfileQuickpick } from 'vs/workbench/contrib/terminal/browser/terminalProfileQuickpick';
-import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
+import { IKeyMods } from 'vs/base/parts/quickinput/common/quickInput';
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -68,8 +68,6 @@ export class TerminalService implements ITerminalService {
 	private _connectionState: TerminalConnectionState;
 	private _nativeDelegate?: ITerminalServiceNativeDelegate;
 	private _shutdownWindowCount?: number;
-
-	private _profileQuickpick: TerminalProfileQuickpick | undefined;
 
 	private _editable: { instance: ITerminalInstance, data: IEditableData } | undefined;
 
@@ -254,10 +252,8 @@ export class TerminalService implements ITerminalService {
 		timeout(0).then(() => this._instantiationService.createInstance(TerminalEditorStyle, document.head));
 	}
 	async showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined> {
-		if (!this._profileQuickpick) {
-			this._profileQuickpick = this._instantiationService.createInstance(TerminalProfileQuickpick);
-		}
-		const result = await this._profileQuickpick.showAndGetResult(type);
+		const quickPick = this._instantiationService.createInstance(TerminalProfileQuickpick);
+		const result = await quickPick.showAndGetResult(type);
 		if (!result) {
 			return;
 		}
@@ -266,19 +262,19 @@ export class TerminalService implements ITerminalService {
 			const activeInstance = this.getDefaultInstanceHost().activeInstance;
 			let instance;
 
-			if ('id' in result.profile) {
-				await this.createContributedTerminalProfile(result.profile.extensionIdentifier, result.profile.id, {
-					icon: result.profile.icon,
-					color: result.profile.color,
+			if (result.config && 'id' in result?.config) {
+				await this.createContributedTerminalProfile(result.config.extensionIdentifier, result.config.id, {
+					icon: result.config.options?.icon,
+					color: result.config.options?.color,
 					location: !!(keyMods?.alt && activeInstance) ? { splitActiveTerminal: true } : this.defaultLocation
 				});
 				return;
-			} else {
+			} else if (result.config && 'profileName' in result.config) {
 				if (keyMods?.alt && activeInstance) {
 					// create split, only valid if there's an active instance
-					instance = await this.createTerminal({ location: { parentTerminal: activeInstance }, config: result.profile });
+					instance = await this.createTerminal({ location: { parentTerminal: activeInstance }, config: result.config });
 				} else {
-					instance = await this.createTerminal({ location: this.defaultLocation, config: result.profile, cwd });
+					instance = await this.createTerminal({ location: this.defaultLocation, config: result.config, cwd });
 				}
 			}
 

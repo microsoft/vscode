@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ITerminalConfiguration, ITerminalBackend } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalConfiguration, ITerminalBackend, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TerminalProfileService } from 'vs/workbench/contrib/terminal/browser/terminalProfileService';
@@ -19,13 +19,16 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { Codicon } from 'vs/base/common/codicons';
 import { deepStrictEqual } from 'assert';
 import { Emitter } from 'vs/base/common/event';
 import { TerminalProfileQuickpick } from 'vs/workbench/contrib/terminal/browser/terminalProfileQuickpick';
+import { TestQuickInputService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
-class TestTerminalProfileService extends TerminalProfileService {
+class TestTerminalProfileService extends TerminalProfileService implements Partial<ITerminalProfileService>{
 	hasRefreshedProfiles: Promise<void> | undefined;
 	override refreshAvailableProfiles(): void {
 		this.hasRefreshedProfiles = this._refreshAvailableProfilesNow();
@@ -36,6 +39,22 @@ class TestTerminalProfileService extends TerminalProfileService {
 			throw new Error('has not refreshed profiles yet');
 		}
 		return this.hasRefreshedProfiles;
+	}
+}
+
+class MockTerminalProfileService implements Partial<ITerminalProfileService>{
+	hasRefreshedProfiles: Promise<void> | undefined;
+	_defaultProfileName: string | undefined;
+	availableProfiles?: ITerminalProfile[] | undefined = [];
+	contributedProfiles?: IExtensionTerminalProfile[] | undefined = [];
+	async getPlatformKey(): Promise<string> {
+		return 'linux';
+	}
+	getDefaultProfileName(): string | undefined {
+		return this._defaultProfileName;
+	}
+	setDefaultProfileName(name: string): void {
+		this._defaultProfileName = name;
 	}
 }
 
@@ -103,7 +122,7 @@ let jsdebugProfile = {
 };
 
 
-suite('TerminalProfileService', () => {
+suite.only('TerminalProfileService', () => {
 	let configurationService: TestConfigurationService;
 	let terminalInstanceService: TestTerminalInstanceService;
 	let terminalProfileService: TestTerminalProfileService;
@@ -121,8 +140,11 @@ suite('TerminalProfileService', () => {
 		environmentService = { configuration: {}, remoteAuthority: undefined } as IWorkbenchEnvironmentService;
 		instantiationService = new TestInstantiationService();
 
+		let quickInputService = new TestQuickInputService();
+		let themeService = new TestThemeService();
 		let terminalContributionService = new TestTerminalContributionService();
 		let contextKeyService = new MockContextKeyService();
+		let mockTerminalProfileService = new MockTerminalProfileService();
 
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IExtensionService, extensionService);
@@ -131,9 +153,11 @@ suite('TerminalProfileService', () => {
 		instantiationService.stub(ITerminalContributionService, terminalContributionService);
 		instantiationService.stub(ITerminalInstanceService, terminalInstanceService);
 		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
-
-		terminalProfileService = instantiationService.createInstance(TestTerminalProfileService);
+		instantiationService.stub(IThemeService, themeService);
+		instantiationService.stub(IQuickInputService, quickInputService);
+		instantiationService.stub(ITerminalProfileService, mockTerminalProfileService);
 		terminalProfileQuickpick = instantiationService.createInstance(TestTerminalProfileQuickpick);
+		terminalProfileService = instantiationService.createInstance(TestTerminalProfileService);
 
 		//reset as these properties are changed in each test
 		powershellProfile = {
