@@ -146,57 +146,44 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 	}
 
 	private createExtHostOutputChannel(name: string, channelPromise: Promise<ExtHostOutputChannel>, extensionDescription: IExtensionDescription): vscode.OutputChannel {
-		const validate = (channel: ExtHostOutputChannel, checkProposedApi?: boolean) => {
+		let disposed = false;
+		const validate = (checkProposedApi?: boolean) => {
 			if (checkProposedApi) {
 				checkProposedApiEnabled(extensionDescription);
 			}
-			if (channel.disposed) {
+			if (disposed) {
 				throw new Error('Channel has been closed');
 			}
 		};
 		return {
 			get name(): string { return name; },
 			append(value: string): void {
-				channelPromise.then(channel => {
-					validate(channel);
-					channel.append(value);
-				});
+				validate();
+				channelPromise.then(channel => channel.append(value));
 			},
 			appendLine(value: string): void {
-				channelPromise.then(channel => {
-					validate(channel);
-					channel.appendLine(value);
-				});
+				validate();
+				channelPromise.then(channel => channel.appendLine(value));
 			},
 			clear(): void {
-				channelPromise.then(channel => {
-					validate(channel);
-					channel.clear();
-				});
+				validate();
+				channelPromise.then(channel => channel.clear());
 			},
 			replace(value: string): void {
-				channelPromise.then(channel => {
-					validate(channel, true);
-					channel.replace(value);
-				});
+				validate(true);
+				channelPromise.then(channel => channel.replace(value));
 			},
 			show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
-				channelPromise.then(channel => {
-					validate(channel);
-					channel.show(columnOrPreserveFocus, preserveFocus);
-				});
+				validate();
+				channelPromise.then(channel => channel.show(columnOrPreserveFocus, preserveFocus));
 			},
 			hide(): void {
-				channelPromise.then(channel => {
-					validate(channel);
-					channel.hide();
-				});
+				validate();
+				channelPromise.then(channel => channel.hide());
 			},
 			dispose(): void {
-				channelPromise.then(channel => {
-					validate(channel);
-					channel.dispose();
-				});
+				disposed = true;
+				channelPromise.then(channel => channel.dispose());
 			}
 		};
 	}
