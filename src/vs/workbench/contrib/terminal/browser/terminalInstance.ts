@@ -771,13 +771,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			xterm.raw.focus();
 		}));
 
-		this._register(dom.addDisposableListener(xterm.raw.element, 'wheel', (e) => {
-			if (this._hasScrollBar && e.shiftKey) {
-				e.stopImmediatePropagation();
-				e.preventDefault();
-			}
-		}));
-
 		// xterm.js currently drops selection on keyup as we need to handle this case.
 		this._register(dom.addDisposableListener(xterm.raw.element, 'keyup', () => {
 			// Wait until keyup has propagated through the DOM before evaluating
