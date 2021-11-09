@@ -75,9 +75,7 @@ export const enum Direction {
 }
 
 export interface IQuickPickTerminalObject {
-	config: IRegisterContributedProfileArgs | ITerminalProfile | {
-		profile: IExtensionTerminalProfile, options: { icon?: string, color?: string }
-	} | undefined,
+	config: IRegisterContributedProfileArgs | ITerminalProfile | { profile: IExtensionTerminalProfile, options: { icon?: string, color?: string } } | undefined,
 	keyMods: IKeyMods | undefined
 }
 

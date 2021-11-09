@@ -143,7 +143,6 @@ let jsdebugProfile = {
 let powershellPick = { label: 'Powershell', profile: powershellProfile, profileName: powershellProfile.profileName };
 let jsdebugPick = { label: 'Javascript Debug Terminal', profile: jsdebugProfile, profileName: jsdebugProfile.title };
 
-
 suite('TerminalProfileService', () => {
 	let configurationService: TestConfigurationService;
 	let terminalInstanceService: TestTerminalInstanceService;
@@ -160,7 +159,6 @@ suite('TerminalProfileService', () => {
 		extensionService = new TestTerminalExtensionService();
 		environmentService = { configuration: {}, remoteAuthority: undefined } as IWorkbenchEnvironmentService;
 		instantiationService = new TestInstantiationService();
-
 
 		let themeService = new TestThemeService();
 		let terminalContributionService = new TestTerminalContributionService();

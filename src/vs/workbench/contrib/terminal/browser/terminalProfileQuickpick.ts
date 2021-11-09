@@ -22,9 +22,7 @@ export class TerminalProfileQuickpick {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IThemeService private readonly _themeService: IThemeService
-	) {
-
-	}
+	) { }
 
 	async showAndGetResult(type: 'setDefault' | 'createInstance'): Promise<IQuickPickTerminalObject | DefaultProfileName | undefined> {
 		const platformKey = await this._terminalProfileService.getPlatformKey();
