@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ITheme, RendererType, Terminal as RawXtermTerminal } from 'xterm';
+import type { IBuffer, ITheme, RendererType, Terminal as RawXtermTerminal } from 'xterm';
 import type { ISearchOptions, SearchAddon as SearchAddonType } from 'xterm-addon-search';
 import type { Unicode11Addon as Unicode11AddonType } from 'xterm-addon-unicode11';
 import type { WebglAddon as WebglAddonType } from 'xterm-addon-webgl';
@@ -220,6 +220,38 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 	getFont(): ITerminalFont {
 		return this._configHelper.getFont(this._core);
+	}
+
+	getLongestViewportWrappedLineLength(): number {
+		let maxLineLength = 0;
+		for (let i = this.raw.buffer.active.length - 1; i >= this.raw.buffer.active.viewportY; i--) {
+			const lineInfo = this._getWrappedLineCount(i, this.raw.buffer.active);
+			maxLineLength = Math.max(maxLineLength, ((lineInfo.lineCount * this.raw.cols) - lineInfo.endSpaces) || 0);
+			i = lineInfo.currentIndex;
+		}
+		return maxLineLength;
+	}
+
+	private _getWrappedLineCount(index: number, buffer: IBuffer): { lineCount: number, currentIndex: number, endSpaces: number } {
+		let line = buffer.getLine(index);
+		if (!line) {
+			throw new Error('Could not get line');
+		}
+		let currentIndex = index;
+		let endSpaces = 0;
+		// line.length may exceed cols as it doesn't necessarily trim the backing array on resize
+		for (let i = Math.min(line.length, this.raw.cols) - 1; i >= 0; i--) {
+			if (line && !line?.getCell(i)?.getChars()) {
+				endSpaces++;
+			} else {
+				break;
+			}
+		}
+		while (line?.isWrapped && currentIndex > 0) {
+			currentIndex--;
+			line = buffer.getLine(currentIndex);
+		}
+		return { lineCount: index - currentIndex + 1, currentIndex, endSpaces };
 	}
 
 	scrollDownLine(): void {

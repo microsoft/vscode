@@ -29,7 +29,7 @@ import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalInstanceService, ITerminalInstance, ITerminalExternalLinkProvider, IRequestAddInstanceToGroupEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
-import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from 'xterm';
+import type { Terminal as XTermTerminal, ITerminalAddon } from 'xterm';
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/xterm/navigationModeAddon';
 import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { EnvironmentVariableInfoWidget } from 'vs/workbench/contrib/terminal/browser/widgets/environmentVariableInfoWidget';
@@ -128,6 +128,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _fixedRows: number | undefined;
 	private _cwd: string | undefined = undefined;
 	private _initialCwd: string | undefined = undefined;
+	private _layoutSettingsChanged: boolean = true;
 	private _dimensionsOverride: ITerminalDimensionsOverride | undefined;
 	private _titleReadyPromise: Promise<string>;
 	private _titleReadyComplete: ((title: string) => any) | undefined;
@@ -364,6 +365,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (this._fixedCols) {
 				await this._addScrollbar();
 			}
+		}).catch((err) => {
+			// Ignore exceptions if the terminal is already disposed
+			if (!this._isDisposed) {
+				throw err;
+			}
 		});
 
 		this.addDisposable(this._configurationService.onDidChangeConfiguration(async e => {
@@ -381,6 +387,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				'editor.fontFamily'
 			];
 			if (layoutSettings.some(id => e.affectsConfiguration(id))) {
+				this._layoutSettingsChanged = true;
 				await this._resize();
 			}
 			if (e.affectsConfiguration(TerminalSettingId.UnicodeVersion)) {
@@ -441,9 +448,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 
-		const computedStyle = window.getComputedStyle(this._wrapperElement!);
-		const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
-		const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
+		const computedStyle = window.getComputedStyle(this._container);
+		const width = parseInt(computedStyle.width);
+		const height = parseInt(computedStyle.height);
+
 		this._evaluateColsAndRows(width, height);
 	}
 
@@ -514,10 +522,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return undefined;
 		}
 
-		if (!this._wrapperElement) {
+		if (!this._wrapperElement || !this.xterm?.raw.element) {
 			return undefined;
 		}
-		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(Math.min(Constants.MaxCanvasWidth, width), height + (this._hasScrollBar && !this._horizontalScrollbar ? -scrollbarHeight - 2 : 0)/* bottom padding */);
+		const computedStyle = window.getComputedStyle(this.xterm.raw.element);
+		const horizontalPadding = parseInt(computedStyle.paddingLeft) + parseInt(computedStyle.paddingRight);
+		const verticalPadding = parseInt(computedStyle.paddingTop) + parseInt(computedStyle.paddingBottom);
+		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(
+			Math.min(Constants.MaxCanvasWidth, width - horizontalPadding),
+			height + (this._hasScrollBar && !this._horizontalScrollbar ? -scrollbarHeight : 0) - 2/* bottom padding */ - verticalPadding);
 		return TerminalInstance._lastKnownCanvasDimensions;
 	}
 
@@ -543,8 +556,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	 */
 	protected async _createXterm(): Promise<XtermTerminal> {
 		const Terminal = await this._getXtermConstructor();
+		if (this._isDisposed) {
+			throw new Error('Terminal disposed of during xterm.js creation');
+		}
 
-		// TODO: Move cols/rows over to XtermTerminal
 		const xterm = this._instantiationService.createInstance(XtermTerminal, Terminal, this._configHelper, this._cols, this._rows);
 		this.xterm = xterm;
 		const lineDataEventAddon = new LineDataEventAddon();
@@ -761,13 +776,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}));
 		this._register(dom.addDisposableListener(xterm.raw.element, 'touchstart', () => {
 			xterm.raw.focus();
-		}));
-
-		this._register(dom.addDisposableListener(xterm.raw.element, 'wheel', (e) => {
-			if (this._hasScrollBar && e.shiftKey) {
-				e.stopImmediatePropagation();
-				e.preventDefault();
-			}
 		}));
 
 		// xterm.js currently drops selection on keyup as we need to handle this case.
@@ -1421,6 +1429,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 
+		// Evaluate columns and rows, exclude the wrapper element's margin
 		const terminalWidth = this._evaluateColsAndRows(dimension.width, dimension.height);
 		if (!terminalWidth) {
 			return;
@@ -1444,8 +1453,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this.xterm) {
 			// Only apply these settings when the terminal is visible so that
 			// the characters are measured correctly.
-			if (this._isVisible) {
-				const font = this.xterm ? this.xterm.getFont() : this._configHelper.getFont();
+			if (this._isVisible && this._layoutSettingsChanged) {
+				const font = this.xterm.getFont();
 				const config = this._configHelper.config;
 				this._safeSetOption('letterSpacing', font.letterSpacing);
 				this._safeSetOption('lineHeight', font.lineHeight);
@@ -1459,6 +1468,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._initDimensions();
 				cols = this.cols;
 				rows = this.rows;
+
+				this._layoutSettingsChanged = false;
 			}
 
 			if (isNaN(cols) || isNaN(rows)) {
@@ -1599,6 +1610,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		this._fixedCols = this._parseFixedDimension(cols);
+		this._labelComputer?.refreshLabel();
 		this._terminalHasFixedWidth.set(!!this._fixedCols);
 		const rows = await this._quickInputService.input({
 			title: nls.localize('setTerminalDimensionsRow', "Set Fixed Dimensions: Row"),
@@ -1609,7 +1621,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		this._fixedRows = this._parseFixedDimension(rows);
-		this._addScrollbar();
+		this._labelComputer?.refreshLabel();
+		await this._refreshScrollbar();
 		this._resize();
 		this.focus();
 	}
@@ -1636,23 +1649,25 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._hasScrollBar = false;
 			this._initDimensions();
 			await this._resize();
-			this._horizontalScrollbar?.setScrollDimensions({ scrollWidth: 0 });
 		} else {
-			let maxCols = 0;
-			if (!this.xterm.raw.buffer.active.getLine(0)) {
-				return;
+			// Fixed columns should be at least xterm.js' regular column count
+			const proposedCols = Math.max(this.maxCols, Math.min(this.xterm.getLongestViewportWrappedLineLength(), Constants.MaxSupportedCols));
+			// Don't switch to fixed dimensions if the content already fits as it makes the scroll
+			// bar look bad being off the edge
+			if (proposedCols > this.xterm.raw.cols) {
+				this._fixedCols = proposedCols;
 			}
-			const lineWidth = this.xterm.raw.buffer.active.getLine(0)!.length;
-			for (let i = this.xterm.raw.buffer.active.length - 1; i >= this.xterm.raw.buffer.active.viewportY; i--) {
-				const lineInfo = this._getWrappedLineCount(i, this.xterm.raw.buffer.active);
-				maxCols = Math.max(maxCols, ((lineInfo.lineCount * lineWidth) - lineInfo.endSpaces) || 0);
-				i = lineInfo.currentIndex;
-			}
-			maxCols = Math.min(maxCols, Constants.MaxSupportedCols);
-			this._fixedCols = maxCols;
-			await this._addScrollbar();
 		}
+		await this._refreshScrollbar();
+		this._labelComputer?.refreshLabel();
 		this.focus();
+	}
+
+	private _refreshScrollbar(): Promise<void> {
+		if (this._fixedCols || this._fixedRows) {
+			return this._addScrollbar();
+		}
+		return this._removeScrollbar();
 	}
 
 	private async _addScrollbar(): Promise<void> {
@@ -1660,13 +1675,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this.xterm?.raw.element || !this._wrapperElement || !this._container || !charWidth || !this._fixedCols) {
 			return;
 		}
-		if (this._fixedCols < this.xterm.raw.buffer.active.getLine(0)!.length) {
-			// no scrollbar needed
-			return;
-		}
+		this._wrapperElement.classList.add('fixed-dims');
 		this._hasScrollBar = true;
 		this._initDimensions();
-		this._fixedRows = this.rows;
+		// Always remove a row to make room for the scroll bar
+		this._fixedRows = this._rows - 1;
 		await this._resize();
 		this._terminalHasFixedWidth.set(true);
 		if (!this._horizontalScrollbar) {
@@ -1679,39 +1692,31 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}));
 			this._container.appendChild(this._horizontalScrollbar.getDomNode());
 		}
-		this._horizontalScrollbar.setScrollDimensions(
-			{
-				width: this.xterm.raw.element.clientWidth,
-				scrollWidth: this._fixedCols * charWidth
-			});
-		this._horizontalScrollbar!.getDomNode().style.paddingBottom = '16px';
+		this._horizontalScrollbar.setScrollDimensions({
+			width: this.xterm.raw.element.clientWidth,
+			scrollWidth: this._fixedCols * charWidth + 40 // Padding + scroll bar
+		});
+		this._horizontalScrollbar.getDomNode().style.paddingBottom = '16px';
 
 		// work around for https://github.com/xtermjs/xterm.js/issues/3482
-		for (let i = this.xterm.raw.buffer.active.viewportY; i < this.xterm.raw.buffer.active.length; i++) {
-			let line = this.xterm.raw.buffer.active.getLine(i);
-			(line as any)._line.isWrapped = false;
+		if (isWindows) {
+			for (let i = this.xterm.raw.buffer.active.viewportY; i < this.xterm.raw.buffer.active.length; i++) {
+				let line = this.xterm.raw.buffer.active.getLine(i);
+				(line as any)._line.isWrapped = false;
+			}
 		}
 	}
 
-	private _getWrappedLineCount(index: number, buffer: IBuffer): { lineCount: number, currentIndex: number, endSpaces: number } {
-		let line = buffer.getLine(index);
-		if (!line) {
-			throw new Error('Could not get line');
+	private async _removeScrollbar(): Promise<void> {
+		if (!this._container || !this._wrapperElement || !this._horizontalScrollbar) {
+			return;
 		}
-		let currentIndex = index;
-		let endSpaces = -1;
-		for (let i = line?.length || 0; i > 0; i--) {
-			if (line && !line?.getCell(i)?.getChars()) {
-				endSpaces++;
-			} else {
-				break;
-			}
-		}
-		while (line?.isWrapped && currentIndex > 0) {
-			currentIndex--;
-			line = buffer.getLine(currentIndex);
-		}
-		return { lineCount: index - currentIndex + 1, currentIndex, endSpaces };
+		this._horizontalScrollbar.getDomNode().remove();
+		this._horizontalScrollbar.dispose();
+		this._horizontalScrollbar = undefined;
+		this._wrapperElement.remove();
+		this._wrapperElement.classList.remove('fixed-dims');
+		this._container.appendChild(this._wrapperElement);
 	}
 
 	private _setResolvedShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig): void {
@@ -2065,6 +2070,7 @@ export interface ITerminalLabelTemplateProperties {
 	process?: string | null | undefined;
 	sequence?: string | null | undefined;
 	task?: string | null | undefined;
+	fixedDimensions?: string | null | undefined;
 	separator?: string | ISeparator | null | undefined;
 }
 
@@ -2083,11 +2089,12 @@ export class TerminalLabelComputer extends Disposable {
 	readonly onDidChangeLabel = this._onDidChangeLabel.event;
 	constructor(
 		private readonly _configHelper: TerminalConfigHelper,
-		private readonly _instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'cwd' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>,
+		private readonly _instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
 		super();
 	}
+
 	refreshLabel(): void {
 		this._title = this.computeLabel(this._configHelper.config.tabs.title, TerminalLabelType.Title);
 		this._description = this.computeLabel(this._configHelper.config.tabs.description, TerminalLabelType.Description);
@@ -2108,6 +2115,9 @@ export class TerminalLabelComputer extends Disposable {
 			process: this._instance.processName,
 			sequence: this._instance.sequence,
 			task: this._instance.shellLaunchConfig.description === 'Task' ? 'Task' : undefined,
+			fixedDimensions: this._instance.fixedCols
+				? (this._instance.fixedRows ? `\u2194${this._instance.fixedCols} \u2195${this._instance.fixedRows}` : `\u2194${this._instance.fixedCols}`)
+				: (this._instance.fixedRows ? `\u2195${this._instance.fixedRows}` : ''),
 			separator: { label: this._configHelper.config.tabs.separator }
 		};
 		labelTemplate = labelTemplate.trim();
