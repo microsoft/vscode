@@ -1219,7 +1219,7 @@ export class TestLifecycleService implements ILifecycleService {
 
 	fireWillShutdown(event: WillShutdownEvent): void { this._onWillShutdown.fire(event); }
 
-	shutdown(): void {
+	async shutdown(): Promise<void> {
 		this.fireShutdown();
 	}
 }

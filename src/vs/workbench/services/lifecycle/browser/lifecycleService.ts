@@ -15,6 +15,7 @@ import { IStorageService, WillSaveStateReason } from 'vs/platform/storage/common
 export class BrowserLifecycleService extends AbstractLifecycleService {
 
 	private beforeUnloadListener: IDisposable | undefined = undefined;
+	private unloadListener: IDisposable | undefined = undefined;
 
 	private ignoreBeforeUnload = false;
 
@@ -43,7 +44,7 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 		// which would disable certain browser caching.
 		// We currently do not handle the `persisted` property
 		// (https://github.com/microsoft/vscode/issues/136216)
-		this._register(addDisposableListener(window, EventType.PAGE_HIDE, () => this.onUnload()));
+		this.unloadListener = addDisposableListener(window, EventType.PAGE_HIDE, () => this.onUnload());
 	}
 
 	private onLoad(event: PageTransitionEvent): void {
@@ -100,12 +101,15 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 	}
 
 	withExpectedShutdown(reason: ShutdownReason): Promise<void>;
-	withExpectedShutdown(reason: { disableShutdownHandling: true }, callback: Function): Promise<void>;
-	withExpectedShutdown(reason: ShutdownReason | { disableShutdownHandling: true }, callback?: Function): Promise<void> {
+	withExpectedShutdown(reason: { disableShutdownHandling: true }, callback: Function): void;
+	withExpectedShutdown(reason: ShutdownReason | { disableShutdownHandling: true }, callback?: Function): Promise<void> | void {
 
 		// Standard shutdown
 		if (typeof reason === 'number') {
 			this.shutdownReason = reason;
+
+			// Ensure UI state is persisted
+			return this.storageService.flush(WillSaveStateReason.SHUTDOWN);
 		}
 
 		// Before unload handling ignored for duration of callback
@@ -117,17 +121,18 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 				this.ignoreBeforeUnload = false;
 			}
 		}
-
-		// Ensure UI state is persisted
-		return this.storageService.flush(WillSaveStateReason.SHUTDOWN);
 	}
 
-	shutdown(): void {
+	async shutdown(): Promise<void> {
 		this.logService.info('[lifecycle] shutdown triggered');
 
-		// An explicit shutdown renders `beforeUnload` event
-		// handling disabled from here on
+		// An explicit shutdown renders our unload
+		// event handlers disabled, so dispose them.
 		this.beforeUnloadListener?.dispose();
+		this.unloadListener?.dispose();
+
+		// Ensure UI state is persisted
+		await this.storageService.flush(WillSaveStateReason.SHUTDOWN);
 
 		// Handle shutdown without veto support
 		this.doShutdown();
