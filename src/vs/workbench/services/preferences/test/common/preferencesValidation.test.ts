@@ -312,7 +312,7 @@ suite('Preferences Validation', () => {
 			this.validator = createValidator(settings)!;
 		}
 
-		public accepts(input: string[]) {
+		public accepts(input: unknown[]) {
 			assert.strictEqual(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to accept \`${JSON.stringify(input)}\`. Got ${this.validator(input)}.`);
 		}
 
@@ -362,6 +362,39 @@ suite('Preferences Validation', () => {
 
 			arr.rejects(['c', 'd']).withMessage(`Value 'c' is not one of`);
 			arr.rejects(['c', 'd']).withMessage(`Value 'd' is not one of`);
+		}
+	});
+
+	test('array of numbers', () => {
+		// We accept parseable strings since the view handles strings
+		{
+			const arr = new ArrayTester({ type: 'array', items: { type: 'number' } });
+			arr.accepts([]);
+			arr.accepts([2]);
+			arr.accepts([2, 3]);
+			arr.accepts(['2', '3']);
+			arr.accepts([6.6, '3', 7]);
+			arr.rejects(76);
+			arr.rejects(7.6);
+			arr.rejects([6, 'a', 7]);
+		}
+		{
+			const arr = new ArrayTester({ type: 'array', items: { type: 'integer', minimum: -2, maximum: 3 }, maxItems: 4 });
+			arr.accepts([]);
+			arr.accepts([-2, 3]);
+			arr.accepts([2, 3]);
+			arr.accepts(['2', '3']);
+			arr.accepts(['-2', '0', '3']);
+			arr.accepts(['-2', 0.0, '3']);
+			arr.rejects(2);
+			arr.rejects(76);
+			arr.rejects([6, '3', 7]);
+			arr.rejects([2, 'a', 3]);
+			arr.rejects([-2, 4]);
+			arr.rejects([-1.2, 2.1]);
+			arr.rejects([-3, 3]);
+			arr.rejects([-3, 4]);
+			arr.rejects([2, 2, 2, 2, 2]);
 		}
 	});
 
