@@ -19,7 +19,7 @@ import { LineBreakData, ViewLineData } from 'vs/editor/common/viewModel/viewMode
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { ISimpleModel, ModelLineProjection } from 'vs/editor/common/viewModel/modelLineProjection';
+import { ISimpleModel, IModelLineProjection, createModelLineProjection } from 'vs/editor/common/viewModel/modelLineProjection';
 
 suite('Editor ViewModel - SplitLinesCollection', () => {
 	test('SplitLine', () => {
@@ -947,8 +947,8 @@ function pos(lineNumber: number, column: number): Position {
 	return new Position(lineNumber, column);
 }
 
-function createSplitLine(splitLengths: number[], breakingOffsetsVisibleColumn: number[], wrappedTextIndentWidth: number, isVisible: boolean = true): ModelLineProjection {
-	return new ModelLineProjection(createLineBreakData(splitLengths, breakingOffsetsVisibleColumn, wrappedTextIndentWidth), isVisible);
+function createSplitLine(splitLengths: number[], breakingOffsetsVisibleColumn: number[], wrappedTextIndentWidth: number, isVisible: boolean = true): IModelLineProjection {
+	return createModelLineProjection(createLineBreakData(splitLengths, breakingOffsetsVisibleColumn, wrappedTextIndentWidth), isVisible);
 }
 
 function createLineBreakData(breakingLengths: number[], breakingOffsetsVisibleColumn: number[], wrappedTextIndentWidth: number): LineBreakData {

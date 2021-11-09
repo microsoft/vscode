@@ -931,7 +931,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 	normalizePosition(position: Position, affinity: PositionAffinity): Position {
 		const info = this.getViewLineInfo(position.lineNumber);
-		return this.modelLineProjections[info.modelLineNumber - 1].normalizePosition(this.model, info.modelLineNumber, info.modelLineWrappedLineIdx, position, affinity);
+		return this.modelLineProjections[info.modelLineNumber - 1].normalizePosition(info.modelLineWrappedLineIdx, position, affinity);
 	}
 
 	public getLineIndentColumn(lineNumber: number): number {
