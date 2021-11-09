@@ -143,10 +143,10 @@ export class WebClientServer {
 		}
 	}
 
-	private _hasCorrectTokenCookie(req: http.IncomingMessage): boolean {
-		const cookies = cookie.parse(req.headers.cookie || '');
-		return (cookies['vscode-tkn'] === this._connectionToken);
-	}
+	// private _hasCorrectTokenCookie(req: http.IncomingMessage): boolean {
+	// 	const cookies = cookie.parse(req.headers.cookie || '');
+	// 	return (cookies['vscode-tkn'] === this._connectionToken);
+	// }
 
 	private async fetchClientTheme(): Promise<ClientTheme> {
 		await this._themeService.readyPromise;
@@ -270,9 +270,11 @@ export class WebClientServer {
 			return res.end();
 		}
 
-		if (this._environmentService.isBuilt && !this._hasCorrectTokenCookie(req)) {
-			return this.serveError(req, res, 403, `Forbidden.`, parsedUrl);
-		}
+		// NOTE@coder: Disable until supported (currently this results in 403 errors
+		// in production builds and we already have authentication).
+		// if (this._environmentService.isBuilt && !this._hasCorrectTokenCookie(req)) {
+		// 	return this.serveError(req, res, 403, `Forbidden.`, parsedUrl);
+		// }
 
 		const remoteAuthority = this.getRemoteAuthority(req);
 
