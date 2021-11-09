@@ -1677,7 +1677,7 @@ declare module 'vscode' {
 		 * Optional buttons that will be rendered on this particular item. These buttons will trigger
 		 * an {@link QuickPickItemButtonEvent} when clicked.
 		 */
-		readonly buttons?: QuickInputButton[];
+		buttons?: readonly QuickInputButton[];
 	}
 
 	/**
