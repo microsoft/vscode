@@ -1024,6 +1024,8 @@ export class GridView implements IDisposable {
 			const node = new LeafNode(view, grandParent.orientation, this.layoutController, parent.size);
 			newParent.addChild(node, size, index);
 		}
+
+		this.trySet2x2();
 	}
 
 	removeView(location: number[], sizing?: Sizing): IView {
@@ -1050,6 +1052,7 @@ export class GridView implements IDisposable {
 		}
 
 		if (parent.children.length > 1) {
+			this.trySet2x2();
 			return node.view;
 		}
 
@@ -1064,6 +1067,7 @@ export class GridView implements IDisposable {
 			parent.removeChild(0);
 			this.root = sibling;
 			this.boundarySashes = this.boundarySashes;
+			this.trySet2x2();
 			return node.view;
 		}
 
@@ -1094,6 +1098,7 @@ export class GridView implements IDisposable {
 			grandParent.resizeChild(i, sizes[i]);
 		}
 
+		this.trySet2x2();
 		return node.view;
 	}
 
@@ -1105,6 +1110,8 @@ export class GridView implements IDisposable {
 		}
 
 		parent.moveChild(from, to);
+
+		this.trySet2x2();
 	}
 
 	swapViews(from: number[], to: number[]): void {
@@ -1145,6 +1152,8 @@ export class GridView implements IDisposable {
 			fromParent.addChild(toNode, fromSize, fromIndex);
 			toParent.addChild(fromNode, toSize, toIndex);
 		}
+
+		this.trySet2x2();
 	}
 
 	resizeView(location: number[], { width, height }: Partial<IViewSize>): void {
@@ -1171,6 +1180,8 @@ export class GridView implements IDisposable {
 		if (typeof parentSize === 'number') {
 			parent.resizeChild(index, parentSize);
 		}
+
+		this.trySet2x2();
 	}
 
 	getViewSize(location?: number[]): IViewSize {
@@ -1218,6 +1229,7 @@ export class GridView implements IDisposable {
 		}
 
 		node.distributeViewSizes();
+		this.trySet2x2();
 	}
 
 	isViewVisible(location: number[]): boolean {

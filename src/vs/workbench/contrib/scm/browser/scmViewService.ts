@@ -11,7 +11,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { SCMMenus } from 'vs/workbench/contrib/scm/browser/menus';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { debounce } from 'vs/base/common/decorators';
-import { ILogService } from 'vs/platform/log/common/log';
 
 function getProviderStorageKey(provider: ISCMProvider): string {
 	return `${provider.contextValue}:${provider.label}${provider.rootUri ? `:${provider.rootUri.toString()}` : ''}`;
@@ -100,8 +99,7 @@ export class SCMViewService implements ISCMViewService {
 	constructor(
 		@ISCMService private readonly scmService: ISCMService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IStorageService private readonly storageService: IStorageService,
-		@ILogService private readonly logService: ILogService
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		this.menus = instantiationService.createInstance(SCMMenus);
 
@@ -123,8 +121,6 @@ export class SCMViewService implements ISCMViewService {
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
-		this.logService.trace('SCMViewService#onDidAddRepository', getProviderStorageKey(repository.provider));
-
 		if (!this.didFinishLoading) {
 			this.eventuallyFinishLoading();
 		}
@@ -135,8 +131,6 @@ export class SCMViewService implements ISCMViewService {
 			const index = this.previousState.all.indexOf(getProviderStorageKey(repository.provider));
 
 			if (index === -1) { // saw a repo we did not expect
-				this.logService.trace('SCMViewService#onDidAddRepository', 'This is a new repository, so we stop the heuristics');
-
 				const added: ISCMRepository[] = [];
 				for (const repo of this.scmService.repositories) { // all should be visible
 					if (!this._visibleRepositoriesSet.has(repo)) {
@@ -179,8 +173,6 @@ export class SCMViewService implements ISCMViewService {
 	}
 
 	private onDidRemoveRepository(repository: ISCMRepository): void {
-		this.logService.trace('SCMViewService#onDidRemoveRepository', getProviderStorageKey(repository.provider));
-
 		if (!this.didFinishLoading) {
 			this.eventuallyFinishLoading();
 		}
@@ -257,7 +249,6 @@ export class SCMViewService implements ISCMViewService {
 
 	@debounce(2000)
 	private eventuallyFinishLoading(): void {
-		this.logService.trace('SCMViewService#eventuallyFinishLoading');
 		this.finishLoading();
 	}
 
@@ -266,7 +257,6 @@ export class SCMViewService implements ISCMViewService {
 			return;
 		}
 
-		this.logService.trace('SCMViewService#finishLoading');
 		this.didFinishLoading = true;
 		this.previousState = undefined;
 	}

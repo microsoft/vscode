@@ -91,6 +91,10 @@ export class WorkbenchAssignmentService extends BaseAssignmentService {
 			new MementoKeyValueStorage(new Memento('experiment.service.memento', storageService)));
 	}
 
+	protected override get experimentsEnabled(): boolean {
+		return this.configurationService.getValue('workbench.enableExperiments') === true;
+	}
+
 	override async getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
 		const result = await super.getTreatment<T>(name);
 		type TASClientReadTreatmentData = {

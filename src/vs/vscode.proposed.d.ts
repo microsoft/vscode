@@ -2833,4 +2833,15 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region @sandy081 https://github.com/microsoft/vscode/issues/132183
+
+	export interface OutputChannel {
+		/*
+		 * Replaces the existing contents of the channel with the given value.
+		 */
+		replace(value: string): void;
+	}
+
+	//#endregion
 }

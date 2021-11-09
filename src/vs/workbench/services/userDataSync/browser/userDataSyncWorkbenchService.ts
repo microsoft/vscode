@@ -657,8 +657,10 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		if (this._cachedCurrentSessionId !== cachedSessionId) {
 			this._cachedCurrentSessionId = cachedSessionId;
 			if (cachedSessionId === undefined) {
+				this.logService.info('Settings Sync: Reset current session');
 				this.storageService.remove(UserDataSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, StorageScope.GLOBAL);
 			} else {
+				this.logService.info('Settings Sync: Updated current session', cachedSessionId);
 				this.storageService.store(UserDataSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, cachedSessionId, StorageScope.GLOBAL, StorageTarget.MACHINE);
 			}
 		}

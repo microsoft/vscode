@@ -30,9 +30,14 @@
 	left: -8px !important;
 }
 
-.monaco-editor .debug-breakpoint-placeholder::before,
-.monaco-editor .debug-top-stack-frame-column::before {
-	content: ' ';
+.monaco-editor .debug-breakpoint-placeholder {
+	width: 0.9em;
+	display: inline-flex;
+	vertical-align: middle;
+	margin-top: -1px;
+}
+
+.monaco-editor .debug-top-stack-frame-column {
 	width: 0.9em;
 	display: inline-flex;
 	vertical-align: middle;
@@ -40,7 +45,7 @@
 }
 
 /* Do not push text with inline decoration when decoration on start of line */
-.monaco-editor .debug-top-stack-frame-column.start-of-line::before {
+.monaco-editor .debug-top-stack-frame-column.start-of-line {
 	position: absolute;
 	top: 50%;
 	transform: translate(-17px, -50%);
@@ -116,4 +121,10 @@
 
 .monaco-workbench .monaco-list-row .expression .unavailable {
 	font-style: italic;
+}
+
+.monaco-workbench .debug-inline-value {
+	background-color: var(--vscode-editor-inlineValuesBackground);
+	margin: 10px;
+	color: var(--vscode-editor-inlineValuesForeground);
 }

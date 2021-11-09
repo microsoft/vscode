@@ -9,7 +9,7 @@ import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IOutputChannel, IOutputService, OUTPUT_VIEW_ID, OUTPUT_SCHEME, LOG_SCHEME, LOG_MIME, OUTPUT_MIME } from 'vs/workbench/contrib/output/common/output';
+import { IOutputChannel, IOutputService, OUTPUT_VIEW_ID, OUTPUT_SCHEME, LOG_SCHEME, LOG_MIME, OUTPUT_MIME, OutputChannelUpdateMode } from 'vs/workbench/contrib/output/common/output';
 import { IOutputChannelDescriptor, Extensions, IOutputChannelRegistry } from 'vs/workbench/services/output/common/output';
 import { OutputLinkProvider } from 'vs/workbench/contrib/output/common/outputLinkProvider';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
@@ -46,12 +46,16 @@ class OutputChannel extends Disposable implements IOutputChannel {
 		this.model.append(output);
 	}
 
-	update(): void {
-		this.model.update();
+	update(mode: OutputChannelUpdateMode, till?: number): void {
+		this.model.update(mode, till);
 	}
 
-	clear(till?: number): void {
-		this.model.clear(till);
+	clear(): void {
+		this.model.clear();
+	}
+
+	replace(value: string): void {
+		this.model.replace(value);
 	}
 }
 

@@ -587,17 +587,16 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		}
 
 		const selection = widget.getSelection();
-		const focus = widget.getFocus()[0];
 		const fakeKeyboardEvent = new KeyboardEvent('keydown');
 
 		if (selection.length > 1) {
-			if (focus) {
-				widget.setSelection([focus], fakeKeyboardEvent);
+			const useSelectionNavigation = WorkbenchListSelectionNavigation.getValue(widget.contextKeyService);
+			if (useSelectionNavigation) {
+				const focus = widget.getFocus();
+				widget.setSelection([focus[0]], fakeKeyboardEvent);
 			} else {
-				widget.setSelection(selection[0], fakeKeyboardEvent);
+				widget.setSelection([], fakeKeyboardEvent);
 			}
-		} else if (selection.length === 1 && selection[0] !== focus) {
-			widget.setSelection([focus], fakeKeyboardEvent);
 		} else {
 			widget.setSelection([], fakeKeyboardEvent);
 			widget.setFocus([], fakeKeyboardEvent);

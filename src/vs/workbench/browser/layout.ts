@@ -49,7 +49,7 @@ import { getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts
 import { Schemas } from 'vs/base/common/network';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
-import { AuxiliaryBarPart } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart';
+import { AuxiliaryBarPart, AUXILIARYBAR_ENABLED } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart';
 
 export enum Settings {
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible',
@@ -58,8 +58,6 @@ export enum Settings {
 	SIDEBAR_POSITION = 'workbench.sideBar.location',
 	PANEL_POSITION = 'workbench.panel.defaultLocation',
 	PANEL_OPENS_MAXIMIZED = 'workbench.panel.opensMaximized',
-
-	AUXILIARYBAR_ENABLED = 'workbench.experimental.sidePanel.enabled',
 
 	ZEN_MODE_RESTORE = 'zenMode.restore',
 }
@@ -570,7 +568,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Auxiliary Bar visibility
-		this.state.auxiliaryBar.hidden = !this.configurationService.getValue(Settings.AUXILIARYBAR_ENABLED) || this.storageService.getBoolean(Storage.AUXILIARYBAR_HIDDEN, StorageScope.WORKSPACE, true);
+		this.state.auxiliaryBar.hidden = !this.configurationService.getValue(AUXILIARYBAR_ENABLED) || this.storageService.getBoolean(Storage.AUXILIARYBAR_HIDDEN, StorageScope.WORKSPACE, true);
 
 		// Auxiliary Panel to restore
 		if (!this.state.auxiliaryBar.hidden) {
@@ -1040,7 +1038,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			case Parts.PANEL_PART:
 				return !this.state.panel.hidden;
 			case Parts.AUXILIARYBAR_PART:
-				return !!this.configurationService.getValue(Settings.AUXILIARYBAR_ENABLED) && !this.state.auxiliaryBar.hidden;
+				return !!this.configurationService.getValue(AUXILIARYBAR_ENABLED) && !this.state.auxiliaryBar.hidden;
 			case Parts.STATUSBAR_PART:
 				return !this.state.statusBar.hidden;
 			case Parts.ACTIVITYBAR_PART:
@@ -1687,7 +1685,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private setAuxiliaryBarHidden(hidden: boolean, skipLayout?: boolean): void {
-		if (!this.configurationService || !this.configurationService.getValue(Settings.AUXILIARYBAR_ENABLED)) {
+		if (!this.configurationService || !this.configurationService.getValue(AUXILIARYBAR_ENABLED)) {
 			return;
 		}
 

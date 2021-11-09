@@ -387,6 +387,8 @@ export interface ITerminalInstance {
 	readonly rows: number;
 	readonly maxCols: number;
 	readonly maxRows: number;
+	readonly fixedCols?: number;
+	readonly fixedRows?: number;
 	readonly icon?: TerminalIcon;
 	readonly color?: string;
 

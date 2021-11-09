@@ -138,6 +138,11 @@ export interface IRenderedMarkupMessage extends BaseToWebviewMessage {
 	readonly type: 'renderedMarkup';
 	readonly cellId: string;
 	readonly html: string;
+	readonly codeBlocks: ReadonlyArray<{
+		readonly id: string;
+		readonly value: string;
+		readonly lang: string;
+	}>;
 }
 
 export interface ITelemetryFoundRenderedMarkdownMath extends BaseToWebviewMessage {
@@ -338,6 +343,16 @@ export interface INotebookUpdateWorkspaceTrust {
 	readonly type: 'updateWorkspaceTrust';
 	readonly isTrusted: boolean;
 }
+export interface ITokenizedCodeBlockMessage {
+	readonly type: 'tokenizedCodeBlock';
+	readonly codeBlockId: string;
+	readonly html: string;
+}
+
+export interface ITokenizedStylesChangedMessage {
+	readonly type: 'tokenizedStylesChanged';
+	readonly css: string;
+}
 
 export type FromWebviewMessage = WebviewIntialized |
 	IDimensionMessage |
@@ -388,6 +403,8 @@ export type ToWebviewMessage = IClearMessage |
 	IInitializeMarkupCells |
 	INotebookStylesMessage |
 	INotebookOptionsMessage |
-	INotebookUpdateWorkspaceTrust;
+	INotebookUpdateWorkspaceTrust |
+	ITokenizedCodeBlockMessage |
+	ITokenizedStylesChangedMessage;
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;

@@ -387,7 +387,6 @@ export interface ISearchConfigurationProperties {
 		experimental: {}
 	};
 	sortOrder: SearchSortOrder;
-	forceSearchProcess: boolean;
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {

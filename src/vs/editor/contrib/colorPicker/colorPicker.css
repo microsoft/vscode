@@ -14,6 +14,22 @@
 	outline: none;
 }
 
+/* Decoration */
+
+.colorpicker-color-decoration {
+	border: solid 0.1em #000;
+	box-sizing: border-box;
+	margin: 0.1em 0.2em 0 0.2em;
+	width: 0.8em;
+	height: 0.8em;
+	line-height: 0.8em;
+	display: inline-block;
+}
+
+.hc-black .colorpicker-color-decoration,
+.vs-dark .colorpicker-color-decoration {
+	border: solid 0.1em #eee;
+}
 
 /* Header */
 
