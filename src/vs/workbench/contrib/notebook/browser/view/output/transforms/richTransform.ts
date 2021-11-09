@@ -18,7 +18,7 @@ import { ICellOutputViewModel, IRenderOutput, RenderOutputType } from 'vs/workbe
 import { INotebookDelegateForOutput, IOutputTransformContribution as IOutputRendererContribution } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { OutputRendererRegistry } from 'vs/workbench/contrib/notebook/browser/view/output/rendererRegistry';
 import { truncatedArrayOfString } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/textHelper';
-import { IOutputItemDto, TextOutputLineLimit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IOutputItemDto, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 
 class JavaScriptRendererContrib extends Disposable implements IOutputRendererContribution {
@@ -74,7 +74,7 @@ class StreamRendererContrib extends Disposable implements IOutputRendererContrib
 
 		const text = getStringValue(item);
 		const contentNode = DOM.$('span.output-stream');
-		const lineLimit = this.configurationService.getValue<number>(TextOutputLineLimit) ?? 30;
+		const lineLimit = this.configurationService.getValue<number>(NotebookSetting.textOutputLineLimit) ?? 30;
 		truncatedArrayOfString(notebookUri, output.cellViewModel, Math.max(lineLimit, 6), contentNode, [text], disposables, linkDetector, this.openerService, this.themeService);
 		container.appendChild(contentNode);
 
@@ -178,7 +178,7 @@ class PlainTextRendererContrib extends Disposable implements IOutputRendererCont
 
 		const str = getStringValue(item);
 		const contentNode = DOM.$('.output-plaintext');
-		const lineLimit = this.configurationService.getValue<number>(TextOutputLineLimit) ?? 30;
+		const lineLimit = this.configurationService.getValue<number>(NotebookSetting.textOutputLineLimit) ?? 30;
 		truncatedArrayOfString(notebookUri, output.cellViewModel, Math.max(lineLimit, 6), contentNode, [str], disposables, linkDetector, this.openerService, this.themeService);
 		container.appendChild(contentNode);
 
