@@ -66,7 +66,7 @@ export class TerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
 	private _remoteTerminalsInitPromise: Promise<void> | undefined;
 	private _localTerminalsInitPromise: Promise<void> | undefined;
-	private _connectionState: TerminalConnectionState;
+	private _connectionState: TerminalConnectionState = TerminalConnectionState.Connecting;
 	private _nativeDelegate?: ITerminalServiceNativeDelegate;
 	private _shutdownWindowCount?: number;
 
@@ -236,22 +236,6 @@ export class TerminalService implements ITerminalService {
 			}
 		});
 
-		const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
-
-		// Connect to the extension host if it's there, set the connection state to connected when
-		// it's done. This should happen even when there is no extension host.
-		this._connectionState = TerminalConnectionState.Connecting;
-
-		const isPersistentRemote = !!this._environmentService.remoteAuthority && enableTerminalReconnection;
-
-		if (isPersistentRemote) {
-			this._remoteTerminalsInitPromise = this._reconnectToRemoteTerminals();
-		} else if (enableTerminalReconnection) {
-			this._localTerminalsInitPromise = this._reconnectToLocalTerminals();
-		} else {
-			this._connectionState = TerminalConnectionState.Connected;
-		}
-
 		// Create async as the class depends on `this`
 		timeout(0).then(() => this._instantiationService.createInstance(TerminalEditorStyle, document.head));
 	}
@@ -259,6 +243,22 @@ export class TerminalService implements ITerminalService {
 	handleNewRegisteredBackend(backend: ITerminalBackend) {
 		if (backend.remoteAuthority === this._environmentService.remoteAuthority) {
 			this._primaryBackend = backend;
+			const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
+
+			// Connect to the extension host if it's there, set the connection state to connected when
+			// it's done. This should happen even when there is no extension host.
+			this._connectionState = TerminalConnectionState.Connecting;
+
+			const isPersistentRemote = !!this._environmentService.remoteAuthority && enableTerminalReconnection;
+
+			if (isPersistentRemote) {
+				this._remoteTerminalsInitPromise = this._reconnectToRemoteTerminals();
+			} else if (enableTerminalReconnection) {
+				this._localTerminalsInitPromise = this._reconnectToLocalTerminals();
+			} else {
+				this._connectionState = TerminalConnectionState.Connected;
+			}
+
 			backend.onDidRequestDetach(async (e) => {
 				const instanceToDetach = this.getInstanceFromResource(getTerminalUri(e.workspaceId, e.instanceId));
 				if (instanceToDetach) {
