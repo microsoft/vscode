@@ -215,7 +215,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			'notebook-output-width': `calc(100% - ${this.options.leftMargin + this.options.rightMargin + this.options.runGutter}px)`,
 			'notebook-output-node-padding': `${this.options.outputNodePadding}px`,
 			'notebook-run-gutter': `${this.options.runGutter}px`,
-			'notebook-preivew-node-padding': `${this.options.previewNodePadding}px`,
+			'notebook-preview-node-padding': `${this.options.previewNodePadding}px`,
 			'notebook-markdown-left-margin': `${this.options.markdownLeftMargin}px`,
 			'notebook-output-node-left-padding': `${this.options.outputNodeLeftPadding}px`,
 			'notebook-markdown-min-height': `${this.options.previewNodePadding * 2}px`,
@@ -279,10 +279,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					/* markdown */
 					#container > div.preview {
 						width: 100%;
-						padding-right: var(--notebook-preivew-node-padding);
+						padding-right: var(--notebook-preview-node-padding);
 						padding-left: var(--notebook-markdown-left-margin);
-						padding-top: var(--notebook-preivew-node-padding);
-						padding-bottom: var(--notebook-preivew-node-padding);
+						padding-top: var(--notebook-preview-node-padding);
+						padding-bottom: var(--notebook-preview-node-padding);
 
 						box-sizing: border-box;
 						white-space: nowrap;
