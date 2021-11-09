@@ -615,7 +615,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				lineDataEventAddon.setOperatingSystem(this._processManager.os);
 			}
 			if (this._processManager.os === OperatingSystem.Windows) {
-				xterm.raw.setOption('windowsMode', processTraits.requiresWindowsMode || false);
+				xterm.raw.options.windowsMode = processTraits.requiresWindowsMode || false;
 			}
 			this._linkManager = this._instantiationService.createInstance(TerminalLinkManager, xterm.raw, this._processManager!);
 			this._areLinksReady = true;
@@ -1088,7 +1088,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 		this._processManager.onEnvironmentVariableInfoChanged(e => this._onEnvironmentVariableInfoChanged(e));
 		this._processManager.onPtyDisconnect(() => {
-			this._safeSetOption('disableStdin', true);
+			if (this.xterm) {
+				this.xterm.raw.options.disableStdin = true;
+			}
 			this.statusList.add({
 				id: TerminalStatus.Disconnected,
 				severity: Severity.Error,
@@ -1097,7 +1099,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			});
 		});
 		this._processManager.onPtyReconnect(() => {
-			this._safeSetOption('disableStdin', false);
+			if (this.xterm) {
+				this.xterm.raw.options.disableStdin = false;
+			}
 			this.statusList.remove(TerminalStatus.Disconnected);
 		});
 	}
@@ -1231,7 +1235,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					xterm.raw.write(formatMessageForTerminal(this._shellLaunchConfig.waitOnExit));
 				}
 				// Disable all input if the terminal is exiting and listen for next keypress
-				xterm.raw.setOption('disableStdin', true);
+				xterm.raw.options.disableStdin = true;
 				if (xterm.raw.textarea) {
 					this._attachPressAnyKeyToCloseListener(xterm.raw);
 				}
@@ -1313,7 +1317,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			// Clean up waitOnExit state
 			if (this._isExiting && this._shellLaunchConfig.waitOnExit) {
-				this.xterm.raw.setOption('disableStdin', false);
+				this.xterm.raw.options.disableStdin = false;
 				this._isExiting = false;
 			}
 		}
@@ -1397,7 +1401,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._navigationModeAddon?.dispose();
 			this._navigationModeAddon = undefined;
 		}
-		this.xterm!.raw.setOption('screenReaderMode', isEnabled);
+		this.xterm!.raw.options.screenReaderMode = isEnabled;
 	}
 
 	private _setCommandsToSkipShell(commands: string[]): void {
@@ -1405,16 +1409,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._skipTerminalCommands = DEFAULT_COMMANDS_TO_SKIP_SHELL.filter(defaultCommand => {
 			return excludeCommands.indexOf(defaultCommand) === -1;
 		}).concat(commands);
-	}
-
-	private _safeSetOption(key: string, value: any): void {
-		if (!this.xterm) {
-			return;
-		}
-
-		if (this.xterm.raw.getOption(key) !== value) {
-			this.xterm.raw.setOption(key, value);
-		}
 	}
 
 	layout(dimension: dom.Dimension): void {
@@ -1456,12 +1450,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (this._isVisible && this._layoutSettingsChanged) {
 				const font = this.xterm.getFont();
 				const config = this._configHelper.config;
-				this._safeSetOption('letterSpacing', font.letterSpacing);
-				this._safeSetOption('lineHeight', font.lineHeight);
-				this._safeSetOption('fontSize', font.fontSize);
-				this._safeSetOption('fontFamily', font.fontFamily);
-				this._safeSetOption('fontWeight', config.fontWeight);
-				this._safeSetOption('fontWeightBold', config.fontWeightBold);
+				this.xterm.raw.options.letterSpacing = font.letterSpacing;
+				this.xterm.raw.options.lineHeight = font.lineHeight;
+				this.xterm.raw.options.fontSize = font.fontSize;
+				this.xterm.raw.options.fontFamily = font.fontFamily;
+				this.xterm.raw.options.fontWeight = config.fontWeight;
+				this.xterm.raw.options.fontWeightBold = config.fontWeightBold;
 
 				// Any of the above setting changes could have changed the dimensions of the
 				// terminal, re-evaluate now.
@@ -1787,8 +1781,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	async toggleEscapeSequenceLogging(): Promise<void> {
 		const xterm = await this._xtermReadyPromise;
-		const isDebug = xterm.raw.getOption('logLevel') === 'debug';
-		xterm.raw.setOption('logLevel', isDebug ? 'info' : 'debug');
+		xterm.raw.options.logLevel = xterm.raw.options.logLevel === 'debug' ? 'info' : 'debug';
 	}
 
 	async getInitialCwd(): Promise<string> {
