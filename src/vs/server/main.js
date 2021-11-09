@@ -13,7 +13,7 @@ perf.mark('code/server/start');
 // @ts-ignore
 global.vscodeServerStartTime = performance.now();
 
-function start() {
+async function start() {
 	if (process.argv[2] === '--exec') {
 		process.argv.splice(1, 2);
 		require(process.argv[1]);
@@ -25,7 +25,7 @@ function start() {
 	// Do a quick parse to determine if a server or the cli needs to be started
 	const parsedArgs = minimist(process.argv.slice(2), {
 		boolean: ['start-server', 'list-extensions', 'print-ip-address'],
-		string: ['install-extension', 'install-builtin-extension', 'uninstall-extension', 'locate-extension', 'socket-path', 'host', 'port']
+		string: ['install-extension', 'install-builtin-extension', 'uninstall-extension', 'locate-extension', 'socket-path', 'host', 'port', 'pick-port']
 	});
 
 	const shouldSpawnCli = (
@@ -87,7 +87,7 @@ function start() {
 	const nodeListenOptions = (
 		parsedArgs['socket-path']
 			? { path: parsedArgs['socket-path'] }
-			: { host: parsedArgs['host'], port: parsePort(parsedArgs['port']) }
+			: { host: parsedArgs['host'], port: await parsePort(parsedArgs['port'], parsedArgs['pick-port']) }
 	);
 	server.listen(nodeListenOptions, async () => {
 		const serverGreeting = product.serverGreeting.join('\n');
@@ -129,10 +129,19 @@ function start() {
 }
 
 /**
+ * If `--port` is specified, connect to that port first.
+ *
+ * If not and a port range is specified through `--pick-port`
+ * then find a free port in that range. Throw error if no
+ * free port available in range.
+ *
+ * In absence of specified ports, connect to port 8000.
  * @param {string | undefined} strPort
- * @returns {number}
+ * @param {string | undefined} strPickPort
+ * @returns {Promise<number>}
+ * @throws
  */
-function parsePort(strPort) {
+async function parsePort(strPort, strPickPort) {
 	try {
 		if (strPort) {
 			return parseInt(strPort);
@@ -140,7 +149,48 @@ function parsePort(strPort) {
 	} catch (e) {
 		console.log('Port is not a number, using 8000 instead.');
 	}
+
+	if (strPickPort) {
+		let [start, end] = [-1, -1];
+		try {
+			[start, end] = strPickPort.split('-').map(numStr => { return parseInt(numStr); });
+		} catch {
+			console.log('Port range are not numbers, using 8000 instead.');
+		}
+
+		if (start !== -1 && end !== -1) {
+			return await findFreePort(start, start, end);
+		}
+	}
+
 	return 8000;
+}
+
+/**
+ * Starting at the `start` port, look for a free port incrementing
+ * by 1 until `end` inclusive. If no port is found error is thrown.
+ *
+ * @param {number} start
+ * @param {number} port
+ * @param {number} end
+ * @returns {Promise<number>}
+ * @throws
+ */
+async function findFreePort(start, port, end) {
+	const http = require('http');
+	return new Promise((resolve, reject) => {
+		if (port > end) {
+			throw new Error(`Could not find free port in range: ${start}-${end}`);
+		}
+
+		const server = http.createServer();
+		server.listen(port, () => {
+			server.close();
+			resolve(port);
+		}).on('error', () => {
+			resolve(findFreePort(start, port + 1, end));
+		});
+	});
 }
 
 /** @returns { Promise<typeof import('./remoteExtensionHostAgent')> } */
