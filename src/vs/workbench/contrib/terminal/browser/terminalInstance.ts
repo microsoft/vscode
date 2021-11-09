@@ -365,6 +365,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (this._fixedCols) {
 				await this._addScrollbar();
 			}
+		}).catch((err) => {
+			// Ignore exceptions if the terminal is already disposed
+			if (!this._isDisposed) {
+				throw err;
+			}
 		});
 
 		this.addDisposable(this._configurationService.onDidChangeConfiguration(async e => {
@@ -551,8 +556,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	 */
 	protected async _createXterm(): Promise<XtermTerminal> {
 		const Terminal = await this._getXtermConstructor();
+		if (this._isDisposed) {
+			throw new Error('Terminal disposed of during xterm.js creation');
+		}
 
-		// TODO: Move cols/rows over to XtermTerminal
 		const xterm = this._instantiationService.createInstance(XtermTerminal, Terminal, this._configHelper, this._cols, this._rows);
 		this.xterm = xterm;
 		const lineDataEventAddon = new LineDataEventAddon();
