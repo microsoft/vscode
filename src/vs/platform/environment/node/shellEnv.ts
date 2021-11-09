@@ -130,10 +130,10 @@ async function doResolveUnixShellEnv(logService: ILogService, token: Cancellatio
 		if (/^pwsh(-preview)?$/.test(name)) {
 			// Older versions of PowerShell removes double quotes sometimes so we use "double single quotes" which is how
 			// you escape single quotes inside of a single quoted string.
-			command = `& '${process.execPath}' -p '''${mark}'' + JSON.stringify(process.env) + ''${mark}'''`;
+			command = `& '${process.execPath}' --ms-enable-electron-run-as-node -p '''${mark}'' + JSON.stringify(process.env) + ''${mark}'''`;
 			shellArgs = ['-Login', '-Command'];
 		} else {
-			command = `'${process.execPath}' -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
+			command = `'${process.execPath}' --ms-enable-electron-run-as-node -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
 
 			if (name === 'tcsh') {
 				shellArgs = ['-ic'];
