@@ -8,6 +8,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { language, locale } from 'vs/base/common/platform';
 import { IElement, ILocaleInfo, ILocalizedStrings, IWindowDriver } from 'vs/platform/driver/common/driver';
 import localizedStrings from 'vs/platform/localizations/common/localizedStrings';
+import type { Terminal } from 'xterm';
 
 function serializeElement(element: Element, recursive: boolean): IElement {
 	const attributes = Object.create(null);
@@ -132,16 +133,15 @@ export abstract class BaseWindowDriver implements IWindowDriver {
 			throw new Error(`Terminal not found: ${selector}`);
 		}
 
-		const xterm = (element as any).xterm;
+		const xterm = (element as any).xterm as Terminal;
 
 		if (!xterm) {
 			throw new Error(`Xterm not found: ${selector}`);
 		}
 
 		const lines: string[] = [];
-
-		for (let i = 0; i < xterm.buffer.length; i++) {
-			lines.push(xterm.buffer.getLine(i)!.translateToString(true));
+		for (let i = 0; i < xterm.buffer.active.length; i++) {
+			lines.push(xterm.buffer.active.getLine(i)!.translateToString(true));
 		}
 
 		return lines;
@@ -154,13 +154,13 @@ export abstract class BaseWindowDriver implements IWindowDriver {
 			throw new Error(`Element not found: ${selector}`);
 		}
 
-		const xterm = (element as any).xterm;
+		const xterm = (element as any).xterm as Terminal;
 
 		if (!xterm) {
 			throw new Error(`Xterm not found: ${selector}`);
 		}
 
-		xterm._core._coreService.triggerDataEvent(text);
+		(xterm as any)._core._coreService.triggerDataEvent(text);
 	}
 
 	getLocaleInfo(): Promise<ILocaleInfo> {
