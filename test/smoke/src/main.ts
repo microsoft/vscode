@@ -27,6 +27,7 @@ import { setup as setupDataExtensionTests } from './areas/extensions/extensions.
 import { setup as setupDataMultirootTests } from './areas/multiroot/multiroot.test';
 import { setup as setupDataLocalizationTests } from './areas/workbench/localization.test';
 import { setup as setupLaunchTests } from './areas/workbench/launch.test';
+import { setup as setupTerminalProfileTests } from './areas/terminal/terminal-profiles.test';
 
 const testDataPath = path.join(os.tmpdir(), 'vscsmoke');
 if (fs.existsSync(testDataPath)) {
@@ -352,4 +353,7 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	if (!opts.web) { setupDataMultirootTests(opts); }
 	if (!opts.web) { setupDataLocalizationTests(opts); }
 	if (!opts.web) { setupLaunchTests(); }
+
+	// TODO: Enable terminal tests for non-web
+	if (opts.web) { setupTerminalProfileTests(opts); }
 });
