@@ -165,34 +165,9 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		});
 	}
 
-	private _reduceRanges(_ranges: Range[]): Range[] {
-		if (_ranges.length === 0) {
-			return [];
-		}
-		let ranges = _ranges.map(r => this.model.validateRange(r)).sort(Range.compareRangesUsingStarts);
-
-		let result: Range[] = [];
-		let currentRangeStart = ranges[0].startLineNumber;
-		let currentRangeEnd = ranges[0].endLineNumber;
-
-		for (let i = 1, len = ranges.length; i < len; i++) {
-			let range = ranges[i];
-
-			if (range.startLineNumber > currentRangeEnd + 1) {
-				result.push(new Range(currentRangeStart, 1, currentRangeEnd, 1));
-				currentRangeStart = range.startLineNumber;
-				currentRangeEnd = range.endLineNumber;
-			} else if (range.endLineNumber > currentRangeEnd) {
-				currentRangeEnd = range.endLineNumber;
-			}
-		}
-		result.push(new Range(currentRangeStart, 1, currentRangeEnd, 1));
-		return result;
-	}
-
 	public setHiddenAreas(_ranges: Range[]): boolean {
-
-		let newRanges = this._reduceRanges(_ranges);
+		const validatedRanges = _ranges.map(r => this.model.validateRange(r));
+		let newRanges = normalizeLineRanges(validatedRanges);
 
 		// BEGIN TODO@Martin: Please stop calling this method on each model change!
 		let oldRanges = this.hiddenAreasIds.map((areaId) => this.model.getDecorationRange(areaId)!).sort(Range.compareRangesUsingStarts);
@@ -946,6 +921,43 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		// to avoid two view lines reporting indentation for the very same model line.
 		return 0;
 	}
+}
+
+/**
+ * Overlapping unsorted ranges:
+ * [   )      [ )       [  )
+ *    [    )      [       )
+ * ->
+ * Non overlapping sorted ranges:
+ * [       )  [ ) [        )
+ *
+ * Note: This function only considers line information! Columns are ignored.
+*/
+function normalizeLineRanges(ranges: Range[]): Range[] {
+	if (ranges.length === 0) {
+		return [];
+	}
+
+	const sortedRanges = ranges.slice();
+	sortedRanges.sort(Range.compareRangesUsingStarts);
+
+	const result: Range[] = [];
+	let currentRangeStart = sortedRanges[0].startLineNumber;
+	let currentRangeEnd = sortedRanges[0].endLineNumber;
+
+	for (let i = 1, len = sortedRanges.length; i < len; i++) {
+		let range = sortedRanges[i];
+
+		if (range.startLineNumber > currentRangeEnd + 1) {
+			result.push(new Range(currentRangeStart, 1, currentRangeEnd, 1));
+			currentRangeStart = range.startLineNumber;
+			currentRangeEnd = range.endLineNumber;
+		} else if (range.endLineNumber > currentRangeEnd) {
+			currentRangeEnd = range.endLineNumber;
+		}
+	}
+	result.push(new Range(currentRangeStart, 1, currentRangeEnd, 1));
+	return result;
 }
 
 /**
