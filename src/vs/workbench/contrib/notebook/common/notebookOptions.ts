@@ -482,7 +482,8 @@ export class NotebookOptions extends Disposable {
 			rightMargin: 0,
 			runGutter: 0,
 			dragAndDropEnabled: false,
-			fontSize: this._layoutConfiguration.fontSize
+			fontSize: this._layoutConfiguration.fontSize,
+			markupFontSize: this._layoutConfiguration.markupFontSize,
 		};
 	}
 
