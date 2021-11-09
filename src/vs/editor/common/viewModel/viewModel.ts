@@ -137,7 +137,7 @@ export class OutputPosition {
  *    xxxxxx[ii]xxxx
  * ```
  */
-export class LineBreakData {
+export class ModelLineProjectionData {
 	constructor(
 		public injectionOffsets: number[] | null,
 		/**
@@ -391,8 +391,8 @@ export interface ILineBreaksComputer {
 	/**
 	 * Pass in `previousLineBreakData` if the only difference is in breaking columns!!!
 	 */
-	addRequest(lineText: string, injectedText: LineInjectedText[] | null, previousLineBreakData: LineBreakData | null): void;
-	finalize(): (LineBreakData | null)[];
+	addRequest(lineText: string, injectedText: LineInjectedText[] | null, previousLineBreakData: ModelLineProjectionData | null): void;
+	finalize(): (ModelLineProjectionData | null)[];
 }
 
 export interface IViewModel extends ICursorSimpleModel {

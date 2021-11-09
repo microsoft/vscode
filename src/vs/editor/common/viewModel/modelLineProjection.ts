@@ -8,7 +8,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { EndOfLinePreference, ITextModel, PositionAffinity } from 'vs/editor/common/model';
 import { LineInjectedText } from 'vs/editor/common/model/textModelEvents';
-import { InjectedText, LineBreakData, SingleLineInlineDecoration, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
+import { InjectedText, ModelLineProjectionData, SingleLineInlineDecoration, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 
 export interface IModelLineProjection {
 	isVisible(): boolean;
@@ -18,7 +18,7 @@ export interface IModelLineProjection {
 	*/
 	setVisible(isVisible: boolean): IModelLineProjection;
 
-	getLineBreakData(): LineBreakData | null;
+	getLineBreakData(): ModelLineProjectionData | null;
 	getViewLineCount(): number;
 	getViewLineContent(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): string;
 	getViewLineLength(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number;
@@ -44,7 +44,7 @@ export interface ISimpleModel {
 	getValueInRange(range: IRange, eol?: EndOfLinePreference): string;
 }
 
-export function createModelLineProjection(lineBreakData: LineBreakData | null, isVisible: boolean): IModelLineProjection {
+export function createModelLineProjection(lineBreakData: ModelLineProjectionData | null, isVisible: boolean): IModelLineProjection {
 	if (lineBreakData === null) {
 		// No mapping needed
 		if (isVisible) {
@@ -62,10 +62,10 @@ export function createModelLineProjection(lineBreakData: LineBreakData | null, i
  * * inject text
  */
 class ModelLineProjection implements IModelLineProjection {
-	private readonly _lineBreakData: LineBreakData;
+	private readonly _lineBreakData: ModelLineProjectionData;
 	private _isVisible: boolean;
 
-	constructor(lineBreakData: LineBreakData, isVisible: boolean) {
+	constructor(lineBreakData: ModelLineProjectionData, isVisible: boolean) {
 		this._lineBreakData = lineBreakData;
 		this._isVisible = isVisible;
 	}
@@ -79,7 +79,7 @@ class ModelLineProjection implements IModelLineProjection {
 		return this;
 	}
 
-	public getLineBreakData(): LineBreakData | null {
+	public getLineBreakData(): ModelLineProjectionData | null {
 		return this._lineBreakData;
 	}
 
@@ -287,7 +287,7 @@ class IdentityModelLineProjection implements IModelLineProjection {
 		return HiddenModelLineProjection.INSTANCE;
 	}
 
-	public getLineBreakData(): LineBreakData | null {
+	public getLineBreakData(): ModelLineProjectionData | null {
 		return null;
 	}
 
@@ -373,7 +373,7 @@ class HiddenModelLineProjection implements IModelLineProjection {
 		return IdentityModelLineProjection.INSTANCE;
 	}
 
-	public getLineBreakData(): LineBreakData | null {
+	public getLineBreakData(): ModelLineProjectionData | null {
 		return null;
 	}
 
