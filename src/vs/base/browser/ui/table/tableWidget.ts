@@ -148,9 +148,11 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 	readonly domNode: HTMLElement;
 	private splitview: SplitView;
 	private list: List<TRow>;
-	private cachedHeight: number = 0;
 	private styleElement: HTMLStyleElement;
-	private disposables = new DisposableStore();
+	protected readonly disposables = new DisposableStore();
+
+	private cachedWidth: number = 0;
+	private cachedHeight: number = 0;
 
 	get onDidChangeFocus(): Event<ITableEvent<TRow>> { return this.list.onDidChangeFocus; }
 	get onDidChangeSelection(): Event<ITableEvent<TRow>> { return this.list.onDidChangeSelection; }
@@ -212,6 +214,12 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 		Event.any(...headers.map(h => h.onDidLayout))
 			(([index, size]) => renderer.layoutColumn(index, size), null, this.disposables);
 
+		this.splitview.onDidSashReset(index => {
+			const totalWeight = columns.reduce((r, c) => r + c.weight, 0);
+			const size = columns[index].weight / totalWeight * this.cachedWidth;
+			this.splitview.resizeView(index, size);
+		}, null, this.disposables);
+
 		this.styleElement = createStyleSheet(this.domNode);
 		this.style({});
 	}
@@ -248,6 +256,7 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 		height = height ?? getContentHeight(this.domNode);
 		width = width ?? getContentWidth(this.domNode);
 
+		this.cachedWidth = width;
 		this.cachedHeight = height;
 		this.splitview.layout(width);
 
