@@ -9,7 +9,7 @@ import * as dom from 'vs/base/browser/dom';
 import { printKeyboardEvent, printStandardKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { KeyCode, KeyMod, ScanCode, ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod, ScanCode, ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, KeyCodeUtils } from 'vs/base/common/keyCodes';
 import { Keybinding, ResolvedKeybinding, SimpleKeybinding, ScanCodeBinding } from 'vs/base/common/keybindings';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { OS, OperatingSystem, isMacintosh } from 'vs/base/common/platform';
@@ -51,6 +51,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { dirname } from 'vs/base/common/resources';
 import { getAllUnboundCommands } from 'vs/workbench/services/keybinding/browser/unboundCommands';
+import { UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -338,11 +339,82 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		updateSchema(flatten(this._contributions.map(x => x.getSchemaAdditions())));
 	}
 
+	private _printUserBinding(parts: (SimpleKeybinding | ScanCodeBinding)[]): string {
+		return UserSettingsLabelProvider.toLabel(OS, parts, (part) => {
+			if (part instanceof SimpleKeybinding) {
+				return KeyCodeUtils.toString(part.keyCode);
+			}
+			return ScanCodeUtils.toString(part.scanCode);
+		}) || '[null]';
+	}
+
+	private _printResolvedKeybinding(resolvedKeybinding: ResolvedKeybinding): string {
+		return resolvedKeybinding.getDispatchParts().map(x => x || '[null]').join(' ');
+	}
+
+	private _printResolvedKeybindings(output:string[], input: string, resolvedKeybindings: ResolvedKeybinding[]): void {
+		const padLength = 35;
+		const firstRow = `${input.padStart(padLength, ' ')} => `;
+		if (resolvedKeybindings.length === 0) {
+			// no binding found
+			output.push(`${firstRow}${'[NO BINDING]'.padStart(padLength, ' ')}`);
+			return;
+		}
+
+		const firstRowIndentation = firstRow.length;
+		let isFirst = true;
+		for (const resolvedKeybinding of resolvedKeybindings) {
+			if (isFirst) {
+				output.push(`${firstRow}${this._printResolvedKeybinding(resolvedKeybinding).padStart(padLength, ' ')}`);
+			} else {
+				output.push(`${' '.repeat(firstRowIndentation)}${this._printResolvedKeybinding(resolvedKeybinding).padStart(padLength, ' ')}`);
+			}
+		}
+	}
+
+	private _dumpResolveKeybindingDebugInfo(): string {
+
+		const seenBindings = new Set<string>();
+		const result: string[] = [];
+
+		result.push(`Default Resolved Keybindings (unique only):`);
+		for (const item of KeybindingsRegistry.getDefaultKeybindings()) {
+			if (!item.keybinding || item.keybinding.length === 0) {
+				continue;
+			}
+			const input = this._printUserBinding(item.keybinding);
+			if (seenBindings.has(input)) {
+				continue;
+			}
+			seenBindings.add(input);
+			const resolvedKeybindings = this._keyboardMapper.resolveUserBinding(item.keybinding);
+			this._printResolvedKeybindings(result, input, resolvedKeybindings);
+		}
+
+		result.push(`User Resolved Keybindings (unique only):`);
+		for (const _item of this.userKeybindings.keybindings) {
+			const item = KeybindingIO.readUserKeybindingItem(_item);
+			if (!item.parts || item.parts.length === 0) {
+				continue;
+			}
+			const input = _item.key;
+			if (seenBindings.has(input)) {
+				continue;
+			}
+			seenBindings.add(input);
+			const resolvedKeybindings = this._keyboardMapper.resolveUserBinding(item.parts);
+			this._printResolvedKeybindings(result, input, resolvedKeybindings);
+		}
+
+		return result.join('\n');
+	}
+
 	public _dumpDebugInfo(): string {
 		const layoutInfo = JSON.stringify(this.keyboardLayoutService.getCurrentKeyboardLayout(), null, '\t');
 		const mapperInfo = this._keyboardMapper.dumpDebugInfo();
+		const resolvedKeybindings = this._dumpResolveKeybindingDebugInfo();
 		const rawMapping = JSON.stringify(this.keyboardLayoutService.getRawKeyboardMapping(), null, '\t');
-		return `Layout info:\n${layoutInfo}\n${mapperInfo}\n\nRaw mapping:\n${rawMapping}`;
+		return `Layout info:\n${layoutInfo}\n\n${resolvedKeybindings}\n\n${mapperInfo}\n\nRaw mapping:\n${rawMapping}`;
 	}
 
 	public _dumpDebugInfoJSON(): string {
