@@ -2408,18 +2408,6 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region scmFocus: https://github.com/microsoft/vscode/issues/119904
-
-	export interface SourceControlInputBox {
-
-		/**
-		 * Sets focus to the input.
-		 */
-		focus(): void;
-	}
-
-	//#endregion
-
 	//#region inlineCompletionProvider: https://github.com/microsoft/vscode/issues/124024 @hediet @alexdima
 
 	export namespace languages {
