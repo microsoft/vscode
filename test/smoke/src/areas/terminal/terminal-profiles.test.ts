@@ -9,7 +9,7 @@ import { Application } from '../../../../automation';
 import { afterSuite, beforeSuite } from '../../utils';
 
 export function setup(opts: ParsedArgs) {
-	describe('Terminal Profiles', () => {
+	describe.only('Terminal Profiles', () => {
 		let app: Application;
 
 		beforeSuite(opts);
@@ -24,7 +24,7 @@ export function setup(opts: ParsedArgs) {
 
 			// Verify the terminal buffer has some content
 			await app.workbench.terminal.waitForTerminalText(buffer => {
-				return buffer.some(e => e.length > 100);
+				return buffer.some(e => e.length > 0);
 			}, 'The terminal buffer should have some content');
 
 			// Verify the terminal single tab shows up and has a title
