@@ -25,7 +25,7 @@ export class NotebookEditorKernelManager extends Disposable {
 	getSelectedOrSuggestedKernel(notebook: INotebookTextModel): INotebookKernel | undefined {
 		// returns SELECTED or the ONLY available kernel
 		const info = this._notebookKernelService.getMatchingKernel(notebook);
-		return info.selected ?? info.suggestions[0];
+		return info.selected ?? (info.all.length === 1 ? info.all[0] : undefined);
 	}
 
 	async executeNotebookCells(notebook: INotebookTextModel, cells: Iterable<ICellViewModel>): Promise<void> {
