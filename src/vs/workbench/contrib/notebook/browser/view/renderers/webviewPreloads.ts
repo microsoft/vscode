@@ -1007,7 +1007,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 		}
 
-		public updateMarkupScrolls(markupCells: { id: string; top: number; }[]) {
+		public updateMarkupScrolls(markupCells: readonly webviewMessages.IMarkupCellScrollTops[]) {
 			for (const { id, top } of markupCells) {
 				const cell = this._markupCells.get(id);
 				if (cell) {
