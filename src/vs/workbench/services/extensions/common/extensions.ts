@@ -135,9 +135,11 @@ export interface IExtensionHost {
 }
 
 export function isProposedApiEnabled(extension: IExtensionDescription, proposal?: ApiProposalName): boolean {
-	// todo@joh have `extension.enabledApiProposals: string[]`
 	if (!proposal) {
 		return Boolean(extension.enableProposedApi);
+	}
+	if (extension.enabledApiProposals?.includes(proposal)) {
+		return true;
 	}
 	return Boolean(extension.enableProposedApi);
 }

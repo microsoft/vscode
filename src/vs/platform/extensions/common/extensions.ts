@@ -263,6 +263,8 @@ export interface IExtensionManifest {
 	readonly contributes?: IExtensionContributions;
 	readonly repository?: { url: string; };
 	readonly bugs?: { url: string; };
+	readonly enabledApiProposals?: string[];
+	/** @deprecated */
 	readonly enableProposedApi?: boolean;
 	readonly api?: string;
 	readonly scripts?: { [key: string]: string; };
@@ -346,9 +348,10 @@ export interface IExtensionDescription extends IExtensionManifest {
 	readonly isUserBuiltin: boolean;
 	readonly isUnderDevelopment: boolean;
 	readonly extensionLocation: URI;
+
+	/** @deprecated */
 	enableProposedApi?: boolean;
 }
-
 
 export function isLanguagePackExtension(manifest: IExtensionManifest): boolean {
 	return manifest.contributes && manifest.contributes.localizations ? manifest.contributes.localizations.length > 0 : false;
