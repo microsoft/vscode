@@ -55,7 +55,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		webview.html = value;
 	}
 
-	public $setOptions(handle: extHostProtocol.WebviewHandle, options: extHostProtocol.IWebviewOptions): void {
+	public $setOptions(handle: extHostProtocol.WebviewHandle, options: extHostProtocol.IWebviewContentOptions): void {
 		const webview = this.getWebview(handle);
 		webview.contentOptions = reviveWebviewContentOptions(options);
 	}
@@ -126,7 +126,7 @@ export function reviveWebviewExtension(extensionData: extHostProtocol.WebviewExt
 	return { id: extensionData.id, location: URI.revive(extensionData.location) };
 }
 
-export function reviveWebviewContentOptions(webviewOptions: extHostProtocol.IWebviewOptions): WebviewContentOptions {
+export function reviveWebviewContentOptions(webviewOptions: extHostProtocol.IWebviewContentOptions): WebviewContentOptions {
 	return {
 		allowScripts: webviewOptions.enableScripts,
 		allowForms: webviewOptions.enableForms,

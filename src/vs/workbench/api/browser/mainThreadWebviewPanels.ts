@@ -153,7 +153,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		viewType: string,
 		initData: {
 			title: string;
-			webviewOptions: extHostProtocol.IWebviewOptions;
+			webviewOptions: extHostProtocol.IWebviewContentOptions;
 			panelOptions: extHostProtocol.IWebviewPanelOptions;
 			serializeBuffersForPostMessage: boolean;
 		},

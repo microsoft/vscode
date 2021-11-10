@@ -618,11 +618,11 @@ export interface MainThreadTelemetryShape extends IDisposable {
 }
 
 export interface MainThreadEditorInsetsShape extends IDisposable {
-	$createEditorInset(handle: number, id: string, uri: UriComponents, line: number, height: number, options: IWebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): Promise<void>;
+	$createEditorInset(handle: number, id: string, uri: UriComponents, line: number, height: number, options: IWebviewContentOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): Promise<void>;
 	$disposeEditorInset(handle: number): void;
 
 	$setHtml(handle: number, value: string): void;
-	$setOptions(handle: number, options: IWebviewOptions): void;
+	$setOptions(handle: number, options: IWebviewContentOptions): void;
 	$postMessage(handle: number, value: any): Promise<boolean>;
 }
 
@@ -681,12 +681,12 @@ export interface IWebviewPortMapping {
 	readonly extensionHostPort: number;
 }
 
-export interface IWebviewOptions {
+export interface IWebviewContentOptions {
 	readonly enableScripts?: boolean;
 	readonly enableForms?: boolean;
 	readonly enableCommandUris?: boolean;
-	readonly localResourceRoots?: ReadonlyArray<UriComponents>;
-	readonly portMapping?: ReadonlyArray<IWebviewPortMapping>;
+	readonly localResourceRoots?: readonly UriComponents[];
+	readonly portMapping?: readonly IWebviewPortMapping[];
 }
 
 export interface IWebviewPanelOptions {
@@ -729,7 +729,7 @@ export interface WebviewMessageArrayBufferReference {
 
 export interface MainThreadWebviewsShape extends IDisposable {
 	$setHtml(handle: WebviewHandle, value: string): void;
-	$setOptions(handle: WebviewHandle, options: IWebviewOptions): void;
+	$setOptions(handle: WebviewHandle, options: IWebviewContentOptions): void;
 	$postMessage(handle: WebviewHandle, value: string, ...buffers: VSBuffer[]): Promise<boolean>
 }
 
@@ -740,7 +740,7 @@ export interface MainThreadWebviewPanelsShape extends IDisposable {
 		viewType: string,
 		initData: {
 			title: string;
-			webviewOptions: IWebviewOptions;
+			webviewOptions: IWebviewContentOptions;
 			panelOptions: IWebviewPanelOptions;
 			serializeBuffersForPostMessage: boolean;
 		},
@@ -796,7 +796,7 @@ export interface ExtHostWebviewPanelsShape {
 		initData: {
 			title: string;
 			state: any;
-			webviewOptions: IWebviewOptions;
+			webviewOptions: IWebviewContentOptions;
 			panelOptions: IWebviewPanelOptions;
 		},
 		position: EditorGroupColumn,
@@ -810,7 +810,7 @@ export interface ExtHostCustomEditorsShape {
 		viewType: string,
 		initData: {
 			title: string;
-			webviewOptions: IWebviewOptions;
+			webviewOptions: IWebviewContentOptions;
 			panelOptions: IWebviewPanelOptions;
 		},
 		position: EditorGroupColumn,
