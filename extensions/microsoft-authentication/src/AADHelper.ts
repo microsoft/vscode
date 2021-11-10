@@ -240,6 +240,7 @@ export class AzureActiveDirectoryService {
 		}
 
 		if (added.length || removed.length) {
+			Logger.info(`Sending change event with ${added.length} added and ${removed.length} removed`);
 			onDidChangeSessions.fire({ added: added, removed: removed, changed: [] });
 		}
 	}
@@ -380,7 +381,7 @@ export class AzureActiveDirectoryService {
 					throw codeRes.err;
 				}
 				token = await this.exchangeCodeForToken(codeRes.code, codeVerifier, scope);
-				this.setToken(token, scope);
+				await this.setToken(token, scope);
 				Logger.info(`Login successful for scopes: ${scope}`);
 				res.writeHead(302, { Location: '/' });
 				const session = await this.convertToSession(token);
@@ -491,7 +492,7 @@ export class AzureActiveDirectoryService {
 					}
 
 					const token = await this.exchangeCodeForToken(code, verifier, scope);
-					this.setToken(token, scope);
+					await this.setToken(token, scope);
 
 					const session = await this.convertToSession(token);
 					resolve(session);
@@ -509,6 +510,7 @@ export class AzureActiveDirectoryService {
 	}
 
 	private async setToken(token: IToken, scope: string): Promise<void> {
+		Logger.info(`Setting token for scopes: ${scope}`);
 		const existingTokenIndex = this._tokens.findIndex(t => t.sessionId === token.sessionId);
 		if (existingTokenIndex > -1) {
 			this._tokens.splice(existingTokenIndex, 1, token);
@@ -522,6 +524,7 @@ export class AzureActiveDirectoryService {
 			this._refreshTimeouts.set(token.sessionId, setTimeout(async () => {
 				try {
 					const refreshedToken = await this.refreshToken(token.refreshToken, scope, token.sessionId);
+					Logger.info('Triggering change session event...');
 					onDidChangeSessions.fire({ added: [], removed: [], changed: [this.convertToSessionSync(refreshedToken)] });
 				} catch (e) {
 					if (e.message === REFRESH_NETWORK_FAILURE) {
@@ -537,7 +540,7 @@ export class AzureActiveDirectoryService {
 			}, 1000 * (token.expiresIn - 30)));
 		}
 
-		this.storeTokenData();
+		await this.storeTokenData();
 	}
 
 	private getTokenFromResponse(json: ITokenResponse, scope: string, existingId?: string): IToken {
@@ -649,7 +652,7 @@ export class AzureActiveDirectoryService {
 			if (result.ok) {
 				const json = await result.json();
 				const token = this.getTokenFromResponse(json, scope, sessionId);
-				this.setToken(token, scope);
+				await this.setToken(token, scope);
 				Logger.info(`Token refresh success for scopes: ${token.scope}`);
 				return token;
 			} else {
