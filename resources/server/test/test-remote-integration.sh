@@ -74,7 +74,7 @@ else
 fi
 
 export TESTRESOLVER_DATA_FOLDER=$TESTRESOLVER_DATA_FOLDER
-export TESTRESOLVER_LOGS_FOLDER=$VSCODELOGSDIR
+export TESTRESOLVER_LOGS_FOLDER=$VSCODELOGSDIR/server
 
 # Figure out which remote server to use for running tests
 if [ -z "$VSCODE_REMOTE_SERVER_PATH" ]

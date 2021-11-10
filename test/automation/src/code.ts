@@ -171,7 +171,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		}
 
 		env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
-		env['TESTRESOLVER_LOGS_FOLDER'] = logsPath;
+		env['TESTRESOLVER_LOGS_FOLDER'] = path.join(logsPath, 'server');
 	}
 
 	const spawnOptions: cp.SpawnOptions = { env };
