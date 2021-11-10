@@ -302,6 +302,46 @@ function createObjectValueSuggester(element: SettingsTreeSettingElement): IObjec
 	};
 }
 
+function isNonNullableNumericType(type: unknown): type is 'number' | 'integer' {
+	return type === 'number' || type === 'integer';
+}
+
+function parseNumericObjectValues(dataElement: SettingsTreeSettingElement, v: Record<string, unknown>): Record<string, unknown> {
+	const newRecord: Record<string, unknown> = {};
+	for (const key in v) {
+		// Set to true/false once we're sure of the answer
+		let keyMatchesNumericProperty: boolean | undefined;
+		const patternProperties = dataElement.setting.objectPatternProperties;
+		const properties = dataElement.setting.objectProperties;
+		const additionalProperties = dataElement.setting.objectAdditionalProperties;
+
+		// Match the current record key against the properties of the object
+		if (properties) {
+			for (const propKey in properties) {
+				if (propKey === key) {
+					keyMatchesNumericProperty = isNonNullableNumericType(properties[propKey].type);
+					break;
+				}
+			}
+		}
+		if (keyMatchesNumericProperty === undefined && patternProperties) {
+			for (const patternKey in patternProperties) {
+				if (key.match(patternKey)) {
+					keyMatchesNumericProperty = isNonNullableNumericType(patternProperties[patternKey].type);
+					break;
+				}
+			}
+		}
+		if (keyMatchesNumericProperty === undefined && additionalProperties && typeof additionalProperties !== 'boolean') {
+			if (isNonNullableNumericType(additionalProperties.type)) {
+				keyMatchesNumericProperty = true;
+			}
+		}
+		newRecord[key] = keyMatchesNumericProperty ? Number(v[key]) : v[key];
+	}
+	return newRecord;
+}
+
 function getListDisplayValue(element: SettingsTreeSettingElement): IListDataItem[] {
 	if (!element.value || !isArray(element.value)) {
 		return [];
@@ -1110,18 +1150,6 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 		return template;
 	}
 
-	private onDidChangeList(template: ISettingListItemTemplate, newList: unknown[] | undefined): void {
-		if (!template.context || !newList) {
-			return;
-		}
-
-		this._onDidChangeSetting.fire({
-			key: template.context.setting.key,
-			value: newList,
-			type: template.context.valueType
-		});
-	}
-
 	private computeNewList(template: ISettingListItemTemplate, e: ISettingListChangeEvent<IListDataItem>): string[] | undefined {
 		if (template.context) {
 			let newValue: string[] = [];
@@ -1191,17 +1219,15 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 			template.listWidget.cancelEdit();
 		}));
 
-		template.onChange = (v) => {
-			if (!renderArrayValidations(dataElement, template, v, false)) {
-				let arrToSave;
+		template.onChange = (v: string[] | undefined) => {
+			if (v && !renderArrayValidations(dataElement, template, v, false)) {
 				const itemType = dataElement.setting.arrayItemType;
-				if (v && (itemType === 'number' || itemType === 'integer')) {
-					arrToSave = v.map(a => +a);
-				} else {
-					arrToSave = v;
-				}
-				this.onDidChangeList(template, arrToSave);
+				const arrToSave = isNonNullableNumericType(itemType) ? v.map(a => +a) : v;
 				onChange(arrToSave);
+			} else {
+				// Save the setting unparsed and containing the errors.
+				// renderArrayValidations will render relevant error messages.
+				onChange(v);
 			}
 		};
 
@@ -1343,8 +1369,14 @@ export class SettingObjectRenderer extends AbstractSettingObjectRenderer impleme
 		}));
 
 		template.onChange = (v: Record<string, unknown> | undefined) => {
-			onChange(v);
-			renderArrayValidations(dataElement, template, v, false);
+			if (v && !renderArrayValidations(dataElement, template, v, false)) {
+				const parsedRecord = parseNumericObjectValues(dataElement, v);
+				onChange(parsedRecord);
+			} else {
+				// Save the setting unparsed and containing the errors.
+				// renderArrayValidations will render relevant error messages.
+				onChange(v);
+			}
 		};
 		renderArrayValidations(dataElement, template, dataElement.value, true);
 	}

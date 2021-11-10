@@ -576,7 +576,7 @@ export function isExcludeSetting(setting: ISetting): boolean {
 }
 
 function isObjectRenderableSchema({ type }: IJSONSchema): boolean {
-	return type === 'string' || type === 'boolean';
+	return type === 'string' || type === 'boolean' || type === 'integer' || type === 'number';
 }
 
 function isObjectSetting({
