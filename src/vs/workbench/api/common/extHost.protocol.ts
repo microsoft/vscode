@@ -738,17 +738,19 @@ export interface IWebviewIconPath {
 	readonly dark: UriComponents;
 }
 
+export interface IWebviewInitData {
+	readonly title: string;
+	readonly webviewOptions: IWebviewContentOptions;
+	readonly panelOptions: IWebviewPanelOptions;
+	readonly serializeBuffersForPostMessage: boolean;
+}
+
 export interface MainThreadWebviewPanelsShape extends IDisposable {
 	$createWebviewPanel(
 		extension: WebviewExtensionDescription,
 		handle: WebviewHandle,
 		viewType: string,
-		initData: {
-			title: string;
-			webviewOptions: IWebviewContentOptions;
-			panelOptions: IWebviewPanelOptions;
-			serializeBuffersForPostMessage: boolean;
-		},
+		initData: IWebviewInitData,
 		showOptions: WebviewPanelShowOptions,
 	): void;
 	$disposeWebview(handle: WebviewHandle): void;
