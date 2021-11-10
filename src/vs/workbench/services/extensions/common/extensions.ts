@@ -133,6 +133,16 @@ export interface IExtensionHost {
 	dispose(): void;
 }
 
+export function isProposedApiEnabled(extension: IExtensionDescription): boolean {
+	return Boolean(extension.enableProposedApi);
+}
+
+export function checkProposedApiEnabled(extension: IExtensionDescription): void {
+	if (!isProposedApiEnabled(extension)) {
+		throw new Error(`[${extension.identifier.value}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
+	}
+}
+
 
 /**
  * Extension id or one of the four known program states.

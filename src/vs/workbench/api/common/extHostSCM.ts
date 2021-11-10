@@ -16,11 +16,12 @@ import type * as vscode from 'vscode';
 import { ISplice } from 'vs/base/common/sequence';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { checkProposedApiEnabled, ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { MarshalledId } from 'vs/base/common/marshalling';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 type ProviderHandle = number;
 type GroupHandle = number;

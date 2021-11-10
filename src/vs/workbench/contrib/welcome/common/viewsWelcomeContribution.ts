@@ -11,7 +11,7 @@ import { IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/exte
 import { ViewsWelcomeExtensionPoint, ViewWelcome, ViewIdentifierMap } from './viewsWelcomeExtensionPoint';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as ViewContainerExtensions, IViewContentDescriptor, IViewsRegistry } from 'vs/workbench/common/views';
-import { isProposedApiEnabled } from 'vs/platform/extensions/common/extensions';
+import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 
