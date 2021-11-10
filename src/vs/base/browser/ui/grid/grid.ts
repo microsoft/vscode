@@ -293,7 +293,7 @@ export class Grid<T extends IView = IView> extends Disposable {
 		this._addView(newView, viewSize, location);
 	}
 
-	addViewAt(newView: T, size: number | DistributeSizing | InvisibleSizing, location: number[]): void {
+	private addViewAt(newView: T, size: number | DistributeSizing | InvisibleSizing, location: number[]): void {
 		if (this.views.has(newView)) {
 			throw new Error('Can\'t add same view twice');
 		}

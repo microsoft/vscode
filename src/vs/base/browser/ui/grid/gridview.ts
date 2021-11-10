@@ -1028,7 +1028,7 @@ export class GridView implements IDisposable {
 		this.trySet2x2();
 	}
 
-	removeView(location: number[], sizing?: Sizing): IView {
+	removeView(location: number[], sizing?: DistributeSizing): IView {
 		this.disposable2x2.dispose();
 		this.disposable2x2 = Disposable.None;
 

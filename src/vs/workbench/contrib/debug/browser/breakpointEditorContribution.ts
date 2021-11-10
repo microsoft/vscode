@@ -727,7 +727,7 @@ registerThemingParticipant((theme, collector) => {
 	if (debugIconBreakpointCurrentStackframeForegroundColor) {
 		collector.addRule(`
 		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugStackframe)},
-		.monaco-editor .debug-top-stack-frame-column::before {
+		.monaco-editor .debug-top-stack-frame-column {
 			color: ${debugIconBreakpointCurrentStackframeForegroundColor} !important;
 		}
 		`);
