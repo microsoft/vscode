@@ -261,11 +261,11 @@ export class RemoteTerminalChannelClient {
 		return this._channel.call('$getWslPath', [original]);
 	}
 
-	setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void> {
+	setTerminalLayoutInfo(layout?: ITerminalsLayoutInfoById): Promise<void> {
 		const workspace = this._workspaceContextService.getWorkspace();
 		const args: ISetTerminalLayoutInfoArgs = {
 			workspaceId: workspace.id,
-			tabs: layout.tabs
+			tabs: layout ? layout.tabs : []
 		};
 		return this._channel.call<void>('$setTerminalLayoutInfo', args);
 	}
@@ -278,11 +278,11 @@ export class RemoteTerminalChannelClient {
 		return this._channel.call('$updateIcon', [id, icon, color]);
 	}
 
-	refreshProperty<T extends ProcessPropertyType>(id: number, property: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
+	refreshProperty<T extends ProcessPropertyType>(id: number, property: T): Promise<IProcessPropertyMap[T]> {
 		return this._channel.call('$refreshProperty', [id, property]);
 	}
 
-	updateProperty<T extends ProcessPropertyType>(id: number, property: ProcessPropertyType, value: IProcessPropertyMap[T]): Promise<void> {
+	updateProperty<T extends ProcessPropertyType>(id: number, property: T, value: IProcessPropertyMap[T]): Promise<void> {
 		return this._channel.call('$updateProperty', [id, property, value]);
 	}
 

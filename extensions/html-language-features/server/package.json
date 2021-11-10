@@ -27,6 +27,6 @@
     "install-service-local": "yarn link vscode-css-languageservice && yarn link vscode-html-languageservice",
     "install-server-next": "yarn add vscode-languageserver@next",
     "install-server-local": "yarn link vscode-languageserver",
-    "test": "npm run compile && node ./test/index.js"
+    "test": "yarn compile && node ./test/index.js"
   }
 }

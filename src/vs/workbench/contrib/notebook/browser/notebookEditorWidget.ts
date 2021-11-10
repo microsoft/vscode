@@ -412,7 +412,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				this._updateForNotebookConfiguration();
 			}
 
-			if (e.compactView || e.focusIndicator || e.insertToolbarPosition || e.cellToolbarLocation || e.dragAndDropEnabled || e.fontSize || e.insertToolbarAlignment) {
+			if (e.compactView || e.focusIndicator || e.insertToolbarPosition || e.cellToolbarLocation || e.dragAndDropEnabled || e.fontSize || e.markupFontSize || e.insertToolbarAlignment) {
 				this._styleElement?.remove();
 				this._createLayoutStyles();
 				this._webview?.updateOptions(this.notebookOptions.computeWebviewOptions());
@@ -2450,7 +2450,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		const cell = this.viewModel?.viewCells.find(vc => vc.handle === cellInfo.cellHandle);
 		if (cell && cell instanceof CodeCellViewModel) {
 			const outputIndex = cell.outputsViewModels.indexOf(output);
-			if (isInit && outputHeight !== 0) {
+			if (outputHeight !== 0) {
 				cell.updateOutputMinHeight(0);
 			}
 			this._debug('update cell output', cell.handle, outputHeight);

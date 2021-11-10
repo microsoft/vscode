@@ -116,6 +116,7 @@ export class SimpleFileDialog {
 	private autoCompletePathSegment: string = '';
 	private activeItem: FileQuickPickItem | undefined;
 	private userHome!: URI;
+	private isWindows: boolean = false;
 	private badPath: string | undefined;
 	private remoteAgentEnvironment: IRemoteAgentEnvironment | null | undefined;
 	private separator: string = '/';
@@ -251,6 +252,7 @@ export class SimpleFileDialog {
 		this.allowFileSelection = !!this.options.canSelectFiles;
 		this.separator = this.labelService.getSeparator(this.scheme, this.remoteAuthority);
 		this.hidden = false;
+		this.isWindows = await this.checkIsWindowsOS();
 		let homedir: URI = this.options.defaultUri ? this.options.defaultUri : this.workspaceContextService.getWorkspace().folders[0].uri;
 		let stat: IFileStat | undefined;
 		let ext: string = resources.extname(homedir);
@@ -780,7 +782,7 @@ export class SimpleFileDialog {
 				// Show a yes/no prompt
 				const message = nls.localize('remoteFileDialog.validateExisting', '{0} already exists. Are you sure you want to overwrite it?', resources.basename(uri));
 				return this.yesNoPrompt(uri, message);
-			} else if (!(isValidBasename(resources.basename(uri), await this.isWindowsOS()))) {
+			} else if (!(isValidBasename(resources.basename(uri), this.isWindows))) {
 				// Filename not allowed
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateBadFilename', 'Please enter a valid file name.');
 				return Promise.resolve(false);
@@ -794,7 +796,7 @@ export class SimpleFileDialog {
 				// File or folder doesn't exist
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateNonexistentDir', 'Please enter a path that exists.');
 				return Promise.resolve(false);
-			} else if (uri.path === '/' && (await this.isWindowsOS())) {
+			} else if (uri.path === '/' && this.isWindows) {
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.windowsDriveLetter', 'Please start the path with a drive letter.');
 				return Promise.resolve(false);
 			} else if (stat.isDirectory && !this.allowFolderSelection) {
@@ -871,7 +873,7 @@ export class SimpleFileDialog {
 	}
 
 	private pathFromUri(uri: URI, endWithSeparator: boolean = false): string {
-		let result: string = normalizeDriveLetter(uri.fsPath).replace(/\n/g, '');
+		let result: string = normalizeDriveLetter(uri.fsPath, this.isWindows).replace(/\n/g, '');
 		if (this.separator === '/') {
 			result = result.replace(/\\/g, this.separator);
 		} else {
@@ -892,7 +894,7 @@ export class SimpleFileDialog {
 		}
 	}
 
-	private async isWindowsOS(): Promise<boolean> {
+	private async checkIsWindowsOS(): Promise<boolean> {
 		let isWindowsOS = isWindows;
 		const env = await this.getRemoteAgentEnvironment();
 		if (env) {

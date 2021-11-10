@@ -515,6 +515,21 @@
         "command": "git.rebaseAbort",
         "title": "%command.rebaseAbort%",
         "category": "Git"
+      },
+      {
+        "command": "git.api.getRepositories",
+        "title": "%command.api.getRepositories%",
+        "category": "Git API"
+      },
+      {
+        "command": "git.api.getRepositoryState",
+        "title": "%command.api.getRepositoryState%",
+        "category": "Git API"
+      },
+      {
+        "command": "git.api.getRemoteSources",
+        "title": "%command.api.getRemoteSources%",
+        "category": "Git API"
       }
     ],
     "keybindings": [
@@ -577,7 +592,7 @@
         },
         {
           "command": "git.openChange",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourcePath in git.changedResources"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.stage",
@@ -897,6 +912,18 @@
         },
         {
           "command": "git.timeline.compareWithSelected",
+          "when": "false"
+        },
+        {
+          "command": "git.api.getRepositories",
+          "when": "false"
+        },
+        {
+          "command": "git.api.getRepositoryState",
+          "when": "false"
+        },
+        {
+          "command": "git.api.getRemoteSources",
           "when": "false"
         }
       ],
@@ -1324,7 +1351,7 @@
         {
           "command": "git.openChange",
           "group": "navigation",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && resourceScheme == file && resourcePath in git.changedResources"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && resourceScheme == file"
         },
         {
           "command": "git.stageSelectedRanges",
@@ -2406,7 +2433,7 @@
     "file-type": "^7.2.0",
     "iconv-lite-umd": "0.6.8",
     "jschardet": "3.0.0",
-    "vscode-extension-telemetry": "0.4.2",
+    "vscode-extension-telemetry": "0.4.3",
     "vscode-nls": "^4.0.0",
     "vscode-uri": "^2.0.0",
     "which": "^1.3.0"

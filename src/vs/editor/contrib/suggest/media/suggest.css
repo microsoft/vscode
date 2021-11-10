@@ -264,7 +264,7 @@
 
 /** Do NOT display ReadMore when docs is side/below **/
 
-.monaco-editor .suggest-widget.docs-side .monaco-list .monaco-list-row>.contents>.main>.right>.readMore, .monaco-editor .suggest-widget.docs-below .monaco-list .monaco-list-row>.contents>.main>.right>.readMore {
+.monaco-editor .suggest-widget.docs-side .monaco-list .monaco-list-row>.contents>.main>.right>.readMore {
 	display: none !important;
 }
 
@@ -278,11 +278,6 @@
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused.string-label>.contents>.main>.right>.readMore {
 	display: inline-block;
-}
-
-.monaco-editor .suggest-widget.docs-side .monaco-list .monaco-list-row>.contents>.main>.right>.readMore,
-.monaco-editor .suggest-widget.docs-below .monaco-list .monaco-list-row>.contents>.main>.right>.readMore {
-	display: none;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row:hover>.contents>.main>.right>.readMore {
@@ -393,7 +388,6 @@
 	white-space: normal;
 	word-break: break-all;
 }
-
 
 .monaco-editor .suggest-details>.monaco-scrollable-element>.body>.docs {
 	margin: 0;

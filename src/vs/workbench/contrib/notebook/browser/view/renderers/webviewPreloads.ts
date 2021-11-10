@@ -61,6 +61,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 	const vscode = acquireVsCodeApi();
 	delete (globalThis as any).acquireVsCodeApi;
 
+	const tokenizationStyleElement = document.querySelector('style#vscode-tokenization-styles');
+
 	const handleInnerClick = (event: MouseEvent) => {
 		if (!event || !event.view || !event.view.document) {
 			return;
@@ -662,8 +664,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 				}
 
 				// Re-add new properties
-				for (const variable of Object.keys(event.data.styles)) {
-					documentStyle.setProperty(`--${variable}`, event.data.styles[variable]);
+				for (const [name, value] of Object.entries(event.data.styles)) {
+					documentStyle.setProperty(`--${name}`, value);
 				}
 				break;
 			case 'notebookOptions':
@@ -673,6 +675,17 @@ async function webviewPreloads(ctx: PreloadContext) {
 			case 'updateWorkspaceTrust': {
 				isWorkspaceTrusted = event.data.isTrusted;
 				viewModel.rerender();
+				break;
+			}
+			case 'tokenizedCodeBlock': {
+				const { codeBlockId, html } = event.data;
+				MarkupCell.highlightCodeBlock(codeBlockId, html);
+				break;
+			}
+			case 'tokenizedStylesChanged': {
+				if (tokenizationStyleElement) {
+					tokenizationStyleElement.textContent = event.data.css;
+				}
 				break;
 			}
 		}
@@ -994,7 +1007,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 		}
 
-		public updateMarkupScrolls(markupCells: { id: string; top: number; }[]) {
+		public updateMarkupScrolls(markupCells: readonly webviewMessages.IMarkupCellScrollTops[]) {
 			for (const { id, top } of markupCells) {
 				const cell = this._markupCells.get(id);
 				if (cell) {
@@ -1067,6 +1080,20 @@ async function webviewPreloads(ctx: PreloadContext) {
 	}();
 
 	class MarkupCell implements IOutputItem {
+
+		private static pendingCodeBlocksToHighlight = new Map<string, HTMLElement>();
+
+		public static highlightCodeBlock(id: string, html: string) {
+			const el = MarkupCell.pendingCodeBlocksToHighlight.get(id);
+			if (!el) {
+				return;
+			}
+			const trustedHtml = ttPolicy?.createHTML(html) ?? html;
+			el.innerHTML = trustedHtml as string;
+			if (tokenizationStyleElement) {
+				el.insertAdjacentElement('beforebegin', tokenizationStyleElement.cloneNode(true) as HTMLElement);
+			}
+		}
 
 		public readonly ready: Promise<void>;
 
@@ -1199,9 +1226,21 @@ async function webviewPreloads(ctx: PreloadContext) {
 				}
 			}
 
+			const codeBlocks: Array<{ value: string, lang: string, id: string }> = [];
+			let i = 0;
+			for (const el of root.querySelectorAll('.vscode-code-block')) {
+				const lang = el.getAttribute('data-vscode-code-block-lang');
+				if (el.textContent && lang) {
+					const id = `${Date.now()}-${i++}`;
+					codeBlocks.push({ value: el.textContent, lang: lang, id });
+					MarkupCell.pendingCodeBlocksToHighlight.set(id, el as HTMLElement);
+				}
+			}
+
 			postNotebookMessage<webviewMessages.IRenderedMarkupMessage>('renderedMarkup', {
 				cellId: this.id,
 				html: html.join(''),
+				codeBlocks
 			});
 
 			dimensionUpdater.updateHeight(this.id, this.element.offsetHeight, {

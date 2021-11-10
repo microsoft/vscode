@@ -16,8 +16,7 @@ import type * as vscode from 'vscode';
 import { ISplice } from 'vs/base/common/sequence';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { checkProposedApiEnabled, ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { MarshalledId } from 'vs/base/common/marshalling';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
@@ -265,16 +264,6 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 
 	constructor(private _extension: IExtensionDescription, private _proxy: MainThreadSCMShape, private _sourceControlHandle: number) {
 		// noop
-	}
-
-	focus(): void {
-		checkProposedApiEnabled(this._extension);
-
-		if (!this._visible) {
-			this.visible = true;
-		}
-
-		this._proxy.$setInputBoxFocus(this._sourceControlHandle);
 	}
 
 	showValidationMessage(message: string | vscode.MarkdownString, type: vscode.SourceControlInputBoxValidationType) {

@@ -10,7 +10,7 @@ import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription, isProposedApiEnabled } from 'vs/platform/extensions/common/extensions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -404,7 +404,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					return;
 				}
 
-				if (entry.key === 'remote' && !extension.description.enableProposedApi) {
+				if (entry.key === 'remote' && !isProposedApiEnabled(extension.description)) {
 					collector.warn(localize('ViewContainerRequiresProposedAPI', "View container '{0}' requires 'enableProposedApi' turned on to be added to 'Remote'.", entry.key));
 					return;
 				}

@@ -24,8 +24,6 @@ import * as semver from 'vs/base/common/semver/semver';
 import { isString } from 'vs/base/common/types';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { ResourceMap } from 'vs/base/common/map';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { format2 } from 'vs/base/common/strings';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
@@ -74,7 +72,6 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		@IFileService private readonly fileService: IFileService,
 		@ILogService private readonly logService: ILogService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
-		@IProductService private readonly productService: IProductService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IExtensionResourceLoaderService private readonly extensionResourceLoaderService: IExtensionResourceLoaderService,
 	) {
@@ -334,10 +331,10 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	private async toWebExtensionFromGallery(galleryExtension: IGalleryExtension, metadata?: IStringDictionary<any>): Promise<IWebExtension> {
-		if (!this.productService.extensionsGallery) {
+		let extensionLocation = this.extensionResourceLoaderService.getExtensionGalleryResourceURL(galleryExtension, 'extension');
+		if (!extensionLocation) {
 			throw new Error('No extension gallery service configured.');
 		}
-		let extensionLocation = URI.parse(format2(this.productService.extensionsGallery.resourceUrlTemplate, { publisher: galleryExtension.publisher, name: galleryExtension.name, version: galleryExtension.version, path: 'extension' }));
 		extensionLocation = galleryExtension.properties.targetPlatform === TargetPlatform.WEB ? extensionLocation.with({ query: `${extensionLocation.query ? `${extensionLocation.query}&` : ''}target=${galleryExtension.properties.targetPlatform}` }) : extensionLocation;
 		const extensionResources = await this.listExtensionResources(extensionLocation);
 		const packageNLSResource = extensionResources.find(e => basename(e) === 'package.nls.json');

@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/style';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { iconForeground, foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground, toolbarHoverBackground, toolbarActiveBackground, toolbarHoverOutline, listFocusHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
+import { iconForeground, foreground, selectionBackground, focusBorder, listHighlightForeground, inputPlaceholderForeground, toolbarHoverBackground, toolbarActiveBackground, toolbarHoverOutline, listFocusHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 import { WORKBENCH_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
 import { isWeb, isIOS, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { createMetaElement } from 'vs/base/browser/dom';
@@ -67,51 +67,6 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`
 			.monaco-workbench .monaco-list .monaco-list-row.focused .monaco-highlighted-label .highlight {
 				color: ${listHighlightFocusForegroundColor};
-			}
-		`);
-	}
-
-	// Scrollbars
-	const scrollbarShadowColor = theme.getColor(scrollbarShadow);
-	if (scrollbarShadowColor) {
-		collector.addRule(`
-			.monaco-workbench .monaco-scrollable-element > .shadow.top {
-				box-shadow: ${scrollbarShadowColor} 0 6px 6px -6px inset;
-			}
-
-			.monaco-workbench .monaco-scrollable-element > .shadow.left {
-				box-shadow: ${scrollbarShadowColor} 6px 0 6px -6px inset;
-			}
-
-			.monaco-workbench .monaco-scrollable-element > .shadow.top.left {
-				box-shadow: ${scrollbarShadowColor} 6px 6px 6px -6px inset;
-			}
-		`);
-	}
-
-	const scrollbarSliderBackgroundColor = theme.getColor(scrollbarSliderBackground);
-	if (scrollbarSliderBackgroundColor) {
-		collector.addRule(`
-			.monaco-workbench .monaco-scrollable-element > .scrollbar > .slider {
-				background: ${scrollbarSliderBackgroundColor};
-			}
-		`);
-	}
-
-	const scrollbarSliderHoverBackgroundColor = theme.getColor(scrollbarSliderHoverBackground);
-	if (scrollbarSliderHoverBackgroundColor) {
-		collector.addRule(`
-			.monaco-workbench .monaco-scrollable-element > .scrollbar > .slider:hover {
-				background: ${scrollbarSliderHoverBackgroundColor};
-			}
-		`);
-	}
-
-	const scrollbarSliderActiveBackgroundColor = theme.getColor(scrollbarSliderActiveBackground);
-	if (scrollbarSliderActiveBackgroundColor) {
-		collector.addRule(`
-			.monaco-workbench .monaco-scrollable-element > .scrollbar > .slider.active {
-				background: ${scrollbarSliderActiveBackgroundColor};
 			}
 		`);
 	}

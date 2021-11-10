@@ -87,7 +87,6 @@ export class SharedProcessWorkerWorkbenchService extends Disposable implements I
 	async createWorker(process: ISharedProcessWorkerProcess): Promise<ISharedProcessWorker> {
 		this.logService.trace('Renderer->SharedProcess#createWorker');
 
-
 		// Get ready to acquire the message port from the shared process worker
 		const nonce = generateUuid();
 		const responseChannel = 'vscode:createSharedProcessWorkerMessageChannelResult';

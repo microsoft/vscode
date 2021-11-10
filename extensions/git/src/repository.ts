@@ -1873,7 +1873,6 @@ export class Repository implements Disposable {
 		this._submodules = submodules!;
 		this.rebaseCommit = rebaseCommit;
 
-
 		const untrackedChanges = scopedConfig.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
 		const index: Resource[] = [];
 		const workingTree: Resource[] = [];
@@ -1963,9 +1962,6 @@ export class Repository implements Disposable {
 
 		// set count badge
 		this.setCountBadge();
-
-		// Update context key with changed resources
-		commands.executeCommand('setContext', 'git.changedResources', [...merge, ...index, ...workingTree, ...untracked].map(r => r.resourceUri.fsPath.toString()));
 
 		this._onDidChangeStatus.fire();
 

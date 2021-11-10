@@ -280,7 +280,7 @@ export class MainThreadEditorTabs {
 		if (!editor) {
 			return;
 		}
-		return group.closeEditor(editor);
+		await group.closeEditor(editor);
 	}
 	//#endregion
 }

@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, TerminalLocationString, IProcessProperty, TitleEventSource, ProcessPropertyType, IFixedTerminalDimensions, IExtensionTerminalProfile, ICreateContributedTerminalProfileOptions } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, TerminalLocationString, IProcessProperty, TitleEventSource, ProcessPropertyType, IFixedTerminalDimensions, IExtensionTerminalProfile, ICreateContributedTerminalProfileOptions, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
@@ -57,17 +57,22 @@ export interface ITerminalProfileResolverService {
 	createProfileFromShellAndShellArgs(shell?: unknown, shellArgs?: unknown): Promise<ITerminalProfile | string>;
 }
 
+export interface IRegisterContributedProfileArgs {
+	extensionIdentifier: string, id: string, title: string, options: ICreateContributedTerminalProfileOptions;
+}
+
 export const ITerminalProfileService = createDecorator<ITerminalProfileService>('terminalProfileService');
 export interface ITerminalProfileService {
 	readonly _serviceBrand: undefined;
 	readonly availableProfiles: ITerminalProfile[];
 	readonly contributedProfiles: IExtensionTerminalProfile[];
 	readonly profilesReady: Promise<void>;
+	getPlatformKey(): Promise<string>;
 	refreshAvailableProfiles(): void;
 	getDefaultProfileName(): string | undefined;
 	onDidChangeAvailableProfiles: Event<ITerminalProfile[]>;
 	getContributedDefaultProfile(shellLaunchConfig: IShellLaunchConfig): Promise<IExtensionTerminalProfile | undefined>;
-	registerContributedProfile(extensionIdentifier: string, id: string, title: string, options: ICreateContributedTerminalProfileOptions): Promise<void>;
+	registerContributedProfile(args: IRegisterContributedProfileArgs): Promise<void>;
 	getContributedProfileProvider(extensionIdentifier: string, id: string): ITerminalProfileProvider | undefined;
 	registerTerminalProfileProvider(extensionIdentifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable;
 }
@@ -362,8 +367,8 @@ export interface ITerminalProcessManager extends IDisposable {
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
 	getLatency(): Promise<number>;
-	refreshProperty(property: ProcessPropertyType): any;
-	updateProperty(property: ProcessPropertyType, value: any): any;
+	refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]>;
+	updateProperty<T extends ProcessPropertyType>(property: T, value: IProcessPropertyMap[T]): void;
 }
 
 export const enum ProcessState {

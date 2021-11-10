@@ -281,7 +281,7 @@ export class ExtHostWebviewPanels implements extHostProtocol.ExtHostWebviewPanel
 		initData: {
 			title: string;
 			state: any;
-			webviewOptions: extHostProtocol.IWebviewOptions;
+			webviewOptions: extHostProtocol.IWebviewContentOptions;
 			panelOptions: extHostProtocol.IWebviewPanelOptions;
 		},
 		position: EditorGroupColumn

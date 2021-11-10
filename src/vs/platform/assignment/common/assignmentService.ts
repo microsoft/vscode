@@ -29,12 +29,12 @@ export abstract class BaseAssignmentService implements IAssignmentService {
 	private overrideInitDelay: Promise<void>;
 
 	protected get experimentsEnabled(): boolean {
-		return this.configurationService.getValue('workbench.enableExperiments') === true;
+		return true;
 	}
 
 	constructor(
 		private readonly getMachineId: () => Promise<string>,
-		private readonly configurationService: IConfigurationService,
+		protected readonly configurationService: IConfigurationService,
 		protected readonly productService: IProductService,
 		protected telemetry: IExperimentationTelemetry,
 		private keyValueStorage?: IKeyValueStorage

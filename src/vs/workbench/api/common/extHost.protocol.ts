@@ -31,7 +31,7 @@ import { ConfigurationScope } from 'vs/platform/configuration/common/configurati
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as files from 'vs/platform/files/common/files';
 import { ResourceLabelFormatter } from 'vs/platform/label/common/label';
-import { LogLevel } from 'vs/platform/log/common/log';
+import { ILoggerOptions, LogLevel } from 'vs/platform/log/common/log';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/progress';
 import * as quickInput from 'vs/platform/quickinput/common/quickInput';
@@ -56,6 +56,7 @@ import { IAdapterDescriptor, IConfig, IDebugSessionReplMode } from 'vs/workbench
 import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType, ICellExecutionComplete, ICellExecutionStateUpdate } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { OutputChannelUpdateMode } from 'vs/workbench/contrib/output/common/output';
 import { InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
@@ -443,13 +444,12 @@ export interface MainThreadMessageServiceShape extends IDisposable {
 }
 
 export interface MainThreadOutputServiceShape extends IDisposable {
-	$register(label: string, log: boolean, file?: UriComponents, extensionId?: string): Promise<string>;
-	$append(channelId: string, value: string): Promise<void> | undefined;
-	$update(channelId: string): Promise<void> | undefined;
-	$clear(channelId: string, till: number): Promise<void> | undefined;
-	$reveal(channelId: string, preserveFocus: boolean): Promise<void> | undefined;
-	$close(channelId: string): Promise<void> | undefined;
-	$dispose(channelId: string): Promise<void> | undefined;
+	$register(label: string, log: boolean, file: UriComponents, extensionId: string): Promise<string>;
+	$update(channelId: string, mode: OutputChannelUpdateMode.Append): Promise<void>;
+	$update(channelId: string, mode: OutputChannelUpdateMode, till: number): Promise<void>;
+	$reveal(channelId: string, preserveFocus: boolean): Promise<void>;
+	$close(channelId: string): Promise<void>;
+	$dispose(channelId: string): Promise<void>;
 }
 
 export interface MainThreadProgressShape extends IDisposable {
@@ -618,11 +618,11 @@ export interface MainThreadTelemetryShape extends IDisposable {
 }
 
 export interface MainThreadEditorInsetsShape extends IDisposable {
-	$createEditorInset(handle: number, id: string, uri: UriComponents, line: number, height: number, options: IWebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): Promise<void>;
+	$createEditorInset(handle: number, id: string, uri: UriComponents, line: number, height: number, options: IWebviewContentOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): Promise<void>;
 	$disposeEditorInset(handle: number): void;
 
 	$setHtml(handle: number, value: string): void;
-	$setOptions(handle: number, options: IWebviewOptions): void;
+	$setOptions(handle: number, options: IWebviewContentOptions): void;
 	$postMessage(handle: number, value: any): Promise<boolean>;
 }
 
@@ -681,12 +681,12 @@ export interface IWebviewPortMapping {
 	readonly extensionHostPort: number;
 }
 
-export interface IWebviewOptions {
+export interface IWebviewContentOptions {
 	readonly enableScripts?: boolean;
 	readonly enableForms?: boolean;
 	readonly enableCommandUris?: boolean;
-	readonly localResourceRoots?: ReadonlyArray<UriComponents>;
-	readonly portMapping?: ReadonlyArray<IWebviewPortMapping>;
+	readonly localResourceRoots?: readonly UriComponents[];
+	readonly portMapping?: readonly IWebviewPortMapping[];
 }
 
 export interface IWebviewPanelOptions {
@@ -729,8 +729,20 @@ export interface WebviewMessageArrayBufferReference {
 
 export interface MainThreadWebviewsShape extends IDisposable {
 	$setHtml(handle: WebviewHandle, value: string): void;
-	$setOptions(handle: WebviewHandle, options: IWebviewOptions): void;
+	$setOptions(handle: WebviewHandle, options: IWebviewContentOptions): void;
 	$postMessage(handle: WebviewHandle, value: string, ...buffers: VSBuffer[]): Promise<boolean>
+}
+
+export interface IWebviewIconPath {
+	readonly light: UriComponents;
+	readonly dark: UriComponents;
+}
+
+export interface IWebviewInitData {
+	readonly title: string;
+	readonly webviewOptions: IWebviewContentOptions;
+	readonly panelOptions: IWebviewPanelOptions;
+	readonly serializeBuffersForPostMessage: boolean;
 }
 
 export interface MainThreadWebviewPanelsShape extends IDisposable {
@@ -738,18 +750,13 @@ export interface MainThreadWebviewPanelsShape extends IDisposable {
 		extension: WebviewExtensionDescription,
 		handle: WebviewHandle,
 		viewType: string,
-		initData: {
-			title: string;
-			webviewOptions: IWebviewOptions;
-			panelOptions: IWebviewPanelOptions;
-			serializeBuffersForPostMessage: boolean;
-		},
+		initData: IWebviewInitData,
 		showOptions: WebviewPanelShowOptions,
 	): void;
 	$disposeWebview(handle: WebviewHandle): void;
 	$reveal(handle: WebviewHandle, showOptions: WebviewPanelShowOptions): void;
 	$setTitle(handle: WebviewHandle, value: string): void;
-	$setIconPath(handle: WebviewHandle, value: { light: UriComponents, dark: UriComponents; } | undefined): void;
+	$setIconPath(handle: WebviewHandle, value: IWebviewIconPath | undefined): void;
 
 	$registerSerializer(viewType: string, options: { serializeBuffersForPostMessage: boolean }): void;
 	$unregisterSerializer(viewType: string): void;
@@ -796,7 +803,7 @@ export interface ExtHostWebviewPanelsShape {
 		initData: {
 			title: string;
 			state: any;
-			webviewOptions: IWebviewOptions;
+			webviewOptions: IWebviewContentOptions;
 			panelOptions: IWebviewPanelOptions;
 		},
 		position: EditorGroupColumn,
@@ -810,7 +817,7 @@ export interface ExtHostCustomEditorsShape {
 		viewType: string,
 		initData: {
 			title: string;
-			webviewOptions: IWebviewOptions;
+			webviewOptions: IWebviewContentOptions;
 			panelOptions: IWebviewPanelOptions;
 		},
 		position: EditorGroupColumn,
@@ -1096,7 +1103,6 @@ export interface MainThreadSCMShape extends IDisposable {
 	$setInputBoxValue(sourceControlHandle: number, value: string): void;
 	$setInputBoxPlaceholder(sourceControlHandle: number, placeholder: string): void;
 	$setInputBoxVisibility(sourceControlHandle: number, visible: boolean): void;
-	$setInputBoxFocus(sourceControlHandle: number): void;
 	$showValidationMessage(sourceControlHandle: number, message: string | IMarkdownString, type: InputValidationType): void;
 	$setValidationProviderIsEnabled(sourceControlHandle: number, enabled: boolean): void;
 }
@@ -1892,12 +1898,13 @@ export interface ExtHostWindowShape {
 	$onDidChangeWindowFocus(value: boolean): void;
 }
 
-export interface ExtHostLogServiceShape {
+export interface ExtHostLogLevelServiceShape {
 	$setLevel(level: LogLevel): void;
 }
 
-export interface MainThreadLogShape {
-	$log(file: UriComponents, level: LogLevel, args: any[]): void;
+export interface MainThreadLoggerShape {
+	$log(file: UriComponents, messages: [LogLevel, string][]): void;
+	$createLogger(file: UriComponents, options?: ILoggerOptions): Promise<void>;
 }
 
 export interface ExtHostOutputServiceShape {
@@ -2210,7 +2217,7 @@ export const MainContext = {
 	MainThreadKeytar: createMainId<MainThreadKeytarShape>('MainThreadKeytar'),
 	MainThreadLanguageFeatures: createMainId<MainThreadLanguageFeaturesShape>('MainThreadLanguageFeatures'),
 	MainThreadLanguages: createMainId<MainThreadLanguagesShape>('MainThreadLanguages'),
-	MainThreadLog: createMainId<MainThreadLogShape>('MainThread'),
+	MainThreadLogger: createMainId<MainThreadLoggerShape>('MainThreadLogger'),
 	MainThreadMessageService: createMainId<MainThreadMessageServiceShape>('MainThreadMessageService'),
 	MainThreadOutputService: createMainId<MainThreadOutputServiceShape>('MainThreadOutputService'),
 	MainThreadProgress: createMainId<MainThreadProgressShape>('MainThreadProgress'),
@@ -2265,7 +2272,7 @@ export const ExtHostContext = {
 	ExtHostLanguageFeatures: createExtId<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures'),
 	ExtHostQuickOpen: createExtId<ExtHostQuickOpenShape>('ExtHostQuickOpen'),
 	ExtHostExtensionService: createExtId<ExtHostExtensionServiceShape>('ExtHostExtensionService'),
-	ExtHostLogService: createExtId<ExtHostLogServiceShape>('ExtHostLogService'),
+	ExtHostLogLevelServiceShape: createExtId<ExtHostLogLevelServiceShape>('ExtHostLogLevelServiceShape'),
 	ExtHostTerminalService: createExtId<ExtHostTerminalServiceShape>('ExtHostTerminalService'),
 	ExtHostSCM: createExtId<ExtHostSCMShape>('ExtHostSCM'),
 	ExtHostSearch: createExtId<ExtHostSearchShape>('ExtHostSearch'),

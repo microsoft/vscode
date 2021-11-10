@@ -13,7 +13,7 @@ import { OverviewRulerLane } from 'vs/editor/common/model';
 import * as languageConfiguration from 'vs/editor/common/modes/languageConfiguration';
 import { score } from 'vs/editor/common/modes/languageSelector';
 import * as files from 'vs/platform/files/common/files';
-import { ExtHostContext, MainContext, ExtHostLogServiceShape, UIKind, CandidatePortSource } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, MainContext, UIKind, CandidatePortSource, ExtHostLogLevelServiceShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostApiCommands } from 'vs/workbench/api/common/extHostApiCommands';
 import { ExtHostClipboard } from 'vs/workbench/api/common/extHostClipboard';
 import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
@@ -46,11 +46,10 @@ import { ExtHostUrls } from 'vs/workbench/api/common/extHostUrls';
 import { ExtHostWebviews } from 'vs/workbench/api/common/extHostWebview';
 import { IExtHostWindow } from 'vs/workbench/api/common/extHostWindow';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { throwProposedApiError, checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import type * as vscode from 'vscode';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { checkProposedApiEnabled, IExtensionDescription, isProposedApiEnabled } from 'vs/platform/extensions/common/extensions';
 import { values } from 'vs/base/common/collections';
 import { ExtHostEditorInsets } from 'vs/workbench/api/common/extHostCodeInsets';
 import { ExtHostLabelService } from 'vs/workbench/api/common/extHostLabelService';
@@ -60,7 +59,7 @@ import { IExtHostDecorations } from 'vs/workbench/api/common/extHostDecorations'
 import { IExtHostTask } from 'vs/workbench/api/common/extHostTask';
 import { IExtHostDebugService } from 'vs/workbench/api/common/extHostDebugService';
 import { IExtHostSearch } from 'vs/workbench/api/common/extHostSearch';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
@@ -113,6 +112,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const rpcProtocol = accessor.get(IExtHostRpcService);
 	const extHostStorage = accessor.get(IExtHostStorage);
 	const extensionStoragePaths = accessor.get(IExtensionStoragePaths);
+	const extHostLoggerService = accessor.get(ILoggerService);
 	const extHostLogService = accessor.get(ILogService);
 	const extHostTunnelService = accessor.get(IExtHostTunnelService);
 	const extHostApiDeprecation = accessor.get(IExtHostApiDeprecationService);
@@ -122,7 +122,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 	// register addressable instances
 	rpcProtocol.set(ExtHostContext.ExtHostFileSystemInfo, extHostFileSystemInfo);
-	rpcProtocol.set(ExtHostContext.ExtHostLogService, <ExtHostLogServiceShape><any>extHostLogService);
+	rpcProtocol.set(ExtHostContext.ExtHostLogLevelServiceShape, <ExtHostLogLevelServiceShape><any>extHostLoggerService);
 	rpcProtocol.set(ExtHostContext.ExtHostWorkspace, extHostWorkspace);
 	rpcProtocol.set(ExtHostContext.ExtHostConfiguration, extHostConfiguration);
 	rpcProtocol.set(ExtHostContext.ExtHostExtensionService, extensionService);
@@ -199,8 +199,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		// We only inform once, it is not a warning because we just want to raise awareness and because
 		// we cannot say if the extension is doing it right or wrong...
 		const checkSelector = (function () {
-			let done = (!extension.isUnderDevelopment);
-			function informOnce(selector: vscode.DocumentSelector) {
+			let done = !extension.isUnderDevelopment;
+			function informOnce() {
 				if (!done) {
 					extHostLogService.info(`Extension '${extension.identifier.value}' uses a document selector without scheme. Learn more about this: https://go.microsoft.com/fwlink/?linkid=872305`);
 					done = true;
@@ -210,14 +210,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				if (Array.isArray(selector)) {
 					selector.forEach(perform);
 				} else if (typeof selector === 'string') {
-					informOnce(selector);
+					informOnce();
 				} else {
 					const filter = selector as vscode.DocumentFilter; // TODO: microsoft/TypeScript#42768
 					if (typeof filter.scheme === 'undefined') {
-						informOnce(selector);
+						informOnce();
 					}
-					if (!extension.enableProposedApi && typeof filter.exclusive === 'boolean') {
-						throwProposedApiError(extension);
+					if (typeof filter.exclusive === 'boolean') {
+						checkProposedApiEnabled(extension);
 					}
 				}
 				return selector;
@@ -226,7 +226,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		const authentication: typeof vscode.authentication = {
 			getSession(providerId: string, scopes: readonly string[], options?: vscode.AuthenticationGetSessionOptions) {
-				if (options?.forceNewSession || options?.silent) {
+				if (options?.forceNewSession) {
 					checkProposedApiEnabled(extension);
 				}
 				return extHostAuthentication.getSession(extension, providerId, scopes, options as any);
@@ -599,7 +599,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return <Thenable<any>>extHostMessageService.showMessage(extension, Severity.Error, message, rest[0], <Array<string | vscode.MessageItem>>rest.slice(1));
 			},
 			showQuickPick(items: any, options?: vscode.QuickPickOptions, token?: vscode.CancellationToken): any {
-				return extHostQuickOpen.showQuickPick(items, !!extension.enableProposedApi, options, token);
+				return extHostQuickOpen.showQuickPick(items, isProposedApiEnabled(extension), options, token);
 			},
 			showWorkspaceFolderPick(options?: vscode.WorkspaceFolderPickOptions) {
 				return extHostQuickOpen.showWorkspaceFolderPick(options);
@@ -688,7 +688,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostUrls.registerUriHandler(extension.identifier, handler);
 			},
 			createQuickPick<T extends vscode.QuickPickItem>(): vscode.QuickPick<T> {
-				return extHostQuickOpen.createQuickPick(extension.identifier, !!extension.enableProposedApi);
+				return extHostQuickOpen.createQuickPick(extension.identifier, isProposedApiEnabled(extension));
 			},
 			createInputBox(): vscode.InputBox {
 				return extHostQuickOpen.createInputBox(extension.identifier);
@@ -890,11 +890,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostNotebook.onDidCloseNotebookDocument;
 			},
 			registerNotebookSerializer(viewType: string, serializer: vscode.NotebookSerializer, options?: vscode.NotebookDocumentContentOptions, registration?: vscode.NotebookRegistrationData) {
-				return extHostNotebook.registerNotebookSerializer(extension, viewType, serializer, options, extension.enableProposedApi ? registration : undefined);
+				return extHostNotebook.registerNotebookSerializer(extension, viewType, serializer, options, isProposedApiEnabled(extension) ? registration : undefined);
 			},
 			registerNotebookContentProvider: (viewType: string, provider: vscode.NotebookContentProvider, options?: vscode.NotebookDocumentContentOptions, registration?: vscode.NotebookRegistrationData) => {
 				checkProposedApiEnabled(extension);
-				return extHostNotebook.registerNotebookContentProvider(extension, viewType, provider, options, extension.enableProposedApi ? registration : undefined);
+				return extHostNotebook.registerNotebookContentProvider(extension, viewType, provider, options, isProposedApiEnabled(extension) ? registration : undefined);
 			},
 			onDidChangeConfiguration: (listener: (_: any) => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) => {
 				return configProvider.onDidChangeConfiguration(listener, thisArgs, disposables);
@@ -1094,7 +1094,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		// namespace: notebook
 		const notebooks: typeof vscode.notebooks = {
 			createNotebookController(id: string, notebookType: string, label: string, handler?, rendererScripts?: vscode.NotebookRendererScript[]) {
-				return extHostNotebookKernels.createNotebookController(extension, id, notebookType, label, handler, extension.enableProposedApi ? rendererScripts : undefined);
+				return extHostNotebookKernels.createNotebookController(extension, id, notebookType, label, handler, isProposedApiEnabled(extension) ? rendererScripts : undefined);
 			},
 			registerNotebookCellStatusBarItemProvider: (notebookType: string, provider: vscode.NotebookCellStatusBarItemProvider) => {
 				return extHostNotebook.registerNotebookCellStatusBarItemProvider(extension, notebookType, provider);

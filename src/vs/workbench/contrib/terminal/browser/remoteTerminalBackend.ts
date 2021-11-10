@@ -296,7 +296,7 @@ class RemoteTerminalBackend extends Disposable implements ITerminalBackend {
 		});
 	}
 
-	async updateProperty(id: number, property: ProcessPropertyType, value: any): Promise<void> {
+	async updateProperty<T extends ProcessPropertyType>(id: number, property: T, value: any): Promise<void> {
 		await this._remoteTerminalChannel?.updateProperty(id, property, value);
 	}
 
@@ -337,7 +337,7 @@ class RemoteTerminalBackend extends Disposable implements ITerminalBackend {
 		return this._remoteTerminalChannel?.getWslPath(original) || original;
 	}
 
-	setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void> {
+	async setTerminalLayoutInfo(layout?: ITerminalsLayoutInfoById): Promise<void> {
 		if (!this._remoteTerminalChannel) {
 			throw new Error(`Cannot call setActiveInstanceId when there is no remote`);
 		}
