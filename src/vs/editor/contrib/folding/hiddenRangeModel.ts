@@ -4,17 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { findFirstInSorted } from 'vs/base/common/arrays';
+
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
+import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { countEOL } from 'vs/editor/common/model/tokensStore';
 import { CollapseMemento, FoldingModel } from 'vs/editor/contrib/folding/foldingModel';
 
 export class HiddenRangeModel {
+
 	private readonly _foldingModel: FoldingModel;
 	private _hiddenRanges: IRange[];
 	private _foldingModelListener: IDisposable | null;
 	private readonly _updateEventEmitter = new Emitter<IRange[]>();
+	private _hasLineChanges: boolean = false;
 
 	public get onDidChange(): Event<IRange[]> { return this._updateEventEmitter.event; }
 	public get hiddenRanges() { return this._hiddenRanges; }
@@ -25,6 +30,14 @@ export class HiddenRangeModel {
 		this._hiddenRanges = [];
 		if (model.regions.length) {
 			this.updateHiddenRanges();
+		}
+	}
+
+	public notifyChangeModelContent(e: IModelContentChangedEvent) {
+		if (this._hiddenRanges.length && !this._hasLineChanges) {
+			this._hasLineChanges = e.changes.some(change => {
+				return change.range.endLineNumber !== change.range.startLineNumber || countEOL(change.text)[0] !== 0;
+			});
 		}
 	}
 
@@ -61,7 +74,7 @@ export class HiddenRangeModel {
 			lastCollapsedStart = startLineNumber;
 			lastCollapsedEnd = endLineNumber;
 		}
-		if (updateHiddenAreas || k < this._hiddenRanges.length) {
+		if (this._hasLineChanges || updateHiddenAreas || k < this._hiddenRanges.length) {
 			this.applyHiddenRanges(newHiddenAreas);
 		}
 	}
@@ -90,6 +103,7 @@ export class HiddenRangeModel {
 
 	private applyHiddenRanges(newHiddenAreas: IRange[]) {
 		this._hiddenRanges = newHiddenAreas;
+		this._hasLineChanges = false;
 		this._updateEventEmitter.fire(newHiddenAreas);
 	}
 
