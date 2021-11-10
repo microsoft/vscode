@@ -609,7 +609,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 	 * @param index The index where the {@link IView view} is located.
 	 * @param sizing Whether to distribute other {@link IView view}'s sizes.
 	 */
-	removeView(index: number, sizing?: DistributeSizing): IView<TLayoutContext> {
+	removeView(index: number, sizing?: Sizing): IView<TLayoutContext> {
 		if (this.state !== State.Idle) {
 			throw new Error('Cant modify splitview');
 		}
@@ -634,7 +634,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 		this.relayout();
 		this.state = State.Idle;
 
-		if (sizing) {
+		if (sizing?.type === 'distribute') {
 			this.distributeViewSizes();
 		}
 
