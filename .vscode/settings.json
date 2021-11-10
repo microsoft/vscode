@@ -86,6 +86,7 @@
 		"splitview",
 		"table",
 		"list",
-		"git"
+		"git",
+		"sash"
 	]
 }
