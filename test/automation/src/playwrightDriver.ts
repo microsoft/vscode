@@ -12,7 +12,23 @@ import { IDriver, IDisposable } from './driver';
 import { URI } from 'vscode-uri';
 import * as kill from 'tree-kill';
 import { PageFunction } from 'playwright-core/types/structs';
-import { IWindowDriver } from '../../../src/vs/platform/driver/common/driver';
+import { IElement, ILocaleInfo, ILocalizedStrings } from '.';
+
+// TODO: Copy driver over to ./driver.d.ts?
+export interface IWindowDriver {
+	click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined): Promise<void>;
+	doubleClick(selector: string): Promise<void>;
+	setValue(selector: string, text: string): Promise<void>;
+	getTitle(): Promise<string>;
+	isActiveElement(selector: string): Promise<boolean>;
+	getElements(selector: string, recursive: boolean): Promise<IElement[]>;
+	getElementXY(selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number; }>;
+	typeInEditor(selector: string, text: string): Promise<void>;
+	getTerminalBuffer(selector: string): Promise<string[]>;
+	writeInTerminal(selector: string, text: string): Promise<void>;
+	getLocaleInfo(): Promise<ILocaleInfo>;
+	getLocalizedStrings(): Promise<ILocalizedStrings>
+}
 
 const width = 1200;
 const height = 800;

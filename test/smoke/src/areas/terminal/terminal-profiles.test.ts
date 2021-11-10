@@ -27,7 +27,6 @@ export function setup(opts: ParsedArgs) {
 				return buffer.some(e => e.length > 100);
 			}, 'The terminal buffer should have some content');
 
-
 			// Verify the terminal single tab shows up and has a title
 			const terminalTab = await app.code.waitForElement('.single-terminal-tab');
 			ok(terminalTab.textContent.trim().length > 0);
