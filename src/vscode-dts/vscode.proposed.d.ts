@@ -1858,9 +1858,7 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	// TODO: @connor4312 split this up
-	// eslint-disable-next-line vscode-dts-region-comments
-	//#region proposed test APIs https://github.com/microsoft/vscode/issues/107467
+	//#region testObserver: https://github.com/microsoft/vscode/issues/107467
 	export namespace tests {
 		/**
 		 * Requests that tests be run by their controller.

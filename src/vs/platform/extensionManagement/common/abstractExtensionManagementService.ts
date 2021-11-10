@@ -87,6 +87,8 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		try {
 			return await this.doInstallFromGallery(extension, options);
 		} catch (error) {
+			this.logService.error(`Failed to install extension.`, extension.identifier.id);
+			this.logService.error(error);
 			throw toExtensionManagementError(error);
 		}
 	}
@@ -134,7 +136,6 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		if (!await this.canInstall(extension)) {
 			const targetPlatform = await this.getTargetPlatform();
 			const error = new ExtensionManagementError(nls.localize('incompatible platform', "The '{0}' extension is not available in {1} for {2}.", extension.identifier.id, this.productService.nameLong, TargetPlatformToString(targetPlatform)), ExtensionManagementErrorCode.Incompatible);
-			this.logService.error(`Cannot install extension.`, extension.identifier.id, error.message);
 			reportTelemetry(this.telemetryService, 'extensionGallery:install', getGalleryExtensionTelemetryData(extension), undefined, error);
 			throw error;
 		}
@@ -142,7 +143,6 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		try {
 			extension = await this.checkAndGetCompatibleVersion(extension, !options.installGivenVersion);
 		} catch (error) {
-			this.logService.error(getErrorMessage(error));
 			reportTelemetry(this.telemetryService, 'extensionGallery:install', getGalleryExtensionTelemetryData(extension), undefined, error);
 			throw error;
 		}
@@ -150,14 +150,12 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		const manifest = await this.galleryService.getManifest(extension, CancellationToken.None);
 		if (manifest === null) {
 			const error = new ExtensionManagementError(`Missing manifest for extension ${extension.identifier.id}`, ExtensionManagementErrorCode.Invalid);
-			this.logService.error(`Failed to install extension:`, extension.identifier.id, error.message);
 			reportTelemetry(this.telemetryService, 'extensionGallery:install', getGalleryExtensionTelemetryData(extension), undefined, error);
 			throw error;
 		}
 
 		if (manifest.version !== extension.version) {
 			const error = new ExtensionManagementError(`Cannot install '${extension.identifier.id}' extension because of version mismatch in Marketplace`, ExtensionManagementErrorCode.Invalid);
-			this.logService.error(error.message);
 			reportTelemetry(this.telemetryService, 'extensionGallery:install', getGalleryExtensionTelemetryData(extension), undefined, error);
 			throw error;
 		}
@@ -217,7 +215,6 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 						}
 					} else {
 						this.logService.error('Error while preparing to install dependencies and extension packs of the extension:', installExtensionTask.identifier.id);
-						this.logService.error(error);
 						throw error;
 					}
 				}
@@ -261,7 +258,6 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 							reportTelemetry(this.telemetryService, task.operation === InstallOperation.Update ? 'extensionGallery:update' : 'extensionGallery:install', getGalleryExtensionTelemetryData(task.source), new Date().getTime() - startTime, error);
 						}
 						this.logService.error('Error while installing the extension:', task.identifier.id);
-						this.logService.error(error);
 						throw error;
 					} finally { extensionsToInstallMap.delete(task.identifier.id.toLowerCase()); }
 				}));
@@ -295,12 +291,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 				}
 			}
 
-			this.logService.error(`Failed to install extension:`, installExtensionTask.identifier.id, getErrorMessage(error));
 			this._onDidInstallExtensions.fire(allInstallExtensionTasks.map(({ task }) => ({ identifier: task.identifier, operation: InstallOperation.Install, source: task.source })));
-
-			if (error instanceof Error) {
-				error.name = error && (<ExtensionManagementError>error).code ? (<ExtensionManagementError>error).code : ExtensionManagementErrorCode.Internal;
-			}
 			throw error;
 		} finally {
 			/* Remove the gallery tasks from the cache */
