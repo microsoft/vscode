@@ -574,13 +574,16 @@ class Launch extends AbstractLaunch implements ILaunch {
 		} catch {
 			// launch.json not found: create one by collecting launch configs from debugConfigProviders
 			content = await this.getInitialConfigurationContent(this.workspace.uri, type, token);
-			if (content) {
-				created = true; // pin only if config file is created #8727
-				try {
-					await this.textFileService.write(resource, content);
-				} catch (error) {
-					throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error.message));
-				}
+			if (!content) {
+				// Cancelled
+				return { editor: null, created: false };
+			}
+
+			created = true; // pin only if config file is created #8727
+			try {
+				await this.textFileService.write(resource, content);
+			} catch (error) {
+				throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error.message));
 			}
 		}
 
