@@ -84,6 +84,49 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 	}
 
 	async installFromGallery(extension: IGalleryExtension, options: InstallOptions = {}): Promise<ILocalExtension> {
+		try {
+			return await this.doInstallFromGallery(extension, options);
+		} catch (error) {
+			throw toExtensionManagementError(error);
+		}
+	}
+
+	async uninstall(extension: ILocalExtension, options: UninstallOptions = {}): Promise<void> {
+		this.logService.trace('ExtensionManagementService#uninstall', extension.identifier.id);
+		return this.unininstallExtension(extension, options);
+	}
+
+	async reinstallFromGallery(extension: ILocalExtension): Promise<void> {
+		this.logService.trace('ExtensionManagementService#reinstallFromGallery', extension.identifier.id);
+		if (!this.galleryService.isEnabled()) {
+			throw new Error(nls.localize('MarketPlaceDisabled', "Marketplace is not enabled"));
+		}
+
+		const galleryExtension = await this.findGalleryExtension(extension);
+		if (!galleryExtension) {
+			throw new Error(nls.localize('Not a Marketplace extension', "Only Marketplace Extensions can be reinstalled"));
+		}
+
+		await this.createUninstallExtensionTask(extension, { remove: true, versionOnly: true }).run();
+		await this.installFromGallery(galleryExtension);
+	}
+
+	getExtensionsReport(): Promise<IReportedExtension[]> {
+		const now = new Date().getTime();
+
+		if (!this.reportedExtensions || now - this.lastReportTimestamp > 1000 * 60 * 5) { // 5 minute cache freshness
+			this.reportedExtensions = this.updateReportCache();
+			this.lastReportTimestamp = now;
+		}
+
+		return this.reportedExtensions;
+	}
+
+	registerParticipant(participant: IExtensionManagementParticipant): void {
+		this.participants.push(participant);
+	}
+
+	private async doInstallFromGallery(extension: IGalleryExtension, options: InstallOptions = {}): Promise<ILocalExtension> {
 		if (!this.galleryService.isEnabled()) {
 			throw new ExtensionManagementError(nls.localize('MarketPlaceDisabled', "Marketplace is not enabled"), ExtensionManagementErrorCode.Internal);
 		}
@@ -120,41 +163,6 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		}
 
 		return this.installExtension(manifest, extension, options);
-	}
-
-	async uninstall(extension: ILocalExtension, options: UninstallOptions = {}): Promise<void> {
-		this.logService.trace('ExtensionManagementService#uninstall', extension.identifier.id);
-		return this.unininstallExtension(extension, options);
-	}
-
-	async reinstallFromGallery(extension: ILocalExtension): Promise<void> {
-		this.logService.trace('ExtensionManagementService#reinstallFromGallery', extension.identifier.id);
-		if (!this.galleryService.isEnabled()) {
-			throw new Error(nls.localize('MarketPlaceDisabled', "Marketplace is not enabled"));
-		}
-
-		const galleryExtension = await this.findGalleryExtension(extension);
-		if (!galleryExtension) {
-			throw new Error(nls.localize('Not a Marketplace extension', "Only Marketplace Extensions can be reinstalled"));
-		}
-
-		await this.createUninstallExtensionTask(extension, { remove: true, versionOnly: true }).run();
-		await this.installFromGallery(galleryExtension);
-	}
-
-	getExtensionsReport(): Promise<IReportedExtension[]> {
-		const now = new Date().getTime();
-
-		if (!this.reportedExtensions || now - this.lastReportTimestamp > 1000 * 60 * 5) { // 5 minute cache freshness
-			this.reportedExtensions = this.updateReportCache();
-			this.lastReportTimestamp = now;
-		}
-
-		return this.reportedExtensions;
-	}
-
-	registerParticipant(participant: IExtensionManagementParticipant): void {
-		this.participants.push(participant);
 	}
 
 	protected async installExtension(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallOptions & InstallVSIXOptions): Promise<ILocalExtension> {
@@ -617,6 +625,15 @@ export function joinErrors(errorOrErrors: (Error | string) | (Array<Error | stri
 	return errors.reduce<Error>((previousValue: Error, currentValue: Error | string) => {
 		return new Error(`${previousValue.message}${previousValue.message ? ',' : ''}${currentValue instanceof Error ? currentValue.message : currentValue}`);
 	}, new Error(''));
+}
+
+function toExtensionManagementError(error: Error): ExtensionManagementError {
+	if (error instanceof ExtensionManagementError) {
+		return error;
+	}
+	const e = new ExtensionManagementError(error.message, ExtensionManagementErrorCode.Internal);
+	e.stack = error.stack;
+	return e;
 }
 
 export function reportTelemetry(telemetryService: ITelemetryService, eventName: string, extensionData: any, duration?: number, error?: Error): void {
