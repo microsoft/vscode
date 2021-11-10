@@ -97,6 +97,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 	// Electron Smoke Test
 	else {
 		const env = { ...process.env };
+		const logsPath = path.join(repoPath, '.build', 'logs', options.remote ? 'smoke-tests-remote' : 'smoke-tests');
 
 		const args = [
 			options.workspacePath,
@@ -110,7 +111,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 			'--disable-workspace-trust',
 			`--extensions-dir=${options.extensionsPath}`,
 			`--user-data-dir=${options.userDataDir}`,
-			`--logsPath=${path.join(repoPath, '.build', 'logs', 'smoke-tests')}`,
+			`--logsPath=${logsPath}`,
 			'--enable-driver'
 		];
 
@@ -143,6 +144,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 			}
 
 			env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
+			env['TESTRESOLVER_LOGS_FOLDER'] = path.join(logsPath, 'server');
 		}
 
 		args.push('--enable-proposed-api=vscode.vscode-notebook-tests');

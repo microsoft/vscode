@@ -17,7 +17,7 @@ import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cel
 import { cellExecutionArgs, CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, executeNotebookCondition, getContextFromActiveEditor, getContextFromUri, INotebookActionContext, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NotebookAction, NotebookCellAction, NotebookMultiCellAction, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, parseMultiCellExecutionArgs } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_MISSING_KERNEL_EXTENSION } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { CellKind, ConsolidatedRunButton, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookSetting, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -207,7 +207,7 @@ registerAction2(class ExecuteAboveCells extends NotebookMultiCellAction {
 					id: MenuId.NotebookCellExecute,
 					when: ContextKeyExpr.and(
 						executeCondition,
-						ContextKeyExpr.equals(`config.${ConsolidatedRunButton}`, true))
+						ContextKeyExpr.equals(`config.${NotebookSetting.consolidatedRunButton}`, true))
 				},
 				{
 					id: MenuId.NotebookCellTitle,
@@ -215,7 +215,7 @@ registerAction2(class ExecuteAboveCells extends NotebookMultiCellAction {
 					group: CELL_TITLE_CELL_GROUP_ID,
 					when: ContextKeyExpr.and(
 						executeCondition,
-						ContextKeyExpr.equals(`config.${ConsolidatedRunButton}`, false))
+						ContextKeyExpr.equals(`config.${NotebookSetting.consolidatedRunButton}`, false))
 				}
 			],
 			icon: icons.executeAboveIcon
@@ -253,7 +253,7 @@ registerAction2(class ExecuteCellAndBelow extends NotebookMultiCellAction {
 					id: MenuId.NotebookCellExecute,
 					when: ContextKeyExpr.and(
 						executeCondition,
-						ContextKeyExpr.equals(`config.${ConsolidatedRunButton}`, true))
+						ContextKeyExpr.equals(`config.${NotebookSetting.consolidatedRunButton}`, true))
 				},
 				{
 					id: MenuId.NotebookCellTitle,
@@ -261,7 +261,7 @@ registerAction2(class ExecuteCellAndBelow extends NotebookMultiCellAction {
 					group: CELL_TITLE_CELL_GROUP_ID,
 					when: ContextKeyExpr.and(
 						executeCondition,
-						ContextKeyExpr.equals(`config.${ConsolidatedRunButton}`, false))
+						ContextKeyExpr.equals(`config.${NotebookSetting.consolidatedRunButton}`, false))
 				}
 			],
 			icon: icons.executeBelowIcon

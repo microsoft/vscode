@@ -11,7 +11,7 @@ import { ViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/par
 import { append, $, Dimension, asCSSUrl, trackFocus, clearNode } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton } from 'vs/workbench/contrib/scm/common/scm';
-import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
+import { ResourceLabels, IResourceLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -350,6 +350,13 @@ interface ResourceTemplate {
 	disposables: IDisposable;
 }
 
+interface RenderedResourceData {
+	readonly tooltip: string;
+	readonly uri: URI;
+	readonly fileLabelOptions: Partial<IFileLabelOptions>;
+	readonly iconResource: ISCMResource | undefined;
+}
+
 class RepositoryPaneActionRunner extends ActionRunner {
 
 	constructor(private getSelectedResources: () => (ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>)[]) {
@@ -374,6 +381,9 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 	static readonly TEMPLATE_ID = 'resource';
 	get templateId(): string { return ResourceRenderer.TEMPLATE_ID; }
 
+	private disposables = new DisposableStore();
+	private renderedResources = new Map<ResourceTemplate, RenderedResourceData>();
+
 	constructor(
 		private viewModelProvider: () => ViewModel,
 		private labels: ResourceLabels,
@@ -381,7 +391,9 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		private actionRunner: ActionRunner,
 		@ISCMViewService private scmViewService: ISCMViewService,
 		@IThemeService private themeService: IThemeService
-	) { }
+	) {
+		themeService.onDidColorThemeChange(this.onDidColorThemeChange, this, this.disposables);
+	}
 
 	renderTemplate(container: HTMLElement): ResourceTemplate {
 		const element = append(container, $('.resource'));
@@ -437,45 +449,23 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 			strikethrough = resourceOrFolder.decorations.strikeThrough;
 		}
 
-		const render = () => {
-			const theme = this.themeService.getColorTheme();
-			const icon = iconResource && (theme.type === ColorScheme.LIGHT ? iconResource.decorations.icon : iconResource.decorations.iconDark);
-
-			template.fileLabel.setFile(uri, {
-				fileDecorations: { colors: false, badges: !icon },
+		const renderedData: RenderedResourceData = {
+			tooltip,
+			uri,
+			fileLabelOptions: {
 				hidePath: viewModel.mode === ViewModelMode.Tree,
 				fileKind,
 				matches,
 				descriptionMatches,
 				strikethrough
-			});
-
-			if (icon) {
-				if (ThemeIcon.isThemeIcon(icon)) {
-					template.decorationIcon.className = `decoration-icon ${ThemeIcon.asClassName(icon)}`;
-					if (icon.color) {
-						template.decorationIcon.style.color = theme.getColor(icon.color.id)?.toString() ?? '';
-					}
-					template.decorationIcon.style.display = '';
-					template.decorationIcon.style.backgroundImage = '';
-				} else {
-					template.decorationIcon.className = 'decoration-icon';
-					template.decorationIcon.style.color = '';
-					template.decorationIcon.style.display = '';
-					template.decorationIcon.style.backgroundImage = asCSSUrl(icon);
-				}
-				template.decorationIcon.title = tooltip;
-			} else {
-				template.decorationIcon.className = 'decoration-icon';
-				template.decorationIcon.style.color = '';
-				template.decorationIcon.style.display = 'none';
-				template.decorationIcon.style.backgroundImage = '';
-				template.decorationIcon.title = '';
-			}
+			},
+			iconResource
 		};
 
-		elementDisposables.add(this.themeService.onDidColorThemeChange(render));
-		render();
+		this.renderIcon(template, renderedData);
+
+		this.renderedResources.set(template, renderedData);
+		elementDisposables.add(toDisposable(() => this.renderedResources.delete(template)));
 
 		template.element.setAttribute('data-tooltip', tooltip);
 		template.elementDisposables = elementDisposables;
@@ -574,6 +564,49 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		}
 
 		return [labelMatches, descriptionMatches];
+	}
+
+	private onDidColorThemeChange(): void {
+		for (const [template, data] of this.renderedResources) {
+			this.renderIcon(template, data);
+		}
+	}
+
+	private renderIcon(template: ResourceTemplate, data: RenderedResourceData): void {
+		const theme = this.themeService.getColorTheme();
+		const icon = theme.type === ColorScheme.LIGHT ? data.iconResource?.decorations.icon : data.iconResource?.decorations.iconDark;
+
+		template.fileLabel.setFile(data.uri, {
+			...data.fileLabelOptions,
+			fileDecorations: { colors: false, badges: !icon },
+		});
+
+		if (icon) {
+			if (ThemeIcon.isThemeIcon(icon)) {
+				template.decorationIcon.className = `decoration-icon ${ThemeIcon.asClassName(icon)}`;
+				if (icon.color) {
+					template.decorationIcon.style.color = theme.getColor(icon.color.id)?.toString() ?? '';
+				}
+				template.decorationIcon.style.display = '';
+				template.decorationIcon.style.backgroundImage = '';
+			} else {
+				template.decorationIcon.className = 'decoration-icon';
+				template.decorationIcon.style.color = '';
+				template.decorationIcon.style.display = '';
+				template.decorationIcon.style.backgroundImage = asCSSUrl(icon);
+			}
+			template.decorationIcon.title = data.tooltip;
+		} else {
+			template.decorationIcon.className = 'decoration-icon';
+			template.decorationIcon.style.color = '';
+			template.decorationIcon.style.display = 'none';
+			template.decorationIcon.style.backgroundImage = '';
+			template.decorationIcon.title = '';
+		}
+	}
+
+	dispose(): void {
+		this.disposables.dispose();
 	}
 }
 
@@ -2065,7 +2098,7 @@ export class SCMViewPane extends ViewPane {
 			this.inputRenderer,
 			this.instantiationService.createInstance(ActionButtonRenderer),
 			this.instantiationService.createInstance(ResourceGroupRenderer, getActionViewItemProvider(this.instantiationService)),
-			this.instantiationService.createInstance(ResourceRenderer, () => this._viewModel, this.listLabels, getActionViewItemProvider(this.instantiationService), actionRunner)
+			this._register(this.instantiationService.createInstance(ResourceRenderer, () => this._viewModel, this.listLabels, getActionViewItemProvider(this.instantiationService), actionRunner))
 		];
 
 		const filter = new SCMTreeFilter();

@@ -13,7 +13,7 @@ import { MainThreadTelemetryShape, IInitData } from 'vs/workbench/api/common/ext
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription, isProposedApiEnabled } from 'vs/platform/extensions/common/extensions';
 import { LogLevel, createHttpPatch, ProxyResolveEvent, createProxyResolver, createTlsPatch, ProxySupportSetting } from 'vscode-proxy-agent';
 
 export function connectProxyResolver(
@@ -129,7 +129,7 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 				}
 				if (!cache[request]) {
 					let mod = modules.default;
-					if (ext && ext.enableProposedApi) {
+					if (ext && isProposedApiEnabled(ext)) {
 						mod = (modules as any)[(<any>ext).proxySupport] || modules.onRequest;
 					}
 					cache[request] = <any>{ ...mod }; // Copy to work around #93167.

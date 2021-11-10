@@ -42,6 +42,7 @@ export interface IContextMenuService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidShowContextMenu: Event<void>;
+	readonly onDidHideContextMenu: Event<void>;
 
 	showContextMenu(delegate: IContextMenuDelegate): void;
 }

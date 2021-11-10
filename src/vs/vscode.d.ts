@@ -1672,6 +1672,12 @@ declare module 'vscode' {
 		 * Always show this item.
 		 */
 		alwaysShow?: boolean;
+
+		/**
+		 * Optional buttons that will be rendered on this particular item. These buttons will trigger
+		 * an {@link QuickPickItemButtonEvent} when clicked.
+		 */
+		buttons?: readonly QuickInputButton[];
 	}
 
 	/**
@@ -5655,6 +5661,13 @@ declare module 'vscode' {
 		 * @param value A string, falsy values will be printed.
 		 */
 		appendLine(value: string): void;
+
+		/**
+		 * Replaces all output from the channel with the given value.
+		 *
+		 * @param value A string, falsy values will not be printed.
+		 */
+		replace(value: string): void;
 
 		/**
 		 * Removes all output from the channel.
@@ -10193,6 +10206,12 @@ declare module 'vscode' {
 		readonly onDidTriggerButton: Event<QuickInputButton>;
 
 		/**
+		 * An event signaling when a button in a particular {@link QuickPickItem} was triggered.
+		 * This event does not fire for buttons in the title bar.
+		 */
+		readonly onDidTriggerItemButton: Event<QuickPickItemButtonEvent<T>>;
+
+		/**
 		 * Items to pick from. This can be read and updated by the extension.
 		 */
 		items: readonly T[];
@@ -10211,6 +10230,11 @@ declare module 'vscode' {
 		 * If the filter text should also be matched against the detail of the items. Defaults to false.
 		 */
 		matchOnDetail: boolean;
+
+		/*
+		 * An optional flag to maintain the scroll position of the quick pick when the quick pick items are updated. Defaults to false.
+		 */
+		keepScrollPosition?: boolean;
 
 		/**
 		 * Active items. This can be read and updated by the extension.
@@ -10321,6 +10345,21 @@ declare module 'vscode' {
 		 * @hidden
 		 */
 		private constructor();
+	}
+
+	/**
+	 * An event signaling when a button in a particular {@link QuickPickItem} was triggered.
+	 * This event does not fire for buttons in the title bar.
+	 */
+	export interface QuickPickItemButtonEvent<T extends QuickPickItem> {
+		/**
+		 * The button that was clicked.
+		 */
+		readonly button: QuickInputButton;
+		/**
+		 * The item that the button belongs to.
+		 */
+		readonly item: T;
 	}
 
 	/**
@@ -13849,6 +13888,17 @@ declare module 'vscode' {
 	 */
 	export interface AuthenticationGetSessionOptions {
 		/**
+		 * Whether the existing user session preference should be cleared.
+		 *
+		 * For authentication providers that support being signed into multiple accounts at once, the user will be
+		 * prompted to select an account to use when {@link authentication.getSession getSession} is called. This preference
+		 * is remembered until {@link authentication.getSession getSession} is called with this flag.
+		 *
+		 * Defaults to false.
+		 */
+		clearSessionPreference?: boolean;
+
+		/**
 		 * Whether login should be performed if there is no matching session.
 		 *
 		 * If true, a modal dialog will be shown asking the user to sign in. If false, a numbered badge will be shown
@@ -13859,19 +13909,23 @@ declare module 'vscode' {
 		 * will also result in an immediate modal dialog, and false will add a numbered badge to the accounts icon.
 		 *
 		 * Defaults to false.
+		 *
+		 * Note: you cannot use this option with {@link silent}.
 		 */
 		createIfNone?: boolean;
 
+
 		/**
-		 * Whether the existing user session preference should be cleared.
+		 * Whether we should show the indication to sign in in the Accounts menu.
 		 *
-		 * For authentication providers that support being signed into multiple accounts at once, the user will be
-		 * prompted to select an account to use when {@link authentication.getSession getSession} is called. This preference
-		 * is remembered until {@link authentication.getSession getSession} is called with this flag.
+		 * If false, the user will be shown a badge on the Accounts menu with an option to sign in for the extension.
+		 * If true, no indication will be shown.
 		 *
 		 * Defaults to false.
+		 *
+		 * Note: you cannot use this option with any other options that prompt the user like {@link createIfNone}.
 		 */
-		clearSessionPreference?: boolean;
+		silent?: boolean;
 	}
 
 	/**

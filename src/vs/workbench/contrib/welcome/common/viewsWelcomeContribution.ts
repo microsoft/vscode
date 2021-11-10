@@ -11,6 +11,7 @@ import { IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/exte
 import { ViewsWelcomeExtensionPoint, ViewWelcome, ViewIdentifierMap } from './viewsWelcomeExtensionPoint';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as ViewContainerExtensions, IViewContentDescriptor, IViewsRegistry } from 'vs/workbench/common/views';
+import { isProposedApiEnabled } from 'vs/platform/extensions/common/extensions';
 
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 
@@ -72,7 +73,7 @@ function parseGroupAndOrder(welcome: ViewWelcome, contribution: IExtensionPointU
 	let group: string | undefined;
 	let order: number | undefined;
 	if (welcome.group) {
-		if (!contribution.description.enableProposedApi) {
+		if (!isProposedApiEnabled(contribution.description)) {
 			contribution.collector.warn(nls.localize('ViewsWelcomeExtensionPoint.proposedAPI', "The viewsWelcome contribution in '{0}' requires 'enableProposedApi' to be enabled.", contribution.description.identifier.value));
 			return { group, order };
 		}

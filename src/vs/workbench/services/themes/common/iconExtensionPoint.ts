@@ -10,7 +10,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { CSSIcon } from 'vs/base/common/codicons';
 import { fontIdRegex } from 'vs/workbench/services/themes/common/productIconThemeSchema';
 import * as resources from 'vs/base/common/resources';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription, isProposedApiEnabled } from 'vs/platform/extensions/common/extensions';
 
 interface IIconExtensionPoint {
 	id: string;
@@ -125,7 +125,7 @@ export class IconExtensionPoint {
 				const extensionValue = <IIconExtensionPoint[]>extension.value;
 				const collector = extension.collector;
 
-				if (!extension.description.enableProposedApi) {
+				if (!isProposedApiEnabled(extension.description)) {
 					collector.error(nls.localize('invalid.icons.proposedAPI', "'configuration.icons is a proposed contribution point and only available when running out of dev or with the following command line switch: --enable-proposed-api {0}", extension.description.identifier.value));
 					return;
 				}
@@ -179,7 +179,7 @@ export class IconFontExtensionPoint {
 				const extensionValue = <IIconFontExtensionPoint[]>extension.value;
 				const collector = extension.collector;
 
-				if (!extension.description.enableProposedApi) {
+				if (!isProposedApiEnabled(extension.description)) {
 					collector.error(nls.localize('invalid.iconFonts.proposedAPI', "'configuration.iconFonts is a proposed contribution point and only available when running out of dev or with the following command line switch: --enable-proposed-api {0}", extension.description.identifier.value));
 					return;
 				}

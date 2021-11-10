@@ -80,7 +80,11 @@ export function createDecorationsForStackFrame(stackFrame: IStackFrame, isFocuse
 			result.push({
 				options: {
 					description: 'top-stack-frame-inline-decoration',
-					beforeContentClassName: noCharactersBefore ? 'debug-top-stack-frame-column start-of-line' : 'debug-top-stack-frame-column'
+					before: {
+						content: '\uEB8B',
+						inlineClassName: noCharactersBefore ? 'debug-top-stack-frame-column start-of-line' : 'debug-top-stack-frame-column',
+						inlineClassNameAffectsLetterSpacing: true
+					},
 				},
 				range: columnUntilEOLRange
 			});
