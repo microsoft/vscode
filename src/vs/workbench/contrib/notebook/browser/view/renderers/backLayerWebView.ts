@@ -823,7 +823,7 @@ var requirejs = (function() {
 			allowScripts: true,
 			localResourceRoots: this.localResourceRootsCache,
 		}, undefined);
-		// console.log(this.localResourceRootsCache);
+
 		webview.html = content;
 		return webview;
 	}
