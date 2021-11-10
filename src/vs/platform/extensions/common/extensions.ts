@@ -263,7 +263,7 @@ export interface IExtensionManifest {
 	readonly contributes?: IExtensionContributions;
 	readonly repository?: { url: string; };
 	readonly bugs?: { url: string; };
-	readonly enabledApiProposals?: string[];
+	readonly enabledApiProposals?: readonly string[];
 	/** @deprecated */
 	readonly enableProposedApi?: boolean;
 	readonly api?: string;
