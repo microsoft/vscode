@@ -21,10 +21,6 @@ export class NotebookCellStatusBarService extends Disposable implements INoteboo
 
 	private _providers: INotebookCellStatusBarItemProvider[] = [];
 
-	constructor() {
-		super();
-	}
-
 	registerCellStatusBarItemProvider(provider: INotebookCellStatusBarItemProvider): IDisposable {
 		this._providers.push(provider);
 		let changeListener: IDisposable | undefined;
