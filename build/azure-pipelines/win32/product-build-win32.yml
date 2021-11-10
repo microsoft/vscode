@@ -216,7 +216,7 @@ steps:
       $ErrorActionPreference = "Stop"
       $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
       $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-win32-$(VSCODE_ARCH)"
-      exec { yarn smoketest-no-compile --build "$AppRoot" --remote }
+      exec { yarn smoketest-no-compile --build "$AppRoot" --remote --screenshots $(Build.SourcesDirectory)\.build\logs\smoke-tests-remote }
     displayName: Run smoke tests (Remote)
     timeoutInMinutes: 5
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
