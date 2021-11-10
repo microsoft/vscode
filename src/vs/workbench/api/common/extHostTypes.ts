@@ -1776,7 +1776,7 @@ export enum TaskPanelKind {
 @es5ClassCompat
 export class TaskGroup implements vscode.TaskGroup {
 
-	isDefault?: boolean;
+	isDefault: boolean | undefined;
 	private _id: string;
 
 	public static Clean: TaskGroup = new TaskGroup('clean', 'Clean');
