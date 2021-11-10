@@ -484,7 +484,6 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 	private horizontalScrolling: boolean | undefined;
 	private _styler: IDisposable | undefined;
 	private _useAltAsMultipleSelectionModifier: boolean;
-	private readonly disposables: DisposableStore;
 	private navigator: TableResourceNavigator<TRow>;
 	get onDidOpen(): Event<IOpenEvent<TRow | undefined>> { return this.navigator.onDidOpen; }
 
@@ -513,7 +512,6 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 			}
 		);
 
-		this.disposables = new DisposableStore();
 		this.disposables.add(workbenchListOptionsDisposable);
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);

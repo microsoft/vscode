@@ -10,18 +10,16 @@ import { debounce } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { isMacintosh, isWeb, isWindows, OperatingSystem } from 'vs/base/common/platform';
+import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import * as nls from 'vs/nls';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalLocationString, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalLocationString } from 'vs/platform/terminal/common/terminal';
 import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IconDefinition } from 'vs/platform/theme/common/iconRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
@@ -31,8 +29,7 @@ import { IEditableData, IViewsService } from 'vs/workbench/common/views';
 import { ICreateTerminalOptions, IRequestAddInstanceToGroupEvent, ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalFindHost, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalLocationOptions, ITerminalService, ITerminalServiceNativeDelegate, TerminalConnectionState, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
-import { getColorClass, getColorStyleContent, getColorStyleElement, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
-import { configureTerminalProfileIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
+import { getColorStyleContent, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { getInstanceFromResource, getTerminalUri, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
 import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalBackend, ITerminalProcessExtHostProxy, ITerminalProfileService, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -46,6 +43,8 @@ import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/ed
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { TerminalProfileQuickpick } from 'vs/workbench/contrib/terminal/browser/terminalProfileQuickpick';
+import { IKeyMods } from 'vs/base/parts/quickinput/common/quickInput';
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -66,7 +65,7 @@ export class TerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
 	private _remoteTerminalsInitPromise: Promise<void> | undefined;
 	private _localTerminalsInitPromise: Promise<void> | undefined;
-	private _connectionState: TerminalConnectionState;
+	private _connectionState: TerminalConnectionState = TerminalConnectionState.Connecting;
 	private _nativeDelegate?: ITerminalServiceNativeDelegate;
 	private _shutdownWindowCount?: number;
 
@@ -144,8 +143,6 @@ export class TerminalService implements ITerminalService {
 		@IDialogService private _dialogService: IDialogService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IRemoteAgentService private _remoteAgentService: IRemoteAgentService,
-		@IQuickInputService private _quickInputService: IQuickInputService,
-		@IConfigurationService private _configurationService: IConfigurationService,
 		@IViewsService private _viewsService: IViewsService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -154,7 +151,6 @@ export class TerminalService implements ITerminalService {
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
-		@IThemeService private readonly _themeService: IThemeService,
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@INotificationService private readonly _notificationService: INotificationService
@@ -236,29 +232,67 @@ export class TerminalService implements ITerminalService {
 			}
 		});
 
-		const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
-
-		// Connect to the extension host if it's there, set the connection state to connected when
-		// it's done. This should happen even when there is no extension host.
-		this._connectionState = TerminalConnectionState.Connecting;
-
-		const isPersistentRemote = !!this._environmentService.remoteAuthority && enableTerminalReconnection;
-
-		if (isPersistentRemote) {
-			this._remoteTerminalsInitPromise = this._reconnectToRemoteTerminals();
-		} else if (enableTerminalReconnection) {
-			this._localTerminalsInitPromise = this._reconnectToLocalTerminals();
-		} else {
-			this._connectionState = TerminalConnectionState.Connected;
-		}
-
 		// Create async as the class depends on `this`
 		timeout(0).then(() => this._instantiationService.createInstance(TerminalEditorStyle, document.head));
+	}
+	async showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined> {
+		const quickPick = this._instantiationService.createInstance(TerminalProfileQuickpick);
+		const result = await quickPick.showAndGetResult(type);
+		if (!result) {
+			return;
+		}
+		if (typeof result === 'string') {
+			return;
+		}
+		let keyMods: IKeyMods | undefined = result.keyMods;
+		if (type === 'createInstance') {
+			const activeInstance = this.getDefaultInstanceHost().activeInstance;
+			let instance;
+
+			if (result.config && 'id' in result?.config) {
+				await this.createContributedTerminalProfile(result.config.extensionIdentifier, result.config.id, {
+					icon: result.config.options?.icon,
+					color: result.config.options?.color,
+					location: !!(keyMods?.alt && activeInstance) ? { splitActiveTerminal: true } : this.defaultLocation
+				});
+				return;
+			} else if (result.config && 'profileName' in result.config) {
+				if (keyMods?.alt && activeInstance) {
+					// create split, only valid if there's an active instance
+					instance = await this.createTerminal({ location: { parentTerminal: activeInstance }, config: result.config });
+				} else {
+					instance = await this.createTerminal({ location: this.defaultLocation, config: result.config, cwd });
+				}
+			}
+
+			if (instance && this.defaultLocation !== TerminalLocation.Editor) {
+				this._terminalGroupService.showPanel(true);
+				this.setActiveInstance(instance);
+				return instance;
+			}
+		}
+		return undefined;
 	}
 
 	handleNewRegisteredBackend(backend: ITerminalBackend) {
 		if (backend.remoteAuthority === this._environmentService.remoteAuthority) {
 			this._primaryBackend = backend;
+			const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
+
+			// Connect to the extension host if it's there, set the connection state to connected when
+			// it's done. This should happen even when there is no extension host.
+			this._connectionState = TerminalConnectionState.Connecting;
+
+			const isPersistentRemote = !!this._environmentService.remoteAuthority && enableTerminalReconnection;
+
+			if (isPersistentRemote) {
+				this._remoteTerminalsInitPromise = this._reconnectToRemoteTerminals();
+			} else if (enableTerminalReconnection) {
+				this._localTerminalsInitPromise = this._reconnectToLocalTerminals();
+			} else {
+				this._connectionState = TerminalConnectionState.Connected;
+			}
+
 			backend.onDidRequestDetach(async (e) => {
 				const instanceToDetach = this.getInstanceFromResource(getTerminalUri(e.workspaceId, e.instanceId));
 				if (instanceToDetach) {
@@ -848,172 +882,6 @@ export class TerminalService implements ITerminalService {
 		return !res.confirmed;
 	}
 
-	private async _getPlatformKey(): Promise<string> {
-		const env = await this._remoteAgentService.getEnvironment();
-		if (env) {
-			return env.os === OperatingSystem.Windows ? 'windows' : (env.os === OperatingSystem.Macintosh ? 'osx' : 'linux');
-		}
-		return isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
-	}
-
-	async showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined> {
-		let keyMods: IKeyMods | undefined;
-		const profiles = this._terminalProfileService.availableProfiles;
-		const platformKey = await this._getPlatformKey();
-		const profilesKey = `${TerminalSettingPrefix.Profiles}${platformKey}`;
-		const defaultProfileKey = `${TerminalSettingPrefix.DefaultProfile}${platformKey}`;
-		const defaultProfileName = this._configurationService.getValue<string>(defaultProfileKey);
-
-		const options: IPickOptions<IProfileQuickPickItem> = {
-			placeHolder: type === 'createInstance' ? nls.localize('terminal.integrated.selectProfileToCreate', "Select the terminal profile to create") : nls.localize('terminal.integrated.chooseDefaultProfile', "Select your default terminal profile"),
-			onDidTriggerItemButton: async (context) => {
-				if ('command' in context.item.profile) {
-					return;
-				}
-				if ('id' in context.item.profile) {
-					return;
-				}
-				const configProfiles = this._configurationService.getValue<{ [key: string]: ITerminalProfileObject }>(profilesKey);
-				const existingProfiles = configProfiles ? Object.keys(configProfiles) : [];
-				const name = await this._quickInputService.input({
-					prompt: nls.localize('enterTerminalProfileName', "Enter terminal profile name"),
-					value: context.item.profile.profileName,
-					validateInput: async input => {
-						if (existingProfiles.includes(input)) {
-							return nls.localize('terminalProfileAlreadyExists', "A terminal profile already exists with that name");
-						}
-						return undefined;
-					}
-				});
-				if (!name) {
-					return;
-				}
-				const newConfigValue: { [key: string]: ITerminalProfileObject } = { ...configProfiles } ?? {};
-				newConfigValue[name] = {
-					path: context.item.profile.path,
-					args: context.item.profile.args
-				};
-				await this._configurationService.updateValue(profilesKey, newConfigValue, ConfigurationTarget.USER);
-			},
-			onKeyMods: mods => keyMods = mods
-		};
-
-		// Build quick pick items
-		const quickPickItems: (IProfileQuickPickItem | IQuickPickSeparator)[] = [];
-		const configProfiles = profiles.filter(e => !e.isAutoDetected);
-		const autoDetectedProfiles = profiles.filter(e => e.isAutoDetected);
-
-		if (configProfiles.length > 0) {
-			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles', "profiles") });
-			quickPickItems.push(...this._sortProfileQuickPickItems(configProfiles.map(e => this._createProfileQuickPickItem(e)), defaultProfileName));
-		}
-
-		quickPickItems.push({ type: 'separator', label: nls.localize('ICreateContributedTerminalProfileOptions', "contributed") });
-		const contributedProfiles: IProfileQuickPickItem[] = [];
-		for (const contributed of this._terminalProfileService.contributedProfiles) {
-			if (typeof contributed.icon === 'string' && contributed.icon.startsWith('$(')) {
-				contributed.icon = contributed.icon.substring(2, contributed.icon.length - 1);
-			}
-			const icon = contributed.icon && typeof contributed.icon === 'string' ? (iconRegistry.get(contributed.icon) || Codicon.terminal) : Codicon.terminal;
-			const uriClasses = getUriClasses(contributed, this._themeService.getColorTheme().type, true);
-			const colorClass = getColorClass(contributed);
-			const iconClasses = [];
-			if (uriClasses) {
-				iconClasses.push(...uriClasses);
-			}
-			if (colorClass) {
-				iconClasses.push(colorClass);
-			}
-			contributedProfiles.push({
-				label: `$(${icon.id}) ${contributed.title}`,
-				profile: {
-					extensionIdentifier: contributed.extensionIdentifier,
-					title: contributed.title,
-					icon: contributed.icon,
-					id: contributed.id,
-					color: contributed.color
-				},
-				profileName: contributed.title,
-				iconClasses
-			});
-		}
-
-		if (contributedProfiles.length > 0) {
-			quickPickItems.push(...this._sortProfileQuickPickItems(contributedProfiles, defaultProfileName));
-		}
-
-		if (autoDetectedProfiles.length > 0) {
-			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles.detected', "detected") });
-			quickPickItems.push(...this._sortProfileQuickPickItems(autoDetectedProfiles.map(e => this._createProfileQuickPickItem(e)), defaultProfileName));
-		}
-		const styleElement = getColorStyleElement(this._themeService.getColorTheme());
-		document.body.appendChild(styleElement);
-
-		const value = await this._quickInputService.pick(quickPickItems, options);
-		document.body.removeChild(styleElement);
-		if (!value) {
-			return;
-		}
-		if (type === 'createInstance') {
-			const activeInstance = this.getDefaultInstanceHost().activeInstance;
-			let instance;
-
-			if ('id' in value.profile) {
-				await this.createContributedTerminalProfile(value.profile.extensionIdentifier, value.profile.id, {
-					icon: value.profile.icon,
-					color: value.profile.color,
-					location: !!(keyMods?.alt && activeInstance) ? { splitActiveTerminal: true } : this.defaultLocation
-				});
-				return;
-			} else {
-				if (keyMods?.alt && activeInstance) {
-					// create split, only valid if there's an active instance
-					instance = await this.createTerminal({ location: { parentTerminal: activeInstance }, config: value.profile });
-				} else {
-					instance = await this.createTerminal({ location: this.defaultLocation, config: value.profile, cwd });
-				}
-			}
-
-			if (instance && this.defaultLocation !== TerminalLocation.Editor) {
-				this._terminalGroupService.showPanel(true);
-				this.setActiveInstance(instance);
-				return instance;
-			}
-		} else { // setDefault
-			if ('command' in value.profile) {
-				return; // Should never happen
-			} else if ('id' in value.profile) {
-				// extension contributed profile
-				await this._configurationService.updateValue(defaultProfileKey, value.profile.title, ConfigurationTarget.USER);
-
-				this._terminalProfileService.registerContributedProfile(value.profile.extensionIdentifier, value.profile.id, value.profile.title, {
-					color: value.profile.color,
-					icon: value.profile.icon
-				});
-				return;
-			}
-		}
-
-		// Add the profile to settings if necessary
-		if (value.profile.isAutoDetected) {
-			const profilesConfig = await this._configurationService.getValue(profilesKey);
-			if (typeof profilesConfig === 'object') {
-				const newProfile: ITerminalProfileObject = {
-					path: value.profile.path
-				};
-				if (value.profile.args) {
-					newProfile.args = value.profile.args;
-				}
-				(profilesConfig as { [key: string]: ITerminalProfileObject })[value.profile.profileName] = newProfile;
-			}
-			await this._configurationService.updateValue(profilesKey, profilesConfig, ConfigurationTarget.USER);
-		}
-		// Set the default profile
-		await this._configurationService.updateValue(defaultProfileKey, value.profile.profileName, ConfigurationTarget.USER);
-		return undefined;
-	}
-
-
 	getDefaultInstanceHost(): ITerminalInstanceHost {
 		if (this.defaultLocation === TerminalLocation.Editor) {
 			return this._terminalEditorService;
@@ -1040,46 +908,6 @@ export class TerminalService implements ITerminalService {
 
 	getFindHost(instance: ITerminalInstance | undefined = this.activeInstance): ITerminalFindHost {
 		return instance?.target === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
-	}
-
-	private _createProfileQuickPickItem(profile: ITerminalProfile): IProfileQuickPickItem {
-		const buttons: IQuickInputButton[] = [{
-			iconClass: ThemeIcon.asClassName(configureTerminalProfileIcon),
-			tooltip: nls.localize('createQuickLaunchProfile', "Configure Terminal Profile")
-		}];
-		const icon = (profile.icon && ThemeIcon.isThemeIcon(profile.icon)) ? profile.icon : Codicon.terminal;
-		const label = `$(${icon.id}) ${profile.profileName}`;
-		const colorClass = getColorClass(profile);
-		const iconClasses = [];
-		if (colorClass) {
-			iconClasses.push(colorClass);
-		}
-
-		if (profile.args) {
-			if (typeof profile.args === 'string') {
-				return { label, description: `${profile.path} ${profile.args}`, profile, profileName: profile.profileName, buttons, iconClasses };
-			}
-			const argsString = profile.args.map(e => {
-				if (e.includes(' ')) {
-					return `"${e.replace('/"/g', '\\"')}"`;
-				}
-				return e;
-			}).join(' ');
-			return { label, description: `${profile.path} ${argsString}`, profile, profileName: profile.profileName, buttons, iconClasses };
-		}
-		return { label, description: profile.path, profile, profileName: profile.profileName, buttons, iconClasses };
-	}
-
-	private _sortProfileQuickPickItems(items: IProfileQuickPickItem[], defaultProfileName: string) {
-		return items.sort((a, b) => {
-			if (b.profileName === defaultProfileName) {
-				return 1;
-			}
-			if (a.profileName === defaultProfileName) {
-				return -1;
-			}
-			return a.profileName.localeCompare(b.profileName);
-		});
 	}
 
 	private _convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig {
@@ -1295,11 +1123,6 @@ export class TerminalService implements ITerminalService {
 		this._configHelper.panelContainer = panelContainer;
 		this._terminalGroupService.setContainer(terminalContainer);
 	}
-}
-
-interface IProfileQuickPickItem extends IQuickPickItem {
-	profile: ITerminalProfile | IExtensionTerminalProfile;
-	profileName: string;
 }
 
 class TerminalEditorStyle extends Themable {

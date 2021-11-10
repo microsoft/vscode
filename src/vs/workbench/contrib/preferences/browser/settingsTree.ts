@@ -1101,8 +1101,7 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 		common.toDispose.add(
 			listWidget.onDidChangeList(e => {
 				const newList = this.computeNewList(template, e);
-				this.onDidChangeList(template, newList);
-				if (newList !== null && template.onChange) {
+				if (template.onChange) {
 					template.onChange(newList);
 				}
 			})
@@ -1111,8 +1110,8 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 		return template;
 	}
 
-	private onDidChangeList(template: ISettingListItemTemplate, newList: string[] | undefined | null): void {
-		if (!template.context || newList === null) {
+	private onDidChangeList(template: ISettingListItemTemplate, newList: unknown[] | undefined): void {
+		if (!template.context || !newList) {
 			return;
 		}
 
@@ -1179,7 +1178,7 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 		super.renderSettingElement(element, index, templateData);
 	}
 
-	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingListItemTemplate, onChange: (value: string[] | undefined) => void): void {
+	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingListItemTemplate, onChange: (value: string[] | number[] | undefined) => void): void {
 		const value = getListDisplayValue(dataElement);
 		const keySuggester = dataElement.setting.enum ? createArraySuggester(dataElement) : undefined;
 		template.listWidget.setValue(value, {
@@ -1193,8 +1192,17 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 		}));
 
 		template.onChange = (v) => {
-			onChange(v);
-			renderArrayValidations(dataElement, template, v, false);
+			if (!renderArrayValidations(dataElement, template, v, false)) {
+				let arrToSave;
+				const itemType = dataElement.setting.arrayItemType;
+				if (v && (itemType === 'number' || itemType === 'integer')) {
+					arrToSave = v.map(a => +a);
+				} else {
+					arrToSave = v;
+				}
+				this.onDidChangeList(template, arrToSave);
+				onChange(arrToSave);
+			}
 		};
 
 		renderArrayValidations(dataElement, template, value.map(v => v.value.data.toString()), true);
@@ -2000,12 +2008,15 @@ function renderValidations(dataElement: SettingsTreeSettingElement, template: IS
 	return false;
 }
 
+/**
+ * Validate and render any error message for arrays. Returns true if the value is invalid.
+ */
 function renderArrayValidations(
 	dataElement: SettingsTreeSettingElement,
 	template: ISettingListItemTemplate | ISettingObjectItemTemplate,
 	value: string[] | Record<string, unknown> | undefined,
 	calledOnStartup: boolean
-) {
+): boolean {
 	template.containerElement.classList.add('invalid-input');
 	if (dataElement.setting.validator) {
 		const errMsg = dataElement.setting.validator(value);
@@ -2015,12 +2026,13 @@ function renderArrayValidations(
 			const validationError = localize('validationError', "Validation Error.");
 			template.containerElement.setAttribute('aria-label', [dataElement.setting.key, validationError, errMsg].join(' '));
 			if (!calledOnStartup) { ariaAlert(validationError + ' ' + errMsg); }
-			return;
+			return true;
 		} else {
 			template.containerElement.setAttribute('aria-label', dataElement.setting.key);
 			template.containerElement.classList.remove('invalid-input');
 		}
 	}
+	return false;
 }
 
 function cleanRenderedMarkdown(element: Node): void {
@@ -2154,7 +2166,7 @@ class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupCh
 				return SETTINGS_ENUM_TEMPLATE_ID;
 			}
 
-			if (element.valueType === SettingValueType.StringOrEnumArray) {
+			if (element.valueType === SettingValueType.Array) {
 				return SETTINGS_ARRAY_TEMPLATE_ID;
 			}
 

@@ -12,7 +12,7 @@ import { IEditorPaneRegistry, IEditorPaneDescriptor } from 'vs/workbench/browser
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorProgressService, IOperation, LongRunningOperation } from 'vs/platform/progress/common/progress';
+import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
 import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { Emitter } from 'vs/base/common/event';
 import { assertIsDefined } from 'vs/base/common/types';
@@ -146,20 +146,8 @@ export class EditorPanes extends Disposable {
 		// Editor pane
 		const pane = this.doShowEditorPane(descriptor);
 
-		// Show progress while setting input after a certain timeout.
-		// If the workbench is opening be more relaxed about progress
-		// showing by increasing the delay a little bit to reduce flicker.
-		const operation = this.editorOperation.start(this.layoutService.isRestored() ? 800 : 3200);
-
 		// Apply input to pane
-		let changed: boolean;
-		let cancelled: boolean;
-		try {
-			changed = await this.doSetInput(pane, operation, editor, options, context);
-			cancelled = !operation.isCurrent();
-		} finally {
-			operation.stop();
-		}
+		const { changed, cancelled } = await this.doSetInput(pane, editor, options, context);
 
 		// Focus unless cancelled
 		if (!cancelled) {
@@ -263,22 +251,36 @@ export class EditorPanes extends Disposable {
 		this._onDidChangeSizeConstraints.fire(undefined);
 	}
 
-	private async doSetInput(editorPane: EditorPane, operation: IOperation, editor: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext): Promise<boolean> {
-		const forceReload = options?.forceReload;
+	private async doSetInput(editorPane: EditorPane, editor: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext): Promise<{ changed: boolean, cancelled: boolean }> {
+
+		// If the input did not change, return early and only
+		// apply the options unless the options instruct us to
+		// force open it even if it is the same
 		const inputMatches = editorPane.input?.matches(editor);
-
-		// If the input did not change, return early and only apply the options
-		// unless the options instruct us to force open it even if it is the same
-		if (inputMatches && !forceReload) {
+		if (inputMatches && !options?.forceReload) {
 			editorPane.setOptions(options);
+
+			return { changed: false, cancelled: false };
 		}
 
-		// Otherwise set the input to the editor pane
-		else {
+		// Start a new editor input operation to report progress
+		// and to support cancellation. Any new operation that is
+		// started will cancel the previous one.
+		const operation = this.editorOperation.start(this.layoutService.isRestored() ? 800 : 3200);
+
+		// Set the input to the editor pane
+		let cancelled = false;
+		try {
 			await editorPane.setInput(editor, options, context, operation.token);
+
+			if (!operation.isCurrent()) {
+				cancelled = true;
+			}
+		} finally {
+			operation.stop();
 		}
 
-		return !inputMatches;
+		return { changed: !inputMatches, cancelled };
 	}
 
 	private doHideActiveEditorPane(): void {

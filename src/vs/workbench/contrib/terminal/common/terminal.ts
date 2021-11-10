@@ -57,17 +57,22 @@ export interface ITerminalProfileResolverService {
 	createProfileFromShellAndShellArgs(shell?: unknown, shellArgs?: unknown): Promise<ITerminalProfile | string>;
 }
 
+export interface IRegisterContributedProfileArgs {
+	extensionIdentifier: string, id: string, title: string, options: ICreateContributedTerminalProfileOptions;
+}
+
 export const ITerminalProfileService = createDecorator<ITerminalProfileService>('terminalProfileService');
 export interface ITerminalProfileService {
 	readonly _serviceBrand: undefined;
 	readonly availableProfiles: ITerminalProfile[];
 	readonly contributedProfiles: IExtensionTerminalProfile[];
 	readonly profilesReady: Promise<void>;
+	getPlatformKey(): Promise<string>;
 	refreshAvailableProfiles(): void;
 	getDefaultProfileName(): string | undefined;
 	onDidChangeAvailableProfiles: Event<ITerminalProfile[]>;
 	getContributedDefaultProfile(shellLaunchConfig: IShellLaunchConfig): Promise<IExtensionTerminalProfile | undefined>;
-	registerContributedProfile(extensionIdentifier: string, id: string, title: string, options: ICreateContributedTerminalProfileOptions): Promise<void>;
+	registerContributedProfile(args: IRegisterContributedProfileArgs): Promise<void>;
 	getContributedProfileProvider(extensionIdentifier: string, id: string): ITerminalProfileProvider | undefined;
 	registerTerminalProfileProvider(extensionIdentifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable;
 }

@@ -717,6 +717,8 @@
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .openAWalkthrough>button, .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .showOnStartup {
 	text-align: center;
+	display: flex;
+	justify-content: center;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox {

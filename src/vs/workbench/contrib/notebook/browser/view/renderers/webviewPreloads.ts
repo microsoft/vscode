@@ -664,8 +664,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 				}
 
 				// Re-add new properties
-				for (const variable of Object.keys(event.data.styles)) {
-					documentStyle.setProperty(`--${variable}`, event.data.styles[variable]);
+				for (const [name, value] of Object.entries(event.data.styles)) {
+					documentStyle.setProperty(`--${name}`, value);
 				}
 				break;
 			case 'notebookOptions':
@@ -1007,7 +1007,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 		}
 
-		public updateMarkupScrolls(markupCells: { id: string; top: number; }[]) {
+		public updateMarkupScrolls(markupCells: readonly webviewMessages.IMarkupCellScrollTops[]) {
 			for (const { id, top } of markupCells) {
 				const cell = this._markupCells.get(id);
 				if (cell) {

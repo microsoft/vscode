@@ -120,6 +120,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	private imageInfo: { readonly id: string, readonly width: number, readonly height: number; }[] = [];
 
 	private readonly _fileWatchersBySrc = new Map</* src: */ string, vscode.FileSystemWatcher>();
+
 	private readonly _onScrollEmitter = this._register(new vscode.EventEmitter<LastScrollLocation>());
 	public readonly onScroll = this._onScrollEmitter.event;
 
@@ -262,13 +263,13 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	 * The first call immediately refreshes the preview,
 	 * calls happening shortly thereafter are debounced.
 	*/
-	public refresh() {
+	public refresh(forceUpdate: boolean = false) {
 		// Schedule update if none is pending
 		if (!this.throttleTimer) {
 			if (this.firstUpdate) {
 				this.updatePreview(true);
 			} else {
-				this.throttleTimer = setTimeout(() => this.updatePreview(true), this.delay);
+				this.throttleTimer = setTimeout(() => this.updatePreview(forceUpdate), this.delay);
 			}
 		}
 
@@ -333,7 +334,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			return;
 		}
 
-		const shouldReloadPage = !this.currentVersion || this.currentVersion.resource.toString() !== pendingVersion.resource.toString();
+		const shouldReloadPage = forceUpdate || !this.currentVersion || this.currentVersion.resource.toString() !== pendingVersion.resource.toString();
 		this.currentVersion = pendingVersion;
 
 		const content = await (shouldReloadPage
@@ -429,7 +430,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			if (uri && uri.scheme === 'file' && !this._fileWatchersBySrc.has(src)) {
 				const watcher = vscode.workspace.createFileSystemWatcher(uri.fsPath);
 				watcher.onDidChange(() => {
-					this.refresh();
+					this.refresh(true);
 				});
 				this._fileWatchersBySrc.set(src, watcher);
 			}
