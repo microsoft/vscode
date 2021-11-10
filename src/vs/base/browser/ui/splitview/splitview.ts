@@ -964,16 +964,16 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 				const snappedAfter = typeof snapAfterIndex === 'number' && !this.viewItems[snapAfterIndex].visible;
 
 				if (snappedBefore && collapsesUp[index] && (position > 0 || this.startSnappingEnabled)) {
-					sash.state = SashState.Minimum;
+					sash.state = SashState.AtMinimum;
 				} else if (snappedAfter && collapsesDown[index] && (position < this.contentSize || this.endSnappingEnabled)) {
-					sash.state = SashState.Maximum;
+					sash.state = SashState.AtMaximum;
 				} else {
 					sash.state = SashState.Disabled;
 				}
 			} else if (min && !max) {
-				sash.state = SashState.Minimum;
+				sash.state = SashState.AtMinimum;
 			} else if (!min && max) {
-				sash.state = SashState.Maximum;
+				sash.state = SashState.AtMaximum;
 			} else {
 				sash.state = SashState.Enabled;
 			}
