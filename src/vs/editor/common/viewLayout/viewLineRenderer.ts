@@ -481,6 +481,10 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 
 		tokens = _applyRenderWhitespace(input, lineContent, len, tokens);
 	}
+	if (input.renderControlCharacters && !input.isBasicASCII) {
+		// This removes empty tokens, so we have to call it before applying line decoration parts, which can be empty.
+		tokens = extractControlCharacters(lineContent, tokens);
+	}
 	let containsForeignElements = ForeignElementType.None;
 	if (input.lineDecorations.length > 0) {
 		for (let i = 0, len = input.lineDecorations.length; i < len; i++) {
@@ -499,9 +503,6 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 	if (!input.containsRTL) {
 		// We can never split RTL text, as it ruins the rendering
 		tokens = splitLargeTokens(lineContent, tokens, !input.isBasicASCII || input.fontLigatures);
-	}
-	if (input.renderControlCharacters && !input.isBasicASCII) {
-		tokens = extractControlCharacters(lineContent, tokens);
 	}
 
 	return new ResolvedRenderLineInput(
