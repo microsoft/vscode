@@ -36,6 +36,7 @@ import { Logger } from 'vs/workbench/services/extensions/common/extensionPoints'
 import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { ApiProposalName, apiProposalNames } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 import { forEach } from 'vs/base/common/collections';
+import { ILogService } from 'vs/platform/log/common/log';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
@@ -203,7 +204,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._installedExtensionsReady = new Barrier();
 		this._isDev = !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment;
 		this._extensionsMessages = new Map<string, IMessage[]>();
-		this._proposedApiController = new ProposedApiController(this._environmentService, this._productService);
+		this._proposedApiController = _instantiationService.createInstance(ProposedApiController);
 
 		this._extensionHostManagers = [];
 		this._extensionHostActiveExtensions = new Map<string, ExtensionIdentifier>();
@@ -1123,6 +1124,7 @@ class ProposedApiController {
 	private readonly _productEnabledExtensions: Map<string, string[]>;
 
 	constructor(
+		@ILogService private readonly _logService: ILogService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IProductService productService: IProductService
 	) {
@@ -1156,7 +1158,7 @@ class ProposedApiController {
 				});
 				const key = ExtensionIdentifier.toKey(entry.key);
 				if (this._productEnabledExtensions.has(key)) {
-					console.warn(`Extension '${key} appears in BOTH 'enableProposedApi' and 'extensionEnabledApiProposals'. The latter is more restrictive and will override the former.`);
+					_logService.warn(`Extension '${key} appears in BOTH 'enableProposedApi' and 'extensionEnabledApiProposals'. The latter is more restrictive and will override the former.`);
 				}
 				this._productEnabledExtensions.set(key, proposalNames);
 			});
@@ -1175,7 +1177,18 @@ class ProposedApiController {
 			// NOTE that proposals that are listed in product.json override whatever is declared in the extension
 			// itself. This is needed for us to know what proposals are used "in the wild". Merging product.json-proposals
 			// and extension-proposals would break that.
-			extension.enabledApiProposals = this._productEnabledExtensions.get(key)!;
+
+			const productEnabledProposals = this._productEnabledExtensions.get(key)!;
+
+			// check for difference between product.json-declaration and package.json-declaration
+			const productSet = new Set(productEnabledProposals);
+			const extensionSet = new Set(extension.enabledApiProposals);
+			const diff = new Set([...extensionSet].filter(a => !productSet.has(a)));
+			if (diff.size > 0) {
+				this._logService.warn(`Extension '${key}' appears in product.json but enables LESS API proposals than the extension.\npackage.json (LOOSES): ${[...extensionSet].join(', ')}\nproduct.json (WINS): ${[...productSet].join(', ')}`);
+			}
+
+			extension.enabledApiProposals = productEnabledProposals;
 
 			// todo@jrieken REMOVE, legacy flag is turned on
 			extension.enableProposedApi = true;
@@ -1193,7 +1206,7 @@ class ProposedApiController {
 			// declaration is nulled
 			extension.enabledApiProposals = [];
 			extension.enableProposedApi = false;
-			console.error(`Extension '${extension.identifier.value} cannot use PROPOSED API (must started out of dev or enabled via --enable-proposed-api)`);
+			this._logService.critical(`Extension '${extension.identifier.value} cannot use PROPOSED API (must started out of dev or enabled via --enable-proposed-api)`);
 		}
 	}
 }
