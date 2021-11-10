@@ -774,8 +774,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	// eslint-disable-next-line vscode-dts-region-comments
-	// #region scmValidation: @joaomoreno:
+	// #region scmValidation: @joaomoreno
 
 	/**
 	 * Represents the validation type of the Source Control input.
@@ -830,7 +829,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region scmSelectedProvider: @joaomoreno:
+	//#region scmSelectedProvider: @joaomoreno
 
 	export interface SourceControl {
 
