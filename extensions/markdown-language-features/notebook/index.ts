@@ -161,7 +161,6 @@ export const activate: ActivationFunction<void> = (ctx) => {
 
 		pre code {
 			font-family: var(--vscode-editor-font-family);
-			font-size: var(--vscode-editor-font-size);
 
 			line-height: 1.357em;
 			white-space: pre-wrap;
