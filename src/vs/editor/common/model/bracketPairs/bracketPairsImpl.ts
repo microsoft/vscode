@@ -75,8 +75,10 @@ export class BracketPairs extends Disposable implements IBracketPairs {
 				this.onDidChangeEmitter.fire();
 			}
 		} else {
-			this.cache.clear();
-			this.onDidChangeEmitter.fire();
+			if (this.cache.value) {
+				this.cache.clear();
+				this.onDidChangeEmitter.fire();
+			}
 		}
 	}
 
