@@ -24,6 +24,8 @@ export interface ResolvedOptions {
 export interface TunnelDescription {
 	remoteAddress: { port: number, host: string };
 	localAddress: { port: number, host: string } | string;
+	privacy?: string;
+	protocol?: string;
 }
 export interface TunnelInformation {
 	environmentTunnels?: TunnelDescription[];
