@@ -11,7 +11,8 @@ import { promisify } from 'util';
 import { IDriver, IDisposable } from './driver';
 import { URI } from 'vscode-uri';
 import * as kill from 'tree-kill';
-import { IElement, ILocaleInfo, ILocalizedStrings } from '.';
+import { PageFunction } from 'playwright-core/types/structs';
+import { IWindowDriver } from '../../../src/vs/platform/driver/common/driver';
 
 const width = 1200;
 const height = 800;
@@ -96,35 +97,45 @@ class PlaywrightDriver implements IDriver {
 		await this.click(windowId, selector, 0, 0);
 		await timeout(100);
 	}
+
 	async setValue(windowId: number, selector: string, text: string) {
-		await this._page.evaluate(`window.driver.setValue('${selector}', '${text}')`);
+		return this._page.evaluate(([driver, selector, text]) => driver.setValue(selector, text), [await this._getDriverHandle(), selector, text] as const);
 	}
 	async getTitle(windowId: number) {
-		return this._page.evaluate<string>(`window.driver.getTitle()`);
+		return this._evaluateWithDriver(([driver]) => driver.getTitle());
 	}
-	isActiveElement(windowId: number, selector: string) {
-		return this._page.evaluate<boolean>(`window.driver.isActiveElement('${selector}')`);
+	async isActiveElement(windowId: number, selector: string) {
+		return this._page.evaluate(([driver, selector]) => driver.isActiveElement(selector), [await this._getDriverHandle(), selector] as const);
 	}
-	getElements(windowId: number, selector: string, recursive?: boolean) {
-		return this._page.evaluate<IElement[]>(`window.driver.getElements('${selector}', ${recursive})`);
+	async getElements(windowId: number, selector: string, recursive: boolean = false) {
+		return this._page.evaluate(([driver, selector, recursive]) => driver.getElements(selector, recursive), [await this._getDriverHandle(), selector, recursive] as const);
 	}
-	getElementXY(windowId: number, selector: string, xoffset?: number, yoffset?: number) {
-		return this._page.evaluate<{ x: number, y: number }>(`window.driver.getElementXY('${selector}', ${xoffset}, ${yoffset})`);
+	async getElementXY(windowId: number, selector: string, xoffset?: number, yoffset?: number) {
+		return this._page.evaluate(([driver, selector, xoffset, yoffset]) => driver.getElementXY(selector, xoffset, yoffset), [await this._getDriverHandle(), selector, xoffset, yoffset] as const);
 	}
 	async typeInEditor(windowId: number, selector: string, text: string) {
-		await this._page.evaluate(`window.driver.typeInEditor('${selector}', '${text}')`);
+		return this._page.evaluate(([driver, selector, text]) => driver.typeInEditor(selector, text), [await this._getDriverHandle(), selector, text] as const);
 	}
-	getTerminalBuffer(windowId: number, selector: string) {
-		return this._page.evaluate<string[]>(`window.driver.getTerminalBuffer('${selector}')`);
+	async getTerminalBuffer(windowId: number, selector: string) {
+		return this._page.evaluate(([driver, selector]) => driver.getTerminalBuffer(selector), [await this._getDriverHandle(), selector] as const);
 	}
 	async writeInTerminal(windowId: number, selector: string, text: string) {
-		await this._page.evaluate(`window.driver.writeInTerminal('${selector}', '${text}')`);
+		return this._page.evaluate(([driver, selector, text]) => driver.writeInTerminal(selector, text), [await this._getDriverHandle(), selector, text] as const);
 	}
-	getLocaleInfo(windowId: number) {
-		return this._page.evaluate<ILocaleInfo>(`window.driver.getLocaleInfo()`);
+	async getLocaleInfo(windowId: number) {
+		return this._evaluateWithDriver(([driver]) => driver.getLocaleInfo());
 	}
-	getLocalizedStrings(windowId: number) {
-		return this._page.evaluate<ILocalizedStrings>(`window.driver.getLocalizedStrings()`);
+	async getLocalizedStrings(windowId: number) {
+		return this._evaluateWithDriver(([driver]) => driver.getLocalizedStrings());
+	}
+
+	private async _evaluateWithDriver<T>(pageFunction: PageFunction<playwright.JSHandle<IWindowDriver>[], T>) {
+		return this._page.evaluate(pageFunction, [await this._getDriverHandle()]);
+	}
+
+	// TODO: Cache
+	private async _getDriverHandle(): Promise<playwright.JSHandle<IWindowDriver>> {
+		return this._page.evaluateHandle('window.driver');
 	}
 }
 

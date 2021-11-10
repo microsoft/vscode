@@ -8,7 +8,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { language, locale } from 'vs/base/common/platform';
 import { IElement, ILocaleInfo, ILocalizedStrings, IWindowDriver } from 'vs/platform/driver/common/driver';
 import localizedStrings from 'vs/platform/localizations/common/localizedStrings';
-import type { Terminal } from 'xterm';
+import type { Terminal } from 'xterm'; // eslint-disable-line code-import-patterns
 
 function serializeElement(element: Element, recursive: boolean): IElement {
 	const attributes = Object.create(null);
