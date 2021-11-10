@@ -9,6 +9,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { FileType } from 'vs/platform/files/common/files';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
@@ -187,13 +188,19 @@ export interface IPathData {
 
 	// a hint that the file exists. if true, the
 	// file exists, if false it does not. with
-	// undefined the state is unknown.
+	// `undefined` the state is unknown.
 	readonly exists?: boolean;
 
-	// Specifies if the file should be only be opened if it exists
+	// a hint about the file type of this path.
+	// with `undefined` the type is unknown.
+	readonly type?: FileType;
+
+	// Specifies if the file should be only be opened
+	// if it exists
 	readonly openOnlyIfExists?: boolean;
 
-	// Specifies an optional id to override the editor used to edit the resource, e.g. custom editor.
+	// Specifies an optional id to override the editor
+	// used to edit the resource, e.g. custom editor.
 	readonly editorOverrideId?: string;
 }
 
