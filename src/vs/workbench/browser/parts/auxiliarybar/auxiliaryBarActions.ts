@@ -63,6 +63,19 @@ class FocusAuxiliaryBarAction extends Action {
 
 MenuRegistry.appendMenuItems([
 	{
+		id: MenuId.LayoutControlMenu,
+		item: {
+			group: '0_workbench_layout',
+			command: {
+				id: ToggleAuxiliaryBarAction.ID,
+				title: localize({ key: 'miShowAuxiliaryBar', comment: ['&& denotes a mnemonic'] }, "Show Si&&de Panel"),
+				toggled: ActiveAuxiliaryContext
+			},
+			when: ContextKeyExpr.equals('config.workbench.experimental.sidePanel.enabled', true),
+			order: 4
+		}
+	},
+	{
 		id: MenuId.MenubarAppearanceMenu,
 		item: {
 			group: '2_workbench_layout',

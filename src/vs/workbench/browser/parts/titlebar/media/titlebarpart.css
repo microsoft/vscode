@@ -137,6 +137,18 @@
 	background-color: transparent;
 }
 
+.monaco-workbench .part.titlebar > .window-controls-container.show-layout-control {
+	width: 160px;
+}
+
+.monaco-workbench .part.titlebar > .window-controls-container > .layout-dropdown-container {
+	display: none;
+}
+
+.monaco-workbench .part.titlebar > .window-controls-container.show-layout-control > .layout-dropdown-container {
+	display: inline-block;
+}
+
 .monaco-workbench .part.titlebar > .window-controls-container > .window-icon {
 	display: inline-block;
 	line-height: 30px;
