@@ -645,8 +645,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._attachBarrier.open();
 
-		this.xterm?.attachToElement(container);
-
 		// Attach has not occurred yet
 		if (!this._wrapperElement) {
 			return this._attachToElement(container);
