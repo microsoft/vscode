@@ -10,7 +10,7 @@ interface BaseToWebviewMessage {
 	readonly __vscode_notebook_message: true;
 }
 
-export interface WebviewIntialized extends BaseToWebviewMessage {
+export interface WebviewInitialized extends BaseToWebviewMessage {
 	readonly type: 'initialized';
 }
 
@@ -354,7 +354,7 @@ export interface ITokenizedStylesChangedMessage {
 	readonly css: string;
 }
 
-export type FromWebviewMessage = WebviewIntialized |
+export type FromWebviewMessage = WebviewInitialized |
 	IDimensionMessage |
 	IMouseEnterMessage |
 	IMouseLeaveMessage |
