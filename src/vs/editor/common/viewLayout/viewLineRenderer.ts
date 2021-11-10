@@ -474,6 +474,11 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 	}
 
 	let tokens = transformAndRemoveOverflowing(input.lineTokens, input.fauxIndentLength, len);
+	if (input.renderControlCharacters && !input.isBasicASCII) {
+		// Calling `extractControlCharacters` before adding (possibly empty) line parts
+		// for inline decorations. `extractControlCharacters` removes empty line parts.
+		tokens = extractControlCharacters(lineContent, tokens);
+	}
 	if (input.renderWhitespace === RenderWhitespace.All ||
 		input.renderWhitespace === RenderWhitespace.Boundary ||
 		(input.renderWhitespace === RenderWhitespace.Selection && !!input.selectionsOnLine) ||
@@ -499,9 +504,6 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 	if (!input.containsRTL) {
 		// We can never split RTL text, as it ruins the rendering
 		tokens = splitLargeTokens(lineContent, tokens, !input.isBasicASCII || input.fontLigatures);
-	}
-	if (input.renderControlCharacters && !input.isBasicASCII) {
-		tokens = extractControlCharacters(lineContent, tokens);
 	}
 
 	return new ResolvedRenderLineInput(
