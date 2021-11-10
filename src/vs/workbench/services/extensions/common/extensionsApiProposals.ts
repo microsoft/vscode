@@ -8,5 +8,5 @@
 const apiProposals = {
 
 };
-export const apiProposalNames = Object.freeze(Object.keys(apiProposals));
 export type ApiProposalName = keyof typeof apiProposals;
+export const apiProposalNames: ReadonlySet<ApiProposalName> = new Set(<ApiProposalName[]>Object.keys(apiProposals));

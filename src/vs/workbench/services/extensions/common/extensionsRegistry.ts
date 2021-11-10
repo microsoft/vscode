@@ -232,7 +232,7 @@ export const schema: IJSONSchema = {
 			uniqueItems: true,
 			items: {
 				type: 'string',
-				enum: apiProposalNames.slice()
+				enum: Array.from(apiProposalNames)
 			}
 		},
 		activationEvents: {
