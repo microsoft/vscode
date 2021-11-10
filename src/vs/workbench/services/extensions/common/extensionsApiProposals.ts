@@ -5,7 +5,8 @@
 
 // THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.
 
-export const apiProposals = {
+const apiProposals = {
 
 };
+export const apiProposalNames = Object.freeze(Object.keys(apiProposals));
 export type ApiProposalName = keyof typeof apiProposals;

@@ -197,9 +197,10 @@ function apiProposalNamesGenerator() {
                 '',
                 '// THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.',
                 '',
-                'export const apiProposals = {',
+                'const apiProposals = {',
                 `${proposalNames.map(name => `\t${name}: true`).join(',\n')}`,
                 '};',
+                'export const apiProposalNames = Object.freeze(Object.keys(apiProposals));',
                 'export type ApiProposalName = keyof typeof apiProposals;',
                 '',
             ].join('\n');
