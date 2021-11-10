@@ -132,6 +132,17 @@
 	margin-left: auto;
 }
 
+.monaco-workbench.mac:not(web) .part.titlebar > .window-controls-container {
+	position: absolute;
+	right: 0px;
+	width: 28px;
+	display: none;
+}
+
+.monaco-workbench.mac:not(web) .part.titlebar > .window-controls-container.show-layout-control {
+	display: flex;
+}
+
 .monaco-workbench.fullscreen .part.titlebar > .window-controls-container {
 	display: none;
 	background-color: transparent;
