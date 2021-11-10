@@ -733,6 +733,11 @@ export interface MainThreadWebviewsShape extends IDisposable {
 	$postMessage(handle: WebviewHandle, value: string, ...buffers: VSBuffer[]): Promise<boolean>
 }
 
+export interface IWebviewIconPath {
+	readonly light: UriComponents;
+	readonly dark: UriComponents;
+}
+
 export interface MainThreadWebviewPanelsShape extends IDisposable {
 	$createWebviewPanel(
 		extension: WebviewExtensionDescription,
@@ -749,7 +754,7 @@ export interface MainThreadWebviewPanelsShape extends IDisposable {
 	$disposeWebview(handle: WebviewHandle): void;
 	$reveal(handle: WebviewHandle, showOptions: WebviewPanelShowOptions): void;
 	$setTitle(handle: WebviewHandle, value: string): void;
-	$setIconPath(handle: WebviewHandle, value: { light: UriComponents, dark: UriComponents; } | undefined): void;
+	$setIconPath(handle: WebviewHandle, value: IWebviewIconPath | undefined): void;
 
 	$registerSerializer(viewType: string, options: { serializeBuffersForPostMessage: boolean }): void;
 	$unregisterSerializer(viewType: string): void;

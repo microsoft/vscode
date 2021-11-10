@@ -123,7 +123,10 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 }
 
 export function reviveWebviewExtension(extensionData: extHostProtocol.WebviewExtensionDescription): WebviewExtensionDescription {
-	return { id: extensionData.id, location: URI.revive(extensionData.location) };
+	return {
+		id: extensionData.id,
+		location: URI.revive(extensionData.location),
+	};
 }
 
 export function reviveWebviewContentOptions(webviewOptions: extHostProtocol.IWebviewContentOptions): WebviewContentOptions {
