@@ -12,6 +12,7 @@ import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription, 
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
+import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 
 export const nullExtensionDescription = Object.freeze(<IExtensionDescription>{
 	identifier: new ExtensionIdentifier('nullExtensionDescription'),
@@ -133,12 +134,16 @@ export interface IExtensionHost {
 	dispose(): void;
 }
 
-export function isProposedApiEnabled(extension: IExtensionDescription): boolean {
+export function isProposedApiEnabled(extension: IExtensionDescription, proposal?: ApiProposalName): boolean {
+	// todo@joh have `extension.enabledApiProposals: string[]`
+	if (!proposal) {
+		return Boolean(extension.enableProposedApi);
+	}
 	return Boolean(extension.enableProposedApi);
 }
 
-export function checkProposedApiEnabled(extension: IExtensionDescription): void {
-	if (!isProposedApiEnabled(extension)) {
+export function checkProposedApiEnabled(extension: IExtensionDescription, proposal?: ApiProposalName): void {
+	if (!isProposedApiEnabled(extension, proposal)) {
 		throw new Error(`[${extension.identifier.value}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
 	}
 }
