@@ -82,7 +82,7 @@ export function createDecorationsForStackFrame(stackFrame: IStackFrame, isFocuse
 				options: {
 					description: 'top-stack-frame-inline-decoration',
 					before: {
-						content: noBreakWhitespace,
+						content: '\uEB8B',
 						inlineClassName: noCharactersBefore ? 'debug-top-stack-frame-column start-of-line' : 'debug-top-stack-frame-column',
 						inlineClassNameAffectsLetterSpacing: true
 					},
