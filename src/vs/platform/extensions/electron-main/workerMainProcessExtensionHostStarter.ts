@@ -107,7 +107,7 @@ export class WorkerMainProcessExtensionHostStarter implements IDisposable, IExte
 	}
 
 	onDynamicStdout(id: string): Event<string> {
-		return this._proxy!.onDynamicStderr(id);
+		return this._proxy!.onDynamicStdout(id);
 	}
 
 	onDynamicStderr(id: string): Event<string> {
