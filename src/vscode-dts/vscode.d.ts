@@ -2711,7 +2711,7 @@ declare module 'vscode' {
 		/*
 		 * If specified the expression overrides the extracted expression.
 		 */
-		readonly expression?: string;
+		readonly expression?: string | undefined;
 
 		/**
 		 * Creates a new evaluatable expression object.
@@ -2778,7 +2778,7 @@ declare module 'vscode' {
 		/**
 		 * If specified the name of the variable to look up.
 		 */
-		readonly variableName?: string;
+		readonly variableName?: string | undefined;
 		/**
 		 * How to perform the lookup.
 		 */
@@ -2807,7 +2807,7 @@ declare module 'vscode' {
 		/**
 		 * If specified the expression overrides the extracted expression.
 		 */
-		readonly expression?: string;
+		readonly expression?: string | undefined;
 		/**
 		 * Creates a new InlineValueEvaluatableExpression object.
 		 *
@@ -13078,7 +13078,7 @@ declare module 'vscode' {
 		/**
 		 * The host.
 		 */
-		readonly host?: string;
+		readonly host?: string | undefined;
 
 		/**
 		 * Create a description for a debug adapter running as a socket based server.
@@ -13251,15 +13251,15 @@ declare module 'vscode' {
 		/**
 		 * An optional expression for conditional breakpoints.
 		 */
-		readonly condition?: string;
+		readonly condition?: string | undefined;
 		/**
 		 * An optional expression that controls how many hits of the breakpoint are ignored.
 		 */
-		readonly hitCondition?: string;
+		readonly hitCondition?: string | undefined;
 		/**
 		 * An optional message that gets logged when this breakpoint is hit. Embedded expressions within {} are interpolated by the debug adapter.
 		 */
-		readonly logMessage?: string;
+		readonly logMessage?: string | undefined;
 
 		protected constructor(enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string);
 	}
