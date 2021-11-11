@@ -60,6 +60,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		showQuickPick(itemsOrItemsPromise: string[] | Promise<string[]>, enableProposedApi: boolean, options?: QuickPickOptions, token?: CancellationToken): Promise<string | undefined>;
 		showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, enableProposedApi: boolean, options?: QuickPickOptions, token?: CancellationToken): Promise<QuickPickItem | undefined>;
 		async showQuickPick(itemsOrItemsPromise: Item[] | Promise<Item[]>, enableProposedApi: boolean, options?: QuickPickOptions, token: CancellationToken = CancellationToken.None): Promise<Item | Item[] | undefined> {
+
 			// clear state from last invocation
 			this._onDidSelectItem = undefined;
 
@@ -67,77 +68,77 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 
 			const instance = ++this._instances;
 
-			try {
-				const quickPickWidget = proxy.$show(instance, {
-					title: options?.title,
-					placeHolder: options?.placeHolder,
-					matchOnDescription: options?.matchOnDescription,
-					matchOnDetail: options?.matchOnDetail,
-					ignoreFocusLost: options?.ignoreFocusOut,
-					canPickMany: options?.canPickMany,
-				}, token);
+			const quickPickWidget = proxy.$show(instance, {
+				title: options?.title,
+				placeHolder: options?.placeHolder,
+				matchOnDescription: options?.matchOnDescription,
+				matchOnDetail: options?.matchOnDetail,
+				ignoreFocusLost: options?.ignoreFocusOut,
+				canPickMany: options?.canPickMany,
+			}, token);
 
-				const widgetClosedMarker = {};
-				const widgetClosedPromise = quickPickWidget.then(() => widgetClosedMarker);
+			const widgetClosedMarker = {};
+			const widgetClosedPromise = quickPickWidget.then(() => widgetClosedMarker);
 
-				const result = await Promise.race([widgetClosedPromise, itemsPromise]);
-				if (result === widgetClosedMarker) {
-					return undefined;
-				}
+			const result = await Promise.race([widgetClosedPromise, itemsPromise]);
+			if (result === widgetClosedMarker) {
+				return undefined;
+			}
 
-				const items = await itemsPromise;
+			const items = await itemsPromise;
 
-				const pickItems: TransferQuickPickItemOrSeparator[] = [];
-				let lastKind: string | { label: string; } | undefined = undefined;
-				for (let handle = 0; handle < items.length; handle++) {
-					const item = items[handle];
-					let label: string;
-					let description: string | undefined;
-					let detail: string | undefined;
-					let picked: boolean | undefined;
-					let alwaysShow: boolean | undefined;
+			const pickItems: TransferQuickPickItemOrSeparator[] = [];
+			let lastKind: string | { label: string; } | undefined = undefined;
+			for (let handle = 0; handle < items.length; handle++) {
+				const item = items[handle];
+				let label: string;
+				let description: string | undefined;
+				let detail: string | undefined;
+				let picked: boolean | undefined;
+				let alwaysShow: boolean | undefined;
 
-					if (typeof item === 'string') {
-						// 'string' items have a kind of undefined so
-						// if the previous item had a kind, that is considered a
-						// change and would cause the addition of a separator.
-						if (lastKind) {
-							pickItems.push({ type: 'separator' });
-							lastKind = undefined;
-						}
-						label = item;
-					} else {
-						if (lastKind !== item.kind) {
-							const label: string | undefined = typeof item.kind === 'string' ? item.kind : item.kind?.label;
-							pickItems.push({ type: 'separator', label });
-							lastKind = item.kind;
-						}
-						label = item.label;
-						description = item.description;
-						detail = item.detail;
-						picked = item.picked;
-						alwaysShow = item.alwaysShow;
+				if (typeof item === 'string') {
+					// 'string' items have a kind of undefined so
+					// if the previous item had a kind, that is considered a
+					// change and would cause the addition of a separator.
+					if (lastKind) {
+						pickItems.push({ type: 'separator' });
+						lastKind = undefined;
 					}
-					pickItems.push({
-						label,
-						description,
-						handle,
-						detail,
-						picked,
-						alwaysShow
-					});
+					label = item;
+				} else {
+					if (lastKind !== item.kind) {
+						const label: string | undefined = typeof item.kind === 'string' ? item.kind : item.kind?.label;
+						pickItems.push({ type: 'separator', label });
+						lastKind = item.kind;
+					}
+					label = item.label;
+					description = item.description;
+					detail = item.detail;
+					picked = item.picked;
+					alwaysShow = item.alwaysShow;
 				}
+				pickItems.push({
+					label,
+					description,
+					handle,
+					detail,
+					picked,
+					alwaysShow
+				});
+			}
 
-				// handle selection changes
-				if (options && typeof options.onDidSelectItem === 'function') {
-					this._onDidSelectItem = (handle) => {
-						options.onDidSelectItem!(items[handle]);
-					};
-				}
+			// handle selection changes
+			if (options && typeof options.onDidSelectItem === 'function') {
+				this._onDidSelectItem = (handle) => {
+					options.onDidSelectItem!(items[handle]);
+				};
+			}
 
-				// show items
-				proxy.$setItems(instance, pickItems);
+			// show items
+			proxy.$setItems(instance, pickItems);
 
+			try {
 				return quickPickWidget.then(handle => {
 					if (typeof handle === 'number') {
 						return items[handle];
