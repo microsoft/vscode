@@ -466,7 +466,7 @@ registerAction2(class ExecuteCellInsertBelow extends NotebookCellAction {
 			context.notebookEditor.focusNotebookCell(newCell, newFocusMode);
 		}
 
-		if (context.cell.cellKind == CellKind.Markup) {
+		if (context.cell.cellKind === CellKind.Markup) {
 			context.cell.updateEditState(CellEditState.Preview, EXECUTE_CELL_INSERT_BELOW);
 		} else {
 			runCell(accessor, context);
