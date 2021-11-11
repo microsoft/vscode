@@ -4,6 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { AuthType } from 'vs/base/common/auth';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
@@ -174,10 +175,10 @@ export class CodeServerClientAdditions extends Disposable {
 	}
 
 	private appendSessionCommands() {
-		const { authed, logoutEndpointUrl } = this.productConfiguration;
+		const { auth, logoutEndpointUrl } = this.productConfiguration;
 
 		// Use to show or hide logout commands and menu options.
-		this.contextKeyService.createKey(CodeServerClientAdditions.AUTH_KEY, !!authed);
+		this.contextKeyService.createKey(CodeServerClientAdditions.AUTH_KEY, auth === AuthType.Password);
 
 		CommandsRegistry.registerCommand(CodeServerClientAdditions.LOGOUT_COMMAND_ID, () => {
 			if (logoutEndpointUrl) {
@@ -185,23 +186,15 @@ export class CodeServerClientAdditions extends Disposable {
 			}
 		});
 
-		// Add logout to command palette.
-		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-			command: {
-				id: CodeServerClientAdditions.LOGOUT_COMMAND_ID,
-				title: localize('logout', 'Log out'),
-			},
-			when: ContextKeyExpr.has(CodeServerClientAdditions.AUTH_KEY),
-		});
-
-		// Add logout to the (web-only) home menu.
-		MenuRegistry.appendMenuItem(MenuId.MenubarHomeMenu, {
-			command: {
-				id: CodeServerClientAdditions.LOGOUT_COMMAND_ID,
-				title: localize('logout', 'Log out'),
-			},
-			when: ContextKeyExpr.has(CodeServerClientAdditions.AUTH_KEY),
-		});
+		for (const menuId of [MenuId.CommandPalette, MenuId.MenubarHomeMenu]) {
+			MenuRegistry.appendMenuItem(menuId, {
+				command: {
+					id: CodeServerClientAdditions.LOGOUT_COMMAND_ID,
+					title: localize('logout', 'Sign out of {0}', this.productConfiguration.nameShort),
+				},
+				when: ContextKeyExpr.has(CodeServerClientAdditions.AUTH_KEY),
+			});
+		}
 	}
 
 	private registerServiceWorker = async (): Promise<void> => {

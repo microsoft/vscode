@@ -186,8 +186,8 @@ export class WebClientServer {
 			return undefined;
 		};
 
-		const proto = parseHeaders(["X-Forwarded-Proto"]) || "http";
-		const host = parseHeaders(["X-Forwarded-Host", "host"]) || "localhost";
+		const proto = parseHeaders(['X-Forwarded-Proto']) || 'http';
+		const host = parseHeaders(['X-Forwarded-Host', 'host']) || 'localhost';
 
 		return new URL(`${proto}://${host}`);
 	}
@@ -303,11 +303,23 @@ export class WebClientServer {
 		const data = (await util.promisify(fs.readFile)(filePath)).toString()
 			.replace('{{WORKBENCH_WEB_CONFIGURATION}}', escapeAttribute(JSON.stringify(<IWorkbenchConstructionOptions>{
 				productConfiguration: {
-					updateUrl: this.createRequestUrl(req, parsedUrl, '/update/check').toString(),
+					...this._productService,
+
+					// Session
+					auth: this._environmentService.auth,
+
+					// Service Worker
 					serviceWorker: {
 						scope: './',
 						url: `./${this._environmentService.serviceWorkerFileName}`
-					}
+					},
+
+					// Endpoints
+					logoutEndpointUrl: this.createRequestUrl(req, parsedUrl, '/logout').toString(),
+					webEndpointUrl: this.createRequestUrl(req, parsedUrl, '/static').toString(),
+					webEndpointUrlTemplate: this.createRequestUrl(req, parsedUrl, '/static').toString(),
+
+					updateUrl: this.createRequestUrl(req, parsedUrl, '/update/check').toString(),
 				},
 				folderUri: (workspacePath && isFolder) ? transformer.transformOutgoing(URI.file(workspacePath)) : undefined,
 				workspaceUri: (workspacePath && !isFolder) ? transformer.transformOutgoing(URI.file(workspacePath)) : undefined,

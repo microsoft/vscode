@@ -7,10 +7,13 @@
 import type { NLSConfiguration, InternalNLSConfiguration } from '../../../base/node/languagePacks';
 import type * as http from 'http';
 import type * as net from 'net';
+import type { AuthType } from 'vs/base/common/auth';
 
 declare global {
 	namespace CodeServerLib {
+
 		export interface ServerParsedArgs {
+			auth: AuthType;
 			port?: string;
 			connectionToken?: string;
 			/**
