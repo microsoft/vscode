@@ -24,7 +24,7 @@ export class NativeLogService extends LogService {
 			loggers.push(loggerService.createConsoleMainLogger());
 		}
 
-		// Prod mode: Also log to console
+		// Normal mode: Log to console
 		else {
 			loggers.push(
 				disposables.add(new ConsoleLogger(logLevel)),
