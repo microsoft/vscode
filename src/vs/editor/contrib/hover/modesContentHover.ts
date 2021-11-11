@@ -105,9 +105,17 @@ class ModesContentComputer implements IHoverComputer<IHoverPart[]> {
 
 			const startColumn = (d.range.startLineNumber === lineNumber) ? d.range.startColumn : 1;
 			const endColumn = (d.range.endLineNumber === lineNumber) ? d.range.endColumn : maxColumn;
-			if (startColumn > anchor.range.startColumn || anchor.range.endColumn > endColumn) {
-				return false;
+			if (d.options.showIfCollapsed) {
+				// Relax check around `showIfCollapsed` decorations to also include +/- 1 character
+				if (startColumn > anchor.range.startColumn + 1 || anchor.range.endColumn - 1 > endColumn) {
+					return false;
+				}
+			} else {
+				if (startColumn > anchor.range.startColumn || anchor.range.endColumn > endColumn) {
+					return false;
+				}
 			}
+
 			return true;
 		});
 	}

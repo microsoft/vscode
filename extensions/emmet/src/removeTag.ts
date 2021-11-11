@@ -19,7 +19,7 @@ export function removeTag() {
 		return;
 	}
 
-	let finalRangesToRemove = editor.selections.reverse()
+	let finalRangesToRemove = Array.from(editor.selections).reverse()
 		.reduce<vscode.Range[]>((prev, selection) =>
 			prev.concat(getRangesToRemove(editor.document, rootNode, selection)), []);
 

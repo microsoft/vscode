@@ -446,7 +446,7 @@ registerAction2(class ExecuteCellInsertBelow extends NotebookCellAction {
 	constructor() {
 		super({
 			id: EXECUTE_CELL_INSERT_BELOW,
-			precondition: executeThisCellCondition,
+			precondition: ContextKeyExpr.or(executeThisCellCondition, NOTEBOOK_CELL_TYPE.isEqualTo('markup')),
 			title: localize('notebookActions.executeAndInsertBelow', "Execute Notebook Cell and Insert Below"),
 			keybinding: {
 				when: NOTEBOOK_CELL_LIST_FOCUSED,
@@ -460,14 +460,17 @@ registerAction2(class ExecuteCellInsertBelow extends NotebookCellAction {
 		const idx = context.notebookEditor.getCellIndex(context.cell);
 		const modeService = accessor.get(IModeService);
 		const newFocusMode = context.cell.focusMode === CellFocusMode.Editor ? 'editor' : 'container';
-		const executionP = runCell(accessor, context);
-		const newCell = insertCell(modeService, context.notebookEditor, idx, CellKind.Code, 'below');
 
+		const newCell = insertCell(modeService, context.notebookEditor, idx, context.cell.cellKind, 'below');
 		if (newCell) {
 			context.notebookEditor.focusNotebookCell(newCell, newFocusMode);
 		}
 
-		return executionP;
+		if (context.cell.cellKind === CellKind.Markup) {
+			context.cell.updateEditState(CellEditState.Preview, EXECUTE_CELL_INSERT_BELOW);
+		} else {
+			runCell(accessor, context);
+		}
 	}
 });
 

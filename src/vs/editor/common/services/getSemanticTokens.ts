@@ -27,6 +27,7 @@ export class DocumentSemanticTokensResult {
 	constructor(
 		public readonly provider: DocumentSemanticTokensProvider,
 		public readonly tokens: SemanticTokens | SemanticTokensEdits | null,
+		public readonly error: any
 	) { }
 }
 
@@ -45,10 +46,11 @@ export async function getDocumentSemanticTokens(model: ITextModel, lastProvider:
 	// Get tokens from all providers at the same time.
 	const results = await Promise.all(providers.map(async (provider) => {
 		let result: SemanticTokens | SemanticTokensEdits | null | undefined;
+		let error: any = null;
 		try {
 			result = await provider.provideDocumentSemanticTokens(model, (provider === lastProvider ? lastResultId : null), token);
 		} catch (err) {
-			onUnexpectedExternalError(err);
+			error = err;
 			result = null;
 		}
 
@@ -56,11 +58,15 @@ export async function getDocumentSemanticTokens(model: ITextModel, lastProvider:
 			result = null;
 		}
 
-		return new DocumentSemanticTokensResult(provider, result);
+		return new DocumentSemanticTokensResult(provider, result, error);
 	}));
 
-	// Try to return the first result with actual tokens
+	// Try to return the first result with actual tokens or
+	// the first result which threw an error (!!)
 	for (const result of results) {
+		if (result.error) {
+			throw result.error;
+		}
 		if (result.tokens) {
 			return result;
 		}
