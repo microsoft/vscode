@@ -13,8 +13,9 @@ import { MainThreadTelemetryShape, IInitData } from 'vs/workbench/api/common/ext
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IExtensionDescription, isProposedApiEnabled } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { LogLevel, createHttpPatch, ProxyResolveEvent, createProxyResolver, createTlsPatch, ProxySupportSetting } from 'vscode-proxy-agent';
+import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 export function connectProxyResolver(
 	extHostWorkspace: IExtHostWorkspaceProvider,

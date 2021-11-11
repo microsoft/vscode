@@ -163,7 +163,11 @@ if (!opts.web) {
 		quality = Quality.Stable;
 	}
 
-	console.log(`Running desktop smoke tests against ${electronPath}`);
+	if (opts.remote) {
+		console.log(`Running desktop remote smoke tests against ${electronPath}`);
+	} else {
+		console.log(`Running desktop smoke tests against ${electronPath}`);
+	}
 }
 
 //

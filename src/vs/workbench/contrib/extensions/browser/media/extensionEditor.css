@@ -396,6 +396,12 @@
 	cursor: pointer;
 }
 
+.extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
 .extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource:hover {
 	text-decoration: underline;
 }

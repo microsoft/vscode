@@ -9,7 +9,7 @@ import { MenuId, MenuRegistry, SyncActionDescriptor } from 'vs/platform/actions/
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { CATEGORIES, Extensions as WorkbenchExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
-import { ActiveAuxiliaryContext, AuxiliaryBarVisibleContext } from 'vs/workbench/common/auxiliarybar';
+import { AuxiliaryBarVisibleContext } from 'vs/workbench/common/auxiliarybar';
 import { ViewContainerLocation, ViewContainerLocationToString } from 'vs/workbench/common/views';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
@@ -63,13 +63,26 @@ class FocusAuxiliaryBarAction extends Action {
 
 MenuRegistry.appendMenuItems([
 	{
+		id: MenuId.LayoutControlMenu,
+		item: {
+			group: '0_workbench_layout',
+			command: {
+				id: ToggleAuxiliaryBarAction.ID,
+				title: localize({ key: 'miShowAuxiliaryBar', comment: ['&& denotes a mnemonic'] }, "Show Si&&de Panel"),
+				toggled: AuxiliaryBarVisibleContext
+			},
+			when: ContextKeyExpr.equals('config.workbench.experimental.sidePanel.enabled', true),
+			order: 4
+		}
+	},
+	{
 		id: MenuId.MenubarAppearanceMenu,
 		item: {
 			group: '2_workbench_layout',
 			command: {
 				id: ToggleAuxiliaryBarAction.ID,
 				title: localize({ key: 'miShowAuxiliaryBar', comment: ['&& denotes a mnemonic'] }, "Show Si&&de Panel"),
-				toggled: ActiveAuxiliaryContext
+				toggled: AuxiliaryBarVisibleContext
 			},
 			when: ContextKeyExpr.equals('config.workbench.experimental.sidePanel.enabled', true),
 			order: 5

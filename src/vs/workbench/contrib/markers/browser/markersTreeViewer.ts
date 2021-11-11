@@ -361,7 +361,7 @@ class MarkerWidget extends Disposable {
 		for (let index = 0; index < (multiline ? lines.length : 1); index++) {
 			lastLineElement = dom.append(this.messageAndDetailsContainer, dom.$('.marker-message-line'));
 			const messageElement = dom.append(lastLineElement, dom.$('.marker-message'));
-			const highlightedLabel = new HighlightedLabel(messageElement, false);
+			const highlightedLabel = new HighlightedLabel(messageElement);
 			highlightedLabel.set(lines[index].length > 1000 ? `${lines[index].substring(0, 1000)}...` : lines[index], lineMatches[index]);
 			if (lines[index] === '') {
 				lastLineElement.style.height = `${VirtualDelegate.LINE_HEIGHT}px`;
@@ -374,19 +374,19 @@ class MarkerWidget extends Disposable {
 		parent.classList.add('details-container');
 
 		if (marker.source || marker.code) {
-			const source = new HighlightedLabel(dom.append(parent, dom.$('.marker-source')), false);
+			const source = new HighlightedLabel(dom.append(parent, dom.$('.marker-source')));
 			const sourceMatches = filterData && filterData.sourceMatches || [];
 			source.set(marker.source, sourceMatches);
 
 			if (marker.code) {
 				if (typeof marker.code === 'string') {
-					const code = new HighlightedLabel(dom.append(parent, dom.$('.marker-code')), false);
+					const code = new HighlightedLabel(dom.append(parent, dom.$('.marker-code')));
 					const codeMatches = filterData && filterData.codeMatches || [];
 					code.set(marker.code, codeMatches);
 				} else {
 					// TODO@sandeep: these widgets should be disposed
 					const container = dom.$('.marker-code');
-					const code = new HighlightedLabel(container, false);
+					const code = new HighlightedLabel(container);
 					new Link(parent, { href: marker.code.target.toString(), label: container, title: marker.code.target.toString() }, undefined, this._openerService);
 					const codeMatches = filterData && filterData.codeMatches || [];
 					code.set(marker.code.value, codeMatches);
@@ -414,14 +414,14 @@ export class RelatedInformationRenderer implements ITreeRenderer<RelatedInformat
 		dom.append(container, dom.$('.actions'));
 		dom.append(container, dom.$('.icon'));
 
-		data.resourceLabel = new HighlightedLabel(dom.append(container, dom.$('.related-info-resource')), false);
+		data.resourceLabel = new HighlightedLabel(dom.append(container, dom.$('.related-info-resource')));
 		data.lnCol = dom.append(container, dom.$('span.marker-line'));
 
 		const separator = dom.append(container, dom.$('span.related-info-resource-separator'));
 		separator.textContent = ':';
 		separator.style.paddingRight = '4px';
 
-		data.description = new HighlightedLabel(dom.append(container, dom.$('.marker-description')), false);
+		data.description = new HighlightedLabel(dom.append(container, dom.$('.marker-description')));
 		return data;
 	}
 

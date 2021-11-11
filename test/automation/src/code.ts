@@ -128,6 +128,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 
 	const env = { ...process.env };
 	const codePath = options.codePath;
+	const logsPath = path.join(repoPath, '.build', 'logs', options.remote ? 'smoke-tests-remote' : 'smoke-tests');
 	const outPath = codePath ? getBuildOutPath(codePath) : getDevOutPath();
 
 	const args = [
@@ -142,7 +143,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		'--disable-workspace-trust',
 		`--extensions-dir=${options.extensionsPath}`,
 		`--user-data-dir=${options.userDataDir}`,
-		`--logsPath=${path.join(repoPath, '.build', 'logs', 'smoke-tests')}`,
+		`--logsPath=${logsPath}`,
 		'--driver', handle
 	];
 
@@ -170,6 +171,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		}
 
 		env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
+		env['TESTRESOLVER_LOGS_FOLDER'] = path.join(logsPath, 'server');
 	}
 
 	const spawnOptions: cp.SpawnOptions = { env };

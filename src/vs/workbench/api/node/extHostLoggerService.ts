@@ -14,11 +14,7 @@ export class ExtHostLoggerService extends BaseExtHostLoggerService {
 
 	protected override doCreateLogger(resource: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger {
 		if (resource.scheme === Schemas.file) {
-			const logger = new SpdLogLogger(options?.name || generateUuid(), resource.fsPath, !options?.donotRotate, logLevel);
-			if (options?.donotUseFormatters) {
-				(<SpdLogLogger>logger).clearFormatters();
-			}
-			return logger;
+			return new SpdLogLogger(options?.name || generateUuid(), resource.fsPath, !options?.donotRotate, !!options?.donotUseFormatters, logLevel);
 		}
 		return super.doCreateLogger(resource, logLevel, options);
 	}

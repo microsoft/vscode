@@ -258,7 +258,12 @@ export class InteractiveEditor extends EditorPane {
 				cellExecuteToolbar: MenuId.InteractiveCellExecute,
 				cellExecutePrimary: undefined
 			},
-			cellEditorContributions: [],
+			cellEditorContributions: EditorExtensionsRegistry.getSomeEditorContributions([
+				SelectionClipboardContributionID,
+				ContextMenuController.ID,
+				ModesHoverController.ID,
+				MarkerController.ID
+			]),
 			options: this.#notebookOptions
 		});
 
@@ -270,6 +275,9 @@ export class InteractiveEditor extends EditorPane {
 					top: INPUT_EDITOR_PADDING,
 					bottom: INPUT_EDITOR_PADDING
 				},
+				hover: {
+					enabled: true
+				}
 			}
 		}, {
 			...{

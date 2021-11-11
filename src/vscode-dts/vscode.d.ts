@@ -818,7 +818,7 @@ declare module 'vscode' {
 		/**
 		 * The optional ThemeColor of the icon. The color is currently only used in {@link TreeItem}.
 		 */
-		readonly color?: ThemeColor;
+		readonly color?: ThemeColor | undefined;
 
 		/**
 		 * Creates a reference to a theme icon.
@@ -1107,13 +1107,13 @@ declare module 'vscode' {
 		/**
 		 * The selections in this text editor. The primary selection is always at index 0.
 		 */
-		selections: Selection[];
+		selections: readonly Selection[];
 
 		/**
 		 * The current visible ranges in the editor (vertically).
 		 * This accounts only for vertical scrolling, and not for horizontal scrolling.
 		 */
-		readonly visibleRanges: Range[];
+		readonly visibleRanges: readonly Range[];
 
 		/**
 		 * Text editor options.
@@ -1672,6 +1672,12 @@ declare module 'vscode' {
 		 * Always show this item.
 		 */
 		alwaysShow?: boolean;
+
+		/**
+		 * Optional buttons that will be rendered on this particular item. These buttons will trigger
+		 * an {@link QuickPickItemButtonEvent} when clicked.
+		 */
+		buttons?: readonly QuickInputButton[];
 	}
 
 	/**
@@ -2705,7 +2711,7 @@ declare module 'vscode' {
 		/*
 		 * If specified the expression overrides the extracted expression.
 		 */
-		readonly expression?: string;
+		readonly expression?: string | undefined;
 
 		/**
 		 * Creates a new evaluatable expression object.
@@ -2772,7 +2778,7 @@ declare module 'vscode' {
 		/**
 		 * If specified the name of the variable to look up.
 		 */
-		readonly variableName?: string;
+		readonly variableName?: string | undefined;
 		/**
 		 * How to perform the lookup.
 		 */
@@ -2801,7 +2807,7 @@ declare module 'vscode' {
 		/**
 		 * If specified the expression overrides the extracted expression.
 		 */
-		readonly expression?: string;
+		readonly expression?: string | undefined;
 		/**
 		 * Creates a new InlineValueEvaluatableExpression object.
 		 *
@@ -4901,7 +4907,7 @@ declare module 'vscode' {
 		 * An optional word pattern that describes valid contents for the given ranges.
 		 * If no pattern is provided, the language configuration's word pattern will be used.
 		 */
-		readonly wordPattern?: RegExp;
+		readonly wordPattern: RegExp | undefined;
 	}
 
 	/**
@@ -6571,7 +6577,7 @@ declare module 'vscode' {
 		 * Whether the task that is part of this group is the default for the group.
 		 * This property cannot be set through API, and is controlled by a user's task configurations.
 		 */
-		readonly isDefault?: boolean;
+		readonly isDefault: boolean | undefined;
 
 		/**
 		 * The ID of the task group. Is one of TaskGroup.Clean.id, TaskGroup.Build.id, TaskGroup.Rebuild.id, or TaskGroup.Test.id.
@@ -6907,7 +6913,7 @@ declare module 'vscode' {
 		/**
 		 * The task's scope.
 		 */
-		readonly scope?: TaskScope.Global | TaskScope.Workspace | WorkspaceFolder;
+		readonly scope: TaskScope.Global | TaskScope.Workspace | WorkspaceFolder | undefined;
 
 		/**
 		 * The task's name
@@ -8650,7 +8656,7 @@ declare module 'vscode' {
 		/**
 		 * The currently visible editors or an empty array.
 		 */
-		export let visibleTextEditors: TextEditor[];
+		export let visibleTextEditors: readonly TextEditor[];
 
 		/**
 		 * An {@link Event} which fires when the {@link window.activeTextEditor active editor}
@@ -8663,7 +8669,7 @@ declare module 'vscode' {
 		 * An {@link Event} which fires when the array of {@link window.visibleTextEditors visible editors}
 		 * has changed.
 		 */
-		export const onDidChangeVisibleTextEditors: Event<TextEditor[]>;
+		export const onDidChangeVisibleTextEditors: Event<readonly TextEditor[]>;
 
 		/**
 		 * An {@link Event} which fires when the selection in an editor has changed.
@@ -9348,7 +9354,7 @@ declare module 'vscode' {
 		/**
 		 * Selected elements.
 		 */
-		readonly selection: T[];
+		readonly selection: readonly T[];
 
 	}
 
@@ -9382,7 +9388,7 @@ declare module 'vscode' {
 		/**
 		 * Currently selected elements.
 		 */
-		readonly selection: T[];
+		readonly selection: readonly T[];
 
 		/**
 		 * Event that is fired when the {@link TreeView.selection selection} has changed
@@ -10200,6 +10206,12 @@ declare module 'vscode' {
 		readonly onDidTriggerButton: Event<QuickInputButton>;
 
 		/**
+		 * An event signaling when a button in a particular {@link QuickPickItem} was triggered.
+		 * This event does not fire for buttons in the title bar.
+		 */
+		readonly onDidTriggerItemButton: Event<QuickPickItemButtonEvent<T>>;
+
+		/**
 		 * Items to pick from. This can be read and updated by the extension.
 		 */
 		items: readonly T[];
@@ -10218,6 +10230,11 @@ declare module 'vscode' {
 		 * If the filter text should also be matched against the detail of the items. Defaults to false.
 		 */
 		matchOnDetail: boolean;
+
+		/*
+		 * An optional flag to maintain the scroll position of the quick pick when the quick pick items are updated. Defaults to false.
+		 */
+		keepScrollPosition?: boolean;
 
 		/**
 		 * Active items. This can be read and updated by the extension.
@@ -10328,6 +10345,21 @@ declare module 'vscode' {
 		 * @hidden
 		 */
 		private constructor();
+	}
+
+	/**
+	 * An event signaling when a button in a particular {@link QuickPickItem} was triggered.
+	 * This event does not fire for buttons in the title bar.
+	 */
+	export interface QuickPickItemButtonEvent<T extends QuickPickItem> {
+		/**
+		 * The button that was clicked.
+		 */
+		readonly button: QuickInputButton;
+		/**
+		 * The item that the button belongs to.
+		 */
+		readonly item: T;
 	}
 
 	/**
@@ -13046,7 +13078,7 @@ declare module 'vscode' {
 		/**
 		 * The host.
 		 */
-		readonly host?: string;
+		readonly host?: string | undefined;
 
 		/**
 		 * Create a description for a debug adapter running as a socket based server.
@@ -13219,15 +13251,15 @@ declare module 'vscode' {
 		/**
 		 * An optional expression for conditional breakpoints.
 		 */
-		readonly condition?: string;
+		readonly condition?: string | undefined;
 		/**
 		 * An optional expression that controls how many hits of the breakpoint are ignored.
 		 */
-		readonly hitCondition?: string;
+		readonly hitCondition?: string | undefined;
 		/**
 		 * An optional message that gets logged when this breakpoint is hit. Embedded expressions within {} are interpolated by the debug adapter.
 		 */
-		readonly logMessage?: string;
+		readonly logMessage?: string | undefined;
 
 		protected constructor(enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string);
 	}
@@ -13355,7 +13387,7 @@ declare module 'vscode' {
 		/**
 		 * List of breakpoints.
 		 */
-		export let breakpoints: Breakpoint[];
+		export let breakpoints: readonly Breakpoint[];
 
 		/**
 		 * An {@link Event} which fires when the {@link debug.activeDebugSession active debug session}
@@ -13856,6 +13888,17 @@ declare module 'vscode' {
 	 */
 	export interface AuthenticationGetSessionOptions {
 		/**
+		 * Whether the existing user session preference should be cleared.
+		 *
+		 * For authentication providers that support being signed into multiple accounts at once, the user will be
+		 * prompted to select an account to use when {@link authentication.getSession getSession} is called. This preference
+		 * is remembered until {@link authentication.getSession getSession} is called with this flag.
+		 *
+		 * Defaults to false.
+		 */
+		clearSessionPreference?: boolean;
+
+		/**
 		 * Whether login should be performed if there is no matching session.
 		 *
 		 * If true, a modal dialog will be shown asking the user to sign in. If false, a numbered badge will be shown
@@ -13866,19 +13909,23 @@ declare module 'vscode' {
 		 * will also result in an immediate modal dialog, and false will add a numbered badge to the accounts icon.
 		 *
 		 * Defaults to false.
+		 *
+		 * Note: you cannot use this option with {@link silent}.
 		 */
 		createIfNone?: boolean;
 
+
 		/**
-		 * Whether the existing user session preference should be cleared.
+		 * Whether we should show the indication to sign in in the Accounts menu.
 		 *
-		 * For authentication providers that support being signed into multiple accounts at once, the user will be
-		 * prompted to select an account to use when {@link authentication.getSession getSession} is called. This preference
-		 * is remembered until {@link authentication.getSession getSession} is called with this flag.
+		 * If false, the user will be shown a badge on the Accounts menu with an option to sign in for the extension.
+		 * If true, no indication will be shown.
 		 *
 		 * Defaults to false.
+		 *
+		 * Note: you cannot use this option with any other options that prompt the user like {@link createIfNone}.
 		 */
-		clearSessionPreference?: boolean;
+		silent?: boolean;
 	}
 
 	/**
@@ -14275,7 +14322,7 @@ declare module 'vscode' {
 		 * The process of running tests should resolve the children of any test
 		 * items who have not yet been resolved.
 		 */
-		readonly include: TestItem[] | undefined;
+		readonly include: readonly TestItem[] | undefined;
 
 		/**
 		 * An array of tests the user has marked as excluded from the test included
@@ -14284,7 +14331,7 @@ declare module 'vscode' {
 		 * May be omitted if no exclusions were requested. Test controllers should
 		 * not run excluded tests or any children of excluded tests.
 		 */
-		readonly exclude: TestItem[] | undefined;
+		readonly exclude: readonly TestItem[] | undefined;
 
 		/**
 		 * The profile used for this request. This will always be defined

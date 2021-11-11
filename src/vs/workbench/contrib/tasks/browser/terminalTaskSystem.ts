@@ -1448,8 +1448,16 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 		this.collectMatcherVariables(variables, task.configurationProperties.problemMatchers);
 
-		if (task.command.runtime === RuntimeType.CustomExecution && CustomTask.is(task)) {
-			this.collectDefinitionVariables(variables, task._source.config.element);
+		if (task.command.runtime === RuntimeType.CustomExecution && (CustomTask.is(task) || ContributedTask.is(task))) {
+			let definition: any;
+			if (CustomTask.is(task)) {
+				definition = task._source.config.element;
+			} else {
+				definition = Objects.deepClone(task.defines);
+				delete definition._key;
+				delete definition.type;
+			}
+			this.collectDefinitionVariables(variables, definition);
 		}
 	}
 
