@@ -93,17 +93,39 @@ export function setup(opts: ParsedArgs) {
 			deepStrictEqual(tabs[0].children.length, 3);
 		});
 
+		// TODO: why is assertion failing? timing issue
 		it('should create terminal with profile via command pallette', async function () {
 			await app.workbench.terminal.runProfileCommand('createInstance');
-			//TODO: verify
+			const tabs = await app.code.waitForElements(TABS_LIST_SELECTOR, true);
+			deepStrictEqual(tabs[0].children.length, 4);
+			// TODO: strict check that active terminal is of correct type
 		});
 
 		it('should create contributed terminal with profile via command pallette', async function () {
 			await app.workbench.terminal.runProfileCommand('createInstance', true);
-			//TODO: verify
+			const tabs = await app.code.waitForElements(TABS_LIST_SELECTOR, true);
+			deepStrictEqual(tabs[0].children.length, 5);
+			// TODO: strict check that active terminal is of correct type
 		});
 
-		// playwright doesn't recognize alt as a key?
+		it('should select default profile via the command pallette', async function () {
+			await app.workbench.terminal.runProfileCommand('setDefault', undefined);
+			await app.code.waitAndClick(PLUS_BUTTON_SELECTOR);
+			const tabs = await app.code.waitForElements(TABS_LIST_SELECTOR, true);
+			deepStrictEqual(tabs[0].children.length, 6);
+			// TODO: strict check that active terminal is of correct type
+		});
+
+		// TODO: why is assertion failing? timing issue
+		it('should select default profile as contributed via the command pallette', async function () {
+			await app.workbench.terminal.runProfileCommand('setDefault', true);
+			await app.code.waitAndClick(PLUS_BUTTON_SELECTOR);
+			const tabs = await app.code.waitForElements(TABS_LIST_SELECTOR, true);
+			deepStrictEqual(tabs[0].children.length, 7);
+			// TODO: strict check that active terminal is of correct type
+		});
+
+		// TODO: playwright doesn't recognize alt as a key?
 		// it('should create split terminal with profile via command pallette', async function () {
 		// 	await app.workbench.terminal.runProfileCommand('createInstance', undefined, true);
 		// });
@@ -112,14 +134,5 @@ export function setup(opts: ParsedArgs) {
 		// 	await app.workbench.terminal.runProfileCommand('createInstance', true, true);
 		// });
 
-		it('should select default profile via the command pallette', async function () {
-			await app.workbench.terminal.runProfileCommand('setDefault', undefined);
-			//TODO: verify
-		});
-
-		it('should select default profile as contributed via the command pallette', async function () {
-			await app.workbench.terminal.runProfileCommand('setDefault', true);
-			//TODO: verify
-		});
 	});
 }
