@@ -469,10 +469,11 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		};
 	}
 
-	$registerSuggestSupport(handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, displayName: string): void {
+	$registerSuggestSupport(handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, displayName: string, source: string): void {
 		const provider: modes.CompletionItemProvider = {
 			triggerCharacters,
 			_debugDisplayName: displayName,
+			_source: source,
 			provideCompletionItems: async (model: ITextModel, position: EditorPosition, context: modes.CompletionContext, token: CancellationToken): Promise<modes.CompletionList | undefined> => {
 				const result = await this._proxy.$provideCompletionItems(handle, model.uri, position, context, token);
 				if (!result) {

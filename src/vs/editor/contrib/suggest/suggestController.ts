@@ -43,6 +43,9 @@ import { CommitCharacterController } from './suggestCommitCharacters';
 import { State, SuggestModel } from './suggestModel';
 import { OvertypingCapturer } from './suggestOvertypingCapturer';
 import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { basename, extname } from 'vs/base/common/resources';
+import { hash } from 'vs/base/common/hash';
 
 // sticky suggest widget which doesn't disappear on focus out and such
 let _sticky = false;
@@ -114,6 +117,7 @@ export class SuggestController implements IEditorContribution {
 	private readonly _toDispose = new DisposableStore();
 	private readonly _overtypingCapturer: IdleValue<OvertypingCapturer>;
 	private readonly _selectors = new PriorityRegistry<ISuggestItemPreselector>(s => s.priority);
+	private readonly _loggedAcceptEvents = new Set<string>();
 
 	constructor(
 		editor: ICodeEditor,
@@ -122,6 +126,7 @@ export class SuggestController implements IEditorContribution {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		this.editor = editor;
 		this.model = _instantiationService.createInstance(SuggestModel, this.editor,);
@@ -427,6 +432,25 @@ export class SuggestController implements IEditorContribution {
 
 		// clear only now - after all tasks are done
 		Promise.all(tasks).finally(() => {
+
+			type AcceptedSuggestion = { providerId: string; fileExtension: string, languageId: string, basenameHash: string };
+			type AcceptedSuggestionClassification = {
+				providerId: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' },
+				basenameHash: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' },
+				fileExtension: { classification: 'SystemMetaData', purpose: 'FeatureInsight' },
+				languageId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' },
+			};
+
+			const providerId = event.item.provider._source ?? event.item.provider._debugDisplayName ?? 'unknownProvider';
+			const data: AcceptedSuggestion = {
+				providerId,
+				basenameHash: '' + hash(basename(model.uri)),
+				languageId: model.getLanguageId(),
+				fileExtension: extname(model.uri),
+			};
+
+			this._telemetryService.publicLog2<AcceptedSuggestion, AcceptedSuggestionClassification>('suggest.acceptedSuggestion', data);
+
 			this.model.clear();
 			cts.dispose();
 		});

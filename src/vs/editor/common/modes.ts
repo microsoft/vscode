@@ -633,6 +633,11 @@ export interface CompletionItemProvider {
 	 */
 	_debugDisplayName?: string;
 
+	/**
+	 * @internal
+	 */
+	_source?: string;
+
 	triggerCharacters?: string[];
 	/**
 	 * Provide completion items for the given position and document.
