@@ -637,7 +637,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				{
 					let outputContainer = document.getElementById(event.data.cellId);
 					if (!outputContainer) {
-						viewModel.ensureOutputCell(event.data.cellId, -100000);
+						viewModel.ensureOutputCell(event.data.cellId, -100000, true);
 						outputContainer = document.getElementById(event.data.cellId);
 					}
 					outputContainer?.classList.add(...event.data.addedClassNames);
@@ -1032,7 +1032,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				return;
 			}
 
-			const cellOutput = this.ensureOutputCell(data.cellId, data.cellTop);
+			const cellOutput = this.ensureOutputCell(data.cellId, data.cellTop, false);
 			const outputNode = cellOutput.createOutputElement(data.outputId, data.outputOffset, data.left);
 			outputNode.render(data.content, preloadsAndErrors);
 
@@ -1040,11 +1040,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 			cellOutput.element.style.visibility = data.initiallyHidden ? 'hidden' : 'visible';
 		}
 
-		public ensureOutputCell(cellId: string, cellTop: number): OutputCell {
+		public ensureOutputCell(cellId: string, cellTop: number, skipCellTopUpdateIfExist: boolean): OutputCell {
 			let cell = this._outputCells.get(cellId);
+			let existed = !!cell;
 			if (!cell) {
 				cell = new OutputCell(cellId);
 				this._outputCells.set(cellId, cell);
+			}
+
+			if (existed && skipCellTopUpdateIfExist) {
+				return cell;
 			}
 
 			cell.element.style.top = cellTop + 'px';
