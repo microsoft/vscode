@@ -263,6 +263,8 @@ export interface IExtensionManifest {
 	readonly contributes?: IExtensionContributions;
 	readonly repository?: { url: string; };
 	readonly bugs?: { url: string; };
+	readonly enabledApiProposals?: readonly string[];
+	/** @deprecated */
 	readonly enableProposedApi?: boolean;
 	readonly api?: string;
 	readonly scripts?: { [key: string]: string; };
@@ -346,17 +348,9 @@ export interface IExtensionDescription extends IExtensionManifest {
 	readonly isUserBuiltin: boolean;
 	readonly isUnderDevelopment: boolean;
 	readonly extensionLocation: URI;
+
+	/** @deprecated */
 	enableProposedApi?: boolean;
-}
-
-export function isProposedApiEnabled(extension: IExtensionDescription | IExtensionManifest): boolean {
-	return Boolean(extension.enableProposedApi);
-}
-
-export function checkProposedApiEnabled(extension: IExtensionDescription): void {
-	if (!isProposedApiEnabled(extension)) {
-		throw new Error(`[${extension.identifier.value}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
-	}
 }
 
 export function isLanguagePackExtension(manifest: IExtensionManifest): boolean {
@@ -368,7 +362,7 @@ export function isAuthenticationProviderExtension(manifest: IExtensionManifest):
 }
 
 export function isResolverExtension(manifest: IExtensionManifest, remoteAuthority: string | undefined): boolean {
-	if (remoteAuthority && isProposedApiEnabled(manifest)) {
+	if (remoteAuthority) {
 		const activationEvent = `onResolveRemoteAuthority:${getRemoteName(remoteAuthority)}`;
 		return manifest.activationEvents?.indexOf(activationEvent) !== -1;
 	}

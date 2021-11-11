@@ -10,7 +10,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { CSSIcon } from 'vs/base/common/codicons';
 import { fontIdRegex } from 'vs/workbench/services/themes/common/productIconThemeSchema';
 import * as resources from 'vs/base/common/resources';
-import { IExtensionDescription, isProposedApiEnabled } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 interface IIconExtensionPoint {
 	id: string;
