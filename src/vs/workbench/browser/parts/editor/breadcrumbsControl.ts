@@ -41,6 +41,8 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { IOutline } from 'vs/workbench/services/outline/browser/outline';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { Codicon } from 'vs/base/common/codicons';
 
 class OutlineItem extends BreadcrumbsItem {
 
@@ -150,6 +152,8 @@ export interface IBreadcrumbsControlOptions {
 	showPlaceholder: boolean;
 }
 
+const separatorIcon = registerIcon('breadcrumb-separator', Codicon.chevronRight, localize('separatorIcon', 'Icon for the separator in the breadcrumbs.'));
+
 export class BreadcrumbsControl {
 
 	static readonly HEIGHT = 22;
@@ -208,7 +212,7 @@ export class BreadcrumbsControl {
 		this._cfTitleScrollbarSizing = BreadcrumbsConfig.TitleScrollbarSizing.bindTo(configurationService);
 
 		const sizing = this._cfTitleScrollbarSizing.getValue() ?? 'default';
-		this._widget = new BreadcrumbsWidget(this.domNode, BreadcrumbsControl.SCROLLBAR_SIZES[sizing]);
+		this._widget = new BreadcrumbsWidget(this.domNode, BreadcrumbsControl.SCROLLBAR_SIZES[sizing], separatorIcon);
 		this._widget.onDidSelectItem(this._onSelectEvent, this, this._disposables);
 		this._widget.onDidFocusItem(this._onFocusEvent, this, this._disposables);
 		this._widget.onDidChangeFocus(this._updateCkBreadcrumbsActive, this, this._disposables);
