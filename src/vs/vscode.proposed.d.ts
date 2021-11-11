@@ -2761,10 +2761,15 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region quickPickItemKind: https://github.com/microsoft/vscode/issues/74967
+	//#region quickPickSeparator: https://github.com/microsoft/vscode/issues/74967
+
+	export interface QuickPickSeparator {
+		type: 'separator';
+		label?: string;
+	}
 
 	export interface QuickPickItem {
-		kind?: string | { label: string; };
+		type?: 'item';
 	}
 
 	//#endregion

@@ -9,7 +9,7 @@ import { Emitter } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { IExtHostWorkspaceProvider } from 'vs/workbench/api/common/extHostWorkspace';
-import { InputBox, InputBoxOptions, QuickInput, QuickInputButton, QuickPick, QuickPickItem, QuickPickItemButtonEvent, QuickPickOptions, WorkspaceFolder, WorkspaceFolderPickOptions } from 'vscode';
+import { InputBox, InputBoxOptions, QuickInput, QuickInputButton, QuickPick, QuickPickItem, QuickPickItemButtonEvent, QuickPickOptions, QuickPickSeparator, WorkspaceFolder, WorkspaceFolderPickOptions } from 'vscode';
 import { ExtHostQuickOpenShape, IMainContext, MainContext, TransferQuickInput, TransferQuickInputButton, TransferQuickPickItemOrSeparator } from './extHost.protocol';
 import { URI } from 'vs/base/common/uri';
 import { ThemeIcon, QuickInputButtons } from 'vs/workbench/api/common/extHostTypes';
@@ -19,7 +19,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import Severity from 'vs/base/common/severity';
 import { ThemeIcon as ThemeIconUtils } from 'vs/platform/theme/common/themeService';
 
-export type Item = string | QuickPickItem;
+export type Item = string | QuickPickItem | QuickPickSeparator;
 
 export interface ExtHostQuickOpen {
 	showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, enableProposedApi: boolean, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Promise<QuickPickItem[] | undefined>;
@@ -56,9 +56,9 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			this._commands = commands;
 		}
 
-		showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, enableProposedApi: boolean, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Promise<QuickPickItem[] | undefined>;
+		showQuickPick(itemsOrItemsPromise: (QuickPickItem | QuickPickSeparator)[] | Promise<(QuickPickItem | QuickPickSeparator)[]>, enableProposedApi: boolean, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Promise<QuickPickItem[] | undefined>;
 		showQuickPick(itemsOrItemsPromise: string[] | Promise<string[]>, enableProposedApi: boolean, options?: QuickPickOptions, token?: CancellationToken): Promise<string | undefined>;
-		showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, enableProposedApi: boolean, options?: QuickPickOptions, token?: CancellationToken): Promise<QuickPickItem | undefined>;
+		showQuickPick(itemsOrItemsPromise: (QuickPickItem | QuickPickSeparator)[] | Promise<(QuickPickItem | QuickPickSeparator)[]>, enableProposedApi: boolean, options?: QuickPickOptions, token?: CancellationToken): Promise<QuickPickItem | undefined>;
 		async showQuickPick(itemsOrItemsPromise: Item[] | Promise<Item[]>, enableProposedApi: boolean, options?: QuickPickOptions, token: CancellationToken = CancellationToken.None): Promise<Item | Item[] | undefined> {
 
 			// clear state from last invocation
@@ -88,50 +88,35 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			const items = await itemsPromise;
 
 			const pickItems: TransferQuickPickItemOrSeparator[] = [];
-			let lastKind: string | { label: string; } | undefined = undefined;
 			for (let handle = 0; handle < items.length; handle++) {
 				const item = items[handle];
-				let label: string;
-				let description: string | undefined;
-				let detail: string | undefined;
-				let picked: boolean | undefined;
-				let alwaysShow: boolean | undefined;
-
 				if (typeof item === 'string') {
-					// 'string' items have a kind of undefined so
-					// if the previous item had a kind, that is considered a
-					// change and would cause the addition of a separator.
-					if (lastKind) {
-						pickItems.push({ type: 'separator' });
-						lastKind = undefined;
-					}
-					label = item;
+					pickItems.push({
+						label: item,
+						handle
+					});
+				} else if (item.type === 'separator') {
+					pickItems.push({
+						label: item.label,
+						type: item.type
+					});
 				} else {
-					if (lastKind !== item.kind) {
-						const label: string | undefined = typeof item.kind === 'string' ? item.kind : item.kind?.label;
-						pickItems.push({ type: 'separator', label });
-						lastKind = item.kind;
-					}
-					label = item.label;
-					description = item.description;
-					detail = item.detail;
-					picked = item.picked;
-					alwaysShow = item.alwaysShow;
+					pickItems.push({
+						handle,
+						label: item.label,
+						description: item.description,
+						detail: item.detail,
+						picked: item.picked,
+						alwaysShow: item.alwaysShow
+					});
 				}
-				pickItems.push({
-					label,
-					description,
-					handle,
-					detail,
-					picked,
-					alwaysShow
-				});
 			}
 
 			// handle selection changes
 			if (options && typeof options.onDidSelectItem === 'function') {
 				this._onDidSelectItem = (handle) => {
-					options.onDidSelectItem!(items[handle]);
+					// It's not possible to "select" a separator
+					options.onDidSelectItem!(items[handle] as (string | QuickPickItem));
 				};
 			}
 
@@ -528,7 +513,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 
 	class ExtHostQuickPick<T extends QuickPickItem> extends ExtHostQuickInput implements QuickPick<T> {
 
-		private _items: T[] = [];
+		private _items: (T | QuickPickSeparator)[] = [];
 		private _handlesToItems = new Map<number, T>();
 		private _itemsToHandles = new Map<T, number>();
 		private _canSelectMany = false;
@@ -556,42 +541,42 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			return this._items;
 		}
 
-		set items(items: T[]) {
+		set items(items: (T | QuickPickSeparator)[]) {
 			this._items = items.slice();
 			this._handlesToItems.clear();
 			this._itemsToHandles.clear();
 			items.forEach((item, i) => {
+				// No need to set a handle for a separator
+				if (item.type === 'separator') {
+					return;
+				}
 				this._handlesToItems.set(i, item);
 				this._itemsToHandles.set(item, i);
 			});
-			const itemsItems: Array<TransferQuickPickItemOrSeparator> = [];
-			let lastKind: string | { label: string; } | undefined = undefined;
-			items.forEach((item, i) => {
-
-				if (lastKind !== item.kind) {
-					const label: string | undefined = typeof item.kind === 'string' ? item.kind : item.kind?.label;
-					itemsItems.push({ type: 'separator', label });
-					lastKind = item.kind;
-				}
-				itemsItems.push({
-					label: item.label,
-					description: item.description,
-					handle: i,
-					detail: item.detail,
-					picked: item.picked,
-					alwaysShow: item.alwaysShow,
-					buttons: item.buttons?.map<TransferQuickInputButton>((button, i) => {
-						return {
-							...getIconPathOrClass(button),
-							tooltip: button.tooltip,
-							handle: i
-						};
-					})
-				});
-			});
 
 			this.update({
-				items: itemsItems
+				items: items.map((item, i) => {
+					return item.type === 'separator'
+						? {
+							type: item.type,
+							label: item.label
+						}
+						: {
+							label: item.label,
+							description: item.description,
+							handle: i,
+							detail: item.detail,
+							picked: item.picked,
+							alwaysShow: item.alwaysShow,
+							buttons: item.buttons?.map<TransferQuickInputButton>((button, i) => {
+								return {
+									...getIconPathOrClass(button),
+									tooltip: button.tooltip,
+									handle: i
+								};
+							})
+						};
+				})
 			});
 		}
 
