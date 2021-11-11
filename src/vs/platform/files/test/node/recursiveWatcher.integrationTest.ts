@@ -212,14 +212,27 @@ flakySuite('Recursive Watcher (parcel)', () => {
 		await Promises.writeFile(copiedFilepath, 'Hello Change');
 		await changeFuture;
 
+		// Create new file
+		const anotherNewFilePath = join(testDir, 'deep', 'anotherNewFile.txt');
+		changeFuture = awaitEvent(service, anotherNewFilePath, FileChangeType.ADDED);
+		await Promises.writeFile(anotherNewFilePath, 'Hello Another World');
+		await changeFuture;
+
+		await timeout(1500); // ensure the previous added event is flushed by now (can happen on macOS with fsevents)
+
 		// Read file does not emit event
-		changeFuture = awaitEvent(service, copiedFilepath, FileChangeType.UPDATED, 'unexpected-event-from-read-file');
-		await Promises.readFile(copiedFilepath);
+		changeFuture = awaitEvent(service, anotherNewFilePath, FileChangeType.UPDATED, 'unexpected-event-from-read-file');
+		await Promises.readFile(anotherNewFilePath);
 		await Promise.race([timeout(100), changeFuture]);
 
 		// Stat file does not emit event
-		changeFuture = awaitEvent(service, copiedFilepath, FileChangeType.UPDATED, 'unexpected-event-from-stat');
-		await Promises.stat(copiedFilepath);
+		changeFuture = awaitEvent(service, anotherNewFilePath, FileChangeType.UPDATED, 'unexpected-event-from-stat');
+		await Promises.stat(anotherNewFilePath);
+		await Promise.race([timeout(100), changeFuture]);
+
+		// Stat folder does not emit event
+		changeFuture = awaitEvent(service, copiedFolderpath, FileChangeType.UPDATED, 'unexpected-event-from-stat');
+		await Promises.stat(copiedFolderpath);
 		await Promise.race([timeout(100), changeFuture]);
 
 		// Delete file
