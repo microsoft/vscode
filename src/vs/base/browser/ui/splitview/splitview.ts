@@ -529,9 +529,6 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 
 	/**
 	 * Create a new {@link SplitView} instance.
-	 *
-	 * @param container
-	 * @param options
 	 */
 	constructor(container: HTMLElement, options: ISplitViewOptions<TLayoutContext> = {}) {
 		super();
