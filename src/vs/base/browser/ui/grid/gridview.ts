@@ -999,6 +999,7 @@ export type GridLocation = number[];
  * one another. It will respect view's size contraints, just like the SplitView.
  *
  * It has a low-level index based API, allowing for fine grain performant operations.
+ * Look into the {@link Grid} widget for a higher-level API.
  *
  * Features:
  * - flex-like layout algorithm
