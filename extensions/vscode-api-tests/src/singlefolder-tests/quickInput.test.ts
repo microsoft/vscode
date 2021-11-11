@@ -68,7 +68,7 @@ suite('vscode API - quick input', function () {
 			},
 		}, (err?: any) => done(err));
 		quickPick.items = ['eins', 'zwei', 'drei'].map(label => ({ label }));
-		quickPick.activeItems = [quickPick.items[1]];
+		quickPick.activeItems = [quickPick.items[1]] as QuickPickItem[];
 		quickPick.show();
 
 		(async () => {
@@ -126,9 +126,9 @@ suite('vscode API - quick input', function () {
 		quickPick.items = ['eins', 'zwei', 'drei'].map(label => ({ label }));
 		quickPick.show();
 
-		quickPick.selectedItems = [quickPick.items[1]];
+		quickPick.selectedItems = [quickPick.items[1]] as QuickPickItem[];
 		setTimeout(() => {
-			quickPick.selectedItems = [quickPick.items[2]];
+			quickPick.selectedItems = [quickPick.items[2]] as QuickPickItem[];
 		}, 0);
 	});
 
