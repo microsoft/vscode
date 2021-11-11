@@ -25,7 +25,7 @@ export async function updateTag(tagName: string | undefined): Promise<boolean | 
 		return;
 	}
 
-	const rangesToUpdate = editor.selections.reverse()
+	const rangesToUpdate = Array.from(editor.selections).reverse()
 		.reduce<TagRange[]>((prev, selection) =>
 			prev.concat(getRangesToUpdate(document, selection, rootNode)), []);
 	if (!rangesToUpdate.length) {

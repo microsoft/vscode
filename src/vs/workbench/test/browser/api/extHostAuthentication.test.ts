@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
@@ -20,7 +20,7 @@ import { ExtHostContext, MainContext } from 'vs/workbench/api/common/extHost.pro
 import { ExtHostAuthentication } from 'vs/workbench/api/common/extHostAuthentication';
 import { IActivityService } from 'vs/workbench/services/activity/common/activity';
 import { AuthenticationService, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { TestRemoteAgentService } from 'vs/workbench/services/remote/test/common/testServices';
 import { TestRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
@@ -89,18 +89,7 @@ class TestAuthProvider implements AuthenticationProvider {
 
 suite('ExtHostAuthentication', () => {
 	let disposables: DisposableStore;
-	let nullExtensionDescription: IExtensionDescription = {
-		identifier: new ExtensionIdentifier('nullExtensionDescription'),
-		name: 'Null Extension Description',
-		publisher: 'vscode',
-		enableProposedApi: true,
-		engines: undefined!,
-		extensionLocation: undefined!,
-		isBuiltin: false,
-		isUserBuiltin: false,
-		isUnderDevelopment: false,
-		version: undefined!
-	};
+	let extensionDescription: IExtensionDescription = { ...nullExtensionDescription, enableProposedApi: true };
 
 	let extHostAuthentication: ExtHostAuthentication;
 	let instantiationService: TestInstantiationService;
@@ -140,7 +129,7 @@ suite('ExtHostAuthentication', () => {
 
 	test('createIfNone - true', async () => {
 		const session = await extHostAuthentication.getSession(
-			nullExtensionDescription,
+			extensionDescription,
 			'test',
 			['foo'],
 			{
@@ -152,7 +141,7 @@ suite('ExtHostAuthentication', () => {
 
 	test('createIfNone - false', async () => {
 		const nosession = await extHostAuthentication.getSession(
-			nullExtensionDescription,
+			extensionDescription,
 			'test',
 			['foo'],
 			{});
@@ -160,7 +149,7 @@ suite('ExtHostAuthentication', () => {
 
 		// Now create the session
 		const session = await extHostAuthentication.getSession(
-			nullExtensionDescription,
+			extensionDescription,
 			'test',
 			['foo'],
 			{
@@ -171,7 +160,7 @@ suite('ExtHostAuthentication', () => {
 		assert.strictEqual(session?.scopes[0], 'foo');
 
 		const session2 = await extHostAuthentication.getSession(
-			nullExtensionDescription,
+			extensionDescription,
 			'test',
 			['foo'],
 			{});
@@ -184,7 +173,7 @@ suite('ExtHostAuthentication', () => {
 	// should behave the same as createIfNone: false
 	test('silent - true', async () => {
 		const nosession = await extHostAuthentication.getSession(
-			nullExtensionDescription,
+			extensionDescription,
 			'test',
 			['foo'],
 			{
@@ -194,7 +183,7 @@ suite('ExtHostAuthentication', () => {
 
 		// Now create the session
 		const session = await extHostAuthentication.getSession(
-			nullExtensionDescription,
+			extensionDescription,
 			'test',
 			['foo'],
 			{
@@ -205,7 +194,7 @@ suite('ExtHostAuthentication', () => {
 		assert.strictEqual(session?.scopes[0], 'foo');
 
 		const session2 = await extHostAuthentication.getSession(
-			nullExtensionDescription,
+			extensionDescription,
 			'test',
 			['foo'],
 			{
@@ -218,7 +207,7 @@ suite('ExtHostAuthentication', () => {
 
 	test('forceNewSession - true', async () => {
 		const session1 = await extHostAuthentication.getSession(
-			nullExtensionDescription,
+			extensionDescription,
 			'test',
 			['foo'],
 			{
@@ -227,7 +216,7 @@ suite('ExtHostAuthentication', () => {
 
 		// Now create the session
 		const session2 = await extHostAuthentication.getSession(
-			nullExtensionDescription,
+			extensionDescription,
 			'test',
 			['foo'],
 			{
@@ -241,7 +230,7 @@ suite('ExtHostAuthentication', () => {
 
 	test('forceNewSession - detail', async () => {
 		const session1 = await extHostAuthentication.getSession(
-			nullExtensionDescription,
+			extensionDescription,
 			'test',
 			['foo'],
 			{
@@ -250,7 +239,7 @@ suite('ExtHostAuthentication', () => {
 
 		// Now create the session
 		const session2 = await extHostAuthentication.getSession(
-			nullExtensionDescription,
+			extensionDescription,
 			'test',
 			['foo'],
 			{
@@ -265,7 +254,7 @@ suite('ExtHostAuthentication', () => {
 	test('clearSessionPreference - true', async () => {
 		// Now create the session
 		const session = await extHostAuthentication.getSession(
-			nullExtensionDescription,
+			extensionDescription,
 			'test-multiple',
 			['foo'],
 			{
@@ -276,7 +265,7 @@ suite('ExtHostAuthentication', () => {
 		assert.strictEqual(session?.scopes[0], 'foo');
 
 		const session2 = await extHostAuthentication.getSession(
-			nullExtensionDescription,
+			extensionDescription,
 			'test-multiple',
 			['foo'],
 			{
@@ -294,7 +283,7 @@ suite('ExtHostAuthentication', () => {
 	test('forceNewSession with no sessions', async () => {
 		try {
 			await extHostAuthentication.getSession(
-				nullExtensionDescription,
+				extensionDescription,
 				'test',
 				['foo'],
 				{
@@ -309,7 +298,7 @@ suite('ExtHostAuthentication', () => {
 	test('createIfNone and forceNewSession', async () => {
 		try {
 			await extHostAuthentication.getSession(
-				nullExtensionDescription,
+				extensionDescription,
 				'test',
 				['foo'],
 				{
@@ -325,7 +314,7 @@ suite('ExtHostAuthentication', () => {
 	test('forceNewSession and silent', async () => {
 		try {
 			await extHostAuthentication.getSession(
-				nullExtensionDescription,
+				extensionDescription,
 				'test',
 				['foo'],
 				{
@@ -341,7 +330,7 @@ suite('ExtHostAuthentication', () => {
 	test('createIfNone and silent', async () => {
 		try {
 			await extHostAuthentication.getSession(
-				nullExtensionDescription,
+				extensionDescription,
 				'test',
 				['foo'],
 				{

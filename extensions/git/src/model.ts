@@ -300,7 +300,7 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 			const repository = new Repository(this.git.open(repositoryRoot, dotGit), this, this, this.globalState, this.outputChannel);
 
 			this.open(repository);
-			await repository.status();
+			repository.status(); // do not await this, we want SCM to know about the repo asap
 		} catch (ex) {
 			// noop
 			this.outputChannel.appendLine(`Opening repository for path='${repoPath}' failed; ex=${ex}`);

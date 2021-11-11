@@ -85,6 +85,8 @@
 		"grid",
 		"splitview",
 		"table",
-		"list"
+		"list",
+		"git",
+		"sash"
 	]
 }

@@ -26,23 +26,18 @@
 
 .monaco-workbench .terminal-env-var-info {
 	position: absolute;
-	right: 2px;
+	right: 10px; /* room for scroll bar */
 	top: 0;
 	width: 28px;
 	height: 28px;
 	text-align: center;
-	z-index: 10;
+	z-index: 32;
 	opacity: 0.5;
 }
 
 .monaco-workbench .terminal-env-var-info:hover,
 .monaco-workbench .terminal-env-var-info.requires-action {
 	opacity: 1;
-}
-
-.monaco-workbench .pane-body.integrated-terminal .monaco-split-view2.horizontal .split-view-view:last-child .terminal-env-var-info {
-	/* Adjust for reduced margin in splits */
-	right: -8px;
 }
 
 .monaco-workbench .terminal-env-var-info.codicon {

@@ -515,6 +515,21 @@
         "command": "git.rebaseAbort",
         "title": "%command.rebaseAbort%",
         "category": "Git"
+      },
+      {
+        "command": "git.api.getRepositories",
+        "title": "%command.api.getRepositories%",
+        "category": "Git API"
+      },
+      {
+        "command": "git.api.getRepositoryState",
+        "title": "%command.api.getRepositoryState%",
+        "category": "Git API"
+      },
+      {
+        "command": "git.api.getRemoteSources",
+        "title": "%command.api.getRemoteSources%",
+        "category": "Git API"
       }
     ],
     "keybindings": [
@@ -897,6 +912,18 @@
         },
         {
           "command": "git.timeline.compareWithSelected",
+          "when": "false"
+        },
+        {
+          "command": "git.api.getRepositories",
+          "when": "false"
+        },
+        {
+          "command": "git.api.getRepositoryState",
+          "when": "false"
+        },
+        {
+          "command": "git.api.getRemoteSources",
           "when": "false"
         }
       ],

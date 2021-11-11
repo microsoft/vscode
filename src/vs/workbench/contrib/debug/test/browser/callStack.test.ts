@@ -335,7 +335,7 @@ suite('Debug - CallStack', () => {
 		assert.strictEqual(decorations[1].options.className, 'debug-top-stack-frame-line');
 		assert.strictEqual(decorations[1].options.isWholeLine, true);
 		// Inline decoration gets rendered in this case
-		assert.strictEqual(decorations[2].options.beforeContentClassName, 'debug-top-stack-frame-column');
+		assert.strictEqual(decorations[2].options.before?.inlineClassName, 'debug-top-stack-frame-column');
 		assert.deepStrictEqual(decorations[2].range, new Range(1, 2, 1, Constants.MAX_SAFE_SMALL_INTEGER));
 	});
 

@@ -618,11 +618,11 @@ export interface MainThreadTelemetryShape extends IDisposable {
 }
 
 export interface MainThreadEditorInsetsShape extends IDisposable {
-	$createEditorInset(handle: number, id: string, uri: UriComponents, line: number, height: number, options: IWebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): Promise<void>;
+	$createEditorInset(handle: number, id: string, uri: UriComponents, line: number, height: number, options: IWebviewContentOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): Promise<void>;
 	$disposeEditorInset(handle: number): void;
 
 	$setHtml(handle: number, value: string): void;
-	$setOptions(handle: number, options: IWebviewOptions): void;
+	$setOptions(handle: number, options: IWebviewContentOptions): void;
 	$postMessage(handle: number, value: any): Promise<boolean>;
 }
 
@@ -681,12 +681,12 @@ export interface IWebviewPortMapping {
 	readonly extensionHostPort: number;
 }
 
-export interface IWebviewOptions {
+export interface IWebviewContentOptions {
 	readonly enableScripts?: boolean;
 	readonly enableForms?: boolean;
 	readonly enableCommandUris?: boolean;
-	readonly localResourceRoots?: ReadonlyArray<UriComponents>;
-	readonly portMapping?: ReadonlyArray<IWebviewPortMapping>;
+	readonly localResourceRoots?: readonly UriComponents[];
+	readonly portMapping?: readonly IWebviewPortMapping[];
 }
 
 export interface IWebviewPanelOptions {
@@ -729,8 +729,20 @@ export interface WebviewMessageArrayBufferReference {
 
 export interface MainThreadWebviewsShape extends IDisposable {
 	$setHtml(handle: WebviewHandle, value: string): void;
-	$setOptions(handle: WebviewHandle, options: IWebviewOptions): void;
+	$setOptions(handle: WebviewHandle, options: IWebviewContentOptions): void;
 	$postMessage(handle: WebviewHandle, value: string, ...buffers: VSBuffer[]): Promise<boolean>
+}
+
+export interface IWebviewIconPath {
+	readonly light: UriComponents;
+	readonly dark: UriComponents;
+}
+
+export interface IWebviewInitData {
+	readonly title: string;
+	readonly webviewOptions: IWebviewContentOptions;
+	readonly panelOptions: IWebviewPanelOptions;
+	readonly serializeBuffersForPostMessage: boolean;
 }
 
 export interface MainThreadWebviewPanelsShape extends IDisposable {
@@ -738,18 +750,13 @@ export interface MainThreadWebviewPanelsShape extends IDisposable {
 		extension: WebviewExtensionDescription,
 		handle: WebviewHandle,
 		viewType: string,
-		initData: {
-			title: string;
-			webviewOptions: IWebviewOptions;
-			panelOptions: IWebviewPanelOptions;
-			serializeBuffersForPostMessage: boolean;
-		},
+		initData: IWebviewInitData,
 		showOptions: WebviewPanelShowOptions,
 	): void;
 	$disposeWebview(handle: WebviewHandle): void;
 	$reveal(handle: WebviewHandle, showOptions: WebviewPanelShowOptions): void;
 	$setTitle(handle: WebviewHandle, value: string): void;
-	$setIconPath(handle: WebviewHandle, value: { light: UriComponents, dark: UriComponents; } | undefined): void;
+	$setIconPath(handle: WebviewHandle, value: IWebviewIconPath | undefined): void;
 
 	$registerSerializer(viewType: string, options: { serializeBuffersForPostMessage: boolean }): void;
 	$unregisterSerializer(viewType: string): void;
@@ -796,7 +803,7 @@ export interface ExtHostWebviewPanelsShape {
 		initData: {
 			title: string;
 			state: any;
-			webviewOptions: IWebviewOptions;
+			webviewOptions: IWebviewContentOptions;
 			panelOptions: IWebviewPanelOptions;
 		},
 		position: EditorGroupColumn,
@@ -810,7 +817,7 @@ export interface ExtHostCustomEditorsShape {
 		viewType: string,
 		initData: {
 			title: string;
-			webviewOptions: IWebviewOptions;
+			webviewOptions: IWebviewContentOptions;
 			panelOptions: IWebviewPanelOptions;
 		},
 		position: EditorGroupColumn,
@@ -1096,7 +1103,6 @@ export interface MainThreadSCMShape extends IDisposable {
 	$setInputBoxValue(sourceControlHandle: number, value: string): void;
 	$setInputBoxPlaceholder(sourceControlHandle: number, placeholder: string): void;
 	$setInputBoxVisibility(sourceControlHandle: number, visible: boolean): void;
-	$setInputBoxFocus(sourceControlHandle: number): void;
 	$showValidationMessage(sourceControlHandle: number, message: string | IMarkdownString, type: InputValidationType): void;
 	$setValidationProviderIsEnabled(sourceControlHandle: number, enabled: boolean): void;
 }

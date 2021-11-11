@@ -100,7 +100,7 @@
 				}
 				if (!asarPathAdded && appRoot) {
 					// Assuming that adding just `NODE_MODULES_ASAR_PATH` is sufficient
-					// because nodejs should find it even if it has a different driver letter case
+					// because nodejs should find it even if it has a different drive letter case
 					paths.push(NODE_MODULES_ASAR_PATH);
 				}
 			}
