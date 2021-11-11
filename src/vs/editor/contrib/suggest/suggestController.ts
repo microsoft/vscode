@@ -434,14 +434,6 @@ export class SuggestController implements IEditorContribution {
 		// clear only now - after all tasks are done
 		Promise.all(tasks).finally(() => {
 
-			type AcceptedSuggestion = { providerId: string; fileExtension: string, languageId: string, basenameHash: string };
-			type AcceptedSuggestionClassification = {
-				providerId: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' },
-				basenameHash: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' },
-				fileExtension: { classification: 'SystemMetaData', purpose: 'FeatureInsight' },
-				languageId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' },
-			};
-
 			const resourceLoggedEvents = this._loggedEvents.get(model.uri) ?? new Set<string>();
 			if (!this._loggedEvents.has(model.uri)) {
 				this._loggedEvents.set(model.uri, resourceLoggedEvents);
@@ -450,6 +442,15 @@ export class SuggestController implements IEditorContribution {
 			const providerId = event.item.provider._source ?? event.item.provider._debugDisplayName ?? 'unknownProvider';
 			if (!resourceLoggedEvents.has(providerId)) {
 				resourceLoggedEvents.add(providerId);
+
+				type AcceptedSuggestion = { providerId: string; fileExtension: string, languageId: string, basenameHash: string };
+				type AcceptedSuggestionClassification = {
+					providerId: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' },
+					basenameHash: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' },
+					fileExtension: { classification: 'SystemMetaData', purpose: 'FeatureInsight' },
+					languageId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' },
+				};
+
 				this._telemetryService.publicLog2<AcceptedSuggestion, AcceptedSuggestionClassification>('suggest.acceptedSuggestion', {
 					providerId,
 					basenameHash: '' + hash(basename(model.uri)),
