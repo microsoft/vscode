@@ -129,11 +129,13 @@ async function start() {
 }
 
 /**
- * If `--port` is specified, connect to that port first.
+ * If `--pick-port` and `--port` is specified, connect to that port.
  *
  * If not and a port range is specified through `--pick-port`
  * then find a free port in that range. Throw error if no
  * free port available in range.
+ *
+ * If only `--port` is provided then connect to that port.
  *
  * In absence of specified ports, connect to port 8000.
  * @param {string | undefined} strPort
@@ -142,25 +144,32 @@ async function start() {
  * @throws
  */
 async function parsePort(strPort, strPickPort) {
+	let specificPort = -1;
+
 	try {
 		if (strPort) {
-			return parseInt(strPort);
+			specificPort = parseInt(strPort);
 		}
 	} catch (e) {
-		console.log('Port is not a number, using 8000 instead.');
+		console.log('Port is not a number, will default to 8000 if no pick-port is given.');
 	}
 
 	if (strPickPort) {
-		let [start, end] = [-1, -1];
 		try {
-			[start, end] = strPickPort.split('-').map(numStr => { return parseInt(numStr); });
+			let [start, end] = strPickPort.split('-').map(numStr => { return parseInt(numStr); });
+
+			if (specificPort !== -1 && specificPort >= start && specificPort <= end) {
+				return specificPort;
+			} else {
+				return await findFreePort(start, start, end);
+			}
 		} catch {
 			console.log('Port range are not numbers, using 8000 instead.');
 		}
+	}
 
-		if (start !== -1 && end !== -1) {
-			return await findFreePort(start, start, end);
-		}
+	if (specificPort !== -1) {
+		return specificPort;
 	}
 
 	return 8000;
