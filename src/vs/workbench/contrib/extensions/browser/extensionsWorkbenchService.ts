@@ -1388,7 +1388,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		this.storageService.store('extensions.ignoredAutoUpdateExtension', JSON.stringify(this._ignoredAutoUpdateExtensions), StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 
-	private ignoreAutoUpdate(identifierWithVersion: ExtensionIdentifierWithVersion): void {
+	ignoreAutoUpdate(identifierWithVersion: ExtensionIdentifierWithVersion): void {
 		if (!this.isAutoUpdateIgnored(identifierWithVersion)) {
 			this.ignoredAutoUpdateExtensions = [...this.ignoredAutoUpdateExtensions, identifierWithVersion.key()];
 		}

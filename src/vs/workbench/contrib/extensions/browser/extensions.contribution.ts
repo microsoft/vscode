@@ -25,7 +25,7 @@ import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId } from '
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeymapExtensions } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { areSameExtensions, ExtensionIdentifierWithVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -288,12 +288,17 @@ CommandsRegistry.registerCommand({
 	handler: async (accessor, arg: string | UriComponents, options?: { installOnlyNewlyAddedFromExtensionPackVSIX?: boolean, donotSync?: boolean }) => {
 		const extensionManagementService = accessor.get(IExtensionManagementService);
 		const extensionGalleryService = accessor.get(IExtensionGalleryService);
+		const extensionService = accessor.get(IExtensionsWorkbenchService);
 		try {
 			if (typeof arg === 'string') {
 				const [id, version] = getIdAndVersion(arg);
 				const [extension] = await extensionGalleryService.getExtensions([{ id, version }], CancellationToken.None);
 				if (extension) {
-					await extensionManagementService.installFromGallery(extension, options?.donotSync ? { isMachineScoped: true } : undefined);
+					await extensionManagementService.installFromGallery(extension, { isMachineScoped: options?.donotSync, installGivenVersion: !!version });
+					const localExt = extensionService.local.filter(e => areSameExtensions(e.identifier, { id: extension.identifier.id }))[0];
+					if (version && localExt.latestVersion !== version) {
+						extensionService.ignoreAutoUpdate(new ExtensionIdentifierWithVersion(extension.identifier, version));
+					}
 				} else {
 					throw new Error(localize('notFound', "Extension '{0}' not found.", arg));
 				}

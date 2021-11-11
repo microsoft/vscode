@@ -10,7 +10,7 @@ import { IQueryOptions, ILocalExtension, IGalleryExtension, IExtensionIdentifier
 import { EnablementState, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { areSameExtensions, ExtensionIdentifierWithVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionManifest, ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { IView, IViewPaneContainer } from 'vs/workbench/common/views';
@@ -99,6 +99,7 @@ export interface IExtensionsWorkbenchService {
 	open(extension: IExtension, options?: { sideByside?: boolean, preserveFocus?: boolean, pinned?: boolean, tab?: string }): Promise<void>;
 	checkForUpdates(): Promise<void>;
 	getExtensionStatus(extension: IExtension): IExtensionsStatus | undefined;
+	ignoreAutoUpdate(identifierWithVersion: ExtensionIdentifierWithVersion): void;
 
 	// Sync APIs
 	isExtensionIgnoredToSync(extension: IExtension): boolean;
