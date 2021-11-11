@@ -16,7 +16,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { mixin } from 'vs/base/common/objects';
 import { cwd } from 'vs/base/common/process';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { timeout } from 'vs/base/common/async';
+import { Promises, timeout } from 'vs/base/common/async';
 
 export interface IPartialLogService {
 	readonly _serviceBrand: undefined;
@@ -52,13 +52,6 @@ class ExtensionHostProcess extends Disposable {
 
 	start(opts: IExtensionHostProcessOptions): { pid: number; } {
 		const sw = StopWatch.create(false);
-		// opts.env = opts.env || {};
-		// opts.env.ELECTRON_RUN_AS_NODE = '1';
-		// this._process = spawn(
-		// 	process.execPath,
-		// 	[FileAccess.asFileUri('bootstrap-fork', require).fsPath, '--type=extensionHost', '--skipWorkspaceStorageLock'],
-		// 	mixin({ cwd: cwd() }, opts),
-		// );
 		this._process = fork(
 			FileAccess.asFileUri('bootstrap-fork', require).fsPath,
 			['--type=extensionHost', '--skipWorkspaceStorageLock'],
@@ -224,6 +217,20 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 			return;
 		}
 		extHostProcess.kill();
+	}
+
+	async killAllNow(): Promise<void> {
+		for (const [, extHost] of this._extHosts) {
+			extHost.kill();
+		}
+	}
+
+	async waitForAllExit(maxWaitTimeMs: number): Promise<void> {
+		const exitPromises: Promise<void>[] = [];
+		for (const [, extHost] of this._extHosts) {
+			exitPromises.push(extHost.waitForExit(maxWaitTimeMs));
+		}
+		return Promises.settled(exitPromises).then(() => { });
 	}
 }
 

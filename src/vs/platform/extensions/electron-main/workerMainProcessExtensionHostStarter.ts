@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SerializedError } from 'vs/base/common/errors';
+import { canceled, SerializedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IExtensionHostProcessOptions, IExtensionHostStarter } from 'vs/platform/extensions/common/extensionHostStarter';
 import { Event } from 'vs/base/common/event';
@@ -12,6 +12,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { Worker } from 'worker_threads';
 import { IWorker, IWorkerCallback, IWorkerFactory, SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
 import { IExtensionHostStarterWorkerHost } from 'vs/platform/extensions/node/extensionHostStarterWorker';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ExtensionHostStarter } from 'vs/platform/extensions/node/extensionHostStarter';
 
 class NodeWorker implements IWorker {
 
@@ -51,14 +53,16 @@ class ExtensionHostStarterWorkerHost implements IExtensionHostStarterWorkerHost 
 	}
 }
 
-export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter {
+export class WorkerMainProcessExtensionHostStarter implements IDisposable, IExtensionHostStarter {
 	_serviceBrand: undefined;
 
 	private _proxy: ExtensionHostStarter | null;
 	private readonly _worker: SimpleWorkerClient<ExtensionHostStarter, IExtensionHostStarterWorkerHost>;
+	private _shutdown = false;
 
 	constructor(
-		@ILogService private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService,
+		@ILifecycleMainService lifecycleMainService: ILifecycleMainService
 	) {
 		this._proxy = null;
 
@@ -75,6 +79,22 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 			new ExtensionHostStarterWorkerHost(this._logService)
 		);
 		this._initialize();
+
+		// Abnormal shutdown: terminate extension hosts asap
+		lifecycleMainService.onWillKill(async () => {
+			this._shutdown = true;
+			if (this._proxy) {
+				this._proxy.killAllNow();
+			}
+		});
+
+		// Normal shutdown: gracefully await extension host shutdowns
+		lifecycleMainService.onWillShutdown((e) => {
+			this._shutdown = true;
+			if (this._proxy) {
+				e.join(this._proxy.waitForAllExit(6000));
+			}
+		});
 	}
 
 	dispose(): void {
@@ -83,6 +103,7 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 
 	async _initialize(): Promise<void> {
 		this._proxy = await this._worker.getProxyObject();
+		this._logService.info(`ExtensionHostStarterWorker created`);
 	}
 
 	onDynamicStdout(id: string): Event<string> {
@@ -107,21 +128,33 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 
 	async createExtensionHost(): Promise<{ id: string; }> {
 		const proxy = await this._worker.getProxyObject();
+		if (this._shutdown) {
+			throw canceled();
+		}
 		return proxy.createExtensionHost();
 	}
 
 	async start(id: string, opts: IExtensionHostProcessOptions): Promise<{ pid: number; }> {
 		const proxy = await this._worker.getProxyObject();
+		if (this._shutdown) {
+			throw canceled();
+		}
 		return proxy.start(id, opts);
 	}
 
 	async enableInspectPort(id: string): Promise<boolean> {
 		const proxy = await this._worker.getProxyObject();
+		if (this._shutdown) {
+			throw canceled();
+		}
 		return proxy.enableInspectPort(id);
 	}
 
 	async kill(id: string): Promise<void> {
 		const proxy = await this._worker.getProxyObject();
+		if (this._shutdown) {
+			throw canceled();
+		}
 		return proxy.kill(id);
 	}
 }
