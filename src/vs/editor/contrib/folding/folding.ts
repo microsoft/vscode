@@ -21,6 +21,7 @@ import { IRange } from 'vs/editor/common/core/range';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel } from 'vs/editor/common/model';
+import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { FoldingRangeKind, FoldingRangeProviderRegistry } from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { CollapseMemento, FoldingModel, getNextFoldLine, getParentFoldLine as getParentFoldLine, getPreviousFoldLine, setCollapseStateAtLevel, setCollapseStateForMatchingLines, setCollapseStateForRest, setCollapseStateForType, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateUp, toggleCollapseState } from 'vs/editor/contrib/folding/foldingModel';
@@ -130,7 +131,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 				const options = this.editor.getOptions();
 				this.foldingDecorationProvider.autoHideFoldingControls = options.get(EditorOption.showFoldingControls) === 'mouseover';
 				this.foldingDecorationProvider.showFoldingHighlights = options.get(EditorOption.foldingHighlight);
-				this.onModelContentChanged();
+				this.triggerFoldingModelChanged();
 			}
 			if (e.hasChanged(EditorOption.foldingStrategy)) {
 				this._useFoldingProviders = this.editor.getOptions().get(EditorOption.foldingStrategy) !== 'indentation';
@@ -225,7 +226,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		this.localToDispose.add(this.cursorChangedScheduler);
 		this.localToDispose.add(FoldingRangeProviderRegistry.onDidChange(() => this.onFoldingStrategyChanged()));
 		this.localToDispose.add(this.editor.onDidChangeModelLanguageConfiguration(() => this.onFoldingStrategyChanged())); // covers model language changes as well
-		this.localToDispose.add(this.editor.onDidChangeModelContent(() => this.onModelContentChanged()));
+		this.localToDispose.add(this.editor.onDidChangeModelContent(e => this.onDidChangeModelContent(e)));
 		this.localToDispose.add(this.editor.onDidChangeCursorPosition(() => this.onCursorPositionChanged()));
 		this.localToDispose.add(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this.localToDispose.add(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
@@ -250,7 +251,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 				this.rangeProvider = null;
 			}
 		});
-		this.onModelContentChanged();
+		this.triggerFoldingModelChanged();
 	}
 
 	private onFoldingStrategyChanged() {
@@ -258,7 +259,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 			this.rangeProvider.dispose();
 		}
 		this.rangeProvider = null;
-		this.onModelContentChanged();
+		this.triggerFoldingModelChanged();
 	}
 
 	private getRangeProvider(editorModel: ITextModel): RangeProvider {
@@ -278,7 +279,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 				}, 30000);
 				return rangeProvider; // keep memento in case there are still no foldingProviders on the next request.
 			} else if (foldingProviders.length > 0) {
-				this.rangeProvider = new SyntaxRangeProvider(editorModel, foldingProviders, () => this.onModelContentChanged());
+				this.rangeProvider = new SyntaxRangeProvider(editorModel, foldingProviders, () => this.triggerFoldingModelChanged());
 			}
 		}
 		this.foldingStateMemento = null;
@@ -289,7 +290,12 @@ export class FoldingController extends Disposable implements IEditorContribution
 		return this.foldingModelPromise;
 	}
 
-	private onModelContentChanged() {
+	private onDidChangeModelContent(e: IModelContentChangedEvent) {
+		this.hiddenRangeModel?.notifyChangeModelContent(e);
+		this.triggerFoldingModelChanged();
+	}
+
+	private triggerFoldingModelChanged() {
 		if (this.updateScheduler) {
 			if (this.foldingRegionPromise) {
 				this.foldingRegionPromise.cancel();

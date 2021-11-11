@@ -118,7 +118,7 @@ export class IconLabel extends Disposable {
 		}
 
 		if (options?.supportDescriptionHighlights) {
-			this.descriptionNodeFactory = () => new HighlightedLabel(dom.append(this.descriptionContainer.element, dom.$('span.label-description')), !!options.supportIcons);
+			this.descriptionNodeFactory = () => new HighlightedLabel(dom.append(this.descriptionContainer.element, dom.$('span.label-description')), { supportIcons: !!options.supportIcons });
 		} else {
 			this.descriptionNodeFactory = () => this._register(new FastLabelNode(dom.append(this.descriptionContainer.element, dom.$('span.label-description'))));
 		}
@@ -281,7 +281,7 @@ class LabelWithHighlights {
 			if (!this.singleLabel) {
 				this.container.innerText = '';
 				this.container.classList.remove('multiple');
-				this.singleLabel = new HighlightedLabel(dom.append(this.container, dom.$('a.label-name', { id: options?.domId })), this.supportIcons);
+				this.singleLabel = new HighlightedLabel(dom.append(this.container, dom.$('a.label-name', { id: options?.domId })), { supportIcons: this.supportIcons });
 			}
 
 			this.singleLabel.set(label, options?.matches, undefined, options?.labelEscapeNewLines);
@@ -299,7 +299,7 @@ class LabelWithHighlights {
 				const id = options?.domId && `${options?.domId}_${i}`;
 
 				const name = dom.$('a.label-name', { id, 'data-icon-label-count': label.length, 'data-icon-label-index': i, 'role': 'treeitem' });
-				const highlightedLabel = new HighlightedLabel(dom.append(this.container, name), this.supportIcons);
+				const highlightedLabel = new HighlightedLabel(dom.append(this.container, name), { supportIcons: this.supportIcons });
 				highlightedLabel.set(l, m, undefined, options?.labelEscapeNewLines);
 
 				if (i < label.length - 1) {

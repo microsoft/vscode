@@ -146,6 +146,17 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('scm.diffDecorationsGutterAction', "Controls the behavior of Source Control diff gutter decorations."),
 			default: 'diff'
 		},
+		'scm.diffDecorationsIgnoreTrimWhitespace': {
+			type: 'string',
+			enum: ['true', 'false', 'inherit'],
+			enumDescriptions: [
+				localize('scm.diffDecorationsIgnoreTrimWhitespace.true', "Ignore leading and trailing whitespace."),
+				localize('scm.diffDecorationsIgnoreTrimWhitespace.false', "Do not ignore leading and trailing whitespace."),
+				localize('scm.diffDecorationsIgnoreTrimWhitespace.inherit', "Inherit from `diffEditor.ignoreTrimWhitespace`.")
+			],
+			description: localize('diffDecorationsIgnoreTrimWhitespace', "Controls whether leading and trailing whitespace is ignored in Source Control diff gutter decorations."),
+			default: 'false'
+		},
 		'scm.alwaysShowActions': {
 			type: 'boolean',
 			description: localize('alwaysShowActions', "Controls whether inline actions are always visible in the Source Control view."),

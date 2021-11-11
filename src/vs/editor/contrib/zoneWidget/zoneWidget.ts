@@ -491,7 +491,6 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		this._resizeSash = this._disposables.add(new Sash(this.domNode, this, { orientation: Orientation.HORIZONTAL }));
 
 		if (!this.options.isResizeable) {
-			this._resizeSash.hide();
 			this._resizeSash.state = SashState.Disabled;
 		}
 

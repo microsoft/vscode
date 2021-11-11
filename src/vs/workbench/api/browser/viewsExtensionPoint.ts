@@ -25,6 +25,7 @@ import { VIEWLET_ID as EXPLORER } from 'vs/workbench/contrib/files/common/files'
 import { VIEWLET_ID as REMOTE } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
 import { VIEWLET_ID as SCM } from 'vs/workbench/contrib/scm/common/scm';
 import { WebviewViewPane } from 'vs/workbench/contrib/webviewView/browser/webviewViewPane';
+import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
@@ -404,7 +405,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					return;
 				}
 
-				if (entry.key === 'remote' && !extension.description.enableProposedApi) {
+				if (entry.key === 'remote' && !isProposedApiEnabled(extension.description)) {
 					collector.warn(localize('ViewContainerRequiresProposedAPI', "View container '{0}' requires 'enableProposedApi' turned on to be added to 'Remote'.", entry.key));
 					return;
 				}

@@ -5,13 +5,22 @@
 
 const { createModuleDescription, createEditorWorkerModuleDescription } = require('./vs/base/buildfile');
 
-exports.base = [{
-	name: 'vs/base/common/worker/simpleWorker',
-	include: ['vs/editor/common/services/editorSimpleWorker'],
-	prepend: ['vs/loader.js', 'vs/nls.js'],
-	append: ['vs/base/worker/workerMain'],
-	dest: 'vs/base/worker/workerMain.js'
-}];
+exports.base = [
+	{
+		name: 'vs/editor/common/services/editorSimpleWorker',
+		include: ['vs/base/common/worker/simpleWorker'],
+		prepend: ['vs/loader.js', 'vs/nls.js'],
+		append: ['vs/base/worker/workerMain'],
+		dest: 'vs/base/worker/workerMain.js'
+	},
+	{
+		name: 'vs/base/common/worker/simpleWorker',
+	},
+	{
+		name: 'vs/platform/extensions/node/extensionHostStarterWorker',
+		exclude: ['vs/base/common/worker/simpleWorker']
+	}
+];
 
 exports.workerExtensionHost = [createEditorWorkerModuleDescription('vs/workbench/services/extensions/worker/extensionHostWorker')];
 exports.workerNotebook = [createEditorWorkerModuleDescription('vs/workbench/contrib/notebook/common/services/notebookSimpleWorker')];

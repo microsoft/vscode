@@ -29,7 +29,7 @@ import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { listHighlightForeground, badgeBackground, contrastBorder, badgeForeground, listActiveSelectionForeground, listInactiveSelectionForeground, listHoverForeground, listFocusForeground, editorBackground, foreground, listActiveSelectionBackground, listInactiveSelectionBackground, listFocusBackground, listHoverBackground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { listHighlightForeground, badgeBackground, contrastBorder, badgeForeground, listActiveSelectionForeground, listInactiveSelectionForeground, listHoverForeground, listFocusForeground, editorBackground, foreground, listActiveSelectionBackground, listInactiveSelectionBackground, listFocusBackground, listHoverBackground, registerColor, tableOddRowsBackgroundColor } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { WorkbenchTable } from 'vs/platform/list/browser/listService';
@@ -910,11 +910,11 @@ class CommandColumnRenderer implements ITableRenderer<IKeybindingItemEntry, ICom
 	renderTemplate(container: HTMLElement): ICommandColumnTemplateData {
 		const commandColumn = DOM.append(container, $('.command'));
 		const commandLabelContainer = DOM.append(commandColumn, $('.command-label'));
-		const commandLabel = new HighlightedLabel(commandLabelContainer, false);
+		const commandLabel = new HighlightedLabel(commandLabelContainer);
 		const commandDefaultLabelContainer = DOM.append(commandColumn, $('.command-default-label'));
-		const commandDefaultLabel = new HighlightedLabel(commandDefaultLabelContainer, false);
+		const commandDefaultLabel = new HighlightedLabel(commandDefaultLabelContainer);
 		const commandIdLabelContainer = DOM.append(commandColumn, $('.command-id.code'));
-		const commandIdLabel = new HighlightedLabel(commandIdLabelContainer, false);
+		const commandIdLabel = new HighlightedLabel(commandIdLabelContainer);
 		return { commandColumn, commandLabelContainer, commandLabel, commandDefaultLabelContainer, commandDefaultLabel, commandIdLabelContainer, commandIdLabel };
 	}
 
@@ -999,7 +999,7 @@ class SourceColumnRenderer implements ITableRenderer<IKeybindingItemEntry, ISour
 
 	renderTemplate(container: HTMLElement): ISourceColumnTemplateData {
 		const sourceColumn = DOM.append(container, $('.source'));
-		const highlightedLabel = new HighlightedLabel(sourceColumn, false);
+		const highlightedLabel = new HighlightedLabel(sourceColumn);
 		return { highlightedLabel };
 	}
 
@@ -1038,7 +1038,7 @@ class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenCo
 		const element = DOM.append(container, $('.when'));
 
 		const whenContainer = DOM.append(element, $('div.when-label'));
-		const whenLabel = new HighlightedLabel(whenContainer, false);
+		const whenLabel = new HighlightedLabel(whenContainer);
 		const whenInput = new InputBox(element, this.contextViewService, {
 			validationOptions: {
 				validation: (value) => {
@@ -1165,8 +1165,8 @@ class AccessibilityProvider implements IListAccessibilityProvider<IKeybindingIte
 
 }
 
-const keybindingTableHeader = registerColor('keybindingTable.headerBackground', { dark: transparent(foreground, 0.04), light: transparent(foreground, 0.04), hc: null }, 'Background color for the keyboard shortcuts table header.');
-const keybindingTableRows = registerColor('keybindingTable.rowsBackground', { dark: transparent(foreground, 0.04), light: transparent(foreground, 0.04), hc: null }, 'Background color for the keyboard shortcuts table alternating rows.');
+const keybindingTableHeader = registerColor('keybindingTable.headerBackground', { dark: tableOddRowsBackgroundColor, light: tableOddRowsBackgroundColor, hc: tableOddRowsBackgroundColor }, 'Background color for the keyboard shortcuts table header.');
+const keybindingTableRows = registerColor('keybindingTable.rowsBackground', { light: tableOddRowsBackgroundColor, dark: tableOddRowsBackgroundColor, hc: tableOddRowsBackgroundColor }, 'Background color for the keyboard shortcuts table alternating rows.');
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 

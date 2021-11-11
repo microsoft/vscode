@@ -17,7 +17,7 @@ import { ExtHostConfiguration, IExtHostConfiguration } from 'vs/workbench/api/co
 import { ActivatedExtension, EmptyExtension, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionModule, HostExtension, ExtensionActivationTimesFragment } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ExtHostStorage, IExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { MissingExtensionDependency, checkProposedApiEnabled, ActivationKind } from 'vs/workbench/services/extensions/common/extensions';
+import { MissingExtensionDependency, ActivationKind, checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import * as errors from 'vs/base/common/errors';
 import type * as vscode from 'vscode';

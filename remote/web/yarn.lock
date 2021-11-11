@@ -113,22 +113,22 @@ vscode-textmate@5.4.1:
   resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-5.4.1.tgz#09d566724fc76b60b3ad9791eebf1f0b50f29e5a"
   integrity sha512-4CvPHmfuZQaXrcCpathdh6jo7myuR+MU8BvscgQADuponpbqfmu2rwTOtCXhGwwEgStvJF8V4s9FwMKRVLNmKQ==
 
-xterm-addon-search@0.9.0-beta.5:
-  version "0.9.0-beta.5"
-  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.9.0-beta.5.tgz#e0e60a203d1c9d6c8af933648a46865dba299302"
-  integrity sha512-ylfqim0ISBvuuX83LQwgu/06p5GC545QsAo9SssXw03TPpIrcd0zwaVMEnhOftSIzM9EKRRsyx3GbBjgUdiF5w==
+xterm-addon-search@0.9.0-beta.6:
+  version "0.9.0-beta.6"
+  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.9.0-beta.6.tgz#8b016baac5580dc0ba93bb52610bc4f5776d3b17"
+  integrity sha512-UAEzas4O+NrF7BSGf0C9N5ngAkmbtr/hSTFvLAM/Rw7EfLUatf8aLMqAWZTggRGMwDjuqR0GXJI4+e5QrJhQfw==
 
-xterm-addon-unicode11@0.3.0:
-  version "0.3.0"
-  resolved "https://registry.yarnpkg.com/xterm-addon-unicode11/-/xterm-addon-unicode11-0.3.0.tgz#e4435c3c91a5294a7eb8b79c380acbb28a659463"
-  integrity sha512-x5fHDZT2j9tlTlHnzPHt++9uKZ2kJ/lYQOj3L6xJA22xoJsS8UQRw/5YIFg2FUHqEAbV77Z1fZij/9NycMSH/A==
+xterm-addon-unicode11@0.4.0-beta.1:
+  version "0.4.0-beta.1"
+  resolved "https://registry.yarnpkg.com/xterm-addon-unicode11/-/xterm-addon-unicode11-0.4.0-beta.1.tgz#aeefd26e87bad15d8dfd8a1e0b804fe408c9b882"
+  integrity sha512-pG8mpxnqpYDry0e20vuEFKhd4kKIcLLNwdNftNvfo+R/EjYRnTYnF+H8L+7eQHq6hqDH61xCEP4H4qR2CyT4pg==
 
-xterm-addon-webgl@0.12.0-beta.15:
-  version "0.12.0-beta.15"
-  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.12.0-beta.15.tgz#9ae82127f2a39b3cb7f5ae45a6af223810c933d4"
-  integrity sha512-LWZ3iLspQOCc26OoT8qa+SuyuIcn2cAMRbBkinOuQCk4aW5kjovIrGovj9yVAcXNvOBnPm3sUqmnwGlN579kDA==
+xterm-addon-webgl@0.12.0-beta.16:
+  version "0.12.0-beta.16"
+  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.12.0-beta.16.tgz#63a0f1f5be9e66286e035448e2011e3065769ad5"
+  integrity sha512-g6v3RegOhSsD9Zt8ArWBMNT30QyPUlIWEIvP/xLHAluUZ1S5sDjFyZDB0nJAyn9MwQozJpwb0ylYO1nznN/TzA==
 
-xterm@4.15.0-beta.10:
-  version "4.15.0-beta.10"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.15.0-beta.10.tgz#8cda3d7885e8345f2fc6cf9275a43f3833d29acf"
-  integrity sha512-valoh5ZcY/y7Pe+ffgcSAEFeuZfjzVeUUXcthdxTTsrGEiU1s4QR2EOg4U5jn5wye/Nc6mSfLW3s79R6Ac186w==
+xterm@4.16.0-beta.2:
+  version "4.16.0-beta.2"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.16.0-beta.2.tgz#251beef21a232143f272da74c7005bc4d832ca79"
+  integrity sha512-PD0agueJ7qvbn1/QhZriAQXf+ykaoPKgQN9qiIGf88VMxHs8T47MYHW/+qPsrXagTmbrENtncughTIzOzv8Q5Q==

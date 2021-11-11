@@ -72,6 +72,9 @@ export namespace Schemas {
 
 	export const vscodeTerminal = 'vscode-terminal';
 
+	/**
+	 * Scheme used internally for webviews that aren't linked to a resource (i.e. not custom editors)
+	 */
 	export const webviewPanel = 'webview-panel';
 
 	/**
@@ -94,6 +97,11 @@ export namespace Schemas {
 	 * Scheme used for temporary resources
 	 */
 	export const tmp = 'tmp';
+
+	/**
+	 * Scheme used vs live share
+	 */
+	export const vsls = 'vsls';
 }
 
 class RemoteAuthoritiesImpl {

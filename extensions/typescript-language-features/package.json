@@ -8,6 +8,9 @@
   "license": "MIT",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "enableProposedApi": true,
+  "enabledApiProposals": [
+    "languageStatus"
+  ],
   "capabilities": {
     "virtualWorkspaces": {
       "supported": "limited",
@@ -33,7 +36,7 @@
   "dependencies": {
     "jsonc-parser": "^2.2.1",
     "semver": "5.5.1",
-    "vscode-extension-telemetry": "0.4.2",
+    "vscode-extension-telemetry": "0.4.3",
     "vscode-nls": "^5.0.0"
   },
   "devDependencies": {

@@ -299,6 +299,17 @@ MenuRegistry.appendMenuItems([
 			order: 5
 		}
 	}, {
+		id: MenuId.LayoutControlMenu,
+		item: {
+			group: '0_workbench_layout',
+			command: {
+				id: TogglePanelAction.ID,
+				title: localize({ key: 'miShowPanel', comment: ['&& denotes a mnemonic'] }, "Show &&Panel"),
+				toggled: ActivePanelContext
+			},
+			order: 4
+		}
+	}, {
 		id: MenuId.ViewTitleContext,
 		item: {
 			group: '3_workbench_layout_move',

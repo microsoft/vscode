@@ -866,6 +866,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.maintainFileSearchCache': {
 			type: 'boolean',
+			deprecationMessage: nls.localize('maintainFileSearchCacheDeprecated', "The search cache is kept in the extension host which never shuts down, so this setting is no longer needed."),
 			description: nls.localize('search.maintainFileSearchCache', "When enabled, the searchService process will be kept alive instead of being shut down after an hour of inactivity. This will keep the file search cache in memory."),
 			default: false
 		},
@@ -1020,11 +1021,6 @@ configurationRegistry.registerConfiguration({
 				nls.localize('searchSortOrder.countAscending', "Results are sorted by count per file, in ascending order.")
 			],
 			'description': nls.localize('search.sortOrder', "Controls sorting order of search results.")
-		},
-		'search.forceSearchProcess': {
-			type: 'boolean',
-			default: false,
-			description: nls.localize('search.forceSearchProcess', "When enabled, search in a local window runs in a separate search process instead of the extension host.")
 		}
 	}
 });

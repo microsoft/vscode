@@ -167,7 +167,6 @@ suite('QuickInput', () => {
 
 		void (await new Promise<void>(resolve => {
 			quickpick.onDidAccept(() => {
-				console.log(quickpick.selectedItems.map(i => i.label).join(', '));
 				quickpick.canSelectMany = true;
 				quickpick.items = [{ label: 'a' }, { label: 'b' }, { label: 'c' }];
 				resolve();

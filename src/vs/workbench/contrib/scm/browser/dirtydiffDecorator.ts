@@ -1087,12 +1087,18 @@ export class DirtyDiffModel extends Disposable {
 		textFileModel: IResolvedTextFileEditorModel,
 		@ISCMService private readonly scmService: ISCMService,
 		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService
 	) {
 		super();
 		this._model = textFileModel;
 
 		this._register(textFileModel.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
+		this._register(
+			Event.filter(configurationService.onDidChangeConfiguration,
+				e => e.affectsConfiguration('scm.diffDecorationsIgnoreTrimWhitespace') || e.affectsConfiguration('diffEditor.ignoreTrimWhitespace')
+			)(this.triggerDiff, this)
+		);
 		this._register(scmService.onDidAddRepository(this.onDidAddRepository, this));
 		scmService.repositories.forEach(r => this.onDidAddRepository(r));
 
@@ -1163,7 +1169,12 @@ export class DirtyDiffModel extends Disposable {
 				return Promise.resolve([]); // Files too large
 			}
 
-			return this.editorWorkerService.computeDirtyDiff(originalURI, this._model.resource, false);
+			const ignoreTrimWhitespaceSetting = this.configurationService.getValue<'true' | 'false' | 'inherit'>('scm.diffDecorationsIgnoreTrimWhitespace');
+			const ignoreTrimWhitespace = ignoreTrimWhitespaceSetting === 'inherit'
+				? this.configurationService.getValue<boolean>('diffEditor.ignoreTrimWhitespace')
+				: ignoreTrimWhitespaceSetting !== 'false';
+
+			return this.editorWorkerService.computeDirtyDiff(originalURI, this._model.resource, ignoreTrimWhitespace);
 		});
 	}
 

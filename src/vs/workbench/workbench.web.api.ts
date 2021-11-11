@@ -610,8 +610,11 @@ interface IWorkbench {
 	 *
 	 * This will also remove any `beforeUnload` handlers that would bring up a
 	 * confirmation dialog.
+	 *
+	 * The returned promise should be awaited on to ensure any data to persist
+	 * has been persisted.
 	 */
-	shutdown: () => void;
+	shutdown: () => Promise<void>;
 }
 
 /**

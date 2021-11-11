@@ -66,6 +66,7 @@ export class NativeStorageService extends AbstractStorageService {
 	}
 
 	protected async doInitialize(): Promise<void> {
+		
 		// Init all storage locations
 		await Promises.settled([
 			this.globalStorage.init(),
