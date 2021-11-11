@@ -818,7 +818,7 @@ declare module 'vscode' {
 		/**
 		 * The optional ThemeColor of the icon. The color is currently only used in {@link TreeItem}.
 		 */
-		readonly color?: ThemeColor;
+		readonly color?: ThemeColor | undefined;
 
 		/**
 		 * Creates a reference to a theme icon.
@@ -4907,7 +4907,7 @@ declare module 'vscode' {
 		 * An optional word pattern that describes valid contents for the given ranges.
 		 * If no pattern is provided, the language configuration's word pattern will be used.
 		 */
-		readonly wordPattern?: RegExp;
+		readonly wordPattern: RegExp | undefined;
 	}
 
 	/**

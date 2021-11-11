@@ -59,20 +59,6 @@ export interface IView<TLayoutContext = undefined> {
 	readonly maximumSize: number;
 
 	/**
-	 * View instances are supposed to fire the {@link IView.onDidChange} event whenever
-	 * any of the constraint properties have changed:
-	 *
-	 * - {@link IView.minimumSize}
-	 * - {@link IView.maximumSize}
-	 * - {@link IView.priority}
-	 * - {@link IView.snap}
-	 *
-	 * The SplitView will relayout whenever that happens. The event can optionally emit
-	 * the view's preferred size for that relayout.
-	 */
-	readonly onDidChange: Event<number | undefined>;
-
-	/**
 	 * The priority of the view when the {@link SplitView.resize layout} algorithm
 	 * runs. Views with higher priority will be resized first.
 	 *
@@ -87,6 +73,20 @@ export interface IView<TLayoutContext = undefined> {
 	 * @defaultValue `false`
 	 */
 	readonly snap?: boolean;
+
+	/**
+	 * View instances are supposed to fire the {@link IView.onDidChange} event whenever
+	 * any of the constraint properties have changed:
+	 *
+	 * - {@link IView.minimumSize}
+	 * - {@link IView.maximumSize}
+	 * - {@link IView.priority}
+	 * - {@link IView.snap}
+	 *
+	 * The SplitView will relayout whenever that happens. The event can optionally emit
+	 * the view's preferred size for that relayout.
+	 */
+	readonly onDidChange: Event<number | undefined>;
 
 	/**
 	 * This will be called by the {@link SplitView} during layout. A view meant to
@@ -529,9 +529,6 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 
 	/**
 	 * Create a new {@link SplitView} instance.
-	 *
-	 * @param container
-	 * @param options
 	 */
 	constructor(container: HTMLElement, options: ISplitViewOptions<TLayoutContext> = {}) {
 		super();
