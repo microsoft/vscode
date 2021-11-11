@@ -78,7 +78,8 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 				}, token);
 
 				const widgetClosedMarker = {};
-				const widgetClosedPromise = quickPickWidget.then(() => widgetClosedMarker);
+				const widgetClosedPromise = quickPickWidget
+					.then(() => widgetClosedMarker, (reason) => { throw reason; });
 
 				const result = await Promise.race([widgetClosedPromise, itemsPromise]);
 				if (result === widgetClosedMarker) {
