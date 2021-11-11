@@ -326,7 +326,10 @@ export class WebClientServer {
 				// Add port to prevent client-side mismatch for reverse proxies.
 				remoteAuthority: `${remoteAuthority.hostname}:${remoteAuthority.port || (remoteAuthority.protocol === 'https:' ? '443' : '80')}`,
 				_wrapWebWorkerExtHostInIframe,
-				developmentOptions: { enableSmokeTestDriver: this._environmentService.driverHandle === 'web' ? true : undefined },
+				developmentOptions: {
+					enableSmokeTestDriver: this._environmentService.driverHandle === 'web' ? true : undefined,
+					logLevel: this._logService.getLevel(),
+				},
 				settingsSyncOptions: !this._environmentService.isBuilt && this._environmentService.args['enable-sync'] ? { enabled: true } : undefined,
 			})))
 			.replace(/{{CLIENT_BACKGROUND_COLOR}}/g, () => backgroundColor)
