@@ -449,6 +449,7 @@ export class SuggestController implements IEditorContribution {
 
 			const providerId = event.item.provider._source ?? event.item.provider._debugDisplayName ?? 'unknownProvider';
 			if (!resourceLoggedEvents.has(providerId)) {
+				resourceLoggedEvents.add(providerId);
 				this._telemetryService.publicLog2<AcceptedSuggestion, AcceptedSuggestionClassification>('suggest.acceptedSuggestion', {
 					providerId,
 					basenameHash: '' + hash(basename(model.uri)),
