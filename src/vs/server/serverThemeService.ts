@@ -65,7 +65,7 @@ export class ServerThemeService implements IServerThemeService {
 	async refreshThemeExtensions(): Promise<void> {
 		const availableExtensions = await this.extensionScannerService._scanExtensions(locale || 'en-us');
 
-		this.logService.info(this.logPrefix, 'Scanning for theme extension...');
+		this.logService.debug(this.logPrefix, 'Scanning for theme extension...');
 
 		const users: IExtensionPointUser<IThemeExtensionPoint[]>[] = availableExtensions
 			.filter(desc => {
@@ -109,6 +109,7 @@ export class ServerThemeService implements IServerThemeService {
 
 export class ExtensionResourceLoaderService implements IExtensionResourceLoaderService {
 	declare readonly _serviceBrand: undefined;
+	public supportsExtensionGalleryResources = false;
 
 	constructor (
 		@IFileService private readonly _fileService: IFileService
@@ -117,5 +118,9 @@ export class ExtensionResourceLoaderService implements IExtensionResourceLoaderS
 	async readExtensionResource(uri: URI): Promise<string> {
 		const result = await this._fileService.readFile(uri);
 		return result.value.toString();
+	}
+
+	getExtensionGalleryResourceURL(galleryExtension: { publisher: string, name: string, version: string }, path?: string): undefined {
+		return;
 	}
 }
