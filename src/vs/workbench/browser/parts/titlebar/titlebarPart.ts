@@ -418,7 +418,6 @@ export class TitlebarPart extends Part implements ITitleService {
 					actionViewItemProvider: action => {
 						if (action instanceof SubmenuAction) {
 							return new DropdownMenuActionViewItem(action, action.actions, this.contextMenuService, {
-
 								classNames: Codicon.editorLayout.classNamesArray,
 								anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
 								keybindingProvider: action => this.keybindingService.lookupKeybinding(action.id)

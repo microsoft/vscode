@@ -34,6 +34,7 @@ export interface IMenuBarOptions {
 	getKeybinding?: (action: IAction) => ResolvedKeybinding | undefined;
 	alwaysOnMnemonics?: boolean;
 	compactMode?: Direction;
+	actionRunner?: IActionRunner;
 	getCompactMenuActions?: () => IAction[]
 }
 
@@ -109,7 +110,7 @@ export class MenuBar extends Disposable {
 
 		this.menuUpdater = this._register(new RunOnceScheduler(() => this.update(), 200));
 
-		this.actionRunner = this._register(new ActionRunner());
+		this.actionRunner = this.options.actionRunner ?? this._register(new ActionRunner());
 		this._register(this.actionRunner.onBeforeRun(() => {
 			this.setUnfocusedState();
 		}));
