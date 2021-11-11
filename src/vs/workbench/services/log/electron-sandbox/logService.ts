@@ -18,6 +18,7 @@ export class NativeLogService extends LogService {
 		const loggers: ILogger[] = [];
 		if (environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI) {
 			loggers.push(loggerService.createConsoleMainLogger());
+			loggers.push(disposables.add(loggerService.createLogger(environmentService.logFile, { name })));
 		}
 
 		// Normal logger: spdylog and console
