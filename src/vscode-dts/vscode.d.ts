@@ -1107,13 +1107,13 @@ declare module 'vscode' {
 		/**
 		 * The selections in this text editor. The primary selection is always at index 0.
 		 */
-		selections: Selection[];
+		selections: readonly Selection[];
 
 		/**
 		 * The current visible ranges in the editor (vertically).
 		 * This accounts only for vertical scrolling, and not for horizontal scrolling.
 		 */
-		readonly visibleRanges: Range[];
+		readonly visibleRanges: readonly Range[];
 
 		/**
 		 * Text editor options.
@@ -8656,7 +8656,7 @@ declare module 'vscode' {
 		/**
 		 * The currently visible editors or an empty array.
 		 */
-		export let visibleTextEditors: TextEditor[];
+		export let visibleTextEditors: readonly TextEditor[];
 
 		/**
 		 * An {@link Event} which fires when the {@link window.activeTextEditor active editor}
@@ -8669,7 +8669,7 @@ declare module 'vscode' {
 		 * An {@link Event} which fires when the array of {@link window.visibleTextEditors visible editors}
 		 * has changed.
 		 */
-		export const onDidChangeVisibleTextEditors: Event<TextEditor[]>;
+		export const onDidChangeVisibleTextEditors: Event<readonly TextEditor[]>;
 
 		/**
 		 * An {@link Event} which fires when the selection in an editor has changed.
@@ -9354,7 +9354,7 @@ declare module 'vscode' {
 		/**
 		 * Selected elements.
 		 */
-		readonly selection: T[];
+		readonly selection: readonly T[];
 
 	}
 
@@ -9388,7 +9388,7 @@ declare module 'vscode' {
 		/**
 		 * Currently selected elements.
 		 */
-		readonly selection: T[];
+		readonly selection: readonly T[];
 
 		/**
 		 * Event that is fired when the {@link TreeView.selection selection} has changed
@@ -13387,7 +13387,7 @@ declare module 'vscode' {
 		/**
 		 * List of breakpoints.
 		 */
-		export let breakpoints: Breakpoint[];
+		export let breakpoints: readonly Breakpoint[];
 
 		/**
 		 * An {@link Event} which fires when the {@link debug.activeDebugSession active debug session}
@@ -14322,7 +14322,7 @@ declare module 'vscode' {
 		 * The process of running tests should resolve the children of any test
 		 * items who have not yet been resolved.
 		 */
-		readonly include: TestItem[] | undefined;
+		readonly include: readonly TestItem[] | undefined;
 
 		/**
 		 * An array of tests the user has marked as excluded from the test included
@@ -14331,7 +14331,7 @@ declare module 'vscode' {
 		 * May be omitted if no exclusions were requested. Test controllers should
 		 * not run excluded tests or any children of excluded tests.
 		 */
-		readonly exclude: TestItem[] | undefined;
+		readonly exclude: readonly TestItem[] | undefined;
 
 		/**
 		 * The profile used for this request. This will always be defined

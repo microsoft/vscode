@@ -752,7 +752,7 @@ declare module 'vscode' {
 	//#endregion
 
 	// eslint-disable-next-line vscode-dts-region-comments
-	//#region @roblourens: new debug session option for simple UI 'managedByParent' (see https://github.com/microsoft/vscode/issues/128588)
+	//#region notebookDebugOptions: @roblourens: new debug session option for simple UI 'managedByParent' (see https://github.com/microsoft/vscode/issues/128588)
 
 	/**
 	 * Options for {@link debug.startDebugging starting a debug session}.
@@ -774,8 +774,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	// eslint-disable-next-line vscode-dts-region-comments
-	// #region scmValidation: @joaomoreno:
+	// #region scmValidation: @joaomoreno
 
 	/**
 	 * Represents the validation type of the Source Control input.
@@ -830,7 +829,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region scmSelectedProvider: @joaomoreno:
+	//#region scmSelectedProvider: @joaomoreno
 
 	export interface SourceControl {
 

@@ -42,9 +42,6 @@
 	//#region Add support for using node_modules.asar
 
 	/**
-	 * TODO@sandbox remove the support for passing in `appRoot` once
-	 * sandbox is fully enabled
-	 *
 	 * @param {string=} appRoot
 	 */
 	function enableASARSupport(appRoot) {
