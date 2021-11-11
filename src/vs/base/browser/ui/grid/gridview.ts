@@ -1523,7 +1523,6 @@ export class GridView implements IDisposable {
 	 *
 	 * @param json The JSON object.
 	 * @param deserializer A deserializer which can revive each view.
-	 * @param options
 	 * @returns A new {@link GridView} instance.
 	 */
 	static deserialize<T extends ISerializableView>(json: ISerializedGridView, deserializer: IViewDeserializer<T>, options: IGridViewOptions = {}): GridView {
