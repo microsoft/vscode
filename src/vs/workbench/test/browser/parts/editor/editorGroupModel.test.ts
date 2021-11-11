@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditorGroupModel, EditorGroupModelChangeKind, ISerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
+import { EditorGroupModel, ISerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { EditorExtensions, IEditorFactoryRegistry, IFileEditorInput, IEditorSerializer, CloseDirection, EditorsOrder, IResourceDiffEditorInput, IResourceSideBySideEditorInput, SideBySideEditor, EditorCloseContext, IEditorCloseEvent, IEditorOpenEvent, IEditorMoveEvent } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { TestLifecycleService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
@@ -25,6 +25,7 @@ import { TestContextService, TestStorageService } from 'vs/workbench/test/common
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { isEqual } from 'vs/base/common/resources';
+import { GroupChangeKind } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 suite('EditorGroupModel', () => {
 
@@ -107,28 +108,28 @@ suite('EditorGroupModel', () => {
 
 		group.onDidModelChange(e => {
 			switch (e.kind) {
-				case EditorGroupModelChangeKind.LOCK:
+				case GroupChangeKind.GROUP_LOCKED:
 					groupEvents.locked.push(group.id);
 					break;
-				case EditorGroupModelChangeKind.OPEN:
+				case GroupChangeKind.EDITOR_OPEN:
 					groupEvents.opened.push(e.editorInputOrEvent as IEditorOpenEvent);
 					break;
-				case EditorGroupModelChangeKind.CLOSE:
+				case GroupChangeKind.EDITOR_CLOSE:
 					groupEvents.closed.push(e.editorInputOrEvent as IEditorCloseEvent);
 					break;
-				case EditorGroupModelChangeKind.ACTIVATE:
+				case GroupChangeKind.EDITOR_ACTIVE:
 					groupEvents.activated.push(e.editorInputOrEvent as EditorInput);
 					break;
-				case EditorGroupModelChangeKind.PINNED:
+				case GroupChangeKind.EDITOR_PIN:
 					group.isPinned(e.editorInputOrEvent as EditorInput) ? groupEvents.pinned.push(e.editorInputOrEvent as EditorInput) : groupEvents.unpinned.push(e.editorInputOrEvent as EditorInput);
 					break;
-				case EditorGroupModelChangeKind.STICKY:
+				case GroupChangeKind.EDITOR_STICKY:
 					group.isSticky(e.editorInputOrEvent as EditorInput) ? groupEvents.sticky.push(e.editorInputOrEvent as EditorInput) : groupEvents.unsticky.push(e.editorInputOrEvent as EditorInput);
 					break;
-				case EditorGroupModelChangeKind.MOVE:
+				case GroupChangeKind.EDITOR_MOVE:
 					groupEvents.moved.push(e.editorInputOrEvent as IEditorMoveEvent);
 					break;
-				case EditorGroupModelChangeKind.DISPOSE:
+				case GroupChangeKind.EDITOR_DISPOSE:
 					groupEvents.disposed.push(e.editorInputOrEvent as EditorInput);
 					break;
 			}
@@ -299,7 +300,7 @@ suite('EditorGroupModel', () => {
 
 		let didEditorLabelChange = false;
 		const toDispose = clone.onDidModelChange((e) => {
-			if (e.kind === EditorGroupModelChangeKind.LABEL) {
+			if (e.kind === GroupChangeKind.EDITOR_LABEL) {
 				didEditorLabelChange = true;
 			}
 		});
@@ -1850,28 +1851,28 @@ suite('EditorGroupModel', () => {
 
 		let dirty1Counter = 0;
 		group1.onDidModelChange((e) => {
-			if (e.kind === EditorGroupModelChangeKind.DIRTY) {
+			if (e.kind === GroupChangeKind.EDITOR_DIRTY) {
 				dirty1Counter++;
 			}
 		});
 
 		let dirty2Counter = 0;
 		group2.onDidModelChange((e) => {
-			if (e.kind === EditorGroupModelChangeKind.DIRTY) {
+			if (e.kind === GroupChangeKind.EDITOR_DIRTY) {
 				dirty2Counter++;
 			}
 		});
 
 		let label1ChangeCounter = 0;
 		group1.onDidModelChange((e) => {
-			if (e.kind === EditorGroupModelChangeKind.LABEL) {
+			if (e.kind === GroupChangeKind.EDITOR_LABEL) {
 				label1ChangeCounter++;
 			}
 		});
 
 		let label2ChangeCounter = 0;
 		group2.onDidModelChange((e) => {
-			if (e.kind === EditorGroupModelChangeKind.LABEL) {
+			if (e.kind === GroupChangeKind.EDITOR_LABEL) {
 				label2ChangeCounter++;
 			}
 		});

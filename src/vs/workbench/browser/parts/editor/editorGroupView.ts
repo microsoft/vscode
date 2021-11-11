@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/editorgroupview';
-import { EditorGroupModel, EditorGroupModelChangeKind, IEditorOpenOptions, ISerializedEditorGroupModel, isSerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
+import { EditorGroupModel, IEditorOpenOptions, ISerializedEditorGroupModel, isSerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { GroupIdentifier, CloseDirection, IEditorCloseEvent, ActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, ActiveEditorStickyContext, ActiveEditorPinnedContext, EditorResourceAccessor, IEditorMoveEvent, EditorInputCapabilities, IEditorOpenEvent, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, ActiveEditorGroupLockedContext, SideBySideEditor, EditorCloseContext, IEditorWillMoveEvent, IEditorWillOpenEvent } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
@@ -525,44 +525,44 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Model Events
 		this._register(this.model.onDidModelChange(e => {
 			switch (e.kind) {
-				case EditorGroupModelChangeKind.LOCK:
+				case GroupChangeKind.GROUP_LOCKED:
 					this.onDidChangeGroupLocked();
 					break;
-				case EditorGroupModelChangeKind.PINNED:
+				case GroupChangeKind.EDITOR_PIN:
 					if (e.editorInputOrEvent instanceof EditorInput) {
 						this.onDidChangeEditorPinned(e.editorInputOrEvent);
 					}
 					break;
-				case EditorGroupModelChangeKind.STICKY:
+				case GroupChangeKind.EDITOR_STICKY:
 					if (e.editorInputOrEvent instanceof EditorInput) {
 						this.onDidChangeEditorSticky(e.editorInputOrEvent);
 					}
 					break;
-				case EditorGroupModelChangeKind.MOVE:
+				case GroupChangeKind.EDITOR_MOVE:
 					this.onDidMoveEditor(e.editorInputOrEvent as IEditorMoveEvent);
 					break;
-				case EditorGroupModelChangeKind.OPEN:
+				case GroupChangeKind.EDITOR_OPEN:
 					this.onDidOpenEditor(e.editorInputOrEvent as IEditorOpenEvent);
 					break;
-				case EditorGroupModelChangeKind.CLOSE:
+				case GroupChangeKind.EDITOR_CLOSE:
 					this.handleOnDidCloseEditor(e.editorInputOrEvent as IEditorCloseEvent);
 					break;
-				case EditorGroupModelChangeKind.DISPOSE:
+				case GroupChangeKind.EDITOR_DISPOSE:
 					if (e.editorInputOrEvent instanceof EditorInput) {
 						this.onWillDisposeEditor(e.editorInputOrEvent);
 					}
 					break;
-				case EditorGroupModelChangeKind.DIRTY:
+				case GroupChangeKind.EDITOR_DIRTY:
 					if (e.editorInputOrEvent instanceof EditorInput) {
 						this.onDidChangeEditorDirty(e.editorInputOrEvent);
 					}
 					break;
-				case EditorGroupModelChangeKind.LABEL:
+				case GroupChangeKind.EDITOR_LABEL:
 					if (e.editorInputOrEvent instanceof EditorInput) {
 						this.onDidChangeEditorLabel(e.editorInputOrEvent);
 					}
 					break;
-				case EditorGroupModelChangeKind.CAPABILITIES:
+				case GroupChangeKind.EDITOR_CAPABILITIES:
 					if (e.editorInputOrEvent instanceof EditorInput) {
 						this.onDidChangeEditorCapabilities(e.editorInputOrEvent);
 					}

@@ -411,7 +411,8 @@ export const enum GroupChangeKind {
 	EDITOR_CAPABILITIES,
 	EDITOR_PIN,
 	EDITOR_STICKY,
-	EDITOR_DIRTY
+	EDITOR_DIRTY,
+	EDITOR_DISPOSE
 }
 
 export interface IGroupChangeEvent {
