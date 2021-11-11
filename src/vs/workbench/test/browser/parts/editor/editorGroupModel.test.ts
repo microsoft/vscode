@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditorGroupModel, ISerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
+import { EditorGroupModel, EditorGroupModelChangeKind, ISerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { EditorExtensions, IEditorFactoryRegistry, IFileEditorInput, IEditorSerializer, CloseDirection, EditorsOrder, IResourceDiffEditorInput, IResourceSideBySideEditorInput, SideBySideEditor, EditorCloseContext, IEditorCloseEvent, IEditorOpenEvent, IEditorMoveEvent } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { TestLifecycleService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
@@ -105,14 +105,34 @@ suite('EditorGroupModel', () => {
 			disposed: []
 		};
 
-		group.onDidChangeLocked(() => groupEvents.locked.push(group.id));
-		group.onDidOpenEditor(e => groupEvents.opened.push(e));
-		group.onDidCloseEditor(e => groupEvents.closed.push(e));
-		group.onDidActivateEditor(e => groupEvents.activated.push(e));
-		group.onDidChangeEditorPinned(e => group.isPinned(e) ? groupEvents.pinned.push(e) : groupEvents.unpinned.push(e));
-		group.onDidChangeEditorSticky(e => group.isSticky(e) ? groupEvents.sticky.push(e) : groupEvents.unsticky.push(e));
-		group.onDidMoveEditor(e => groupEvents.moved.push(e));
-		group.onWillDisposeEditor(e => groupEvents.disposed.push(e));
+		group.onDidModelChange(e => {
+			switch (e.kind) {
+				case EditorGroupModelChangeKind.LOCK:
+					groupEvents.locked.push(group.id);
+					break;
+				case EditorGroupModelChangeKind.OPEN:
+					groupEvents.opened.push(e.editorInputOrEvent as IEditorOpenEvent);
+					break;
+				case EditorGroupModelChangeKind.CLOSE:
+					groupEvents.closed.push(e.editorInputOrEvent as IEditorCloseEvent);
+					break;
+				case EditorGroupModelChangeKind.ACTIVATE:
+					groupEvents.activated.push(e.editorInputOrEvent as EditorInput);
+					break;
+				case EditorGroupModelChangeKind.PINNED:
+					group.isPinned(e.editorInputOrEvent as EditorInput) ? groupEvents.pinned.push(e.editorInputOrEvent as EditorInput) : groupEvents.unpinned.push(e.editorInputOrEvent as EditorInput);
+					break;
+				case EditorGroupModelChangeKind.STICKY:
+					group.isSticky(e.editorInputOrEvent as EditorInput) ? groupEvents.sticky.push(e.editorInputOrEvent as EditorInput) : groupEvents.unsticky.push(e.editorInputOrEvent as EditorInput);
+					break;
+				case EditorGroupModelChangeKind.MOVE:
+					groupEvents.moved.push(e.editorInputOrEvent as IEditorMoveEvent);
+					break;
+				case EditorGroupModelChangeKind.DISPOSE:
+					groupEvents.disposed.push(e.editorInputOrEvent as EditorInput);
+					break;
+			}
+		});
 
 		return groupEvents;
 	}
@@ -278,7 +298,11 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(clone.isLocked, false); // locking does not clone over
 
 		let didEditorLabelChange = false;
-		const toDispose = clone.onDidChangeEditorLabel(() => didEditorLabelChange = true);
+		const toDispose = clone.onDidModelChange((e) => {
+			if (e.kind === EditorGroupModelChangeKind.LABEL) {
+				didEditorLabelChange = true;
+			}
+		});
 		input1.setLabel();
 		assert.ok(didEditorLabelChange);
 
@@ -1825,23 +1849,31 @@ suite('EditorGroupModel', () => {
 		group2.openEditor(input2, { pinned: true, active: true });
 
 		let dirty1Counter = 0;
-		group1.onDidChangeEditorDirty(() => {
-			dirty1Counter++;
+		group1.onDidModelChange((e) => {
+			if (e.kind === EditorGroupModelChangeKind.DIRTY) {
+				dirty1Counter++;
+			}
 		});
 
 		let dirty2Counter = 0;
-		group2.onDidChangeEditorDirty(() => {
-			dirty2Counter++;
+		group2.onDidModelChange((e) => {
+			if (e.kind === EditorGroupModelChangeKind.DIRTY) {
+				dirty2Counter++;
+			}
 		});
 
 		let label1ChangeCounter = 0;
-		group1.onDidChangeEditorLabel(() => {
-			label1ChangeCounter++;
+		group1.onDidModelChange((e) => {
+			if (e.kind === EditorGroupModelChangeKind.LABEL) {
+				label1ChangeCounter++;
+			}
 		});
 
 		let label2ChangeCounter = 0;
-		group2.onDidChangeEditorLabel(() => {
-			label2ChangeCounter++;
+		group2.onDidModelChange((e) => {
+			if (e.kind === EditorGroupModelChangeKind.LABEL) {
+				label2ChangeCounter++;
+			}
 		});
 
 		(<TestEditorInput>input1).setDirty();

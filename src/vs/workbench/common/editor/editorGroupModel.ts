@@ -70,7 +70,7 @@ export interface IMatchOptions {
 	strictEquals?: boolean;
 }
 
-export enum EditorModelChangeKind {
+export enum EditorGroupModelChangeKind {
 	LOCK,
 	ACTIVATE,
 	OPEN,
@@ -84,8 +84,8 @@ export enum EditorModelChangeKind {
 	STICKY
 }
 
-export interface EditorModelChangeEvent {
-	kind: EditorModelChangeKind;
+export interface EditorGroupModelChangeEvent {
+	kind: EditorGroupModelChangeKind;
 	editorInputOrEvent?: EditorInput | IEditorOpenEvent | IEditorCloseEvent | IEditorMoveEvent;
 }
 
@@ -95,40 +95,7 @@ export class EditorGroupModel extends Disposable {
 
 	//#region events
 
-	private readonly _onDidChangeLocked = this._register(new Emitter<void>());
-	readonly onDidChangeLocked = this._onDidChangeLocked.event;
-
-	private readonly _onDidActivateEditor = this._register(new Emitter<EditorInput>());
-	readonly onDidActivateEditor = this._onDidActivateEditor.event;
-
-	private readonly _onDidOpenEditor = this._register(new Emitter<IEditorOpenEvent>());
-	readonly onDidOpenEditor = this._onDidOpenEditor.event;
-
-	private readonly _onDidCloseEditor = this._register(new Emitter<IEditorCloseEvent>());
-	readonly onDidCloseEditor = this._onDidCloseEditor.event;
-
-	private readonly _onWillDisposeEditor = this._register(new Emitter<EditorInput>());
-	readonly onWillDisposeEditor = this._onWillDisposeEditor.event;
-
-	private readonly _onDidChangeEditorDirty = this._register(new Emitter<EditorInput>());
-	readonly onDidChangeEditorDirty = this._onDidChangeEditorDirty.event;
-
-	private readonly _onDidChangeEditorLabel = this._register(new Emitter<EditorInput>());
-	readonly onDidChangeEditorLabel = this._onDidChangeEditorLabel.event;
-
-	private readonly _onDidChangeEditorCapabilities = this._register(new Emitter<EditorInput>());
-	readonly onDidChangeEditorCapabilities = this._onDidChangeEditorCapabilities.event;
-
-	private readonly _onDidMoveEditor = this._register(new Emitter<IEditorMoveEvent>());
-	readonly onDidMoveEditor = this._onDidMoveEditor.event;
-
-	private readonly _onDidChangeEditorPinned = this._register(new Emitter<EditorInput>());
-	readonly onDidChangeEditorPinned = this._onDidChangeEditorPinned.event;
-
-	private readonly _onDidChangeEditorSticky = this._register(new Emitter<EditorInput>());
-	readonly onDidChangeEditorSticky = this._onDidChangeEditorSticky.event;
-
-	private readonly _onDidModelChange = this._register(new Emitter<EditorModelChangeEvent>());
+	private readonly _onDidModelChange = this._register(new Emitter<EditorGroupModelChangeEvent>());
 	readonly onDidModelChange = this._onDidModelChange.event;
 
 	//#endregion
@@ -308,8 +275,7 @@ export class EditorGroupModel extends Disposable {
 			this.registerEditorListeners(newEditor);
 
 			// Event
-			this._onDidOpenEditor.fire({ editor: newEditor, groupId: this.id, index: targetIndex });
-			this._onDidModelChange.fire(({ kind: EditorModelChangeKind.OPEN, editorInputOrEvent: { editor: newEditor, groupId: this.id, index: targetIndex } }));
+			this._onDidModelChange.fire(({ kind: EditorGroupModelChangeKind.OPEN, editorInputOrEvent: { editor: newEditor, groupId: this.id, index: targetIndex } }));
 
 			// Handle active
 			if (makeActive) {
@@ -360,32 +326,29 @@ export class EditorGroupModel extends Disposable {
 		// Re-emit disposal of editor input as our own event
 		listeners.add(Event.once(editor.onWillDispose)(() => {
 			if (this.indexOf(editor) >= 0) {
-				this._onWillDisposeEditor.fire(editor);
-				this._onDidModelChange.fire(({ kind: EditorModelChangeKind.DISPOSE, editorInputOrEvent: editor }));
+				this._onDidModelChange.fire(({ kind: EditorGroupModelChangeKind.DISPOSE, editorInputOrEvent: editor }));
 			}
 		}));
 
 		// Re-Emit dirty state changes
 		listeners.add(editor.onDidChangeDirty(() => {
-			this._onDidChangeEditorDirty.fire(editor);
-			this._onDidModelChange.fire(({ kind: EditorModelChangeKind.DIRTY, editorInputOrEvent: editor }));
+			this._onDidModelChange.fire(({ kind: EditorGroupModelChangeKind.DIRTY, editorInputOrEvent: editor }));
 		}));
 
 		// Re-Emit label changes
 		listeners.add(editor.onDidChangeLabel(() => {
-			this._onDidChangeEditorLabel.fire(editor);
-			this._onDidModelChange.fire(({ kind: EditorModelChangeKind.LABEL, editorInputOrEvent: editor }));
+			this._onDidModelChange.fire(({ kind: EditorGroupModelChangeKind.LABEL, editorInputOrEvent: editor }));
 		}));
 
 		// Re-Emit capability changes
 		listeners.add(editor.onDidChangeCapabilities(() => {
-			this._onDidChangeEditorCapabilities.fire(editor);
-			this._onDidModelChange.fire(({ kind: EditorModelChangeKind.CAPABILITIES, editorInputOrEvent: editor }));
+			this._onDidModelChange.fire(({ kind: EditorGroupModelChangeKind.CAPABILITIES, editorInputOrEvent: editor }));
 		}));
 
 		// Clean up dispose listeners once the editor gets closed
-		listeners.add(this.onDidCloseEditor(event => {
-			if (event.editor.matches(editor)) {
+		listeners.add(this.onDidModelChange(event => {
+
+			if (event.kind === EditorGroupModelChangeKind.CLOSE && (event.editorInputOrEvent as IEditorCloseEvent).editor.matches(editor)) {
 				dispose(listeners);
 			}
 		}));
@@ -400,8 +363,7 @@ export class EditorGroupModel extends Disposable {
 		this.splice(replaceIndex, false, replaceWith);
 
 		if (event) {
-			this._onDidCloseEditor.fire(event);
-			this._onDidModelChange.fire({ kind: EditorModelChangeKind.CLOSE, editorInputOrEvent: event });
+			this._onDidModelChange.fire({ kind: EditorGroupModelChangeKind.CLOSE, editorInputOrEvent: event });
 		}
 	}
 
@@ -409,8 +371,7 @@ export class EditorGroupModel extends Disposable {
 		const event = this.doCloseEditor(candidate, context, openNext);
 
 		if (event) {
-			this._onDidCloseEditor.fire(event);
-			this._onDidModelChange.fire({ kind: EditorModelChangeKind.CLOSE, editorInputOrEvent: event });
+			this._onDidModelChange.fire({ kind: EditorGroupModelChangeKind.CLOSE, editorInputOrEvent: event });
 
 			return event;
 		}
@@ -495,8 +456,7 @@ export class EditorGroupModel extends Disposable {
 		this.editors.splice(toIndex, 0, editor);
 
 		// Event
-		this._onDidMoveEditor.fire({ editor, groupId: this.id, index, newIndex: toIndex, target: this.id });
-		this._onDidModelChange.fire({ kind: EditorModelChangeKind.MOVE, editorInputOrEvent: { editor, groupId: this.id, index, newIndex: toIndex, target: this.id } });
+		this._onDidModelChange.fire({ kind: EditorGroupModelChangeKind.MOVE, editorInputOrEvent: { editor, groupId: this.id, index, newIndex: toIndex, target: this.id } });
 
 		return editor;
 	}
@@ -527,8 +487,7 @@ export class EditorGroupModel extends Disposable {
 		this.mru.unshift(editor);
 
 		// Event
-		this._onDidActivateEditor.fire(editor);
-		this._onDidModelChange.fire({ kind: EditorModelChangeKind.ACTIVATE, editorInputOrEvent: editor });
+		this._onDidModelChange.fire({ kind: EditorGroupModelChangeKind.ACTIVATE, editorInputOrEvent: editor });
 	}
 
 	pin(candidate: EditorInput): EditorInput | undefined {
@@ -553,8 +512,7 @@ export class EditorGroupModel extends Disposable {
 		this.preview = null;
 
 		// Event
-		this._onDidChangeEditorPinned.fire(editor);
-		this._onDidModelChange.fire({ kind: EditorModelChangeKind.PINNED, editorInputOrEvent: editor });
+		this._onDidModelChange.fire({ kind: EditorGroupModelChangeKind.PINNED, editorInputOrEvent: editor });
 	}
 
 	unpin(candidate: EditorInput): EditorInput | undefined {
@@ -580,8 +538,7 @@ export class EditorGroupModel extends Disposable {
 		this.preview = editor;
 
 		// Event
-		this._onDidChangeEditorPinned.fire(editor);
-		this._onDidModelChange.fire({ kind: EditorModelChangeKind.PINNED, editorInputOrEvent: editor });
+		this._onDidModelChange.fire({ kind: EditorGroupModelChangeKind.PINNED, editorInputOrEvent: editor });
 
 		// Close old preview editor if any
 		if (oldPreview) {
@@ -628,7 +585,7 @@ export class EditorGroupModel extends Disposable {
 		this.sticky++;
 
 		// Event
-		this._onDidChangeEditorSticky.fire(editor);
+		this._onDidModelChange.fire({ kind: EditorGroupModelChangeKind.STICKY, editorInputOrEvent: editor });
 	}
 
 	unstick(candidate: EditorInput): EditorInput | undefined {
@@ -656,7 +613,7 @@ export class EditorGroupModel extends Disposable {
 		this.sticky--;
 
 		// Event
-		this._onDidChangeEditorSticky.fire(editor);
+		this._onDidModelChange.fire({ kind: EditorGroupModelChangeKind.STICKY, editorInputOrEvent: editor });
 	}
 
 	isSticky(candidateOrIndex: EditorInput | number): boolean {
@@ -807,8 +764,7 @@ export class EditorGroupModel extends Disposable {
 		if (this.isLocked !== locked) {
 			this.locked = locked;
 
-			this._onDidChangeLocked.fire();
-			this._onDidModelChange.fire({ kind: EditorModelChangeKind.LOCK });
+			this._onDidModelChange.fire({ kind: EditorGroupModelChangeKind.LOCK });
 		}
 	}
 
