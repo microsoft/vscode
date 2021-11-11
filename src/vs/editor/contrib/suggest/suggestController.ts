@@ -46,6 +46,7 @@ import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { basename, extname } from 'vs/base/common/resources';
 import { hash } from 'vs/base/common/hash';
+import { ResourceMap } from 'vs/base/common/map';
 
 // sticky suggest widget which doesn't disappear on focus out and such
 let _sticky = false;
@@ -117,7 +118,7 @@ export class SuggestController implements IEditorContribution {
 	private readonly _toDispose = new DisposableStore();
 	private readonly _overtypingCapturer: IdleValue<OvertypingCapturer>;
 	private readonly _selectors = new PriorityRegistry<ISuggestItemPreselector>(s => s.priority);
-	private readonly _loggedAcceptEvents = new Set<string>();
+	private readonly _loggedEvents = new ResourceMap<Set<string>>();
 
 	constructor(
 		editor: ICodeEditor,
@@ -441,15 +442,20 @@ export class SuggestController implements IEditorContribution {
 				languageId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' },
 			};
 
-			const providerId = event.item.provider._source ?? event.item.provider._debugDisplayName ?? 'unknownProvider';
-			const data: AcceptedSuggestion = {
-				providerId,
-				basenameHash: '' + hash(basename(model.uri)),
-				languageId: model.getLanguageId(),
-				fileExtension: extname(model.uri),
-			};
+			const resourceLoggedEvents = this._loggedEvents.get(model.uri) ?? new Set<string>();
+			if (!this._loggedEvents.has(model.uri)) {
+				this._loggedEvents.set(model.uri, resourceLoggedEvents);
+			}
 
-			this._telemetryService.publicLog2<AcceptedSuggestion, AcceptedSuggestionClassification>('suggest.acceptedSuggestion', data);
+			const providerId = event.item.provider._source ?? event.item.provider._debugDisplayName ?? 'unknownProvider';
+			if (!resourceLoggedEvents.has(providerId)) {
+				this._telemetryService.publicLog2<AcceptedSuggestion, AcceptedSuggestionClassification>('suggest.acceptedSuggestion', {
+					providerId,
+					basenameHash: '' + hash(basename(model.uri)),
+					languageId: model.getLanguageId(),
+					fileExtension: extname(model.uri),
+				});
+			}
 
 			this.model.clear();
 			cts.dispose();
