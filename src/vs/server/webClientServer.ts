@@ -115,12 +115,12 @@ export class WebClientServer {
 				return this._handleStatic(req, res, parsedUrl);
 			}
 
-			if (parsedPath.base === '/callback') {
+			if (parsedPath.base === 'callback') {
 				// callback support
 				return this._handleCallback(req, res, parsedUrl);
 			}
 
-			if (parsedPath.base === '/fetch-callback') {
+			if (parsedPath.base === 'fetch-callback') {
 				// callback fetch support
 				return this._handleFetchCallback(req, res, parsedUrl);
 			}

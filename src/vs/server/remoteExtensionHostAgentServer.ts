@@ -5,6 +5,7 @@
 
 import * as crypto from 'crypto';
 import * as fs from 'fs';
+import * as path from 'path';
 import * as http from 'http';
 import * as net from 'net';
 import * as url from 'url';
@@ -400,20 +401,22 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 			return this._webClientServer.serveError(req, res, 400, `Bad request.`);
 		}
 
+		const parsedPath = path.parse(pathname);
+
 		// Version
-		if (pathname === '/version') {
+		if (parsedPath.base === 'version') {
 			res.writeHead(200, { 'Content-Type': 'text/plain' });
 			return res.end(this._productService.commit || '');
 		}
 
 		// Delay shutdown
-		if (pathname === '/delay-shutdown') {
+		if (parsedPath.base === 'delay-shutdown') {
 			this._delayShutdown();
 			res.writeHead(200);
 			return res.end('OK');
 		}
 
-		if (pathname === '/vscode-remote-resource') {
+		if (parsedPath.base === 'vscode-remote-resource') {
 			// Handle HTTP requests for resources rendered in the rich client (images, fonts, etc.)
 			// These resources could be files shipped with extensions or even workspace files.
 			if (parsedUrl.query['tkn'] !== this._connectionToken) {
