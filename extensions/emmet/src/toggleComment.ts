@@ -28,7 +28,7 @@ export function toggleComment(): Thenable<boolean> | undefined {
 
 	return editor.edit(editBuilder => {
 		let allEdits: vscode.TextEdit[][] = [];
-		editor.selections.reverse().forEach(selection => {
+		Array.from(editor.selections).reverse().forEach(selection => {
 			const edits = isStyleSheet(editor.document.languageId) ? toggleCommentStylesheet(editor.document, selection, <Stylesheet>rootNode) : toggleCommentHTML(editor.document, selection, rootNode!);
 			if (edits.length > 0) {
 				allEdits.push(edits);
