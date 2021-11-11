@@ -32,7 +32,14 @@ function serializeElement(element: Element, recursive: boolean): IElement {
 	}
 
 	const { left, top } = getTopLeftOffset(element as HTMLElement);
-
+	if (element.classList.contains('shadow-root-host') && element.shadowRoot) {
+		let e = element.shadowRoot.querySelectorAll('.monaco-menu-container .monaco-scrollable-element .monaco-action-bar .actions-container .action-item');
+		if (e) {
+			for (let i = 0; i < e.length; i++) {
+				children.push(serializeElement(e[i], true));
+			}
+		}
+	}
 	return {
 		tagName: element.tagName,
 		className: element.className,
@@ -179,7 +186,15 @@ export abstract class BaseWindowDriver implements IWindowDriver {
 	}
 
 	protected async _getElementXY(selector: string, offset?: { x: number, y: number }): Promise<{ x: number; y: number; }> {
-		const element = document.querySelector(selector);
+		let element = document.querySelector(selector);
+		if (selector.includes('shadow-root-host')) {
+			const root = document.querySelector(selector)?.shadowRoot;
+			if (!!root) {
+				element = root.children[1];
+			} else {
+				throw new Error('root not defined');
+			}
+		}
 
 		if (!element) {
 			return Promise.reject(new Error(`Element not found: ${selector}`));

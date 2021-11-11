@@ -27,6 +27,13 @@ export class Terminal {
 		await this.code.dispatchKeybinding('enter');
 	}
 
+	async runProfileCommand(type: 'createInstance' | 'setDefault', contributed?: boolean): Promise<void> {
+		const command = type === 'createInstance' ? 'Terminal: Create New Terminal (With Profile)' : 'Terminal: Select Default Profile';
+		await this.quickaccess.runCommand(command, true);
+		await new Promise(c => setTimeout(c, 500));
+		await this.code.dispatchKeybinding(contributed ? 'down down down enter' : 'down enter');
+	}
+
 	async waitForTerminalText(accept: (buffer: string[]) => boolean, message?: string): Promise<void> {
 		try {
 			await this.code.waitForTerminalBuffer(XTERM_SELECTOR, accept);
