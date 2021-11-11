@@ -45,6 +45,7 @@ interface ITokenClaims {
 	tid: string;
 	email?: string;
 	unique_name?: string;
+	exp?: number;
 	preferred_username?: string;
 	oid?: string;
 	altsecid?: string;
@@ -182,6 +183,7 @@ export class AzureActiveDirectoryService {
 			};
 		});
 
+		Logger.trace('storing data into keychain...');
 		await this._keychain.setToken(JSON.stringify(serializedData));
 	}
 
@@ -537,7 +539,8 @@ export class AzureActiveDirectoryService {
 						onDidChangeSessions.fire({ added: [], removed: [this.convertToSessionSync(token)], changed: [] });
 					}
 				}
-			}, 1000 * (token.expiresIn - 30)));
+				// For details on why this is set to 2/3... see https://github.com/microsoft/vscode/issues/133201#issuecomment-966668197
+			}, 1000 * (token.expiresIn * 2 / 3)));
 		}
 
 		await this.storeTokenData();
