@@ -267,22 +267,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region editorInsets: https://github.com/microsoft/vscode/issues/85682
 
-	export interface WebviewEditorInset {
-		readonly editor: TextEditor;
-		readonly line: number;
-		readonly height: number;
-		readonly webview: Webview;
-		readonly onDidDispose: Event<void>;
-		dispose(): void;
-	}
-
-	export namespace window {
-		export function createWebviewTextEditorInset(editor: TextEditor, line: number, height: number, options?: WebviewOptions): WebviewEditorInset;
-	}
-
-	//#endregion
 
 	//#region fsChunks: https://github.com/microsoft/vscode/issues/84515
 
