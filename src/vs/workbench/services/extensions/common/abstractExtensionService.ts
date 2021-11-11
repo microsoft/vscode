@@ -1159,7 +1159,7 @@ class ProposedApiController {
 				});
 				const key = ExtensionIdentifier.toKey(entry.key);
 				if (this._productEnabledExtensions.has(key)) {
-					_logService.warn(`Extension '${key} appears in BOTH 'enableProposedApi' and 'extensionEnabledApiProposals'. The latter is more restrictive and will override the former.`);
+					_logService.warn(`Extension '${key} appears in BOTH 'product.json#extensionAllowedProposedApi' and 'extensionEnabledApiProposals'. The latter is more restrictive and will override the former.`);
 				}
 				this._productEnabledExtensions.set(key, proposalNames);
 			});
