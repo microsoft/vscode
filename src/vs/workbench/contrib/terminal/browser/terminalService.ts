@@ -1119,7 +1119,6 @@ export class TerminalService implements ITerminalService {
 			const isPtyTerminal = options?.config && 'customPtyImplementation' in options.config;
 			const isLocalInRemoteTerminal = this._remoteAgentService.getConnection() && URI.isUri(options?.cwd) && options?.cwd.scheme === Schemas.vscodeFileResource;
 			if (!isPtyTerminal && !isLocalInRemoteTerminal) {
-				debugger;
 				await this._terminalProfileService.refreshAvailableProfiles();
 			}
 		}
