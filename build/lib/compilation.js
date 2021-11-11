@@ -201,7 +201,6 @@ function apiProposalNamesGenerator() {
                 `${proposalNames.map(t => `\t${t[0]}: '${t[1]}'`).join(',\n')}`,
                 '});',
                 'export type ApiProposalName = keyof typeof allApiProposals;',
-                'export const allApiProposalNames = <readonly ApiProposalName[]><unknown>Object.keys(allApiProposals);',
                 '',
             ].join('\n');
             const outFile = path.join(dtsFolder, '../vs/workbench/services/extensions/common/extensionsApiProposals.ts');
