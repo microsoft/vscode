@@ -137,19 +137,17 @@ export class ExtensionHostMain {
 
 		const extensionsDeactivated = this._extensionService.deactivateAll();
 
-		// Give extensions 1 second to wrap up any async dispose, then exit in at most 4 seconds
-		setTimeout(() => {
-			Promise.race([timeout(4000), extensionsDeactivated]).finally(() => {
-				if (this._hostUtils.pid) {
-					this._logService.info(`Extension host with pid ${this._hostUtils.pid} exiting with code 0`);
-				} else {
-					this._logService.info(`Extension host exiting with code 0`);
-				}
-				this._logService.flush();
-				this._logService.dispose();
-				this._hostUtils.exit(0);
-			});
-		}, 1000);
+		// Give extensions at most 5 seconds to wrap up any async deactivate, then exit
+		Promise.race([timeout(5000), extensionsDeactivated]).finally(() => {
+			if (this._hostUtils.pid) {
+				this._logService.info(`Extension host with pid ${this._hostUtils.pid} exiting with code 0`);
+			} else {
+				this._logService.info(`Extension host exiting with code 0`);
+			}
+			this._logService.flush();
+			this._logService.dispose();
+			this._hostUtils.exit(0);
+		});
 	}
 
 	private static _transform(initData: IInitData, rpcProtocol: RPCProtocol): IInitData {
