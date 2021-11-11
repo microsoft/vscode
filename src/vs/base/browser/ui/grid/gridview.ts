@@ -1047,8 +1047,20 @@ export class GridView implements IDisposable {
 		this._onDidScroll.input = root.onDidScroll;
 	}
 
+	/**
+	 * Fires whenever the user double clicks a {@link Sash sash}.
+	 */
 	readonly onDidSashReset = this.onDidSashResetRelay.event;
+
+	/**
+	 * Fires whenever the user scrolls a {@link SplitView} within
+	 * the grid.
+	 */
 	readonly onDidScroll = this._onDidScroll.event;
+
+	/**
+	 * Fires whenever a view within the grid changes its size constraints.
+	 */
 	readonly onDidChange = this._onDidChange.event;
 
 	/**
@@ -1348,12 +1360,12 @@ export class GridView implements IDisposable {
 	}
 
 	/**
-	 * Swap two {@link IView views} within the {@link GridView}.
+	 * Resize a {@link IView view}.
 	 *
-	 * @param from The {@link GridLocation location} of one view.
-	 * @param to The {@link GridLocation location} of another view.
+	 * @param location The {@link GridLocation location} of the view.
+	 * @param size The size the view should be. Optionally provide a single dimension.
 	 */
-	resizeView(location: GridLocation, { width, height }: Partial<IViewSize>): void {
+	resizeView(location: GridLocation, size: Partial<IViewSize>): void {
 		const [rest, index] = tail(location);
 		const [pathToParent, parent] = this.getNode(rest);
 
@@ -1361,11 +1373,11 @@ export class GridView implements IDisposable {
 			throw new Error('Invalid location');
 		}
 
-		if (!width && !height) {
+		if (!size.width && !size.height) {
 			return;
 		}
 
-		const [parentSize, grandParentSize] = parent.orientation === Orientation.HORIZONTAL ? [width, height] : [height, width];
+		const [parentSize, grandParentSize] = parent.orientation === Orientation.HORIZONTAL ? [size.width, size.height] : [size.height, size.width];
 
 		if (typeof grandParentSize === 'number' && pathToParent.length > 0) {
 			const [, grandParent] = tail(pathToParent);
