@@ -1125,16 +1125,16 @@ class ProposedApiController {
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IProductService productService: IProductService
 	) {
 
-		this._envEnabledExtensions = new Set((environmentService.extensionEnabledProposedApi ?? []).map(id => ExtensionIdentifier.toKey(id)));
+		this._envEnabledExtensions = new Set((_environmentService.extensionEnabledProposedApi ?? []).map(id => ExtensionIdentifier.toKey(id)));
 
 		this._envEnablesProposedApiForAll =
-			!environmentService.isBuilt || // always allow proposed API when running out of sources
-			(environmentService.isExtensionDevelopment && productService.quality !== 'stable') || // do not allow proposed API against stable builds when developing an extension
-			(this._envEnabledExtensions.size === 0 && Array.isArray(environmentService.extensionEnabledProposedApi)); // always allow proposed API if --enable-proposed-api is provided without extension ID
+			!_environmentService.isBuilt || // always allow proposed API when running out of sources
+			(_environmentService.isExtensionDevelopment && productService.quality !== 'stable') || // do not allow proposed API against stable builds when developing an extension
+			(this._envEnabledExtensions.size === 0 && Array.isArray(_environmentService.extensionEnabledProposedApi)); // always allow proposed API if --enable-proposed-api is provided without extension ID
 
 		this._productEnabledExtensions = new Map<string, string[]>();
 
@@ -1185,7 +1185,12 @@ class ProposedApiController {
 			const extensionSet = new Set(extension.enabledApiProposals);
 			const diff = new Set([...extensionSet].filter(a => !productSet.has(a)));
 			if (diff.size > 0) {
-				this._logService.warn(`Extension '${key}' appears in product.json but enables LESS API proposals than the extension.\npackage.json (LOOSES): ${[...extensionSet].join(', ')}\nproduct.json (WINS): ${[...productSet].join(', ')}`);
+				this._logService.critical(`Extension '${key}' appears in product.json but enables LESS API proposals than the extension wants.\npackage.json (LOOSES): ${[...extensionSet].join(', ')}\nproduct.json (WINS): ${[...productSet].join(', ')}`);
+
+				if (this._environmentService.isExtensionDevelopment) {
+					this._logService.critical(`Proceeding with EXTRA proposals (${[...diff].join(', ')}) because extension is in development mode. Still, this EXTENSION WILL BE BROKEN unless product.json is updated.`);
+					productEnabledProposals.push(...diff);
+				}
 			}
 
 			extension.enabledApiProposals = productEnabledProposals;
@@ -1201,12 +1206,11 @@ class ProposedApiController {
 			return;
 		}
 
-		if (!extension.isBuiltin && !this._productEnabledExtensions.has(key)) {
-			// restrictive: extension cannot use proposed API in this context and its
-			// declaration is nulled
+		if (!extension.isBuiltin && (extension.enableProposedApi || isNonEmptyArray(extension.enabledApiProposals))) {
+			// restrictive: extension cannot use proposed API in this context and its declaration is nulled
+			this._logService.critical(`Extension '${extension.identifier.value} CANNOT USE these API proposals '${extension.enabledApiProposals?.join(', ') ?? '*'}'. You MUST start in extension development mode or use the --enable-proposed-api command line flag`);
 			extension.enabledApiProposals = [];
 			extension.enableProposedApi = false;
-			this._logService.critical(`Extension '${extension.identifier.value} cannot use PROPOSED API (must started out of dev or enabled via --enable-proposed-api)`);
 		}
 	}
 }
