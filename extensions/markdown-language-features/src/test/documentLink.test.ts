@@ -21,7 +21,7 @@ async function getLinksForFile(file: vscode.Uri): Promise<vscode.DocumentLink[]>
 	return r;
 }
 
-suite.skip('Markdown Document links', () => {
+suite('Markdown Document links', () => {
 
 	setup(async () => {
 		// the tests make the assumption that link providers are already registered
