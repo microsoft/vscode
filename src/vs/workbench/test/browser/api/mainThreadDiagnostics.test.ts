@@ -107,11 +107,12 @@ suite('MainThreadDiagnostics', function () {
 			await timeout(0);
 			assert.strictEqual(markerService.read().length, 2);
 			assert.strictEqual(changedData.length, 1);
+			assert.strictEqual(changedData[0].length, 1);
 			assert.strictEqual(changedData[0][0][1][0].message, 'forgein_owner');
 		});
 	});
 
-	test.skip('onDidChangeDiagnostics different behavior when "extensionKind" ui running on remote workspace #136955', function () {
+	test('onDidChangeDiagnostics different behavior when "extensionKind" ui running on remote workspace #136955', function () {
 		return runWithFakedTimers({}, async () => {
 
 			const markerData: IMarkerData = {
@@ -150,14 +151,9 @@ suite('MainThreadDiagnostics', function () {
 				}
 			);
 
-
 			diag.$clear('bar');
-
-			// added one marker via the API and one via the ext host. the latter must not
-			// trigger an event to the extension host
-
 			await timeout(0);
-			assert.strictEqual(markerService.read().length, 1);
+			assert.strictEqual(markerService.read().length, 0);
 			assert.strictEqual(changedData.length, 1);
 		});
 	});
