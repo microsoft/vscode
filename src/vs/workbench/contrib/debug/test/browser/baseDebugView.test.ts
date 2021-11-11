@@ -94,7 +94,7 @@ suite('Debug - Base Debug View', () => {
 		let expression = $('.');
 		let name = $('.');
 		let value = $('.');
-		let label = new HighlightedLabel(name, false);
+		let label = new HighlightedLabel(name);
 		renderVariable(variable, { expression, name, value, label }, false, []);
 
 		assert.strictEqual(label.element.textContent, 'foo');

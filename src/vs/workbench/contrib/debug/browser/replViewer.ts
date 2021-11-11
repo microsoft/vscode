@@ -70,7 +70,7 @@ export class ReplEvaluationInputsRenderer implements ITreeRenderer<ReplEvaluatio
 	renderTemplate(container: HTMLElement): IReplEvaluationInputTemplateData {
 		dom.append(container, $('span.arrow' + ThemeIcon.asCSSSelector(debugConsoleEvaluationInput)));
 		const input = dom.append(container, $('.expression'));
-		const label = new HighlightedLabel(input, false);
+		const label = new HighlightedLabel(input);
 		return { label };
 	}
 
@@ -260,7 +260,7 @@ export class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElemen
 
 		const expression = dom.append(container, $('.output.expression'));
 		const name = dom.append(expression, $('span.name'));
-		const label = new HighlightedLabel(name, false);
+		const label = new HighlightedLabel(name);
 		const value = dom.append(expression, $('span.value'));
 
 		return { container, expression, name, label, value };

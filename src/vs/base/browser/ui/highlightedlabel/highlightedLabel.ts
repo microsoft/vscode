@@ -7,39 +7,72 @@ import * as dom from 'vs/base/browser/dom';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import * as objects from 'vs/base/common/objects';
 
+/**
+ * A range to be highlighted.
+ */
 export interface IHighlight {
 	start: number;
 	end: number;
-	extraClasses?: string;
+	extraClasses?: string[];
 }
 
+export interface IOptions {
+
+	/**
+	 * Whether
+	 */
+	readonly supportIcons?: boolean;
+}
+
+/**
+ * A widget which can render a label with substring highlights, often
+ * originating from a filter function like the fuzzy matcher.
+ */
 export class HighlightedLabel {
 
 	private readonly domNode: HTMLElement;
 	private text: string = '';
 	private title: string = '';
 	private highlights: IHighlight[] = [];
+	private supportIcons: boolean;
 	private didEverRender: boolean = false;
 
-	constructor(container: HTMLElement, private supportIcons: boolean) {
-		this.domNode = document.createElement('span');
-		this.domNode.className = 'monaco-highlighted-label';
-
-		container.appendChild(this.domNode);
+	/**
+	 * Create a new {@link HighlightedLabel}.
+	 *
+	 * @param container The parent container to append to.
+	 */
+	constructor(container: HTMLElement, options?: IOptions) {
+		this.supportIcons = options?.supportIcons ?? false;
+		this.domNode = dom.append(container, dom.$('span.monaco-highlighted-label'));
 	}
 
+	/**
+	 * The label's DOM node.
+	 */
 	get element(): HTMLElement {
 		return this.domNode;
 	}
 
+	/**
+	 * Set the label and highlights.
+	 *
+	 * @param text The label to display.
+	 * @param highlights The ranges to highlight.
+	 * @param title An optional title for the hover tooltip.
+	 * @param escapeNewLines Whether to escape new lines.
+	 * @returns
+	 */
 	set(text: string | undefined, highlights: IHighlight[] = [], title: string = '', escapeNewLines?: boolean) {
 		if (!text) {
 			text = '';
 		}
+
 		if (escapeNewLines) {
 			// adjusts highlights inplace
 			text = HighlightedLabel.escapeNewLines(text, highlights);
 		}
+
 		if (this.didEverRender && this.text === text && this.title === title && objects.equals(this.highlights, highlights)) {
 			return;
 		}
@@ -59,6 +92,7 @@ export class HighlightedLabel {
 			if (highlight.end === highlight.start) {
 				continue;
 			}
+
 			if (pos < highlight.start) {
 				const substring = this.text.substring(pos, highlight.start);
 				children.push(dom.$('span', undefined, ...this.supportIcons ? renderLabelWithIcons(substring) : [substring]));
@@ -67,9 +101,11 @@ export class HighlightedLabel {
 
 			const substring = this.text.substring(highlight.start, highlight.end);
 			const element = dom.$('span.highlight', undefined, ...this.supportIcons ? renderLabelWithIcons(substring) : [substring]);
+
 			if (highlight.extraClasses) {
-				element.classList.add(highlight.extraClasses);
+				element.classList.add(...highlight.extraClasses);
 			}
+
 			children.push(element);
 			pos = highlight.end;
 		}
@@ -80,16 +116,17 @@ export class HighlightedLabel {
 		}
 
 		dom.reset(this.domNode, ...children);
+
 		if (this.title) {
 			this.domNode.title = this.title;
 		} else {
 			this.domNode.removeAttribute('title');
 		}
+
 		this.didEverRender = true;
 	}
 
 	static escapeNewLines(text: string, highlights: IHighlight[]): string {
-
 		let total = 0;
 		let extra = 0;
 
