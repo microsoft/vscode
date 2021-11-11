@@ -12,7 +12,8 @@ import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/c
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IMessage } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionIdentifier, IExtensionDescription, EXTENSION_CATEGORIES, ExtensionKind } from 'vs/platform/extensions/common/extensions';
-import { apiProposalNames } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
+import { allApiProposals } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
+import { values } from 'vs/base/common/collections';
 
 const schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
 
@@ -232,7 +233,8 @@ export const schema: IJSONSchema = {
 			uniqueItems: true,
 			items: {
 				type: 'string',
-				enum: Array.from(apiProposalNames)
+				enum: Object.keys(allApiProposals),
+				markdownEnumDescriptions: values(allApiProposals)
 			}
 		},
 		activationEvents: {

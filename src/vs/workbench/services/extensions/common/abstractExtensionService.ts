@@ -34,7 +34,7 @@ import { URI } from 'vs/base/common/uri';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { Logger } from 'vs/workbench/services/extensions/common/extensionPoints';
 import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
-import { ApiProposalName, apiProposalNames } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
+import { ApiProposalName, allApiProposalNames } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 import { forEach } from 'vs/base/common/collections';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -1143,7 +1143,7 @@ class ProposedApiController {
 		if (isNonEmptyArray(productService.extensionAllowedProposedApi)) {
 			for (let id of productService.extensionAllowedProposedApi) {
 				const key = ExtensionIdentifier.toKey(id);
-				this._productEnabledExtensions.set(key, Array.from(apiProposalNames));
+				this._productEnabledExtensions.set(key, allApiProposalNames.slice());
 			}
 		}
 
@@ -1151,7 +1151,8 @@ class ProposedApiController {
 		if (productService.extensionEnabledApiProposals) {
 			forEach(productService.extensionEnabledApiProposals, entry => {
 				const proposalNames = entry.value.filter(name => {
-					if (!apiProposalNames.has(<ApiProposalName>name)) {
+					if (!allApiProposalNames.includes(<ApiProposalName>name)) {
+						_logService.warn(`Extension '${key} wants API proposal '${name}' but that proposal DOES NOT EXIST.`);
 						return false;
 					}
 					return true;

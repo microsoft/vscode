@@ -5,8 +5,8 @@
 
 // THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.
 
-const apiProposals = {
+export const allApiProposals = Object.freeze({
 
-};
-export type ApiProposalName = keyof typeof apiProposals;
-export const apiProposalNames: ReadonlySet<ApiProposalName> = new Set(<ApiProposalName[]>Object.keys(apiProposals));
+});
+export type ApiProposalName = keyof typeof allApiProposals;
+export const allApiProposalNames = <readonly ApiProposalName[]><unknown>Object.keys(allApiProposals);
