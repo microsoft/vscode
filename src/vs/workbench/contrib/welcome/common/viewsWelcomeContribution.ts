@@ -73,7 +73,7 @@ function parseGroupAndOrder(welcome: ViewWelcome, contribution: IExtensionPointU
 	let group: string | undefined;
 	let order: number | undefined;
 	if (welcome.group) {
-		if (!isProposedApiEnabled(contribution.description, undefined)) {
+		if (!isProposedApiEnabled(contribution.description, 'contribViewsWelcome')) {
 			contribution.collector.warn(nls.localize('ViewsWelcomeExtensionPoint.proposedAPI', "The viewsWelcome contribution in '{0}' requires 'enableProposedApi' to be enabled.", contribution.description.identifier.value));
 			return { group, order };
 		}
