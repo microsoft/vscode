@@ -117,10 +117,6 @@ export class NotebookEditor extends EditorPane {
 
 	protected createEditor(parent: HTMLElement): void {
 		this._rootElement = DOM.append(parent, DOM.$('.notebook-editor'));
-
-		// this._widget.createEditor();
-		this._register(this.onDidFocus(() => this._widget.value?.updateEditorFocus()));
-		this._register(this.onDidBlur(() => this._widget.value?.updateEditorFocus()));
 	}
 
 	getDomNode() {
