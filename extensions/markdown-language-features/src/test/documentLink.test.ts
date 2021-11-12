@@ -15,7 +15,10 @@ function workspaceFile(...segments: string[]) {
 }
 
 async function getLinksForFile(file: vscode.Uri): Promise<vscode.DocumentLink[]> {
-	return (await vscode.commands.executeCommand<vscode.DocumentLink[]>('vscode.executeLinkProvider', file))!;
+	console.log('getting links', file.toString(), Date.now());
+	const r = (await vscode.commands.executeCommand<vscode.DocumentLink[]>('vscode.executeLinkProvider', file))!;
+	console.log('got links', file.toString(), Date.now());
+	return r;
 }
 
 suite('Markdown Document links', () => {
@@ -94,7 +97,6 @@ suite('Markdown Document links', () => {
 		assert.strictEqual(vscode.window.activeTextEditor!.selection.start.line, 1);
 	});
 
-
 	test('Should navigate to line number within non-md file', async () => {
 		await withFileContents(testFileA, '[b](sub/foo.txt#L3)');
 
@@ -147,15 +149,21 @@ function assertActiveDocumentUri(expectedUri: vscode.Uri) {
 }
 
 async function withFileContents(file: vscode.Uri, contents: string): Promise<void> {
+	console.log('openTextDocument', file.toString(), Date.now());
 	const document = await vscode.workspace.openTextDocument(file);
+	console.log('showTextDocument', file.toString(), Date.now());
 	const editor = await vscode.window.showTextDocument(document);
+	console.log('editTextDocument', file.toString(), Date.now());
 	await editor.edit(edit => {
 		edit.replace(new vscode.Range(0, 0, 1000, 0), contents);
 	});
+	console.log('opened done', vscode.window.activeTextEditor?.document.toString(), Date.now());
 }
 
 async function executeLink(link: vscode.DocumentLink) {
+	console.log('executeingLink', link.target?.toString(), Date.now());
+
 	const args = JSON.parse(decodeURIComponent(link.target!.query));
 	await vscode.commands.executeCommand(link.target!.path, args);
+	console.log('executedLink', vscode.window.activeTextEditor?.document.toString(), Date.now());
 }
-

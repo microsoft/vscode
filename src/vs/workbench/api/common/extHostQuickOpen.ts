@@ -10,7 +10,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { IExtHostWorkspaceProvider } from 'vs/workbench/api/common/extHostWorkspace';
 import { InputBox, InputBoxOptions, QuickInput, QuickInputButton, QuickPick, QuickPickItem, QuickPickItemButtonEvent, QuickPickOptions, WorkspaceFolder, WorkspaceFolderPickOptions } from 'vscode';
-import { ExtHostQuickOpenShape, IMainContext, MainContext, TransferQuickPickItems, TransferQuickInput, TransferQuickInputButton } from './extHost.protocol';
+import { ExtHostQuickOpenShape, IMainContext, MainContext, TransferQuickPickItem, TransferQuickInput, TransferQuickInputButton } from './extHost.protocol';
 import { URI } from 'vs/base/common/uri';
 import { ThemeIcon, QuickInputButtons } from 'vs/workbench/api/common/extHostTypes';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
@@ -87,7 +87,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 
 				return itemsPromise.then(items => {
 
-					const pickItems: TransferQuickPickItems[] = [];
+					const pickItems: TransferQuickPickItem[] = [];
 					for (let handle = 0; handle < items.length; handle++) {
 
 						const item = items[handle];
@@ -193,7 +193,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		// ---- QuickInput
 
 		createQuickPick<T extends QuickPickItem>(extensionId: ExtensionIdentifier, enableProposedApi: boolean): QuickPick<T> {
-			const session: ExtHostQuickPick<T> = new ExtHostQuickPick(extensionId, enableProposedApi, () => this._sessions.delete(session._id));
+			const session: ExtHostQuickPick<T> = new ExtHostQuickPick(extensionId, () => this._sessions.delete(session._id));
 			this._sessions.set(session._id, session);
 			return session;
 		}
@@ -531,7 +531,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		private readonly _onDidChangeSelectionEmitter = new Emitter<T[]>();
 		private readonly _onDidTriggerItemButtonEmitter = new Emitter<QuickPickItemButtonEvent<T>>();
 
-		constructor(extensionId: ExtensionIdentifier, private readonly enableProposedApi: boolean, onDispose: () => void) {
+		constructor(extensionId: ExtensionIdentifier, onDispose: () => void) {
 			super(extensionId, onDispose);
 			this._disposables.push(
 				this._onDidChangeActiveEmitter,
@@ -561,16 +561,13 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 					detail: item.detail,
 					picked: item.picked,
 					alwaysShow: item.alwaysShow,
-					// Proposed API only at the moment
-					buttons: item.buttons && this.enableProposedApi
-						? item.buttons.map<TransferQuickInputButton>((button, i) => {
-							return {
-								...getIconPathOrClass(button),
-								tooltip: button.tooltip,
-								handle: i
-							};
-						})
-						: undefined,
+					buttons: item.buttons?.map<TransferQuickInputButton>((button, i) => {
+						return {
+							...getIconPathOrClass(button),
+							tooltip: button.tooltip,
+							handle: i
+						};
+					}),
 				}))
 			});
 		}

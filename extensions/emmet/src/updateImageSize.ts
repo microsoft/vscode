@@ -23,7 +23,7 @@ export function updateImageSize(): Promise<boolean> | undefined {
 	}
 	const editor = window.activeTextEditor;
 
-	const allUpdatesPromise = editor.selections.reverse().map(selection => {
+	const allUpdatesPromise = Array.from(editor.selections).reverse().map(selection => {
 		const position = selection.isReversed ? selection.active : selection.anchor;
 		if (!isStyleSheet(editor.document.languageId)) {
 			return updateImageSizeHTML(editor, position);

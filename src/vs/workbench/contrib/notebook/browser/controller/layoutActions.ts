@@ -13,7 +13,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { OpenGettingStarted } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
@@ -23,7 +23,7 @@ registerAction2(class NotebookConfigureLayoutAction extends Action2 {
 			id: 'workbench.notebook.layout.select',
 			title: localize('workbench.notebook.layout.select.label', "Select between Notebook Layouts"),
 			f1: true,
-			precondition: ContextKeyExpr.equals(`config.${OpenGettingStarted}`, true),
+			precondition: ContextKeyExpr.equals(`config.${NotebookSetting.openGettingStarted}`, true),
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			menu: [
 				{
@@ -32,7 +32,7 @@ registerAction2(class NotebookConfigureLayoutAction extends Action2 {
 					when: ContextKeyExpr.and(
 						NOTEBOOK_IS_ACTIVE_EDITOR,
 						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true),
-						ContextKeyExpr.equals(`config.${OpenGettingStarted}`, true)
+						ContextKeyExpr.equals(`config.${NotebookSetting.openGettingStarted}`, true)
 					),
 					order: 0
 				},
@@ -41,7 +41,7 @@ registerAction2(class NotebookConfigureLayoutAction extends Action2 {
 					group: 'notebookLayout',
 					when: ContextKeyExpr.and(
 						ContextKeyExpr.equals('config.notebook.globalToolbar', true),
-						ContextKeyExpr.equals(`config.${OpenGettingStarted}`, true)
+						ContextKeyExpr.equals(`config.${NotebookSetting.openGettingStarted}`, true)
 					),
 					order: 0
 				}

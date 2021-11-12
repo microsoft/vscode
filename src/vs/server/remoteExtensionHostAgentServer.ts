@@ -1043,7 +1043,7 @@ const getOrCreateSpdLogService: (environmentService: IServerEnvironmentService) 
 	let _logService: ILogService | null;
 	return function getLogService(environmentService: IServerEnvironmentService): ILogService {
 		if (!_logService) {
-			_logService = new LogService(new SpdLogLogger(RemoteExtensionLogFileName, join(environmentService.logsPath, `${RemoteExtensionLogFileName}.log`), true, getLogLevel(environmentService)));
+			_logService = new LogService(new SpdLogLogger(RemoteExtensionLogFileName, join(environmentService.logsPath, `${RemoteExtensionLogFileName}.log`), true, false, getLogLevel(environmentService)));
 		}
 		return _logService;
 	};

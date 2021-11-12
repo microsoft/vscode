@@ -5,6 +5,9 @@
   "publisher": "vscode",
   "license": "MIT",
   "enableProposedApi": true,
+  "enabledApiProposals": [
+    "resolvers"
+  ],
   "private": true,
   "engines": {
     "vscode": "^1.25.0"

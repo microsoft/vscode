@@ -3,7 +3,6 @@
   "displayName": "%displayName%",
   "description": "%description%",
   "version": "1.0.0",
-  "enableProposedApi": true,
   "publisher": "vscode",
   "license": "MIT",
   "icon": "images/icon.png",

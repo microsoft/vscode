@@ -167,7 +167,7 @@ class OneReferenceTemplate {
 	readonly label: HighlightedLabel;
 
 	constructor(container: HTMLElement) {
-		this.label = new HighlightedLabel(container, false);
+		this.label = new HighlightedLabel(container);
 	}
 
 	set(element: OneReference, score?: FuzzyScore): void {

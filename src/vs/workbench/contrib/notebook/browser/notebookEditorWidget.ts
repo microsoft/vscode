@@ -412,7 +412,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				this._updateForNotebookConfiguration();
 			}
 
-			if (e.compactView || e.focusIndicator || e.insertToolbarPosition || e.cellToolbarLocation || e.dragAndDropEnabled || e.fontSize || e.insertToolbarAlignment) {
+			if (e.compactView || e.focusIndicator || e.insertToolbarPosition || e.cellToolbarLocation || e.dragAndDropEnabled || e.fontSize || e.markupFontSize || e.insertToolbarAlignment) {
 				this._styleElement?.remove();
 				this._createLayoutStyles();
 				this._webview?.updateOptions(this.notebookOptions.computeWebviewOptions());
@@ -1382,13 +1382,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		// model attached
 		this._localCellStateListeners = this.viewModel.viewCells.map(cell => this._bindCellListener(cell));
+		this._lastCellWithEditorFocus = this.viewModel.viewCells.find(viewCell => this.getActiveCell() === viewCell && viewCell.focusMode === CellFocusMode.Editor) ?? null;
 
 		this._localStore.add(this.viewModel.onDidChangeViewCells((e) => {
 			if (this._isDisposed) {
 				return;
 			}
 
-			// update resize listener
+			// update cell listener
 			e.splices.reverse().forEach(splice => {
 				const [start, deleted, newCells] = splice;
 				const deletedCells = this._localCellStateListeners.splice(start, deleted, ...newCells.map(cell => this._bindCellListener(cell)));
@@ -1433,9 +1434,23 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			if (e.outputCollapsedChanged && cell.isOutputCollapsed && cell.cellKind === CellKind.Code) {
 				cell.outputsViewModels.forEach(output => this.hideInset(output));
 			}
+
+			if (e.focusModeChanged) {
+				this._validateCellFocusMode(cell);
+			}
 		}));
 
 		return store;
+	}
+
+
+	private _lastCellWithEditorFocus: ICellViewModel | null = null;
+	private _validateCellFocusMode(cell: ICellViewModel) {
+		if (this._lastCellWithEditorFocus && this._lastCellWithEditorFocus !== cell) {
+			this._lastCellWithEditorFocus.focusMode = CellFocusMode.Container;
+		}
+
+		this._lastCellWithEditorFocus = cell;
 	}
 
 	private async _warmupWithMarkdownRenderer(viewModel: NotebookViewModel, viewState: INotebookEditorViewState | undefined) {
@@ -2850,7 +2865,7 @@ registerThemingParticipant((theme, collector) => {
 
 	const focusedEditorBorderColorColor = theme.getColor(focusedEditorBorderColor);
 	if (focusedEditorBorderColorColor) {
-		collector.addRule(`.notebookOverlay .monaco-list-row .cell-editor-focus .cell-editor-part:before { outline: solid 1px ${focusedEditorBorderColorColor}; }`);
+		collector.addRule(`.notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-editor-focus .cell-editor-part:before { outline: solid 1px ${focusedEditorBorderColorColor}; }`);
 	}
 
 	const cellBorderColor = theme.getColor(notebookCellBorder);

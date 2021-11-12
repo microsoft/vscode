@@ -302,6 +302,46 @@ function createObjectValueSuggester(element: SettingsTreeSettingElement): IObjec
 	};
 }
 
+function isNonNullableNumericType(type: unknown): type is 'number' | 'integer' {
+	return type === 'number' || type === 'integer';
+}
+
+function parseNumericObjectValues(dataElement: SettingsTreeSettingElement, v: Record<string, unknown>): Record<string, unknown> {
+	const newRecord: Record<string, unknown> = {};
+	for (const key in v) {
+		// Set to true/false once we're sure of the answer
+		let keyMatchesNumericProperty: boolean | undefined;
+		const patternProperties = dataElement.setting.objectPatternProperties;
+		const properties = dataElement.setting.objectProperties;
+		const additionalProperties = dataElement.setting.objectAdditionalProperties;
+
+		// Match the current record key against the properties of the object
+		if (properties) {
+			for (const propKey in properties) {
+				if (propKey === key) {
+					keyMatchesNumericProperty = isNonNullableNumericType(properties[propKey].type);
+					break;
+				}
+			}
+		}
+		if (keyMatchesNumericProperty === undefined && patternProperties) {
+			for (const patternKey in patternProperties) {
+				if (key.match(patternKey)) {
+					keyMatchesNumericProperty = isNonNullableNumericType(patternProperties[patternKey].type);
+					break;
+				}
+			}
+		}
+		if (keyMatchesNumericProperty === undefined && additionalProperties && typeof additionalProperties !== 'boolean') {
+			if (isNonNullableNumericType(additionalProperties.type)) {
+				keyMatchesNumericProperty = true;
+			}
+		}
+		newRecord[key] = keyMatchesNumericProperty ? Number(v[key]) : v[key];
+	}
+	return newRecord;
+}
+
 function getListDisplayValue(element: SettingsTreeSettingElement): IListDataItem[] {
 	if (!element.value || !isArray(element.value)) {
 		return [];
@@ -1101,26 +1141,13 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 		common.toDispose.add(
 			listWidget.onDidChangeList(e => {
 				const newList = this.computeNewList(template, e);
-				this.onDidChangeList(template, newList);
-				if (newList !== null && template.onChange) {
+				if (template.onChange) {
 					template.onChange(newList);
 				}
 			})
 		);
 
 		return template;
-	}
-
-	private onDidChangeList(template: ISettingListItemTemplate, newList: string[] | undefined | null): void {
-		if (!template.context || newList === null) {
-			return;
-		}
-
-		this._onDidChangeSetting.fire({
-			key: template.context.setting.key,
-			value: newList,
-			type: template.context.valueType
-		});
 	}
 
 	private computeNewList(template: ISettingListItemTemplate, e: ISettingListChangeEvent<IListDataItem>): string[] | undefined {
@@ -1179,7 +1206,7 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 		super.renderSettingElement(element, index, templateData);
 	}
 
-	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingListItemTemplate, onChange: (value: string[] | undefined) => void): void {
+	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingListItemTemplate, onChange: (value: string[] | number[] | undefined) => void): void {
 		const value = getListDisplayValue(dataElement);
 		const keySuggester = dataElement.setting.enum ? createArraySuggester(dataElement) : undefined;
 		template.listWidget.setValue(value, {
@@ -1192,9 +1219,16 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 			template.listWidget.cancelEdit();
 		}));
 
-		template.onChange = (v) => {
-			onChange(v);
-			renderArrayValidations(dataElement, template, v, false);
+		template.onChange = (v: string[] | undefined) => {
+			if (v && !renderArrayValidations(dataElement, template, v, false)) {
+				const itemType = dataElement.setting.arrayItemType;
+				const arrToSave = isNonNullableNumericType(itemType) ? v.map(a => +a) : v;
+				onChange(arrToSave);
+			} else {
+				// Save the setting unparsed and containing the errors.
+				// renderArrayValidations will render relevant error messages.
+				onChange(v);
+			}
 		};
 
 		renderArrayValidations(dataElement, template, value.map(v => v.value.data.toString()), true);
@@ -1335,8 +1369,14 @@ export class SettingObjectRenderer extends AbstractSettingObjectRenderer impleme
 		}));
 
 		template.onChange = (v: Record<string, unknown> | undefined) => {
-			onChange(v);
-			renderArrayValidations(dataElement, template, v, false);
+			if (v && !renderArrayValidations(dataElement, template, v, false)) {
+				const parsedRecord = parseNumericObjectValues(dataElement, v);
+				onChange(parsedRecord);
+			} else {
+				// Save the setting unparsed and containing the errors.
+				// renderArrayValidations will render relevant error messages.
+				onChange(v);
+			}
 		};
 		renderArrayValidations(dataElement, template, dataElement.value, true);
 	}
@@ -2000,12 +2040,15 @@ function renderValidations(dataElement: SettingsTreeSettingElement, template: IS
 	return false;
 }
 
+/**
+ * Validate and render any error message for arrays. Returns true if the value is invalid.
+ */
 function renderArrayValidations(
 	dataElement: SettingsTreeSettingElement,
 	template: ISettingListItemTemplate | ISettingObjectItemTemplate,
 	value: string[] | Record<string, unknown> | undefined,
 	calledOnStartup: boolean
-) {
+): boolean {
 	template.containerElement.classList.add('invalid-input');
 	if (dataElement.setting.validator) {
 		const errMsg = dataElement.setting.validator(value);
@@ -2015,12 +2058,13 @@ function renderArrayValidations(
 			const validationError = localize('validationError', "Validation Error.");
 			template.containerElement.setAttribute('aria-label', [dataElement.setting.key, validationError, errMsg].join(' '));
 			if (!calledOnStartup) { ariaAlert(validationError + ' ' + errMsg); }
-			return;
+			return true;
 		} else {
 			template.containerElement.setAttribute('aria-label', dataElement.setting.key);
 			template.containerElement.classList.remove('invalid-input');
 		}
 	}
+	return false;
 }
 
 function cleanRenderedMarkdown(element: Node): void {
@@ -2154,7 +2198,7 @@ class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupCh
 				return SETTINGS_ENUM_TEMPLATE_ID;
 			}
 
-			if (element.valueType === SettingValueType.StringOrEnumArray) {
+			if (element.valueType === SettingValueType.Array) {
 				return SETTINGS_ARRAY_TEMPLATE_ID;
 			}
 

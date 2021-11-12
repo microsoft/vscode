@@ -134,6 +134,7 @@ window.addEventListener('message', async event => {
 				root.replaceWith(newContent.querySelector('.markdown-body')!);
 				documentResource = event.data.source;
 			} else {
+				// Compare two elements but skip `data-line`
 				const areEqual = (a: Element, b: Element): boolean => {
 					if (a.isEqualNode(b)) {
 						return true;
@@ -141,6 +142,23 @@ window.addEventListener('message', async event => {
 
 					if (a.tagName !== b.tagName || a.textContent !== b.textContent) {
 						return false;
+					}
+
+					const aAttrs = a.attributes;
+					const bAttrs = b.attributes;
+					if (aAttrs.length !== bAttrs.length) {
+						return false;
+					}
+
+					for (let i = 0; i < aAttrs.length; ++i) {
+						const aAttr = aAttrs[i];
+						const bAttr = bAttrs[i];
+						if (aAttr.name !== bAttr.name) {
+							return false;
+						}
+						if (aAttr.value !== bAttr.value && aAttr.name !== 'data-line') {
+							return false;
+						}
 					}
 
 					const aChildren = Array.from(a.children);

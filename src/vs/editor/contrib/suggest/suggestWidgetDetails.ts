@@ -363,7 +363,7 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 	}
 
 	placeAtAnchor(anchor: HTMLElement, preferAlignAtTop: boolean) {
-		const anchorBox = dom.getDomNodePagePosition(anchor);
+		const anchorBox = anchor.getBoundingClientRect();
 		this._anchorBox = anchorBox;
 		this._preferAlignAtTop = preferAlignAtTop;
 		this._placeAtAnchor(this._anchorBox, this._userSize ?? this.widget.size, preferAlignAtTop);

@@ -9,7 +9,14 @@
     "vscode": "^1.5.0"
   },
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
-  "enableProposedApi": true,
+  "enabledApiProposals": [
+    "diffCommand",
+    "contribViewsWelcome",
+    "scmActionButton",
+    "scmSelectedProvider",
+    "scmValidation",
+    "timeline"
+  ],
   "categories": [
     "Other"
   ],
@@ -2315,19 +2322,6 @@
         "configuration": "./languages/git-rebase.language-configuration.json"
       },
       {
-        "id": "diff",
-        "aliases": [
-          "Diff",
-          "diff"
-        ],
-        "extensions": [
-          ".diff",
-          ".patch",
-          ".rej"
-        ],
-        "configuration": "./languages/diff.language-configuration.json"
-      },
-      {
         "id": "ignore",
         "aliases": [
           "Ignore",
@@ -2350,11 +2344,6 @@
         "language": "git-rebase",
         "scopeName": "text.git-rebase",
         "path": "./syntaxes/git-rebase.tmLanguage.json"
-      },
-      {
-        "language": "diff",
-        "scopeName": "source.diff",
-        "path": "./syntaxes/diff.tmLanguage.json"
       },
       {
         "language": "ignore",

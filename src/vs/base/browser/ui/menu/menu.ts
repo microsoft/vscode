@@ -15,7 +15,7 @@ import { AnchorAlignment, layout, LayoutAnchorPosition } from 'vs/base/browser/u
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { EmptySubmenuAction, IAction, IActionRunner, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { Codicon, registerCodicon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { stripIcons } from 'vs/base/common/iconLabels';
@@ -30,8 +30,7 @@ import * as nls from 'vs/nls';
 export const MENU_MNEMONIC_REGEX = /\(&([^\s&])\)|(^|[^&])&([^\s&])/;
 export const MENU_ESCAPED_MNEMONIC_REGEX = /(&amp;)?(&amp;)([^\s&])/g;
 
-const menuSelectionIcon = registerCodicon('menu-selection', Codicon.check);
-const menuSubmenuIcon = registerCodicon('menu-submenu', Codicon.chevronRight);
+
 
 export enum Direction {
 	Right,
@@ -520,7 +519,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 			}
 		}
 
-		this.check = append(this.item, $('span.menu-item-check' + menuSelectionIcon.cssSelector));
+		this.check = append(this.item, $('span.menu-item-check' + Codicon.menuSelection.cssSelector));
 		this.check.setAttribute('role', 'none');
 
 		this.label = append(this.item, $('span.action-label'));
@@ -771,7 +770,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			this.item.tabIndex = 0;
 			this.item.setAttribute('aria-haspopup', 'true');
 			this.updateAriaExpanded('false');
-			this.submenuIndicator = append(this.item, $('span.submenu-indicator' + menuSubmenuIcon.cssSelector));
+			this.submenuIndicator = append(this.item, $('span.submenu-indicator' + Codicon.menuSubmenu.cssSelector));
 			this.submenuIndicator.setAttribute('aria-hidden', 'true');
 		}
 
@@ -1023,8 +1022,8 @@ let MENU_WIDGET_CSS: string = /* css */`
 
 }
 
-${formatRule(menuSelectionIcon)}
-${formatRule(menuSubmenuIcon)}
+${formatRule(Codicon.menuSelection)}
+${formatRule(Codicon.menuSubmenu)}
 
 .monaco-menu .monaco-action-bar {
 	text-align: right;

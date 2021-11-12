@@ -662,6 +662,12 @@ export class TestSideBarPart implements IPaneCompositePart {
 	onDidViewletOpenEmitter = new Emitter<IPaneComposite>();
 	onDidViewletCloseEmitter = new Emitter<IPaneComposite>();
 
+	element: HTMLElement = undefined!;
+	minimumWidth = 0;
+	maximumWidth = 0;
+	minimumHeight = 0;
+	maximumHeight = 0;
+	onDidChange = Event.None;
 	onDidPaneCompositeOpen = this.onDidViewletOpenEmitter.event;
 	onDidPaneCompositeClose = this.onDidViewletCloseEmitter.event;
 
@@ -675,11 +681,18 @@ export class TestSideBarPart implements IPaneCompositePart {
 	hideActivePaneComposite(): void { }
 	getLastActivePaneCompositeId(): string { return undefined!; }
 	dispose() { }
+	layout(width: number, height: number, top: number, left: number): void { }
 }
 
 export class TestPanelPart implements IPaneCompositePart, IPaneCompositeSelectorPart {
 	declare readonly _serviceBrand: undefined;
 
+	element: HTMLElement = undefined!;
+	minimumWidth = 0;
+	maximumWidth = 0;
+	minimumHeight = 0;
+	maximumHeight = 0;
+	onDidChange = Event.None;
 	onDidPaneCompositeOpen = new Emitter<IPaneComposite>().event;
 	onDidPaneCompositeClose = new Emitter<IPaneComposite>().event;
 
@@ -695,6 +708,7 @@ export class TestPanelPart implements IPaneCompositePart, IPaneCompositeSelector
 	getProgressIndicator(id: string) { return null!; }
 	hideActivePaneComposite(): void { }
 	getLastActivePaneCompositeId(): string { return undefined!; }
+	layout(width: number, height: number, top: number, left: number): void { }
 }
 
 export class TestViewsService implements IViewsService {

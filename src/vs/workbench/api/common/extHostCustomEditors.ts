@@ -253,7 +253,7 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 		viewType: string,
 		initData: {
 			title: string;
-			webviewOptions: extHostProtocol.IWebviewOptions;
+			webviewOptions: extHostProtocol.IWebviewContentOptions;
 			panelOptions: extHostProtocol.IWebviewPanelOptions;
 		},
 		position: EditorGroupColumn,

@@ -12,7 +12,7 @@ import { getZoomFactor } from 'vs/base/browser/browser';
 import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, SubmenuAction } from 'vs/base/common/actions';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
@@ -28,14 +28,14 @@ import { trim } from 'vs/base/common/strings';
 import { EventType, EventHelper, Dimension, isAncestor, append, $, addDisposableListener, runAtThisOrScheduleAtNextAnimationFrame, prepend } from 'vs/base/browser/dom';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { template } from 'vs/base/common/labels';
+import { mnemonicButtonLabel, template } from 'vs/base/common/labels';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Emitter } from 'vs/base/common/event';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
+import { IMenuService, IMenu, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -43,6 +43,10 @@ import { Schemas } from 'vs/base/common/network';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { getVirtualWorkspaceLocation } from 'vs/platform/remote/common/remoteHosts';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
+import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -66,10 +70,13 @@ export class TitlebarPart extends Part implements ITitleService {
 	declare readonly _serviceBrand: undefined;
 
 	protected title!: HTMLElement;
+
 	protected customMenubar: CustomMenubarControl | undefined;
 	protected appIcon: HTMLElement | undefined;
 	private appIconBadge: HTMLElement | undefined;
 	protected menubar?: HTMLElement;
+	protected windowControls: HTMLElement | undefined;
+	private layoutToolbar: ActionBar | undefined;
 	protected lastLayoutDimensions: Dimension | undefined;
 	private titleBarStyle: 'native' | 'custom';
 
@@ -91,12 +98,13 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IThemeService themeService: IThemeService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
 		@IProductService private readonly productService: IProductService,
 	) {
@@ -142,6 +150,10 @@ export class TitlebarPart extends Part implements ITitleService {
 					this.installMenubar();
 				}
 			}
+		}
+
+		if (this.titleBarStyle !== 'native' && this.windowControls && event.affectsConfiguration('workbench.experimental.layoutControl.enabled')) {
+			this.windowControls.classList.toggle('show-layout-control', this.layoutControlEnabled);
 		}
 	}
 
@@ -395,6 +407,53 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.titleUpdater.schedule();
 		}
 
+		if (this.titleBarStyle !== 'native') {
+			this.windowControls = append(this.element, $('div.window-controls-container'));
+			this.windowControls.classList.toggle('show-layout-control', this.layoutControlEnabled);
+
+			const layoutDropdownContainer = append(this.windowControls, $('div.layout-dropdown-container'));
+			this.layoutToolbar = new ActionBar(layoutDropdownContainer,
+				{
+					ariaLabel: localize('layoutMenu', "Configure Layout"),
+					actionViewItemProvider: action => {
+						if (action instanceof SubmenuAction) {
+							return new DropdownMenuActionViewItem(action, action.actions, this.contextMenuService, {
+								classNames: Codicon.editorLayout.classNamesArray,
+								anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
+								keybindingProvider: action => this.keybindingService.lookupKeybinding(action.id)
+							});
+						}
+						return undefined;
+					}
+				});
+
+
+			const menu = this._register(this.menuService.createMenu(MenuId.LayoutControlMenu, this.contextKeyService));
+			const updateLayoutMenu = () => {
+				if (!this.layoutToolbar) {
+					return;
+				}
+
+				const actions: IAction[] = [];
+				const toDispose = createAndFillInContextMenuActions(menu, undefined, { primary: [], secondary: actions });
+
+				this.layoutToolbar.clear();
+				this.layoutToolbar.push(new SubmenuAction('stenir', localize('layoutMenu', "Configure Layout"), actions.map(action => {
+					if (action instanceof MenuItemAction) {
+						(action as IAction).label = mnemonicButtonLabel(typeof action.item.title === 'string'
+							? action.item.title
+							: action.item.title.mnemonicTitle ?? action.item.title.value, true);
+					}
+					return action;
+				})));
+
+				toDispose.dispose();
+			};
+
+			menu.onDidChange(updateLayoutMenu);
+			updateLayoutMenu();
+		}
+
 		// Context menu on title
 		[EventType.CONTEXT_MENU, EventType.MOUSE_DOWN].forEach(event => {
 			this._register(addDisposableListener(this.title, event, e => {
@@ -410,6 +469,10 @@ export class TitlebarPart extends Part implements ITitleService {
 		// currently active element. So we restore focus after a timeout back to where it was.
 		this._register(addDisposableListener(this.element, EventType.MOUSE_DOWN, e => {
 			if (e.target && this.menubar && isAncestor(e.target as HTMLElement, this.menubar)) {
+				return;
+			}
+
+			if (e.target && this.layoutToolbar && isAncestor(e.target as HTMLElement, this.layoutToolbar.getContainer())) {
 				return;
 			}
 
@@ -505,6 +568,10 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	protected get currentMenubarVisibility(): MenuBarVisibility {
 		return getMenuBarVisibility(this.configurationService);
+	}
+
+	private get layoutControlEnabled(): boolean {
+		return this.configurationService.getValue<boolean>('workbench.experimental.layoutControl.enabled');
 	}
 
 	updateLayout(dimension: Dimension): void {

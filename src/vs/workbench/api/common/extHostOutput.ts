@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IExtensionDescription, checkProposedApiEnabled } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogger, ILoggerService } from 'vs/platform/log/common/log';
 import { OutputChannelUpdateMode } from 'vs/workbench/contrib/output/common/output';
 import { IExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
@@ -127,7 +127,7 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 			this.channels.set(channel.id, channel);
 			channel.visible = channel.id === this.visibleChannelId;
 		});
-		return this.createExtHostOutputChannel(name, extHostOutputChannel, extension);
+		return this.createExtHostOutputChannel(name, extHostOutputChannel);
 	}
 
 	private async doCreateOutputChannel(name: string, extension: IExtensionDescription): Promise<ExtHostOutputChannel> {
@@ -145,12 +145,9 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 		return this.outputDirectoryPromise;
 	}
 
-	private createExtHostOutputChannel(name: string, channelPromise: Promise<ExtHostOutputChannel>, extensionDescription: IExtensionDescription): vscode.OutputChannel {
+	private createExtHostOutputChannel(name: string, channelPromise: Promise<ExtHostOutputChannel>): vscode.OutputChannel {
 		let disposed = false;
-		const validate = (checkProposedApi?: boolean) => {
-			if (checkProposedApi) {
-				checkProposedApiEnabled(extensionDescription);
-			}
+		const validate = () => {
 			if (disposed) {
 				throw new Error('Channel has been closed');
 			}
@@ -170,7 +167,7 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 				channelPromise.then(channel => channel.clear());
 			},
 			replace(value: string): void {
-				validate(true);
+				validate();
 				channelPromise.then(channel => channel.replace(value));
 			},
 			show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
