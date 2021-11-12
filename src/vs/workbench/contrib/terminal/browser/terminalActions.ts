@@ -760,7 +760,7 @@ export function registerTerminalActions() {
 			super({
 				id: TerminalCommandId.ChangeIconPanel,
 				title: terminalStrings.changeIcon,
-				f1: true,
+				f1: false,
 				category,
 				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
@@ -802,7 +802,7 @@ export function registerTerminalActions() {
 			super({
 				id: TerminalCommandId.ChangeColorPanel,
 				title: terminalStrings.changeColor,
-				f1: true,
+				f1: false,
 				category,
 				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
