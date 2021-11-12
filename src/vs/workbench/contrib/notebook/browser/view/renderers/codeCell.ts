@@ -46,95 +46,10 @@ export class CodeCell extends Disposable {
 	) {
 		super();
 
-		const width = this.viewCell.layoutInfo.editorWidth;
-		const lineNum = this.viewCell.lineCount;
-		const lineHeight = this.viewCell.layoutInfo.fontInfo?.lineHeight || 17;
-		const editorPadding = this.notebookEditor.notebookOptions.computeEditorPadding(this.viewCell.internalMetadata);
-
-		const editorHeight = this.viewCell.layoutInfo.editorHeight === 0
-			? lineNum * lineHeight + editorPadding.top + editorPadding.bottom
-			: this.viewCell.layoutInfo.editorHeight;
-
-		this.layoutEditor(
-			{
-				width: width,
-				height: editorHeight
-			}
-		);
-
-		const cts = new CancellationTokenSource();
-		this._register({ dispose() { cts.dispose(true); } });
-		raceCancellation(viewCell.resolveTextModel(), cts.token).then(model => {
-			if (this._isDisposed) {
-				return;
-			}
-
-			if (model && templateData.editor) {
-				templateData.editor.setModel(model);
-				viewCell.attachTextEditor(templateData.editor);
-				const focusEditorIfNeeded = () => {
-					if (
-						notebookEditor.getActiveCell() === viewCell &&
-						viewCell.focusMode === CellFocusMode.Editor &&
-						(this.notebookEditor.hasEditorFocus() || document.activeElement === document.body)) // Don't steal focus from other workbench parts, but if body has focus, we can take it
-					{
-						templateData.editor?.focus();
-					}
-				};
-				focusEditorIfNeeded();
-
-				const realContentHeight = templateData.editor?.getContentHeight();
-				if (realContentHeight !== undefined && realContentHeight !== editorHeight) {
-					this.onCellEditorHeightChange(realContentHeight);
-				}
-
-				focusEditorIfNeeded();
-			}
-		});
-
-		const updateEditorOptions = () => {
-			const editor = templateData.editor;
-			if (!editor) {
-				return;
-			}
-
-			const isReadonly = notebookEditor.isReadOnly;
-			const padding = notebookEditor.notebookOptions.computeEditorPadding(viewCell.internalMetadata);
-			const options = editor.getOptions();
-			if (options.get(EditorOption.readOnly) !== isReadonly || options.get(EditorOption.padding) !== padding) {
-				editor.updateOptions({ readOnly: notebookEditor.isReadOnly, padding: notebookEditor.notebookOptions.computeEditorPadding(viewCell.internalMetadata) });
-			}
-		};
-
-		updateEditorOptions();
-		this._register(viewCell.onDidChangeState((e) => {
-			if (e.metadataChanged || e.internalMetadataChanged) {
-				updateEditorOptions();
-			}
-
-			if (e.inputCollapsedChanged || e.outputCollapsedChanged) {
-				this.viewCell.pauseLayout();
-				const updated = this.updateForCollapseState();
-				this.viewCell.resumeLayout();
-				if (updated) {
-					this.relayoutCell();
-				}
-			}
-		}));
-
-		this._register(viewCell.onDidChangeLayout((e) => {
-			if (e.outerWidth !== undefined) {
-				const layoutInfo = templateData.editor.getLayoutInfo();
-				if (layoutInfo.width !== viewCell.layoutInfo.editorWidth) {
-					this.onCellWidthChange();
-				}
-			}
-
-			if (e.totalHeight) {
-				this.relayoutCell();
-			}
-		}));
-
+		const editorHeight = this.calculateInitEditorHeight();
+		this.initializeEditor(editorHeight);
+		this.registerEditorOptionsListener();
+		this.registerViewCellStateChange();
 		this.registerFocusModeTracker();
 		this.registerEditorLayoutListeners();
 		this.registerDecorations();
@@ -154,6 +69,105 @@ export class CodeCell extends Disposable {
 		}));
 
 		this.updateForCollapseState();
+	}
+
+	private calculateInitEditorHeight() {
+		const lineNum = this.viewCell.lineCount;
+		const lineHeight = this.viewCell.layoutInfo.fontInfo?.lineHeight || 17;
+		const editorPadding = this.notebookEditor.notebookOptions.computeEditorPadding(this.viewCell.internalMetadata);
+		const editorHeight = this.viewCell.layoutInfo.editorHeight === 0
+			? lineNum * lineHeight + editorPadding.top + editorPadding.bottom
+			: this.viewCell.layoutInfo.editorHeight;
+		return editorHeight;
+	}
+
+	private initializeEditor(initEditorHeight: number) {
+		const width = this.viewCell.layoutInfo.editorWidth;
+		this.layoutEditor(
+			{
+				width: width,
+				height: initEditorHeight
+			}
+		);
+
+		const cts = new CancellationTokenSource();
+		this._register({ dispose() { cts.dispose(true); } });
+		raceCancellation(this.viewCell.resolveTextModel(), cts.token).then(model => {
+			if (this._isDisposed) {
+				return;
+			}
+
+			if (model && this.templateData.editor) {
+				this.templateData.editor.setModel(model);
+				this.viewCell.attachTextEditor(this.templateData.editor);
+				const focusEditorIfNeeded = () => {
+					if (
+						this.notebookEditor.getActiveCell() === this.viewCell &&
+						this.viewCell.focusMode === CellFocusMode.Editor &&
+						(this.notebookEditor.hasEditorFocus() || document.activeElement === document.body)) // Don't steal focus from other workbench parts, but if body has focus, we can take it
+					{
+						this.templateData.editor?.focus();
+					}
+				};
+				focusEditorIfNeeded();
+
+				const realContentHeight = this.templateData.editor?.getContentHeight();
+				if (realContentHeight !== undefined && realContentHeight !== initEditorHeight) {
+					this.onCellEditorHeightChange(realContentHeight);
+				}
+
+				focusEditorIfNeeded();
+			}
+		});
+	}
+
+	private registerEditorOptionsListener() {
+		const updateEditorOptions = () => {
+			const editor = this.templateData.editor;
+			if (!editor) {
+				return;
+			}
+
+			const isReadonly = this.notebookEditor.isReadOnly;
+			const padding = this.notebookEditor.notebookOptions.computeEditorPadding(this.viewCell.internalMetadata);
+			const options = editor.getOptions();
+			if (options.get(EditorOption.readOnly) !== isReadonly || options.get(EditorOption.padding) !== padding) {
+				editor.updateOptions({ readOnly: this.notebookEditor.isReadOnly, padding: this.notebookEditor.notebookOptions.computeEditorPadding(this.viewCell.internalMetadata) });
+			}
+		};
+
+		updateEditorOptions();
+		this._register(this.viewCell.onDidChangeState((e) => {
+			if (e.metadataChanged || e.internalMetadataChanged) {
+				updateEditorOptions();
+			}
+		}));
+	}
+
+	private registerViewCellStateChange() {
+		this._register(this.viewCell.onDidChangeState((e) => {
+			if (e.inputCollapsedChanged || e.outputCollapsedChanged) {
+				this.viewCell.pauseLayout();
+				const updated = this.updateForCollapseState();
+				this.viewCell.resumeLayout();
+				if (updated) {
+					this.relayoutCell();
+				}
+			}
+		}));
+
+		this._register(this.viewCell.onDidChangeLayout((e) => {
+			if (e.outerWidth !== undefined) {
+				const layoutInfo = this.templateData.editor.getLayoutInfo();
+				if (layoutInfo.width !== this.viewCell.layoutInfo.editorWidth) {
+					this.onCellWidthChange();
+				}
+			}
+
+			if (e.totalHeight) {
+				this.relayoutCell();
+			}
+		}));
 	}
 
 	private registerEditorLayoutListeners() {
