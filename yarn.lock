@@ -10488,10 +10488,10 @@ vscode-windows-ca-certs@^0.3.0:
   dependencies:
     node-addon-api "^3.0.2"
 
-vscode-windows-registry@1.0.3:
-  version "1.0.3"
-  resolved "https://registry.yarnpkg.com/vscode-windows-registry/-/vscode-windows-registry-1.0.3.tgz#377e9a8bf75c0acac81a188282a4f16f748ecd47"
-  integrity sha512-IXCwNAm+H5yPCn6JBz89T9AAMgy5xEN2LxbxrvHPlErmyQqCYtpCCjvisfgT2dCuaJ2T9FfiqIeIrOpDm2Jc4Q==
+vscode-windows-registry@1.0.4:
+  version "1.0.4"
+  resolved "https://registry.yarnpkg.com/vscode-windows-registry/-/vscode-windows-registry-1.0.4.tgz#9e565a497c84b6b82d200f88930baeff12912079"
+  integrity sha512-vjYaMzEygZrb8bN6I33XTajpF/gtDOk5CtQPPSaxanXg2kkrerEM9qovY6t6FtBGl3oLq6YHytYdYw4IpXgJdA==
 
 watchpack-chokidar2@^2.0.1:
   version "2.0.1"
