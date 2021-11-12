@@ -683,30 +683,38 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		return withNullAsUndefined(this._inspectPort);
 	}
 
-	public terminate(): Promise<void> {
-		return new Promise((c) => {
-			if (this._terminating) {
-				c();
-			}
-			this._terminating = true;
+	public terminate(): void {
+		if (this._terminating) {
+			return;
+		}
+		this._terminating = true;
 
-			this._toDispose.dispose();
+		this._toDispose.dispose();
 
-			if (!this._messageProtocol) {
-				// .start() was not called
-				c();
-			} else {
-				this._messageProtocol.then((protocol) => {
-					// Send the extension host a request to terminate itself
-					// (graceful termination)
-					protocol.send(createMessageOfType(MessageType.Terminate));
-					protocol.flush();
-					protocol.dispose();
-					c(this._cleanResources());
-				}).catch(() => {
-					c(this._cleanResources());
-				});
-			}
+		if (!this._messageProtocol) {
+			// .start() was not called
+			return;
+		}
+
+		this._messageProtocol.then((protocol) => {
+
+			// Send the extension host a request to terminate itself
+			// (graceful termination)
+			protocol.send(createMessageOfType(MessageType.Terminate));
+
+			protocol.getSocket().dispose();
+
+			protocol.dispose();
+
+			// Give the extension host 10s, after which we will
+			// try to kill the process and release any resources
+			setTimeout(() => this._cleanResources(), 10 * 1000);
+
+		}, (err) => {
+
+			// Establishing a protocol with the extension host failed, so
+			// try to kill the process and release any resources.
+			this._cleanResources();
 		});
 	}
 
