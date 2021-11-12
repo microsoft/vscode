@@ -22,6 +22,12 @@ export class Terminal {
 		await this.code.waitForTerminalBuffer(XTERM_SELECTOR, lines => lines.some(line => line.length > 0));
 	}
 
+	async createNew(): Promise<void> {
+		await this.quickaccess.runCommand('workbench.action.terminal.new');
+		await this.code.waitForActiveElement(XTERM_TEXTAREA);
+		await this.code.waitForTerminalBuffer(XTERM_SELECTOR, lines => lines.some(line => line.length > 0));
+	}
+
 	async killTerminal(): Promise<void> {
 		await this.quickaccess.runCommand('workbench.action.terminal.kill');
 	}
@@ -33,17 +39,17 @@ export class Terminal {
 		await this.code.dispatchKeybinding('enter');
 	}
 
-	async runProfileCommand(type: 'createInstance' | 'setDefault', contributed?: boolean): Promise<void> {
+	async runProfileCommand(type: 'createInstance' | 'setDefault', contributed?: boolean, altKey?: boolean): Promise<void> {
 		const command = type === 'createInstance' ? 'Terminal: Create New Terminal (With Profile)' : 'Terminal: Select Default Profile';
 		if (contributed) {
 			await this.quickaccess.runCommand(command, 0, true);
-			this.quickinput.submit(CONTRIBUTED_PROFILE_NAME);
+			await this.code.waitForSetValue(QuickInput.QUICK_INPUT_INPUT, CONTRIBUTED_PROFILE_NAME);
 		} else {
-			await this.quickinput.waitForQuickInputElements(names => names[0] !== CONTRIBUTED_PROFILE_NAME);
 			await this.quickaccess.runCommand(command, 0, true);
-			await this.quickinput.selectQuickInputElement(0, false);
+			await this.code.dispatchKeybinding('down');
 		}
-		await new Promise(c => setTimeout(c, 500));
+		await this.code.dispatchKeybinding(altKey ? 'Alt+Enter' : 'enter');
+		await this.quickinput.waitForQuickInputClosed();
 	}
 
 	async waitForTerminalText(accept: (buffer: string[]) => boolean, message?: string): Promise<void> {
