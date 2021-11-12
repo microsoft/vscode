@@ -525,7 +525,8 @@ export class AzureActiveDirectoryService {
 						onDidChangeSessions.fire({ added: [], removed: [this.convertToSessionSync(token)], changed: [] });
 					}
 				}
-			}, 1000 * (token.expiresIn - 30)));
+				// For details on why this is set to 2/3, see https://github.com/microsoft/vscode/issues/133201#issuecomment-966668197
+			}, 1000 * (token.expiresIn * 2 / 3)));
 		}
 
 		this.storeTokenData();
