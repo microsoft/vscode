@@ -8,7 +8,6 @@
   "engines": {
     "vscode": "0.10.x"
   },
-  "enableProposedApi": true,
   "icon": "images/npm_icon.png",
   "categories": [
     "Other"

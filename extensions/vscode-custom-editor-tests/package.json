@@ -9,7 +9,6 @@
     "onCustomEditor:testWebviewEditor.abc"
   ],
   "main": "./out/extension",
-  "enableProposedApi": true,
   "engines": {
     "vscode": "^1.48.0"
   },
