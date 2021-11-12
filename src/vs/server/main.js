@@ -156,7 +156,7 @@ async function parsePort(strPort, strPickPort) {
 	}
 
 	if (strPickPort) {
-		if (strPickPort.match(/[\d]+-[\d]+/)) {
+		if (strPickPort.match(/^\d+-\d+$/)) {
 			const [start, end] = strPickPort.split('-').map(numStr => { return parseInt(numStr, 10); });
 
 			if (!isNaN(start) && !isNaN(end)) {
