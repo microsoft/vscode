@@ -15,10 +15,15 @@ export class DirectMainProcessExtensionHostStarter extends ExtensionHostStarter 
 	) {
 		super(logService);
 
-		// Abnormal shutdown: terminate extension hosts asap
-		lifecycleMainService.onWillKill(() => {
-			this.killAllNow();
-		});
+		// TODO: in the remote integration tests, this leads to the extension
+		// host processes getting killed brutally, which leads to the
+		// test resolver not having a chance to deactivate and kill the server processes
+		// it launches
+
+		// // Abnormal shutdown: terminate extension hosts asap
+		// lifecycleMainService.onWillKill(() => {
+		// 	this.killAllNow();
+		// });
 
 		// Normal shutdown: gracefully await extension host shutdowns
 		lifecycleMainService.onWillShutdown((e) => {
