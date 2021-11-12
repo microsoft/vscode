@@ -122,7 +122,10 @@ import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 import { ExtensionsStorageSyncService, IExtensionsStorageSyncService } from 'vs/platform/userDataSync/common/extensionsStorageSync';
+import { IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
+import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 
+registerSingleton(IUserDataSyncLogService, UserDataSyncLogService);
 registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService);
 registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementService);
 registerSingleton(IExtensionsStorageSyncService, ExtensionsStorageSyncService);

@@ -72,8 +72,7 @@ import { ExtensionManagementService } from 'vs/workbench/services/extensionManag
 import { ILoggerService } from 'vs/platform/log/common/log';
 import { FileLoggerService } from 'vs/platform/log/common/fileLog';
 import { UserDataSyncMachinesService, IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
-import { IUserDataSyncStoreService, IUserDataSyncService, IUserDataSyncLogService, IUserDataAutoSyncService, IUserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
+import { IUserDataSyncStoreService, IUserDataSyncService, IUserDataAutoSyncService, IUserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSyncBackupStoreService';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
@@ -94,7 +93,6 @@ registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementServi
 registerSingleton(IAccessibilityService, AccessibilityService, true);
 registerSingleton(IContextMenuService, ContextMenuService);
 registerSingleton(ILoggerService, FileLoggerService);
-registerSingleton(IUserDataSyncLogService, UserDataSyncLogService);
 registerSingleton(IUserDataSyncStoreService, UserDataSyncStoreService);
 registerSingleton(IUserDataSyncMachinesService, UserDataSyncMachinesService);
 registerSingleton(IUserDataSyncBackupStoreService, UserDataSyncBackupStoreService);
