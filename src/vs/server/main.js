@@ -146,24 +146,24 @@ async function start() {
 async function parsePort(strPort, strPickPort) {
 	let specificPort = -1;
 
-	try {
-		if (strPort) {
-			specificPort = parseInt(strPort);
+	if (strPort) {
+		const port = parseInt(strPort, 10);
+		if (!isNaN(port)) {
+			specificPort = port;
+		} else {
+			console.log('Port is not a number, will default to 8000 if no pick-port is given.');
 		}
-	} catch (e) {
-		console.log('Port is not a number, will default to 8000 if no pick-port is given.');
 	}
 
 	if (strPickPort) {
-		try {
-			let [start, end] = strPickPort.split('-').map(numStr => { return parseInt(numStr); });
-
+		const [start, end] = strPickPort.split('-').map(numStr => { return parseInt(numStr, 10); });
+		if (!isNaN(start) && !isNaN(end)) {
 			if (specificPort !== -1 && specificPort >= start && specificPort <= end) {
 				return specificPort;
 			} else {
 				return await findFreePort(start, start, end);
 			}
-		} catch {
+		} else {
 			console.log('Port range are not numbers, using 8000 instead.');
 		}
 	}
