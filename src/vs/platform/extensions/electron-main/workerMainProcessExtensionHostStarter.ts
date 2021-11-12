@@ -80,20 +80,7 @@ export class WorkerMainProcessExtensionHostStarter implements IDisposable, IExte
 		);
 		this._initialize();
 
-		// TODO: in the remote integration tests, this leads to the extension
-		// host processes getting killed brutally, which leads to the
-		// test resolver not having a chance to deactivate and kill the server processes
-		// it launches
-
-		// // Abnormal shutdown: terminate extension hosts asap
-		// lifecycleMainService.onWillKill(async () => {
-		// 	this._shutdown = true;
-		// 	if (this._proxy) {
-		// 		this._proxy.killAllNow();
-		// 	}
-		// });
-
-		// Normal shutdown: gracefully await extension host shutdowns
+		// On shutdown: gracefully await extension host shutdowns
 		lifecycleMainService.onWillShutdown((e) => {
 			this._shutdown = true;
 			if (this._proxy) {

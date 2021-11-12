@@ -20,13 +20,13 @@ import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platf
 
 export const ILifecycleMainService = createDecorator<ILifecycleMainService>('lifecycleMainService');
 
-export interface IWindowLoadEvent {
+export interface WindowLoadEvent {
 	window: ICodeWindow;
 	workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined;
 	reason: LoadReason;
 }
 
-export interface IWindowUnloadEvent {
+export interface WindowUnloadEvent {
 	window: ICodeWindow;
 	reason: UnloadReason;
 	veto(value: boolean | Promise<boolean>): void;
@@ -77,26 +77,19 @@ export interface ILifecycleMainService {
 	 * An event that fires when a window is loading. This can either be a window opening for the
 	 * first time or a window reloading or changing to another URL.
 	 */
-	readonly onWillLoadWindow: Event<IWindowLoadEvent>;
+	readonly onWillLoadWindow: Event<WindowLoadEvent>;
 
 	/**
 	 * An event that fires before a window is about to unload. Listeners can veto this event to prevent
 	 * the window from unloading.
 	 */
-	readonly onBeforeUnloadWindow: Event<IWindowUnloadEvent>;
+	readonly onBeforeUnloadWindow: Event<WindowUnloadEvent>;
 
 	/**
 	 * An event that fires before a window closes. This event is fired after any veto has been dealt
 	 * with so that listeners know for sure that the window will close without veto.
 	 */
 	readonly onBeforeCloseWindow: Event<ICodeWindow>;
-
-	/**
-	 * An event that fires in the rare cases where `app.exit` is triggered
-	 * and thus we Forcefully shutdown the application. No other lifecycle
-	 * event handlers are triggered.
-	 */
-	readonly onWillKill: Event<void>;
 
 	/**
 	 * Make a `ICodeWindow` known to the lifecycle main service.
@@ -125,7 +118,7 @@ export interface ILifecycleMainService {
 
 	/**
 	 * Forcefully shutdown the application. The only lifecycle event handler
-	 * that is triggered is `onWillKill`.
+	 * that is triggered is `onWillShutdown`.
 	 */
 	kill(code?: number): Promise<void>;
 
@@ -168,17 +161,14 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	private readonly _onWillShutdown = this._register(new Emitter<ShutdownEvent>());
 	readonly onWillShutdown = this._onWillShutdown.event;
 
-	private readonly _onWillLoadWindow = this._register(new Emitter<IWindowLoadEvent>());
+	private readonly _onWillLoadWindow = this._register(new Emitter<WindowLoadEvent>());
 	readonly onWillLoadWindow = this._onWillLoadWindow.event;
 
 	private readonly _onBeforeCloseWindow = this._register(new Emitter<ICodeWindow>());
 	readonly onBeforeCloseWindow = this._onBeforeCloseWindow.event;
 
-	private readonly _onBeforeUnloadWindow = this._register(new Emitter<IWindowUnloadEvent>());
+	private readonly _onBeforeUnloadWindow = this._register(new Emitter<WindowUnloadEvent>());
 	readonly onBeforeUnloadWindow = this._onBeforeUnloadWindow.event;
-
-	private readonly _onWillKill = this._register(new Emitter<void>());
-	readonly onWillKill = this._onWillKill.event;
 
 	private _quitRequested = false;
 	get quitRequested(): boolean { return this._quitRequested; }
@@ -239,7 +229,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			// the onWillShutdown() event directly because there is no veto
 			// to be expected.
 			if (isMacintosh && this.windowCounter === 0) {
-				this.beginOnWillShutdown();
+				this.fireOnWillShutdown();
 			}
 		};
 		app.addListener('before-quit', beforeQuitListener);
@@ -267,7 +257,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			e.preventDefault();
 
 			// Start shutdown sequence
-			const shutdownPromise = this.beginOnWillShutdown();
+			const shutdownPromise = this.fireOnWillShutdown();
 
 			// Wait until shutdown is signaled to be complete
 			shutdownPromise.finally(() => {
@@ -285,7 +275,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		});
 	}
 
-	private beginOnWillShutdown(): Promise<void> {
+	private fireOnWillShutdown(): Promise<void> {
 		if (this.pendingWillShutdownPromise) {
 			return this.pendingWillShutdownPromise; // shutdown is already running
 		}
@@ -411,7 +401,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			// we are on macOS where it is perfectly fine to close the last window and
 			// the application continues running (unless quit was actually requested)
 			if (this.windowCounter === 0 && (!isMacintosh || this._quitRequested)) {
-				this.beginOnWillShutdown();
+				this.fireOnWillShutdown();
 			}
 		});
 	}
@@ -600,8 +590,8 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	async kill(code?: number): Promise<void> {
 		this.logService.trace('Lifecycle#kill()');
 
-		// Event
-		this._onWillKill.fire();
+		// Start shutdown sequence
+		await this.fireOnWillShutdown();
 
 		// The kill() method is only used in 2 situations:
 		// - when an instance fails to start at all
