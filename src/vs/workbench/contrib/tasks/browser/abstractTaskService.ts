@@ -3009,7 +3009,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	public getTaskDescription(task: Task | ConfiguringTask): string | undefined {
 		let description: string | undefined;
 		if (task._source.kind === TaskSourceKind.User) {
-			description = nls.localize('taskQuickPick.userSettings', 'User Settings');
+			description = nls.localize('taskQuickPick.userSettings', 'User');
 		} else if (task._source.kind === TaskSourceKind.WorkspaceFile) {
 			description = task.getWorkspaceFileName();
 		} else if (this.needsFolderQualification()) {
