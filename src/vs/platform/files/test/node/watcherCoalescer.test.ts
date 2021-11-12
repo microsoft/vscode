@@ -9,7 +9,7 @@ import { isLinux, isWindows } from 'vs/base/common/platform';
 import { isEqual } from 'vs/base/common/resources';
 import { URI as uri } from 'vs/base/common/uri';
 import { FileChangesEvent, FileChangeType, IFileChange } from 'vs/platform/files/common/files';
-import { IDiskFileChange, normalizeFileChanges, toFileChanges } from 'vs/platform/files/common/watcher';
+import { IDiskFileChange, coalesceEvents, toFileChanges } from 'vs/platform/files/common/watcher';
 
 class TestFileWatcher {
 	private readonly _onDidFilesChange: Emitter<{ raw: IFileChange[], event: FileChangesEvent }>;
@@ -28,12 +28,12 @@ class TestFileWatcher {
 
 	private onRawFileEvents(events: IDiskFileChange[]): void {
 
-		// Normalize
-		let normalizedEvents = normalizeFileChanges(events);
+		// Coalesce
+		let coalescedEvents = coalesceEvents(events);
 
 		// Emit through event emitter
-		if (normalizedEvents.length > 0) {
-			this._onDidFilesChange.fire({ raw: toFileChanges(normalizedEvents), event: this.toFileChangesEvent(normalizedEvents) });
+		if (coalescedEvents.length > 0) {
+			this._onDidFilesChange.fire({ raw: toFileChanges(coalescedEvents), event: this.toFileChangesEvent(coalescedEvents) });
 		}
 	}
 
@@ -118,7 +118,7 @@ suite('Watcher Events Normalizer', () => {
 		});
 	});
 
-	test('event normalization: ignore CREATE followed by DELETE', done => {
+	test('event coalescer: ignore CREATE followed by DELETE', done => {
 		const watch = new TestFileWatcher();
 
 		const created = uri.file('/users/data/src/related');
@@ -143,7 +143,7 @@ suite('Watcher Events Normalizer', () => {
 		watch.report(raw);
 	});
 
-	test('event normalization: flatten DELETE followed by CREATE into CHANGE', done => {
+	test('event coalescer: flatten DELETE followed by CREATE into CHANGE', done => {
 		const watch = new TestFileWatcher();
 
 		const deleted = uri.file('/users/data/src/related');
@@ -169,7 +169,7 @@ suite('Watcher Events Normalizer', () => {
 		watch.report(raw);
 	});
 
-	test('event normalization: ignore UPDATE when CREATE received', done => {
+	test('event coalescer: ignore UPDATE when CREATE received', done => {
 		const watch = new TestFileWatcher();
 
 		const created = uri.file('/users/data/src/related');
@@ -196,7 +196,7 @@ suite('Watcher Events Normalizer', () => {
 		watch.report(raw);
 	});
 
-	test('event normalization: apply DELETE', done => {
+	test('event coalescer: apply DELETE', done => {
 		const watch = new TestFileWatcher();
 
 		const updated = uri.file('/users/data/src/related');
@@ -225,7 +225,7 @@ suite('Watcher Events Normalizer', () => {
 		watch.report(raw);
 	});
 
-	test('event normalization: track case renames', done => {
+	test('event coalescer: track case renames', done => {
 		const watch = new TestFileWatcher();
 
 		const oldPath = uri.file('/users/data/src/added');
