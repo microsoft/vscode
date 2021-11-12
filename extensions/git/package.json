@@ -2315,19 +2315,6 @@
         "configuration": "./languages/git-rebase.language-configuration.json"
       },
       {
-        "id": "diff",
-        "aliases": [
-          "Diff",
-          "diff"
-        ],
-        "extensions": [
-          ".diff",
-          ".patch",
-          ".rej"
-        ],
-        "configuration": "./languages/diff.language-configuration.json"
-      },
-      {
         "id": "ignore",
         "aliases": [
           "Ignore",
@@ -2350,11 +2337,6 @@
         "language": "git-rebase",
         "scopeName": "text.git-rebase",
         "path": "./syntaxes/git-rebase.tmLanguage.json"
-      },
-      {
-        "language": "diff",
-        "scopeName": "source.diff",
-        "path": "./syntaxes/diff.tmLanguage.json"
       },
       {
         "language": "ignore",
