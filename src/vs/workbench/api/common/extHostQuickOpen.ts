@@ -10,7 +10,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { IExtHostWorkspaceProvider } from 'vs/workbench/api/common/extHostWorkspace';
 import { InputBox, InputBoxOptions, QuickInput, QuickInputButton, QuickPick, QuickPickItem, QuickPickItemButtonEvent, QuickPickOptions, WorkspaceFolder, WorkspaceFolderPickOptions } from 'vscode';
-import { ExtHostQuickOpenShape, IMainContext, MainContext, TransferQuickPickItems, TransferQuickInput, TransferQuickInputButton } from './extHost.protocol';
+import { ExtHostQuickOpenShape, IMainContext, MainContext, TransferQuickPickItem, TransferQuickInput, TransferQuickInputButton } from './extHost.protocol';
 import { URI } from 'vs/base/common/uri';
 import { ThemeIcon, QuickInputButtons } from 'vs/workbench/api/common/extHostTypes';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
@@ -87,7 +87,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 
 				return itemsPromise.then(items => {
 
-					const pickItems: TransferQuickPickItems[] = [];
+					const pickItems: TransferQuickPickItem[] = [];
 					for (let handle = 0; handle < items.length; handle++) {
 
 						const item = items[handle];
