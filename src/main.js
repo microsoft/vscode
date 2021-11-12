@@ -223,10 +223,10 @@ function configureCommandlineSwitchesSync(cliArgs) {
 					break;
 
 				case 'enable-render-process-reuse':
-					if (argvValue === false) {
-						app.allowRendererProcessReuse = false;
-					} else {
+					if (argvValue === true) {
 						app.allowRendererProcessReuse = true;
+					} else {
+						app.allowRendererProcessReuse = false;
 					}
 					break;
 			}
