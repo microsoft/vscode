@@ -9,7 +9,7 @@ import { Application } from '../../../../automation';
 import { afterSuite, beforeSuite } from '../../utils';
 
 export function setup(opts: ParsedArgs) {
-	describe.only('Terminal Profiles', () => {
+	describe('Terminal Profiles', () => {
 		let app: Application;
 
 		beforeSuite(opts);
