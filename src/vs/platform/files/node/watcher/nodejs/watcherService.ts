@@ -10,7 +10,7 @@ import { realpath } from 'vs/base/node/extpath';
 import { SymlinkSupport } from 'vs/base/node/pfs';
 import { CHANGE_BUFFER_DELAY, watchFile, watchFolder } from 'vs/base/node/watcher';
 import { FileChangeType } from 'vs/platform/files/common/files';
-import { IDiskFileChange, ILogMessage, normalizeFileChanges } from 'vs/platform/files/common/watcher';
+import { IDiskFileChange, ILogMessage, coalesceEvents } from 'vs/platform/files/common/watcher';
 
 export class FileWatcher extends Disposable {
 	private isDisposed: boolean | undefined;
@@ -95,19 +95,19 @@ export class FileWatcher extends Disposable {
 			const fileChanges = this.fileChangesBuffer;
 			this.fileChangesBuffer = [];
 
-			// Event normalization
-			const normalizedFileChanges = normalizeFileChanges(fileChanges);
+			// Event coalsecer
+			const coalescedFileChanges = coalesceEvents(fileChanges);
 
 			// Logging
 			if (this.verboseLogging) {
-				for (const event of normalizedFileChanges) {
+				for (const event of coalescedFileChanges) {
 					this.onVerbose(`>> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
 				}
 			}
 
 			// Fire
-			if (normalizedFileChanges.length > 0) {
-				this.onDidFilesChange(normalizedFileChanges);
+			if (coalescedFileChanges.length > 0) {
+				this.onDidFilesChange(coalescedFileChanges);
 			}
 		});
 	}

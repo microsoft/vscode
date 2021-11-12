@@ -910,11 +910,11 @@ class CommandColumnRenderer implements ITableRenderer<IKeybindingItemEntry, ICom
 	renderTemplate(container: HTMLElement): ICommandColumnTemplateData {
 		const commandColumn = DOM.append(container, $('.command'));
 		const commandLabelContainer = DOM.append(commandColumn, $('.command-label'));
-		const commandLabel = new HighlightedLabel(commandLabelContainer, false);
+		const commandLabel = new HighlightedLabel(commandLabelContainer);
 		const commandDefaultLabelContainer = DOM.append(commandColumn, $('.command-default-label'));
-		const commandDefaultLabel = new HighlightedLabel(commandDefaultLabelContainer, false);
+		const commandDefaultLabel = new HighlightedLabel(commandDefaultLabelContainer);
 		const commandIdLabelContainer = DOM.append(commandColumn, $('.command-id.code'));
-		const commandIdLabel = new HighlightedLabel(commandIdLabelContainer, false);
+		const commandIdLabel = new HighlightedLabel(commandIdLabelContainer);
 		return { commandColumn, commandLabelContainer, commandLabel, commandDefaultLabelContainer, commandDefaultLabel, commandIdLabelContainer, commandIdLabel };
 	}
 
@@ -999,7 +999,7 @@ class SourceColumnRenderer implements ITableRenderer<IKeybindingItemEntry, ISour
 
 	renderTemplate(container: HTMLElement): ISourceColumnTemplateData {
 		const sourceColumn = DOM.append(container, $('.source'));
-		const highlightedLabel = new HighlightedLabel(sourceColumn, false);
+		const highlightedLabel = new HighlightedLabel(sourceColumn);
 		return { highlightedLabel };
 	}
 
@@ -1038,7 +1038,7 @@ class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenCo
 		const element = DOM.append(container, $('.when'));
 
 		const whenContainer = DOM.append(element, $('div.when-label'));
-		const whenLabel = new HighlightedLabel(whenContainer, false);
+		const whenLabel = new HighlightedLabel(whenContainer);
 		const whenInput = new InputBox(element, this.contextViewService, {
 			validationOptions: {
 				validation: (value) => {

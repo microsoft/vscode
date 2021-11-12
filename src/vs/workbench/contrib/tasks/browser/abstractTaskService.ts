@@ -771,9 +771,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return this._recentlyUsedTasks;
 	}
 
-	private getFolderFromTaskKey(key: string): string | undefined {
-		const keyValue: { folder: string | undefined } = JSON.parse(key);
-		return keyValue.folder;
+	private getFolderFromTaskKey(key: string): { folder: string | undefined, isWorkspaceFile: boolean | undefined } {
+		const keyValue: { folder: string | undefined, id: string | undefined } = JSON.parse(key);
+		return {
+			folder: keyValue.folder, isWorkspaceFile: keyValue.id?.endsWith(TaskSourceKind.WorkspaceFile)
+		};
 	}
 
 	public async readRecentTasks(): Promise<(Task | ConfiguringTask)[]> {
@@ -782,40 +784,55 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			folderMap[folder.uri.toString()] = folder;
 		});
 		const folderToTasksMap: Map<string, any> = new Map();
+		const workspaceToTaskMap: Map<string, any> = new Map();
 		const recentlyUsedTasks = this.getRecentlyUsedTasks();
 		const tasks: (Task | ConfiguringTask)[] = [];
+
+		function addTaskToMap(map: Map<string, any>, folder: string | undefined, task: any) {
+			if (folder && !map.has(folder)) {
+				map.set(folder, []);
+			}
+			if (folder && (folderMap[folder] || (folder === USER_TASKS_GROUP_KEY)) && task) {
+				map.get(folder).push(task);
+			}
+		}
+
 		for (const entry of recentlyUsedTasks.entries()) {
 			const key = entry[0];
 			const task = JSON.parse(entry[1]);
-			const folder = this.getFolderFromTaskKey(key);
-			if (folder && !folderToTasksMap.has(folder)) {
-				folderToTasksMap.set(folder, []);
-			}
-			if (folder && (folderMap[folder] || (folder === USER_TASKS_GROUP_KEY)) && task) {
-				folderToTasksMap.get(folder).push(task);
-			}
+			const folderInfo = this.getFolderFromTaskKey(key);
+			addTaskToMap(folderInfo.isWorkspaceFile ? workspaceToTaskMap : folderToTasksMap, folderInfo.folder, task);
 		}
+
 		const readTasksMap: Map<string, (Task | ConfiguringTask)> = new Map();
-		for (const key of folderToTasksMap.keys()) {
-			let custom: CustomTask[] = [];
-			let customized: IStringDictionary<ConfiguringTask> = Object.create(null);
-			await this.computeTasksForSingleConfig(folderMap[key] ?? await this.getAFolder(), {
-				version: '2.0.0',
-				tasks: folderToTasksMap.get(key)
-			}, TaskRunSource.System, custom, customized, folderMap[key] ? TaskConfig.TaskConfigSource.TasksJson : TaskConfig.TaskConfigSource.User, true);
-			custom.forEach(task => {
-				const taskKey = task.getRecentlyUsedKey();
-				if (taskKey) {
-					readTasksMap.set(taskKey, task);
-				}
-			});
-			for (const configuration in customized) {
-				const taskKey = customized[configuration].getRecentlyUsedKey();
-				if (taskKey) {
-					readTasksMap.set(taskKey, customized[configuration]);
+		async function readTasks(that: AbstractTaskService, map: Map<string, any>, isWorkspaceFile: boolean) {
+			for (const key of map.keys()) {
+				let custom: CustomTask[] = [];
+				let customized: IStringDictionary<ConfiguringTask> = Object.create(null);
+				const taskConfigSource = (folderMap[key]
+					? (isWorkspaceFile
+						? TaskConfig.TaskConfigSource.WorkspaceFile : TaskConfig.TaskConfigSource.TasksJson)
+					: TaskConfig.TaskConfigSource.User);
+				await that.computeTasksForSingleConfig(folderMap[key] ?? await that.getAFolder(), {
+					version: '2.0.0',
+					tasks: map.get(key)
+				}, TaskRunSource.System, custom, customized, taskConfigSource, true);
+				custom.forEach(task => {
+					const taskKey = task.getRecentlyUsedKey();
+					if (taskKey) {
+						readTasksMap.set(taskKey, task);
+					}
+				});
+				for (const configuration in customized) {
+					const taskKey = customized[configuration].getRecentlyUsedKey();
+					if (taskKey) {
+						readTasksMap.set(taskKey, customized[configuration]);
+					}
 				}
 			}
 		}
+		await readTasks(this, folderToTasksMap, false);
+		await readTasks(this, workspaceToTaskMap, true);
 
 		for (const key of recentlyUsedTasks.keys()) {
 			if (readTasksMap.has(key)) {
@@ -2260,19 +2277,22 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async createTaskQuickPickEntries(tasks: Task[], group: boolean = false, sort: boolean = false, selectedEntry?: TaskQuickPickEntry, includeRecents: boolean = true): Promise<TaskQuickPickEntry[]> {
-		let count: { [key: string]: number; } = {};
+		let encounteredTasks: { [key: string]: TaskQuickPickEntry[] } = {};
 		if (tasks === undefined || tasks === null || tasks.length === 0) {
 			return [];
 		}
 		const TaskQuickPickEntry = (task: Task): TaskQuickPickEntry => {
-			let entryLabel = task._label;
-			if (count[task._id]) {
-				entryLabel = entryLabel + ' (' + count[task._id].toString() + ')';
-				count[task._id]++;
+			const newEntry = { label: task._label, description: this.getTaskDescription(task), task, detail: this.showDetail() ? task.configurationProperties.detail : undefined };
+			if (encounteredTasks[task._id]) {
+				if (encounteredTasks[task._id].length === 1) {
+					encounteredTasks[task._id][0].label += ' (1)';
+				}
+				newEntry.label = newEntry.label + ' (' + (encounteredTasks[task._id].length + 1).toString() + ')';
 			} else {
-				count[task._id] = 1;
+				encounteredTasks[task._id] = [];
 			}
-			return { label: entryLabel, description: this.getTaskDescription(task), task, detail: this.showDetail() ? task.configurationProperties.detail : undefined };
+			encounteredTasks[task._id].push(newEntry);
+			return newEntry;
 
 		};
 		function fillEntries(entries: QuickPickInput<TaskQuickPickEntry>[], tasks: Task[], groupLabel: string): void {
@@ -2343,7 +2363,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			entries = tasks.map<TaskQuickPickEntry>(task => TaskQuickPickEntry(task));
 		}
-		count = {};
+		encounteredTasks = {};
 		return entries;
 	}
 
@@ -2989,7 +3009,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	public getTaskDescription(task: Task | ConfiguringTask): string | undefined {
 		let description: string | undefined;
 		if (task._source.kind === TaskSourceKind.User) {
-			description = nls.localize('taskQuickPick.userSettings', 'User Settings');
+			description = nls.localize('taskQuickPick.userSettings', 'User');
 		} else if (task._source.kind === TaskSourceKind.WorkspaceFile) {
 			description = task.getWorkspaceFileName();
 		} else if (this.needsFolderQualification()) {

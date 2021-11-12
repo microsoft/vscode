@@ -45,11 +45,13 @@
 	async function load(modulePaths, resultCallback, options) {
 		const isDev = !!safeProcess.env['VSCODE_DEV'];
 
-		// Error handler (TODO@sandbox non-sandboxed only)
+		// Error handler (node.js enabled renderers only)
 		let showDevtoolsOnError = isDev;
-		safeProcess.on('uncaughtException', function (/** @type {string | Error} */ error) {
-			onUnexpectedError(error, showDevtoolsOnError);
-		});
+		if (!safeProcess.sandboxed) {
+			safeProcess.on('uncaughtException', function (/** @type {string | Error} */ error) {
+				onUnexpectedError(error, showDevtoolsOnError);
+			});
+		}
 
 		// Await window configuration from preload
 		const timeout = setTimeout(() => { console.error(`[resolve window config] Could not resolve window configuration within 10 seconds, but will continue to wait...`); }, 10000);
@@ -83,7 +85,7 @@
 			developerDeveloperKeybindingsDisposable = registerDeveloperKeybindings(disallowReloadKeybinding);
 		}
 
-		// Enable ASAR support (TODO@sandbox non-sandboxed only)
+		// Enable ASAR support (node.js enabled renderers only)
 		if (!safeProcess.sandboxed) {
 			globalThis.MonacoBootstrap.enableASARSupport(configuration.appRoot);
 		}
@@ -100,9 +102,12 @@
 
 		window.document.documentElement.setAttribute('lang', locale);
 
-		// Replace the patched electron fs with the original node fs for all AMD code (TODO@sandbox non-sandboxed only)
+		// Define `fs` as `original-fs` to disable ASAR support
+		// in fs-operations  (node.js enabled renderers only)
 		if (!safeProcess.sandboxed) {
-			require.define('fs', [], function () { return require.__$__nodeRequire('original-fs'); });
+			require.define('fs', [], function () {
+				return require.__$__nodeRequire('original-fs');
+			});
 		}
 
 		window['MonacoEnvironment'] = {};
@@ -140,8 +145,9 @@
 			'tas-client-umd': `${baseNodeModulesPath}/tas-client-umd/lib/tas-client-umd.js`
 		};
 
-		// For priviledged renderers, allow to load built-in and other node.js
-		// modules via AMD which has a fallback to using node.js `require`
+		// Allow to load built-in and other node.js modules via AMD
+		// which has a fallback to using node.js `require`
+		// (node.js enabled renderers only)
 		if (!safeProcess.sandboxed) {
 			loaderConfig.amdModulesPattern = /(^vs\/)|(^vscode-textmate$)|(^vscode-oniguruma$)|(^xterm$)|(^xterm-addon-search$)|(^xterm-addon-unicode11$)|(^xterm-addon-webgl$)|(^iconv-lite-umd$)|(^jschardet$)|(^@vscode\/vscode-languagedetection$)|(^tas-client-umd$)/;
 		}

@@ -16,7 +16,6 @@
   ],
   "main": "./client/out/node/jsonClientMain",
   "browser": "./client/dist/browser/jsonClientMain",
-  "enableProposedApi": true,
   "capabilities": {
     "virtualWorkspaces": true,
     "untrustedWorkspaces": {

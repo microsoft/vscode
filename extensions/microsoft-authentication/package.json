@@ -12,7 +12,6 @@
   "categories": [
     "Other"
   ],
-  "enableProposedApi": true,
   "activationEvents": [
     "onAuthenticationRequest:microsoft"
   ],

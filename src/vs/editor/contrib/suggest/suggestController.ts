@@ -43,6 +43,9 @@ import { CommitCharacterController } from './suggestCommitCharacters';
 import { State, SuggestModel } from './suggestModel';
 import { OvertypingCapturer } from './suggestOvertypingCapturer';
 import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { basename, extname } from 'vs/base/common/resources';
+import { hash } from 'vs/base/common/hash';
 
 // sticky suggest widget which doesn't disappear on focus out and such
 let _sticky = false;
@@ -122,6 +125,7 @@ export class SuggestController implements IEditorContribution {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		this.editor = editor;
 		this.model = _instantiationService.createInstance(SuggestModel, this.editor,);
@@ -427,8 +431,32 @@ export class SuggestController implements IEditorContribution {
 
 		// clear only now - after all tasks are done
 		Promise.all(tasks).finally(() => {
+			this._reportSuggestionAcceptedTelemetry(model, event);
+
 			this.model.clear();
 			cts.dispose();
+		});
+	}
+
+	private _telemetryGate: number = 0;
+	private _reportSuggestionAcceptedTelemetry(model: ITextModel, acceptedSuggestion: ISelectedSuggestion) {
+		if (this._telemetryGate++ % 100 !== 0) {
+			return;
+		}
+
+		type AcceptedSuggestion = { providerId: string; fileExtension: string; languageId: string; basenameHash: string; };
+		type AcceptedSuggestionClassification = {
+			providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; };
+			basenameHash: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; };
+			fileExtension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; };
+			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; };
+		};
+
+		this._telemetryService.publicLog2<AcceptedSuggestion, AcceptedSuggestionClassification>('suggest.acceptedSuggestion', {
+			providerId: acceptedSuggestion.item.provider._debugDisplayName ?? 'unknown',
+			basenameHash: hash(basename(model.uri)).toString(16),
+			languageId: model.getLanguageId(),
+			fileExtension: extname(model.uri),
 		});
 	}
 

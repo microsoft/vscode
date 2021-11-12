@@ -26,10 +26,6 @@ export function setup(opts: ParsedArgs) {
 			app = this.app;
 		});
 
-		// beforeEach(async () => {
-		// 	await app.workbench.terminal.showTerminal();
-		// });
-
 		afterEach(async () => {
 			await app.workbench.terminal.killTerminal();
 		});

@@ -8,7 +8,6 @@
   "engines": {
     "vscode": "0.10.x"
   },
-  "enableProposedApi": true,
   "icon": "images/npm_icon.png",
   "categories": [
     "Other"
@@ -73,7 +72,8 @@
           "name": "%view.name%",
           "when": "npm:showScriptExplorer",
           "icon": "$(json)",
-          "visibility": "hidden"
+          "visibility": "hidden",
+          "contextualTitle": "%view.name%"
         }
       ]
     },
@@ -280,6 +280,15 @@
           "markdownDescription": "%config.npm.scriptExplorerAction%",
           "scope": "window",
           "default": "open"
+        },
+        "npm.scriptExplorerExclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "%config.npm.scriptExplorerExclude%",
+          "scope": "resource",
+          "default": []
         },
         "npm.fetchOnlinePackageInfo": {
           "type": "boolean",

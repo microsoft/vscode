@@ -9,7 +9,6 @@
     "vscode": "^1.41.0"
   },
   "icon": "images/icon.png",
-  "enableProposedApi": true,
   "categories": [
     "Other"
   ],

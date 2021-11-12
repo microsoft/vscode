@@ -68,3 +68,31 @@ Code cell outputs and markdown cells are rendered in the webview, which are asyn
 However, we **don't** warmup the previous viewport as the cell height change of previous viewport might trigger the flickering of markdown cells in current viewport. Before we optimize this, do not do any warmup of cells before current viewport.
 
 
+
+## Focus Tracking
+
+* DOM focus tracker of notebook editor container
+  * focus on cell container
+  * focus on cell editor
+  * focus on cell status bar
+  * focus on cell/execution/output toolbar
+  * focus on find widget
+  * focus on an element in the webview/iframe
+  - [ ] Focus on notebook toolbar
+* hasWebviewFocus
+
+
+CSS
+* `monaco-list.focus-within` for cell container/editor borders
+
+
+* in `codecell` we update the `cell.focusMode` when rendering it and if it's not the focused element anymore, the focusMode is reverted to container
+
+
+* cell editor focused and editor blur event happens
+  * if focused element is another cell, then change focusMode to container
+  * if focused element is find widget / notebookToolbar, don't change focusMode
+  * if focused element is webview/iframe, don't change focusMode
+  * if focused element is outside of the notebook, don't change focusMode
+* cell editor focused and cell moves out of view (no blur event)
+  * When disposing the cell view, we will focus the cell list container, otherwise the focus goes to body as the active element is removed from the DOM.

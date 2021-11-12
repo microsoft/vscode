@@ -1,5 +1,4 @@
 {
-  "enableProposedApi": true,
   "name": "html-language-features",
   "displayName": "%displayName%",
   "description": "%description%",

@@ -29,10 +29,6 @@ export const activate: ActivationFunction<void> = (ctx) => {
 
 	const style = document.createElement('style');
 	style.textContent = `
-		#preview {
-			font-size: 1.1em;
-		}
-
 		.emptyMarkdownCell::before {
 			content: "${document.documentElement.style.getPropertyValue('--notebook-cell-markup-empty-content')}";
 			font-style: italic;
@@ -165,7 +161,6 @@ export const activate: ActivationFunction<void> = (ctx) => {
 
 		pre code {
 			font-family: var(--vscode-editor-font-family);
-			font-size: var(--vscode-editor-font-size);
 
 			line-height: 1.357em;
 			white-space: pre-wrap;

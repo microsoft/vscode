@@ -5,6 +5,7 @@
 
 import { ILoggerService, LogService } from 'vs/platform/log/common/log';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
+import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
 
 export class ExtHostLogService extends LogService {
 
@@ -14,7 +15,7 @@ export class ExtHostLogService extends LogService {
 		@ILoggerService loggerService: ILoggerService,
 		@IExtHostInitDataService initData: IExtHostInitDataService,
 	) {
-		super(loggerService.createLogger(initData.logFile));
+		super(loggerService.createLogger(initData.logFile, { name: ExtensionHostLogFileName }));
 	}
 
 }

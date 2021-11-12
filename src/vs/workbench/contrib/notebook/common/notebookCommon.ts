@@ -579,7 +579,6 @@ const _mimeTypeInfo = new Map<string, MimeTypeInfo>([
 	['image/svg+xml', { supportedByCore: true }],
 	['application/json', { alwaysSecure: true, supportedByCore: true }],
 	[Mimes.latex, { alwaysSecure: true, supportedByCore: true }],
-	[Mimes.markdown, { alwaysSecure: true, supportedByCore: true }],
 	[Mimes.text, { alwaysSecure: true, supportedByCore: true }],
 	['text/html', { supportedByCore: true }],
 	['text/x-javascript', { alwaysSecure: true, supportedByCore: true }], // secure because rendered as text, not executed
@@ -902,26 +901,30 @@ export interface INotebookCellStatusBarItemList {
 	dispose?(): void;
 }
 
-export const DisplayOrderKey = 'notebook.displayOrder';
-export const CellToolbarLocation = 'notebook.cellToolbarLocation';
-export const CellToolbarVisibility = 'notebook.cellToolbarVisibility';
 export type ShowCellStatusBarType = 'hidden' | 'visible' | 'visibleAfterExecute';
-export const ShowCellStatusBar = 'notebook.showCellStatusBar';
-export const NotebookTextDiffEditorPreview = 'notebook.diff.enablePreview';
-export const ExperimentalInsertToolbarAlignment = 'notebook.experimental.insertToolbarAlignment';
-export const CompactView = 'notebook.compactView';
-export const FocusIndicator = 'notebook.cellFocusIndicator';
-export const InsertToolbarLocation = 'notebook.insertToolbarLocation';
-export const GlobalToolbar = 'notebook.globalToolbar';
-export const UndoRedoPerCell = 'notebook.undoRedoPerCell';
-export const ConsolidatedOutputButton = 'notebook.consolidatedOutputButton';
-export const ShowFoldingControls = 'notebook.showFoldingControls';
-export const DragAndDropEnabled = 'notebook.dragAndDropEnabled';
-export const NotebookCellEditorOptionsCustomizations = 'notebook.editorOptionsCustomizations';
-export const ConsolidatedRunButton = 'notebook.consolidatedRunButton';
-export const OpenGettingStarted = 'notebook.experimental.openGettingStarted';
-export const TextOutputLineLimit = 'notebook.output.textLineLimit';
-export const GlobalToolbarShowLabel = 'notebook.globalToolbarShowLabel';
+
+export const NotebookSetting = {
+	displayOrder: 'notebook.displayOrder',
+	cellToolbarLocation: 'notebook.cellToolbarLocation',
+	cellToolbarVisibility: 'notebook.cellToolbarVisibility',
+	showCellStatusBar: 'notebook.showCellStatusBar',
+	textDiffEditorPreview: 'notebook.diff.enablePreview',
+	experimentalInsertToolbarAlignment: 'notebook.experimental.insertToolbarAlignment',
+	compactView: 'notebook.compactView',
+	focusIndicator: 'notebook.cellFocusIndicator',
+	insertToolbarLocation: 'notebook.insertToolbarLocation',
+	globalToolbar: 'notebook.globalToolbar',
+	undoRedoPerCell: 'notebook.undoRedoPerCell',
+	consolidatedOutputButton: 'notebook.consolidatedOutputButton',
+	showFoldingControls: 'notebook.showFoldingControls',
+	dragAndDropEnabled: 'notebook.dragAndDropEnabled',
+	cellEditorOptionsCustomizations: 'notebook.editorOptionsCustomizations',
+	consolidatedRunButton: 'notebook.consolidatedRunButton',
+	openGettingStarted: 'notebook.experimental.openGettingStarted',
+	textOutputLineLimit: 'notebook.output.textLineLimit',
+	globalToolbarShowLabel: 'notebook.globalToolbarShowLabel',
+	markupFontSize: 'notebook.markup.fontSize',
+} as const;
 
 export const enum CellStatusbarAlignment {
 	Left = 1,

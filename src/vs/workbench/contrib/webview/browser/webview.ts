@@ -16,10 +16,18 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IWebviewPortMapping } from 'vs/platform/webview/common/webviewPortMapping';
 
 /**
- * Set when the find widget in a webview is visible.
+ * Set when the find widget in a webview in a webview is visible.
  */
 export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('webviewFindWidgetVisible', false);
+
+/**
+ * Set when the find widget in a webview is focused.
+ */
 export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('webviewFindWidgetFocused', false);
+
+/**
+ * Set when the find widget in a webview is enabled in a webview
+ */
 export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED = new RawContextKey<boolean>('webviewFindWidgetEnabled', false);
 
 export const IWebviewService = createDecorator<IWebviewService>('webviewService');
@@ -72,27 +80,58 @@ export const enum WebviewContentPurpose {
 	WebviewView = 'webviewView',
 }
 
-export type WebviewStyles = { [key: string]: string | number; };
+export type WebviewStyles = { readonly [key: string]: string | number; };
 
 export interface WebviewOptions {
-	// The purpose of the webview; this is (currently) only used for filtering in js-debug
+	/**
+	 * The purpose of the webview; this is (currently) only used for filtering in js-debug
+	 */
 	readonly purpose?: WebviewContentPurpose;
 	readonly customClasses?: string;
 	readonly enableFindWidget?: boolean;
 	readonly tryRestoreScrollPosition?: boolean;
 	readonly retainContextWhenHidden?: boolean;
-	transformCssVariables?(styles: Readonly<WebviewStyles>): Readonly<WebviewStyles>;
+	transformCssVariables?(styles: WebviewStyles): WebviewStyles;
 }
 
+/**
+ *
+ */
 export interface WebviewContentOptions {
+	/**
+	 * Should the webview allow `acquireVsCodeApi` to be called multiple times? Defaults to false.
+	 */
 	readonly allowMultipleAPIAcquire?: boolean;
+
+	/**
+	 * Should scripts be enabled in the webview? Defaults to false.
+	 */
 	readonly allowScripts?: boolean;
+
+	/**
+	 * Should forms be enabled in the webview? Defaults to the value of {@link allowScripts}.
+	 */
 	readonly allowForms?: boolean;
-	readonly localResourceRoots?: ReadonlyArray<URI>;
-	readonly portMapping?: ReadonlyArray<IWebviewPortMapping>;
+
+	/**
+	 * Set of root paths from which the webview can load local resources.
+	 */
+	readonly localResourceRoots?: readonly URI[];
+
+	/**
+	 * Set of localhost port mappings to apply inside the webview.
+	 */
+	readonly portMapping?: readonly IWebviewPortMapping[];
+
+	/**
+	 * Are command uris enabled in the webview? Defaults to false.
+	 */
 	readonly enableCommandUris?: boolean;
 }
 
+/**
+ * Check if two {@link WebviewContentOptions} are equal.
+ */
 export function areWebviewContentOptionsEqual(a: WebviewContentOptions, b: WebviewContentOptions): boolean {
 	return (
 		a.allowMultipleAPIAcquire === b.allowMultipleAPIAcquire
@@ -110,8 +149,8 @@ export interface WebviewExtensionDescription {
 }
 
 export interface IDataLinkClickEvent {
-	dataURL: string;
-	downloadName?: string;
+	readonly dataURL: string;
+	readonly downloadName?: string;
 }
 
 export interface WebviewMessageReceivedEvent {
@@ -137,7 +176,7 @@ export interface IWebview extends IDisposable {
 	readonly onDidDispose: Event<void>;
 
 	readonly onDidClickLink: Event<string>;
-	readonly onDidScroll: Event<{ scrollYPercentage: number }>;
+	readonly onDidScroll: Event<{ readonly scrollYPercentage: number }>;
 	readonly onDidWheel: Event<IMouseWheelEvent>;
 	readonly onDidUpdateState: Event<string | undefined>;
 	readonly onDidReload: Event<void>;

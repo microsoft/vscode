@@ -10,7 +10,7 @@ interface BaseToWebviewMessage {
 	readonly __vscode_notebook_message: true;
 }
 
-export interface WebviewIntialized extends BaseToWebviewMessage {
+export interface WebviewInitialized extends BaseToWebviewMessage {
 	readonly type: 'initialized';
 }
 
@@ -162,22 +162,22 @@ export interface IOutputRequestMetadata {
 	/**
 	 * Additional attributes of a cell metadata.
 	 */
-	readonly custom?: { [key: string]: unknown; };
+	readonly custom?: { readonly [key: string]: unknown; };
 }
 
 export interface IOutputRequestDto {
 	/**
 	 * { mime_type: value }
 	 */
-	readonly data: { [key: string]: unknown; };
+	readonly data: { readonly [key: string]: unknown; };
 
 	readonly metadata?: IOutputRequestMetadata;
 	readonly outputId: string;
 }
 
 export type ICreationContent =
-	| { type: RenderOutputType.Html; htmlContent: string; }
-	| { type: RenderOutputType.Extension; outputId: string; valueBytes: Uint8Array; metadata: unknown; mimeType: string; };
+	| { readonly type: RenderOutputType.Html; readonly htmlContent: string; }
+	| { readonly type: RenderOutputType.Extension; readonly outputId: string; readonly valueBytes: Uint8Array; readonly metadata: unknown; readonly mimeType: string; };
 
 export interface ICreationRequestMessage {
 	readonly type: 'html';
@@ -187,7 +187,7 @@ export interface ICreationRequestMessage {
 	cellTop: number;
 	outputOffset: number;
 	readonly left: number;
-	readonly requiredPreloads: ReadonlyArray<IControllerPreload>;
+	readonly requiredPreloads: readonly IControllerPreload[];
 	readonly initiallyHidden?: boolean;
 	readonly rendererId?: string | undefined;
 }
@@ -200,10 +200,15 @@ export interface IContentWidgetTopRequest {
 	readonly forceDisplay: boolean;
 }
 
+export interface IMarkupCellScrollTops {
+	readonly id: string;
+	readonly top: number;
+}
+
 export interface IViewScrollTopRequestMessage {
 	readonly type: 'view-scroll';
-	readonly widgets: IContentWidgetTopRequest[];
-	readonly markupCells: { id: string; top: number; }[];
+	readonly widgets: readonly IContentWidgetTopRequest[];
+	readonly markupCells: readonly IMarkupCellScrollTops[];
 }
 
 export interface IScrollRequestMessage {
@@ -259,14 +264,14 @@ export interface IControllerPreload {
 
 export interface IUpdateControllerPreloadsMessage {
 	readonly type: 'preload';
-	readonly resources: IControllerPreload[];
+	readonly resources: readonly IControllerPreload[];
 }
 
 export interface IUpdateDecorationsMessage {
 	readonly type: 'decorations';
 	readonly cellId: string;
-	readonly addedClassNames: string[];
-	readonly removedClassNames: string[];
+	readonly addedClassNames: readonly string[];
+	readonly removedClassNames: readonly string[];
 }
 
 export interface ICustomKernelMessage extends BaseToWebviewMessage {
@@ -324,13 +329,13 @@ export interface IMarkupCellInitialization {
 
 export interface IInitializeMarkupCells {
 	readonly type: 'initializeMarkup';
-	readonly cells: ReadonlyArray<IMarkupCellInitialization>;
+	readonly cells: readonly IMarkupCellInitialization[];
 }
 
 export interface INotebookStylesMessage {
 	readonly type: 'notebookStyles';
 	readonly styles: {
-		[key: string]: string;
+		readonly [key: string]: string;
 	};
 }
 
@@ -354,7 +359,7 @@ export interface ITokenizedStylesChangedMessage {
 	readonly css: string;
 }
 
-export type FromWebviewMessage = WebviewIntialized |
+export type FromWebviewMessage = WebviewInitialized |
 	IDimensionMessage |
 	IMouseEnterMessage |
 	IMouseLeaveMessage |

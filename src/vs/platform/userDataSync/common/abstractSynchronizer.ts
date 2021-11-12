@@ -21,6 +21,7 @@ import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileChangesEvent, FileOperationError, FileOperationResult, IFileContent, IFileService } from 'vs/platform/files/common/files';
+import { ILogService } from 'vs/platform/log/common/log';
 import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -835,7 +836,7 @@ export abstract class AbstractInitializer implements IUserDataInitializer {
 	constructor(
 		readonly resource: SyncResource,
 		@IEnvironmentService protected readonly environmentService: IEnvironmentService,
-		@IUserDataSyncLogService protected readonly logService: IUserDataSyncLogService,
+		@ILogService protected readonly logService: ILogService,
 		@IFileService protected readonly fileService: IFileService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
@@ -851,12 +852,6 @@ export abstract class AbstractInitializer implements IUserDataInitializer {
 
 		const syncData = this.parseSyncData(content);
 		if (!syncData) {
-			return;
-		}
-
-		const isPreviouslySynced = await this.fileService.exists(this.lastSyncResource);
-		if (isPreviouslySynced) {
-			this.logService.info('Remote content does not exist.', this.resource);
 			return;
 		}
 

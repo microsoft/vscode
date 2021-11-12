@@ -157,27 +157,27 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 	updateConfig(): void {
 		const config = this._configHelper.config;
-		this._safeSetOption('altClickMovesCursor', config.altClickMovesCursor);
+		this.raw.options.altClickMovesCursor = config.altClickMovesCursor;
 		this._setCursorBlink(config.cursorBlinking);
 		this._setCursorStyle(config.cursorStyle);
 		this._setCursorWidth(config.cursorWidth);
-		this._safeSetOption('scrollback', config.scrollback);
-		this._safeSetOption('drawBoldTextInBrightColors', config.drawBoldTextInBrightColors);
-		this._safeSetOption('minimumContrastRatio', config.minimumContrastRatio);
-		this._safeSetOption('fastScrollSensitivity', config.fastScrollSensitivity);
-		this._safeSetOption('scrollSensitivity', config.mouseWheelScrollSensitivity);
-		this._safeSetOption('macOptionIsMeta', config.macOptionIsMeta);
+		this.raw.options.scrollback = config.scrollback;
+		this.raw.options.drawBoldTextInBrightColors = config.drawBoldTextInBrightColors;
+		this.raw.options.minimumContrastRatio = config.minimumContrastRatio;
+		this.raw.options.fastScrollSensitivity = config.fastScrollSensitivity;
+		this.raw.options.scrollSensitivity = config.mouseWheelScrollSensitivity;
+		this.raw.options.macOptionIsMeta = config.macOptionIsMeta;
 		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
-		this._safeSetOption('altClickMovesCursor', config.altClickMovesCursor && editorOptions.multiCursorModifier === 'alt');
-		this._safeSetOption('macOptionClickForcesSelection', config.macOptionClickForcesSelection);
-		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
-		this._safeSetOption('wordSeparator', config.wordSeparators);
-		this._safeSetOption('customGlyphs', config.customGlyphs);
+		this.raw.options.altClickMovesCursor = config.altClickMovesCursor && editorOptions.multiCursorModifier === 'alt';
+		this.raw.options.macOptionClickForcesSelection = config.macOptionClickForcesSelection;
+		this.raw.options.rightClickSelectsWord = config.rightClickBehavior === 'selectWord';
+		this.raw.options.wordSeparator = config.wordSeparators;
+		this.raw.options.customGlyphs = config.customGlyphs;
 		if ((!isSafari && config.gpuAcceleration === 'auto' && XtermTerminal._suggestedRendererType === undefined) || config.gpuAcceleration === 'on') {
 			this._enableWebglRenderer();
 		} else {
 			this._disposeOfWebglRenderer();
-			this._safeSetOption('rendererType', this._getBuiltInXtermRenderer(config.gpuAcceleration, XtermTerminal._suggestedRendererType));
+			this.raw.options.rendererType = this._getBuiltInXtermRenderer(config.gpuAcceleration, XtermTerminal._suggestedRendererType);
 		}
 	}
 
@@ -282,30 +282,23 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this.raw.clear();
 	}
 
-	private _safeSetOption(key: string, value: any): void {
-		if (this.raw.getOption(key) !== value) {
-			this.raw.setOption(key, value);
-		}
-	}
-
 	private _setCursorBlink(blink: boolean): void {
-		if (this.raw.getOption('cursorBlink') !== blink) {
-			this.raw.setOption('cursorBlink', blink);
+		if (this.raw.options.cursorBlink !== blink) {
+			this.raw.options.cursorBlink = blink;
 			this.raw.refresh(0, this.raw.rows - 1);
 		}
 	}
 
-	private _setCursorStyle(style: string): void {
-		if (this.raw.getOption('cursorStyle') !== style) {
+	private _setCursorStyle(style: 'block' | 'underline' | 'bar' | 'line'): void {
+		if (this.raw.options.cursorStyle !== style) {
 			// 'line' is used instead of bar in VS Code to be consistent with editor.cursorStyle
-			const xtermOption = style === 'line' ? 'bar' : style;
-			this.raw.setOption('cursorStyle', xtermOption);
+			this.raw.options.cursorStyle = (style === 'line') ? 'bar' : style;
 		}
 	}
 
 	private _setCursorWidth(width: number): void {
-		if (this.raw.getOption('cursorWidth') !== width) {
-			this.raw.setOption('cursorWidth', width);
+		if (this.raw.options.cursorWidth !== width) {
+			this.raw.options.cursorWidth = width;
 		}
 	}
 
@@ -328,7 +321,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			this._webglAddon.onContextLoss(() => {
 				this._logService.info(`Webgl lost context, disposing of webgl renderer`);
 				this._disposeOfWebglRenderer();
-				this._safeSetOption('rendererType', 'dom');
+				this.raw.options.rendererType = 'dom';
 			});
 		} catch (e) {
 			this._logService.warn(`Webgl could not be loaded. Falling back to the canvas renderer type.`, e);
@@ -337,7 +330,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			if (!neverMeasureRenderTime && this._configHelper.config.gpuAcceleration !== 'off') {
 				this._measureRenderTime();
 			}
-			this._safeSetOption('rendererType', 'canvas');
+			this.raw.options.rendererType = 'canvas';
 			XtermTerminal._suggestedRendererType = 'canvas';
 			this._disposeOfWebglRenderer();
 		}

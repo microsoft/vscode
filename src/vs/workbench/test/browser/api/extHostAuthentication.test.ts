@@ -7,7 +7,6 @@ import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
@@ -20,7 +19,7 @@ import { ExtHostContext, MainContext } from 'vs/workbench/api/common/extHost.pro
 import { ExtHostAuthentication } from 'vs/workbench/api/common/extHostAuthentication';
 import { IActivityService } from 'vs/workbench/services/activity/common/activity';
 import { AuthenticationService, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { IExtensionService, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, nullExtensionDescription as extensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { TestRemoteAgentService } from 'vs/workbench/services/remote/test/common/testServices';
 import { TestRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
@@ -89,7 +88,6 @@ class TestAuthProvider implements AuthenticationProvider {
 
 suite('ExtHostAuthentication', () => {
 	let disposables: DisposableStore;
-	let extensionDescription: IExtensionDescription = { ...nullExtensionDescription, enableProposedApi: true };
 
 	let extHostAuthentication: ExtHostAuthentication;
 	let instantiationService: TestInstantiationService;

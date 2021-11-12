@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.63.0",
-  "distro": "58644f0352f74eff29f9d920573b8e6fffb1cfac",
+  "distro": "4402f943794631d3a9a9f3dbdfaa5d855ddfe575",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -40,7 +40,7 @@
     "download-builtin-extensions-cg": "node build/lib/builtInExtensionsCG.js",
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
     "tsec-compile-check": "node node_modules/tsec/bin/tsec -p src/tsconfig.tsec.json",
-    "vscode-dts-compile-check": "node node_modules/tsec/bin/tsec -p src/tsconfig.vscode-dts.json && node node_modules/tsec/bin/tsec -p src/tsconfig.vscode-proposed-dts.json",
+    "vscode-dts-compile-check": "tsc -p src/tsconfig.vscode-dts.json && tsc -p src/tsconfig.vscode-proposed-dts.json",
     "valid-layers-check": "node build/lib/layersChecker.js",
     "update-distro": "node build/npm/update-distro.js",
     "web": "node resources/web/code-web.js",
@@ -59,7 +59,7 @@
   },
   "dependencies": {
     "@microsoft/applicationinsights-web": "^2.6.4",
-    "@parcel/watcher": "2.0.0",
+    "@parcel/watcher": "2.0.1",
     "@vscode/sqlite3": "4.0.12",
     "@vscode/vscode-languagedetection": "1.0.21",
     "applicationinsights": "1.0.8",
