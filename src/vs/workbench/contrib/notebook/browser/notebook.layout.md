@@ -71,28 +71,17 @@ However, we **don't** warmup the previous viewport as the cell height change of 
 
 ## Focus Tracking
 
-* DOM focus tracker of notebook editor container
-  * focus on cell container
-  * focus on cell editor
-  * focus on cell status bar
-  * focus on cell/execution/output toolbar
-  * focus on find widget
-  * focus on an element in the webview/iframe
-  - [ ] Focus on notebook toolbar
-* hasWebviewFocus
+Due to the nature of virtualization (list view) and two layers architecture, the focus tracking is more complex compared to file explorer or monaco editor. When a notebook is *focused*, the `document.activeElement` can be
 
+* Monaco editor, when users focus on a cell editor
+  * `textarea` when users focus the text
+  * Widgets
+* Webview/iframe, when users focus on markdown cell or rich outputs rendered rendered in iframe
+* List view container, when users focus on cell container
+* Focusable element inside the notebook editor
+  * Builtin output (e.g., text output)
+  * Find Widget
+  * Cell statusbar
+  * Toolbars
 
-CSS
-* `monaco-list.focus-within` for cell container/editor borders
-
-
-* in `codecell` we update the `cell.focusMode` when rendering it and if it's not the focused element anymore, the focusMode is reverted to container
-
-
-* cell editor focused and editor blur event happens
-  * if focused element is another cell, then change focusMode to container
-  * if focused element is find widget / notebookToolbar, don't change focusMode
-  * if focused element is webview/iframe, don't change focusMode
-  * if focused element is outside of the notebook, don't change focusMode
-* cell editor focused and cell moves out of view (no blur event)
-  * When disposing the cell view, we will focus the cell list container, otherwise the focus goes to body as the active element is removed from the DOM.
+The catch here is if the focus is on a monaco editor, instead of the list view container, when the cell is moved out of view, the list view removes the cell row from the DOM tree. The `document.activeElement` will fall back `document.body` when that happens. To ensure that the notebook editor doesn't blur, we need to move focus back to list view container when the focused cell is moved out of view. More importantly, focus the cell editor again when the cell is visible again (if the cell is still the *active* cell).

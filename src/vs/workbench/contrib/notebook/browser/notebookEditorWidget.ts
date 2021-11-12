@@ -222,6 +222,41 @@ export function getDefaultNotebookCreationOptions() {
 	};
 }
 
+class NotebookEditorWidgetFocusTracker extends Disposable {
+
+	private _hasFocus: boolean;
+	private readonly _domFocusTracker: DOM.IFocusTracker;
+
+	private readonly _onChange: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onChange: Event<void> = this._onChange.event;
+
+	constructor(domElement: HTMLElement) {
+		super();
+
+		this._hasFocus = false;
+		this._domFocusTracker = this._register(DOM.trackFocus(domElement));
+
+		this._register(this._domFocusTracker.onDidFocus(() => {
+			this._hasFocus = true;
+			this._onChange.fire(undefined);
+		}));
+		this._register(this._domFocusTracker.onDidBlur(() => {
+			this._hasFocus = false;
+			this._onChange.fire(undefined);
+		}));
+	}
+
+	public hasFocus(): boolean {
+		return this._hasFocus;
+	}
+
+	public refreshState(): void {
+		if (this._domFocusTracker.refreshState) {
+			this._domFocusTracker.refreshState();
+		}
+	}
+}
+
 export class NotebookEditorWidget extends Disposable implements INotebookEditorDelegate {
 	//#region Eventing
 	private readonly _onDidChangeCellState = this._register(new Emitter<NotebookCellStateChangedEvent>());
@@ -293,6 +328,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private _cellContextKeyManager: CellContextKeyManager | null = null;
 	private _isVisible = false;
 	private readonly _uuid = generateUuid();
+	private _widgetFocusTracker!: NotebookEditorWidgetFocusTracker;
 	private _webviewFocused: boolean = false;
 
 	private _isDisposed: boolean = false;
@@ -581,6 +617,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private _createBody(parent: HTMLElement): void {
 		this._notebookTopToolbarContainer = document.createElement('div');
 		this._notebookTopToolbarContainer.classList.add('notebook-toolbar-container');
+		this._notebookTopToolbarContainer.tabIndex = 0;
 		this._notebookTopToolbarContainer.style.display = 'none';
 		DOM.append(parent, this._notebookTopToolbarContainer);
 		this._body = document.createElement('div');
@@ -1000,10 +1037,18 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 		}));
 
-		const widgetFocusTracker = DOM.trackFocus(this.getDomNode());
-		this._register(widgetFocusTracker);
-		this._register(widgetFocusTracker.onDidFocus(() => this._onDidFocusEmitter.fire()));
-		this._register(widgetFocusTracker.onDidBlur(() => this._onDidBlurEmitter.fire()));
+		this._widgetFocusTracker = this._register(new NotebookEditorWidgetFocusTracker(this.getDomNode()));
+		this._register(this._widgetFocusTracker.onChange(() => {
+			const focused = this._widgetFocusTracker.hasFocus();
+			this._editorFocus.set(focused);
+			this.viewModel?.setEditorFocus(focused);
+
+			if (focused) {
+				this._onDidFocusEmitter.fire();
+			} else {
+				this._onDidBlurEmitter.fire();
+			}
+		}));
 
 		this._registerNotebookActionsToolbar();
 	}
@@ -1754,7 +1799,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	updateEditorFocus() {
 		// Note - focus going to the webview will fire 'blur', but the webview element will be
 		// a descendent of the notebook editor root.
-		const focused = this._overlayContainer.contains(document.activeElement);
+		this._widgetFocusTracker.refreshState();
+		const focused = this._widgetFocusTracker.hasFocus();
 		this._editorFocus.set(focused);
 		this.viewModel?.setEditorFocus(focused);
 	}
@@ -1763,7 +1809,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		// _editorFocus is driven by the FocusTracker, which is only guaranteed to _eventually_ fire blur.
 		// If we need to know whether we have focus at this instant, we need to check the DOM manually.
 		this.updateEditorFocus();
-		return this._editorFocus.get() || false;
+		return this._widgetFocusTracker.hasFocus();
 	}
 
 	hasWebviewFocus() {
