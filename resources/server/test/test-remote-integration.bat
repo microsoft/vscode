@@ -43,8 +43,17 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 	call .\scripts\code.bat --folder-uri=%REMOTE_VSCODE%/vscode-api-tests/testWorkspace --extensionDevelopmentPath=%REMOTE_VSCODE%/vscode-api-tests --extensionTestsPath=%REMOTE_VSCODE%/vscode-api-tests/out/singlefolder-tests %API_TESTS_EXTRA_ARGS%
 	if %errorlevel% neq 0 exit /b %errorlevel%
 
+	echo "------------------------------------"
+	tasklist
+	echo "------------------------------------"
+
 	call .\scripts\code.bat --file-uri=%REMOTE_VSCODE%/vscode-api-tests/testworkspace.code-workspace --extensionDevelopmentPath=%REMOTE_VSCODE%/vscode-api-tests --extensionTestsPath=%REMOTE_VSCODE%/vscode-api-tests/out/workspace-tests %API_TESTS_EXTRA_ARGS%
 	if %errorlevel% neq 0 exit /b %errorlevel%
+
+	echo "------------------------------------"
+	tasklist
+	echo "------------------------------------"
+
 ) else (
 	echo "Storing crash reports into '%VSCODECRASHDIR%'."
 	echo "Storing log files into '%VSCODELOGSDIR%'."
@@ -65,8 +74,16 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 	call "%INTEGRATION_TEST_ELECTRON_PATH%" --folder-uri=%REMOTE_VSCODE%/vscode-api-tests/testWorkspace --extensionDevelopmentPath=%REMOTE_VSCODE%/vscode-api-tests --extensionTestsPath=%REMOTE_VSCODE%/vscode-api-tests/out/singlefolder-tests %API_TESTS_EXTRA_ARGS% --extensions-dir=%EXT_PATH% --enable-proposed-api=vscode.vscode-test-resolver --enable-proposed-api=vscode.vscode-api-tests --enable-proposed-api=vscode.image-preview
 	if %errorlevel% neq 0 exit /b %errorlevel%
 
+	echo "------------------------------------"
+	tasklist
+	echo "------------------------------------"
+
 	call "%INTEGRATION_TEST_ELECTRON_PATH%" --file-uri=%REMOTE_VSCODE%/vscode-api-tests/testworkspace.code-workspace --extensionDevelopmentPath=%REMOTE_VSCODE%/vscode-api-tests --extensionTestsPath=%REMOTE_VSCODE%/vscode-api-tests/out/workspace-tests %API_TESTS_EXTRA_ARGS% --extensions-dir=%EXT_PATH% --enable-proposed-api=vscode.vscode-test-resolver --enable-proposed-api=vscode.vscode-api-tests --enable-proposed-api=vscode.image-preview
 	if %errorlevel% neq 0 exit /b %errorlevel%
+
+	echo "------------------------------------"
+	tasklist
+	echo "------------------------------------"
 )
 
 IF "%3" == "" (
