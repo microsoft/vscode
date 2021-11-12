@@ -15,7 +15,8 @@ import { State, StateMachine, LinkComputer, Edge } from 'vs/editor/common/modes/
 import { commonPrefixLength } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 class FsLinkProvider {
 
@@ -133,7 +134,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		}
 	}
 
-	registerFileSystemProvider(extension: ExtensionIdentifier, scheme: string, provider: vscode.FileSystemProvider, options: { isCaseSensitive?: boolean, isReadonly?: boolean } = {}) {
+	registerFileSystemProvider(extension: IExtensionDescription, scheme: string, provider: vscode.FileSystemProvider, options: { isCaseSensitive?: boolean, isReadonly?: boolean } = {}) {
 
 		if (this._registeredSchemes.has(scheme)) {
 			throw new Error(`a provider for the scheme '${scheme}' is already registered`);
@@ -160,11 +161,12 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		if (typeof provider.open === 'function' && typeof provider.close === 'function'
 			&& typeof provider.read === 'function' && typeof provider.write === 'function'
 		) {
+			checkProposedApiEnabled(extension, 'fsChunks');
 			capabilities += files.FileSystemProviderCapabilities.FileOpenReadWriteClose;
 		}
 
 		this._proxy.$registerFileSystemProvider(handle, scheme, capabilities).catch(err => {
-			console.error(`FAILED to register filesystem provider of ${extension.value}-extension for the scheme ${scheme}`);
+			console.error(`FAILED to register filesystem provider of ${extension.identifier.value}-extension for the scheme ${scheme}`);
 			console.error(err);
 		});
 
