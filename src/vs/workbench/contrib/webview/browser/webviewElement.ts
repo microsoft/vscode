@@ -14,6 +14,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
 import { localize } from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
@@ -93,6 +94,9 @@ namespace WebviewState {
 
 export class WebviewElement extends Disposable implements IWebview, WebviewFindDelegate {
 
+	public readonly id: string;
+	private readonly iframeId: string;
+
 	protected get platform(): string { return 'browser'; }
 
 	private readonly _expectedServiceWorkerVersion = 2; // Keep this in sync with the version in service-worker.js
@@ -136,7 +140,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	public readonly checkImeCompletionState = true;
 
 	constructor(
-		public readonly id: string,
+		id: string,
 		private readonly options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
 		public extension: WebviewExtensionDescription | undefined,
@@ -154,6 +158,9 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+
+		this.id = id;
+		this.iframeId = generateUuid();
 
 		this.content = {
 			html: '',
@@ -312,7 +319,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		}));
 
 		this._register(addDisposableListener(window, 'message', e => {
-			if (e?.data?.target === this.id) {
+			if (e?.data?.target === this.iframeId) {
 				if (e.origin !== this.webviewContentOrigin) {
 					console.log(`Skipped renderer receiving message due to mismatched origins: ${e.origin} ${this.webviewContentOrigin}`);
 					return;
@@ -412,7 +419,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	private initElement(extension: WebviewExtensionDescription | undefined, options: WebviewOptions) {
 		// The extensionId and purpose in the URL are used for filtering in js-debug:
 		const params: { [key: string]: string } = {
-			id: this.id,
+			id: this.iframeId,
 			swVersion: String(this._expectedServiceWorkerVersion),
 			extensionId: extension?.id.value ?? '',
 			platform: this.platform,
