@@ -57,10 +57,6 @@ export interface IDriver {
 	getLocaleInfo(windowId: number): Promise<ILocaleInfo>;
 	getLocalizedStrings(windowId: number): Promise<ILocalizedStrings>;
 }
-//*END
-
-export const ID = 'driverService';
-export const IDriver = createDecorator<IDriver>(ID);
 
 export interface IWindowDriver {
 	click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined): Promise<void>;
@@ -76,6 +72,10 @@ export interface IWindowDriver {
 	getLocaleInfo(): Promise<ILocaleInfo>;
 	getLocalizedStrings(): Promise<ILocalizedStrings>
 }
+//*END
+
+export const ID = 'driverService';
+export const IDriver = createDecorator<IDriver>(ID);
 
 export interface IDriverOptions {
 	verbose: boolean;

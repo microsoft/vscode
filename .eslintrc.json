@@ -952,7 +952,6 @@
 					"@vscode/*",
 					"@parcel/*",
 					"playwright-core/**",
-					"**/vs/platform/driver/common/**",
 					"*" // node modules
 				]
 			},
