@@ -598,9 +598,9 @@ export interface CSSIcon {
 
 export namespace CSSIcon {
 	export const iconNameSegment = '[A-Za-z0-9]+';
-	export const iconNameExpression = '[A-Za-z0-9\\-]+';
+	export const iconNameExpression = '[A-Za-z0-9-]+';
 	export const iconModifierExpression = '~[A-Za-z]+';
-	export const iconNameCharacter = '[A-Za-z0-9\\-~]';
+	export const iconNameCharacter = '[A-Za-z0-9~-]';
 
 	const cssIconIdRegex = new RegExp(`^(${iconNameExpression})(${iconModifierExpression})?$`);
 
