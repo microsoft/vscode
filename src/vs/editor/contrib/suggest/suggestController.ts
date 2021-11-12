@@ -132,6 +132,8 @@ export class SuggestController implements IEditorContribution {
 		this.editor = editor;
 		this.model = _instantiationService.createInstance(SuggestModel, this.editor,);
 
+		console.log('making a suggest controller!');
+
 		// context key: update insert/replace mode
 		const ctxInsertMode = SuggestContext.InsertMode.bindTo(_contextKeyService);
 		ctxInsertMode.set(editor.getOption(EditorOption.suggest).insertMode);
@@ -433,34 +435,32 @@ export class SuggestController implements IEditorContribution {
 
 		// clear only now - after all tasks are done
 		Promise.all(tasks).finally(() => {
-
-			const resourceLoggedEvents = this._loggedEvents.get(model.uri) ?? new Set<string>();
-			if (!this._loggedEvents.has(model.uri)) {
-				this._loggedEvents.set(model.uri, resourceLoggedEvents);
-			}
-
-			const providerId = event.item.provider._source ?? event.item.provider._debugDisplayName ?? 'unknownProvider';
-			if (!resourceLoggedEvents.has(providerId)) {
-				resourceLoggedEvents.add(providerId);
-
-				type AcceptedSuggestion = { providerId: string; fileExtension: string, languageId: string, basenameHash: string };
-				type AcceptedSuggestionClassification = {
-					providerId: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' },
-					basenameHash: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' },
-					fileExtension: { classification: 'SystemMetaData', purpose: 'FeatureInsight' },
-					languageId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' },
-				};
-
-				this._telemetryService.publicLog2<AcceptedSuggestion, AcceptedSuggestionClassification>('suggest.acceptedSuggestion', {
-					providerId,
-					basenameHash: '' + hash(basename(model.uri)),
-					languageId: model.getLanguageId(),
-					fileExtension: extname(model.uri),
-				});
-			}
+			this._reportSuggestionAcceptedTelemetry(model, event);
 
 			this.model.clear();
 			cts.dispose();
+		});
+	}
+
+	private _telemetryGate: number = 0;
+	private _reportSuggestionAcceptedTelemetry(model: ITextModel, acceptedSuggestion: ISelectedSuggestion) {
+		if (this._telemetryGate++ % 100 !== 0) {
+			return;
+		}
+
+		type AcceptedSuggestion = { providerId: string; fileExtension: string; languageId: string; basenameHash: string; };
+		type AcceptedSuggestionClassification = {
+			providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; };
+			basenameHash: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; };
+			fileExtension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; };
+			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; };
+		};
+
+		this._telemetryService.publicLog2<AcceptedSuggestion, AcceptedSuggestionClassification>('suggest.acceptedSuggestion', {
+			providerId: acceptedSuggestion.item.provider._debugDisplayName ?? 'unknown',
+			basenameHash: hash(basename(model.uri)).toString(16),
+			languageId: model.getLanguageId(),
+			fileExtension: extname(model.uri),
 		});
 	}
 
