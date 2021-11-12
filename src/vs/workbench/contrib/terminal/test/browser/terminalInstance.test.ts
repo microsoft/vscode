@@ -41,7 +41,7 @@ const ROOT_2 = fixPath(root2);
 const emptyRoot = '/foo';
 const ROOT_EMPTY = fixPath(emptyRoot);
 suite('Workbench - TerminalInstance', () => {
-	suite.only('parseExitResult', () => {
+	suite('parseExitResult', () => {
 		test('should return no message for exit code = undefined', () => {
 			deepStrictEqual(
 				parseExitResult(undefined, {}, ProcessState.KilledDuringLaunch, undefined),
