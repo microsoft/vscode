@@ -26,16 +26,20 @@ export function setup(opts: ParsedArgs) {
 			app = this.app;
 		});
 
-		afterEach(async () => {
+		// beforeEach(async function () {
+		// 	await app.workbench.terminal.showTerminal();
+		// });
+
+		afterEach(async function () {
 			await app.workbench.terminal.killTerminal();
 		});
 
 		it('should launch the default profile', async function () {
-			// Verify the terminal single tab shows up and has a title
-			const terminalTab = await app.code.waitForElement(SINGLE_TAB_SELECTOR);
-			ok(terminalTab.textContent.trim().length > 0);
+			await app.workbench.terminal.showTerminal();
+			await app.code.waitForElement(SINGLE_TAB_SELECTOR);
 		});
-		it('should contain profiles in dropdown menu', async function () {
+
+		it('dropdown menu should be populated with profiles', async function () {
 			await app.workbench.terminal.showTerminal();
 			await app.code.waitAndClick(DROPDOWN_BUTTON_SELECTOR);
 			const actionItems = await app.code.waitForElements(ACTION_ITEMS_SELECTOR, true);
@@ -50,7 +54,7 @@ export function setup(opts: ParsedArgs) {
 			ok(labels.length > 3);
 		});
 
-		it('should create a terminal via the plus button using the default profile and display tabs view', async function () {
+		it('clicking the plus button should create a terminal and display the tabs view', async function () {
 			await app.workbench.terminal.showTerminal();
 			await app.code.waitAndClick(PLUS_BUTTON_SELECTOR);
 			const tabs = await app.code.waitForElements(TABS_LIST_SELECTOR, true);
@@ -58,38 +62,31 @@ export function setup(opts: ParsedArgs) {
 			await app.workbench.terminal.killTerminal();
 		});
 
-		it('should create a terminal via the plus button and reflect that in the tabs list', async function () {
-			await app.workbench.terminal.showTerminal();
-			await app.code.waitAndClick(PLUS_BUTTON_SELECTOR);
-			const tabs = await app.code.waitForElements(TABS_LIST_SELECTOR, true);
-			deepStrictEqual(tabs[0].children.length, 2);
-			await app.workbench.terminal.killTerminal();
-		});
-
-		it('should create terminal with profile via command palette', async function () {
+		it('createWithProfile command should create a terminal with the default profile', async function () {
 			await app.workbench.terminal.runProfileCommand('createInstance');
-			const tabs = await app.code.waitForElements(TABS_LIST_SELECTOR, true);
-			deepStrictEqual(tabs[0].children.length, 1);
+			await app.code.waitForElement(SINGLE_TAB_SELECTOR);
 		});
 
-		it('should create contributed terminal with profile via command palette', async function () {
+		it('createWithProfile command should create a terminal with a contributed profile', async function () {
 			await app.workbench.terminal.runProfileCommand('createInstance', true);
-			const tabs = await app.code.waitForElements(TABS_LIST_SELECTOR, true);
-			deepStrictEqual(tabs[0].children.length, 1);
+			await app.code.waitForElement(SINGLE_TAB_SELECTOR);
 		});
 
-		it('should select default profile via the command pallette', async function () {
+		it('should set the default profile', async function () {
+			await app.workbench.terminal.showTerminal();
 			await app.workbench.terminal.runProfileCommand('setDefault', undefined);
 			await app.code.waitAndClick(PLUS_BUTTON_SELECTOR);
 			const tabs = await app.code.waitForElements(TABS_LIST_SELECTOR, true);
-			deepStrictEqual(tabs[0].children.length, 1);
+			deepStrictEqual(tabs[0].children.length, 2);
+			await app.workbench.terminal.killTerminal();
 		});
 
-		it('should select default profile as contributed via the command pallette', async function () {
+		it('should set the default profile to a contributed one', async function () {
+			await app.workbench.terminal.showTerminal();
 			await app.workbench.terminal.runProfileCommand('setDefault', true);
 			await app.code.waitAndClick(PLUS_BUTTON_SELECTOR);
 			const tabs = await app.code.waitForElements(TABS_LIST_SELECTOR, true);
-			deepStrictEqual(tabs[0].children.length, 1);
+			deepStrictEqual(tabs[0].children.length, 2);
 		});
 
 		it('should create split terminal with profile via command pallette', async function () {
