@@ -951,6 +951,7 @@
 					"**/test/automation/**",
 					"@vscode/*",
 					"@parcel/*",
+					"playwright-core/**",
 					"*" // node modules
 				]
 			},
