@@ -72,7 +72,8 @@
           "name": "%view.name%",
           "when": "npm:showScriptExplorer",
           "icon": "$(json)",
-          "visibility": "hidden"
+          "visibility": "hidden",
+          "contextualTitle": "%view.name%"
         }
       ]
     },
