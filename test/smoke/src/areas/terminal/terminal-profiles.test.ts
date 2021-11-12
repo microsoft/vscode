@@ -39,6 +39,12 @@ export function setup(opts: ParsedArgs) {
 			await app.code.waitForElement(Selector.SingleTab, e => e ? !e.textContent.endsWith(ContributedProfileName) : false);
 		});
 
+		it('should set the default profile to a contributed one', async function () {
+			await app.workbench.terminal.runProfileCommand('setDefault', true);
+			await app.workbench.terminal.createNew();
+			await app.code.waitForElement(Selector.SingleTab, e => e ? e.textContent.endsWith(ContributedProfileName) : false);
+		});
+
 		it('dropdown menu should be populated with profiles', async function () {
 			await app.workbench.terminal.showTerminal();
 			await app.code.waitAndClick(Selector.DropdownButton);
@@ -101,13 +107,6 @@ export function setup(opts: ParsedArgs) {
 			await app.workbench.terminal.runProfileCommand('setDefault', undefined);
 			await app.workbench.terminal.createNew();
 			await app.code.waitForElement(Selector.SingleTab, e => e ? !e.textContent.endsWith(ContributedProfileName) : false);
-			await app.workbench.terminal.killTerminal();
-		});
-
-		it('should set the default profile to a contributed one', async function () {
-			await app.workbench.terminal.runProfileCommand('setDefault', true);
-			await app.workbench.terminal.createNew();
-			await app.code.waitForElement(Selector.SingleTab, e => e ? e.textContent.endsWith(ContributedProfileName) : false);
 		});
 	});
 }
