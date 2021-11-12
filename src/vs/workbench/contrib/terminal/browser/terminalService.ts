@@ -17,7 +17,6 @@ import * as nls from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ICreateContributedTerminalProfileOptions, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalLocationString } from 'vs/platform/terminal/common/terminal';
 import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -138,7 +137,6 @@ export class TerminalService implements ITerminalService {
 
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
-		@ILabelService labelService: ILabelService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IDialogService private _dialogService: IDialogService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
@@ -222,15 +220,6 @@ export class TerminalService implements ITerminalService {
 
 		lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal'));
 		lifecycleService.onWillShutdown(e => this._onWillShutdown(e));
-
-		// Register a resource formatter for terminal URIs
-		labelService.registerFormatter({
-			scheme: Schemas.vscodeTerminal,
-			formatting: {
-				label: '${path}',
-				separator: ''
-			}
-		});
 
 		// Create async as the class depends on `this`
 		timeout(0).then(() => this._instantiationService.createInstance(TerminalEditorStyle, document.head));
