@@ -398,7 +398,8 @@ export interface INotebookEditor {
 	 * An event emitted when the model of this editor has changed.
 	 */
 	readonly onDidChangeModel: Event<NotebookTextModel | undefined>;
-	readonly onDidFocusEditorWidget: Event<void>;
+	readonly onDidFocus: Event<void>;
+	readonly onDidBlur: Event<void>;
 	readonly onDidScroll: Event<void>;
 	readonly onDidChangeActiveCell: Event<void>;
 	readonly onDidChangeActiveKernel: Event<void>;

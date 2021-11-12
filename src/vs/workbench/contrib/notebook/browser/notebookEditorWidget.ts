@@ -275,8 +275,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	readonly onDidChangeSelection: Event<void> = this._onDidChangeSelection.event;
 	private readonly _onDidChangeVisibleRanges = this._register(new Emitter<void>());
 	readonly onDidChangeVisibleRanges: Event<void> = this._onDidChangeVisibleRanges.event;
-	private readonly _onDidFocusEditorWidget = this._register(new Emitter<void>());
-	readonly onDidFocusEditorWidget = this._onDidFocusEditorWidget.event;
 	private readonly _onDidFocusEmitter = this._register(new Emitter<void>());
 	readonly onDidFocus = this._onDidFocusEmitter.event;
 	private readonly _onDidBlurEmitter = this._register(new Emitter<void>());
@@ -1765,15 +1763,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				if (element && element.focusMode === CellFocusMode.Editor) {
 					element.updateEditState(CellEditState.Editing, 'editorWidget.focus');
 					element.focusMode = CellFocusMode.Editor;
-					this._onDidFocusEditorWidget.fire();
 					return;
 				}
 			}
 
 			this._list.domFocus();
 		}
-
-		this._onDidFocusEditorWidget.fire();
 	}
 
 	focusContainer() {
