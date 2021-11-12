@@ -183,7 +183,7 @@ function apiProposalNamesGenerator() {
         try {
             const t1 = Date.now();
             const proposalNames = [];
-            for (let file of fs.readdirSync(dtsFolder)) {
+            for (let file of fs.readdirSync(dtsFolder).sort()) {
                 const match = pattern.exec(file);
                 if (match) {
                     proposalNames.push([match[1], `https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/${file}`]);
