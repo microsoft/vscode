@@ -156,15 +156,20 @@ async function parsePort(strPort, strPickPort) {
 	}
 
 	if (strPickPort) {
-		const [start, end] = strPickPort.split('-').map(numStr => { return parseInt(numStr, 10); });
-		if (!isNaN(start) && !isNaN(end)) {
-			if (specificPort !== -1 && specificPort >= start && specificPort <= end) {
-				return specificPort;
+		if (strPickPort.match(/[\d]+-[\d]+/)) {
+			const [start, end] = strPickPort.split('-').map(numStr => { return parseInt(numStr, 10); });
+
+			if (!isNaN(start) && !isNaN(end)) {
+				if (specificPort !== -1 && specificPort >= start && specificPort <= end) {
+					return specificPort;
+				} else {
+					return await findFreePort(start, start, end);
+				}
 			} else {
-				return await findFreePort(start, start, end);
+				console.log('Port range are not numbers, using 8000 instead.');
 			}
 		} else {
-			console.log('Port range are not numbers, using 8000 instead.');
+			console.log(`Port range: "${strPickPort}" is not properly formatted, using 8000 instead.`);
 		}
 	}
 
