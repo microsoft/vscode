@@ -281,6 +281,15 @@
           "scope": "window",
           "default": "open"
         },
+        "npm.scriptExplorerExclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "%config.npm.scriptExplorerExclude%",
+          "scope": "resource",
+          "default": []
+        },
         "npm.fetchOnlinePackageInfo": {
           "type": "boolean",
           "description": "%config.npm.fetchOnlinePackageInfo%",
