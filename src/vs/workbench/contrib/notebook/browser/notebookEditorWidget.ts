@@ -1446,6 +1446,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	private _lastCellWithEditorFocus: ICellViewModel | null = null;
 	private _validateCellFocusMode(cell: ICellViewModel) {
+		if (cell.focusMode !== CellFocusMode.Editor) {
+			return;
+		}
+
 		if (this._lastCellWithEditorFocus && this._lastCellWithEditorFocus !== cell) {
 			this._lastCellWithEditorFocus.focusMode = CellFocusMode.Container;
 		}
@@ -1729,6 +1733,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		this._onDidFocusEditorWidget.fire();
+	}
+
+	focusContainer() {
+		if (this._webviewFocused) {
+			this._webview?.focusWebview();
+		} else {
+			this._list.focusContainer();
+		}
 	}
 
 	onWillHide() {

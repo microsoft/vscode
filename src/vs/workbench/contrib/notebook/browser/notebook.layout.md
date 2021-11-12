@@ -94,4 +94,5 @@ CSS
   * if focused element is find widget / notebookToolbar, don't change focusMode
   * if focused element is webview/iframe, don't change focusMode
   * if focused element is outside of the notebook, don't change focusMode
-* cell editor focused and cell moves out of view (no blur event) / `CodeCell.dispose`
+* cell editor focused and cell moves out of view (no blur event)
+  * When disposing the cell view, we will focus the cell list container, otherwise the focus goes to body as the active element is removed from the DOM.

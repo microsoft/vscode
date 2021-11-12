@@ -434,9 +434,14 @@ export interface INotebookEditor {
 	getSelectionViewModels(): ICellViewModel[];
 
 	/**
-	 * Focus the notebook editor cell list
+	 * Focus the active cell in notebook cell list
 	 */
 	focus(): void;
+
+	/**
+	 * Focus the notebook cell list container
+	 */
+	focusContainer(): void;
 
 	hasEditorFocus(): boolean;
 	hasWebviewFocus(): boolean;

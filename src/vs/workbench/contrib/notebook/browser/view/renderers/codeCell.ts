@@ -442,6 +442,11 @@ export class CodeCell extends Disposable {
 	override dispose() {
 		this._isDisposed = true;
 
+		// move focus back to the cell list otherwise the focus goes to body
+		if (this.notebookEditor.getActiveCell() === this.viewCell && this.viewCell.focusMode === CellFocusMode.Editor) {
+			this.notebookEditor.focusContainer();
+		}
+
 		this.viewCell.detachTextEditor();
 		this._removeInputCollapsePreview();
 		this._outputContainerRenderer.dispose();
