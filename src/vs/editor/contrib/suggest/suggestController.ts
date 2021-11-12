@@ -46,7 +46,6 @@ import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { basename, extname } from 'vs/base/common/resources';
 import { hash } from 'vs/base/common/hash';
-import { ResourceMap } from 'vs/base/common/map';
 
 // sticky suggest widget which doesn't disappear on focus out and such
 let _sticky = false;
@@ -118,7 +117,6 @@ export class SuggestController implements IEditorContribution {
 	private readonly _toDispose = new DisposableStore();
 	private readonly _overtypingCapturer: IdleValue<OvertypingCapturer>;
 	private readonly _selectors = new PriorityRegistry<ISuggestItemPreselector>(s => s.priority);
-	private readonly _loggedEvents = new ResourceMap<Set<string>>();
 
 	constructor(
 		editor: ICodeEditor,
@@ -131,8 +129,6 @@ export class SuggestController implements IEditorContribution {
 	) {
 		this.editor = editor;
 		this.model = _instantiationService.createInstance(SuggestModel, this.editor,);
-
-		console.log('making a suggest controller!');
 
 		// context key: update insert/replace mode
 		const ctxInsertMode = SuggestContext.InsertMode.bindTo(_contextKeyService);
