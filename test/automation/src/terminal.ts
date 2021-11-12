@@ -10,6 +10,7 @@ import { QuickAccess } from './quickaccess';
 const TERMINAL_VIEW_SELECTOR = `#terminal`;
 const XTERM_SELECTOR = `${TERMINAL_VIEW_SELECTOR} .terminal-wrapper`;
 const XTERM_TEXTAREA = `${XTERM_SELECTOR} textarea.xterm-helper-textarea`;
+const CONTRIBUTED_PROFILE_NAME = `JavaScript Debug Terminal`;
 
 export class Terminal {
 
@@ -36,9 +37,9 @@ export class Terminal {
 		const command = type === 'createInstance' ? 'Terminal: Create New Terminal (With Profile)' : 'Terminal: Select Default Profile';
 		if (contributed) {
 			await this.quickaccess.runCommand(command, 0, true);
-			this.quickinput.submit('JavaScript Debug Terminal');
+			this.quickinput.submit(CONTRIBUTED_PROFILE_NAME);
 		} else {
-			await this.quickinput.waitForQuickInputElements(names => names[0] !== 'JavaScript Debug Terminal');
+			await this.quickinput.waitForQuickInputElements(names => names[0] !== CONTRIBUTED_PROFILE_NAME);
 			await this.quickaccess.runCommand(command, 0, true);
 			await this.quickinput.selectQuickInputElement(0, false);
 		}
