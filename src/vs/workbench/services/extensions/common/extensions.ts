@@ -143,7 +143,7 @@ export function isProposedApiEnabled(extension: IExtensionDescription, proposal:
 
 export function checkProposedApiEnabled(extension: IExtensionDescription, proposal: ApiProposalName): void {
 	if (!isProposedApiEnabled(extension, proposal)) {
-		throw new Error(`[${extension.identifier.value}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
+		throw new Error(`Extension '${extension.identifier.value}' CANNOT use API proposal: ${proposal}.\nAccording to its package.json#enabledApiProposals-property it wants: ${extension.enabledApiProposals?.join(', ') ?? '<none>'}.\n You MUST start in extension development mode or use the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
 	}
 }
 
