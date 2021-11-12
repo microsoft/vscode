@@ -2150,10 +2150,10 @@ export function parseExitResult(
 				const errorCode = conptyError.length > 1 ? parseInt(conptyError[1]) : undefined;
 				switch (errorCode) {
 					case 5:
-						innerMessage = `Access was denied to the path containing your executable ${shellLaunchConfig.executable}. Manage and change your permissions to get this to work`;
+						innerMessage = `Access was denied to the path containing your executable "${shellLaunchConfig.executable}". Manage and change your permissions to get this to work`;
 						break;
 					case 267:
-						innerMessage = `Invalid starting directory ${initialCwd}, review your terminal.integrated.cwd setting`;
+						innerMessage = `Invalid starting directory "${initialCwd}", review your terminal.integrated.cwd setting`;
 						break;
 					case 1260:
 						innerMessage = `Windows cannot open this program because it has been prevented by a software restriction policy. For more information, open Event Viewer or contact your system Administrator`;

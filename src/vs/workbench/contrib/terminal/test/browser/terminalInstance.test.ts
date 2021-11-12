@@ -121,13 +121,13 @@ suite('Workbench - TerminalInstance', () => {
 		test('should format conpty failure code 5', () => {
 			deepStrictEqual(
 				parseExitResult({ code: 5, message: 'A native exception occurred during launch (Cannot create process, error code: 5)' }, { executable: 'foo' }, ProcessState.KilledDuringLaunch, undefined),
-				{ code: 5, message: `The terminal process failed to launch: Access was denied to the path containing your executable foo. Manage and change your permissions to get this to work.` }
+				{ code: 5, message: `The terminal process failed to launch: Access was denied to the path containing your executable "foo". Manage and change your permissions to get this to work.` }
 			);
 		});
 		test('should format conpty failure code 267', () => {
 			deepStrictEqual(
 				parseExitResult({ code: 267, message: 'A native exception occurred during launch (Cannot create process, error code: 267)' }, {}, ProcessState.KilledDuringLaunch, '/foo'),
-				{ code: 267, message: `The terminal process failed to launch: Invalid starting directory /foo, review your terminal.integrated.cwd setting.` }
+				{ code: 267, message: `The terminal process failed to launch: Invalid starting directory "/foo", review your terminal.integrated.cwd setting.` }
 			);
 		});
 		test('should format conpty failure code 1260', () => {
