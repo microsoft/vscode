@@ -11,6 +11,6 @@
 		"src/**/*",
 		"../../src/vscode-dts/vscode.d.ts",
 		"../../src/vscode-dts/vscode.proposed.languageStatus.d.ts",
-		"../../src/vscode-dts/vscode.proposed.d.ts"
+		"../../src/vscode-dts/vscode.proposed.*.d.ts"
 	]
 }

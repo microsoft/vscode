@@ -1064,7 +1064,7 @@
 		{
 			"files": [
 				"**/vscode.d.ts",
-				"**/vscode.proposed.d.ts"
+				"**/vscode.proposed.*.d.ts"
 			],
 			"rules": {
 				"vscode-dts-create-func": "warn",
