@@ -51,11 +51,6 @@ export class CodeCell extends Disposable {
 		const lineHeight = this.viewCell.layoutInfo.fontInfo?.lineHeight || 17;
 		const editorPadding = this.notebookEditor.notebookOptions.computeEditorPadding(this.viewCell.internalMetadata);
 
-		// patch up focusMode
-		if (this.viewCell.focusMode === CellFocusMode.Editor && this.notebookEditor.getActiveCell() !== this.viewCell) {
-			this.viewCell.focusMode = CellFocusMode.Container;
-		}
-
 		const editorHeight = this.viewCell.layoutInfo.editorHeight === 0
 			? lineNum * lineHeight + editorPadding.top + editorPadding.bottom
 			: this.viewCell.layoutInfo.editorHeight;
@@ -242,7 +237,9 @@ export class CodeCell extends Disposable {
 			// this is for a special case:
 			// users click the status bar empty space, which we will then focus the editor
 			// so we don't want to update the focus state too eagerly, it will be updated with onDidFocusEditorWidget
-			if (!(document.activeElement && this.templateData.statusBar.statusBarContainer.contains(document.activeElement))) {
+			if (
+				this.notebookEditor.hasEditorFocus() &&
+				!(document.activeElement && this.templateData.statusBar.statusBarContainer.contains(document.activeElement))) {
 				updateFocusMode();
 			}
 		}));
