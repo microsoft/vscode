@@ -1296,11 +1296,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			this._localStore.add(this._webview.webview.onDidFocus(() => {
 				this._outputFocus.set(true);
 				this.updateEditorFocus();
-				this._onDidFocusEmitter.fire();
-
-				if (this._overlayContainer.contains(document.activeElement)) {
-					this._webviewFocused = true;
-				}
+				this._webviewFocused = true;
 			}));
 
 			this._localStore.add(this._webview.onMessage(e => {
