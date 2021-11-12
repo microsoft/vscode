@@ -4,16 +4,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as http from "http";
-import type * as net from "net";
-import type { AuthType } from "../../../base/common/auth";
-import type {
-	InternalNLSConfiguration,
-	NLSConfiguration,
-} from "../../../base/node/languagePacks";
+import type * as http from 'http';
+import type * as net from 'net';
+import type { InternalNLSConfiguration, NLSConfiguration } from '../../../base/node/languagePacks';
 
 declare global {
 	namespace CodeServerLib {
+		export enum AuthType {
+			Password = 'password',
+			None = 'none',
+		}
+
 		export interface ServerParsedArgs {
 			auth: AuthType;
 			port?: string;
@@ -27,47 +28,47 @@ declare global {
 			 *
 			 * This secret must be communicated to any vscode instance via the resolver or embedder API.
 			 */
-			"connection-secret"?: string;
+			'connection-secret'?: string;
 			host?: string;
-			"socket-path"?: string;
+			'socket-path'?: string;
 			driver?: string;
-			"print-startup-performance"?: boolean;
-			"print-ip-address"?: boolean;
-			"disable-websocket-compression"?: boolean;
-			"disable-telemetry"?: boolean;
+			'print-startup-performance'?: boolean;
+			'print-ip-address'?: boolean;
+			'disable-websocket-compression'?: boolean;
+			'disable-telemetry'?: boolean;
 			fileWatcherPolling?: string;
-			"start-server"?: boolean;
+			'start-server'?: boolean;
 
-			"enable-remote-auto-shutdown"?: boolean;
-			"remote-auto-shutdown-without-delay"?: boolean;
+			'enable-remote-auto-shutdown'?: boolean;
+			'remote-auto-shutdown-without-delay'?: boolean;
 
-			"extensions-dir"?: string;
-			"extensions-download-dir"?: string;
-			"install-extension"?: string[];
-			"install-builtin-extension"?: string[];
-			"uninstall-extension"?: string[];
-			"list-extensions"?: boolean;
-			"locate-extension"?: string[];
-			"show-versions"?: boolean;
+			'extensions-dir'?: string;
+			'extensions-download-dir'?: string;
+			'install-extension'?: string[];
+			'install-builtin-extension'?: string[];
+			'uninstall-extension'?: string[];
+			'list-extensions'?: boolean;
+			'locate-extension'?: string[];
+			'show-versions'?: boolean;
 			category?: string;
 
-			"force-disable-user-env"?: boolean;
-			"use-host-proxy"?: string;
+			'force-disable-user-env'?: boolean;
+			'use-host-proxy'?: string;
 
-			"without-browser-env-var"?: boolean;
+			'without-browser-env-var'?: boolean;
 
 			force?: boolean; // used by install-extension
-			"do-not-sync"?: boolean; // used by install-extension
+			'do-not-sync'?: boolean; // used by install-extension
 
-			"user-data-dir"?: string;
-			"builtin-extensions-dir"?: string;
+			'user-data-dir'?: string;
+			'builtin-extensions-dir'?: string;
 
 			// web
 			workspace: string;
 			folder: string;
-			"web-user-data-dir"?: string;
-			"enable-sync"?: boolean;
-			"github-auth"?: string;
+			'web-user-data-dir'?: string;
+			'enable-sync'?: boolean;
+			'github-auth'?: string;
 			log?: string;
 			logsPath?: string;
 
@@ -100,16 +101,10 @@ declare global {
 			executableName: string;
 		}
 
-		export type RemoteCLIMain = (
-			desc: ProductDescription,
-			args: string[]
-		) => void;
+		export type RemoteCLIMain = (desc: ProductDescription, args: string[]) => void;
 
 		export interface IServerAPI {
-			handleRequest(
-				req: http.IncomingMessage,
-				res: http.ServerResponse
-			): Promise<void>;
+			handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void>;
 			handleUpgrade(req: http.IncomingMessage, socket: net.Socket): void;
 			handleServerError(err: Error): void;
 			dispose(): void;
@@ -124,7 +119,7 @@ declare global {
 		 * @deprecated This should be removed when code-server merges with lib/vscode
 		 */
 		export interface CliMessage {
-			type: "cli";
+			type: 'cli';
 			args: ServerParsedArgs;
 		}
 
@@ -132,7 +127,7 @@ declare global {
 		 * @deprecated This should be removed when code-server merges with lib/vscode
 		 */
 		export interface OpenCommandPipeArgs {
-			type: "open";
+			type: 'open';
 			fileURIs?: string[];
 			folderURIs: string[];
 			forceNewWindow?: boolean;
@@ -146,8 +141,9 @@ declare global {
 		export type NLSConfigurationWeb =
 			| NLSConfiguration
 			| InternalNLSConfiguration;
+
 		export { NLSConfiguration, InternalNLSConfiguration };
 	}
 }
 
-export {};
+export { };
