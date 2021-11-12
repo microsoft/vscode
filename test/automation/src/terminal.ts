@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { QuickInput } from '.';
 import { Code } from './code';
 import { QuickAccess } from './quickaccess';
 
@@ -12,12 +13,16 @@ const XTERM_TEXTAREA = `${XTERM_SELECTOR} textarea.xterm-helper-textarea`;
 
 export class Terminal {
 
-	constructor(private code: Code, private quickaccess: QuickAccess) { }
+	constructor(private code: Code, private quickaccess: QuickAccess, private quickinput: QuickInput) { }
 
 	async showTerminal(): Promise<void> {
 		await this.quickaccess.runCommand('workbench.action.terminal.toggleTerminal');
 		await this.code.waitForActiveElement(XTERM_TEXTAREA);
 		await this.code.waitForTerminalBuffer(XTERM_SELECTOR, lines => lines.some(line => line.length > 0));
+	}
+
+	async killTerminal(): Promise<void> {
+		await this.quickaccess.runCommand('workbench.action.terminal.kill');
 	}
 
 	async runCommand(commandText: string): Promise<void> {
@@ -29,9 +34,15 @@ export class Terminal {
 
 	async runProfileCommand(type: 'createInstance' | 'setDefault', contributed?: boolean): Promise<void> {
 		const command = type === 'createInstance' ? 'Terminal: Create New Terminal (With Profile)' : 'Terminal: Select Default Profile';
-		await this.quickaccess.runCommand(command, true);
+		if (contributed) {
+			await this.quickaccess.runCommand(command, 0, true);
+			this.quickinput.submit('JavaScript Debug Terminal');
+		} else {
+			await this.quickinput.waitForQuickInputElements(names => names[0] !== 'JavaScript Debug Terminal');
+			await this.quickaccess.runCommand(command, 0, true);
+			await this.quickinput.selectQuickInputElement(0, false);
+		}
 		await new Promise(c => setTimeout(c, 500));
-		await this.code.dispatchKeybinding(contributed ? 'down down down enter' : 'down down enter');
 	}
 
 	async waitForTerminalText(accept: (buffer: string[]) => boolean, message?: string): Promise<void> {
