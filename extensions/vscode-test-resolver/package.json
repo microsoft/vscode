@@ -4,6 +4,7 @@
   "version": "0.0.1",
   "publisher": "vscode",
   "license": "MIT",
+  "enableProposedApi": true,
   "enabledApiProposals": [
     "resolvers"
   ],
