@@ -8,7 +8,6 @@ import { coalesce } from 'vs/base/common/arrays';
 import { language, locale } from 'vs/base/common/platform';
 import { IElement, ILocaleInfo, ILocalizedStrings, IWindowDriver } from 'vs/platform/driver/common/driver';
 import localizedStrings from 'vs/platform/localizations/common/localizedStrings';
-import type { Terminal } from 'xterm'; // eslint-disable-line code-import-patterns
 
 export abstract class BaseWindowDriver implements IWindowDriver {
 
@@ -133,7 +132,7 @@ export abstract class BaseWindowDriver implements IWindowDriver {
 			throw new Error(`Terminal not found: ${selector}`);
 		}
 
-		const xterm = (element as any).xterm as Terminal;
+		const xterm = (element as any).xterm;
 
 		if (!xterm) {
 			throw new Error(`Xterm not found: ${selector}`);
@@ -154,13 +153,13 @@ export abstract class BaseWindowDriver implements IWindowDriver {
 			throw new Error(`Element not found: ${selector}`);
 		}
 
-		const xterm = (element as any).xterm as Terminal;
+		const xterm = (element as any).xterm;
 
 		if (!xterm) {
 			throw new Error(`Xterm not found: ${selector}`);
 		}
 
-		(xterm as any)._core._coreService.triggerDataEvent(text);
+		xterm._core._coreService.triggerDataEvent(text);
 	}
 
 	getLocaleInfo(): Promise<ILocaleInfo> {
