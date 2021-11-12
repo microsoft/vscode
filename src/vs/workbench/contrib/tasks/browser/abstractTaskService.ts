@@ -2277,19 +2277,22 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async createTaskQuickPickEntries(tasks: Task[], group: boolean = false, sort: boolean = false, selectedEntry?: TaskQuickPickEntry, includeRecents: boolean = true): Promise<TaskQuickPickEntry[]> {
-		let count: { [key: string]: number; } = {};
+		let encounteredTasks: { [key: string]: TaskQuickPickEntry[] } = {};
 		if (tasks === undefined || tasks === null || tasks.length === 0) {
 			return [];
 		}
 		const TaskQuickPickEntry = (task: Task): TaskQuickPickEntry => {
-			let entryLabel = task._label;
-			if (count[task._id]) {
-				entryLabel = entryLabel + ' (' + count[task._id].toString() + ')';
-				count[task._id]++;
+			const newEntry = { label: task._label, description: this.getTaskDescription(task), task, detail: this.showDetail() ? task.configurationProperties.detail : undefined };
+			if (encounteredTasks[task._id]) {
+				if (encounteredTasks[task._id].length === 1) {
+					encounteredTasks[task._id][0].label += ' (1)';
+				}
+				newEntry.label = newEntry.label + ' (' + (encounteredTasks[task._id].length + 1).toString() + ')';
 			} else {
-				count[task._id] = 1;
+				encounteredTasks[task._id] = [];
 			}
-			return { label: entryLabel, description: this.getTaskDescription(task), task, detail: this.showDetail() ? task.configurationProperties.detail : undefined };
+			encounteredTasks[task._id].push(newEntry);
+			return newEntry;
 
 		};
 		function fillEntries(entries: QuickPickInput<TaskQuickPickEntry>[], tasks: Task[], groupLabel: string): void {
@@ -2360,7 +2363,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			entries = tasks.map<TaskQuickPickEntry>(task => TaskQuickPickEntry(task));
 		}
-		count = {};
+		encounteredTasks = {};
 		return entries;
 	}
 
