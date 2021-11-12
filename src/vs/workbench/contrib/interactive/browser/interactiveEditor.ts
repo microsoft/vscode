@@ -322,7 +322,7 @@ export class InteractiveEditor extends EditorPane {
 		this.#notebookWidget.value!.setOptions({
 			isReadOnly: true
 		});
-		this.#widgetDisposableStore.add(this.#notebookWidget.value!.onDidFocus(() => this.#onDidFocusWidget.fire()));
+		this.#widgetDisposableStore.add(this.#notebookWidget.value!.onDidFocusWidget(() => this.#onDidFocusWidget.fire()));
 		this.#widgetDisposableStore.add(model.notebook.onDidChangeContent(() => {
 			(model as ComplexNotebookEditorModel).setDirty(false);
 		}));

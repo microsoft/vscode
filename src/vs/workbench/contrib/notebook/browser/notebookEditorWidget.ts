@@ -276,9 +276,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private readonly _onDidChangeVisibleRanges = this._register(new Emitter<void>());
 	readonly onDidChangeVisibleRanges: Event<void> = this._onDidChangeVisibleRanges.event;
 	private readonly _onDidFocusEmitter = this._register(new Emitter<void>());
-	readonly onDidFocus = this._onDidFocusEmitter.event;
+	readonly onDidFocusWidget = this._onDidFocusEmitter.event;
 	private readonly _onDidBlurEmitter = this._register(new Emitter<void>());
-	readonly onDidBlur = this._onDidBlurEmitter.event;
+	readonly onDidBlurWidget = this._onDidBlurEmitter.event;
 	private readonly _onDidChangeActiveEditor = this._register(new Emitter<this>());
 	readonly onDidChangeActiveEditor: Event<this> = this._onDidChangeActiveEditor.event;
 	private readonly _onDidChangeActiveKernel = this._register(new Emitter<void>());
