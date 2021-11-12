@@ -228,13 +228,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		const authentication: typeof vscode.authentication = {
 			getSession(providerId: string, scopes: readonly string[], options?: vscode.AuthenticationGetSessionOptions) {
 				if (options?.forceNewSession) {
-					checkProposedApiEnabled(extension);
+					checkProposedApiEnabled(extension, 'authSession');
 				}
 				return extHostAuthentication.getSession(extension, providerId, scopes, options as any);
 			},
 			// TODO: remove this after GHPR and Codespaces move off of it
 			async hasSession(providerId: string, scopes: readonly string[]) {
-				checkProposedApiEnabled(extension);
+				checkProposedApiEnabled(extension, 'authSession');
 				return !!(await extHostAuthentication.getSession(extension, providerId, scopes, { silent: true } as any));
 			},
 			get onDidChangeSessions(): Event<vscode.AuthenticationSessionsChangeEvent> {
@@ -600,7 +600,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return <Thenable<any>>extHostMessageService.showMessage(extension, Severity.Error, message, rest[0], <Array<string | vscode.MessageItem>>rest.slice(1));
 			},
 			showQuickPick(items: any, options?: vscode.QuickPickOptions, token?: vscode.CancellationToken): any {
-				return extHostQuickOpen.showQuickPick(items, isProposedApiEnabled(extension), options, token);
+				return extHostQuickOpen.showQuickPick(items, isProposedApiEnabled(extension, undefined), options, token);
 			},
 			showWorkspaceFolderPick(options?: vscode.WorkspaceFolderPickOptions) {
 				return extHostQuickOpen.showWorkspaceFolderPick(options);
@@ -689,7 +689,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostUrls.registerUriHandler(extension.identifier, handler);
 			},
 			createQuickPick<T extends vscode.QuickPickItem>(): vscode.QuickPick<T> {
-				return extHostQuickOpen.createQuickPick(extension.identifier, isProposedApiEnabled(extension));
+				return extHostQuickOpen.createQuickPick(extension.identifier, isProposedApiEnabled(extension, undefined));
 			},
 			createInputBox(): vscode.InputBox {
 				return extHostQuickOpen.createInputBox(extension.identifier);
@@ -1102,7 +1102,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostNotebook.registerNotebookCellStatusBarItemProvider(extension, notebookType, provider);
 			},
 			get onDidSaveNotebookDocument(): Event<vscode.NotebookDocument> {
-				checkProposedApiEnabled(extension);
+				checkProposedApiEnabled(extension, 'notebookEditor');
 				return extHostNotebookDocuments.onDidSaveNotebookDocument;
 			},
 			createNotebookEditorDecorationType(options: vscode.NotebookDecorationRenderOptions): vscode.NotebookEditorDecorationType {
@@ -1113,11 +1113,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostNotebookRenderers.createRendererMessaging(extension, rendererId);
 			},
 			onDidChangeNotebookDocumentMetadata(listener, thisArgs?, disposables?) {
-				checkProposedApiEnabled(extension);
+				checkProposedApiEnabled(extension, 'notebookEditor');
 				return extHostNotebookDocuments.onDidChangeNotebookDocumentMetadata(listener, thisArgs, disposables);
 			},
 			onDidChangeNotebookCells(listener, thisArgs?, disposables?) {
-				checkProposedApiEnabled(extension);
+				checkProposedApiEnabled(extension, 'notebookEditor');
 				return extHostNotebook.onDidChangeNotebookCells(listener, thisArgs, disposables);
 			},
 			onDidChangeNotebookCellExecutionState(listener, thisArgs?, disposables?) {
@@ -1125,11 +1125,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostNotebook.onDidChangeNotebookCellExecutionState(listener, thisArgs, disposables);
 			},
 			onDidChangeCellOutputs(listener, thisArgs?, disposables?) {
-				checkProposedApiEnabled(extension);
+				checkProposedApiEnabled(extension, 'notebookEditor');
 				return extHostNotebook.onDidChangeCellOutputs(listener, thisArgs, disposables);
 			},
 			onDidChangeCellMetadata(listener, thisArgs?, disposables?) {
-				checkProposedApiEnabled(extension);
+				checkProposedApiEnabled(extension, 'notebookEditor');
 				return extHostNotebook.onDidChangeCellMetadata(listener, thisArgs, disposables);
 			},
 			createConcatTextDocument(notebook, selector) {

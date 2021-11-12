@@ -126,7 +126,7 @@ export class IconExtensionPoint {
 				const extensionValue = <IIconExtensionPoint[]>extension.value;
 				const collector = extension.collector;
 
-				if (!isProposedApiEnabled(extension.description)) {
+				if (!isProposedApiEnabled(extension.description, undefined)) {
 					collector.error(nls.localize('invalid.icons.proposedAPI', "'configuration.icons is a proposed contribution point and only available when running out of dev or with the following command line switch: --enable-proposed-api {0}", extension.description.identifier.value));
 					return;
 				}
@@ -180,7 +180,7 @@ export class IconFontExtensionPoint {
 				const extensionValue = <IIconFontExtensionPoint[]>extension.value;
 				const collector = extension.collector;
 
-				if (!isProposedApiEnabled(extension.description)) {
+				if (!isProposedApiEnabled(extension.description, undefined)) {
 					collector.error(nls.localize('invalid.iconFonts.proposedAPI', "'configuration.iconFonts is a proposed contribution point and only available when running out of dev or with the following command line switch: --enable-proposed-api {0}", extension.description.identifier.value));
 					return;
 				}

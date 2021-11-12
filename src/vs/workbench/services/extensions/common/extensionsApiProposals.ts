@@ -6,6 +6,7 @@
 // THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.
 
 export const allApiProposals = Object.freeze({
+	authSession: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.authSession.d.ts',
 	customEditorMove: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.customEditorMove.d.ts',
 	diffCommand: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.diffCommand.d.ts',
 	documentFiltersExclusive: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.documentFiltersExclusive.d.ts',

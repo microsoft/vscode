@@ -502,7 +502,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	private _actionButtonDisposables = new MutableDisposable<DisposableStore>();
 	private _actionButton: vscode.Command | undefined;
 	get actionButton(): vscode.Command | undefined {
-		checkProposedApiEnabled(this._extension);
+		checkProposedApiEnabled(this._extension, 'scmActionButton');
 		return this._actionButton;
 	}
 	set actionButton(actionButton: vscode.Command | undefined) {

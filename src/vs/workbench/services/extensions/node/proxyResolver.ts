@@ -130,7 +130,7 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 				}
 				if (!cache[request]) {
 					let mod = modules.default;
-					if (ext && isProposedApiEnabled(ext)) {
+					if (ext && isProposedApiEnabled(ext, undefined)) {
 						mod = (modules as any)[(<any>ext).proxySupport] || modules.onRequest;
 					}
 					cache[request] = <any>{ ...mod }; // Copy to work around #93167.

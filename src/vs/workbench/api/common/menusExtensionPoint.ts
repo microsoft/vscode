@@ -634,7 +634,7 @@ commandsExtensionPoint.setHandler(extensions => {
 			title,
 			source: extension.description.displayName ?? extension.description.name,
 			shortTitle,
-			tooltip: isProposedApiEnabled(extension.description) ? title : undefined,
+			tooltip: isProposedApiEnabled(extension.description, undefined) ? title : undefined,
 			category,
 			precondition: ContextKeyExpr.deserialize(enablement),
 			icon: absoluteIcon
@@ -764,7 +764,7 @@ menusExtensionPoint.setHandler(extensions => {
 				return;
 			}
 
-			if (menu.proposed && !isProposedApiEnabled(extension.description)) {
+			if (menu.proposed && !isProposedApiEnabled(extension.description, undefined)) {
 				collector.error(localize('proposedAPI.invalid', "{0} is a proposed menu identifier and is only available when running out of dev or with the following command line switch: --enable-proposed-api {1}", entry.key, extension.description.identifier.value));
 				return;
 			}
