@@ -1687,7 +1687,7 @@ export class QuickInputController extends Disposable {
 				while (currentElement && !currentElement.offsetParent) {
 					currentElement = withNullAsUndefined(currentElement.parentElement);
 				}
-				if (currentElement?.offsetParent && !currentElement.parentElement?.classList.contains('monaco-editor')) {
+				if (currentElement?.offsetParent) {
 					currentElement.focus();
 					this.previousFocusElement = undefined;
 				} else {
