@@ -8,8 +8,24 @@
   "engines": {
     "vscode": "0.10.x"
   },
+	"categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "*"
+  ],
+  "main": "./out/main",
+  "icon": "resources/icons/git.png",
   "scripts": {
+    "compile": "gulp compile-extension:git-base",
+    "watch": "gulp watch-extension:git-base",
     "update-grammar": "node ./build/update-grammars.js"
+  },
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
   },
   "contributes": {
     "languages": [
@@ -66,5 +82,15 @@
         "path": "./syntaxes/ignore.tmLanguage.json"
       }
     ]
+  },
+  "dependencies": {
+    "vscode-nls": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "14.x"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }
