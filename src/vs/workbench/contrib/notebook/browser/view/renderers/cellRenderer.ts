@@ -287,6 +287,8 @@ abstract class AbstractCellRenderer {
 		} else {
 			templateData.container.classList.remove(DRAGGING_CLASS);
 		}
+
+		templateData.elementDisposables.add(new CellContextKeyManager(templateData.contextKeyService, this.notebookEditor, element));
 	}
 }
 
@@ -298,7 +300,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		dndController: CellDragAndDropController,
 		private renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>,
 		contextKeyServiceProvider: (container: HTMLElement) => IContextKeyService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IMenuService menuService: IMenuService,
@@ -392,30 +394,10 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		}
 
 		const elementDisposables = templateData.elementDisposables;
-		elementDisposables.add(new CellContextKeyManager(templateData.contextKeyService, this.notebookEditor, element));
 
 		this.updateForLayout(element, templateData);
 		elementDisposables.add(element.onDidChangeLayout(() => {
 			this.updateForLayout(element, templateData);
-		}));
-
-		this.updateForHover(element, templateData);
-		const cellEditorOptions = new CellEditorOptions(this.notebookEditor, this.notebookEditor.notebookOptions, this.configurationService, element.language);
-		cellEditorOptions.setLineNumbers(element.lineNumbers);
-		elementDisposables.add(cellEditorOptions);
-
-		elementDisposables.add(element.onDidChangeState(e => {
-			if (e.cellIsHoveredChanged) {
-				this.updateForHover(element, templateData);
-			}
-
-			if (e.inputCollapsedChanged) {
-				this.updateCollapsedState(element);
-			}
-
-			if (e.cellLineNumberChanged) {
-				cellEditorOptions.setLineNumbers(element.lineNumbers);
-			}
 		}));
 
 		// render toolbar first
@@ -433,10 +415,8 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		this.setBetweenCellToolbarContext(templateData, element, toolbarContext);
 
 		const scopedInstaService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, templateData.contextKeyService]));
-		const markdownCell = scopedInstaService.createInstance(StatefulMarkdownCell, this.notebookEditor, element, templateData, cellEditorOptions.getValue(element.internalMetadata), this.renderedEditors,);
+		const markdownCell = scopedInstaService.createInstance(StatefulMarkdownCell, this.notebookEditor, element, templateData, this.renderedEditors);
 		elementDisposables.add(markdownCell);
-		elementDisposables.add(cellEditorOptions.onDidChange(newValue => markdownCell.updateEditorOptions(cellEditorOptions.getUpdatedValue(element.internalMetadata))));
-
 		templateData.statusBar.update(toolbarContext);
 	}
 
@@ -448,18 +428,6 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		templateData.focusIndicatorRight.setHeight(indicatorPostion.verticalIndicatorHeight);
 
 		templateData.container.classList.toggle('cell-statusbar-hidden', this.notebookEditor.notebookOptions.computeEditorStatusbarHeight(element.internalMetadata) === 0);
-	}
-
-	private updateForHover(element: MarkupCellViewModel, templateData: MarkdownCellRenderTemplate): void {
-		templateData.container.classList.toggle('markdown-cell-hover', element.cellIsHovered);
-	}
-
-	private updateCollapsedState(element: MarkupCellViewModel) {
-		if (element.isInputCollapsed) {
-			this.notebookEditor.hideMarkupPreviews([element]);
-		} else {
-			this.notebookEditor.unhideMarkupPreviews([element]);
-		}
 	}
 
 	disposeTemplate(templateData: MarkdownCellRenderTemplate): void {
@@ -960,8 +928,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		elementDisposables.add(cellEditorOptions);
 		elementDisposables.add(cellEditorOptions.onDidChange(() => templateData.editor.updateOptions(cellEditorOptions.getUpdatedValue(element.internalMetadata))));
 		templateData.editor.updateOptions(cellEditorOptions.getUpdatedValue(element.internalMetadata));
-
-		elementDisposables.add(new CellContextKeyManager(templateData.contextKeyService, this.notebookEditor, element));
 
 		this.updateForLayout(element, templateData);
 		elementDisposables.add(element.onDidChangeLayout(() => {
