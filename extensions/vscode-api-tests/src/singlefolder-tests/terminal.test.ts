@@ -426,6 +426,7 @@ import { assertNoRpc } from '../utils';
 
 		suite('Extension pty terminals', () => {
 			test('should fire onDidOpenTerminal and onDidCloseTerminal', async () => {
+				assert.strictEqual(vscode.env.remoteName !== undefined, false);
 				const pty: Pseudoterminal = {
 					onDidWrite: new EventEmitter<string>().event,
 					open: () => { },
