@@ -251,6 +251,37 @@ abstract class AbstractCellRenderer {
 	}
 
 	protected commonRenderElement(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
+		const removedClassNames: string[] = [];
+		templateData.rootContainer.classList.forEach(className => {
+			if (/^nb\-.*$/.test(className)) {
+				removedClassNames.push(className);
+			}
+		});
+
+		removedClassNames.forEach(className => {
+			templateData.rootContainer.classList.remove(className);
+		});
+
+		templateData.decorationContainer.innerText = '';
+
+		const generateCellTopDecorations = () => {
+			templateData.decorationContainer.innerText = '';
+
+			element.getCellDecorations().filter(options => options.topClassName !== undefined).forEach(options => {
+				templateData.decorationContainer.append(DOM.$(`.${options.topClassName!}`));
+			});
+		};
+
+		templateData.elementDisposables.add(element.onCellDecorationsChanged((e) => {
+			const modified = e.added.find(e => e.topClassName) || e.removed.find(e => e.topClassName);
+
+			if (modified) {
+				generateCellTopDecorations();
+			}
+		}));
+
+		generateCellTopDecorations();
+
 		if (element.dragging) {
 			templateData.container.classList.add(DRAGGING_CLASS);
 		} else {
@@ -349,19 +380,6 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			throw new Error('The notebook editor is not attached with view model yet.');
 		}
 
-		const removedClassNames: string[] = [];
-		templateData.rootContainer.classList.forEach(className => {
-			if (/^nb\-.*$/.test(className)) {
-				removedClassNames.push(className);
-			}
-		});
-
-		removedClassNames.forEach(className => {
-			templateData.rootContainer.classList.remove(className);
-		});
-
-		templateData.decorationContainer.innerText = '';
-
 		this.commonRenderElement(element, templateData);
 
 		templateData.currentRenderedCell = element;
@@ -374,23 +392,6 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		}
 
 		const elementDisposables = templateData.elementDisposables;
-
-		const generateCellTopDecorations = () => {
-			templateData.decorationContainer.innerText = '';
-
-			element.getCellDecorations().filter(options => options.topClassName !== undefined).forEach(options => {
-				templateData.decorationContainer.append(DOM.$(`.${options.topClassName!}`));
-			});
-		};
-
-		elementDisposables.add(element.onCellDecorationsChanged((e) => {
-			const modified = e.added.find(e => e.topClassName) || e.removed.find(e => e.topClassName);
-
-			if (modified) {
-				generateCellTopDecorations();
-			}
-		}));
-
 		elementDisposables.add(new CellContextKeyManager(templateData.contextKeyService, this.notebookEditor, element));
 
 		this.updateForLayout(element, templateData);
@@ -937,19 +938,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			throw new Error('The notebook editor is not attached with view model yet.');
 		}
 
-		const removedClassNames: string[] = [];
-		templateData.rootContainer.classList.forEach(className => {
-			if (/^nb\-.*$/.test(className)) {
-				removedClassNames.push(className);
-			}
-		});
-
-		removedClassNames.forEach(className => {
-			templateData.rootContainer.classList.remove(className);
-		});
-
-		templateData.decorationContainer.innerText = '';
-
 		this.commonRenderElement(element, templateData);
 
 		templateData.currentRenderedCell = element;
@@ -964,25 +952,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		this.setupOutputCollapsedPart(templateData, cellOutputCollapsedContainer, element);
 
 		const elementDisposables = templateData.elementDisposables;
-
-		const generateCellTopDecorations = () => {
-			templateData.decorationContainer.innerText = '';
-
-			element.getCellDecorations().filter(options => options.topClassName !== undefined).forEach(options => {
-				templateData.decorationContainer.append(DOM.$(`.${options.topClassName!}`));
-			});
-		};
-
-		elementDisposables.add(element.onCellDecorationsChanged((e) => {
-			const modified = e.added.find(e => e.topClassName) || e.removed.find(e => e.topClassName);
-
-			if (modified) {
-				generateCellTopDecorations();
-			}
-		}));
-
-		generateCellTopDecorations();
-
 		const child = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, templateData.contextKeyService]));
 		elementDisposables.add(child.createInstance(CodeCell, this.notebookEditor, element, templateData));
 		this.renderedEditors.set(element, templateData.editor);
