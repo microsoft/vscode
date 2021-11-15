@@ -190,7 +190,7 @@ suite('ConfigurationModel', () => {
 		let result = base.merge(add);
 
 		assert.deepStrictEqual(result.contents, { 'a': { 'b': 2 } });
-		assert.deepStrictEqual(result.overrides, [{ identifiers: ['c'], contents: { 'a': 2, 'b': 2 }, keys: ['a'] }]);
+		assert.deepStrictEqual(result.overrides, [{ identifiers: ['c'], contents: { 'a': 2, 'b': 2 }, keys: ['a', 'b'] }]);
 		assert.deepStrictEqual(result.override('c').contents, { 'a': 2, 'b': 2 });
 		assert.deepStrictEqual(result.keys, ['a.b']);
 	});
@@ -235,6 +235,45 @@ suite('ConfigurationModel', () => {
 		const testObject = new ConfigurationModel({ 'a': 1, 'c': 1 }, [], [{ identifiers: ['b'], contents: { 'a': 2 }, keys: ['a'] }]);
 
 		assert.deepStrictEqual(testObject.override('b').contents, { 'a': 2, 'c': 1 });
+	});
+
+	test('Test override when an override has multiple identifiers', () => {
+		const testObject = new ConfigurationModel({ 'a': 1, 'c': 1 }, ['a', 'c'], [{ identifiers: ['x', 'y'], contents: { 'a': 2 }, keys: ['a'] }]);
+
+		let actual = testObject.override('x');
+		assert.deepStrictEqual(actual.contents, { 'a': 2, 'c': 1 });
+		assert.deepStrictEqual(actual.keys, ['a', 'c']);
+		assert.deepStrictEqual(testObject.getKeysForOverrideIdentifier('x'), ['a']);
+
+		actual = testObject.override('y');
+		assert.deepStrictEqual(actual.contents, { 'a': 2, 'c': 1 });
+		assert.deepStrictEqual(actual.keys, ['a', 'c']);
+		assert.deepStrictEqual(testObject.getKeysForOverrideIdentifier('y'), ['a']);
+	});
+
+	test('Test override when an identifier is defined in multiple overrides', () => {
+		const testObject = new ConfigurationModel({ 'a': 1, 'c': 1 }, ['a', 'c'], [{ identifiers: ['x'], contents: { 'a': 3, 'b': 1 }, keys: ['a', 'b'] }, { identifiers: ['x', 'y'], contents: { 'a': 2 }, keys: ['a'] }]);
+
+		const actual = testObject.override('x');
+		assert.deepStrictEqual(actual.contents, { 'a': 3, 'c': 1, 'b': 1 });
+		assert.deepStrictEqual(actual.keys, ['a', 'c']);
+
+		assert.deepStrictEqual(testObject.getKeysForOverrideIdentifier('x'), ['a', 'b']);
+	});
+
+	test('Test merge when configuration models have multiple identifiers', () => {
+		const testObject = new ConfigurationModel({ 'a': 1, 'c': 1 }, ['a', 'c'], [{ identifiers: ['y'], contents: { 'c': 1 }, keys: ['c'] }, { identifiers: ['x', 'y'], contents: { 'a': 2 }, keys: ['a'] }]);
+		const target = new ConfigurationModel({ 'a': 2, 'b': 1 }, ['a', 'b'], [{ identifiers: ['x'], contents: { 'a': 3, 'b': 2 }, keys: ['a', 'b'] }, { identifiers: ['x', 'y'], contents: { 'b': 3 }, keys: ['b'] }]);
+
+		const actual = testObject.merge(target);
+
+		assert.deepStrictEqual(actual.contents, { 'a': 2, 'c': 1, 'b': 1 });
+		assert.deepStrictEqual(actual.keys, ['a', 'c', 'b']);
+		assert.deepStrictEqual(actual.overrides, [
+			{ identifiers: ['y'], contents: { 'c': 1 }, keys: ['c'] },
+			{ identifiers: ['x', 'y'], contents: { 'a': 2, 'b': 3 }, keys: ['a', 'b'] },
+			{ identifiers: ['x'], contents: { 'a': 3, 'b': 2 }, keys: ['a', 'b'] },
+		]);
 	});
 });
 
