@@ -2,6 +2,12 @@ The notebook editor is a virtualized list view rendered in two contexts (mainfra
 
 # Archtecture
 
+## Notebook model resolution
+
+
+![arch](https://user-images.githubusercontent.com/876920/141845889-abe0384e-0093-4b08-831a-04424a4b8101.png)
+
+
 ## Cell rendering
 
 The rendering of cells in the notebook editor consists of following steps:
