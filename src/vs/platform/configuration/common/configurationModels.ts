@@ -175,7 +175,7 @@ export class ConfigurationModel implements IConfigurationModel {
 				if (contents) {
 					this.mergeContents(contents, contentsToMerge);
 				} else {
-					contents = contentsToMerge;
+					contents = objects.deepClone(contentsToMerge);
 				}
 			}
 		};
