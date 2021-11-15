@@ -89,6 +89,8 @@ export class ConfigurationModel implements IConfigurationModel {
 				const [override] = overrides.filter(o => arrays.equals(o.identifiers, otherOverride.identifiers));
 				if (override) {
 					this.mergeContents(override.contents, otherOverride.contents);
+					override.keys.push(...otherOverride.keys);
+					override.keys = arrays.distinct(override.keys);
 				} else {
 					overrides.push(objects.deepClone(otherOverride));
 				}
