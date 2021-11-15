@@ -48,10 +48,10 @@ export class TerminalService implements ITerminalService {
 
 	private _hostActiveTerminals: Map<ITerminalInstanceHost, ITerminalInstance | undefined> = new Map();
 
-	private _isShuttingDown: boolean;
+	private _isShuttingDown: boolean = false;
 	private _backgroundedTerminalInstances: ITerminalInstance[] = [];
 	private _backgroundedTerminalDisposables: Map<number, IDisposable[]> = new Map();
-	private _findState: FindReplaceState;
+	private _findState: FindReplaceState = new FindReplaceState();
 	private _linkProviders: Set<ITerminalExternalLinkProvider> = new Set();
 	private _linkProviderDisposables: Map<ITerminalExternalLinkProvider, IDisposable[]> = new Map();
 	private _processSupportContextKey: IContextKey<boolean>;
@@ -150,9 +150,7 @@ export class TerminalService implements ITerminalService {
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@INotificationService private readonly _notificationService: INotificationService
 	) {
-		this._isShuttingDown = false;
-		this._findState = new FindReplaceState();
-		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
+		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper);
 		// the below avoids having to poll routinely.
 		// we update detected profiles when an instance is created so that,
 		// for example, we detect if you've installed a pwsh
@@ -161,7 +159,7 @@ export class TerminalService implements ITerminalService {
 		this._forwardInstanceHostEvents(this._terminalGroupService);
 		this._forwardInstanceHostEvents(this._terminalEditorService);
 		this._terminalGroupService.onDidChangeActiveGroup(this._onDidChangeActiveGroup.fire, this._onDidChangeActiveGroup);
-		_terminalInstanceService.onDidCreateInstance(instance => {
+		this._terminalInstanceService.onDidCreateInstance(instance => {
 			this._initInstanceListeners(instance);
 			this._onDidCreateInstance.fire(instance);
 		});
@@ -189,6 +187,7 @@ export class TerminalService implements ITerminalService {
 		// Create async as the class depends on `this`
 		timeout(0).then(() => this._instantiationService.createInstance(TerminalEditorStyle, document.head));
 	}
+
 	async showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined> {
 		const quickPick = this._instantiationService.createInstance(TerminalProfileQuickpick);
 		const result = await quickPick.showAndGetResult(type);
@@ -864,35 +863,6 @@ export class TerminalService implements ITerminalService {
 		return instance?.target === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
 	}
 
-	private _convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig {
-		if (shellLaunchConfigOrProfile && 'profileName' in shellLaunchConfigOrProfile) {
-			const profile = shellLaunchConfigOrProfile;
-			if (!profile.path) {
-				return shellLaunchConfigOrProfile;
-			}
-			return {
-				executable: profile.path,
-				args: profile.args,
-				env: profile.env,
-				icon: profile.icon,
-				color: profile.color,
-				name: profile.overrideName ? profile.profileName : undefined,
-				cwd
-			};
-		}
-
-		// A shell launch config was provided
-		if (shellLaunchConfigOrProfile) {
-			if (cwd) {
-				shellLaunchConfigOrProfile.cwd = cwd;
-			}
-			return shellLaunchConfigOrProfile;
-		}
-
-		// Return empty shell launch config
-		return {};
-	}
-
 	async createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance> {
 		// Await the initialization of available profiles as long as this is not a pty terminal or a
 		// local terminal in a remote workspace as profile won't be used in those cases and these
@@ -906,7 +876,7 @@ export class TerminalService implements ITerminalService {
 		}
 
 		const config = options?.config || this._terminalProfileService.availableProfiles?.find(p => p.profileName === this._terminalProfileService.getDefaultProfileName());
-		const shellLaunchConfig = config && 'extensionIdentifier' in config ? {} : this._convertProfileToShellLaunchConfig(config || {});
+		const shellLaunchConfig = config && 'extensionIdentifier' in config ? {} : convertProfileToShellLaunchConfig(config || {});
 
 		// Get the contributed profile if it was provided
 		let contributedProfile = config && 'extensionIdentifier' in config ? config : undefined;
@@ -1077,6 +1047,35 @@ export class TerminalService implements ITerminalService {
 		this._configHelper.panelContainer = panelContainer;
 		this._terminalGroupService.setContainer(terminalContainer);
 	}
+}
+
+export function convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig {
+	if (shellLaunchConfigOrProfile && 'profileName' in shellLaunchConfigOrProfile) {
+		const profile = shellLaunchConfigOrProfile;
+		if (!profile.path) {
+			return shellLaunchConfigOrProfile;
+		}
+		return {
+			executable: profile.path,
+			args: profile.args,
+			env: profile.env,
+			icon: profile.icon,
+			color: profile.color,
+			name: profile.overrideName ? profile.profileName : undefined,
+			cwd
+		};
+	}
+
+	// A shell launch config was provided
+	if (shellLaunchConfigOrProfile) {
+		if (cwd) {
+			shellLaunchConfigOrProfile.cwd = cwd;
+		}
+		return shellLaunchConfigOrProfile;
+	}
+
+	// Return empty shell launch config
+	return {};
 }
 
 class TerminalEditorStyle extends Themable {
