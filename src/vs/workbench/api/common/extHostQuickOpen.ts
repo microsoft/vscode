@@ -14,10 +14,11 @@ import { ExtHostQuickOpenShape, IMainContext, MainContext, TransferQuickInput, T
 import { URI } from 'vs/base/common/uri';
 import { ThemeIcon, QuickInputButtons, QuickPickItemKind } from 'vs/workbench/api/common/extHostTypes';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { coalesce } from 'vs/base/common/arrays';
 import Severity from 'vs/base/common/severity';
 import { ThemeIcon as ThemeIconUtils } from 'vs/platform/theme/common/themeService';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 export type Item = string | QuickPickItem;
 
@@ -31,7 +32,7 @@ export interface ExtHostQuickOpen {
 
 	showWorkspaceFolderPick(options?: WorkspaceFolderPickOptions, token?: CancellationToken): Promise<WorkspaceFolder | undefined>
 
-	createQuickPick<T extends QuickPickItem>(extensionId: ExtensionIdentifier): QuickPick<T>;
+	createQuickPick<T extends QuickPickItem>(extensionId: IExtensionDescription): QuickPick<T>;
 
 	createInputBox(extensionId: ExtensionIdentifier): InputBox;
 }
@@ -182,8 +183,8 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 
 		// ---- QuickInput
 
-		createQuickPick<T extends QuickPickItem>(extensionId: ExtensionIdentifier): QuickPick<T> {
-			const session: ExtHostQuickPick<T> = new ExtHostQuickPick(extensionId, () => this._sessions.delete(session._id));
+		createQuickPick<T extends QuickPickItem>(extension: IExtensionDescription): QuickPick<T> {
+			const session: ExtHostQuickPick<T> = new ExtHostQuickPick(extension, () => this._sessions.delete(session._id));
 			this._sessions.set(session._id, session);
 			return session;
 		}
@@ -521,8 +522,9 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		private readonly _onDidChangeSelectionEmitter = new Emitter<T[]>();
 		private readonly _onDidTriggerItemButtonEmitter = new Emitter<QuickPickItemButtonEvent<T>>();
 
-		constructor(extensionId: ExtensionIdentifier, onDispose: () => void) {
-			super(extensionId, onDispose);
+		// TODO: revert this change once quickPickSeparators has been finalized.
+		constructor(private readonly extension: IExtensionDescription, onDispose: () => void) {
+			super(extension.identifier, onDispose);
 			this._disposables.push(
 				this._onDidChangeActiveEmitter,
 				this._onDidChangeSelectionEmitter,
@@ -536,6 +538,10 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		}
 
 		set items(items: T[]) {
+			if (items.some((item) => item.kind !== undefined)) {
+				checkProposedApiEnabled(this.extension, 'quickPickSeparators');
+			}
+
 			this._items = items.slice();
 			this._handlesToItems.clear();
 			this._itemsToHandles.clear();
