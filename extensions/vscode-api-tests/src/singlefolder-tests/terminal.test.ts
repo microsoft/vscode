@@ -515,7 +515,6 @@ import { assertNoRpc } from '../utils';
 						// The default pty dimensions have a chance to appear here since override
 						// dimensions happens after the terminal is created. If so just ignore and
 						// wait for the right dimensions
-						console.log('onDidChangeTerminalDimensions', e);
 						if (e.dimensions.columns === 10 || e.dimensions.rows === 5) {
 							disposables.push(window.onDidCloseTerminal(() => r()));
 							terminal.dispose();
