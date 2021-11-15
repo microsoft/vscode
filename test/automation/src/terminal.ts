@@ -24,7 +24,7 @@ export class Terminal {
 	}
 
 	async createNew(): Promise<void> {
-		await this.quickaccess.runCommand('workbench.action.terminal.new');
+		await this.code.dispatchKeybinding('Control+Shift+`');
 		await this.code.waitForActiveElement(XTERM_TEXTAREA);
 		await this.code.waitForTerminalBuffer(XTERM_SELECTOR, lines => lines.some(line => line.length > 0));
 	}
@@ -44,9 +44,9 @@ export class Terminal {
 		await this.code.dispatchKeybinding('enter');
 	}
 
-	async getTabLabels(): Promise<string[]> {
+	async getTabLabels(expectedCount: number): Promise<string[]> {
 		const result: string[] = [];
-		const tabs = await this.code.waitForElements(TABS, true);
+		const tabs = await this.code.waitForElements(TABS, true, e => e.length === expectedCount && e.every(element => element.textContent.trim().length > 1));
 		for (const t of tabs) {
 			result.push(t.textContent);
 		}
