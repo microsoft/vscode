@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary } from 'vs/base/common/collections';
 import { Event } from 'vs/base/common/event';
-import * as objects from 'vs/base/common/objects';
 import * as types from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Extensions, IConfigurationRegistry, overrideIdentifierFromKey, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
@@ -149,71 +147,6 @@ export interface IConfigurationCompareResult {
 	removed: string[];
 	updated: string[];
 	overrides: [string, string[]][];
-}
-
-export function compare(from: IConfigurationModel | undefined, to: IConfigurationModel | undefined): IConfigurationCompareResult {
-	const added = to
-		? from ? to.keys.filter(key => from.keys.indexOf(key) === -1) : [...to.keys]
-		: [];
-	const removed = from
-		? to ? from.keys.filter(key => to.keys.indexOf(key) === -1) : [...from.keys]
-		: [];
-	const updated: string[] = [];
-
-	if (to && from) {
-		for (const key of from.keys) {
-			if (to.keys.indexOf(key) !== -1) {
-				const value1 = getConfigurationValue(from.contents, key);
-				const value2 = getConfigurationValue(to.contents, key);
-				if (!objects.equals(value1, value2)) {
-					updated.push(key);
-				}
-			}
-		}
-	}
-
-	const overrides: [string, string[]][] = [];
-	const byOverrideIdentifier = (overrides: IOverrides[]): IStringDictionary<IOverrides> => {
-		const result: IStringDictionary<IOverrides> = {};
-		for (const override of overrides) {
-			for (const identifier of override.identifiers) {
-				result[keyFromOverrideIdentifier(identifier)] = override;
-			}
-		}
-		return result;
-	};
-	const toOverridesByIdentifier: IStringDictionary<IOverrides> = to ? byOverrideIdentifier(to.overrides) : {};
-	const fromOverridesByIdentifier: IStringDictionary<IOverrides> = from ? byOverrideIdentifier(from.overrides) : {};
-
-	if (Object.keys(toOverridesByIdentifier).length) {
-		for (const key of added) {
-			const override = toOverridesByIdentifier[key];
-			if (override) {
-				overrides.push([overrideIdentifierFromKey(key), override.keys]);
-			}
-		}
-	}
-	if (Object.keys(fromOverridesByIdentifier).length) {
-		for (const key of removed) {
-			const override = fromOverridesByIdentifier[key];
-			if (override) {
-				overrides.push([overrideIdentifierFromKey(key), override.keys]);
-			}
-		}
-	}
-
-	if (Object.keys(toOverridesByIdentifier).length && Object.keys(fromOverridesByIdentifier).length) {
-		for (const key of updated) {
-			const fromOverride = fromOverridesByIdentifier[key];
-			const toOverride = toOverridesByIdentifier[key];
-			if (fromOverride && toOverride) {
-				const result = compare({ contents: fromOverride.contents, keys: fromOverride.keys, overrides: [] }, { contents: toOverride.contents, keys: toOverride.keys, overrides: [] });
-				overrides.push([overrideIdentifierFromKey(key), [...result.added, ...result.removed, ...result.updated]]);
-			}
-		}
-	}
-
-	return { added, removed, updated, overrides };
 }
 
 export function toOverrides(raw: any, conflictReporter: (message: string) => void): IOverrides[] {
