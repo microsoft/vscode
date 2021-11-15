@@ -85,3 +85,10 @@ Due to the nature of virtualization (list view) and two layers architecture, the
   * Toolbars
 
 The catch here is if the focus is on a monaco editor, instead of the list view container, when the cell is moved out of view, the list view removes the cell row from the DOM tree. The `document.activeElement` will fall back `document.body` when that happens. To ensure that the notebook editor doesn't blur, we need to move focus back to list view container when the focused cell is moved out of view. More importantly, focus the cell editor again when the cell is visible again (if the cell is still the *active* cell).
+
+Copy in Notebook depends on the focus tracking
+
+* Send `document.executeCommand('copy')` if users select text in output rendered in main frame by builtin renderer
+* Request webview copy if the focus is inside the webview
+* Copy cells if the focus is on notebook cell list
+* Copy text if the focus is in cell editor (monaco editor)
