@@ -83,10 +83,10 @@
   resolved "https://registry.yarnpkg.com/@microsoft/dynamicproto-js/-/dynamicproto-js-1.1.4.tgz#40e1c0ad20743fcee1604a7df2c57faf0aa1af87"
   integrity sha512-Ot53G927ykMF8cQ3/zq4foZtdk+Tt1YpX7aUTHxBU7UHNdkEiBvBfZSq+rnlUmKCJ19VatwPG4mNzvcGpBj4og==
 
-"@parcel/watcher@2.0.1":
-  version "2.0.1"
-  resolved "https://registry.yarnpkg.com/@parcel/watcher/-/watcher-2.0.1.tgz#ec4bb6c43d9588a1ffd3d2abe6df5b501463c62d"
-  integrity sha512-XegFF4L8sFn1RzU5KKOZxXUuzgOSwd6+X2ez3Cy6MVhYMbiLZ1moceMTqDhuT3N8DNbdumK3zP1wojsIsnX40w==
+"@parcel/watcher@2.0.2":
+  version "2.0.2"
+  resolved "https://registry.yarnpkg.com/@parcel/watcher/-/watcher-2.0.2.tgz#46bef14584497147bad5247cfb41f80b24d24dfb"
+  integrity sha512-WGJY55/mTAGse2C9VVi2oo+p05oJ0kiSHmOjV33+ywgKgUkUh6B/qFQ5kBO/9mH686qqtV3k2zH1QNm+XX4+lw==
   dependencies:
     node-addon-api "^3.2.1"
     node-gyp-build "^4.3.0"
