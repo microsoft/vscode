@@ -11,7 +11,7 @@ import { afterSuite, beforeSuite } from '../../utils';
 const ContributedProfileName = `JavaScript Debug Terminal`;
 
 export function setup(opts: ParsedArgs) {
-	describe.only('Terminal Profiles', () => {
+	describe('Terminal Profiles', () => {
 		let app: Application;
 
 		beforeSuite(opts);
@@ -20,7 +20,6 @@ export function setup(opts: ParsedArgs) {
 		before(function () {
 			app = this.app;
 		});
-
 
 		afterEach(async function () {
 			await app.workbench.terminal.killTerminal();
