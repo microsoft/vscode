@@ -9,7 +9,6 @@ import { QuickAccess } from './quickaccess';
 
 const TERMINAL_VIEW_SELECTOR = `#terminal`;
 const XTERM_SELECTOR = `${TERMINAL_VIEW_SELECTOR} .terminal-wrapper`;
-const XTERM_TEXTAREA = `${XTERM_SELECTOR} textarea.xterm-helper-textarea`;
 const CONTRIBUTED_PROFILE_NAME = `JavaScript Debug Terminal`;
 const TABS = '.tabs-list .terminal-tabs-entry';
 
@@ -19,13 +18,11 @@ export class Terminal {
 
 	async showTerminal(): Promise<void> {
 		await this.code.dispatchKeybinding('Control+`');
-		await this.code.waitForActiveElement(XTERM_TEXTAREA);
 		await this.code.waitForTerminalBuffer(XTERM_SELECTOR, lines => lines.some(line => line.length > 0));
 	}
 
 	async createNew(): Promise<void> {
 		await this.code.dispatchKeybinding('Control+Shift+`');
-		await this.code.waitForActiveElement(XTERM_TEXTAREA);
 		await this.code.waitForTerminalBuffer(XTERM_SELECTOR, lines => lines.some(line => line.length > 0));
 	}
 
@@ -44,9 +41,9 @@ export class Terminal {
 		await this.code.dispatchKeybinding('enter');
 	}
 
-	async getTabLabels(expectedCount: number): Promise<string[]> {
+	async getTabLabels(expectedCount: number, splits?: boolean): Promise<string[]> {
 		const result: string[] = [];
-		const tabs = await this.code.waitForElements(TABS, true, e => e.length === expectedCount && e.every(element => element.textContent.trim().length > 1));
+		const tabs = await this.code.waitForElements(TABS, true, e => e.length === expectedCount && (!splits || e.some(e => e.textContent.startsWith('┌'))) && e.every(element => element.textContent.trim().length > 1));
 		for (const t of tabs) {
 			result.push(t.textContent);
 		}

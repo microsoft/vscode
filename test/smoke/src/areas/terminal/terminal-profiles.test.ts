@@ -21,6 +21,10 @@ export function setup(opts: ParsedArgs) {
 			app = this.app;
 		});
 
+		beforeEach(async function () {
+			await app.workbench.quickaccess.openFile('www');
+		});
+
 		afterEach(async function () {
 			await app.workbench.terminal.killTerminal();
 		});
@@ -53,11 +57,10 @@ export function setup(opts: ParsedArgs) {
 		});
 
 		it('should use the default profile on panel open and for splitting', async function () {
-			await app.workbench.terminal.runProfileCommand('setDefault', undefined);
 			await app.workbench.terminal.showTerminal();
 			await app.code.waitForElement('.single-terminal-tab', e => e ? !e.textContent.endsWith(ContributedProfileName) : false);
 			await app.workbench.terminal.splitTerminal();
-			const tabs = await app.workbench.terminal.getTabLabels(2);
+			const tabs = await app.workbench.terminal.getTabLabels(2, true);
 			ok(tabs[0].startsWith('┌') && !tabs[0].endsWith(ContributedProfileName));
 			ok(tabs[1].startsWith('└') && !tabs[1].endsWith(ContributedProfileName));
 			await app.workbench.terminal.killTerminal();
@@ -84,9 +87,9 @@ export function setup(opts: ParsedArgs) {
 		it('createWithProfile command should create a split terminal with a profile', async function () {
 			await app.workbench.terminal.showTerminal();
 			await app.workbench.terminal.runProfileCommand('createInstance', undefined, true);
-			const tabs = await app.workbench.terminal.getTabLabels(2);
-			ok(tabs[0].startsWith('┌') && !tabs[0].endsWith(ContributedProfileName));
-			ok(tabs[1].startsWith('└') && !tabs[1].endsWith(ContributedProfileName));
+			const tabs = await app.workbench.terminal.getTabLabels(2, true);
+			ok(tabs[1].startsWith('┌') && !tabs[1].endsWith(ContributedProfileName));
+			ok(tabs[0].startsWith('└') && !tabs[0].endsWith(ContributedProfileName));
 			await app.workbench.terminal.killTerminal();
 		});
 
@@ -94,7 +97,7 @@ export function setup(opts: ParsedArgs) {
 			await app.workbench.terminal.showTerminal();
 			await app.code.waitForElement('.single-terminal-tab', e => e ? !e.textContent.endsWith(ContributedProfileName) : false);
 			await app.workbench.terminal.runProfileCommand('createInstance', true, true);
-			const tabs = await app.workbench.terminal.getTabLabels(2);
+			const tabs = await app.workbench.terminal.getTabLabels(2, true);
 			ok(tabs[0].startsWith('┌') && !tabs[0].endsWith(ContributedProfileName));
 			ok(tabs[1].startsWith('└') && tabs[1].endsWith(ContributedProfileName));
 			await app.workbench.terminal.killTerminal();
