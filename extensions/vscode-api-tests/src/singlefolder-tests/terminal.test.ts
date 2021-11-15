@@ -28,7 +28,7 @@ import { assertNoRpc } from '../utils';
 		await config.update('environmentChangesRelaunch', false, ConfigurationTarget.Global);
 	});
 
-	suite('Terminal', () => {
+	suite.only('Terminal', () => {
 		let disposables: Disposable[] = [];
 
 		teardown(() => {
@@ -491,31 +491,7 @@ import { assertNoRpc } from '../utils';
 			// 	const terminal = window.createTerminal({ name: 'foo', pty });
 			// });
 
-			test('should respect dimension overrides', (done) => {
-				disposables.push(window.onDidOpenTerminal(term => {
-					try {
-						equal(terminal, term);
-					} catch (e) {
-						done(e);
-						return;
-					}
-					term.show();
-					disposables.push(window.onDidChangeTerminalDimensions(e => {
-						// The default pty dimensions have a chance to appear here since override
-						// dimensions happens after the terminal is created. If so just ignore and
-						// wait for the right dimensions
-						if (e.dimensions.columns === 10 || e.dimensions.rows === 5) {
-							try {
-								equal(e.terminal, terminal);
-							} catch (e) {
-								done(e);
-								return;
-							}
-							disposables.push(window.onDidCloseTerminal(() => done()));
-							terminal.dispose();
-						}
-					}));
-				}));
+			test('should respect dimension overrides', async () => {
 				const writeEmitter = new EventEmitter<string>();
 				const overrideDimensionsEmitter = new EventEmitter<TerminalDimensions>();
 				const pty: Pseudoterminal = {
@@ -525,6 +501,27 @@ import { assertNoRpc } from '../utils';
 					close: () => { }
 				};
 				const terminal = window.createTerminal({ name: 'foo', pty });
+				await new Promise<void>(r => {
+					disposables.push(window.onDidOpenTerminal(t => {
+						if (t === terminal) {
+							r();
+						}
+					}));
+				});
+				await new Promise<void>(r => {
+					disposables.push(window.onDidChangeTerminalDimensions(e => {
+						strictEqual(e.terminal, terminal);
+						// The default pty dimensions have a chance to appear here since override
+						// dimensions happens after the terminal is created. If so just ignore and
+						// wait for the right dimensions
+						console.log('onDidChangeTerminalDimensions', e);
+						if (e.dimensions.columns === 10 || e.dimensions.rows === 5) {
+							disposables.push(window.onDidCloseTerminal(() => r()));
+							terminal.dispose();
+						}
+					}));
+					terminal.show();
+				});
 			});
 
 			test('should change terminal name', (done) => {
