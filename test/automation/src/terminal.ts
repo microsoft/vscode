@@ -56,10 +56,10 @@ export class Terminal {
 	async runProfileCommand(type: 'createInstance' | 'setDefault', contributed?: boolean, altKey?: boolean): Promise<void> {
 		const command = type === 'createInstance' ? 'Terminal: Create New Terminal (With Profile)' : 'Terminal: Select Default Profile';
 		if (contributed) {
-			await this.quickaccess.runCommand(command, 0, true);
+			await this.quickaccess.runCommand(command, true);
 			await this.code.waitForSetValue(QuickInput.QUICK_INPUT_INPUT, CONTRIBUTED_PROFILE_NAME);
 		} else {
-			await this.quickaccess.runCommand(command, 0, true);
+			await this.quickaccess.runCommand(command, true);
 			await this.code.dispatchKeybinding('down');
 		}
 		await this.code.dispatchKeybinding(altKey ? 'Alt+Enter' : 'enter');

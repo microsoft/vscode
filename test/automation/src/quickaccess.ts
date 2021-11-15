@@ -48,14 +48,14 @@ export class QuickAccess {
 		await this.editors.waitForEditorFocus(fileName);
 	}
 
-	async runCommand(commandId: string, index?: number, keepOpen?: boolean): Promise<void> {
+	async runCommand(commandId: string, keepOpen?: boolean): Promise<void> {
 		await this.openQuickAccess(`>${commandId}`);
 
 		// wait for best choice to be focused
 		await this.code.waitForTextContent(QuickInput.QUICK_INPUT_FOCUSED_ELEMENT);
 
 		// wait and click on best choice
-		await this.quickInput.selectQuickInputElement(index || 0, keepOpen);
+		await this.quickInput.selectQuickInputElement(0, keepOpen);
 	}
 
 	async openQuickOutline(): Promise<void> {
