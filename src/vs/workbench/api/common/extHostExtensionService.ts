@@ -698,7 +698,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			};
 			const options: ResolvedOptions = {
 				extensionHostEnv: result.extensionHostEnv,
-				isTrusted: result.isTrusted
+				isTrusted: result.isTrusted,
+				authenticationSession: result.authenticationSession ? { id: result.authenticationSession.id, providerId: result.authenticationSession.providerId } : undefined
 			};
 
 			return {

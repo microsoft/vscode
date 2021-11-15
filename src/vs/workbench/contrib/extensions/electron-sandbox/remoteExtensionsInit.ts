@@ -67,20 +67,20 @@ export class RemoteExtensionsInitializerContribution implements IWorkbenchContri
 		}
 		// Skip: No account is provided to initialize
 		const resolvedAuthority = await this.remoteAuthorityResolverService.resolveAuthority(connection.remoteAuthority);
-		if (!resolvedAuthority.options?.initializeUsingAccount) {
+		if (!resolvedAuthority.options?.authenticationSession) {
 			return;
 		}
 
-		const sessions = await this.authenticationService.getSessions(resolvedAuthority.options?.initializeUsingAccount.providerId);
-		const session = sessions.find(s => s.id === resolvedAuthority.options?.initializeUsingAccount?.sessionId);
+		const sessions = await this.authenticationService.getSessions(resolvedAuthority.options?.authenticationSession.providerId);
+		const session = sessions.find(s => s.id === resolvedAuthority.options?.authenticationSession?.id);
 		// Skip: Session is not found
 		if (!session) {
-			this.logService.info('Skipping initializing remote extensions because the account with given session id is not found', resolvedAuthority.options.initializeUsingAccount.sessionId);
+			this.logService.info('Skipping initializing remote extensions because the account with given session id is not found', resolvedAuthority.options.authenticationSession.id);
 			return;
 		}
 
 		const userDataSyncStoreClient = this.instantiationService.createInstance(UserDataSyncStoreClient, this.userDataSyncStoreManagementService.userDataSyncStore.url);
-		userDataSyncStoreClient.setAuthToken(session.accessToken, resolvedAuthority.options.initializeUsingAccount.providerId);
+		userDataSyncStoreClient.setAuthToken(session.accessToken, resolvedAuthority.options.authenticationSession.providerId);
 		const userData = await userDataSyncStoreClient.read(SyncResource.Extensions, null);
 
 		const serviceCollection = new ServiceCollection();
