@@ -16,7 +16,7 @@ export function setup(opts: ParsedArgs) {
 		PlusButton = 'li.action-item.monaco-dropdown-with-primary > div.action-container.menu-entry > a',
 		SingleTab = '.single-terminal-tab'
 	}
-	describe.only('Terminal Profiles', () => {
+	describe('Terminal Profiles', () => {
 		let app: Application;
 
 		beforeSuite(opts);
