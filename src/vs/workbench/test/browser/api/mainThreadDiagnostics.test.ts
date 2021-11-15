@@ -107,7 +107,54 @@ suite('MainThreadDiagnostics', function () {
 			await timeout(0);
 			assert.strictEqual(markerService.read().length, 2);
 			assert.strictEqual(changedData.length, 1);
+			assert.strictEqual(changedData[0].length, 1);
 			assert.strictEqual(changedData[0][0][1][0].message, 'forgein_owner');
+		});
+	});
+
+	test('onDidChangeDiagnostics different behavior when "extensionKind" ui running on remote workspace #136955', function () {
+		return runWithFakedTimers({}, async () => {
+
+			const markerData: IMarkerData = {
+				code: '666',
+				startLineNumber: 1,
+				startColumn: 1,
+				endLineNumber: 1,
+				endColumn: 1,
+				severity: 1,
+				source: 'me',
+				message: 'message'
+			};
+			const target = URI.file('a');
+			markerService.changeOne('bar', target, [markerData]);
+
+			const changedData: [UriComponents, IMarkerData[]][][] = [];
+
+			let diag = new MainThreadDiagnostics(
+				new class implements IExtHostContext {
+					remoteAuthority = '';
+					extensionHostKind = ExtensionHostKind.LocalProcess;
+					assertRegistered() { }
+					set(v: any): any { return null; }
+					getProxy(): any {
+						return {
+							$acceptMarkersChange(data: [UriComponents, IMarkerData[]][]) {
+								changedData.push(data);
+							}
+						};
+					}
+					drain(): any { return null; }
+				},
+				markerService,
+				new class extends mock<IUriIdentityService>() {
+					override asCanonicalUri(uri: URI) { return uri; }
+				}
+			);
+
+			diag.$clear('bar');
+			await timeout(0);
+			assert.strictEqual(markerService.read().length, 0);
+			assert.strictEqual(changedData.length, 1);
 		});
 	});
 });

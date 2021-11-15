@@ -185,14 +185,12 @@ suite('TelemetryService', () => {
 			appenders: [NullAppender],
 			commonProperties: Promise.resolve({
 				sessionID: 'one',
-				['common.instanceId']: 'two',
 				['common.machineId']: 'three',
 			})
 		}, new TestConfigurationService());
 
 		return service.getTelemetryInfo().then(info => {
 			assert.strictEqual(info.sessionId, 'one');
-			assert.strictEqual(info.instanceId, 'two');
 			assert.strictEqual(info.machineId, 'three');
 
 			service.dispose();

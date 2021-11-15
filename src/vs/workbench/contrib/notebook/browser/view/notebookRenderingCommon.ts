@@ -80,6 +80,7 @@ export interface INotebookCellList {
 	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void;
 	updateElementHeight2(element: ICellViewModel, size: number): void;
 	domFocus(): void;
+	focusContainer(): void;
 	setCellSelection(element: ICellViewModel, range: Range): void;
 	style(styles: IListStyles): void;
 	getRenderHeight(): number;

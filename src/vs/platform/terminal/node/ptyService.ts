@@ -234,7 +234,7 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	async detachFromProcess(id: number): Promise<void> {
-		this._throwIfNoPty(id).detach();
+		return this._throwIfNoPty(id).detach();
 	}
 
 	async reduceConnectionGraceTime(): Promise<void> {
@@ -342,9 +342,10 @@ export class PtyService extends Disposable implements IPtyService {
 
 	private async _expandTerminalInstance(t: ITerminalInstanceLayoutInfoById): Promise<IRawTerminalInstanceLayoutInfo<IProcessDetails | null>> {
 		try {
-			const persistentProcessId = this._revivedPtyIdMap.get(t.terminal)?.newId ?? t.terminal;
+			const revivedPtyId = this._revivedPtyIdMap.get(t.terminal)?.newId;
+			const persistentProcessId = revivedPtyId ?? t.terminal;
 			const persistentProcess = this._throwIfNoPty(persistentProcessId);
-			const processDetails = persistentProcess && await this._buildProcessDetails(t.terminal, persistentProcess);
+			const processDetails = persistentProcess && await this._buildProcessDetails(t.terminal, persistentProcess, revivedPtyId !== undefined);
 			return {
 				terminal: { ...processDetails, id: persistentProcessId } ?? null,
 				relativeSize: t.relativeSize
@@ -359,8 +360,10 @@ export class PtyService extends Disposable implements IPtyService {
 		}
 	}
 
-	private async _buildProcessDetails(id: number, persistentProcess: PersistentTerminalProcess): Promise<IProcessDetails> {
-		const [cwd, isOrphan] = await Promise.all([persistentProcess.getCwd(), persistentProcess.isOrphaned()]);
+	private async _buildProcessDetails(id: number, persistentProcess: PersistentTerminalProcess, wasRevived: boolean = false): Promise<IProcessDetails> {
+		// If the process was just revived, don't do the orphan check as it will
+		// take some time
+		const [cwd, isOrphan] = await Promise.all([persistentProcess.getCwd(), wasRevived ? true : persistentProcess.isOrphaned()]);
 		return {
 			id,
 			title: persistentProcess.title,

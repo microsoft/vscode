@@ -76,9 +76,14 @@ type ExplorerCommands = 'open' | 'run';
 class NpmScript extends TreeItem {
 	task: Task;
 	package: PackageJSON;
+	taskLocation?: Location;
 
-	constructor(_context: ExtensionContext, packageJson: PackageJSON, task: Task, public taskLocation?: Location) {
-		super(task.name, TreeItemCollapsibleState.None);
+	constructor(_context: ExtensionContext, packageJson: PackageJSON, task: TaskWithLocation) {
+		const name = packageJson.path.length > 0
+			? task.task.name.substring(0, task.task.name.length - packageJson.path.length - 2)
+			: task.task.name;
+		super(name, TreeItemCollapsibleState.None);
+		this.taskLocation = task.location;
 		const command: ExplorerCommands = workspace.getConfiguration('npm').get<ExplorerCommands>('scriptExplorerAction') || 'open';
 
 		const commandList = {
@@ -86,9 +91,9 @@ class NpmScript extends TreeItem {
 				title: 'Edit Script',
 				command: 'vscode.open',
 				arguments: [
-					taskLocation?.uri,
-					taskLocation ? <TextDocumentShowOptions>{
-						selection: new Range(taskLocation.range.start, taskLocation.range.start)
+					this.taskLocation?.uri,
+					this.taskLocation ? <TextDocumentShowOptions>{
+						selection: new Range(this.taskLocation.range.start, this.taskLocation.range.start)
 					} : undefined
 				]
 			},
@@ -100,16 +105,17 @@ class NpmScript extends TreeItem {
 		};
 		this.contextValue = 'script';
 		this.package = packageJson;
-		this.task = task;
+		this.task = task.task;
 		this.command = commandList[command];
 
-		if (task.group && task.group === TaskGroup.Clean) {
+		if (this.task.group && this.task.group === TaskGroup.Clean) {
 			this.iconPath = new ThemeIcon('wrench-subaction');
 		} else {
 			this.iconPath = new ThemeIcon('wrench');
 		}
-		if (task.detail) {
-			this.tooltip = task.detail;
+		if (this.task.detail) {
+			this.tooltip = this.task.detail;
+			this.description = this.task.detail;
 		}
 	}
 
@@ -285,7 +291,14 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		let folder = null;
 		let packageJson = null;
 
+		const regularExpressionsSetting = workspace.getConfiguration('npm').get<string[]>('scriptExplorerExclude', []);
+		const regularExpressions = regularExpressionsSetting?.map(value => RegExp(value));
+
 		tasks.forEach(each => {
+			if (regularExpressions.some((regularExpression) => (<NpmTaskDefinition>each.task.definition).script.match(regularExpression))) {
+				return;
+			}
+
 			if (isWorkspaceFolder(each.task.scope) && !this.isInstallTask(each.task)) {
 				folder = folders.get(each.task.scope.name);
 				if (!folder) {
@@ -301,7 +314,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 					folder.addPackage(packageJson);
 					packages.set(fullPath, packageJson);
 				}
-				let script = new NpmScript(this.extensionContext, packageJson, each.task, each.location);
+				let script = new NpmScript(this.extensionContext, packageJson, each);
 				packageJson.addScript(script);
 			}
 		});

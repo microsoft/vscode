@@ -211,3 +211,75 @@ class MonacoGenerator {
 		}
 	}
 }
+
+function apiProposalNamesGenerator() {
+	const stream = es.through();
+
+	const pattern = /vscode\.proposed\.([a-zA-Z]+)\.d\.ts/;
+	const dtsFolder = path.join(REPO_SRC_FOLDER, 'vscode-dts');
+
+	const generateFile = () => {
+
+		try {
+
+			const t1 = Date.now();
+			const proposalNames: [name: string, url: string][] = [];
+			for (let file of fs.readdirSync(dtsFolder).sort()) {
+				const match = pattern.exec(file);
+				if (match) {
+					proposalNames.push([match[1], `https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/${file}`]);
+				}
+			}
+
+			const source = [
+				'/*---------------------------------------------------------------------------------------------',
+				' *  Copyright (c) Microsoft Corporation. All rights reserved.',
+				' *  Licensed under the MIT License. See License.txt in the project root for license information.',
+				' *--------------------------------------------------------------------------------------------*/',
+				'',
+				'// THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.',
+				'',
+				'export const allApiProposals = Object.freeze({',
+				`${proposalNames.map(t => `\t${t[0]}: '${t[1]}'`).join(',\n')}`,
+				'});',
+				'export type ApiProposalName = keyof typeof allApiProposals;',
+				'',
+			].join('\n');
+
+			const outFile = path.join(dtsFolder, '../vs/workbench/services/extensions/common/extensionsApiProposals.ts');
+
+			if (fs.readFileSync(outFile).toString() !== source) {
+				fs.writeFileSync(outFile, source);
+				console.log(`Generated 'extensionsApiProposals.ts' in ${Date.now() - t1}ms`);
+			}
+
+		} catch (err) {
+			stream.emit('error', err);
+		}
+	};
+
+	let handle: NodeJS.Timeout;
+	stream.on('data', () => {
+		clearTimeout(handle);
+		handle = setTimeout(generateFile, 250);
+	});
+
+	return stream;
+}
+
+export function compileApiProposalNames(): () => NodeJS.ReadWriteStream {
+	return function () {
+		const srcPipe = gulp.src('src/vscode-dts/**', { base: 'src' });
+		const proposals = apiProposalNamesGenerator();
+		return srcPipe.pipe(proposals);
+	};
+}
+
+export function watchApiProposalNames(): () => NodeJS.ReadWriteStream {
+	return function () {
+		const watchSrc = watch('src/vscode-dts/**', { base: 'src', readDelay: 200 });
+		const proposals = apiProposalNamesGenerator();
+		proposals.write(undefined); // send something to trigger initial generate
+		return watchSrc.pipe(proposals);
+	};
+}

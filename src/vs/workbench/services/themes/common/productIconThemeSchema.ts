@@ -9,10 +9,10 @@ import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/plat
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { iconsSchemaId } from 'vs/platform/theme/common/iconRegistry';
 
-export const fontIdRegex = '^([\\w-_]+)$';
+export const fontIdRegex = '^([\\w_-]+)$';
 export const fontStyleRegex = '^(normal|italic|(oblique[ \\w\\s-]+))$';
 export const fontWeightRegex = '^(normal|bold|lighter|bolder|(\\d{0-1000}))$';
-export const fontSizeRegex = '^([\\w .%-_]+)$';
+export const fontSizeRegex = '^([\\w .%_-]+)$';
 
 const schemaId = 'vscode://schemas/product-icon-theme';
 const schema: IJSONSchema = {

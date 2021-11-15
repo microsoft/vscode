@@ -26,7 +26,9 @@ export default class ErrorTelemetry extends BaseErrorTelemetry {
 							if (e.stack) {
 								console.warn(`stack trace: ${e.stack}`);
 							}
-							onUnexpectedError(reason);
+							if (reason) {
+								onUnexpectedError(reason);
+							}
 						}
 					});
 				}

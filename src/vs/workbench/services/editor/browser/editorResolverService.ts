@@ -463,20 +463,23 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		// If the editor states it can only be opened once per resource we must close all existing ones first
 		const singleEditorPerResource = typeof selectedEditor.options?.singlePerResource === 'function' ? selectedEditor.options.singlePerResource() : selectedEditor.options?.singlePerResource;
 		if (singleEditorPerResource) {
-			this.closeExistingEditorsForResource(resource, selectedEditor.editorInfo.id, group);
+			const closed = await this.closeExistingEditorsForResource(resource, selectedEditor.editorInfo.id, group);
+			if (!closed) {
+				return undefined;
+			}
 		}
 
 		return { editor: input, options };
 	}
 
-	private closeExistingEditorsForResource(
+	private async closeExistingEditorsForResource(
 		resource: URI,
 		viewType: string,
 		targetGroup: IEditorGroup,
-	): void {
+	): Promise<boolean> {
 		const editorInfoForResource = this.findExistingEditorsForResource(resource, viewType);
 		if (!editorInfoForResource.length) {
-			return;
+			return true;
 		}
 
 		const editorToUse = editorInfoForResource[0];
@@ -484,14 +487,20 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		// Replace all other editors
 		for (const { editor, group } of editorInfoForResource) {
 			if (editor !== editorToUse.editor) {
-				group.closeEditor(editor);
+				const closed = await group.closeEditor(editor);
+				if (!closed) {
+					return false;
+				}
 			}
 		}
 
 		if (targetGroup.id !== editorToUse.group.id) {
-			editorToUse.group.closeEditor(editorToUse.editor);
+			const closed = await editorToUse.group.closeEditor(editorToUse.editor);
+			if (!closed) {
+				return false;
+			}
 		}
-		return;
+		return true;
 	}
 
 	/**

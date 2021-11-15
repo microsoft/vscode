@@ -11,7 +11,7 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { Action, IAction } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Codicon, registerCodicon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -44,7 +44,6 @@ import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ChoiceAction } from 'vs/workbench/common/notifications';
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugColors';
 import { IExtensionsWorkbenchService, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { settingsEditIcon, settingsRemoveIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -55,12 +54,15 @@ import { EnablementState, IWorkbenchExtensionEnablementService } from 'vs/workbe
 import { posix } from 'vs/base/common/path';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
-export const shieldIcon = registerCodicon('workspace-trust-icon', Codicon.shield);
+export const shieldIcon = registerIcon('workspace-trust-banner', Codicon.shield, localize('shieldIcon', 'Icon for workspace trust ion the banner.'));
 
-const checkListIcon = registerCodicon('workspace-trusted-check-icon', Codicon.check);
-const xListIcon = registerCodicon('workspace-trusted-x-icon', Codicon.x);
-const folderPickerIcon = registerCodicon('folder-picker', Codicon.folder);
+const checkListIcon = registerIcon('workspace-trust-editor-check', Codicon.check, localize('checkListIcon', 'Icon for the checkmark in the workspace trust editor.'));
+const xListIcon = registerIcon('workspace-trust-editor-cross', Codicon.x, localize('xListIcon', 'Icon for the cross in the workspace trust editor.'));
+const folderPickerIcon = registerIcon('workspace-trust-editor-folder-picker', Codicon.folder, localize('folderPickerIcon', 'Icon for the pick folder icon in the workspace trust editor.'));
+const editIcon = registerIcon('workspace-trust-editor-edit-folder', Codicon.edit, localize('editIcon', 'Icon for the edit folder icon in the workspace trust editor.'));
+const removeIcon = registerIcon('workspace-trust-editor-remove-folder', Codicon.edit, localize('removeIcon', 'Icon for the remove folder icon in the workspace trust editor.'));
 
 interface ITrustedUriItem {
 	parentOfWorkspaceItem: boolean;
@@ -418,7 +420,7 @@ class TrustedUriActionsColumnRenderer implements ITableRenderer<ITrustedUriItem,
 
 	private createEditAction(item: ITrustedUriItem): IAction {
 		return <IAction>{
-			class: ThemeIcon.asClassName(settingsEditIcon),
+			class: ThemeIcon.asClassName(editIcon),
 			enabled: true,
 			id: 'editTrustedUri',
 			tooltip: localize('editTrustedUri', "Edit Path"),
@@ -442,7 +444,7 @@ class TrustedUriActionsColumnRenderer implements ITableRenderer<ITrustedUriItem,
 
 	private createDeleteAction(item: ITrustedUriItem): IAction {
 		return <IAction>{
-			class: ThemeIcon.asClassName(settingsRemoveIcon),
+			class: ThemeIcon.asClassName(removeIcon),
 			enabled: true,
 			id: 'deleteTrustedUri',
 			tooltip: localize('deleteTrustedUri', "Delete Path"),
@@ -771,7 +773,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 	}
 
 	private getHeaderTitleIconClassNames(trusted: boolean): string[] {
-		return shieldIcon.classNamesArray;
+		return ThemeIcon.asClassNameArray(shieldIcon);
 	}
 
 	private getFeaturesHeaderText(trusted: boolean): [string, string] {
@@ -955,7 +957,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 				localize('trustedSettings', "All workspace settings are applied"),
 				localize('trustedExtensions', "All extensions are enabled")
 			];
-		this.renderLimitationsListElement(this.trustedContainer, trustedContainerItems, checkListIcon.classNamesArray);
+		this.renderLimitationsListElement(this.trustedContainer, trustedContainerItems, ThemeIcon.asClassNameArray(checkListIcon));
 
 		// Restricted Mode features
 		const [untrustedTitle, untrustedSubTitle] = this.getFeaturesHeaderText(false);
@@ -973,7 +975,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 				fixBadLocalizedLinks(numSettings ? localize({ key: 'untrustedSettings', comment: ['Please ensure the markdown link syntax is not broken up with whitespace [text block](link block)'] }, "[{0} workspace settings]({1}) are not applied", numSettings, 'command:settings.filterUntrusted') : localize('no untrustedSettings', "Workspace settings requiring trust are not applied")),
 				fixBadLocalizedLinks(localize({ key: 'untrustedExtensions', comment: ['Please ensure the markdown link syntax is not broken up with whitespace [text block](link block)'] }, "[{0} extensions]({1}) are disabled or have limited functionality", numExtensions, `command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`))
 			];
-		this.renderLimitationsListElement(this.untrustedContainer, untrustedContainerItems, xListIcon.classNamesArray);
+		this.renderLimitationsListElement(this.untrustedContainer, untrustedContainerItems, ThemeIcon.asClassNameArray(xListIcon));
 
 		if (this.workspaceTrustManagementService.isWorkspaceTrusted()) {
 			if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {

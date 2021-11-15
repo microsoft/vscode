@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as arrays from 'vs/base/common/arrays';
+import { IStringDictionary } from 'vs/base/common/collections';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -58,12 +59,13 @@ export class ConfigurationModel implements IConfigurationModel {
 	}
 
 	getKeysForOverrideIdentifier(identifier: string): string[] {
+		const keys: string[] = [];
 		for (const override of this.overrides) {
-			if (override.identifiers.indexOf(identifier) !== -1) {
-				return override.keys;
+			if (override.identifiers.includes(identifier)) {
+				keys.push(...override.keys);
 			}
 		}
-		return [];
+		return arrays.distinct(keys);
 	}
 
 	override(identifier: string): ConfigurationModel {
@@ -87,6 +89,8 @@ export class ConfigurationModel implements IConfigurationModel {
 				const [override] = overrides.filter(o => arrays.equals(o.identifiers, otherOverride.identifiers));
 				if (override) {
 					this.mergeContents(override.contents, otherOverride.contents);
+					override.keys.push(...otherOverride.keys);
+					override.keys = arrays.distinct(override.keys);
 				} else {
 					overrides.push(objects.deepClone(otherOverride));
 				}
@@ -156,12 +160,27 @@ export class ConfigurationModel implements IConfigurationModel {
 	}
 
 	private getContentsForOverrideIdentifer(identifier: string): any {
+		let contentsForIdentifierOnly: IStringDictionary<any> | null = null;
+		let contents: IStringDictionary<any> | null = null;
+		const mergeContents = (contentsToMerge: any) => {
+			if (contentsToMerge) {
+				if (contents) {
+					this.mergeContents(contents, contentsToMerge);
+				} else {
+					contents = contentsToMerge;
+				}
+			}
+		};
 		for (const override of this.overrides) {
-			if (override.identifiers.indexOf(identifier) !== -1) {
-				return override.contents;
+			if (arrays.equals(override.identifiers, [identifier])) {
+				contentsForIdentifierOnly = override.contents;
+			} else if (override.identifiers.includes(identifier)) {
+				mergeContents(override.contents);
 			}
 		}
-		return null;
+		// Merge contents of the identifier only at the end to take precedence.
+		mergeContents(contentsForIdentifierOnly);
+		return contents;
 	}
 
 	toJSON(): IConfigurationModel {

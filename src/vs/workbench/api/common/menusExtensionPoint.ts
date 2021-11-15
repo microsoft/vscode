@@ -16,14 +16,15 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { Iterable } from 'vs/base/common/iterator';
 import { index } from 'vs/base/common/arrays';
+import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 
 interface IAPIMenu {
 	readonly key: string;
 	readonly id: MenuId;
 	readonly description: string;
-	readonly proposed?: boolean; // defaults to false
+	readonly proposed?: ApiProposalName;
 	readonly supportsSubmenus?: boolean; // defaults to true
-	readonly deprecationMessage?: string;
 }
 
 const apiMenus: IAPIMenu[] = [
@@ -85,16 +86,10 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.debugToolBar', "The debug toolbar menu")
 	},
 	{
-		key: 'menuBar/file',
-		id: MenuId.MenubarFileMenu,
-		description: localize('menus.file', "The top level file menu"),
-		proposed: true
-	},
-	{
 		key: 'menuBar/home',
 		id: MenuId.MenubarHomeMenu,
 		description: localize('menus.home', "The home indicator context menu (web only)"),
-		proposed: true,
+		proposed: 'contribMenuBarHome',
 		supportsSubmenus: false
 	},
 	{
@@ -131,14 +126,6 @@ const apiMenus: IAPIMenu[] = [
 		key: 'scm/change/title',
 		id: MenuId.SCMChangeContext,
 		description: localize('menus.changeTitle', "The Source Control inline change menu")
-	},
-	{
-		key: 'statusBar/windowIndicator',
-		id: MenuId.StatusBarWindowIndicatorMenu,
-		description: localize('menus.statusBarWindowIndicator', "The window indicator menu in the status bar"),
-		proposed: true,
-		supportsSubmenus: false,
-		deprecationMessage: localize('menus.statusBarWindowIndicator.deprecated', "Use menu 'statusBar/remoteIndicator' instead."),
 	},
 	{
 		key: 'statusBar/remoteIndicator',
@@ -197,19 +184,19 @@ const apiMenus: IAPIMenu[] = [
 		key: 'notebook/cell/executePrimary',
 		id: MenuId.NotebookCellExecutePrimary,
 		description: localize('notebook.cell.executePrimary', "The contributed primary notebook cell execution button"),
-		proposed: true
+		proposed: 'notebookEditor'
 	},
 	{
 		key: 'interactive/toolbar',
 		id: MenuId.InteractiveToolbar,
 		description: localize('interactive.toolbar', "The contributed interactive toolbar menu"),
-		proposed: true
+		proposed: 'notebookEditor'
 	},
 	{
 		key: 'interactive/cell/title',
 		id: MenuId.InteractiveCellTitle,
 		description: localize('interactive.cell.title', "The contributed interactive cell title menu"),
-		proposed: true
+		proposed: 'notebookEditor'
 	},
 	{
 		key: 'testing/item/context',
@@ -262,7 +249,7 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.InlineCompletionsActions,
 		description: localize('inlineCompletions.actions', "The actions shown when hovering on an inline completion"),
 		supportsSubmenus: false,
-		proposed: true
+		proposed: 'inlineCompletions'
 	},
 ];
 
@@ -450,8 +437,7 @@ namespace schema {
 		description: localize('vscode.extension.contributes.menus', "Contributes menu items to the editor"),
 		type: 'object',
 		properties: index(apiMenus, menu => menu.key, menu => ({
-			description: menu.proposed ? `(${localize('proposed', "Proposed API")}) ${menu.description}` : menu.description,
-			deprecationMessage: menu.deprecationMessage,
+			markdownDescription: menu.proposed ? localize('proposed', "Proposed API, requires `enabledApiProposal: [\"{0}\"]` - {1}", menu.proposed, menu.description) : menu.description,
 			type: 'array',
 			items: menu.supportsSubmenus === false ? menuItem : { oneOf: [menuItem, submenuItem] }
 		})),
@@ -633,7 +619,7 @@ commandsExtensionPoint.setHandler(extensions => {
 			title,
 			source: extension.description.displayName ?? extension.description.name,
 			shortTitle,
-			tooltip: extension.description.enableProposedApi ? title : undefined,
+			tooltip: title,
 			category,
 			precondition: ContextKeyExpr.deserialize(enablement),
 			icon: absoluteIcon
@@ -763,8 +749,8 @@ menusExtensionPoint.setHandler(extensions => {
 				return;
 			}
 
-			if (menu.proposed && !extension.description.enableProposedApi) {
-				collector.error(localize('proposedAPI.invalid', "{0} is a proposed menu identifier and is only available when running out of dev or with the following command line switch: --enable-proposed-api {1}", entry.key, extension.description.identifier.value));
+			if (menu.proposed && !isProposedApiEnabled(extension.description, menu.proposed)) {
+				collector.error(localize('proposedAPI.invalid', "{0} is a proposed menu identifier. It requires 'package.json#enabledApiProposals: [\"{1}\"]' and is only available when running out of dev or with the following command line switch: --enable-proposed-api {2}", entry.key, menu.proposed, extension.description.identifier.value));
 				return;
 			}
 

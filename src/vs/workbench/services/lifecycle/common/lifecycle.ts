@@ -185,7 +185,7 @@ export interface ILifecycleService {
 	 * **Note:** this should normally not be called. See related methods in `IHostService`
 	 * and `INativeHostService` to close a window or quit the application.
 	 */
-	shutdown(): void;
+	shutdown(): Promise<void>;
 }
 
 export const NullLifecycleService: ILifecycleService = {
@@ -200,5 +200,5 @@ export const NullLifecycleService: ILifecycleService = {
 	startupKind: StartupKind.NewWindow,
 
 	async when() { },
-	shutdown() { }
+	async shutdown() { }
 };

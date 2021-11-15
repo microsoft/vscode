@@ -8,25 +8,30 @@ import { Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { EndOfLinePreference, ITextModel, PositionAffinity } from 'vs/editor/common/model';
 import { LineInjectedText } from 'vs/editor/common/model/textModelEvents';
-import { InjectedText, LineBreakData, SingleLineInlineDecoration, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
+import { InjectedText, ModelLineProjectionData } from 'vs/editor/common/viewModel/modelLineProjectionData';
+import { SingleLineInlineDecoration, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 
 export interface IModelLineProjection {
 	isVisible(): boolean;
+
+	/**
+	 * This invalidates the current instance (potentially reuses and returns it again).
+	*/
 	setVisible(isVisible: boolean): IModelLineProjection;
 
-	getLineBreakData(): LineBreakData | null;
+	getLineBreakData(): ModelLineProjectionData | null;
 	getViewLineCount(): number;
 	getViewLineContent(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): string;
 	getViewLineLength(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number;
 	getViewLineMinColumn(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number;
 	getViewLineMaxColumn(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number;
 	getViewLineData(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): ViewLineData;
-	getViewLinesData(model: ISimpleModel, modelLineNumber: number, fromOuputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: Array<ViewLineData | null>): void;
+	getViewLinesData(model: ISimpleModel, modelLineNumber: number, fromOutputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: Array<ViewLineData | null>): void;
 
 	getModelColumnOfViewPosition(outputLineIndex: number, outputColumn: number): number;
 	getViewPositionOfModelPosition(deltaLineNumber: number, inputColumn: number, affinity?: PositionAffinity): Position;
 	getViewLineNumberOfModelPosition(deltaLineNumber: number, inputColumn: number): number;
-	normalizePosition(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number, outputPosition: Position, affinity: PositionAffinity): Position;
+	normalizePosition(outputLineIndex: number, outputPosition: Position, affinity: PositionAffinity): Position;
 
 	getInjectedTextAt(outputLineIndex: number, column: number): InjectedText | null;
 }
@@ -40,7 +45,7 @@ export interface ISimpleModel {
 	getValueInRange(range: IRange, eol?: EndOfLinePreference): string;
 }
 
-export function createModelLineProjection(lineBreakData: LineBreakData | null, isVisible: boolean): IModelLineProjection {
+export function createModelLineProjection(lineBreakData: ModelLineProjectionData | null, isVisible: boolean): IModelLineProjection {
 	if (lineBreakData === null) {
 		// No mapping needed
 		if (isVisible) {
@@ -57,11 +62,11 @@ export function createModelLineProjection(lineBreakData: LineBreakData | null, i
  * * wrap model lines
  * * inject text
  */
-export class ModelLineProjection implements IModelLineProjection {
-	private readonly _lineBreakData: LineBreakData;
+class ModelLineProjection implements IModelLineProjection {
+	private readonly _lineBreakData: ModelLineProjectionData;
 	private _isVisible: boolean;
 
-	constructor(lineBreakData: LineBreakData, isVisible: boolean) {
+	constructor(lineBreakData: ModelLineProjectionData, isVisible: boolean) {
 		this._lineBreakData = lineBreakData;
 		this._isVisible = isVisible;
 	}
@@ -75,7 +80,7 @@ export class ModelLineProjection implements IModelLineProjection {
 		return this;
 	}
 
-	public getLineBreakData(): LineBreakData | null {
+	public getLineBreakData(): ModelLineProjectionData | null {
 		return this._lineBreakData;
 	}
 
@@ -246,7 +251,7 @@ export class ModelLineProjection implements IModelLineProjection {
 		return deltaLineNumber + r.outputLineIndex;
 	}
 
-	public normalizePosition(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number, outputPosition: Position, affinity: PositionAffinity): Position {
+	public normalizePosition(outputLineIndex: number, outputPosition: Position, affinity: PositionAffinity): Position {
 		const baseViewLineNumber = outputPosition.lineNumber - outputLineIndex;
 		const normalizedOutputPosition = this._lineBreakData.normalizeOutputPosition(outputLineIndex, outputPosition.column - 1, affinity);
 		const result = normalizedOutputPosition.toPosition(baseViewLineNumber);
@@ -283,7 +288,7 @@ class IdentityModelLineProjection implements IModelLineProjection {
 		return HiddenModelLineProjection.INSTANCE;
 	}
 
-	public getLineBreakData(): LineBreakData | null {
+	public getLineBreakData(): ModelLineProjectionData | null {
 		return null;
 	}
 
@@ -341,7 +346,7 @@ class IdentityModelLineProjection implements IModelLineProjection {
 		return deltaLineNumber;
 	}
 
-	public normalizePosition(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number, outputPosition: Position, affinity: PositionAffinity): Position {
+	public normalizePosition(outputLineIndex: number, outputPosition: Position, affinity: PositionAffinity): Position {
 		return outputPosition;
 	}
 
@@ -369,7 +374,7 @@ class HiddenModelLineProjection implements IModelLineProjection {
 		return IdentityModelLineProjection.INSTANCE;
 	}
 
-	public getLineBreakData(): LineBreakData | null {
+	public getLineBreakData(): ModelLineProjectionData | null {
 		return null;
 	}
 
@@ -413,7 +418,7 @@ class HiddenModelLineProjection implements IModelLineProjection {
 		throw new Error('Not supported');
 	}
 
-	public normalizePosition(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number, outputPosition: Position, affinity: PositionAffinity): Position {
+	public normalizePosition(outputLineIndex: number, outputPosition: Position, affinity: PositionAffinity): Position {
 		throw new Error('Not supported');
 	}
 

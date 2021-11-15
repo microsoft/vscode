@@ -414,7 +414,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		this._terminalInstances.splice(index, 0, instance);
 		if (this._splitPaneContainer) {
 			this._splitPaneContainer.remove(instance);
-			this._splitPaneContainer.split(instance, sourceIndex < index ? index - 1 : index);
+			this._splitPaneContainer.split(instance, index);
 		}
 		this._onInstancesChanged.fire();
 	}

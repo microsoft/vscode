@@ -15,7 +15,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { AutomaticPortForwarding, ForwardedPortsView, PortRestore, VIEWLET_ID } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -498,7 +498,7 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 	}
 
 	private _handleRemoteInfoExtensionPoint(extension: IExtensionPointUser<HelpInformation>, helpInformation: HelpInformation[]) {
-		if (!extension.description.enableProposedApi) {
+		if (!isProposedApiEnabled(extension.description, 'contribRemoteHelp')) {
 			return;
 		}
 

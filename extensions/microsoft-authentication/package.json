@@ -12,7 +12,6 @@
   "categories": [
     "Other"
   ],
-  "enableProposedApi": true,
   "activationEvents": [
     "onAuthenticationRequest:microsoft"
   ],
@@ -58,7 +57,7 @@
     "sha.js": "2.4.11",
     "stream": "0.0.2",
     "uuid": "^8.2.0",
-    "vscode-extension-telemetry": "0.4.2",
+    "vscode-extension-telemetry": "0.4.3",
     "vscode-nls": "^5.0.0"
   },
   "repository": {

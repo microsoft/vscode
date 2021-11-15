@@ -218,7 +218,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			'remote.portsAttributes': {
 				type: 'object',
 				patternProperties: {
-					'(^\\d+(\\-\\d+)?$)|(.+)': {
+					'(^\\d+(-\\d+)?$)|(.+)': {
 						type: 'object',
 						description: localize('remote.portsAttributes.port', "A port, range of ports (ex. \"40000-55000\"), host and port (ex. \"db:1234\"), or regular expression (ex. \".+\\\\/server.js\").  For a port number or range, the attributes will apply to that port number or range of port numbers. Attributes which use a regular expression will apply to ports whose associated process command line matches the expression."),
 						properties: {

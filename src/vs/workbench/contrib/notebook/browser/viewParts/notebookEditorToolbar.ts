@@ -23,7 +23,7 @@ import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controll
 import { INotebookEditorDelegate, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebooKernelActionViewItem } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelActionViewItem';
 import { ActionViewWithLabel } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
-import { GlobalToolbarShowLabel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
@@ -114,7 +114,7 @@ export class NotebookEditorToolbar extends Disposable {
 		this._register(this._notebookGlobalActionsMenu);
 
 		this._useGlobalToolbar = this.notebookOptions.getLayoutConfiguration().globalToolbar;
-		this._renderLabel = this.configurationService.getValue<boolean>(GlobalToolbarShowLabel);
+		this._renderLabel = this.configurationService.getValue<boolean>(NotebookSetting.globalToolbarShowLabel);
 
 		const context = {
 			ui: true,
@@ -184,8 +184,8 @@ export class NotebookEditorToolbar extends Disposable {
 		}));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(GlobalToolbarShowLabel)) {
-				this._renderLabel = this.configurationService.getValue<boolean>(GlobalToolbarShowLabel);
+			if (e.affectsConfiguration(NotebookSetting.globalToolbarShowLabel)) {
+				this._renderLabel = this.configurationService.getValue<boolean>(NotebookSetting.globalToolbarShowLabel);
 				const oldElement = this._notebookLeftToolbar.getElement();
 				oldElement.parentElement?.removeChild(oldElement);
 				this._notebookLeftToolbar.dispose();

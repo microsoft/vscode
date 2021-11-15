@@ -68,6 +68,7 @@ export interface IStorage extends IDisposable {
 	set(key: string, value: string | boolean | number | undefined | null): Promise<void>;
 	delete(key: string): Promise<void>;
 
+	flush(delay?: number): Promise<void>;
 	whenFlushed(): Promise<void>;
 
 	close(): Promise<void>;
@@ -236,7 +237,7 @@ export class Storage extends Disposable implements IStorage {
 		this._onDidChangeStorage.fire(key);
 
 		// Accumulate work by scheduling after timeout
-		return this.flushDelayer.trigger(() => this.flushPending());
+		return this.doFlush();
 	}
 
 	async delete(key: string): Promise<void> {
@@ -260,7 +261,7 @@ export class Storage extends Disposable implements IStorage {
 		this._onDidChangeStorage.fire(key);
 
 		// Accumulate work by scheduling after timeout
-		return this.flushDelayer.trigger(() => this.flushPending());
+		return this.doFlush();
 	}
 
 	async close(): Promise<void> {
@@ -283,7 +284,7 @@ export class Storage extends Disposable implements IStorage {
 		// Recovery: we pass our cache over as recovery option in case
 		// the DB is not healthy.
 		try {
-			await this.flushDelayer.trigger(() => this.flushPending(), 0 /* as soon as possible */);
+			await this.doFlush(0 /* as soon as possible */);
 		} catch (error) {
 			// Ignore
 		}
@@ -316,6 +317,18 @@ export class Storage extends Disposable implements IStorage {
 				}
 			}
 		});
+	}
+
+	async flush(delay?: number): Promise<void> {
+		if (!this.hasPending) {
+			return; // return early if nothing to do
+		}
+
+		return this.doFlush(delay);
+	}
+
+	private async doFlush(delay?: number): Promise<void> {
+		return this.flushDelayer.trigger(() => this.flushPending(), delay);
 	}
 
 	async whenFlushed(): Promise<void> {

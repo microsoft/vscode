@@ -22,7 +22,7 @@ export type TokenClassificationString = string;
 export const idPattern = '\\w+[-_\\w+]*';
 export const typeAndModifierIdPattern = `^${idPattern}$`;
 
-export const selectorPattern = `^(${idPattern}|\\*)(\\${CLASSIFIER_MODIFIER_SEPARATOR}${idPattern})*(\\${TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR}${idPattern})?$`;
+export const selectorPattern = `^(${idPattern}|\\*)(\\${CLASSIFIER_MODIFIER_SEPARATOR}${idPattern})*(${TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR}${idPattern})?$`;
 
 export const fontStylePattern = '^(\\s*(italic|bold|underline))*\\s*$';
 

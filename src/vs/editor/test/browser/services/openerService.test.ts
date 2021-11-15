@@ -9,7 +9,7 @@ import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { CommandsRegistry, ICommandService, NullCommandService } from 'vs/platform/commands/common/commands';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { matchesScheme } from 'vs/platform/opener/common/opener';
+import { matchesScheme, matchesSomeScheme } from 'vs/platform/opener/common/opener';
 
 suite('OpenerService', function () {
 	const editorService = new TestCodeEditorService();
@@ -245,6 +245,12 @@ suite('OpenerService', function () {
 		assert.ok(!matchesScheme(URI.parse('https://microsoft.com'), 'http'));
 		assert.ok(!matchesScheme(URI.parse('htt://microsoft.com'), 'http'));
 		assert.ok(!matchesScheme(URI.parse('z://microsoft.com'), 'http'));
+	});
+
+	test('matchesSomeScheme', function () {
+		assert.ok(matchesSomeScheme('https://microsoft.com', 'http', 'https'));
+		assert.ok(matchesSomeScheme('http://microsoft.com', 'http', 'https'));
+		assert.ok(!matchesSomeScheme('x://microsoft.com', 'http', 'https'));
 	});
 
 	test('resolveExternalUri', async function () {

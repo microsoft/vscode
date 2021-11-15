@@ -18,7 +18,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { realcaseSync, realpathSync } from 'vs/base/node/extpath';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { IWatcherService } from 'vs/platform/files/node/watcher/nsfw/watcher';
-import { IDiskFileChange, ILogMessage, normalizeFileChanges, IWatchRequest } from 'vs/platform/files/common/watcher';
+import { IDiskFileChange, ILogMessage, coalesceEvents, IWatchRequest } from 'vs/platform/files/common/watcher';
 import { watchFolder } from 'vs/base/node/watcher';
 
 interface IWatcher extends IDisposable {
@@ -192,7 +192,7 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 			undeliveredFileEvents = [];
 
 			// Broadcast to clients normalized
-			const normalizedEvents = normalizeFileChanges(this.normalizeEvents(undeliveredFileEventsToEmit, request, realBasePathDiffers, realBasePathLength));
+			const normalizedEvents = coalesceEvents(this.normalizeEvents(undeliveredFileEventsToEmit, request, realBasePathDiffers, realBasePathLength));
 			this.emitEvents(normalizedEvents);
 		}, this.getOptions(watcher)).then(async nsfwWatcher => {
 

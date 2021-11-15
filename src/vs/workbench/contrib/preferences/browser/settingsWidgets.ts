@@ -824,7 +824,7 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 			deleteActionTooltip: localize('removeItem', "Remove Item"),
 			editActionTooltip: localize('editItem', "Edit Item"),
 			addButtonLabel: localize('addItem', "Add Item"),
-			inputPlaceholder: localize('itemInputPlaceholder', "String Item..."),
+			inputPlaceholder: localize('itemInputPlaceholder', "Item..."),
 			siblingInputPlaceholder: localize('listSiblingInputPlaceholder', "Sibling..."),
 		};
 	}

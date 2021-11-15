@@ -30,6 +30,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { Emitter } from 'vs/base/common/event';
+import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 
 export const manageExtensionIcon = registerIcon('theme-selection-manage-extension', Codicon.gear, localize('manageExtensionIcon', 'Icon for the \'Manage\' action in the theme selection quick pick.'));
 
@@ -49,6 +50,7 @@ export class SelectColorThemeAction extends Action {
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IExtensionResourceLoaderService private readonly extensionResourceLoaderService: IExtensionResourceLoaderService,
 		@ILogService private readonly logService: ILogService,
 		@IProgressService private progressService: IProgressService
 	) {
@@ -134,7 +136,7 @@ export class SelectColorThemeAction extends Action {
 				});
 				quickpick.show();
 
-				if (this.extensionGalleryService.isEnabled()) {
+				if (this.extensionGalleryService.isEnabled() && this.extensionResourceLoaderService.supportsExtensionGalleryResources) {
 
 					const marketplaceThemes = new MarketplaceThemes(this.extensionGalleryService, this.extensionManagementService, this.themeService, this.logService);
 					marketplaceThemes.onDidChange(() => {

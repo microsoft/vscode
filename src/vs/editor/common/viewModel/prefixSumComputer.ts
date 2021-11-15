@@ -115,6 +115,10 @@ export class PrefixSumComputer {
 		return this._getPrefixSum(this.values.length - 1);
 	}
 
+	/**
+	 * Returns the sum of the first `index + 1` many items.
+	 * @returns `SUM(0 <= j <= index, values[j])`.
+	 */
 	public getPrefixSum(index: number): number {
 		if (index < 0) {
 			return 0;
