@@ -510,6 +510,7 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$sendProcessExit(terminalId: number, exitCode: number | undefined): void;
 }
 
+export type TransferQuickPickItemOrSeparator = TransferQuickPickItem | quickInput.IQuickPickSeparator;
 export interface TransferQuickPickItem extends quickInput.IQuickPickItem {
 	handle: number;
 	buttons?: TransferQuickInputButton[];
@@ -548,7 +549,7 @@ export interface TransferQuickPick extends BaseTransferQuickInput {
 
 	buttons?: TransferQuickInputButton[];
 
-	items?: TransferQuickPickItem[];
+	items?: TransferQuickPickItemOrSeparator[];
 
 	activeItems?: number[];
 
@@ -594,7 +595,7 @@ export interface IInputBoxOptions {
 
 export interface MainThreadQuickOpenShape extends IDisposable {
 	$show(instance: number, options: quickInput.IPickOptions<TransferQuickPickItem>, token: CancellationToken): Promise<number | number[] | undefined>;
-	$setItems(instance: number, items: TransferQuickPickItem[]): Promise<void>;
+	$setItems(instance: number, items: TransferQuickPickItemOrSeparator[]): Promise<void>;
 	$setError(instance: number, error: Error): Promise<void>;
 	$input(options: IInputBoxOptions | undefined, validateInput: boolean, token: CancellationToken): Promise<string | undefined>;
 	$createOrUpdate(params: TransferQuickInput): Promise<void>;

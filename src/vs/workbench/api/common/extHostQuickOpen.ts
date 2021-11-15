@@ -9,15 +9,16 @@ import { Emitter } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { IExtHostWorkspaceProvider } from 'vs/workbench/api/common/extHostWorkspace';
-import { InputBox, InputBoxOptions, QuickInput, QuickInputButton, QuickPick, QuickPickItem, QuickPickItemButtonEvent, QuickPickOptions, WorkspaceFolder, WorkspaceFolderPickOptions } from 'vscode';
-import { ExtHostQuickOpenShape, IMainContext, MainContext, TransferQuickPickItem, TransferQuickInput, TransferQuickInputButton } from './extHost.protocol';
+import type { InputBox, InputBoxOptions, QuickInput, QuickInputButton, QuickPick, QuickPickItem, QuickPickItemButtonEvent, QuickPickOptions, WorkspaceFolder, WorkspaceFolderPickOptions } from 'vscode';
+import { ExtHostQuickOpenShape, IMainContext, MainContext, TransferQuickInput, TransferQuickInputButton, TransferQuickPickItemOrSeparator } from './extHost.protocol';
 import { URI } from 'vs/base/common/uri';
-import { ThemeIcon, QuickInputButtons } from 'vs/workbench/api/common/extHostTypes';
+import { ThemeIcon, QuickInputButtons, QuickPickItemKind } from 'vs/workbench/api/common/extHostTypes';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { coalesce } from 'vs/base/common/arrays';
 import Severity from 'vs/base/common/severity';
 import { ThemeIcon as ThemeIconUtils } from 'vs/platform/theme/common/themeService';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 export type Item = string | QuickPickItem;
 
@@ -31,7 +32,7 @@ export interface ExtHostQuickOpen {
 
 	showWorkspaceFolderPick(options?: WorkspaceFolderPickOptions, token?: CancellationToken): Promise<WorkspaceFolder | undefined>
 
-	createQuickPick<T extends QuickPickItem>(extensionId: ExtensionIdentifier): QuickPick<T>;
+	createQuickPick<T extends QuickPickItem>(extensionId: IExtensionDescription): QuickPick<T>;
 
 	createInputBox(extensionId: ExtensionIdentifier): InputBox;
 }
@@ -87,33 +88,23 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 
 				return itemsPromise.then(items => {
 
-					const pickItems: TransferQuickPickItem[] = [];
+					const pickItems: TransferQuickPickItemOrSeparator[] = [];
 					for (let handle = 0; handle < items.length; handle++) {
-
 						const item = items[handle];
-						let label: string;
-						let description: string | undefined;
-						let detail: string | undefined;
-						let picked: boolean | undefined;
-						let alwaysShow: boolean | undefined;
-
 						if (typeof item === 'string') {
-							label = item;
+							pickItems.push({ label: item, handle });
+						} else if (item.kind === QuickPickItemKind.Separator) {
+							pickItems.push({ type: 'separator', label: item.label });
 						} else {
-							label = item.label;
-							description = item.description;
-							detail = item.detail;
-							picked = item.picked;
-							alwaysShow = item.alwaysShow;
+							pickItems.push({
+								label: item.label,
+								description: item.description,
+								detail: item.detail,
+								picked: item.picked,
+								alwaysShow: item.alwaysShow,
+								handle
+							});
 						}
-						pickItems.push({
-							label,
-							description,
-							handle,
-							detail,
-							picked,
-							alwaysShow
-						});
 					}
 
 					// handle selection changes
@@ -192,8 +183,8 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 
 		// ---- QuickInput
 
-		createQuickPick<T extends QuickPickItem>(extensionId: ExtensionIdentifier): QuickPick<T> {
-			const session: ExtHostQuickPick<T> = new ExtHostQuickPick(extensionId, () => this._sessions.delete(session._id));
+		createQuickPick<T extends QuickPickItem>(extension: IExtensionDescription): QuickPick<T> {
+			const session: ExtHostQuickPick<T> = new ExtHostQuickPick(extension, () => this._sessions.delete(session._id));
 			this._sessions.set(session._id, session);
 			return session;
 		}
@@ -531,8 +522,9 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		private readonly _onDidChangeSelectionEmitter = new Emitter<T[]>();
 		private readonly _onDidTriggerItemButtonEmitter = new Emitter<QuickPickItemButtonEvent<T>>();
 
-		constructor(extensionId: ExtensionIdentifier, onDispose: () => void) {
-			super(extensionId, onDispose);
+		// TODO: revert this change once quickPickSeparators has been finalized.
+		constructor(private readonly extension: IExtensionDescription, onDispose: () => void) {
+			super(extension.identifier, onDispose);
 			this._disposables.push(
 				this._onDidChangeActiveEmitter,
 				this._onDidChangeSelectionEmitter,
@@ -546,6 +538,10 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		}
 
 		set items(items: T[]) {
+			if (items.some((item) => item.kind !== undefined)) {
+				checkProposedApiEnabled(this.extension, 'quickPickSeparators');
+			}
+
 			this._items = items.slice();
 			this._handlesToItems.clear();
 			this._itemsToHandles.clear();
@@ -553,22 +549,33 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 				this._handlesToItems.set(i, item);
 				this._itemsToHandles.set(item, i);
 			});
+
+			const pickItems: TransferQuickPickItemOrSeparator[] = [];
+			for (let handle = 0; handle < items.length; handle++) {
+				const item = items[handle];
+				if (item.kind === QuickPickItemKind.Separator) {
+					pickItems.push({ type: 'separator', label: item.label });
+				} else {
+					pickItems.push({
+						handle,
+						label: item.label,
+						description: item.description,
+						detail: item.detail,
+						picked: item.picked,
+						alwaysShow: item.alwaysShow,
+						buttons: item.buttons?.map<TransferQuickInputButton>((button, i) => {
+							return {
+								...getIconPathOrClass(button),
+								tooltip: button.tooltip,
+								handle: i
+							};
+						}),
+					});
+				}
+			}
+
 			this.update({
-				items: items.map((item, i) => ({
-					label: item.label,
-					description: item.description,
-					handle: i,
-					detail: item.detail,
-					picked: item.picked,
-					alwaysShow: item.alwaysShow,
-					buttons: item.buttons?.map<TransferQuickInputButton>((button, i) => {
-						return {
-							...getIconPathOrClass(button),
-							tooltip: button.tooltip,
-							handle: i
-						};
-					}),
-				}))
+				items: pickItems,
 			});
 		}
 
