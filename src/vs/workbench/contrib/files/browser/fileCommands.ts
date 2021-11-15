@@ -28,7 +28,7 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/commo
 import { getMultiSelectedEditorContexts } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Schemas } from 'vs/base/common/network';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { CONTEXT_FIND_WIDGET_VISIBLE } from 'vs/editor/contrib/find/findModel';
 import { IEditorService, SIDE_GROUP, ISaveEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService, GroupsOrder, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -292,7 +292,7 @@ async function resourcesToClipboard(resources: URI[], relative: boolean, clipboa
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: EditorContextKeys.focus,
+	when: CONTEXT_FIND_WIDGET_VISIBLE.toNegated(),
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyC,
 	win: {
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KeyC
@@ -306,7 +306,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: EditorContextKeys.focus,
+	when: CONTEXT_FIND_WIDGET_VISIBLE.toNegated(),
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyC,
 	win: {
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC)
