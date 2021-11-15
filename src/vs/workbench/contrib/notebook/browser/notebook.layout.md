@@ -92,3 +92,5 @@ Copy in Notebook depends on the focus tracking
 * Request webview copy if the focus is inside the webview
 * Copy cells if the focus is on notebook cell list
 * Copy text if the focus is in cell editor (monaco editor)
+
+![diagram](https://user-images.githubusercontent.com/876920/141730905-2818043e-1a84-45d3-ad27-83bd89235ca5.png)
