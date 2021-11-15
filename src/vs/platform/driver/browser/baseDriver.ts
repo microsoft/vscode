@@ -88,6 +88,7 @@ export abstract class BaseWindowDriver implements IWindowDriver {
 		}
 
 		const { left, top } = getTopLeftOffset(element as HTMLElement);
+
 		return {
 			tagName: element.tagName,
 			className: element.className,
@@ -177,7 +178,7 @@ export abstract class BaseWindowDriver implements IWindowDriver {
 	}
 
 	protected async _getElementXY(selector: string, offset?: { x: number, y: number }): Promise<{ x: number; y: number; }> {
-		let element = document.querySelector(selector);
+		const element = document.querySelector(selector);
 
 		if (!element) {
 			return Promise.reject(new Error(`Element not found: ${selector}`));

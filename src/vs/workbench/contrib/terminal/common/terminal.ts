@@ -469,7 +469,7 @@ export const enum TerminalCommandId {
 	FocusPrevious = 'workbench.action.terminal.focusPrevious',
 	Paste = 'workbench.action.terminal.paste',
 	PasteSelection = 'workbench.action.terminal.pasteSelection',
-	SelectDefaultProfile = 'workbench.action.terminal.selectDefaultShell',
+	SelectDefaultProfile = 'workbench.action.terminal.selectDefaultProfile',
 	RunSelectedText = 'workbench.action.terminal.runSelectedText',
 	RunActiveFile = 'workbench.action.terminal.runActiveFile',
 	SwitchTerminal = 'workbench.action.terminal.switchTerminal',
