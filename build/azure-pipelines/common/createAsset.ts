@@ -6,7 +6,6 @@
 'use strict';
 
 import * as fs from 'fs';
-import * as url from 'url';
 import { Readable } from 'stream';
 import * as crypto from 'crypto';
 import { BlobServiceClient, BlockBlobParallelUploadOptions, StoragePipelineOptions, StorageRetryPolicyType, StorageSharedKeyCredential } from '@azure/storage-blob';
@@ -209,9 +208,8 @@ async function main(): Promise<void> {
 
 	console.log('Blobs successfully uploaded.');
 
-	// TODO: Understand if blobName and blobPath are the same and replace blobPath with blobName if so.
 	const assetUrl = `${process.env['AZURE_CDN_URL']}/${quality}/${blobName}`;
-	const blobPath = url.parse(assetUrl).path;
+	const blobPath = new URL(assetUrl).pathname;
 	const mooncakeUrl = `${process.env['MOONCAKE_CDN_URL']}${blobPath}`;
 
 	const asset: Asset = {
