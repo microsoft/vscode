@@ -21,12 +21,10 @@ export function setup(opts: ParsedArgs) {
 			app = this.app;
 		});
 
-		beforeEach(async function () {
-			await app.workbench.quickaccess.openFile('www');
-		});
 
 		afterEach(async function () {
 			await app.workbench.terminal.killTerminal();
+			await app.code.waitForActiveElement('.editor-group-container.empty.active');
 		});
 
 		it('should launch the default profile', async function () {
