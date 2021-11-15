@@ -75,6 +75,9 @@ jobs:
       - name: Run Unit Tests (Browser)
         run: yarn test-browser --browser chromium
 
+      - name: Compile Integration Tests
+        run: yarn --cwd test/integration/browser compile
+
       - name: Run Integration Tests (Electron)
         run: .\scripts\test-integration.bat
 
@@ -148,6 +151,9 @@ jobs:
         id: browser-unit-tests
         run: DISPLAY=:10 yarn test-browser --browser chromium
 
+      - name: Compile Integration Tests
+        run: yarn --cwd test/integration/browser compile
+
       - name: Run Integration Tests (Electron)
         id: electron-integration-tests
         run: DISPLAY=:10 ./scripts/test-integration.sh
@@ -218,6 +224,9 @@ jobs:
 
       - name: Run Unit Tests (Browser)
         run: DISPLAY=:10 yarn test-browser --browser chromium
+
+      - name: Compile Integration Tests
+        run: yarn --cwd test/integration/browser compile
 
       - name: Run Integration Tests (Electron)
         run: DISPLAY=:10 ./scripts/test-integration.sh
