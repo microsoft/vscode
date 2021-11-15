@@ -71,10 +71,11 @@ class PlaywrightDriver implements IDriver {
 				await timeout(100);
 			}
 
-			if (keybinding.startsWith('Alt+')) {
+			if (keybinding.startsWith('Alt+') || keybinding.startsWith('Control+')) {
 				await this._page.keyboard.press(keybinding);
 				return;
 			}
+
 			const keys = chord.split('+');
 			const keysDown: string[] = [];
 			for (let i = 0; i < keys.length; i++) {
