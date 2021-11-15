@@ -236,6 +236,30 @@ suite('ConfigurationModel', () => {
 
 		assert.deepStrictEqual(testObject.override('b').contents, { 'a': 2, 'c': 1 });
 	});
+
+	test('Test override when an override has multiple identifiers', () => {
+		const testObject = new ConfigurationModel({ 'a': 1, 'c': 1 }, ['a', 'c'], [{ identifiers: ['x', 'y'], contents: { 'a': 2 }, keys: ['a'] }]);
+
+		let actual = testObject.override('x');
+		assert.deepStrictEqual(actual.contents, { 'a': 2, 'c': 1 });
+		assert.deepStrictEqual(actual.keys, ['a', 'c']);
+		assert.deepStrictEqual(testObject.getKeysForOverrideIdentifier('x'), ['a']);
+
+		actual = testObject.override('y');
+		assert.deepStrictEqual(actual.contents, { 'a': 2, 'c': 1 });
+		assert.deepStrictEqual(actual.keys, ['a', 'c']);
+		assert.deepStrictEqual(testObject.getKeysForOverrideIdentifier('y'), ['a']);
+	});
+
+	test('Test override when an identifier is defined in multiple overrides', () => {
+		const testObject = new ConfigurationModel({ 'a': 1, 'c': 1 }, ['a', 'c'], [{ identifiers: ['x'], contents: { 'a': 3, 'b': 1 }, keys: ['a', 'b'] }, { identifiers: ['x', 'y'], contents: { 'a': 2 }, keys: ['a'] }]);
+
+		const actual = testObject.override('x');
+		assert.deepStrictEqual(actual.contents, { 'a': 3, 'c': 1, 'b': 1 });
+		assert.deepStrictEqual(actual.keys, ['a', 'c']);
+
+		assert.deepStrictEqual(testObject.getKeysForOverrideIdentifier('x'), ['a', 'b']);
+	});
 });
 
 suite('CustomConfigurationModel', () => {
