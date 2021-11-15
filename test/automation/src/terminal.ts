@@ -11,6 +11,7 @@ const TERMINAL_VIEW_SELECTOR = `#terminal`;
 const XTERM_SELECTOR = `${TERMINAL_VIEW_SELECTOR} .terminal-wrapper`;
 const CONTRIBUTED_PROFILE_NAME = `JavaScript Debug Terminal`;
 const TABS = '.tabs-list .terminal-tabs-entry';
+const XTERM_TEXTAREA = `${XTERM_SELECTOR} textarea.xterm-helper-textarea`;
 
 export class Terminal {
 
@@ -18,11 +19,13 @@ export class Terminal {
 
 	async show(): Promise<void> {
 		await this.code.dispatchKeybinding('Control+`');
+		await this.code.waitForActiveElement(XTERM_TEXTAREA);
 		await this.code.waitForTerminalBuffer(XTERM_SELECTOR, lines => lines.some(line => line.length > 0));
 	}
 
 	async createNew(): Promise<void> {
 		await this.code.dispatchKeybinding('Control+Shift+`');
+		await this.code.waitForActiveElement(XTERM_TEXTAREA);
 		await this.code.waitForTerminalBuffer(XTERM_SELECTOR, lines => lines.some(line => line.length > 0));
 	}
 
