@@ -9,6 +9,7 @@ const crypto = require("crypto");
 const storage_blob_1 = require("@azure/storage-blob");
 const mime = require("mime");
 const cosmos_1 = require("@azure/cosmos");
+const identity_1 = require("@azure/identity");
 const retry_1 = require("./retry");
 if (process.argv.length !== 8) {
     console.error('Usage: node createAsset.js PRODUCT OS ARCH TYPE NAME FILE');
@@ -142,8 +143,7 @@ async function main() {
     const blobName = commit + '/' + fileName;
     const storagePipelineOptions = { retryOptions: { retryPolicyType: storage_blob_1.StorageRetryPolicyType.EXPONENTIAL, maxTries: 6, tryTimeoutInMs: 10 * 60 * 1000 } };
     const storageAccount = process.env['AZURE_STORAGE_ACCOUNT_2'];
-    const storageKey = process.env['AZURE_STORAGE_ACCESS_KEY_2'];
-    const credential = new storage_blob_1.StorageSharedKeyCredential(storageAccount, storageKey);
+    const credential = new identity_1.AzureCliCredential();
     const blobServiceClient = new storage_blob_1.BlobServiceClient(`https://${storageAccount}.blob.core.windows.net`, credential, storagePipelineOptions);
     const containerClient = blobServiceClient.getContainerClient(quality);
     const blobClient = containerClient.getBlockBlobClient(blobName);
