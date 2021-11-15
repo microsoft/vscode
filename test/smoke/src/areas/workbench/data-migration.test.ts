@@ -6,11 +6,17 @@
 import { Application, ApplicationOptions, Quality } from '../../../../automation';
 import { join } from 'path';
 import { ParsedArgs } from 'minimist';
-import { timeout } from '../../utils';
+import { afterSuite, timeout } from '../../utils';
 
 export function setup(opts: ParsedArgs, testDataPath: string) {
 
 	describe('Datamigration', () => {
+
+		let insidersApp: Application | undefined = undefined;
+		let stableApp: Application | undefined = undefined;
+
+		afterSuite(opts, () => insidersApp, async () => stableApp?.stop());
+
 		it(`verifies opened editors are restored`, async function () {
 			const stableCodePath = opts['stable-build'];
 			if (!stableCodePath) {
@@ -31,7 +37,7 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 			stableOptions.userDataDir = userDataDir;
 			stableOptions.quality = Quality.Stable;
 
-			const stableApp = new Application(stableOptions);
+			stableApp = new Application(stableOptions);
 			await stableApp.start();
 
 			// Open 3 editors and pin 2 of them
@@ -44,11 +50,12 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 			await stableApp.workbench.editors.newUntitledFile();
 
 			await stableApp.stop();
+			stableApp = undefined;
 
 			const insiderOptions: ApplicationOptions = Object.assign({}, this.defaultOptions);
 			insiderOptions.userDataDir = userDataDir;
 
-			const insidersApp = new Application(insiderOptions);
+			insidersApp = new Application(insiderOptions);
 			await insidersApp.start();
 
 			// Verify 3 editors are open
@@ -57,6 +64,7 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 			await insidersApp.workbench.editors.selectTab('www');
 
 			await insidersApp.stop();
+			insidersApp = undefined;
 		});
 
 		it(`verifies that 'hot exit' works for dirty files`, async function () {
@@ -72,7 +80,7 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 			stableOptions.userDataDir = userDataDir;
 			stableOptions.quality = Quality.Stable;
 
-			const stableApp = new Application(stableOptions);
+			stableApp = new Application(stableOptions);
 			await stableApp.start();
 
 			await stableApp.workbench.editors.newUntitledFile();
@@ -89,11 +97,12 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 			await timeout(2000); // give time to store the backup before stopping the app
 
 			await stableApp.stop();
+			stableApp = undefined;
 
 			const insiderOptions: ApplicationOptions = Object.assign({}, this.defaultOptions);
 			insiderOptions.userDataDir = userDataDir;
 
-			const insidersApp = new Application(insiderOptions);
+			insidersApp = new Application(insiderOptions);
 			await insidersApp.start();
 
 			await insidersApp.workbench.editors.waitForTab(readmeMd, true);
@@ -105,6 +114,7 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 			await insidersApp.workbench.editor.waitForEditorContents(untitled, c => c.indexOf(textToTypeInUntitled) > -1);
 
 			await insidersApp.stop();
+			insidersApp = undefined;
 		});
 	});
 }
