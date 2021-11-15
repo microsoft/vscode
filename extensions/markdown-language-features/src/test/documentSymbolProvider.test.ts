@@ -23,7 +23,7 @@ function getSymbolsForFile(fileContents: string) {
 
 suite('markdown.DocumentSymbolProvider', () => {
 	test('Should not return anything for empty document', async () => {
-		assert.strictEqual(vscode.env.uiKind, vscode.UIKind.Web);
+		assert.strictEqual(vscode.env.uiKind, vscode.UIKind.Desktop);
 		const symbols = await getSymbolsForFile('');
 		assert.strictEqual(symbols.length, 0);
 	});
