@@ -275,15 +275,11 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 	}
 
 	input(data: string): void {
-		if (this._pty.handleInput) {
-			this._pty.handleInput(data);
-		}
+		this._pty.handleInput?.(data);
 	}
 
 	resize(cols: number, rows: number): void {
-		if (this._pty.setDimensions) {
-			this._pty.setDimensions({ columns: cols, rows });
-		}
+		this._pty.setDimensions?.({ columns: cols, rows });
 	}
 
 	async processBinary(data: string): Promise<void> {
@@ -314,28 +310,22 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 	startSendingEvents(initialDimensions: ITerminalDimensionsDto | undefined): void {
 		// Attach the listeners
 		this._pty.onDidWrite(e => this._onProcessData.fire(e));
-		if (this._pty.onDidClose) {
-			this._pty.onDidClose((e: number | void = undefined) => {
-				this._onProcessExit.fire(e === void 0 ? undefined : e);
-			});
-		}
-		if (this._pty.onDidOverrideDimensions) {
-			this._pty.onDidOverrideDimensions(e => {
-				if (e) {
-					this._onDidChangeProperty.fire({ type: ProcessPropertyType.OverrideDimensions, value: { cols: e.columns, rows: e.rows } });
-				}
-			});
-		}
-		if (this._pty.onDidChangeName) {
-			this._pty.onDidChangeName(title => {
-				this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: title });
-			});
-		}
+		this._pty.onDidClose?.((e: number | void = undefined) => {
+			this._onProcessExit.fire(e === void 0 ? undefined : e);
+		});
+		this._pty.onDidOverrideDimensions?.(e => {
+			if (e) {
+				this._onDidChangeProperty.fire({ type: ProcessPropertyType.OverrideDimensions, value: { cols: e.columns, rows: e.rows } });
+			}
+		});
+		this._pty.onDidChangeName?.(title => {
+			this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: title });
+		});
 
 		this._pty.open(initialDimensions ? initialDimensions : undefined);
 
-		if (this._pty.setDimensions && initialDimensions) {
-			this._pty.setDimensions(initialDimensions);
+		if (initialDimensions) {
+			this._pty.setDimensions?.(initialDimensions);
 		}
 
 		this._onProcessReady.fire({ pid: -1, cwd: '', capabilities: this._capabilities });
