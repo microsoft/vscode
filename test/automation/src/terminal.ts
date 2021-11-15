@@ -11,6 +11,7 @@ const TERMINAL_VIEW_SELECTOR = `#terminal`;
 const XTERM_SELECTOR = `${TERMINAL_VIEW_SELECTOR} .terminal-wrapper`;
 const XTERM_TEXTAREA = `${XTERM_SELECTOR} textarea.xterm-helper-textarea`;
 const CONTRIBUTED_PROFILE_NAME = `JavaScript Debug Terminal`;
+const TABS = '.tabs-list .terminal-tabs-entry';
 
 export class Terminal {
 
@@ -32,11 +33,24 @@ export class Terminal {
 		await this.quickaccess.runCommand('workbench.action.terminal.kill');
 	}
 
+	async splitTerminal(): Promise<void> {
+		await this.quickaccess.runCommand('workbench.action.terminal.split');
+	}
+
 	async runCommand(commandText: string): Promise<void> {
 		await this.code.writeInTerminal(XTERM_SELECTOR, commandText);
 		// hold your horses
 		await new Promise(c => setTimeout(c, 500));
 		await this.code.dispatchKeybinding('enter');
+	}
+
+	async getTabLabels(): Promise<string[]> {
+		const result: string[] = [];
+		const tabs = await this.code.waitForElements(TABS, true);
+		for (const t of tabs) {
+			result.push(t.textContent);
+		}
+		return result;
 	}
 
 	async runProfileCommand(type: 'createInstance' | 'setDefault', contributed?: boolean, altKey?: boolean): Promise<void> {
