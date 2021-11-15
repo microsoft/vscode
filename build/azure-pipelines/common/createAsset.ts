@@ -11,6 +11,7 @@ import * as crypto from 'crypto';
 import { BlobServiceClient, BlockBlobParallelUploadOptions, StoragePipelineOptions, StorageRetryPolicyType, StorageSharedKeyCredential } from '@azure/storage-blob';
 import * as mime from 'mime';
 import { CosmosClient } from '@azure/cosmos';
+import { AzureCliCredential } from '@azure/identity';
 import { retry } from './retry';
 
 interface Asset {
@@ -172,8 +173,7 @@ async function main(): Promise<void> {
 	const storagePipelineOptions: StoragePipelineOptions = { retryOptions: { retryPolicyType: StorageRetryPolicyType.EXPONENTIAL, maxTries: 6, tryTimeoutInMs: 10 * 60 * 1000 } };
 
 	const storageAccount = process.env['AZURE_STORAGE_ACCOUNT_2']!;
-	const storageKey = process.env['AZURE_STORAGE_ACCESS_KEY_2']!;
-	const credential = new StorageSharedKeyCredential(storageAccount, storageKey);
+	const credential = new AzureCliCredential();
 	const blobServiceClient = new BlobServiceClient(`https://${storageAccount}.blob.core.windows.net`, credential, storagePipelineOptions);
 	const containerClient = blobServiceClient.getContainerClient(quality);
 	const blobClient = containerClient.getBlockBlobClient(blobName);

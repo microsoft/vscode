@@ -12,7 +12,7 @@ steps:
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
-      SecretsFilter: 'builds-docdb-key-readwrite,github-distro-mixin-password,ticino-storage-key,vscode-storage-key,vscode-mooncake-storage-key'
+      SecretsFilter: "builds-docdb-key-readwrite,github-distro-mixin-password,ticino-storage-key,vscode-storage-key,vscode-mooncake-storage-key"
 
   - pwsh: |
       . build/azure-pipelines/win32/exec.ps1
@@ -21,7 +21,7 @@ steps:
     displayName: Install dependencies
 
   - download: current
-    patterns: '**/artifacts_processed_*.txt'
+    patterns: "**/artifacts_processed_*.txt"
     displayName: Download all artifacts_processed text files
 
   - pwsh: |
@@ -38,15 +38,19 @@ steps:
       exec { node build/azure-pipelines/common/createBuild.js $VERSION }
     displayName: Create build if it hasn't been created before
 
-  - pwsh: |
-      $env:VSCODE_MIXIN_PASSWORD = "$(github-distro-mixin-password)"
-      $env:AZURE_DOCUMENTDB_MASTERKEY = "$(builds-docdb-key-readwrite)"
-      $env:AZURE_STORAGE_ACCESS_KEY = "$(ticino-storage-key)"
-      $env:AZURE_STORAGE_ACCESS_KEY_2 = "$(vscode-storage-key)"
-      $env:MOONCAKE_STORAGE_ACCESS_KEY = "$(vscode-mooncake-storage-key)"
-      build/azure-pipelines/product-publish.ps1
-    env:
-      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: "vscode-builds-subscription"
+      scriptType: pscore
+      scriptLocation: inlineScript
+      inlineScript: |
+        $env:VSCODE_MIXIN_PASSWORD = "$(github-distro-mixin-password)"
+        $env:AZURE_DOCUMENTDB_MASTERKEY = "$(builds-docdb-key-readwrite)"
+        $env:AZURE_STORAGE_ACCESS_KEY = "$(ticino-storage-key)"
+        $env:MOONCAKE_STORAGE_ACCESS_KEY = "$(vscode-mooncake-storage-key)"
+        build/azure-pipelines/product-publish.ps1
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: Process artifacts
 
   - publish: $(Pipeline.Workspace)/artifacts_processed_$(System.StageAttempt)/artifacts_processed_$(System.StageAttempt).txt
