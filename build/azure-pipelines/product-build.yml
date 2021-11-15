@@ -80,7 +80,7 @@ parameters:
   - name: VSCODE_COMPILE_ONLY
     displayName: "Run Compile stage exclusively"
     type: boolean
-    default: false
+    default: true
   - name: VSCODE_STEP_ON_IT
     displayName: "Skip tests"
     type: boolean
