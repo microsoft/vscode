@@ -561,7 +561,7 @@ suite('markdown.SmartSelect', () => {
 		assertNestedRangesEqual(ranges![0], [0, 1, 0, 25], [0, 0, 0, 26], [0, 0, 0, 26]);
 	});
 	test('Smart select italic link', async () => {
-		throw 'FAIL TEST';
+		assert.strictEqual(vscode.env.uiKind, vscode.UIKind.Web);
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
 				`*[extens${CURSOR}ion](https://google.com)*`
