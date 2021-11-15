@@ -16,7 +16,7 @@ export class Terminal {
 
 	constructor(private code: Code, private quickaccess: QuickAccess, private quickinput: QuickInput) { }
 
-	async showTerminal(): Promise<void> {
+	async show(): Promise<void> {
 		await this.code.dispatchKeybinding('Control+`');
 		await this.code.waitForTerminalBuffer(XTERM_SELECTOR, lines => lines.some(line => line.length > 0));
 	}
@@ -26,11 +26,11 @@ export class Terminal {
 		await this.code.waitForTerminalBuffer(XTERM_SELECTOR, lines => lines.some(line => line.length > 0));
 	}
 
-	async killTerminal(): Promise<void> {
+	async killActive(): Promise<void> {
 		await this.quickaccess.runCommand('workbench.action.terminal.kill');
 	}
 
-	async splitTerminal(): Promise<void> {
+	async splitActive(): Promise<void> {
 		await this.quickaccess.runCommand('workbench.action.terminal.split');
 	}
 
