@@ -23,6 +23,7 @@ function getSymbolsForFile(fileContents: string) {
 
 suite('markdown.DocumentSymbolProvider', () => {
 	test('Should not return anything for empty document', async () => {
+		assert.strictEqual(1, 0);
 		const symbols = await getSymbolsForFile('');
 		assert.strictEqual(symbols.length, 0);
 	});
