@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, Event, ProviderResult } from 'vscode';
+import { Disposable, Event, ProviderResult, Uri } from 'vscode';
 export { ProviderResult } from 'vscode';
 
 export interface API {
@@ -42,9 +42,7 @@ export interface RemoteSourceProvider {
 	readonly icon?: string;
 	readonly supportsQuery?: boolean;
 
-	getRemoteSources(query?: string): ProviderResult<RemoteSource[]>;
 	getBranches?(url: string): ProviderResult<string[]>;
-
-	// TODO
-	// publishRepository?(repository: Repository): Promise<void>;
+	getRemoteSources(query?: string): ProviderResult<RemoteSource[]>;
+	publishRepository?(folderUri: Uri): Promise<void>;
 }

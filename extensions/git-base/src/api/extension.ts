@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Model } from '../model';
-import { GitBaseExtension, API } from './git';
+import { GitBaseExtension, API } from './git-base';
 import { Event, EventEmitter } from 'vscode';
 import { ApiImpl } from './api1';
 

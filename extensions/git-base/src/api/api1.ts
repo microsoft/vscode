@@ -7,7 +7,7 @@ import { Disposable, commands } from 'vscode';
 import { Model } from '../model';
 import { pickRemoteSource, PickRemoteSourceOptions } from '../remoteSource';
 import { GitBaseExtensionImpl } from './extension';
-import { API, RemoteSourceProvider } from './git';
+import { API, RemoteSourceProvider } from './git-base';
 
 export class ApiImpl implements API {
 

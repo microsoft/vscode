@@ -5,7 +5,7 @@
 
 import { QuickPickItem, window, QuickPick } from 'vscode';
 import * as nls from 'vscode-nls';
-import { RemoteSourceProvider, RemoteSource } from './api/git';
+import { RemoteSourceProvider, RemoteSource } from './api/git-base';
 import { Model } from './model';
 import { throttle, debounce } from './decorators';
 

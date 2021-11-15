@@ -5,7 +5,7 @@
 
 import { EventEmitter, Disposable } from 'vscode';
 import { toDisposable } from './util';
-import { RemoteSourceProvider } from './api/git';
+import { RemoteSourceProvider } from './api/git-base';
 import { IRemoteSourceProviderRegistry } from './remoteProvider';
 
 export class Model implements IRemoteSourceProviderRegistry {
