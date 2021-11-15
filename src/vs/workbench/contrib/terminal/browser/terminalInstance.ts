@@ -916,7 +916,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async detachFromProcess(): Promise<void> {
+		// Detach the process and dispose the instance, without the instance dispose the terminal
+		// won't go away
 		await this._processManager.detachFromProcess();
+		this.dispose();
 	}
 
 	focus(force?: boolean): void {

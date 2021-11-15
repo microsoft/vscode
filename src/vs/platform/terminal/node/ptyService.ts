@@ -234,7 +234,7 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	async detachFromProcess(id: number): Promise<void> {
-		this._throwIfNoPty(id).detach();
+		return this._throwIfNoPty(id).detach();
 	}
 
 	async reduceConnectionGraceTime(): Promise<void> {
