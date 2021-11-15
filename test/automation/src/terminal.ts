@@ -19,12 +19,14 @@ export class Terminal {
 
 	async showTerminal(): Promise<void> {
 		await this.quickaccess.runCommand('workbench.action.terminal.toggleTerminal');
+		await new Promise(c => setTimeout(c, 500));
 		await this.code.waitForActiveElement(XTERM_TEXTAREA);
 		await this.code.waitForTerminalBuffer(XTERM_SELECTOR, lines => lines.some(line => line.length > 0));
 	}
 
 	async createNew(): Promise<void> {
 		await this.quickaccess.runCommand('workbench.action.terminal.new');
+		await new Promise(c => setTimeout(c, 500));
 		await this.code.waitForActiveElement(XTERM_TEXTAREA);
 		await this.code.waitForTerminalBuffer(XTERM_SELECTOR, lines => lines.some(line => line.length > 0));
 	}
