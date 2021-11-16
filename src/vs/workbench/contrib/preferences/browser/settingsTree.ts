@@ -438,27 +438,44 @@ export async function resolveExtensionsSettings(extensionService: IExtensionServ
 	const processPromises = groups.map(g => processGroupEntry(g));
 	return Promise.all(processPromises).then(() => {
 		const extGroups: ITOCEntry<ISetting>[] = [];
-		for (const value of extGroupTree.values()) {
-			for (const child of value.children!) {
+		for (const extensionRootEntry of extGroupTree.values()) {
+			for (const child of extensionRootEntry.children!) {
 				// Sort the individual settings of the child.
 				child.settings?.sort((a, b) => {
 					return compareNullableIntegers(a.order, b.order);
 				});
 			}
 
-			if (value.children!.length === 1) {
+			if (extensionRootEntry.children!.length === 1) {
+				// There is a single category for this extension.
 				// Push a flattened setting.
 				extGroups.push({
-					id: value.id,
-					label: value.children![0].label,
-					settings: value.children![0].settings
+					id: extensionRootEntry.id,
+					label: extensionRootEntry.children![0].label,
+					settings: extensionRootEntry.children![0].settings
 				});
 			} else {
 				// Sort the categories.
-				value.children!.sort((a, b) => {
+				extensionRootEntry.children!.sort((a, b) => {
 					return compareNullableIntegers(a.order, b.order);
 				});
-				extGroups.push(value);
+
+				// If there is a category that matches the setting name,
+				// add the settings in manually as "ungrouped" settings.
+				// https://github.com/microsoft/vscode/issues/137259
+				const ungroupedChild = extensionRootEntry.children!.find(child => child.label === extensionRootEntry.label);
+				if (ungroupedChild && !ungroupedChild.children) {
+					const groupedChildren = extensionRootEntry.children!.filter(child => child !== ungroupedChild);
+					extGroups.push({
+						id: extensionRootEntry.id,
+						label: extensionRootEntry.label,
+						settings: ungroupedChild.settings,
+						children: groupedChildren
+					});
+				} else {
+					// Push all the groups as-is.
+					extGroups.push(extensionRootEntry);
+				}
 			}
 		}
 
