@@ -119,102 +119,101 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 
 		// Convert to symbol picks and apply filtering
 		const openSideBySideDirection = this.configuration.openSideBySideDirection;
-		for (const [provider, symbols] of workspaceSymbols) {
-			for (const symbol of symbols) {
+		for (const { symbol, provider } of workspaceSymbols) {
 
-				// Depending on the workspace symbols filter setting, skip over symbols that:
-				// - do not have a container
-				// - and are not treated explicitly as global symbols (e.g. classes)
-				if (options?.skipLocal && !SymbolsQuickAccessProvider.TREAT_AS_GLOBAL_SYMBOL_TYPES.has(symbol.kind) && !!symbol.containerName) {
+			// Depending on the workspace symbols filter setting, skip over symbols that:
+			// - do not have a container
+			// - and are not treated explicitly as global symbols (e.g. classes)
+			if (options?.skipLocal && !SymbolsQuickAccessProvider.TREAT_AS_GLOBAL_SYMBOL_TYPES.has(symbol.kind) && !!symbol.containerName) {
+				continue;
+			}
+
+			const symbolLabel = symbol.name;
+			const symbolLabelWithIcon = `$(symbol-${SymbolKinds.toString(symbol.kind) || 'property'}) ${symbolLabel}`;
+			const symbolLabelIconOffset = symbolLabelWithIcon.length - symbolLabel.length;
+
+			// Score by symbol label if searching
+			let symbolScore: number | undefined = undefined;
+			let symbolMatches: IMatch[] | undefined = undefined;
+			let skipContainerQuery = false;
+			if (symbolQuery.original.length > 0) {
+
+				// First: try to score on the entire query, it is possible that
+				// the symbol matches perfectly (e.g. searching for "change log"
+				// can be a match on a markdown symbol "change log"). In that
+				// case we want to skip the container query altogether.
+				if (symbolQuery !== query) {
+					[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabelWithIcon, { ...query, values: undefined /* disable multi-query support */ }, 0, symbolLabelIconOffset);
+					if (typeof symbolScore === 'number') {
+						skipContainerQuery = true; // since we consumed the query, skip any container matching
+					}
+				}
+
+				// Otherwise: score on the symbol query and match on the container later
+				if (typeof symbolScore !== 'number') {
+					[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabelWithIcon, symbolQuery, 0, symbolLabelIconOffset);
+					if (typeof symbolScore !== 'number') {
+						continue;
+					}
+				}
+			}
+
+			const symbolUri = symbol.location.uri;
+			let containerLabel: string | undefined = undefined;
+			if (symbolUri) {
+				const containerPath = this.labelService.getUriLabel(symbolUri, { relative: true });
+				if (symbol.containerName) {
+					containerLabel = `${symbol.containerName} • ${containerPath}`;
+				} else {
+					containerLabel = containerPath;
+				}
+			}
+
+			// Score by container if specified and searching
+			let containerScore: number | undefined = undefined;
+			let containerMatches: IMatch[] | undefined = undefined;
+			if (!skipContainerQuery && containerQuery && containerQuery.original.length > 0) {
+				if (containerLabel) {
+					[containerScore, containerMatches] = scoreFuzzy2(containerLabel, containerQuery);
+				}
+
+				if (typeof containerScore !== 'number') {
 					continue;
 				}
 
-				const symbolLabel = symbol.name;
-				const symbolLabelWithIcon = `$(symbol-${SymbolKinds.toString(symbol.kind) || 'property'}) ${symbolLabel}`;
-				const symbolLabelIconOffset = symbolLabelWithIcon.length - symbolLabel.length;
-
-				// Score by symbol label if searching
-				let symbolScore: number | undefined = undefined;
-				let symbolMatches: IMatch[] | undefined = undefined;
-				let skipContainerQuery = false;
-				if (symbolQuery.original.length > 0) {
-
-					// First: try to score on the entire query, it is possible that
-					// the symbol matches perfectly (e.g. searching for "change log"
-					// can be a match on a markdown symbol "change log"). In that
-					// case we want to skip the container query altogether.
-					if (symbolQuery !== query) {
-						[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabelWithIcon, { ...query, values: undefined /* disable multi-query support */ }, 0, symbolLabelIconOffset);
-						if (typeof symbolScore === 'number') {
-							skipContainerQuery = true; // since we consumed the query, skip any container matching
-						}
-					}
-
-					// Otherwise: score on the symbol query and match on the container later
-					if (typeof symbolScore !== 'number') {
-						[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabelWithIcon, symbolQuery, 0, symbolLabelIconOffset);
-						if (typeof symbolScore !== 'number') {
-							continue;
-						}
-					}
+				if (typeof symbolScore === 'number') {
+					symbolScore += containerScore; // boost symbolScore by containerScore
 				}
-
-				const symbolUri = symbol.location.uri;
-				let containerLabel: string | undefined = undefined;
-				if (symbolUri) {
-					const containerPath = this.labelService.getUriLabel(symbolUri, { relative: true });
-					if (symbol.containerName) {
-						containerLabel = `${symbol.containerName} • ${containerPath}`;
-					} else {
-						containerLabel = containerPath;
-					}
-				}
-
-				// Score by container if specified and searching
-				let containerScore: number | undefined = undefined;
-				let containerMatches: IMatch[] | undefined = undefined;
-				if (!skipContainerQuery && containerQuery && containerQuery.original.length > 0) {
-					if (containerLabel) {
-						[containerScore, containerMatches] = scoreFuzzy2(containerLabel, containerQuery);
-					}
-
-					if (typeof containerScore !== 'number') {
-						continue;
-					}
-
-					if (typeof symbolScore === 'number') {
-						symbolScore += containerScore; // boost symbolScore by containerScore
-					}
-				}
-
-				const deprecated = symbol.tags ? symbol.tags.indexOf(SymbolTag.Deprecated) >= 0 : false;
-
-				symbolPicks.push({
-					symbol,
-					resource: symbolUri,
-					score: symbolScore,
-					label: symbolLabelWithIcon,
-					ariaLabel: symbolLabel,
-					highlights: deprecated ? undefined : {
-						label: symbolMatches,
-						description: containerMatches
-					},
-					description: containerLabel,
-					strikethrough: deprecated,
-					buttons: [
-						{
-							iconClass: openSideBySideDirection === 'right' ? Codicon.splitHorizontal.classNames : Codicon.splitVertical.classNames,
-							tooltip: openSideBySideDirection === 'right' ? localize('openToSide', "Open to the Side") : localize('openToBottom', "Open to the Bottom")
-						}
-					],
-					trigger: (buttonIndex, keyMods) => {
-						this.openSymbol(provider, symbol, token, { keyMods, forceOpenSideBySide: true });
-
-						return TriggerAction.CLOSE_PICKER;
-					},
-					accept: async (keyMods, event) => this.openSymbol(provider, symbol, token, { keyMods, preserveFocus: event.inBackground, forcePinned: event.inBackground }),
-				});
 			}
+
+			const deprecated = symbol.tags ? symbol.tags.indexOf(SymbolTag.Deprecated) >= 0 : false;
+
+			symbolPicks.push({
+				symbol,
+				resource: symbolUri,
+				score: symbolScore,
+				label: symbolLabelWithIcon,
+				ariaLabel: symbolLabel,
+				highlights: deprecated ? undefined : {
+					label: symbolMatches,
+					description: containerMatches
+				},
+				description: containerLabel,
+				strikethrough: deprecated,
+				buttons: [
+					{
+						iconClass: openSideBySideDirection === 'right' ? Codicon.splitHorizontal.classNames : Codicon.splitVertical.classNames,
+						tooltip: openSideBySideDirection === 'right' ? localize('openToSide', "Open to the Side") : localize('openToBottom', "Open to the Bottom")
+					}
+				],
+				trigger: (buttonIndex, keyMods) => {
+					this.openSymbol(provider, symbol, token, { keyMods, forceOpenSideBySide: true });
+
+					return TriggerAction.CLOSE_PICKER;
+				},
+				accept: async (keyMods, event) => this.openSymbol(provider, symbol, token, { keyMods, preserveFocus: event.inBackground, forcePinned: event.inBackground }),
+			});
+
 		}
 
 		// Sort picks (unless disabled)

@@ -10784,6 +10784,11 @@ declare module 'vscode' {
 
 		/**
 		 * An event that is emitted when a workspace folder is added or removed.
+		 *
+		 * **Note:** this event will not fire if the first workspace folder is added, removed or changed,
+		 * because in that case the currently executing extensions (including the one that listens to this
+		 * event) will be terminated and restarted so that the (deprecated) `rootPath` property is updated
+		 * to point to the first workspace folder.
 		 */
 		export const onDidChangeWorkspaceFolders: Event<WorkspaceFoldersChangeEvent>;
 
