@@ -27,8 +27,8 @@ export function setup(opts: ParsedArgs) {
 		afterSuite(opts);
 
 		before(function () {
-			code = this.code;
-			terminal = this.terminal;
+			code = this.app.code;
+			terminal = this.app.workbench.terminal;
 		});
 
 		beforeEach(async function () {
