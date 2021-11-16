@@ -6,12 +6,12 @@
 import { ok } from 'assert';
 import { ParsedArgs } from 'minimist';
 import { Application } from '../../../../automation';
-import { afterSuite, beforeSuite } from '../../utils';
+import { afterSuite, beforeSuite, timeout } from '../../utils';
 
 const ContributedProfileName = `JavaScript Debug Terminal`;
 
 export function setup(opts: ParsedArgs) {
-	describe.only('Terminal Profiles', () => {
+	describe('Terminal Profiles', () => {
 		let app: Application;
 		const enum TerminalCommandId {
 			Rename = 'workbench.action.terminal.rename',
@@ -25,6 +25,10 @@ export function setup(opts: ParsedArgs) {
 
 		before(function () {
 			app = this.app;
+		});
+
+		beforeEach(async function () {
+			await timeout(1000);
 		});
 
 		afterEach(async function () {

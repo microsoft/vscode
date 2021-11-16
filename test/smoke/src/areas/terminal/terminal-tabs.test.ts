@@ -6,7 +6,7 @@
 import { ok } from 'assert';
 import { ParsedArgs } from 'minimist';
 import { Application } from '../../../../automation/out';
-import { afterSuite, beforeSuite } from '../../utils';
+import { afterSuite, beforeSuite, timeout } from '../../utils';
 
 export function setup(opts: ParsedArgs) {
 	describe('Terminal Tabs', () => {
@@ -29,9 +29,12 @@ export function setup(opts: ParsedArgs) {
 			app = this.app;
 		});
 
+		beforeEach(async function () {
+			await timeout(1000);
+		});
+
 		afterEach(async function () {
 			await app.workbench.terminal.runCommand(TerminalCommandId.KillAll);
-			await app.code.waitForActiveElement('.editor-group-container.empty.active');
 		});
 
 		it('clicking the plus button should create a terminal and display the tabs view showing no split decorations', async function () {
@@ -91,9 +94,29 @@ export function setup(opts: ParsedArgs) {
 			await app.workbench.terminal.getTabLabels(2, true, t => t.some(element => element.textContent.includes(name)));
 		});
 
+		it('should create a split terminal when single tab is alt clicked', async function () {
+			await app.workbench.terminal.show();
+			const page = await app.workbench.terminal.getPage();
+			page.keyboard.down('Alt');
+			await app.code.waitAndClick('.single-terminal-tab');
+			page.keyboard.up('Alt');
+			await app.workbench.terminal.getTabLabels(2, true);
+		});
+
+		it.skip('should create a split terminal when a tab is alt clicked', async function () {
+			await app.workbench.terminal.show();
+			await app.workbench.terminal.runCommand(TerminalCommandId.Split);
+			await app.workbench.terminal.getTabLabels(2, true);
+			const page = await app.workbench.terminal.getPage();
+			page.keyboard.down('Alt');
+			await this.code.waitAndClick('.tabs-list .terminal-tabs-entry');
+			page.keyboard.up('Alt');
+			await app.workbench.terminal.getTabLabels(3, true);
+		});
+
 		it.skip('should join tabs', async function () {
 			await app.workbench.terminal.show();
-			await app.workbench.terminal.runCommand(TerminalCommandId.Join, 'true');
+			await app.workbench.terminal.runCommand(TerminalCommandId.Join);
 			await this.code.waitAndClick('.tabs-list .terminal-tabs-entry');
 			await app.workbench.terminal.getTabLabels(2, true);
 		});
@@ -108,19 +131,5 @@ export function setup(opts: ParsedArgs) {
 			ok(!tabLabels[0].startsWith('┌') && !tabLabels[1].startsWith('└'));
 		});
 
-		it.skip('should split tab when single tab is alt clicked', async function () {
-			await app.workbench.terminal.show();
-			await app.code.dispatchKeybinding('Alt+x');
-			await app.code.waitAndClick('.single-terminal-tab');
-			await app.workbench.terminal.getTabLabels(2, true);
-		});
-
-		it.skip('should split tab when tab is alt clicked', async function () {
-			await app.workbench.terminal.show();
-			await app.workbench.terminal.createNew();
-			await app.code.dispatchKeybinding('Alt+x');
-			await this.code.waitAndClick('.tabs-list .terminal-tabs-entry');
-			await app.workbench.terminal.getTabLabels(3, true);
-		});
 	});
 }

@@ -41,12 +41,13 @@ function buildDriver(browser: playwright.Browser, context: playwright.BrowserCon
 
 class PlaywrightDriver implements IDriver {
 	_serviceBrand: undefined;
-
+	page: playwright.Page;
 	constructor(
 		private readonly _browser: playwright.Browser,
 		private readonly _context: playwright.BrowserContext,
 		private readonly _page: playwright.Page
 	) {
+		this.page = _page;
 	}
 
 	async getWindowIds() { return [1]; }

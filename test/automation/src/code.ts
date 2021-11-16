@@ -250,7 +250,7 @@ async function poll<T>(
 export class Code {
 
 	private _activeWindowId: number | undefined = undefined;
-	private driver: IDriver;
+	driver: IDriver;
 
 	constructor(
 		private client: IDisposable,

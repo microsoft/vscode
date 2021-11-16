@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IElement, QuickInput } from '.';
+// import { Page } from '../../../node_modules/playwright';
 import { Code } from './code';
 import { QuickAccess } from './quickaccess';
 
@@ -15,6 +16,10 @@ const XTERM_TEXTAREA = `${XTERM_SELECTOR} textarea.xterm-helper-textarea`;
 export class Terminal {
 
 	constructor(private code: Code, private quickaccess: QuickAccess, private quickinput: QuickInput) { }
+
+	getPage(): Promise<any> {
+		return (this.code.driver as any).page;
+	}
 
 	async show(): Promise<void> {
 		await this.code.dispatchKeybinding('Control+`');
@@ -30,8 +35,8 @@ export class Terminal {
 
 	async runCommand(commandId: string, value?: string): Promise<void> {
 		await this.quickaccess.runCommand(commandId, !!value);
-		if (value) {
-			if (value !== 'true') {
+		if (value || commandId === 'workbench.action.terminal.join') {
+			if (value) {
 				await this.code.waitForSetValue(QuickInput.QUICK_INPUT_INPUT, value);
 			}
 			await this.code.dispatchKeybinding('enter');
