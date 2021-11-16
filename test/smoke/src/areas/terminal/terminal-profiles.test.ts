@@ -6,7 +6,7 @@
 import { ok } from 'assert';
 import { ParsedArgs } from 'minimist';
 import { Code, Terminal } from '../../../../automation';
-import { afterSuite, beforeSuite, timeout } from '../../utils';
+import { afterSuite, beforeSuite } from '../../utils';
 
 const ContributedProfileName = `JavaScript Debug Terminal`;
 
@@ -29,10 +29,6 @@ export function setup(opts: ParsedArgs) {
 		before(function () {
 			code = this.app.code;
 			terminal = this.app.workbench.terminal;
-		});
-
-		beforeEach(async () => {
-			await timeout(1000);
 		});
 
 		afterEach(async () => {
