@@ -25,7 +25,7 @@ const { getUserDataPath } = require('./vs/platform/environment/node/userDataPath
 const product = require('../product.json');
 const { app, protocol, crashReporter } = require('electron');
 
-app.allowRendererProcessReuse = false;
+app.allowRendererProcessReuse = true;
 
 // Enable portable support
 const portable = bootstrapNode.configurePortable(product);
@@ -223,9 +223,7 @@ function configureCommandlineSwitchesSync(cliArgs) {
 					break;
 
 				case 'enable-render-process-reuse':
-					if (argvValue === true) {
-						app.allowRendererProcessReuse = true;
-					} else {
+					if (argvValue === false) {
 						app.allowRendererProcessReuse = false;
 					}
 					break;
