@@ -9,7 +9,7 @@ import { Application } from '../../../../automation/out';
 import { afterSuite, beforeSuite } from '../../utils';
 
 export function setup(opts: ParsedArgs) {
-	describe('Terminal Tabs', () => {
+	describe.only('Terminal Tabs', () => {
 		let app: Application;
 
 		const enum TerminalCommandId {
@@ -86,13 +86,9 @@ export function setup(opts: ParsedArgs) {
 		it('should rename the tab in the tabs list', async function () {
 			await app.workbench.terminal.show();
 			await app.workbench.terminal.runCommand(TerminalCommandId.Split);
-			const tabs = await app.workbench.terminal.getTabLabels(2);
-			ok(tabs[0].startsWith('┌'));
-			ok(tabs[1].startsWith('└'));
-			console.log(tabs);
 			const name = 'my terminal name';
 			await app.workbench.terminal.runCommand(TerminalCommandId.Rename, name);
-			ok(tabs[1].includes(name));
+			await app.workbench.terminal.getTabLabels(2, true, t => t.some(element => element.textContent.includes(name)));
 			await app.workbench.terminal.runCommand(TerminalCommandId.Kill);
 		});
 

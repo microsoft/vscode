@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { QuickInput } from '.';
+import { IElement, QuickInput } from '.';
 import { Code } from './code';
 import { QuickAccess } from './quickaccess';
 
@@ -44,9 +44,9 @@ export class Terminal {
 		await this.code.dispatchKeybinding('enter');
 	}
 
-	async getTabLabels(expectedCount: number, splits?: boolean): Promise<string[]> {
+	async getTabLabels(expectedCount: number, splits?: boolean, accept?: (result: IElement[]) => boolean): Promise<string[]> {
 		const result: string[] = [];
-		const tabs = await this.code.waitForElements(TABS, true, e => e.length === expectedCount && (!splits || e.some(e => e.textContent.startsWith('┌'))) && e.every(element => element.textContent.trim().length > 1));
+		const tabs = await this.code.waitForElements(TABS, true, e => accept ? accept(e) : e.length === expectedCount && (!splits || e.some(e => e.textContent.startsWith('┌'))) && e.every(element => element.textContent.trim().length > 1));
 		for (const t of tabs) {
 			result.push(t.textContent);
 		}
