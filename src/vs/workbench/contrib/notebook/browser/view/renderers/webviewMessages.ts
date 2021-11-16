@@ -83,6 +83,11 @@ export interface IClickMarkupCellMessage extends BaseToWebviewMessage {
 	readonly shiftKey: boolean;
 }
 
+export interface IClickedLinkMessage extends BaseToWebviewMessage {
+	readonly type: 'clicked-link';
+	readonly href: string;
+}
+
 export interface IContextMenuMarkupCellMessage extends BaseToWebviewMessage {
 	readonly type: 'contextMenuMarkupCell';
 	readonly cellId: string;
@@ -373,6 +378,7 @@ export type FromWebviewMessage = WebviewInitialized |
 	ICustomRendererMessage |
 	IClickedDataUrlMessage |
 	IClickMarkupCellMessage |
+	IClickedLinkMessage |
 	IContextMenuMarkupCellMessage |
 	IMouseEnterMarkupCellMessage |
 	IMouseLeaveMarkupCellMessage |
