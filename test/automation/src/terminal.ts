@@ -13,39 +13,34 @@ const CONTRIBUTED_PROFILE_NAME = `JavaScript Debug Terminal`;
 const TABS = '.tabs-list .terminal-tabs-entry';
 const XTERM_FOCUSED_SELECTOR = '.terminal.xterm.focus';
 
+const enum TerminalCommandId {
+	Rename = 'workbench.action.terminal.rename',
+	ChangeColor = 'workbench.action.terminal.changeColor',
+	ChangeIcon = 'workbench.action.terminal.changeIcon',
+	Split = 'workbench.action.terminal.split',
+	KillAll = 'workbench.action.terminal.killAll',
+	Unsplit = 'workbench.action.terminal.unsplit',
+	Join = 'workbench.action.terminal.join',
+	Show = 'workbench.action.terminal.toggleTerminal',
+	CreateNew = 'workbench.action.terminal.new',
+	NewWithProfile = 'workbench.action.terminal.newWithProfile',
+	SelectDefaultProfile = 'workbench.action.terminal.selectDefaultProfile'
+}
+
 export class Terminal {
 
 	constructor(private code: Code, private quickaccess: QuickAccess, private quickinput: QuickInput) { }
 
-	getPage(): Promise<any> {
-		return (this.code.driver as any).page;
-	}
-
-	async show(): Promise<void> {
-		await this.runCommand('workbench.action.terminal.toggleTerminal');
-		await this.code.waitForElement(XTERM_FOCUSED_SELECTOR);
-		await this.code.waitForTerminalBuffer(XTERM_SELECTOR, lines => lines.some(line => line.length > 0));
-	}
-
-	async createNew(): Promise<void> {
-		await this.runCommand('workbench.action.terminal.new');
-		await this.code.waitForElement(XTERM_FOCUSED_SELECTOR);
-		await this.code.waitForTerminalBuffer(XTERM_SELECTOR, lines => lines.some(line => line.length > 0));
-	}
-
 	async runCommand(commandId: string, value?: string): Promise<void> {
-		if (commandId === 'workbench.action.terminal.join') {
-			await this.quickaccess.runCommand(commandId, true);
-			await this.code.dispatchKeybinding('enter');
-			await this.quickinput.waitForQuickInputClosed();
-			return;
+		await this.quickaccess.runCommand(commandId, !!value || commandId === TerminalCommandId.Join);
+		if (commandId === TerminalCommandId.Show || commandId === TerminalCommandId.CreateNew) {
+			return await this._waitForTerminal();
 		}
-		await this.quickaccess.runCommand(commandId, !!value);
 		if (value) {
 			await this.code.waitForSetValue(QuickInput.QUICK_INPUT_INPUT, value);
-			await this.code.dispatchKeybinding('enter');
-			await this.quickinput.waitForQuickInputClosed();
 		}
+		await this.code.dispatchKeybinding('enter');
+		await this.quickinput.waitForQuickInputClosed();
 	}
 
 	async runCommandInTerminal(commandText: string): Promise<void> {
@@ -69,14 +64,10 @@ export class Terminal {
 		return result;
 	}
 
-	async runProfileCommand(type: 'createInstance' | 'setDefault', contributed?: boolean, altKey?: boolean): Promise<void> {
-		const command = type === 'createInstance' ? 'Terminal: Create New Terminal (With Profile)' : 'Terminal: Select Default Profile';
+	async runProfileCommand(command: string, contributed?: boolean, altKey?: boolean): Promise<void> {
+		await this.quickaccess.runCommand(command, true);
 		if (contributed) {
-			await this.quickaccess.runCommand(command, true);
 			await this.code.waitForSetValue(QuickInput.QUICK_INPUT_INPUT, CONTRIBUTED_PROFILE_NAME);
-		} else {
-			await this.quickaccess.runCommand(command, true);
-			await this.code.dispatchKeybinding('down');
 		}
 		await this.code.dispatchKeybinding(altKey ? 'Alt+Enter' : 'enter');
 		await this.quickinput.waitForQuickInputClosed();
@@ -91,5 +82,14 @@ export class Terminal {
 			}
 			throw err;
 		}
+	}
+
+	async getPage(): Promise<any> {
+		return (this.code.driver as any).page;
+	}
+
+	private async _waitForTerminal(): Promise<void> {
+		await this.code.waitForElement(XTERM_FOCUSED_SELECTOR);
+		await this.code.waitForTerminalBuffer(XTERM_SELECTOR, lines => lines.some(line => line.length > 0));
 	}
 }
