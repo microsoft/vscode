@@ -39,13 +39,13 @@ export class ExtHostConsumerFileSystem {
 					// use shortcut
 					await that._proxy.$ensureActivation(uri.scheme);
 					const stat = await provider.stat(uri);
-					return Object.freeze(<vscode.FileStat>{
+					return <vscode.FileStat>{
 						type: stat.type,
 						ctime: stat.ctime,
 						mtime: stat.mtime,
 						size: stat.size,
 						permissions: stat.permissions
-					});
+					};
 				} catch (err) {
 					ExtHostConsumerFileSystem._handleError(err);
 				}
