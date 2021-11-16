@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { renderMarkdown, renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { parse } from 'vs/base/common/marshalling';
+import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 
 function strToNode(str: string): HTMLElement {
@@ -258,6 +259,10 @@ suite('MarkdownRenderer', () => {
 		});
 
 		test('Should render html images', () => {
+			if (isWeb) {
+				return;
+			}
+
 			const mds = new MarkdownString(undefined, { supportHtml: true });
 			mds.appendMarkdown(`<img src="http://example.com/cat.gif">`);
 
@@ -266,6 +271,10 @@ suite('MarkdownRenderer', () => {
 		});
 
 		test('Should render html images with file uri as same origin uri', () => {
+			if (isWeb) {
+				return;
+			}
+
 			const mds = new MarkdownString(undefined, { supportHtml: true });
 			mds.appendMarkdown(`<img src="file:///images/cat.gif">`);
 
