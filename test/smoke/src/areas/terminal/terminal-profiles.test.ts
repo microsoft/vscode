@@ -21,10 +21,6 @@ export function setup(opts: ParsedArgs) {
 			app = this.app;
 		});
 
-		beforeEach(async function () {
-			await app.code.waitForActiveElement('.editor-group-container.empty.active');
-		});
-
 		afterEach(async function () {
 			await app.workbench.terminal.killActive();
 			await app.code.waitForActiveElement('.editor-group-container.empty.active');
