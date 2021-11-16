@@ -122,8 +122,16 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 
 		// Set input and resolve
 		await super.setInput(input, options, context, token);
+
+		// If resolve is going to be slow (e.g. slow FileSystemProvider) avoid displaying contents of the file previously being viewed
+		// Delay doing this to avoid flicker when resolve is fast (e.g. switching between already-loaded tabs)
+		const slowResolveClearingTimer = setTimeout(() => {
+			this.getControl()?.setModel(null);
+		}, 200);
+
 		try {
 			const resolvedModel = await input.resolve();
+			clearTimeout(slowResolveClearingTimer);
 
 			// Check for cancellation
 			if (token.isCancellationRequested) {
@@ -161,6 +169,7 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 			// readonly or not that the input did not have.
 			textEditor.updateOptions({ readOnly: textFileModel.isReadonly() });
 		} catch (error) {
+			clearTimeout(slowResolveClearingTimer);
 			this.handleSetInputError(error, input, options);
 		}
 	}
