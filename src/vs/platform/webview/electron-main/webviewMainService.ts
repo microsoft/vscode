@@ -50,8 +50,10 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 	public async findInFrame(windowId: WebviewWindowId, frameName: string, text: string, options: { findNext?: boolean, forward?: boolean }): Promise<void> {
 		const initialFrame = this.getFrameByName(windowId, frameName);
 
-		type WebFrameMainWithFindSupport = typeof WebFrameMain & {
+		type WebFrameMainWithFindSupport = WebFrameMain & {
 			findInFrame?(text: string, findOptions: FindInFrameOptions): void;
+			on(event: 'found-in-frame', listener: Function): WebFrameMain;
+			removeListener(event: 'found-in-frame', listener: Function): WebFrameMain;
 		};
 		const frame = initialFrame as unknown as WebFrameMainWithFindSupport;
 		if (typeof frame.findInFrame === 'function') {
@@ -62,17 +64,17 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 			const foundInFrameHandler = (_: unknown, result: FoundInFrameResult) => {
 				if (result.finalUpdate) {
 					this._onFoundInFrame.fire(result);
-					initialFrame.removeListener('found-in-frame', foundInFrameHandler);
+					(initialFrame as unknown as WebFrameMainWithFindSupport).removeListener('found-in-frame', foundInFrameHandler);
 				}
 			};
-			initialFrame.on('found-in-frame', foundInFrameHandler);
+			(initialFrame as unknown as WebFrameMainWithFindSupport).on('found-in-frame', foundInFrameHandler);
 		}
 	}
 
 	public async stopFindInFrame(windowId: WebviewWindowId, frameName: string, options: { keepSelection?: boolean }): Promise<void> {
 		const initialFrame = this.getFrameByName(windowId, frameName);
 
-		type WebFrameMainWithFindSupport = typeof WebFrameMain & {
+		type WebFrameMainWithFindSupport = WebFrameMain & {
 			stopFindInFrame?(stopOption: 'keepSelection' | 'clearSelection'): void;
 		};
 

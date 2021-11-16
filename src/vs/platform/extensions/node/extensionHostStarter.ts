@@ -11,13 +11,16 @@ import { ChildProcess, fork } from 'child_process';
 import { FileAccess } from 'vs/base/common/network';
 import { StringDecoder } from 'string_decoder';
 import * as platform from 'vs/base/common/platform';
+import { ILogService } from 'vs/platform/log/common/log';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { mixin } from 'vs/base/common/objects';
 import { cwd } from 'vs/base/common/process';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { Promises, timeout } from 'vs/base/common/async';
 
-export interface IExtensionHostStarterWorkerHost {
-	logInfo(message: string): Promise<void>;
+export interface IPartialLogService {
+	readonly _serviceBrand: undefined;
+	info(message: string): void;
 }
 
 class ExtensionHostProcess extends Disposable {
@@ -42,7 +45,7 @@ class ExtensionHostProcess extends Disposable {
 
 	constructor(
 		public readonly id: string,
-		private readonly _host: IExtensionHostStarterWorkerHost
+		@ILogService private readonly _logService: IPartialLogService
 	) {
 		super();
 	}
@@ -57,7 +60,7 @@ class ExtensionHostProcess extends Disposable {
 		const forkTime = sw.elapsed();
 		const pid = this._process.pid!;
 
-		this._host.logInfo(`Starting extension host with pid ${pid} (fork() took ${forkTime} ms).`);
+		this._logService.info(`Starting extension host with pid ${pid} (fork() took ${forkTime} ms).`);
 
 		const stdoutDecoder = new StringDecoder('utf-8');
 		this._process.stdout?.on('data', (chunk) => {
@@ -92,7 +95,7 @@ class ExtensionHostProcess extends Disposable {
 			return false;
 		}
 
-		this._host.logInfo(`Enabling inspect port on extension host with pid ${this._process.pid}.`);
+		this._logService.info(`Enabling inspect port on extension host with pid ${this._process.pid}.`);
 
 		interface ProcessExt {
 			_debugProcess?(n: number): any;
@@ -116,7 +119,7 @@ class ExtensionHostProcess extends Disposable {
 		if (!this._process) {
 			return;
 		}
-		this._host.logInfo(`Killing extension host with pid ${this._process.pid}.`);
+		this._logService.info(`Killing extension host with pid ${this._process.pid}.`);
 		this._process.kill();
 	}
 
@@ -125,12 +128,12 @@ class ExtensionHostProcess extends Disposable {
 			return;
 		}
 		const pid = this._process.pid;
-		this._host.logInfo(`Waiting for extension host with pid ${pid} to exit.`);
+		this._logService.info(`Waiting for extension host with pid ${pid} to exit.`);
 		await Promise.race([Event.toPromise(this.onExit), timeout(maxWaitTimeMs)]);
 
 		if (!this._hasExited) {
 			// looks like we timed out
-			this._host.logInfo(`Extension host with pid ${pid} did not exit within ${maxWaitTimeMs}ms.`);
+			this._logService.info(`Extension host with pid ${pid} did not exit within ${maxWaitTimeMs}ms.`);
 			this._process.kill();
 		}
 	}
@@ -144,7 +147,7 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 	protected readonly _extHosts: Map<string, ExtensionHostProcess>;
 
 	constructor(
-		private readonly _host: IExtensionHostStarterWorkerHost
+		@ILogService private readonly _logService: IPartialLogService
 	) {
 		this._extHosts = new Map<string, ExtensionHostProcess>();
 	}
@@ -183,10 +186,10 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 
 	async createExtensionHost(): Promise<{ id: string; }> {
 		const id = String(++ExtensionHostStarter._lastId);
-		const extHost = new ExtensionHostProcess(id, this._host);
+		const extHost = new ExtensionHostProcess(id, this._logService);
 		this._extHosts.set(id, extHost);
 		extHost.onExit(({ pid, code, signal }) => {
-			this._host.logInfo(`Extension host with pid ${pid} exited with code: ${code}, signal: ${signal}.`);
+			this._logService.info(`Extension host with pid ${pid} exited with code: ${code}, signal: ${signal}.`);
 			setTimeout(() => {
 				extHost.dispose();
 				this._extHosts.delete(id);
@@ -231,10 +234,4 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 	}
 }
 
-/**
- * The `create` function needs to be there by convention because
- * we are loaded via the `vs/base/common/worker/simpleWorker` utility.
- */
-export function create(host: IExtensionHostStarterWorkerHost) {
-	return new ExtensionHostStarter(host);
-}
+registerSingleton(IExtensionHostStarter, ExtensionHostStarter, true);

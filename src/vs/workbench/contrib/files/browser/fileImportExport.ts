@@ -313,7 +313,8 @@ export class BrowserFileUpload {
 
 		// Read the file in chunks using File.stream() web APIs
 		try {
-			const reader: ReadableStreamDefaultReader<Uint8Array> = file.stream().getReader();
+			// TODO(@deepak1556): why do @electron types overload here ?
+			const reader: ReadableStreamDefaultReader<Uint8Array> = (file.stream() as unknown as ReadableStream<Uint8Array>).getReader();
 
 			let res = await reader.read();
 			while (!res.done) {
