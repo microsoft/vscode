@@ -838,9 +838,8 @@ export interface ITreeViewDataProvider {
 	getChildren(element?: ITreeItem): Promise<ITreeItem[] | undefined>;
 }
 
-export const TREE_ITEM_DATA_TRANSFER_TYPE = 'text/treeitems';
 export interface ITreeViewDragAndDropController {
-	onDrop(elements: ITreeDataTransfer, target: ITreeItem): Promise<void>;
+	onDrop(elements: ITreeDataTransfer, target: ITreeItem, sourceTreeId?: string, sourceTreeItemHandles?: string[]): Promise<void>;
 }
 
 export interface IEditableData {

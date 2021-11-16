@@ -10,7 +10,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { MenuId, IMenuService, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ITreeView, ITreeViewDescriptor, IViewsRegistry, Extensions, IViewDescriptorService, ITreeItem, TreeItemCollapsibleState, ITreeViewDataProvider, TreeViewItemHandleArg, ITreeItemLabel, ViewContainer, ViewContainerLocation, ResolvableTreeItem, ITreeViewDragAndDropController, ITreeDataTransfer, TREE_ITEM_DATA_TRANSFER_TYPE } from 'vs/workbench/common/views';
+import { ITreeView, ITreeViewDescriptor, IViewsRegistry, Extensions, IViewDescriptorService, ITreeItem, TreeItemCollapsibleState, ITreeViewDataProvider, TreeViewItemHandleArg, ITreeItemLabel, ViewContainer, ViewContainerLocation, ResolvableTreeItem, ITreeViewDragAndDropController, ITreeDataTransfer } from 'vs/workbench/common/views';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IThemeService, FileThemeIcon, FolderThemeIcon, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -216,7 +216,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		this.collapseAllToggleContext = this.collapseAllToggleContextKey.bindTo(contextKeyService);
 		this.refreshContextKey = new RawContextKey<boolean>(`treeView.${this.id}.enableRefresh`, false, localize('treeView.enableRefresh', "Whether the tree view with id {0} enables refresh.", this.id));
 		this.refreshContext = this.refreshContextKey.bindTo(contextKeyService);
-		this.treeViewDnd = this.instantiationService.createInstance(CustomTreeViewDragAndDrop);
+		this.treeViewDnd = this.instantiationService.createInstance(CustomTreeViewDragAndDrop, this.id);
 
 		this._register(this.themeService.onDidFileIconThemeChange(() => this.doRefresh([this.root]) /** soft refresh **/));
 		this._register(this.themeService.onDidColorThemeChange(() => this.doRefresh([this.root]) /** soft refresh **/));
@@ -1215,8 +1215,16 @@ export class TreeView extends AbstractTreeView {
 	}
 }
 
+const TREE_DRAG_SOURCE_INFO_MIME_TYPE = 'tree/internalsourceinfo';
+interface TreeDragSourceInfo {
+	id: string,
+	itemHandles: string[];
+}
+
 export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
-	constructor(@ILabelService private readonly labelService: ILabelService) { }
+	constructor(
+		private readonly treeId: string,
+		@ILabelService private readonly labelService: ILabelService) { }
 
 	private dndController: ITreeViewDragAndDropController | undefined;
 	set controller(controller: ITreeViewDragAndDropController | undefined) {
@@ -1225,8 +1233,13 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
 		if (originalEvent.dataTransfer) {
-			originalEvent.dataTransfer.setData(TREE_ITEM_DATA_TRANSFER_TYPE,
-				JSON.stringify((data as ElementsDragAndDropData<ITreeItem, ITreeItem[]>).getData().map(treeItem => treeItem.handle)));
+			const treeItemsData = (data as ElementsDragAndDropData<ITreeItem, ITreeItem[]>).getData();
+			const sourceInfo: TreeDragSourceInfo = {
+				id: this.treeId,
+				itemHandles: treeItemsData.map(item => item.handle)
+			};
+			originalEvent.dataTransfer.setData(TREE_DRAG_SOURCE_INFO_MIME_TYPE,
+				JSON.stringify(sourceInfo));
 		}
 	}
 
@@ -1268,6 +1281,8 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 			}
 			return previous;
 		}, 0);
+
+		let treeSourceInfo: TreeDragSourceInfo | undefined;
 		await new Promise<void>(resolve => {
 			if (!originalEvent.dataTransfer || !this.dndController || !targetNode) {
 				return;
@@ -1276,9 +1291,13 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 				if (dataItem.kind === 'string') {
 					const type = dataItem.type;
 					dataItem.getAsString(dataValue => {
-						treeDataTransfer.items.set(type, {
-							asString: () => Promise.resolve(dataValue)
-						});
+						if (type === TREE_DRAG_SOURCE_INFO_MIME_TYPE) {
+							treeSourceInfo = JSON.parse(dataValue);
+						} else {
+							treeDataTransfer.items.set(type, {
+								asString: () => Promise.resolve(dataValue)
+							});
+						}
 						stringCount--;
 						if (stringCount === 0) {
 							resolve();
@@ -1287,6 +1306,6 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 				}
 			}
 		});
-		return this.dndController.onDrop(treeDataTransfer, targetNode);
+		return this.dndController.onDrop(treeDataTransfer, targetNode, treeSourceInfo?.id, treeSourceInfo?.itemHandles);
 	}
 }
