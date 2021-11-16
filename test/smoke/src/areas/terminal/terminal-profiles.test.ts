@@ -21,7 +21,7 @@ export function setup(opts: ParsedArgs) {
 			Show = 'workbench.action.terminal.toggleTerminal',
 			CreateNew = 'workbench.action.terminal.new',
 			NewWithProfile = 'workbench.action.terminal.newWithProfile',
-			SelectDefaultProfile = 'workbench.action.terminal.selectDefaultProfile'
+			SelectDefaultProfile = 'workbench.action.terminal.selectDefaultShell'
 		}
 		beforeSuite(opts);
 		afterSuite(opts);
