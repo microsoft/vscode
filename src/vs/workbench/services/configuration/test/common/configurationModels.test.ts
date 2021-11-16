@@ -83,6 +83,24 @@ suite('FolderSettingsModelParser', () => {
 		assert.deepStrictEqual(testObject.configurationModel.overrides, [{ 'contents': expected, 'identifiers': ['json'], 'keys': ['FolderSettingsModelParser.resource', 'FolderSettingsModelParser.resourceLanguage'] }]);
 	});
 
+	test('parse multiple resource languages settings override', () => {
+		const testObject = new ConfigurationModelParser('settings');
+
+		testObject.parse(JSON.stringify({ '[json, javascript]': { 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.resourceLanguage': 'resourceLanguage' }, '[json]': { 'FolderSettingsModelParser.resourceLanguage': 'overrideResourceLanguage' } }), { scopes: [ConfigurationScope.RESOURCE, ConfigurationScope.LANGUAGE_OVERRIDABLE] });
+
+		const expected_json = Object.create(null);
+		expected_json['FolderSettingsModelParser'] = Object.create(null);
+		expected_json['FolderSettingsModelParser']['resource'] = 'resource';
+		expected_json['FolderSettingsModelParser']['resourceLanguage'] = 'overrideResourceLanguage';
+
+		const expected_javascript = Object.create(null);
+		expected_javascript['FolderSettingsModelParser'] = Object.create(null);
+		expected_javascript['FolderSettingsModelParser']['resource'] = 'resource';
+		expected_javascript['FolderSettingsModelParser']['resourceLanguage'] = 'resourceLanguage';
+
+		assert.deepStrictEqual(testObject.configurationModel.overrides, [{ 'contents': expected_json, 'identifiers': ['json'], 'keys': ['FolderSettingsModelParser.resource', 'FolderSettingsModelParser.resourceLanguage'] }, { 'contents': expected_javascript, 'identifiers': ['javascript'], 'keys': ['FolderSettingsModelParser.resource', 'FolderSettingsModelParser.resourceLanguage'] }]);
+	});
+
 	test('reparse folder settings excludes application and machine setting', () => {
 		const parseOptions: ConfigurationParseOptions = { scopes: [ConfigurationScope.RESOURCE, ConfigurationScope.WINDOW] };
 		const testObject = new ConfigurationModelParser('settings');
