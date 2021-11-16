@@ -23,11 +23,13 @@ export class Terminal {
 
 	async show(): Promise<void> {
 		await this.runCommand('workbench.action.terminal.toggleTerminal');
+		await this.code.waitForElement('.terminal.xterm.focus');
 		await this.code.waitForTerminalBuffer(XTERM_SELECTOR, lines => lines.some(line => line.length > 0));
 	}
 
 	async createNew(): Promise<void> {
 		await this.runCommand('workbench.action.terminal.new');
+		await this.code.waitForElement('.terminal.xterm.focus');
 		await this.code.waitForTerminalBuffer(XTERM_SELECTOR, lines => lines.some(line => line.length > 0));
 	}
 

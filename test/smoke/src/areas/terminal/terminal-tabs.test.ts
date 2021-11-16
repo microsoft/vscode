@@ -9,7 +9,7 @@ import { Application } from '../../../../automation/out';
 import { afterSuite, beforeSuite, timeout } from '../../utils';
 
 export function setup(opts: ParsedArgs) {
-	describe('Terminal Tabs', () => {
+	describe.only('Terminal Tabs', () => {
 		let app: Application;
 
 		const enum TerminalCommandId {
