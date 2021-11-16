@@ -2980,14 +2980,14 @@
 
 // ESM-uncomment-begin
 // })();
-// export var marked = __marked_exports;
-// export var Parser = __marked_exports.Parser;
-// export var parser = __marked_exports.parser;
-// export var Renderer = __marked_exports.Renderer;
-// export var TextRenderer = __marked_exports.TextRenderer;
-// export var Lexer = __marked_exports.Lexer;
-// export var lexer = __marked_exports.lexer;
-// export var Tokenizer = __marked_exports.Tokenizer;
-// export var Slugger = __marked_exports.Slugger;
-// export var parse = __marked_exports.parse;
+// export var marked = (__marked_exports || exports);
+// export var Parser = (__marked_exports || exports).Parser;
+// export var parser = (__marked_exports || exports).parser;
+// export var Renderer = (__marked_exports || exports).Renderer;
+// export var TextRenderer = (__marked_exports || exports).TextRenderer;
+// export var Lexer = (__marked_exports || exports).Lexer;
+// export var lexer = (__marked_exports || exports).lexer;
+// export var Tokenizer = (__marked_exports || exports).Tokenizer;
+// export var Slugger = (__marked_exports || exports).Slugger;
+// export var parse = (__marked_exports || exports).parse;
 // ESM-uncomment-end
