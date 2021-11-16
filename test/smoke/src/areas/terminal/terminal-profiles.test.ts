@@ -56,7 +56,7 @@ export function setup(opts: ParsedArgs) {
 			await terminal.runCommand(TerminalCommandId.Split);
 			const tabs = await terminal.getTabLabels(2);
 			ok(tabs[0].startsWith('┌') && tabs[0].endsWith(ContributedProfileName));
-			ok(tabs[1].startsWith('└'));
+			ok(tabs[1].startsWith('└') && tabs[1].endsWith(ContributedProfileName));
 		});
 
 		it('should set the default profile', async function () {
