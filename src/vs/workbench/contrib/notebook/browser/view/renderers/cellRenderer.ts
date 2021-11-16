@@ -36,10 +36,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { INotebookActionContext, INotebookCellActionContext, INotebookCellToolbarActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
+import { INotebookCellActionContext, INotebookCellToolbarActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { CodeCellLayoutInfo, EXPAND_CELL_OUTPUT_COMMAND_ID, ICellViewModel, INotebookEditorDelegate, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { BaseCellRenderTemplate, CodeCellRenderTemplate, MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/viewParts/cellActionView';
 import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/viewParts/cellContextKeys';
 import { CellDragAndDropController, DRAGGING_CLASS } from 'vs/workbench/contrib/notebook/browser/view/viewParts/cellDnd';
 import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/viewParts/cellEditorOptions';
@@ -861,82 +860,4 @@ export function getCodeCellExecutionContextKeyService(contextKeyService: IContex
 	NOTEBOOK_CELL_TYPE.bindTo(executionContextKeyService).set('code');
 
 	return executionContextKeyService;
-}
-
-export class ListTopCellToolbar extends Disposable {
-	private topCellToolbar: HTMLElement;
-	private menu: IMenu;
-	private toolbar: ToolBar;
-	private readonly _modelDisposables = this._register(new DisposableStore());
-	constructor(
-		protected readonly notebookEditor: INotebookEditorDelegate,
-
-		contextKeyService: IContextKeyService,
-		insertionIndicatorContainer: HTMLElement,
-		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
-		@IMenuService protected readonly menuService: IMenuService
-	) {
-		super();
-
-		this.topCellToolbar = DOM.append(insertionIndicatorContainer, $('.cell-list-top-cell-toolbar-container'));
-
-		this.toolbar = this._register(new ToolBar(this.topCellToolbar, this.contextMenuService, {
-			actionViewItemProvider: action => {
-				if (action instanceof MenuItemAction) {
-					const item = this.instantiationService.createInstance(CodiconActionViewItem, action);
-					return item;
-				}
-
-				return undefined;
-			}
-		}));
-		this.toolbar.context = <INotebookActionContext>{
-			notebookEditor
-		};
-
-		this.menu = this._register(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellTopInsertToolbar, contextKeyService));
-		this._register(this.menu.onDidChange(() => {
-			this.updateActions();
-		}));
-		this.updateActions();
-
-		// update toolbar container css based on cell list length
-		this._register(this.notebookEditor.onDidChangeModel(() => {
-			this._modelDisposables.clear();
-
-			if (this.notebookEditor.hasModel()) {
-				this._modelDisposables.add(this.notebookEditor.onDidChangeViewCells(() => {
-					this.updateClass();
-				}));
-
-				this.updateClass();
-			}
-		}));
-
-		this.updateClass();
-	}
-
-	private updateActions() {
-		const actions = this.getCellToolbarActions(this.menu, false);
-		this.toolbar.setActions(actions.primary, actions.secondary);
-	}
-
-	private updateClass() {
-		if (this.notebookEditor.hasModel() && this.notebookEditor.getLength() === 0) {
-			this.topCellToolbar.classList.add('emptyNotebook');
-		} else {
-			this.topCellToolbar.classList.remove('emptyNotebook');
-		}
-	}
-
-	private getCellToolbarActions(menu: IMenu, alwaysFillSecondaryActions: boolean): { primary: IAction[], secondary: IAction[]; } {
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary };
-
-		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
-
-		return result;
-	}
 }

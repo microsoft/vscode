@@ -49,7 +49,7 @@ import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/outpu
 import { BackLayerWebView, INotebookWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/viewParts/cellContextKeys';
 import { CellDragAndDropController } from 'vs/workbench/contrib/notebook/browser/view/viewParts/cellDnd';
-import { CodeCellRenderer, ListTopCellToolbar, MarkupCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
+import { CodeCellRenderer, MarkupCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
@@ -70,6 +70,7 @@ import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { registerZIndex, ZIndex } from 'vs/platform/layout/browser/zIndexRegistry';
 import { INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { notebookDebug } from 'vs/workbench/contrib/notebook/browser/notebookLogger';
+import { ListTopCellToolbar } from 'vs/workbench/contrib/notebook/browser/view/viewParts/topCellToolbar';
 
 const $ = DOM.$;
 
