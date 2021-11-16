@@ -25,6 +25,16 @@ export interface IConfigurationOverrides {
 	resource?: URI | null;
 }
 
+export function isConfigurationUpdateOverrides(thing: any): thing is IConfigurationUpdateOverrides {
+	return thing
+		&& typeof thing === 'object'
+		&& (!thing.overrideIdentifiers || types.isArray(thing.overrideIdentifiers))
+		&& !thing.overrideIdentifier
+		&& (!thing.resource || thing.resource instanceof URI);
+}
+
+export type IConfigurationUpdateOverrides = Omit<IConfigurationOverrides, 'overrideIdentifier'> & { overrideIdentifiers?: string[] | null; };
+
 export const enum ConfigurationTarget {
 	USER = 1,
 	USER_LOCAL,
@@ -106,9 +116,9 @@ export interface IConfigurationService {
 	getValue<T>(section: string, overrides: IConfigurationOverrides): T;
 
 	updateValue(key: string, value: any): Promise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides): Promise<void>;
+	updateValue(key: string, value: any, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides): Promise<void>;
 	updateValue(key: string, value: any, target: ConfigurationTarget): Promise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget, donotNotifyError?: boolean): Promise<void>;
+	updateValue(key: string, value: any, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides, target: ConfigurationTarget, donotNotifyError?: boolean): Promise<void>;
 
 	inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<Readonly<T>>;
 
@@ -267,10 +277,6 @@ export function getDefaultValues(): any {
 	}
 
 	return valueTreeRoot;
-}
-
-export function keyFromOverrideIdentifier(overrideIdentifier: string): string {
-	return `[${overrideIdentifier}]`;
 }
 
 export function getMigratedSettingValue<T>(configurationService: IConfigurationService, currentSettingName: string, legacySettingName: string): T {

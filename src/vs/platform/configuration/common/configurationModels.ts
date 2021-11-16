@@ -13,8 +13,8 @@ import * as objects from 'vs/base/common/objects';
 import { IExtUri } from 'vs/base/common/resources';
 import * as types from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { addToValueTree, ConfigurationTarget, getConfigurationKeys, getConfigurationValue, getDefaultValues, IConfigurationChange, IConfigurationChangeEvent, IConfigurationCompareResult, IConfigurationData, IConfigurationModel, IConfigurationOverrides, IConfigurationValue, IOverrides, removeFromValueTree, toValuesTree } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions, IConfigurationPropertySchema, IConfigurationRegistry, overrideIdentifiersFromKey, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
+import { addToValueTree, ConfigurationTarget, getConfigurationKeys, getConfigurationValue, getDefaultValues, IConfigurationChange, IConfigurationChangeEvent, IConfigurationCompareResult, IConfigurationData, IConfigurationModel, IConfigurationOverrides, IConfigurationUpdateOverrides, IConfigurationValue, IOverrides, removeFromValueTree, toValuesTree } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationScope, Extensions, IConfigurationPropertySchema, IConfigurationRegistry, overrideIdentifiersFromKey, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
@@ -239,7 +239,7 @@ export class DefaultConfigurationModel extends ConfigurationModel {
 		const keys = getConfigurationKeys();
 		const overrides: IOverrides[] = [];
 		for (const key of Object.keys(contents)) {
-			if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
+			if (OVERRIDE_PROPERTY_REGEX.test(key)) {
 				overrides.push({
 					identifiers: overrideIdentifiersFromKey(key),
 					keys: Object.keys(contents[key]),
@@ -371,7 +371,7 @@ export class ConfigurationModelParser {
 		const raw: any = {};
 		const restricted: string[] = [];
 		for (let key in properties) {
-			if (OVERRIDE_PROPERTY_PATTERN.test(key) && filterOverriddenProperties) {
+			if (OVERRIDE_PROPERTY_REGEX.test(key) && filterOverriddenProperties) {
 				const result = this.filter(properties[key], configurationProperties, false, options);
 				raw[key] = result.raw;
 				restricted.push(...result.restricted);
@@ -395,7 +395,7 @@ export class ConfigurationModelParser {
 	private toOverrides(raw: any, conflictReporter: (message: string) => void): IOverrides[] {
 		const overrides: IOverrides[] = [];
 		for (const key of Object.keys(raw)) {
-			if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
+			if (OVERRIDE_PROPERTY_REGEX.test(key)) {
 				const overrideRaw: any = {};
 				for (const keyInOverrideRaw in raw[key]) {
 					overrideRaw[keyInOverrideRaw] = raw[key][keyInOverrideRaw];
@@ -476,7 +476,7 @@ export class Configuration {
 		return consolidateConfigurationModel.getValue(section);
 	}
 
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides = {}): void {
+	updateValue(key: string, value: any, overrides: IConfigurationUpdateOverrides = {}): void {
 		let memoryConfiguration: ConfigurationModel | undefined;
 		if (overrides.resource) {
 			memoryConfiguration = this._memoryConfigurationByResource.get(overrides.resource);

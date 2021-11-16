@@ -15,7 +15,7 @@ import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/mod
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry, OVERRIDE_PROPERTY_PATTERN, IConfigurationExtensionInfo } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry, IConfigurationExtensionInfo, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
@@ -342,7 +342,7 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 				};
 				if (previousParents.length === settingsPropertyIndex + 1) {
 					settings.push(setting);
-					if (OVERRIDE_PROPERTY_PATTERN.test(name)) {
+					if (OVERRIDE_PROPERTY_REGEX.test(name)) {
 						overrideSetting = setting;
 					}
 				} else {
@@ -618,7 +618,7 @@ export class DefaultSettings extends Disposable {
 					description = '';
 				}
 				const descriptionLines = description.split('\n');
-				const overrides = OVERRIDE_PROPERTY_PATTERN.test(key) ? this.parseOverrideSettings(prop.default) : [];
+				const overrides = OVERRIDE_PROPERTY_REGEX.test(key) ? this.parseOverrideSettings(prop.default) : [];
 				let listItemType: string | undefined;
 				if (prop.type === 'array' && prop.items && !isArray(prop.items) && prop.items.type) {
 					if (prop.items.enum) {

@@ -11,7 +11,7 @@ import { ExtHostConfigurationShape, MainThreadConfigurationShape, IConfiguration
 import { ConfigurationTarget as ExtHostConfigurationTarget } from './extHostTypes';
 import { ConfigurationTarget, IConfigurationChange, IConfigurationData, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { Configuration, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
-import { ConfigurationScope, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
 import { isObject } from 'vs/base/common/types';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Barrier } from 'vs/base/common/async';
@@ -297,7 +297,7 @@ export class ExtHostConfigProvider {
 	}
 
 	private _validateConfigurationAccess(key: string, overrides?: IConfigurationOverrides, extensionId?: ExtensionIdentifier): void {
-		const scope = OVERRIDE_PROPERTY_PATTERN.test(key) ? ConfigurationScope.RESOURCE : this._configurationScopes.get(key);
+		const scope = OVERRIDE_PROPERTY_REGEX.test(key) ? ConfigurationScope.RESOURCE : this._configurationScopes.get(key);
 		const extensionIdText = extensionId ? `[${extensionId.value}] ` : '';
 		if (ConfigurationScope.RESOURCE === scope) {
 			if (typeof overrides?.resource === 'undefined') {
