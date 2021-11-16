@@ -10,6 +10,7 @@ import { basename } from 'vs/base/common/path';
 import { Promises } from 'vs/base/node/pfs';
 import { IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest } from 'vs/base/parts/storage/common/storage';
 import type { Database, Statement } from '@vscode/sqlite3';
+import { EventEmitter } from 'stream';
 
 interface IDatabaseConnection {
 	readonly db: Database;
@@ -401,7 +402,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 			this.handleSQLiteError(connection, `[storage ${this.name}] prepare(): ${error} (${sql}). Details: ${errorDetails()}`);
 		};
 
-		stmt.on('error', statementErrorListener);
+		(stmt as unknown as EventEmitter).on('error', statementErrorListener);
 
 		runCallback(stmt);
 
@@ -410,7 +411,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 				statementErrorListener(error);
 			}
 
-			stmt.removeListener('error', statementErrorListener);
+			(stmt as unknown as EventEmitter).removeListener('error', statementErrorListener);
 		});
 	}
 }
