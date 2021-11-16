@@ -110,7 +110,7 @@ suite('NotebookViewModel Outputs', async () => {
 							return 100;
 						}
 					},
-					disposables: new DisposableStore(),
+					templateDisposables: new DisposableStore(),
 				} as unknown as CodeCellRenderTemplate, { limit: 5 }, openerService, instantiationService);
 				container.render(100);
 				assert.strictEqual(container.renderedOutputEntries.length, 4);
@@ -189,7 +189,7 @@ suite('NotebookViewModel Outputs', async () => {
 							return 100;
 						}
 					},
-					disposables: new DisposableStore(),
+					templateDisposables: new DisposableStore(),
 				} as unknown as CodeCellRenderTemplate, { limit: 5 }, openerService, instantiationService);
 				container.render(100);
 				assert.strictEqual(container.renderedOutputEntries.length, 5);

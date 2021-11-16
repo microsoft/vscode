@@ -43,7 +43,7 @@ import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/vie
 import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellContextKeys';
 import { CellDragAndDropController, DRAGGING_CLASS } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellDnd';
 import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellEditorOptions';
-import { CellToolbars } from 'vs/workbench/contrib/notebook/browser/view/renderers/CellToolbars';
+import { CellToolbars } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellToolbars';
 import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/codeCell';
 import { StatefulMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/markdownCell';
