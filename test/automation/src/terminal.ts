@@ -12,7 +12,7 @@ const TERMINAL_VIEW_SELECTOR = `#terminal`;
 const XTERM_SELECTOR = `${TERMINAL_VIEW_SELECTOR} .terminal-wrapper`;
 const CONTRIBUTED_PROFILE_NAME = `JavaScript Debug Terminal`;
 const TABS = '.tabs-list .terminal-tabs-entry';
-const XTERM_TEXTAREA = `${XTERM_SELECTOR} textarea.xterm-helper-textarea`;
+// const XTERM_TEXTAREA = `${XTERM_SELECTOR} textarea.xterm-helper-textarea`;
 export class Terminal {
 
 	constructor(private code: Code, private quickaccess: QuickAccess, private quickinput: QuickInput) { }
@@ -22,23 +22,25 @@ export class Terminal {
 	}
 
 	async show(): Promise<void> {
-		await this.code.dispatchKeybinding('Control+`');
-		await this.code.waitForActiveElement(XTERM_TEXTAREA);
+		await this.runCommand('workbench.action.terminal.toggleTerminal');
 		await this.code.waitForTerminalBuffer(XTERM_SELECTOR, lines => lines.some(line => line.length > 0));
 	}
 
 	async createNew(): Promise<void> {
-		await this.code.dispatchKeybinding('Control+Shift+`');
-		await this.code.waitForActiveElement(XTERM_TEXTAREA);
+		await this.runCommand('workbench.action.terminal.new');
 		await this.code.waitForTerminalBuffer(XTERM_SELECTOR, lines => lines.some(line => line.length > 0));
 	}
 
 	async runCommand(commandId: string, value?: string): Promise<void> {
+		if (commandId === 'workbench.action.terminal.join') {
+			await this.quickaccess.runCommand(commandId, true);
+			await this.code.dispatchKeybinding('enter');
+			await this.quickinput.waitForQuickInputClosed();
+			return;
+		}
 		await this.quickaccess.runCommand(commandId, !!value);
-		if (value || commandId === 'workbench.action.terminal.join') {
-			if (value) {
-				await this.code.waitForSetValue(QuickInput.QUICK_INPUT_INPUT, value);
-			}
+		if (value) {
+			await this.code.waitForSetValue(QuickInput.QUICK_INPUT_INPUT, value);
 			await this.code.dispatchKeybinding('enter');
 			await this.quickinput.waitForQuickInputClosed();
 		}

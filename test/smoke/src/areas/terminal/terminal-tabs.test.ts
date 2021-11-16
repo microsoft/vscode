@@ -9,7 +9,7 @@ import { Application } from '../../../../automation/out';
 import { afterSuite, beforeSuite, timeout } from '../../utils';
 
 export function setup(opts: ParsedArgs) {
-	describe('Terminal Tabs', () => {
+	describe.only('Terminal Tabs', () => {
 		let app: Application;
 
 		const enum TerminalCommandId {
@@ -103,33 +103,33 @@ export function setup(opts: ParsedArgs) {
 			await app.workbench.terminal.getTabLabels(2, true);
 		});
 
-		it.skip('should create a split terminal when a tab is alt clicked', async function () {
+		it('should do nothing when join tabs is run with only one terminal', async function () {
+			await app.workbench.terminal.show();
+			await app.workbench.terminal.runCommand(TerminalCommandId.Join);
+			await app.code.waitForElement('.single-terminal-tab');
+		});
+
+		it('should join tabs when more than one terminal', async function () {
+			await app.workbench.terminal.show();
+			await app.workbench.terminal.createNew();
+			await app.workbench.terminal.runCommand(TerminalCommandId.Join);
+			await app.workbench.terminal.getTabLabels(2, true);
+		});
+
+		it('should do nothing when unsplit tabs called with no splits', async function () {
+			await app.workbench.terminal.show();
+			await app.workbench.terminal.createNew();
+			await app.workbench.terminal.getTabLabels(2, false);
+			await app.workbench.terminal.runCommand(TerminalCommandId.Unsplit);
+			await app.workbench.terminal.getTabLabels(2, false);
+		});
+
+		it('should unsplit tabs', async function () {
 			await app.workbench.terminal.show();
 			await app.workbench.terminal.runCommand(TerminalCommandId.Split);
 			await app.workbench.terminal.getTabLabels(2, true);
-			const page = await app.workbench.terminal.getPage();
-			page.keyboard.down('Alt');
-			await this.code.waitAndClick('.tabs-list .terminal-tabs-entry');
-			page.keyboard.up('Alt');
-			await app.workbench.terminal.getTabLabels(3, true);
-		});
-
-		it.skip('should join tabs', async function () {
-			await app.workbench.terminal.show();
-			await app.workbench.terminal.runCommand(TerminalCommandId.Join);
-			await this.code.waitAndClick('.tabs-list .terminal-tabs-entry');
-			await app.workbench.terminal.getTabLabels(2, true);
-		});
-
-		it.skip('should unsplit tabs', async function () {
-			await app.workbench.terminal.show();
-			await app.workbench.terminal.createNew();
-			await this.code.waitAndClick('.tabs-list .terminal-tabs-entry');
-			await app.workbench.terminal.getTabLabels(2, true);
 			await app.workbench.terminal.runCommand(TerminalCommandId.Unsplit);
-			const tabLabels = await app.workbench.terminal.getTabLabels(2, false);
-			ok(!tabLabels[0].startsWith('┌') && !tabLabels[1].startsWith('└'));
+			await app.workbench.terminal.getTabLabels(2, false, t => t.every(label => !label.textContent.startsWith('┌') && !label.textContent.startsWith('└')));
 		});
-
 	});
 }

@@ -1599,10 +1599,11 @@ export function registerTerminalActions() {
 			const themeService = accessor.get(IThemeService);
 			const groupService = accessor.get(ITerminalGroupService);
 			const picks: ITerminalQuickPickItem[] = [];
-			if (!groupService.activeInstance) {
+			if (!groupService.activeInstance || groupService.instances.length === 1) {
 				return;
 			}
-			for (const terminal of groupService.instances) {
+			const otherInstances = groupService.instances.filter(i => i.instanceId !== groupService.activeInstance?.instanceId);
+			for (const terminal of otherInstances) {
 				const group = groupService.getGroupForInstance(terminal);
 				if (group?.terminalInstances.length === 1) {
 					const iconId = getIconId(terminal);
@@ -1619,12 +1620,14 @@ export function registerTerminalActions() {
 					picks.push({
 						terminal,
 						label,
-						iconClasses,
-						accept: () => groupService.joinInstances([terminal, groupService.activeInstance!])
+						iconClasses
 					});
 				}
 			}
-			accessor.get(IQuickInputService).pick(picks);
+			const result = await accessor.get(IQuickInputService).pick(picks, {});
+			if (result) {
+				groupService.joinInstances([result.terminal, groupService.activeInstance!]);
+			}
 		}
 	}
 	);
