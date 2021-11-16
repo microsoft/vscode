@@ -217,6 +217,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		this.excludedConfigurationProperties = {};
 
 		contributionRegistry.registerSchema(resourceLanguageSettingsSchemaId, this.resourceLanguageSettingsSchema);
+		this.registerOverridePropertyPatternKey();
 	}
 
 	public registerConfiguration(configuration: IConfigurationNode, validate: boolean = true): void {
@@ -265,7 +266,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 						description: nls.localize('defaultLanguageConfiguration.description', "Configure settings to be overridden for {0} language.", key),
 						$ref: resourceLanguageSettingsSchemaId
 					};
-					overrideIdentifiers.push(overrideIdentifierFromKey(key));
+					overrideIdentifiers.push(...overrideIdentifiersFromKey(key));
 					this.configurationProperties[key] = property;
 					this.defaultLanguageConfigurationOverridesNode.properties![key] = property;
 				} else {
@@ -499,6 +500,22 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		this._onDidSchemaChange.fire();
 	}
 
+	private registerOverridePropertyPatternKey(): void {
+		const resourceLanguagePropertiesSchema: IJSONSchema = {
+			type: 'object',
+			description: nls.localize('overrideSettings.defaultDescription', "Configure editor settings to be overridden for a language."),
+			errorMessage: nls.localize('overrideSettings.errorMessage', "This setting does not support per-language configuration."),
+			$ref: resourceLanguageSettingsSchemaId,
+		};
+		allSettings.patternProperties[OVERRIDE_PROPERTY] = resourceLanguagePropertiesSchema;
+		applicationSettings.patternProperties[OVERRIDE_PROPERTY] = resourceLanguagePropertiesSchema;
+		machineSettings.patternProperties[OVERRIDE_PROPERTY] = resourceLanguagePropertiesSchema;
+		machineOverridableSettings.patternProperties[OVERRIDE_PROPERTY] = resourceLanguagePropertiesSchema;
+		windowSettings.patternProperties[OVERRIDE_PROPERTY] = resourceLanguagePropertiesSchema;
+		resourceSettings.patternProperties[OVERRIDE_PROPERTY] = resourceLanguagePropertiesSchema;
+		this._onDidSchemaChange.fire();
+	}
+
 	private updatePropertyDefaultValue(key: string, property: IConfigurationPropertySchema): void {
 		let defaultValue = this.defaultValues[key];
 		if (types.isUndefined(defaultValue)) {
@@ -511,11 +528,24 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 }
 
-const OVERRIDE_PROPERTY = '\\[.*\\]$';
+const OVERRIDE_IDENTIFIER = `\\[([^\\]]+)\\]`;
+const OVERRIDE_IDENTIFIER_PATTERN = new RegExp(OVERRIDE_IDENTIFIER, 'g');
+export const OVERRIDE_PROPERTY = `^(${OVERRIDE_IDENTIFIER})+$`;
 export const OVERRIDE_PROPERTY_PATTERN = new RegExp(OVERRIDE_PROPERTY);
 
-export function overrideIdentifierFromKey(key: string): string {
-	return key.substring(1, key.length - 1);
+export function overrideIdentifiersFromKey(key: string): string[] {
+	const identifiers: string[] = [];
+	if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
+		let matches = OVERRIDE_IDENTIFIER_PATTERN.exec(key);
+		while (matches?.length) {
+			const identifier = matches[1].trim();
+			if (identifier) {
+				identifiers.push(identifier);
+			}
+			matches = OVERRIDE_IDENTIFIER_PATTERN.exec(key);
+		}
+	}
+	return distinct(identifiers);
 }
 
 export function getDefaultValue(type: string | string[] | undefined): any {

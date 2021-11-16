@@ -13,8 +13,8 @@ import * as objects from 'vs/base/common/objects';
 import { IExtUri } from 'vs/base/common/resources';
 import * as types from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { addToValueTree, ConfigurationTarget, getConfigurationKeys, getConfigurationValue, getDefaultValues, IConfigurationChange, IConfigurationChangeEvent, IConfigurationCompareResult, IConfigurationData, IConfigurationModel, IConfigurationOverrides, IConfigurationValue, IOverrides, removeFromValueTree, toOverrides, toValuesTree } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions, IConfigurationPropertySchema, IConfigurationRegistry, overrideIdentifierFromKey, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
+import { addToValueTree, ConfigurationTarget, getConfigurationKeys, getConfigurationValue, getDefaultValues, IConfigurationChange, IConfigurationChangeEvent, IConfigurationCompareResult, IConfigurationData, IConfigurationModel, IConfigurationOverrides, IConfigurationValue, IOverrides, removeFromValueTree, toValuesTree } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationScope, Extensions, IConfigurationPropertySchema, IConfigurationRegistry, overrideIdentifiersFromKey, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
@@ -241,7 +241,7 @@ export class DefaultConfigurationModel extends ConfigurationModel {
 		for (const key of Object.keys(contents)) {
 			if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
 				overrides.push({
-					identifiers: [overrideIdentifierFromKey(key).trim()],
+					identifiers: overrideIdentifiersFromKey(key),
 					keys: Object.keys(contents[key]),
 					contents: toValuesTree(contents[key], message => console.error(`Conflict in default settings file: ${message}`)),
 				});
@@ -360,7 +360,7 @@ export class ConfigurationModelParser {
 		raw = filtered.raw;
 		const contents = toValuesTree(raw, message => console.error(`Conflict in settings file ${this._name}: ${message}`));
 		const keys = Object.keys(raw);
-		const overrides: IOverrides[] = toOverrides(raw, message => console.error(`Conflict in settings file ${this._name}: ${message}`));
+		const overrides = this.toOverrides(raw, message => console.error(`Conflict in settings file ${this._name}: ${message}`));
 		return { contents, keys, overrides, restricted: filtered.restricted };
 	}
 
@@ -390,6 +390,24 @@ export class ConfigurationModelParser {
 			}
 		}
 		return { raw, restricted };
+	}
+
+	private toOverrides(raw: any, conflictReporter: (message: string) => void): IOverrides[] {
+		const overrides: IOverrides[] = [];
+		for (const key of Object.keys(raw)) {
+			if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
+				const overrideRaw: any = {};
+				for (const keyInOverrideRaw in raw[key]) {
+					overrideRaw[keyInOverrideRaw] = raw[key][keyInOverrideRaw];
+				}
+				overrides.push({
+					identifiers: overrideIdentifiersFromKey(key),
+					keys: Object.keys(overrideRaw),
+					contents: toValuesTree(overrideRaw, conflictReporter)
+				});
+			}
+		}
+		return overrides;
 	}
 
 }
@@ -572,8 +590,7 @@ export class Configuration {
 	compareAndUpdateDefaultConfiguration(defaults: ConfigurationModel, keys: string[]): IConfigurationChange {
 		const overrides: [string, string[]][] = [];
 		for (const key of keys) {
-			if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
-				const overrideIdentifier = overrideIdentifierFromKey(key);
+			for (const overrideIdentifier of overrideIdentifiersFromKey(key)) {
 				const fromKeys = this._defaultConfiguration.getKeysForOverrideIdentifier(overrideIdentifier);
 				const toKeys = defaults.getKeysForOverrideIdentifier(overrideIdentifier);
 				const keys = [
@@ -932,4 +949,3 @@ function compareConfigurationContents(to: { keys: string[], contents: any } | un
 	}
 	return { added, removed, updated };
 }
-

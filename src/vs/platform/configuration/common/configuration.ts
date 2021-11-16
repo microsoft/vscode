@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import * as types from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { Extensions, IConfigurationRegistry, overrideIdentifierFromKey, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -147,24 +147,6 @@ export interface IConfigurationCompareResult {
 	removed: string[];
 	updated: string[];
 	overrides: [string, string[]][];
-}
-
-export function toOverrides(raw: any, conflictReporter: (message: string) => void): IOverrides[] {
-	const overrides: IOverrides[] = [];
-	for (const key of Object.keys(raw)) {
-		if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
-			const overrideRaw: any = {};
-			for (const keyInOverrideRaw in raw[key]) {
-				overrideRaw[keyInOverrideRaw] = raw[key][keyInOverrideRaw];
-			}
-			overrides.push({
-				identifiers: [overrideIdentifierFromKey(key).trim()],
-				keys: Object.keys(overrideRaw),
-				contents: toValuesTree(overrideRaw, conflictReporter)
-			});
-		}
-	}
-	return overrides;
 }
 
 export function toValuesTree(properties: { [qualifiedKey: string]: any }, conflictReporter: (message: string) => void): any {
