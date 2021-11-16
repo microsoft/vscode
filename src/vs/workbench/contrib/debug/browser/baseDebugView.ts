@@ -149,7 +149,7 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 		const expression = dom.append(container, $('.expression'));
 		const name = dom.append(expression, $('span.name'));
 		const value = dom.append(expression, $('span.value'));
-		const label = new HighlightedLabel(name, false);
+		const label = new HighlightedLabel(name);
 
 		const inputBoxContainer = dom.append(expression, $('.inputBoxContainer'));
 

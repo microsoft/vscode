@@ -40,24 +40,57 @@
 .monaco-workbench .editor-instance .terminal-wrapper,
 .monaco-workbench .pane-body.integrated-terminal .terminal-wrapper {
 	display: none;
-	margin: 0 10px;
 	height: 100%;
-	padding-bottom: 2px;
 	box-sizing: border-box;
 }
+
+.monaco-workbench .editor-instance .xterm,
+.monaco-workbench .pane-body.integrated-terminal .xterm {
+	/* All terminals have at least 10px left/right edge padding and 2 padding on the bottom (so underscores on last line are visible */
+	padding: 0 10px 2px;
+	/* Bottom align the terminal withing the split pane */
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	right: 0;
+}
+
+.monaco-workbench .editor-instance .terminal-wrapper.fixed-dims .xterm,
+.monaco-workbench .pane-body.integrated-terminal .terminal-wrapper.fixed-dims .xterm {
+	position: static;
+}
+
+.monaco-workbench .editor-instance .xterm-viewport,
+.monaco-workbench .pane-body.integrated-terminal .xterm-viewport {
+	z-index: 30;
+}
+
+.monaco-workbench .editor-instance .xterm-screen,
+.monaco-workbench .pane-body.integrated-terminal .xterm-screen {
+	z-index: 31;
+}
+
+.xterm .xterm-screen {
+	cursor: text;
+}
+
+/* Apply cursor styles to xterm-screen as well due to how .xterm-viewport/.xterm are positioned */
+.xterm.enable-mouse-events .xterm-screen  { cursor: default; }
+.xterm.xterm-cursor-pointer .xterm-screen { cursor: pointer; }
+.xterm.column-select.focus .xterm-screen  { cursor: crosshair; }
 
 .monaco-workbench .editor-instance .terminal-wrapper.active,
 .monaco-workbench .pane-body.integrated-terminal .terminal-wrapper.active {
 	display: block;
 }
 
-.monaco-workbench .editor-instance .terminal-group .monaco-split-view2.horizontal .split-view-view:first-child .terminal-wrapper,
-.monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view:first-child .terminal-wrapper {
-	margin-left: 20px;
+.monaco-workbench .editor-instance .terminal-group .monaco-split-view2.horizontal .split-view-view:first-child .xterm,
+.monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view:first-child .xterm {
+	padding-left: 20px;
 }
-.monaco-workbench .editor-instance .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .terminal-wrapper,
-.monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .terminal-wrapper {
-	margin-right: 20px;
+.monaco-workbench .editor-instance .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .xterm,
+.monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .xterm {
+	padding-right: 20px;
 }
 
 .monaco-workbench .editor-instance .xterm a:not(.xterm-invalid-link),
@@ -69,21 +102,23 @@
 .monaco-workbench .editor-instance .terminal-wrapper > div,
 .monaco-workbench .pane-body.integrated-terminal .terminal-wrapper > div {
 	height: 100%;
-	/* Align the viewport and canvases to the bottom of the panel */
-	display: flex;
-	align-items: flex-end;
 }
 
 .monaco-workbench .editor-instance .xterm-viewport,
 .monaco-workbench .pane-body.integrated-terminal .xterm-viewport {
 	box-sizing: border-box;
-	margin-right: -10px;
+}
+
+.monaco-workbench .editor-instance .terminal-wrapper.fixed-dims,
+.monaco-workbench .pane-body.integrated-terminal .terminal-wrapper.fixed-dims {
+	/* The viewport should be positioned against this so it does't conflict with a fixed dimensions terminal horizontal scroll bar*/
+	position: relative;
+}
+
+.monaco-workbench .editor-instance .terminal-wrapper:not(.fixed-dims) .xterm-viewport,
+.monaco-workbench .pane-body.integrated-terminal .terminal-wrapper:not(.fixed-dims) .xterm-viewport {
 	/* Override xterm.js' width as we want to size the viewport to fill the panel so the scrollbar is on the right edge */
 	width: auto !important;
-}
-.monaco-workbench .editor-instance .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .xterm-viewport,
-.monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .xterm-viewport {
-	margin-right: -20px;
 }
 
 .monaco-workbench .pane-body.integrated-terminal {
@@ -353,6 +388,7 @@
 	pointer-events: none;
 	opacity: 0; /* hidden initially */
 	transition: left 70ms ease-out, right 70ms ease-out, top 70ms ease-out, bottom 70ms ease-out, opacity 150ms ease-out;
+	z-index: 33;
 }
 .monaco-workbench .pane-body.integrated-terminal .terminal-group > .monaco-split-view2.horizontal .terminal-drop-overlay.drop-before {
 	right: 50%;

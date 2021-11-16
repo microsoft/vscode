@@ -6,8 +6,8 @@
 import { Code } from './code';
 import { QuickAccess } from './quickaccess';
 
-const PANEL_SELECTOR = 'div[id="workbench.panel.terminal"]';
-const XTERM_SELECTOR = `${PANEL_SELECTOR} .terminal-wrapper`;
+const TERMINAL_VIEW_SELECTOR = `#terminal`;
+const XTERM_SELECTOR = `${TERMINAL_VIEW_SELECTOR} .terminal-wrapper`;
 const XTERM_TEXTAREA = `${XTERM_SELECTOR} textarea.xterm-helper-textarea`;
 
 export class Terminal {
@@ -27,7 +27,14 @@ export class Terminal {
 		await this.code.dispatchKeybinding('enter');
 	}
 
-	async waitForTerminalText(accept: (buffer: string[]) => boolean): Promise<void> {
-		await this.code.waitForTerminalBuffer(XTERM_SELECTOR, accept);
+	async waitForTerminalText(accept: (buffer: string[]) => boolean, message?: string): Promise<void> {
+		try {
+			await this.code.waitForTerminalBuffer(XTERM_SELECTOR, accept);
+		} catch (err: any) {
+			if (message) {
+				throw new Error(`${message}\n\nInner exception:\n${err.message}`);
+			}
+			throw err;
+		}
 	}
 }

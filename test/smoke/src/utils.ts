@@ -42,9 +42,9 @@ export function beforeSuite(opts: minimist.ParsedArgs, optionsTransform?: (opts:
 	});
 }
 
-export function afterSuite(opts: minimist.ParsedArgs) {
+export function afterSuite(opts: minimist.ParsedArgs, appFn?: () => Application | undefined, joinFn?: () => Promise<unknown>) {
 	after(async function () {
-		const app = this.app as Application;
+		const app: Application = appFn?.() ?? this.app;
 
 		if (this.currentTest?.state === 'failed' && opts.screenshots) {
 			const name = this.currentTest!.fullTitle().replace(/[^a-z0-9\-]/ig, '_');
@@ -57,6 +57,10 @@ export function afterSuite(opts: minimist.ParsedArgs) {
 
 		if (app) {
 			await app.stop();
+		}
+
+		if (joinFn) {
+			await joinFn();
 		}
 	});
 }

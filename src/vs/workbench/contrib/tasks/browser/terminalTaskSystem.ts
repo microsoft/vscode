@@ -829,12 +829,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				this.logService.error('Task terminal process never got ready');
 			});
 			this.fireTaskEvent(TaskEvent.create(TaskEventKind.Start, task, terminal.instanceId));
-			let skipLine: boolean = (!!task.command.presentation && task.command.presentation.echo);
 			const onData = terminal.onLineData((line) => {
-				if (skipLine) {
-					skipLine = false;
-					return;
-				}
 				watchingProblemMatcher.processLine(line);
 				if (!delayer) {
 					delayer = new Async.Delayer(3000);
@@ -920,12 +915,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			let problemMatchers = await this.resolveMatchers(resolver, task.configurationProperties.problemMatchers);
 			let startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this.markerService, this.modelService, ProblemHandlingStrategy.Clean, this.fileService);
 			this.terminalStatusManager.addTerminal(task, terminal, startStopProblemMatcher);
-			let skipLine: boolean = (!!task.command.presentation && task.command.presentation.echo);
 			const onData = terminal.onLineData((line) => {
-				if (skipLine) {
-					skipLine = false;
-					return;
-				}
 				startStopProblemMatcher.processLine(line);
 			});
 			promise = new Promise<ITaskSummary>((resolve, reject) => {
@@ -1094,7 +1084,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			let windowsShellArgs: boolean = false;
 			if (platform === Platform.Platform.Windows) {
 				windowsShellArgs = true;
-				let basename = path.basename(shellLaunchConfig.executable!).toLowerCase();
+				let basename = path.posix.basename(URI.file(shellLaunchConfig.executable!).path).toLowerCase();
 				// If we don't have a cwd, then the terminal uses the home dir.
 				const userHome = await this.pathService.userHome();
 				if (basename === 'cmd.exe' && ((options.cwd && isUNC(options.cwd)) || (!options.cwd && isUNC(userHome.fsPath)))) {
@@ -1458,8 +1448,16 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 		this.collectMatcherVariables(variables, task.configurationProperties.problemMatchers);
 
-		if (task.command.runtime === RuntimeType.CustomExecution && CustomTask.is(task)) {
-			this.collectDefinitionVariables(variables, task._source.config.element);
+		if (task.command.runtime === RuntimeType.CustomExecution && (CustomTask.is(task) || ContributedTask.is(task))) {
+			let definition: any;
+			if (CustomTask.is(task)) {
+				definition = task._source.config.element;
+			} else {
+				definition = Objects.deepClone(task.defines);
+				delete definition._key;
+				delete definition.type;
+			}
+			this.collectDefinitionVariables(variables, definition);
 		}
 	}
 

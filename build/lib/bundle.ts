@@ -100,6 +100,9 @@ export interface ILoaderConfig {
 export function bundle(entryPoints: IEntryPoint[], config: ILoaderConfig, callback: (err: any, result: IBundleResult | null) => void): void {
 	const entryPointsMap: IEntryPointMap = {};
 	entryPoints.forEach((module: IEntryPoint) => {
+		if (entryPointsMap[module.name]) {
+			throw new Error(`Cannot have two entry points with the same name '${module.name}'`);
+		}
 		entryPointsMap[module.name] = module;
 	});
 

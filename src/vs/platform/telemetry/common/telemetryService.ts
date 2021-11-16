@@ -95,12 +95,11 @@ export class TelemetryService implements ITelemetryService {
 
 		// well known properties
 		let sessionId = values['sessionID'];
-		let instanceId = values['common.instanceId'];
 		let machineId = values['common.machineId'];
 		let firstSessionDate = values['common.firstSessionDate'];
 		let msftInternal = values['common.msftInternal'];
 
-		return { sessionId, instanceId, machineId, firstSessionDate, msftInternal };
+		return { sessionId, machineId, firstSessionDate, msftInternal };
 	}
 
 	dispose(): void {

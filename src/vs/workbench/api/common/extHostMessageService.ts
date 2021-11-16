@@ -44,7 +44,7 @@ export class ExtHostMessageService {
 		}
 
 		if (options.useCustom) {
-			checkProposedApiEnabled(extension);
+			checkProposedApiEnabled(extension, 'resolvers');
 		}
 
 		const commands: { title: string; isCloseAffordance: boolean; handle: number; }[] = [];

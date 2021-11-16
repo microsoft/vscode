@@ -317,9 +317,11 @@ export abstract class SharedDesktopMain extends Disposable {
 		if (!workspaceInitializationPayload) {
 			let id: string;
 			if (this.configuration.backupPath) {
-				id = basename(this.configuration.backupPath); // we know the backupPath must be a unique path so we leverage its name as workspace ID
+				// we know the backupPath must be a unique path so we leverage its name as workspace ID
+				id = basename(this.configuration.backupPath);
 			} else if (environmentService.isExtensionDevelopment) {
-				id = 'ext-dev'; // extension development window never stores backups and is a singleton
+				// fallback to a reserved identifier when in extension development where backups are not stored
+				id = 'ext-dev';
 			} else {
 				throw new Error('Unexpected window configuration without backupPath');
 			}

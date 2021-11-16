@@ -11,7 +11,6 @@ import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/bas
 import { commonPrefixLength, commonSuffixLength } from 'vs/base/common/strings';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
@@ -43,8 +42,6 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 		this._register(commandService.onDidExecuteCommand(e => {
 			// These commands don't trigger onDidType.
 			const commands = new Set([
-				UndoCommand.id,
-				RedoCommand.id,
 				CoreEditingCommands.Tab.id,
 				CoreEditingCommands.DeleteLeft.id,
 				CoreEditingCommands.DeleteRight.id,

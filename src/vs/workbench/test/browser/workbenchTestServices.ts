@@ -662,6 +662,12 @@ export class TestSideBarPart implements IPaneCompositePart {
 	onDidViewletOpenEmitter = new Emitter<IPaneComposite>();
 	onDidViewletCloseEmitter = new Emitter<IPaneComposite>();
 
+	element: HTMLElement = undefined!;
+	minimumWidth = 0;
+	maximumWidth = 0;
+	minimumHeight = 0;
+	maximumHeight = 0;
+	onDidChange = Event.None;
 	onDidPaneCompositeOpen = this.onDidViewletOpenEmitter.event;
 	onDidPaneCompositeClose = this.onDidViewletCloseEmitter.event;
 
@@ -675,11 +681,18 @@ export class TestSideBarPart implements IPaneCompositePart {
 	hideActivePaneComposite(): void { }
 	getLastActivePaneCompositeId(): string { return undefined!; }
 	dispose() { }
+	layout(width: number, height: number, top: number, left: number): void { }
 }
 
 export class TestPanelPart implements IPaneCompositePart, IPaneCompositeSelectorPart {
 	declare readonly _serviceBrand: undefined;
 
+	element: HTMLElement = undefined!;
+	minimumWidth = 0;
+	maximumWidth = 0;
+	minimumHeight = 0;
+	maximumHeight = 0;
+	onDidChange = Event.None;
 	onDidPaneCompositeOpen = new Emitter<IPaneComposite>().event;
 	onDidPaneCompositeClose = new Emitter<IPaneComposite>().event;
 
@@ -695,6 +708,7 @@ export class TestPanelPart implements IPaneCompositePart, IPaneCompositeSelector
 	getProgressIndicator(id: string) { return null!; }
 	hideActivePaneComposite(): void { }
 	getLastActivePaneCompositeId(): string { return undefined!; }
+	layout(width: number, height: number, top: number, left: number): void { }
 }
 
 export class TestViewsService implements IViewsService {
@@ -821,7 +835,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	moveEditors(_editors: EditorInputWithOptions[], _target: IEditorGroup): void { }
 	copyEditor(_editor: EditorInput, _target: IEditorGroup, _options?: IEditorOptions): void { }
 	copyEditors(_editors: EditorInputWithOptions[], _target: IEditorGroup): void { }
-	async closeEditor(_editor?: EditorInput, options?: ICloseEditorOptions): Promise<void> { }
+	async closeEditor(_editor?: EditorInput, options?: ICloseEditorOptions): Promise<boolean> { return true; }
 	async closeEditors(_editors: EditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<void> { }
 	async closeAllEditors(options?: ICloseAllEditorsOptions): Promise<void> { }
 	async replaceEditors(_editors: IEditorReplacement[]): Promise<void> { }
@@ -1219,7 +1233,7 @@ export class TestLifecycleService implements ILifecycleService {
 
 	fireWillShutdown(event: WillShutdownEvent): void { this._onWillShutdown.fire(event); }
 
-	shutdown(): void {
+	async shutdown(): Promise<void> {
 		this.fireShutdown();
 	}
 }

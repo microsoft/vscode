@@ -263,6 +263,8 @@ export interface IExtensionManifest {
 	readonly contributes?: IExtensionContributions;
 	readonly repository?: { url: string; };
 	readonly bugs?: { url: string; };
+	readonly enabledApiProposals?: readonly string[];
+	/** @deprecated */
 	readonly enableProposedApi?: boolean;
 	readonly api?: string;
 	readonly scripts?: { [key: string]: string; };
@@ -346,6 +348,8 @@ export interface IExtensionDescription extends IExtensionManifest {
 	readonly isUserBuiltin: boolean;
 	readonly isUnderDevelopment: boolean;
 	readonly extensionLocation: URI;
+
+	/** @deprecated */
 	enableProposedApi?: boolean;
 }
 
@@ -358,7 +362,7 @@ export function isAuthenticationProviderExtension(manifest: IExtensionManifest):
 }
 
 export function isResolverExtension(manifest: IExtensionManifest, remoteAuthority: string | undefined): boolean {
-	if (remoteAuthority && manifest.enableProposedApi) {
+	if (remoteAuthority) {
 		const activationEvent = `onResolveRemoteAuthority:${getRemoteName(remoteAuthority)}`;
 		return manifest.activationEvents?.indexOf(activationEvent) !== -1;
 	}

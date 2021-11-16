@@ -7,150 +7,114 @@ import { MainContext, MainThreadOutputServiceShape, ExtHostOutputServiceShape } 
 import type * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { VSBuffer } from 'vs/base/common/buffer';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { ILogger, ILoggerService } from 'vs/platform/log/common/log';
+import { OutputChannelUpdateMode } from 'vs/workbench/contrib/output/common/output';
+import { IExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
+import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
+import { toLocalISOString } from 'vs/base/common/date';
+import { VSBuffer } from 'vs/base/common/buffer';
 
-export abstract class AbstractExtHostOutputChannel extends Disposable implements vscode.OutputChannel {
+export class ExtHostOutputChannel extends Disposable implements vscode.OutputChannel {
 
-	readonly _id: Promise<string>;
-	private readonly _name: string;
-	protected readonly _proxy: MainThreadOutputServiceShape;
-	private _disposed: boolean;
-	private _offset: number;
-	private readonly _extension: IExtensionDescription;
-
+	private offset: number = 0;
 	public visible: boolean = false;
 
-	constructor(name: string, log: boolean, file: URI | undefined, extension: IExtensionDescription, proxy: MainThreadOutputServiceShape) {
+	private _disposed: boolean = false;
+	get disposed(): boolean { return this._disposed; }
+
+	constructor(
+		readonly id: string, readonly name: string,
+		private readonly logger: ILogger,
+		private readonly proxy: MainThreadOutputServiceShape
+	) {
 		super();
-
-		this._name = name;
-		this._proxy = proxy;
-		this._id = proxy.$register(this.name, log, file, extension.identifier.value);
-		this._disposed = false;
-		this._offset = 0;
-		this._extension = extension;
-	}
-
-	get name(): string {
-		return this._name;
-	}
-
-	append(value: string): void {
-		this.validate();
-		this.incrementOffset(value);
 	}
 
 	appendLine(value: string): void {
-		this.validate();
 		this.append(value + '\n');
 	}
 
-	clear(): void {
-		this.validate();
-		const till = this._offset;
-		this._id.then(id => this._proxy.$clear(id, till));
+	append(value: string): void {
+		this.write(value);
+		if (this.visible) {
+			this.logger.flush();
+			this.proxy.$update(this.id, OutputChannelUpdateMode.Append);
+		}
 	}
 
-	replaceAll(value: string, donotSendValue?: boolean): void {
-		this.validate(true);
-		const till = this._offset;
-		this.incrementOffset(value);
-		this._id.then(id => this._proxy.$replaceAll(id, till, donotSendValue ? undefined : value));
+	clear(): void {
+		const till = this.offset;
+		this.logger.flush();
+		this.proxy.$update(this.id, OutputChannelUpdateMode.Clear, till);
+	}
+
+	replace(value: string): void {
+		const till = this.offset;
+		this.write(value);
+		this.proxy.$update(this.id, OutputChannelUpdateMode.Replace, till);
+		if (this.visible) {
+			this.logger.flush();
+		}
 	}
 
 	show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
-		this.validate();
-		this._id.then(id => this._proxy.$reveal(id, !!(typeof columnOrPreserveFocus === 'boolean' ? columnOrPreserveFocus : preserveFocus)));
+		this.logger.flush();
+		this.proxy.$reveal(this.id, !!(typeof columnOrPreserveFocus === 'boolean' ? columnOrPreserveFocus : preserveFocus));
 	}
 
 	hide(): void {
-		this.validate();
-		this._id.then(id => this._proxy.$close(id));
+		this.proxy.$close(this.id);
 	}
 
-	protected validate(checkProposedApi?: boolean): void {
-		if (checkProposedApi) {
-			checkProposedApiEnabled(this._extension);
-		}
-		if (this._disposed) {
-			throw new Error('Channel has been closed');
-		}
-	}
-
-	private incrementOffset(value: string) {
-		this._offset += value ? VSBuffer.fromString(value).byteLength : 0;
+	private write(value: string): void {
+		this.offset += VSBuffer.fromString(value).byteLength;
+		this.logger.info(value);
 	}
 
 	override dispose(): void {
 		super.dispose();
 
 		if (!this._disposed) {
-			this._id
-				.then(id => this._proxy.$dispose(id))
-				.then(() => this._disposed = true);
+			this.proxy.$dispose(this.id);
+			this._disposed = true;
 		}
 	}
-}
 
-export class ExtHostPushOutputChannel extends AbstractExtHostOutputChannel {
-
-	constructor(name: string, extension: IExtensionDescription, proxy: MainThreadOutputServiceShape) {
-		super(name, false, undefined, extension, proxy);
-	}
-
-	override append(value: string): void {
-		super.append(value);
-		this._id.then(id => this._proxy.$append(id, value));
-	}
-
-
-}
-
-export class LazyOutputChannel implements vscode.OutputChannel {
-
-	constructor(
-		readonly name: string,
-		private readonly _channel: Promise<AbstractExtHostOutputChannel>
-	) { }
-
-	append(value: string): void {
-		this._channel.then(channel => channel.append(value));
-	}
-	appendLine(value: string): void {
-		this._channel.then(channel => channel.appendLine(value));
-	}
-	clear(): void {
-		this._channel.then(channel => channel.clear());
-	}
-	replaceAll(value: string): void {
-		this._channel.then(channel => channel.replaceAll(value));
-	}
-	show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
-		this._channel.then(channel => channel.show(columnOrPreserveFocus, preserveFocus));
-	}
-	hide(): void {
-		this._channel.then(channel => channel.hide());
-	}
-	dispose(): void {
-		this._channel.then(channel => channel.dispose());
-	}
 }
 
 export class ExtHostOutputService implements ExtHostOutputServiceShape {
 
 	readonly _serviceBrand: undefined;
 
-	protected readonly _proxy: MainThreadOutputServiceShape;
+	private readonly proxy: MainThreadOutputServiceShape;
 
-	constructor(@IExtHostRpcService extHostRpc: IExtHostRpcService) {
-		this._proxy = extHostRpc.getProxy(MainContext.MainThreadOutputService);
+	private readonly outputsLocation: URI;
+	private outputDirectoryPromise: Thenable<URI> | undefined;
+	private namePool: number = 1;
+
+	private readonly channels: Map<string, ExtHostOutputChannel> = new Map<string, ExtHostOutputChannel>();
+	private visibleChannelId: string | null = null;
+
+	constructor(
+		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@IExtHostInitDataService initData: IExtHostInitDataService,
+		@IExtHostConsumerFileSystem private readonly extHostFileSystem: IExtHostConsumerFileSystem,
+		@IExtHostFileSystemInfo private readonly extHostFileSystemInfo: IExtHostFileSystemInfo,
+		@ILoggerService private readonly loggerService: ILoggerService,
+	) {
+		this.proxy = extHostRpc.getProxy(MainContext.MainThreadOutputService);
+		this.outputsLocation = this.extHostFileSystemInfo.extUri.joinPath(initData.logsLocation, `output_logging_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
 	}
 
-	$setVisibleChannel(channelId: string): void {
+	$setVisibleChannel(visibleChannelId: string | null): void {
+		this.visibleChannelId = visibleChannelId;
+		for (const [id, channel] of this.channels) {
+			channel.visible = id === this.visibleChannelId;
+		}
 	}
 
 	createOutputChannel(name: string, extension: IExtensionDescription): vscode.OutputChannel {
@@ -158,9 +122,68 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 		if (!name) {
 			throw new Error('illegal argument `name`. must not be falsy');
 		}
-		return new ExtHostPushOutputChannel(name, extension, this._proxy);
+		const extHostOutputChannel = this.doCreateOutputChannel(name, extension);
+		extHostOutputChannel.then(channel => {
+			this.channels.set(channel.id, channel);
+			channel.visible = channel.id === this.visibleChannelId;
+		});
+		return this.createExtHostOutputChannel(name, extHostOutputChannel);
 	}
 
+	private async doCreateOutputChannel(name: string, extension: IExtensionDescription): Promise<ExtHostOutputChannel> {
+		const outputDir = await this.createOutputDirectory();
+		const file = this.extHostFileSystemInfo.extUri.joinPath(outputDir, `${this.namePool++}-${name.replace(/[\\/:\*\?"<>\|]/g, '')}.log`);
+		const logger = this.loggerService.createLogger(file, { always: true, donotRotate: true, donotUseFormatters: true });
+		const id = await this.proxy.$register(name, false, file, extension.identifier.value);
+		return new ExtHostOutputChannel(id, name, logger, this.proxy);
+	}
+
+	private createOutputDirectory(): Thenable<URI> {
+		if (!this.outputDirectoryPromise) {
+			this.outputDirectoryPromise = this.extHostFileSystem.value.createDirectory(this.outputsLocation).then(() => this.outputsLocation);
+		}
+		return this.outputDirectoryPromise;
+	}
+
+	private createExtHostOutputChannel(name: string, channelPromise: Promise<ExtHostOutputChannel>): vscode.OutputChannel {
+		let disposed = false;
+		const validate = () => {
+			if (disposed) {
+				throw new Error('Channel has been closed');
+			}
+		};
+		return {
+			get name(): string { return name; },
+			append(value: string): void {
+				validate();
+				channelPromise.then(channel => channel.append(value));
+			},
+			appendLine(value: string): void {
+				validate();
+				channelPromise.then(channel => channel.appendLine(value));
+			},
+			clear(): void {
+				validate();
+				channelPromise.then(channel => channel.clear());
+			},
+			replace(value: string): void {
+				validate();
+				channelPromise.then(channel => channel.replace(value));
+			},
+			show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
+				validate();
+				channelPromise.then(channel => channel.show(columnOrPreserveFocus, preserveFocus));
+			},
+			hide(): void {
+				validate();
+				channelPromise.then(channel => channel.hide());
+			},
+			dispose(): void {
+				disposed = true;
+				channelPromise.then(channel => channel.dispose());
+			}
+		};
+	}
 }
 
 export interface IExtHostOutputService extends ExtHostOutputService { }

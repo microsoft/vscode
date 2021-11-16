@@ -132,9 +132,32 @@
 	margin-left: auto;
 }
 
+.monaco-workbench.mac:not(web) .part.titlebar > .window-controls-container {
+	position: absolute;
+	right: 0px;
+	width: 28px;
+	display: none;
+}
+
+.monaco-workbench.mac:not(web) .part.titlebar > .window-controls-container.show-layout-control {
+	display: flex;
+}
+
 .monaco-workbench.fullscreen .part.titlebar > .window-controls-container {
 	display: none;
 	background-color: transparent;
+}
+
+.monaco-workbench .part.titlebar > .window-controls-container.show-layout-control {
+	width: 160px;
+}
+
+.monaco-workbench .part.titlebar > .window-controls-container > .layout-dropdown-container {
+	display: none;
+}
+
+.monaco-workbench .part.titlebar > .window-controls-container.show-layout-control > .layout-dropdown-container {
+	display: inline-block;
 }
 
 .monaco-workbench .part.titlebar > .window-controls-container > .window-icon {

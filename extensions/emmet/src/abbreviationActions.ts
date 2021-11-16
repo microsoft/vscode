@@ -49,7 +49,7 @@ export async function wrapWithAbbreviation(args: any): Promise<boolean> {
 
 	const helper = getEmmetHelper();
 
-	const operationRanges = editor.selections.sort((a, b) => a.start.compareTo(b.start)).map(selection => {
+	const operationRanges = Array.from(editor.selections).sort((a, b) => a.start.compareTo(b.start)).map(selection => {
 		let rangeToReplace: vscode.Range = selection;
 		// wrap around the node if the selection falls inside its open or close tag
 		{

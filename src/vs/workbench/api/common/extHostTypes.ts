@@ -1776,7 +1776,7 @@ export enum TaskPanelKind {
 @es5ClassCompat
 export class TaskGroup implements vscode.TaskGroup {
 
-	isDefault?: boolean;
+	isDefault: boolean | undefined;
 	private _id: string;
 
 	public static Clean: TaskGroup = new TaskGroup('clean', 'Clean');
@@ -2902,6 +2902,11 @@ export class QuickInputButtons {
 	static readonly Back: vscode.QuickInputButton = { iconPath: new ThemeIcon('arrow-left') };
 
 	private constructor() { }
+}
+
+export enum QuickPickItemKind {
+	Default = 1,
+	Separator = 2,
 }
 
 export enum ExtensionKind {

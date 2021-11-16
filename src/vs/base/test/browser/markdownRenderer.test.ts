@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { renderMarkdown, renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { parse } from 'vs/base/common/marshalling';
+import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 
 function strToNode(str: string): HTMLElement {
@@ -55,6 +56,14 @@ suite('MarkdownRenderer', () => {
 		test('image width and height from title params', () => {
 			const result: HTMLElement = renderMarkdown({ value: `![image](http://example.com/cat.gif|height=200,width=100 'caption')` }).element;
 			assertNodeEquals(result, `<div><p><img height="200" width="100" title="caption" alt="image" src="http://example.com/cat.gif"></p></div>`);
+		});
+
+		test('image with file uri should render as same origin uri', () => {
+			if (isWeb) {
+				return;
+			}
+			const result: HTMLElement = renderMarkdown({ value: `![image](file:///images/cat.gif)` }).element;
+			assertNodeEquals(result, '<div><p><img src="vscode-file://vscode-app/images/cat.gif" alt="image"></p></div>');
 		});
 	});
 
@@ -139,7 +148,7 @@ suite('MarkdownRenderer', () => {
 			mds.appendMarkdown(`[$(zap)-link](#link)`);
 
 			let result: HTMLElement = renderMarkdown(mds).element;
-			assert.strictEqual(result.innerHTML, `<p><a title="#link" data-href="#link" href="#"><span class="codicon codicon-zap"></span>-link</a></p>`);
+			assert.strictEqual(result.innerHTML, `<p><a href="#" data-href="#link" title="#link"><span class="codicon codicon-zap"></span>-link</a></p>`);
 		});
 
 		test('render icon in table', () => {
@@ -159,7 +168,7 @@ suite('MarkdownRenderer', () => {
 </thead>
 <tbody><tr>
 <td><span class="codicon codicon-zap"></span></td>
-<td><a title="#link" data-href="#link" href="#"><span class="codicon codicon-zap"></span>-link</a></td>
+<td><a href="#" data-href="#link" title="#link"><span class="codicon codicon-zap"></span>-link</a></td>
 </tr>
 </tbody></table>
 `);
@@ -250,6 +259,30 @@ suite('MarkdownRenderer', () => {
 
 			const result = renderMarkdown(mds).element;
 			assert.strictEqual(result.innerHTML, `<p>a&lt;b&gt;b&lt;/b&gt;c</p>`);
+		});
+
+		test('Should render html images', () => {
+			if (isWeb) {
+				return;
+			}
+
+			const mds = new MarkdownString(undefined, { supportHtml: true });
+			mds.appendMarkdown(`<img src="http://example.com/cat.gif">`);
+
+			const result = renderMarkdown(mds).element;
+			assert.strictEqual(result.innerHTML, `<img src="http://example.com/cat.gif">`);
+		});
+
+		test('Should render html images with file uri as same origin uri', () => {
+			if (isWeb) {
+				return;
+			}
+
+			const mds = new MarkdownString(undefined, { supportHtml: true });
+			mds.appendMarkdown(`<img src="file:///images/cat.gif">`);
+
+			const result = renderMarkdown(mds).element;
+			assert.strictEqual(result.innerHTML, `<img src="vscode-file://vscode-app/images/cat.gif">`);
 		});
 	});
 });

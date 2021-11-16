@@ -21,69 +21,153 @@ import { Range } from 'vs/editor/common/core/range';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ILogger, ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { OutputChannelUpdateMode } from 'vs/workbench/contrib/output/common/output';
 
 export interface IOutputChannelModel extends IDisposable {
 	readonly onDispose: Event<void>;
 	append(output: string): void;
-	update(): void;
+	update(mode: OutputChannelUpdateMode, till?: number): void;
 	loadModel(): Promise<ITextModel>;
-	clear(till?: number): void;
-	replaceAll(till: number, value?: string): void;
+	clear(): void;
+	replace(value: string): void;
 }
 
-const enum ModelUpdateMode {
-	Append = 1,
-	Replace,
-	Clear
+class OutputFileListener extends Disposable {
+
+	private readonly _onDidContentChange = new Emitter<number | undefined>();
+	readonly onDidContentChange: Event<number | undefined> = this._onDidContentChange.event;
+
+	private watching: boolean = false;
+	private syncDelayer: ThrottledDelayer<void>;
+	private etag: string | undefined;
+
+	constructor(
+		private readonly file: URI,
+		private readonly fileService: IFileService,
+		private readonly logService: ILogService
+	) {
+		super();
+		this.syncDelayer = new ThrottledDelayer<void>(500);
+	}
+
+	watch(eTag: string | undefined): void {
+		if (!this.watching) {
+			this.etag = eTag;
+			this.poll();
+			this.logService.trace('Started polling', this.file.toString());
+			this.watching = true;
+		}
+	}
+
+	private poll(): void {
+		const loop = () => this.doWatch().then(() => this.poll());
+		this.syncDelayer.trigger(loop);
+	}
+
+	private async doWatch(): Promise<void> {
+		const stat = await this.fileService.resolve(this.file, { resolveMetadata: true });
+		if (stat.etag !== this.etag) {
+			this.etag = stat.etag;
+			this._onDidContentChange.fire(stat.size);
+		}
+	}
+
+	unwatch(): void {
+		if (this.watching) {
+			this.syncDelayer.cancel();
+			this.watching = false;
+			this.logService.trace('Stopped polling', this.file.toString());
+		}
+	}
+
+	override dispose(): void {
+		this.unwatch();
+		super.dispose();
+	}
 }
 
-export abstract class AbstractFileOutputChannelModel extends Disposable implements IOutputChannelModel {
+export class FileOutputChannelModel extends Disposable implements IOutputChannelModel {
 
-	protected readonly _onDispose = this._register(new Emitter<void>());
+	private readonly _onDispose = this._register(new Emitter<void>());
 	readonly onDispose: Event<void> = this._onDispose.event;
 
-	protected model: ITextModel | null = null;
+	private readonly fileHandler: OutputFileListener;
+	private etag: string | undefined = '';
+
+	private loadModelPromise: Promise<ITextModel> | null = null;
+	private model: ITextModel | null = null;
 	private modelUpdateInProgress: boolean = false;
-	private modelUpdateCancellationSource = this._register(new MutableDisposable<CancellationTokenSource>());
-	private appendThrottler = this._register(new ThrottledDelayer(300));
+	private readonly modelUpdateCancellationSource = this._register(new MutableDisposable<CancellationTokenSource>());
+	private readonly appendThrottler = this._register(new ThrottledDelayer(300));
 	private replacePromise: Promise<void> | undefined;
 
-	protected startOffset: number = 0;
-	protected endOffset: number = 0;
+	private startOffset: number = 0;
+	private endOffset: number = 0;
 
 	constructor(
 		private readonly modelUri: URI,
 		private readonly mimeType: string,
-		protected readonly file: URI,
-		protected fileService: IFileService,
-		protected modelService: IModelService,
-		protected modeService: IModeService,
-		protected editorWorkerService: IEditorWorkerService,
+		private readonly file: URI,
+		@IFileService private readonly fileService: IFileService,
+		@IModelService private readonly modelService: IModelService,
+		@IModeService private readonly modeService: IModeService,
+		@ILogService logService: ILogService,
+		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
 	) {
 		super();
+
+		this.fileHandler = this._register(new OutputFileListener(this.file, this.fileService, logService));
+		this._register(this.fileHandler.onDidContentChange(size => this.onDidContentChange(size)));
+		this._register(toDisposable(() => this.fileHandler.unwatch()));
 	}
 
-	clear(till?: number): void {
-		this.startOffset = this.endOffset = isNumber(till) ? till : this.endOffset;
-		this.updateModel(ModelUpdateMode.Clear);
+	append(message: string): void {
+		throw new Error('Not supported');
 	}
 
-	replaceAll(till: number, message: string): void {
-		this.startOffset = this.endOffset = till;
-		this.updateModel(ModelUpdateMode.Replace);
+	replace(message: string): void {
+		throw new Error('Not supported');
 	}
 
-	update(): void { }
+	clear(): void {
+		this.update(OutputChannelUpdateMode.Clear, this.endOffset);
+	}
 
-	protected createModel(content: string): ITextModel {
+	update(mode: OutputChannelUpdateMode, till?: number): void {
+		const loadModelPromise: Promise<any> = this.loadModelPromise ? this.loadModelPromise : Promise.resolve();
+		loadModelPromise.then(() => this.doUpdate(mode, till));
+	}
+
+	loadModel(): Promise<ITextModel> {
+		this.loadModelPromise = Promises.withAsyncBody<ITextModel>(async (c, e) => {
+			try {
+				let content = '';
+				if (await this.fileService.exists(this.file)) {
+					const fileContent = await this.fileService.readFile(this.file, { position: this.startOffset });
+					this.endOffset = this.startOffset + fileContent.value.byteLength;
+					this.etag = fileContent.etag;
+					content = fileContent.value.toString();
+				} else {
+					this.startOffset = 0;
+					this.endOffset = 0;
+				}
+				c(this.createModel(content));
+			} catch (error) {
+				e(error);
+			}
+		});
+		return this.loadModelPromise;
+	}
+
+	private createModel(content: string): ITextModel {
 		if (this.model) {
 			this.model.setValue(content);
 		} else {
 			this.model = this.modelService.createModel(content, this.modeService.create(this.mimeType), this.modelUri);
-			this.onModelCreated(this.model);
+			this.fileHandler.watch(this.etag);
 			const disposable = this.model.onWillDispose(() => {
 				this.cancelModelUpdate();
-				this.onModelWillDispose(this.model);
+				this.fileHandler.unwatch();
 				this.model = null;
 				dispose(disposable);
 			});
@@ -91,28 +175,31 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 		return this.model;
 	}
 
-	protected updateModel(mode: ModelUpdateMode): void {
-		if (mode !== ModelUpdateMode.Append) {
+	private doUpdate(mode: OutputChannelUpdateMode, till?: number): void {
+		if (mode === OutputChannelUpdateMode.Clear || mode === OutputChannelUpdateMode.Replace) {
+			this.startOffset = this.endOffset = isNumber(till) ? till : this.endOffset;
 			this.cancelModelUpdate();
 		}
 		if (!this.model) {
 			return;
 		}
+
+		this.modelUpdateInProgress = true;
 		if (!this.modelUpdateCancellationSource.value) {
 			this.modelUpdateCancellationSource.value = new CancellationTokenSource();
 		}
-		this.modelUpdateInProgress = true;
 		const token = this.modelUpdateCancellationSource.value.token;
-		switch (mode) {
-			case ModelUpdateMode.Clear:
-				this.clearContent(this.model);
-				break;
-			case ModelUpdateMode.Replace:
-				this.replacePromise = this.replaceContent(this.model, token).finally(() => this.replacePromise = undefined);
-				break;
-			case ModelUpdateMode.Append:
-				this.appendContent(this.model, token);
-				break;
+
+		if (mode === OutputChannelUpdateMode.Clear) {
+			this.clearContent(this.model);
+		}
+
+		else if (mode === OutputChannelUpdateMode.Replace) {
+			this.replacePromise = this.replaceContent(this.model, token).finally(() => this.replacePromise = undefined);
+		}
+
+		else {
+			this.appendContent(this.model, token);
 		}
 	}
 
@@ -187,8 +274,8 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 		if (edits.length) {
 			model.applyEdits(edits);
 		}
+		this.endOffset = this.endOffset + content.byteLength;
 		this.modelUpdateInProgress = false;
-		this.onDidModelUpdate(content);
 	}
 
 	protected cancelModelUpdate(): void {
@@ -201,17 +288,27 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 		this.modelUpdateInProgress = false;
 	}
 
-	protected isModelUpdateInProgress(): boolean {
-		return this.modelUpdateInProgress;
+	private async getContentToUpdate(): Promise<VSBuffer> {
+		const content = await this.fileService.readFile(this.file, { position: this.endOffset });
+		this.etag = content.etag;
+		return content.value;
 	}
 
-	abstract loadModel(): Promise<ITextModel>;
-	abstract append(message: string): void;
+	private onDidContentChange(size: number | undefined): void {
+		if (this.model) {
+			if (!this.modelUpdateInProgress) {
+				if (isNumber(size) && this.endOffset > size) {
+					// Reset - Content is removed
+					this.update(OutputChannelUpdateMode.Clear, 0);
+				}
+			}
+			this.update(OutputChannelUpdateMode.Append);
+		}
+	}
 
-	protected onModelCreated(model: ITextModel) { }
-	protected onModelWillDispose(model: ITextModel | null) { }
-	protected abstract getContentToUpdate(): Promise<VSBuffer>;
-	protected abstract onDidModelUpdate(content: VSBuffer): void;
+	protected isVisible(): boolean {
+		return !!this.model;
+	}
 
 	override dispose(): void {
 		this._onDispose.fire();
@@ -219,159 +316,10 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 	}
 }
 
-class OutputFileListener extends Disposable {
-
-	private readonly _onDidContentChange = new Emitter<number | undefined>();
-	readonly onDidContentChange: Event<number | undefined> = this._onDidContentChange.event;
-
-	private watching: boolean = false;
-	private syncDelayer: ThrottledDelayer<void>;
-	private etag: string | undefined;
-
-	constructor(
-		private readonly file: URI,
-		private readonly fileService: IFileService,
-		private readonly logService: ILogService
-	) {
-		super();
-		this.syncDelayer = new ThrottledDelayer<void>(500);
-	}
-
-	watch(eTag: string | undefined): void {
-		if (!this.watching) {
-			this.etag = eTag;
-			this.poll();
-			this.logService.trace('Started polling', this.file.toString());
-			this.watching = true;
-		}
-	}
-
-	private poll(): void {
-		const loop = () => this.doWatch().then(() => this.poll());
-		this.syncDelayer.trigger(loop);
-	}
-
-	private async doWatch(): Promise<void> {
-		const stat = await this.fileService.resolve(this.file, { resolveMetadata: true });
-		if (stat.etag !== this.etag) {
-			this.etag = stat.etag;
-			this._onDidContentChange.fire(stat.size);
-		}
-	}
-
-	unwatch(): void {
-		if (this.watching) {
-			this.syncDelayer.cancel();
-			this.watching = false;
-			this.logService.trace('Stopped polling', this.file.toString());
-		}
-	}
-
-	override dispose(): void {
-		this.unwatch();
-		super.dispose();
-	}
-}
-
-/**
- * An output channel driven by a file and does not support appending messages.
- */
-export class FileOutputChannelModel extends AbstractFileOutputChannelModel implements IOutputChannelModel {
-
-	private readonly fileHandler: OutputFileListener;
-
-	private etag: string | undefined = '';
-	private loadModelPromise: Promise<ITextModel> | null = null;
-
-	constructor(
-		modelUri: URI,
-		mimeType: string,
-		file: URI,
-		@IFileService fileService: IFileService,
-		@IModelService modelService: IModelService,
-		@IModeService modeService: IModeService,
-		@ILogService logService: ILogService,
-		@IEditorWorkerService editorWorkerService: IEditorWorkerService
-	) {
-		super(modelUri, mimeType, file, fileService, modelService, modeService, editorWorkerService);
-
-		this.fileHandler = this._register(new OutputFileListener(this.file, this.fileService, logService));
-		this._register(this.fileHandler.onDidContentChange(size => this.update(size)));
-		this._register(toDisposable(() => this.fileHandler.unwatch()));
-	}
-
-	loadModel(): Promise<ITextModel> {
-		this.loadModelPromise = Promises.withAsyncBody<ITextModel>(async (c, e) => {
-			try {
-				let content = '';
-				if (await this.fileService.exists(this.file)) {
-					const fileContent = await this.fileService.readFile(this.file, { position: this.startOffset });
-					this.endOffset = this.startOffset + fileContent.value.byteLength;
-					this.etag = fileContent.etag;
-					content = fileContent.value.toString();
-				} else {
-					this.startOffset = 0;
-					this.endOffset = 0;
-				}
-				c(this.createModel(content));
-			} catch (error) {
-				e(error);
-			}
-		});
-		return this.loadModelPromise;
-	}
-
-	override clear(till?: number): void {
-		const loadModelPromise: Promise<any> = this.loadModelPromise ? this.loadModelPromise : Promise.resolve();
-		loadModelPromise.then(() => {
-			super.clear(till);
-			this.update();
-		});
-	}
-
-	append(message: string): void {
-		throw new Error('Not supported');
-	}
-
-	protected async getContentToUpdate(): Promise<VSBuffer> {
-		const content = await this.fileService.readFile(this.file, { position: this.endOffset });
-		this.etag = content.etag;
-		return content.value;
-	}
-
-	protected override onDidModelUpdate(content: VSBuffer): void {
-		this.endOffset = this.endOffset + content.byteLength;
-	}
-
-	protected override onModelCreated(model: ITextModel): void {
-		this.fileHandler.watch(this.etag);
-	}
-
-	protected override onModelWillDispose(model: ITextModel | null): void {
-		this.fileHandler.unwatch();
-	}
-
-	override update(size?: number): void {
-		if (this.model) {
-			if (!this.isModelUpdateInProgress()) {
-				if (isNumber(size) && this.endOffset > size) {
-					// Reset - Content is removed
-					this.startOffset = this.endOffset = 0;
-					this.updateModel(ModelUpdateMode.Clear);
-				}
-			}
-			this.updateModel(ModelUpdateMode.Append);
-		}
-	}
-}
-
-class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implements IOutputChannelModel {
+class OutputChannelBackedByFile extends FileOutputChannelModel implements IOutputChannelModel {
 
 	private logger: ILogger;
-	private appendedMessage: string;
-	private loadingFromFileInProgress: boolean;
-	private resettingDelayer: ThrottledDelayer<void>;
-	private readonly rotatingFilePath: URI;
+	private _offset: number;
 
 	constructor(
 		id: string,
@@ -382,99 +330,35 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implement
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
 		@ILoggerService loggerService: ILoggerService,
+		@ILogService logService: ILogService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
-		super(modelUri, mimeType, file, fileService, modelService, modeService, editorWorkerService);
-		this.appendedMessage = '';
-		this.loadingFromFileInProgress = false;
+		super(modelUri, mimeType, file, fileService, modelService, modeService, logService, editorWorkerService);
 
 		// Donot rotate to check for the file reset
-		this.logger = loggerService.createLogger(this.file, { always: true, donotRotate: true, donotUseFormatters: true });
-
-		const rotatingFilePathDirectory = resources.dirname(this.file);
-		this.rotatingFilePath = resources.joinPath(rotatingFilePathDirectory, `${id}.1.log`);
-
-		this._register(fileService.watch(rotatingFilePathDirectory));
-		this._register(fileService.onDidFilesChange(e => {
-			if (e.contains(this.rotatingFilePath)) {
-				this.resettingDelayer.trigger(() => this.resetModel());
-			}
-		}));
-
-		this.resettingDelayer = new ThrottledDelayer<void>(50);
+		this.logger = loggerService.createLogger(file, { always: true, donotRotate: true, donotUseFormatters: true });
+		this._offset = 0;
 	}
 
-	append(message: string): void {
-		// update end offset always as message is read
-		this.endOffset = this.endOffset + VSBuffer.fromString(message).byteLength;
-		if (this.loadingFromFileInProgress) {
-			this.appendedMessage += message;
-		} else {
-			this.write(message);
-			if (this.model) {
-				this.appendedMessage += message;
-				this.updateModel(ModelUpdateMode.Append);
-			}
-		}
+	override append(message: string): void {
+		this.write(message);
+		this.update(OutputChannelUpdateMode.Append);
 	}
 
-	override replaceAll(till: number, value: string): void {
-		this.appendedMessage = value;
-		super.replaceAll(till, value);
-	}
-
-	override clear(till?: number): void {
-		super.clear(till);
-		this.appendedMessage = '';
-	}
-
-	async loadModel(): Promise<ITextModel> {
-		this.loadingFromFileInProgress = true;
-		this.cancelModelUpdate();
-		this.appendedMessage = '';
-		let content = await this.loadFile();
-		if (this.endOffset !== this.startOffset + VSBuffer.fromString(content).byteLength) {
-			// Queue content is not written into the file
-			// Flush it and load file again
-			this.flush();
-			content = await this.loadFile();
-		}
-		if (this.appendedMessage) {
-			this.write(this.appendedMessage);
-			this.appendedMessage = '';
-		}
-		this.loadingFromFileInProgress = false;
-		return this.createModel(content);
-	}
-
-	private async resetModel(): Promise<void> {
-		this.startOffset = 0;
-		this.endOffset = 0;
-		if (this.model) {
-			await this.loadModel();
-		}
-	}
-
-	private async loadFile(): Promise<string> {
-		const content = await this.fileService.readFile(this.file, { position: this.startOffset });
-		return this.appendedMessage ? content.value + this.appendedMessage : content.value.toString();
-	}
-
-	protected async getContentToUpdate(): Promise<VSBuffer> {
-		return VSBuffer.fromString(this.appendedMessage);
-	}
-
-	protected override onDidModelUpdate(content: VSBuffer): void {
-		this.appendedMessage = '';
+	override replace(message: string): void {
+		const till = this._offset;
+		this.write(message);
+		this.update(OutputChannelUpdateMode.Replace, till);
 	}
 
 	private write(content: string): void {
+		this._offset += VSBuffer.fromString(content).byteLength;
 		this.logger.info(content);
+		if (this.isVisible()) {
+			this.logger.flush();
+		}
 	}
 
-	private flush(): void {
-		this.logger.flush();
-	}
 }
 
 export class DelegatedOutputChannelModel extends Disposable implements IOutputChannelModel {
@@ -509,19 +393,19 @@ export class DelegatedOutputChannelModel extends Disposable implements IOutputCh
 		this.outputChannelModel.then(outputChannelModel => outputChannelModel.append(output));
 	}
 
-	update(): void {
-		this.outputChannelModel.then(outputChannelModel => outputChannelModel.update());
+	update(mode: OutputChannelUpdateMode, till?: number): void {
+		this.outputChannelModel.then(outputChannelModel => outputChannelModel.update(mode, till));
 	}
 
 	loadModel(): Promise<ITextModel> {
 		return this.outputChannelModel.then(outputChannelModel => outputChannelModel.loadModel());
 	}
 
-	clear(till?: number): void {
-		this.outputChannelModel.then(outputChannelModel => outputChannelModel.clear(till));
+	clear(): void {
+		this.outputChannelModel.then(outputChannelModel => outputChannelModel.clear());
 	}
 
-	replaceAll(till: number, value: string): void {
-		this.outputChannelModel.then(outputChannelModel => outputChannelModel.replaceAll(till, value));
+	replace(value: string): void {
+		this.outputChannelModel.then(outputChannelModel => outputChannelModel.replace(value));
 	}
 }

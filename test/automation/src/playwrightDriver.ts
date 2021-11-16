@@ -8,9 +8,10 @@ import { ChildProcess, spawn } from 'child_process';
 import { join } from 'path';
 import { mkdir } from 'fs';
 import { promisify } from 'util';
-import { IDriver, IDisposable } from './driver';
+import { IDriver, IDisposable, IWindowDriver } from './driver';
 import { URI } from 'vscode-uri';
 import * as kill from 'tree-kill';
+import { PageFunction } from 'playwright-core/types/structs';
 
 const width = 1200;
 const height = 800;
@@ -35,69 +36,106 @@ const vscodeToPlaywrightKey: { [key: string]: string } = {
 let traceCounter = 1;
 
 function buildDriver(browser: playwright.Browser, context: playwright.BrowserContext, page: playwright.Page): IDriver {
-	const driver: IDriver = {
-		_serviceBrand: undefined,
-		getWindowIds: () => {
-			return Promise.resolve([1]);
-		},
-		capturePage: () => Promise.resolve(''),
-		reloadWindow: (windowId) => Promise.resolve(),
-		exitApplication: async () => {
-			try {
-				await context.tracing.stop({ path: join(logsPath, `playwright-trace-${traceCounter++}.zip`) });
-			} catch (error) {
-				console.warn(`Failed to stop playwright tracing.`); // do not fail the build when this fails
-			}
-			await browser.close();
-			await teardown();
+	return new PlaywrightDriver(browser, context, page);
+}
 
-			return false;
-		},
-		dispatchKeybinding: async (windowId, keybinding) => {
-			const chords = keybinding.split(' ');
-			for (let i = 0; i < chords.length; i++) {
-				const chord = chords[i];
-				if (i > 0) {
-					await timeout(100);
-				}
-				const keys = chord.split('+');
-				const keysDown: string[] = [];
-				for (let i = 0; i < keys.length; i++) {
-					if (keys[i] in vscodeToPlaywrightKey) {
-						keys[i] = vscodeToPlaywrightKey[keys[i]];
-					}
-					await page.keyboard.down(keys[i]);
-					keysDown.push(keys[i]);
-				}
-				while (keysDown.length > 0) {
-					await page.keyboard.up(keysDown.pop()!);
-				}
-			}
+class PlaywrightDriver implements IDriver {
+	_serviceBrand: undefined;
 
-			await timeout(100);
-		},
-		click: async (windowId, selector, xoffset, yoffset) => {
-			const { x, y } = await driver.getElementXY(windowId, selector, xoffset, yoffset);
-			await page.mouse.click(x + (xoffset ? xoffset : 0), y + (yoffset ? yoffset : 0));
-		},
-		doubleClick: async (windowId, selector) => {
-			await driver.click(windowId, selector, 0, 0);
-			await timeout(60);
-			await driver.click(windowId, selector, 0, 0);
-			await timeout(100);
-		},
-		setValue: async (windowId, selector, text) => page.evaluate(`window.driver.setValue('${selector}', '${text}')`).then(undefined),
-		getTitle: (windowId) => page.evaluate(`window.driver.getTitle()`),
-		isActiveElement: (windowId, selector) => page.evaluate(`window.driver.isActiveElement('${selector}')`),
-		getElements: (windowId, selector, recursive) => page.evaluate(`window.driver.getElements('${selector}', ${recursive})`),
-		getElementXY: (windowId, selector, xoffset?, yoffset?) => page.evaluate(`window.driver.getElementXY('${selector}', ${xoffset}, ${yoffset})`),
-		typeInEditor: (windowId, selector, text) => page.evaluate(`window.driver.typeInEditor('${selector}', '${text}')`),
-		getTerminalBuffer: (windowId, selector) => page.evaluate(`window.driver.getTerminalBuffer('${selector}')`),
-		writeInTerminal: (windowId, selector, text) => page.evaluate(`window.driver.writeInTerminal('${selector}', '${text}')`),
-		getLocaleInfo: (windowId) => page.evaluate(`window.driver.getLocaleInfo()`),
-		getLocalizedStrings: (windowId) => page.evaluate(`window.driver.getLocalizedStrings()`)
-	};
-	return driver;
+	constructor(
+		private readonly _browser: playwright.Browser,
+		private readonly _context: playwright.BrowserContext,
+		private readonly _page: playwright.Page
+	) {
+	}
+
+	async getWindowIds() { return [1]; }
+	async capturePage() { return ''; }
+	async reloadWindow(windowId: number) { }
+	async exitApplication() {
+		try {
+			await this._context.tracing.stop({ path: join(logsPath, `playwright-trace-${traceCounter++}.zip`) });
+		} catch (error) {
+			console.warn(`Failed to stop playwright tracing.`); // do not fail the build when this fails
+		}
+		await this._browser.close();
+		await teardown();
+
+		return false;
+	}
+	async dispatchKeybinding(windowId: number, keybinding: string) {
+		const chords = keybinding.split(' ');
+		for (let i = 0; i < chords.length; i++) {
+			const chord = chords[i];
+			if (i > 0) {
+				await timeout(100);
+			}
+			const keys = chord.split('+');
+			const keysDown: string[] = [];
+			for (let i = 0; i < keys.length; i++) {
+				if (keys[i] in vscodeToPlaywrightKey) {
+					keys[i] = vscodeToPlaywrightKey[keys[i]];
+				}
+				await this._page.keyboard.down(keys[i]);
+				keysDown.push(keys[i]);
+			}
+			while (keysDown.length > 0) {
+				await this._page.keyboard.up(keysDown.pop()!);
+			}
+		}
+
+		await timeout(100);
+	}
+	async click(windowId: number, selector: string, xoffset?: number | undefined, yoffset?: number | undefined) {
+		const { x, y } = await this.getElementXY(windowId, selector, xoffset, yoffset);
+		await this._page.mouse.click(x + (xoffset ? xoffset : 0), y + (yoffset ? yoffset : 0));
+	}
+	async doubleClick(windowId: number, selector: string) {
+		await this.click(windowId, selector, 0, 0);
+		await timeout(60);
+		await this.click(windowId, selector, 0, 0);
+		await timeout(100);
+	}
+
+	async setValue(windowId: number, selector: string, text: string) {
+		return this._page.evaluate(([driver, selector, text]) => driver.setValue(selector, text), [await this._getDriverHandle(), selector, text] as const);
+	}
+	async getTitle(windowId: number) {
+		return this._evaluateWithDriver(([driver]) => driver.getTitle());
+	}
+	async isActiveElement(windowId: number, selector: string) {
+		return this._page.evaluate(([driver, selector]) => driver.isActiveElement(selector), [await this._getDriverHandle(), selector] as const);
+	}
+	async getElements(windowId: number, selector: string, recursive: boolean = false) {
+		return this._page.evaluate(([driver, selector, recursive]) => driver.getElements(selector, recursive), [await this._getDriverHandle(), selector, recursive] as const);
+	}
+	async getElementXY(windowId: number, selector: string, xoffset?: number, yoffset?: number) {
+		return this._page.evaluate(([driver, selector, xoffset, yoffset]) => driver.getElementXY(selector, xoffset, yoffset), [await this._getDriverHandle(), selector, xoffset, yoffset] as const);
+	}
+	async typeInEditor(windowId: number, selector: string, text: string) {
+		return this._page.evaluate(([driver, selector, text]) => driver.typeInEditor(selector, text), [await this._getDriverHandle(), selector, text] as const);
+	}
+	async getTerminalBuffer(windowId: number, selector: string) {
+		return this._page.evaluate(([driver, selector]) => driver.getTerminalBuffer(selector), [await this._getDriverHandle(), selector] as const);
+	}
+	async writeInTerminal(windowId: number, selector: string, text: string) {
+		return this._page.evaluate(([driver, selector, text]) => driver.writeInTerminal(selector, text), [await this._getDriverHandle(), selector, text] as const);
+	}
+	async getLocaleInfo(windowId: number) {
+		return this._evaluateWithDriver(([driver]) => driver.getLocaleInfo());
+	}
+	async getLocalizedStrings(windowId: number) {
+		return this._evaluateWithDriver(([driver]) => driver.getLocalizedStrings());
+	}
+
+	private async _evaluateWithDriver<T>(pageFunction: PageFunction<playwright.JSHandle<IWindowDriver>[], T>) {
+		return this._page.evaluate(pageFunction, [await this._getDriverHandle()]);
+	}
+
+	// TODO: Cache
+	private async _getDriverHandle(): Promise<playwright.JSHandle<IWindowDriver>> {
+		return this._page.evaluateHandle('window.driver');
+	}
 }
 
 function timeout(ms: number): Promise<void> {

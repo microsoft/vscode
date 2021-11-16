@@ -40,7 +40,7 @@ suite('Color Registry', function () {
 		const reqContext = await new RequestService(new TestConfigurationService(), environmentService, new NullLogService()).request({ url: 'https://raw.githubusercontent.com/microsoft/vscode-docs/vnext/api/references/theme-color.md' }, CancellationToken.None);
 		const content = (await asText(reqContext))!;
 
-		const expression = /\-\s*\`([\w\.]+)\`: (.*)/g;
+		const expression = /-\s*\`([\w\.]+)\`: (.*)/g;
 
 		let m: RegExpExecArray | null;
 		let colorsInDoc: { [id: string]: ColorInfo } = Object.create(null);

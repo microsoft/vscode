@@ -431,15 +431,6 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		repository.input.visible = visible;
 	}
 
-	$setInputBoxFocus(sourceControlHandle: number): void {
-		const repository = this._repositories.get(sourceControlHandle);
-		if (!repository) {
-			return;
-		}
-
-		repository.input.setFocus();
-	}
-
 	$showValidationMessage(sourceControlHandle: number, message: string | IMarkdownString, type: InputValidationType) {
 		const repository = this._repositories.get(sourceControlHandle);
 		if (!repository) {

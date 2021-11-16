@@ -18,7 +18,9 @@
       "supported": true
     }
   },
-  "enableProposedApi": true,
+  "enabledApiProposals": [
+    "terminalDataWriteEvent"
+  ],
   "main": "./out/extension",
   "scripts": {
     "compile": "gulp compile-extension:debug-server-ready",

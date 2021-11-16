@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { maxIndex, minIndex } from 'vs/base/common/arrays';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -17,7 +16,7 @@ import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cel
 import { cellExecutionArgs, CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, executeNotebookCondition, getContextFromActiveEditor, getContextFromUri, INotebookActionContext, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NotebookAction, NotebookCellAction, NotebookMultiCellAction, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, parseMultiCellExecutionArgs } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_MISSING_KERNEL_EXTENSION } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { CellKind, ConsolidatedRunButton, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellExecutionState, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -207,7 +206,7 @@ registerAction2(class ExecuteAboveCells extends NotebookMultiCellAction {
 					id: MenuId.NotebookCellExecute,
 					when: ContextKeyExpr.and(
 						executeCondition,
-						ContextKeyExpr.equals(`config.${ConsolidatedRunButton}`, true))
+						ContextKeyExpr.equals(`config.${NotebookSetting.consolidatedRunButton}`, true))
 				},
 				{
 					id: MenuId.NotebookCellTitle,
@@ -215,7 +214,7 @@ registerAction2(class ExecuteAboveCells extends NotebookMultiCellAction {
 					group: CELL_TITLE_CELL_GROUP_ID,
 					when: ContextKeyExpr.and(
 						executeCondition,
-						ContextKeyExpr.equals(`config.${ConsolidatedRunButton}`, false))
+						ContextKeyExpr.equals(`config.${NotebookSetting.consolidatedRunButton}`, false))
 				}
 			],
 			icon: icons.executeAboveIcon
@@ -231,7 +230,7 @@ registerAction2(class ExecuteAboveCells extends NotebookMultiCellAction {
 		if (context.ui) {
 			endCellIdx = context.notebookEditor.getCellIndex(context.cell);
 		} else {
-			endCellIdx = maxIndex(context.selectedCells, cell => context.notebookEditor.getCellIndex(cell));
+			endCellIdx = Math.min(...context.selectedCells.map(cell => context.notebookEditor.getCellIndex(cell)));
 		}
 
 		if (typeof endCellIdx === 'number') {
@@ -253,7 +252,7 @@ registerAction2(class ExecuteCellAndBelow extends NotebookMultiCellAction {
 					id: MenuId.NotebookCellExecute,
 					when: ContextKeyExpr.and(
 						executeCondition,
-						ContextKeyExpr.equals(`config.${ConsolidatedRunButton}`, true))
+						ContextKeyExpr.equals(`config.${NotebookSetting.consolidatedRunButton}`, true))
 				},
 				{
 					id: MenuId.NotebookCellTitle,
@@ -261,7 +260,7 @@ registerAction2(class ExecuteCellAndBelow extends NotebookMultiCellAction {
 					group: CELL_TITLE_CELL_GROUP_ID,
 					when: ContextKeyExpr.and(
 						executeCondition,
-						ContextKeyExpr.equals(`config.${ConsolidatedRunButton}`, false))
+						ContextKeyExpr.equals(`config.${NotebookSetting.consolidatedRunButton}`, false))
 				}
 			],
 			icon: icons.executeBelowIcon
@@ -277,7 +276,7 @@ registerAction2(class ExecuteCellAndBelow extends NotebookMultiCellAction {
 		if (context.ui) {
 			startCellIdx = context.notebookEditor.getCellIndex(context.cell);
 		} else {
-			startCellIdx = minIndex(context.selectedCells, cell => context.notebookEditor.getCellIndex(cell));
+			startCellIdx = Math.min(...context.selectedCells.map(cell => context.notebookEditor.getCellIndex(cell)));
 		}
 
 		if (typeof startCellIdx === 'number') {
@@ -446,7 +445,7 @@ registerAction2(class ExecuteCellInsertBelow extends NotebookCellAction {
 	constructor() {
 		super({
 			id: EXECUTE_CELL_INSERT_BELOW,
-			precondition: executeThisCellCondition,
+			precondition: ContextKeyExpr.or(executeThisCellCondition, NOTEBOOK_CELL_TYPE.isEqualTo('markup')),
 			title: localize('notebookActions.executeAndInsertBelow', "Execute Notebook Cell and Insert Below"),
 			keybinding: {
 				when: NOTEBOOK_CELL_LIST_FOCUSED,
@@ -460,14 +459,17 @@ registerAction2(class ExecuteCellInsertBelow extends NotebookCellAction {
 		const idx = context.notebookEditor.getCellIndex(context.cell);
 		const modeService = accessor.get(IModeService);
 		const newFocusMode = context.cell.focusMode === CellFocusMode.Editor ? 'editor' : 'container';
-		const executionP = runCell(accessor, context);
-		const newCell = insertCell(modeService, context.notebookEditor, idx, CellKind.Code, 'below');
 
+		const newCell = insertCell(modeService, context.notebookEditor, idx, context.cell.cellKind, 'below');
 		if (newCell) {
 			context.notebookEditor.focusNotebookCell(newCell, newFocusMode);
 		}
 
-		return executionP;
+		if (context.cell.cellKind === CellKind.Markup) {
+			context.cell.updateEditState(CellEditState.Preview, EXECUTE_CELL_INSERT_BELOW);
+		} else {
+			runCell(accessor, context);
+		}
 	}
 });
 
