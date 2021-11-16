@@ -33,7 +33,7 @@ export class CellToolbars extends Disposable implements ICellToolbars {
 		readonly notebookEditor: INotebookEditorDelegate,
 		readonly contextKeyService: IContextKeyService,
 		readonly titleToolbarContainer: HTMLElement,
-		readonly bottomCellContainer: HTMLElement,
+		readonly bottomCellToolbarContainer: HTMLElement,
 		@IInstantiationService readonly instantiationService: IInstantiationService,
 		@IContextMenuService readonly contextMenuService: IContextMenuService,
 		@IKeybindingService readonly keybindingService: IKeybindingService,
@@ -68,7 +68,7 @@ export class CellToolbars extends Disposable implements ICellToolbars {
 	}
 
 	createBetweenCellToolbar() {
-		this.betweenCellToolbar = this._register(new ToolBar(this.bottomCellContainer, this.contextMenuService, {
+		this.betweenCellToolbar = this._register(new ToolBar(this.bottomCellToolbarContainer, this.contextMenuService, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
 					if (this.notebookEditor.notebookOptions.getLayoutConfiguration().insertToolbarAlignment === 'center') {
@@ -120,11 +120,11 @@ export class CellToolbars extends Disposable implements ICellToolbars {
 		this.betweenCellToolbar.context = toolbarContext;
 
 		const bottomToolbarOffset = element.layoutInfo.bottomToolbarOffset;
-		this.bottomCellContainer.style.transform = `translateY(${bottomToolbarOffset}px)`;
+		this.bottomCellToolbarContainer.style.transform = `translateY(${bottomToolbarOffset}px)`;
 
 		elementDisposables.add(element.onDidChangeLayout(() => {
 			const bottomToolbarOffset = element.layoutInfo.bottomToolbarOffset;
-			this.bottomCellContainer.style.transform = `translateY(${bottomToolbarOffset}px)`;
+			this.bottomCellToolbarContainer.style.transform = `translateY(${bottomToolbarOffset}px)`;
 		}));
 	}
 

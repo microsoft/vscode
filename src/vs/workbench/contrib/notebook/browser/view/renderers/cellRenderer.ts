@@ -26,7 +26,7 @@ import * as modes from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { localize } from 'vs/nls';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
-import { createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -51,7 +51,6 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellKind, NotebookCellExecutionState, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 
 const $ = DOM.$;
 
@@ -109,39 +108,6 @@ abstract class AbstractCellRenderer {
 	dispose() {
 		this.editorOptions.dispose();
 		this.dndController = undefined;
-	}
-
-	protected createBetweenCellToolbar(container: HTMLElement, disposables: DisposableStore, contextKeyService: IContextKeyService, notebookOptions: NotebookOptions): ToolBar {
-		const toolbar = new ToolBar(container, this.contextMenuService, {
-			actionViewItemProvider: action => {
-				if (action instanceof MenuItemAction) {
-					if (notebookOptions.getLayoutConfiguration().insertToolbarAlignment === 'center') {
-						return this.instantiationService.createInstance(CodiconActionViewItem, action);
-					} else {
-						return this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined);
-					}
-				}
-
-				return undefined;
-			}
-		});
-		disposables.add(toolbar);
-
-		const menu = disposables.add(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellInsertToolbar, contextKeyService));
-		const updateActions = () => {
-			const actions = this.getCellToolbarActions(menu);
-			toolbar.setActions(actions.primary, actions.secondary);
-		};
-
-		disposables.add(menu.onDidChange(() => updateActions()));
-		disposables.add(notebookOptions.onDidChangeOptions((e) => {
-			if (e.insertToolbarAlignment) {
-				updateActions();
-			}
-		}));
-		updateActions();
-
-		return toolbar;
 	}
 
 	protected getCellToolbarActions(menu: IMenu): { primary: IAction[], secondary: IAction[]; } {
@@ -236,6 +202,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 
 		DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-top'));
 		const focusIndicatorLeft = new FastDomNode(DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left')));
+		const foldingIndicator = DOM.append(focusIndicatorLeft.domNode, DOM.$('.notebook-folding-indicator'));
 		const focusIndicatorRight = new FastDomNode(DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-right')));
 
 		const codeInnerContent = DOM.append(container, $('.cell.code'));
@@ -245,13 +212,9 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		editorPart.style.display = 'none';
 
 		const innerContent = DOM.append(container, $('.cell.markdown'));
-		const foldingIndicator = DOM.append(focusIndicatorLeft.domNode, DOM.$('.notebook-folding-indicator'));
-
 		const bottomCellContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
 		const cellToolbars = templateDisposables.add(this.instantiationService.createInstance(CellToolbars, this.notebookEditor, contextKeyService, titleToolbarContainer, bottomCellContainer));
-
 		const focusIndicatorBottom = DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-bottom'));
-
 		const statusBar = templateDisposables.add(this.instantiationService.createInstance(CellEditorStatusBar, editorPart));
 
 		const templateData: MarkdownCellRenderTemplate = {
@@ -305,7 +268,6 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 
 		// render toolbar first
 		templateData.cellToolbars.setupCellToolbarActions(templateData, elementDisposables);
-		// this.setupCellToolbarActions(templateData, elementDisposables);
 
 		const toolbarContext = <INotebookCellToolbarActionContext>{
 			ui: true,
@@ -318,7 +280,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		const scopedInstaService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, templateData.contextKeyService]));
 		const markdownCell = scopedInstaService.createInstance(StatefulMarkdownCell, this.notebookEditor, element, templateData, this.renderedEditors);
 		elementDisposables.add(markdownCell);
-		templateData.statusBar.update(toolbarContext);
+		templateData.statusBar.updateContext(toolbarContext);
 	}
 
 	private updateForLayout(element: MarkupCellViewModel, templateData: MarkdownCellRenderTemplate): void {
@@ -535,10 +497,10 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		const focusSinkElement = DOM.append(container, $('.cell-editor-focus-sink'));
 		focusSinkElement.setAttribute('tabindex', '0');
-		const bottomCellContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
+		const bottomCellToolbarContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
 		const focusIndicatorBottom = new FastDomNode(DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-bottom')));
 
-		const cellToolbars = templateDisposables.add(this.instantiationService.createInstance(CellToolbars, this.notebookEditor, contextKeyService, titleToolbarContainer, bottomCellContainer));
+		const cellToolbars = templateDisposables.add(this.instantiationService.createInstance(CellToolbars, this.notebookEditor, contextKeyService, titleToolbarContainer, bottomCellToolbarContainer));
 
 		const templateData: CodeCellRenderTemplate = {
 			rootContainer,
@@ -565,7 +527,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			editor,
 			templateDisposables,
 			elementDisposables: new DisposableStore(),
-			bottomCellContainer,
+			bottomCellContainer: bottomCellToolbarContainer,
 			dragHandle,
 			toJSON: () => { return {}; }
 		};
@@ -863,7 +825,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		this.updateForKernel(element, templateData);
 
 		templateData.cellToolbars.setupCellToolbarActions(templateData, elementDisposables);
-		// this.setupCellToolbarActions(templateData, elementDisposables);
 
 		const toolbarContext = <INotebookCellActionContext>{
 			ui: true,
@@ -874,7 +835,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		};
 		templateData.cellToolbars.updateContext(element, templateData.elementDisposables);
 		templateData.runToolbar.context = toolbarContext;
-		templateData.statusBar.update(toolbarContext);
+		templateData.statusBar.updateContext(toolbarContext);
 	}
 
 	disposeTemplate(templateData: CodeCellRenderTemplate): void {
