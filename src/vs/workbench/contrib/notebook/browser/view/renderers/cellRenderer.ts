@@ -26,7 +26,7 @@ import * as modes from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { localize } from 'vs/nls';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
-import { createActionViewItem, createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -37,13 +37,13 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { INotebookActionContext, INotebookCellActionContext, INotebookCellToolbarActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { DeleteCellAction } from 'vs/workbench/contrib/notebook/browser/controller/editActions';
 import { CodeCellLayoutInfo, EXPAND_CELL_OUTPUT_COMMAND_ID, ICellViewModel, INotebookEditorDelegate, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { BaseCellRenderTemplate, CodeCellRenderTemplate, ICellToolbars, isCodeCellRenderTemplate, MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+import { BaseCellRenderTemplate, CodeCellRenderTemplate, MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
 import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellContextKeys';
 import { CellDragAndDropController, DRAGGING_CLASS } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellDnd';
 import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellEditorOptions';
+import { CellToolbars } from 'vs/workbench/contrib/notebook/browser/view/renderers/CellToolbars';
 import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/codeCell';
 import { StatefulMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/markdownCell';
@@ -85,170 +85,6 @@ export class NotebookCellListDelegate extends Disposable implements IListVirtual
 		} else {
 			return CodeCellRenderer.TEMPLATE_ID;
 		}
-	}
-}
-
-class CellToolbars extends Disposable implements ICellToolbars {
-	toolbar: ToolBar;
-	deleteToolbar: ToolBar;
-	betweenCellToolbar!: ToolBar;
-	cellDisposable: Disposable | null = null;
-
-	constructor(
-		readonly notebookEditor: INotebookEditorDelegate,
-		readonly contextKeyService: IContextKeyService,
-		readonly titleToolbarContainer: HTMLElement,
-		readonly bottomCellContainer: HTMLElement,
-		@IInstantiationService readonly instantiationService: IInstantiationService,
-		@IContextMenuService readonly contextMenuService: IContextMenuService,
-		@IKeybindingService readonly keybindingService: IKeybindingService,
-		@IMenuService readonly menuService: IMenuService,
-	) {
-		super();
-
-		this.toolbar = this._register(this.createToolbar(this.titleToolbarContainer));
-		this.deleteToolbar = this._register(this.createToolbar(titleToolbarContainer, 'cell-delete-toolbar'));
-		if (!this.notebookEditor.creationOptions.isReadOnly) {
-			this.deleteToolbar.setActions([this.instantiationService.createInstance(DeleteCellAction)]);
-		}
-
-		this.createBetweenCellToolbar();
-	}
-
-	createToolbar(container: HTMLElement, elementClass?: string): ToolBar {
-		const toolbar = new ToolBar(container, this.contextMenuService, {
-			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-			actionViewItemProvider: action => {
-				return createActionViewItem(this.instantiationService, action);
-			},
-			renderDropdownAsChildElement: true
-		});
-
-		if (elementClass) {
-			toolbar.getElement().classList.add(elementClass);
-		}
-
-		return toolbar;
-	}
-
-	createBetweenCellToolbar() {
-		this.betweenCellToolbar = this._register(new ToolBar(this.bottomCellContainer, this.contextMenuService, {
-			actionViewItemProvider: action => {
-				if (action instanceof MenuItemAction) {
-					if (this.notebookEditor.notebookOptions.getLayoutConfiguration().insertToolbarAlignment === 'center') {
-						return this.instantiationService.createInstance(CodiconActionViewItem, action);
-					} else {
-						return this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined);
-					}
-				}
-
-				return undefined;
-			}
-		}));
-
-		const menu = this._register(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellInsertToolbar, this.contextKeyService));
-		const updateActions = () => {
-			const actions = this.getCellToolbarActions(menu);
-			this.betweenCellToolbar.setActions(actions.primary, actions.secondary);
-		};
-
-		this._register(menu.onDidChange(() => updateActions()));
-		this._register(this.notebookEditor.notebookOptions.onDidChangeOptions((e) => {
-			if (e.insertToolbarAlignment) {
-				updateActions();
-			}
-		}));
-		updateActions();
-	}
-
-	getCellToolbarActions(menu: IMenu): { primary: IAction[], secondary: IAction[]; } {
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary };
-
-		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
-
-		return result;
-	}
-
-	updateContext(element: CodeCellViewModel | MarkupCellViewModel, elementDisposables: DisposableStore) {
-		const toolbarContext = <INotebookCellToolbarActionContext>{
-			ui: true,
-			cell: element,
-			notebookEditor: this.notebookEditor,
-			$mid: MarshalledId.NotebookCellActionContext
-		};
-
-		this.toolbar.context = toolbarContext;
-		this.deleteToolbar.context = toolbarContext;
-		this.betweenCellToolbar.context = toolbarContext;
-
-		const bottomToolbarOffset = element.layoutInfo.bottomToolbarOffset;
-		this.bottomCellContainer.style.transform = `translateY(${bottomToolbarOffset}px)`;
-
-		elementDisposables.add(element.onDidChangeLayout(() => {
-			const bottomToolbarOffset = element.layoutInfo.bottomToolbarOffset;
-			this.bottomCellContainer.style.transform = `translateY(${bottomToolbarOffset}px)`;
-		}));
-	}
-
-	setupCellToolbarActions(templateData: BaseCellRenderTemplate, disposables: DisposableStore): void {
-		const updateActions = () => {
-			const actions = this.getCellToolbarActions(templateData.titleMenu);
-
-			const hadFocus = DOM.isAncestor(document.activeElement, this.toolbar.getElement());
-			this.toolbar.setActions(actions.primary, actions.secondary);
-			if (hadFocus) {
-				this.notebookEditor.focus();
-			}
-
-			const layoutInfo = this.notebookEditor.notebookOptions.getLayoutConfiguration();
-			if (actions.primary.length || actions.secondary.length) {
-				templateData.container.classList.add('cell-has-toolbar-actions');
-				if (isCodeCellRenderTemplate(templateData)) {
-					templateData.focusIndicatorLeft.domNode.style.transform = `translateY(${layoutInfo.editorToolbarHeight + layoutInfo.cellTopMargin}px)`;
-					templateData.focusIndicatorRight.domNode.style.transform = `translateY(${layoutInfo.editorToolbarHeight + layoutInfo.cellTopMargin}px)`;
-				}
-			} else {
-				templateData.container.classList.remove('cell-has-toolbar-actions');
-				if (isCodeCellRenderTemplate(templateData)) {
-					templateData.focusIndicatorLeft.domNode.style.transform = `translateY(${layoutInfo.cellTopMargin}px)`;
-					templateData.focusIndicatorRight.domNode.style.transform = `translateY(${layoutInfo.cellTopMargin}px)`;
-				}
-			}
-		};
-
-		// #103926
-		let dropdownIsVisible = false;
-		let deferredUpdate: (() => void) | undefined;
-
-		updateActions();
-		disposables.add(templateData.titleMenu.onDidChange(() => {
-			if (this.notebookEditor.isDisposed) {
-				return;
-			}
-
-			if (dropdownIsVisible) {
-				deferredUpdate = () => updateActions();
-				return;
-			}
-
-			updateActions();
-		}));
-		templateData.container.classList.toggle('cell-toolbar-dropdown-active', false);
-		disposables.add(this.toolbar.onDidChangeDropdownVisibility(visible => {
-			dropdownIsVisible = visible;
-			templateData.container.classList.toggle('cell-toolbar-dropdown-active', visible);
-
-			if (deferredUpdate && !visible) {
-				setTimeout(() => {
-					if (deferredUpdate) {
-						deferredUpdate();
-					}
-				}, 0);
-				deferredUpdate = undefined;
-			}
-		}));
 	}
 }
 
