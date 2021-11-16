@@ -11,14 +11,14 @@ import { afterSuite, beforeSuite } from '../../utils';
 const ContributedProfileName = `JavaScript Debug Terminal`;
 
 export function setup(opts: ParsedArgs) {
-	describe('Terminal Profiles', () => {
+	describe.only('Terminal Profiles', () => {
 		let app: Application;
 		const enum TerminalCommandId {
 			Rename = 'workbench.action.terminal.rename',
 			ChangeColor = 'workbench.action.terminal.changeColor',
 			ChangeIcon = 'workbench.action.terminal.changeIcon',
 			Split = 'workbench.action.terminal.split',
-			Kill = 'workbench.action.terminal.kill'
+			KillAll = 'workbench.action.terminal.killAll'
 		}
 		beforeSuite(opts);
 		afterSuite(opts);
@@ -28,7 +28,7 @@ export function setup(opts: ParsedArgs) {
 		});
 
 		afterEach(async function () {
-			await app.workbench.terminal.runCommand(TerminalCommandId.Kill);
+			await app.workbench.terminal.runCommand(TerminalCommandId.KillAll);
 			await app.code.waitForActiveElement('.editor-group-container.empty.active');
 		});
 
@@ -50,7 +50,6 @@ export function setup(opts: ParsedArgs) {
 			const tabs = await app.workbench.terminal.getTabLabels(2);
 			ok(tabs[0].startsWith('┌') && tabs[0].endsWith(ContributedProfileName));
 			ok(tabs[1].startsWith('└'));
-			await app.workbench.terminal.runCommand(TerminalCommandId.Kill);
 		});
 
 		it('should set the default profile', async function () {
@@ -66,7 +65,6 @@ export function setup(opts: ParsedArgs) {
 			const tabs = await app.workbench.terminal.getTabLabels(2, true);
 			ok(tabs[0].startsWith('┌') && !tabs[0].endsWith(ContributedProfileName));
 			ok(tabs[1].startsWith('└') && !tabs[1].endsWith(ContributedProfileName));
-			await app.workbench.terminal.runCommand(TerminalCommandId.Kill);
 		});
 
 		it('clicking the plus button should create a terminal and display the tabs view showing no split decorations', async function () {
@@ -74,7 +72,6 @@ export function setup(opts: ParsedArgs) {
 			await app.code.waitAndClick('li.action-item.monaco-dropdown-with-primary > div.action-container.menu-entry > a');
 			const tabLabels = await app.workbench.terminal.getTabLabels(2);
 			ok(!tabLabels[0].startsWith('┌') && !tabLabels[1].startsWith('└'));
-			await app.workbench.terminal.runCommand(TerminalCommandId.Kill);
 		});
 
 		it('createWithProfile command should create a terminal with a profile', async function () {
@@ -93,7 +90,6 @@ export function setup(opts: ParsedArgs) {
 			const tabs = await app.workbench.terminal.getTabLabels(2, true);
 			ok(tabs[0].startsWith('┌') && !tabs[0].endsWith(ContributedProfileName));
 			ok(tabs[1].startsWith('└') && !tabs[1].endsWith(ContributedProfileName));
-			await app.workbench.terminal.runCommand(TerminalCommandId.Kill);
 		});
 
 		it('createWithProfile command should create a split terminal with a contributed profile', async function () {
@@ -103,7 +99,6 @@ export function setup(opts: ParsedArgs) {
 			const tabs = await app.workbench.terminal.getTabLabels(2, true);
 			ok(tabs[0].startsWith('┌') && !tabs[0].endsWith(ContributedProfileName));
 			ok(tabs[1].startsWith('└') && tabs[1].endsWith(ContributedProfileName));
-			await app.workbench.terminal.runCommand(TerminalCommandId.Kill);
 		});
 	});
 }

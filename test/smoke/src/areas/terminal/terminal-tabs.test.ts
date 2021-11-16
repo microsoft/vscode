@@ -9,7 +9,7 @@ import { Application } from '../../../../automation/out';
 import { afterSuite, beforeSuite } from '../../utils';
 
 export function setup(opts: ParsedArgs) {
-	describe.only('Terminal Tabs', () => {
+	describe('Terminal Tabs', () => {
 		let app: Application;
 
 		const enum TerminalCommandId {
@@ -17,7 +17,9 @@ export function setup(opts: ParsedArgs) {
 			ChangeColor = 'workbench.action.terminal.changeColor',
 			ChangeIcon = 'workbench.action.terminal.changeIcon',
 			Split = 'workbench.action.terminal.split',
-			Kill = 'workbench.action.terminal.kill'
+			KillAll = 'workbench.action.terminal.killAll',
+			Unsplit = 'workbench.action.terminal.unsplit',
+			Join = 'workbench.action.terminal.join'
 		}
 
 		beforeSuite(opts);
@@ -28,7 +30,8 @@ export function setup(opts: ParsedArgs) {
 		});
 
 		afterEach(async function () {
-			await app.workbench.terminal.runCommand(TerminalCommandId.Kill);
+			await app.workbench.terminal.runCommand(TerminalCommandId.KillAll);
+			await app.code.waitForActiveElement('.editor-group-container.empty.active');
 		});
 
 		it('clicking the plus button should create a terminal and display the tabs view showing no split decorations', async function () {
@@ -36,7 +39,6 @@ export function setup(opts: ParsedArgs) {
 			await app.code.waitAndClick('li.action-item.monaco-dropdown-with-primary > div.action-container.menu-entry > a');
 			const tabLabels = await app.workbench.terminal.getTabLabels(2);
 			ok(!tabLabels[0].startsWith('┌') && !tabLabels[1].startsWith('└'));
-			await app.workbench.terminal.runCommand(TerminalCommandId.Kill);
 		});
 
 		it('should update color of the single tab', async function () {
@@ -54,7 +56,6 @@ export function setup(opts: ParsedArgs) {
 			ok(tabs[1].startsWith('└'));
 			await app.workbench.terminal.runCommand(TerminalCommandId.ChangeColor, 'cyan');
 			await app.code.waitForElement('.terminal-tabs-entry .terminal-icon-terminal_ansiCyan');
-			await app.workbench.terminal.runCommand(TerminalCommandId.Kill);
 		});
 
 		it('should update icon of the single tab', async function () {
@@ -73,7 +74,6 @@ export function setup(opts: ParsedArgs) {
 			const icon = 'symbol-method';
 			await app.workbench.terminal.runCommand(TerminalCommandId.ChangeIcon, icon);
 			await app.code.waitForElement(`.terminal-tabs-entry .codicon-${icon}`);
-			await app.workbench.terminal.runCommand(TerminalCommandId.Kill);
 		});
 
 		it('should rename the single tab', async function () {
@@ -89,11 +89,38 @@ export function setup(opts: ParsedArgs) {
 			const name = 'my terminal name';
 			await app.workbench.terminal.runCommand(TerminalCommandId.Rename, name);
 			await app.workbench.terminal.getTabLabels(2, true, t => t.some(element => element.textContent.includes(name)));
-			await app.workbench.terminal.runCommand(TerminalCommandId.Kill);
 		});
 
-		//TODO: test hasText when tabs view panel width is changed
-		// TODO: test changeColorInstance changeColorPanel
-		//TODO: test renamePanel
+		it.skip('should join tabs', async function () {
+			await app.workbench.terminal.show();
+			await app.workbench.terminal.runCommand(TerminalCommandId.Join, 'true');
+			await this.code.waitAndClick('.tabs-list .terminal-tabs-entry');
+			await app.workbench.terminal.getTabLabels(2, true);
+		});
+
+		it.skip('should unsplit tabs', async function () {
+			await app.workbench.terminal.show();
+			await app.workbench.terminal.createNew();
+			await this.code.waitAndClick('.tabs-list .terminal-tabs-entry');
+			await app.workbench.terminal.getTabLabels(2, true);
+			await app.workbench.terminal.runCommand(TerminalCommandId.Unsplit);
+			const tabLabels = await app.workbench.terminal.getTabLabels(2, false);
+			ok(!tabLabels[0].startsWith('┌') && !tabLabels[1].startsWith('└'));
+		});
+
+		it.skip('should split tab when single tab is alt clicked', async function () {
+			await app.workbench.terminal.show();
+			await app.code.dispatchKeybinding('Alt+x');
+			await app.code.waitAndClick('.single-terminal-tab');
+			await app.workbench.terminal.getTabLabels(2, true);
+		});
+
+		it.skip('should split tab when tab is alt clicked', async function () {
+			await app.workbench.terminal.show();
+			await app.workbench.terminal.createNew();
+			await app.code.dispatchKeybinding('Alt+x');
+			await this.code.waitAndClick('.tabs-list .terminal-tabs-entry');
+			await app.workbench.terminal.getTabLabels(3, true);
+		});
 	});
 }

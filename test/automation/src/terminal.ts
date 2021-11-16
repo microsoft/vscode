@@ -31,7 +31,9 @@ export class Terminal {
 	async runCommand(commandId: string, value?: string): Promise<void> {
 		await this.quickaccess.runCommand(commandId, !!value);
 		if (value) {
-			await this.code.waitForSetValue(QuickInput.QUICK_INPUT_INPUT, value);
+			if (value !== 'true') {
+				await this.code.waitForSetValue(QuickInput.QUICK_INPUT_INPUT, value);
+			}
 			await this.code.dispatchKeybinding('enter');
 			await this.quickinput.waitForQuickInputClosed();
 		}
