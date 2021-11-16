@@ -33,7 +33,6 @@ export function setup(opts: ParsedArgs) {
 
 		afterEach(async function () {
 			await app.workbench.terminal.runCommand(TerminalCommandId.KillAll);
-			await app.code.waitForActiveElement('.editor-group-container.empty.active');
 		});
 
 		it('should launch the default profile', async function () {

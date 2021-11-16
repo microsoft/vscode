@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IElement, QuickInput } from '.';
-// import { Page } from '../../../node_modules/playwright';
 import { Code } from './code';
 import { QuickAccess } from './quickaccess';
 
@@ -12,7 +11,8 @@ const TERMINAL_VIEW_SELECTOR = `#terminal`;
 const XTERM_SELECTOR = `${TERMINAL_VIEW_SELECTOR} .terminal-wrapper`;
 const CONTRIBUTED_PROFILE_NAME = `JavaScript Debug Terminal`;
 const TABS = '.tabs-list .terminal-tabs-entry';
-// const XTERM_TEXTAREA = `${XTERM_SELECTOR} textarea.xterm-helper-textarea`;
+const XTERM_FOCUSED_SELECTOR = '.terminal.xterm.focus';
+
 export class Terminal {
 
 	constructor(private code: Code, private quickaccess: QuickAccess, private quickinput: QuickInput) { }
@@ -23,13 +23,13 @@ export class Terminal {
 
 	async show(): Promise<void> {
 		await this.runCommand('workbench.action.terminal.toggleTerminal');
-		await this.code.waitForElement('.terminal.xterm.focus');
+		await this.code.waitForElement(XTERM_FOCUSED_SELECTOR);
 		await this.code.waitForTerminalBuffer(XTERM_SELECTOR, lines => lines.some(line => line.length > 0));
 	}
 
 	async createNew(): Promise<void> {
 		await this.runCommand('workbench.action.terminal.new');
-		await this.code.waitForElement('.terminal.xterm.focus');
+		await this.code.waitForElement(XTERM_FOCUSED_SELECTOR);
 		await this.code.waitForTerminalBuffer(XTERM_SELECTOR, lines => lines.some(line => line.length > 0));
 	}
 
