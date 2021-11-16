@@ -630,7 +630,7 @@ export class CellOutputContainer extends Disposable {
 
 		this.templateData.outputShowMoreContainer.domNode.innerText = '';
 		if (this.viewCell.outputsViewModels.length > this.options.limit) {
-			this.templateData.outputShowMoreContainer.domNode.appendChild(this._generateShowMoreElement(this.templateData.disposables));
+			this.templateData.outputShowMoreContainer.domNode.appendChild(this._generateShowMoreElement(this.templateData.templateDisposables));
 		} else {
 			DOM.hide(this.templateData.outputShowMoreContainer.domNode);
 			this.viewCell.updateOutputShowMoreContainerHeight(0);
@@ -835,7 +835,7 @@ export class CellOutputContainer extends Disposable {
 		if (this.viewCell.outputsViewModels.length > this.options.limit) {
 			DOM.show(this.templateData.outputShowMoreContainer.domNode);
 			if (!this.templateData.outputShowMoreContainer.domNode.hasChildNodes()) {
-				this.templateData.outputShowMoreContainer.domNode.appendChild(this._generateShowMoreElement(this.templateData.disposables));
+				this.templateData.outputShowMoreContainer.domNode.appendChild(this._generateShowMoreElement(this.templateData.templateDisposables));
 			}
 			this.viewCell.updateOutputShowMoreContainerHeight(46);
 		} else {

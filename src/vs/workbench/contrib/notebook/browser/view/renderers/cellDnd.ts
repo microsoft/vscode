@@ -305,7 +305,7 @@ export class CellDragAndDropController extends Disposable {
 		const container = templateData.container;
 		dragHandle.setAttribute('draggable', 'true');
 
-		templateData.disposables.add(DOM.addDisposableListener(dragHandle, DOM.EventType.DRAG_END, () => {
+		templateData.templateDisposables.add(DOM.addDisposableListener(dragHandle, DOM.EventType.DRAG_END, () => {
 			if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().dragAndDropEnabled || !!this.notebookEditor.isReadOnly) {
 				return;
 			}
@@ -315,7 +315,7 @@ export class CellDragAndDropController extends Disposable {
 			this.dragCleanup();
 		}));
 
-		templateData.disposables.add(DOM.addDisposableListener(dragHandle, DOM.EventType.DRAG_START, event => {
+		templateData.templateDisposables.add(DOM.addDisposableListener(dragHandle, DOM.EventType.DRAG_START, event => {
 			if (!event.dataTransfer) {
 				return;
 			}

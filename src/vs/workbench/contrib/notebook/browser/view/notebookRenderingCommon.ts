@@ -89,6 +89,14 @@ export interface INotebookCellList {
 	dispose(): void;
 }
 
+export interface ICellToolbars {
+	toolbar: ToolBar;
+	deleteToolbar: ToolBar;
+	betweenCellToolbar: ToolBar;
+	updateContext(element: ICellViewModel, elementDisposables: DisposableStore): void;
+	setupCellToolbarActions(templateData: BaseCellRenderTemplate, disposables: DisposableStore): void;
+}
+
 export interface BaseCellRenderTemplate {
 	rootContainer: HTMLElement;
 	editorPart: HTMLElement;
@@ -97,12 +105,10 @@ export interface BaseCellRenderTemplate {
 	container: HTMLElement;
 	cellContainer: HTMLElement;
 	decorationContainer: HTMLElement;
-	toolbar: ToolBar;
-	deleteToolbar: ToolBar;
-	betweenCellToolbar: ToolBar;
+	cellToolbars: ICellToolbars;
 	focusIndicatorLeft: FastDomNode<HTMLElement>;
 	focusIndicatorRight: FastDomNode<HTMLElement>;
-	readonly disposables: DisposableStore;
+	readonly templateDisposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
 	bottomCellContainer: HTMLElement;
 	currentRenderedCell?: ICellViewModel;
