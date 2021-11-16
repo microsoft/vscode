@@ -12,7 +12,6 @@ const XTERM_SELECTOR = `${TERMINAL_VIEW_SELECTOR} .terminal-wrapper`;
 const CONTRIBUTED_PROFILE_NAME = `JavaScript Debug Terminal`;
 const TABS = '.tabs-list .terminal-tabs-entry';
 const XTERM_TEXTAREA = `${XTERM_SELECTOR} textarea.xterm-helper-textarea`;
-
 export class Terminal {
 
 	constructor(private code: Code, private quickaccess: QuickAccess, private quickinput: QuickInput) { }
@@ -29,15 +28,16 @@ export class Terminal {
 		await this.code.waitForTerminalBuffer(XTERM_SELECTOR, lines => lines.some(line => line.length > 0));
 	}
 
-	async killActive(): Promise<void> {
-		await this.quickaccess.runCommand('workbench.action.terminal.kill');
+	async runCommand(commandId: string, value?: string): Promise<void> {
+		await this.quickaccess.runCommand(commandId, !!value);
+		if (value) {
+			await this.code.waitForSetValue(QuickInput.QUICK_INPUT_INPUT, value);
+			await this.code.dispatchKeybinding('enter');
+			await this.quickinput.waitForQuickInputClosed();
+		}
 	}
 
-	async splitActive(): Promise<void> {
-		await this.quickaccess.runCommand('workbench.action.terminal.split');
-	}
-
-	async runCommand(commandText: string): Promise<void> {
+	async runCommandInTerminal(commandText: string): Promise<void> {
 		await this.code.writeInTerminal(XTERM_SELECTOR, commandText);
 		// hold your horses
 		await new Promise(c => setTimeout(c, 500));
@@ -49,6 +49,11 @@ export class Terminal {
 		const tabs = await this.code.waitForElements(TABS, true, e => e.length === expectedCount && (!splits || e.some(e => e.textContent.startsWith('┌'))) && e.every(element => element.textContent.trim().length > 1));
 		for (const t of tabs) {
 			result.push(t.textContent);
+		}
+		if (!result[0].startsWith('┌')) {
+			const first = result[1];
+			const second = result[0];
+			return [first, second];
 		}
 		return result;
 	}
