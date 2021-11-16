@@ -254,8 +254,6 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 
 		const statusBar = templateDisposables.add(this.instantiationService.createInstance(CellEditorStatusBar, editorPart));
 
-		const titleMenu = templateDisposables.add(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellTitleToolbar, contextKeyService));
-
 		const templateData: MarkdownCellRenderTemplate = {
 			rootContainer,
 			cellInputCollapsedContainer,
@@ -273,7 +271,6 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			elementDisposables: new DisposableStore(),
 			cellToolbars,
 			bottomCellContainer,
-			titleMenu,
 			statusBar,
 			toJSON: () => { return {}; }
 		};
@@ -542,7 +539,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const focusIndicatorBottom = new FastDomNode(DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-bottom')));
 
 		const cellToolbars = templateDisposables.add(this.instantiationService.createInstance(CellToolbars, this.notebookEditor, contextKeyService, titleToolbarContainer, bottomCellContainer));
-		const titleMenu = templateDisposables.add(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellTitleToolbar, contextKeyService));
 
 		const templateData: CodeCellRenderTemplate = {
 			rootContainer,
@@ -570,7 +566,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			templateDisposables,
 			elementDisposables: new DisposableStore(),
 			bottomCellContainer,
-			titleMenu,
 			dragHandle,
 			toJSON: () => { return {}; }
 		};

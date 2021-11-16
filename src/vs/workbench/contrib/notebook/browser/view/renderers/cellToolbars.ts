@@ -26,6 +26,7 @@ export class CellToolbars extends Disposable implements ICellToolbars {
 	toolbar: ToolBar;
 	deleteToolbar: ToolBar;
 	betweenCellToolbar!: ToolBar;
+	titleMenu: IMenu;
 	cellDisposable: Disposable | null = null;
 
 	constructor(
@@ -47,6 +48,7 @@ export class CellToolbars extends Disposable implements ICellToolbars {
 		}
 
 		this.createBetweenCellToolbar();
+		this.titleMenu = this._register(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellTitleToolbar, contextKeyService));
 	}
 
 	createToolbar(container: HTMLElement, elementClass?: string): ToolBar {
@@ -128,7 +130,7 @@ export class CellToolbars extends Disposable implements ICellToolbars {
 
 	setupCellToolbarActions(templateData: BaseCellRenderTemplate, disposables: DisposableStore): void {
 		const updateActions = () => {
-			const actions = this.getCellToolbarActions(templateData.titleMenu);
+			const actions = this.getCellToolbarActions(this.titleMenu);
 
 			const hadFocus = DOM.isAncestor(document.activeElement, this.toolbar.getElement());
 			this.toolbar.setActions(actions.primary, actions.secondary);
@@ -157,7 +159,7 @@ export class CellToolbars extends Disposable implements ICellToolbars {
 		let deferredUpdate: (() => void) | undefined;
 
 		updateActions();
-		disposables.add(templateData.titleMenu.onDidChange(() => {
+		disposables.add(this.titleMenu.onDidChange(() => {
 			if (this.notebookEditor.isDisposed) {
 				return;
 			}
