@@ -435,33 +435,35 @@ export async function resolveExtensionsSettings(extensionService: IExtensionServ
 		addEntryToTree(extensionId, extensionName, childEntry);
 	};
 
-	const processPromises = groups
-		.sort((a, b) => a.title.localeCompare(b.title))
-		.map(g => processGroupEntry(g));
-
+	const processPromises = groups.map(g => processGroupEntry(g));
 	return Promise.all(processPromises).then(() => {
 		const extGroups: ITOCEntry<ISetting>[] = [];
 		for (const value of extGroupTree.values()) {
 			for (const child of value.children!) {
-				// Sort the individual settings
+				// Sort the individual settings of the child.
 				child.settings?.sort((a, b) => {
 					return compareNullableIntegers(a.order, b.order);
 				});
 			}
+
 			if (value.children!.length === 1) {
-				// Push a flattened setting
+				// Push a flattened setting.
 				extGroups.push({
 					id: value.id,
 					label: value.children![0].label,
 					settings: value.children![0].settings
 				});
 			} else {
+				// Sort the categories.
 				value.children!.sort((a, b) => {
 					return compareNullableIntegers(a.order, b.order);
 				});
 				extGroups.push(value);
 			}
 		}
+
+		// Sort the outermost settings.
+		extGroups.sort((a, b) => a.label.localeCompare(b.label));
 
 		return {
 			id: 'extensions',
