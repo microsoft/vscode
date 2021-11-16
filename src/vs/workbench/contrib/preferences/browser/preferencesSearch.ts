@@ -538,7 +538,11 @@ export class SettingMatches {
 	}
 
 	private checkForWholeWordMatchType(singleWordQuery: string, lineToSearch: string) {
-		if (lineToSearch.toLowerCase().split(' ').includes(singleWordQuery.toLowerCase())) {
+		// Trim excess ending characters off the query.
+		singleWordQuery = singleWordQuery.toLowerCase().trimEnd().replace(/[-\._]+$/, '');
+		lineToSearch = lineToSearch.toLowerCase();
+		const singleWordRegex = new RegExp(`\\b${singleWordQuery}\\b`);
+		if (singleWordRegex.test(lineToSearch)) {
 			this.matchType |= SettingMatchType.WholeWordMatch;
 		}
 	}

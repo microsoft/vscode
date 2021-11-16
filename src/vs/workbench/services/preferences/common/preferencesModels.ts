@@ -78,7 +78,7 @@ export abstract class AbstractSettingsModel extends EditorModel {
 			}
 		}
 
-		return filterMatches.sort((a, b) => {
+		filterMatches.sort((a, b) => {
 			// Sort by match type if the match types are not equal.
 			// The priority of the match type is given by the SettingMatchType enum.
 			// If they're equal, fall back to the "stable sort" counter score.
@@ -88,6 +88,7 @@ export abstract class AbstractSettingsModel extends EditorModel {
 				return b.score - a.score;
 			}
 		});
+		return filterMatches;
 	}
 
 	getPreference(key: string): ISetting | undefined {
