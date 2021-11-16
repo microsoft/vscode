@@ -272,7 +272,7 @@ export class ViewsService extends Disposable implements IViewsService {
 							this.paneCompositeService.hideActivePaneComposite(location);
 						}
 
-						// The blur event doesn't fire on Safari when the focused element is hidden,
+						// The blur event doesn't fire on WebKit when the focused element is hidden,
 						// so the context key needs to be forced here too otherwise a view may still
 						// think it's showing, breaking toggle commands.
 						if (this.focusedViewContextKey.get() === id) {
