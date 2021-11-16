@@ -227,9 +227,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		const authentication: typeof vscode.authentication = {
 			getSession(providerId: string, scopes: readonly string[], options?: vscode.AuthenticationGetSessionOptions) {
-				if (options?.forceNewSession) {
-					checkProposedApiEnabled(extension, 'authSession');
-				}
 				return extHostAuthentication.getSession(extension, providerId, scopes, options as any);
 			},
 			// TODO: remove this after GHPR and Codespaces move off of it
