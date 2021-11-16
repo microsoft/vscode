@@ -59,6 +59,9 @@ suite('MarkdownRenderer', () => {
 		});
 
 		test('image with file uri should render as same origin uri', () => {
+			if (isWeb) {
+				return;
+			}
 			const result: HTMLElement = renderMarkdown({ value: `![image](file:///images/cat.gif)` }).element;
 			assertNodeEquals(result, '<div><p><img src="vscode-file://vscode-app/images/cat.gif" alt="image"></p></div>');
 		});
