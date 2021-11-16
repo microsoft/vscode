@@ -6,12 +6,14 @@
 import { ok } from 'assert';
 import { ParsedArgs } from 'minimist';
 import { Code, Terminal } from '../../../../automation/out';
-import { afterSuite, beforeSuite, timeout } from '../../utils';
+import { afterSuite, beforeSuite } from '../../utils';
 
 export function setup(opts: ParsedArgs) {
 	describe('Terminal Tabs', () => {
 		let code: Code;
 		let terminal: Terminal;
+
+		// TODO: Move into automation/terminal
 		const enum TerminalCommandId {
 			Rename = 'workbench.action.terminal.rename',
 			ChangeColor = 'workbench.action.terminal.changeColor',
@@ -30,10 +32,6 @@ export function setup(opts: ParsedArgs) {
 		before(function () {
 			code = this.app.code;
 			terminal = this.app.workbench.terminal;
-		});
-
-		beforeEach(async function () {
-			await timeout(1000);
 		});
 
 		afterEach(async function () {
