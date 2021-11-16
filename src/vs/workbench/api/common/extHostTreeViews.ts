@@ -139,12 +139,11 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		if ((sourceViewId === destinationViewId) && sourceTreeItemHandles) {
 			const additionalTransferItems = await treeView.onWillDrop(sourceTreeItemHandles);
 			if (additionalTransferItems) {
-				for (const key of additionalTransferItems.items.keys()) {
-					const item = additionalTransferItems.items.get(key);
-					if (item) {
-						treeDataTransfer.items.set(key, item);
+				additionalTransferItems.items.forEach((value, key) => {
+					if (value) {
+						treeDataTransfer.items.set(key, value);
 					}
-				}
+				});
 			}
 		}
 		return treeView.onDrop(treeDataTransfer, newParentItemHandle);

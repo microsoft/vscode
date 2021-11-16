@@ -38,7 +38,7 @@ declare module 'vscode' {
 		 */
 		items: {
 			get: (mimeType: string) => TreeDataTransferItem | undefined
-			keys: () => IterableIterator<string>;
+			forEach: (callbackfn: (value: TreeDataTransferItem, key: string) => void) => void;
 		};
 	}
 
