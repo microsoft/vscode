@@ -131,7 +131,7 @@ export class MainThreadNotebooksAndEditors {
 	private _handleEditorAdd(editor: INotebookEditor): void {
 		this._editorListeners.set(editor.getId(), combinedDisposable(
 			editor.onDidChangeModel(() => this._updateState()),
-			editor.onDidFocusEditorWidget(() => this._updateState(editor)),
+			editor.onDidFocusWidget(() => this._updateState(editor)),
 		));
 		this._updateState();
 	}

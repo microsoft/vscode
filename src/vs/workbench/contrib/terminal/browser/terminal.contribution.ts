@@ -48,6 +48,7 @@ import { TerminalProfileService } from 'vs/workbench/contrib/terminal/browser/te
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { RemoteTerminalBackendContribution } from 'vs/workbench/contrib/terminal/browser/remoteTerminalBackend';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { TerminalMainContribution } from 'vs/workbench/contrib/terminal/browser/terminalMainContribution';
 
 // Register services
 registerSingleton(ITerminalService, TerminalService, true);
@@ -73,6 +74,7 @@ CommandsRegistry.registerCommand({ id: quickAccessNavigatePreviousInTerminalPick
 
 // Register workbench contributions
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+workbenchRegistry.registerWorkbenchContribution(TerminalMainContribution, LifecyclePhase.Starting);
 workbenchRegistry.registerWorkbenchContribution(RemoteTerminalBackendContribution, LifecyclePhase.Starting);
 
 // Register configurations

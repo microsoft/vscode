@@ -167,6 +167,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 	async detachFromProcess(): Promise<void> {
 		await this._process?.detach?.();
+		this._process = null;
 	}
 
 	async createProcess(

@@ -14,9 +14,11 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IRange } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { isNumber } from 'vs/base/common/types';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { compare } from 'vs/base/common/strings';
+import { groupBy } from 'vs/base/common/arrays';
 
 export interface IWorkspaceSymbol {
 	name: string;
@@ -59,19 +61,62 @@ export namespace WorkspaceSymbolProviderRegistry {
 	}
 }
 
-export function getWorkspaceSymbols(query: string, token: CancellationToken = CancellationToken.None): Promise<[IWorkspaceSymbolProvider, IWorkspaceSymbol[]][]> {
+export class WorkspaceSymbolItem {
+	constructor(readonly symbol: IWorkspaceSymbol, readonly provider: IWorkspaceSymbolProvider) { }
+}
 
-	const result: [IWorkspaceSymbolProvider, IWorkspaceSymbol[]][] = [];
+export async function getWorkspaceSymbols(query: string, token: CancellationToken = CancellationToken.None): Promise<WorkspaceSymbolItem[]> {
 
-	const promises = WorkspaceSymbolProviderRegistry.all().map(support => {
-		return Promise.resolve(support.provideWorkspaceSymbols(query, token)).then(value => {
-			if (Array.isArray(value)) {
-				result.push([support, value]);
+	const all: WorkspaceSymbolItem[] = [];
+
+	const promises = WorkspaceSymbolProviderRegistry.all().map(async provider => {
+		try {
+			const value = await provider.provideWorkspaceSymbols(query, token);
+			if (!value) {
+				return;
 			}
-		}, onUnexpectedError);
+			for (let symbol of value) {
+				all.push(new WorkspaceSymbolItem(symbol, provider));
+			}
+		} catch (err) {
+			onUnexpectedError(err);
+		}
 	});
 
-	return Promise.all(promises).then(_ => result);
+	await Promise.all(promises);
+
+	if (token.isCancellationRequested) {
+		return [];
+	}
+
+	// de-duplicate entries
+
+	function compareItems(a: WorkspaceSymbolItem, b: WorkspaceSymbolItem): number {
+		let res = compare(a.symbol.name, b.symbol.name);
+		if (res === 0) {
+			res = a.symbol.kind - b.symbol.kind;
+		}
+		if (res === 0) {
+			res = compare(a.symbol.location.uri.toString(), b.symbol.location.uri.toString());
+		}
+		if (res === 0) {
+			if (a.symbol.location.range && b.symbol.location.range) {
+				if (!Range.areIntersecting(a.symbol.location.range, b.symbol.location.range)) {
+					res = Range.compareRangesUsingStarts(a.symbol.location.range, b.symbol.location.range);
+				}
+			} else if (a.provider.resolveWorkspaceSymbol && !b.provider.resolveWorkspaceSymbol) {
+				res = -1;
+			} else if (!a.provider.resolveWorkspaceSymbol && b.provider.resolveWorkspaceSymbol) {
+				res = 1;
+			}
+		}
+		if (res === 0) {
+			res = compare(a.symbol.containerName ?? '', b.symbol.containerName ?? '');
+		}
+		return res;
+	}
+
+	return groupBy(all, compareItems).map(group => group[0]).flat();
 }
 
 export interface IWorkbenchSearchConfigurationProperties extends ISearchConfigurationProperties {

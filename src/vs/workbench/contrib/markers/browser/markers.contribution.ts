@@ -104,7 +104,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		'problems.compareOrder': {
 			'description': Messages.PROBLEMS_PANEL_CONFIGURATION_COMPARE_ORDER,
 			'type': 'string',
-			'default': ['severity'],
+			'default': 'severity',
 			'enum': ['severity', 'position'],
 			'enumDescriptions': [
 				Messages.PROBLEMS_PANEL_CONFIGURATION_COMPARE_ORDER_SEVERITY,

@@ -470,7 +470,7 @@ flakySuite('Recursive Watcher (parcel)', () => {
 
 		// Restore watched path
 		await Promises.mkdir(watchedPath);
-		await timeout(200); // restart is delayed
+		await timeout(1500); // restart is delayed
 		await service.whenReady();
 
 		// Verify events come in again

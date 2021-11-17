@@ -65,6 +65,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(this.debuggerWhenKeys)) {
 				this.debuggersAvailable.set(this.hasEnabledDebuggers());
+				this.updateDebugAdapterSchema();
 			}
 		}));
 		this.debugExtensionsAvailable = CONTEXT_DEBUG_EXTENSION_AVAILABLE.bindTo(contextKeyService);
@@ -111,58 +112,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 				this.debuggers = this.debuggers.filter(d => removedTypes.indexOf(d.type) === -1);
 			});
 
-			// update the schema to include all attributes, snippets and types from extensions.
-			const items = (<IJSONSchema>launchSchema.properties!['configurations'].items);
-			const taskSchema = TaskDefinitionRegistry.getJsonSchema();
-			const definitions: IJSONSchemaMap = {
-				'common': {
-					properties: {
-						'name': {
-							type: 'string',
-							description: nls.localize('debugName', "Name of configuration; appears in the launch configuration dropdown menu."),
-							default: 'Launch'
-						},
-						'debugServer': {
-							type: 'number',
-							description: nls.localize('debugServer', "For debug extension development only: if a port is specified VS Code tries to connect to a debug adapter running in server mode"),
-							default: 4711
-						},
-						'preLaunchTask': {
-							anyOf: [taskSchema, {
-								type: ['string']
-							}],
-							default: '',
-							defaultSnippets: [{ body: { task: '', type: '' } }],
-							description: nls.localize('debugPrelaunchTask', "Task to run before debug session starts.")
-						},
-						'postDebugTask': {
-							anyOf: [taskSchema, {
-								type: ['string'],
-							}],
-							default: '',
-							defaultSnippets: [{ body: { task: '', type: '' } }],
-							description: nls.localize('debugPostDebugTask', "Task to run after debug session ends.")
-						},
-						'presentation': presentationSchema,
-						'internalConsoleOptions': INTERNAL_CONSOLE_OPTIONS_SCHEMA,
-					}
-				}
-			};
-			launchSchema.definitions = definitions;
-			items.oneOf = [];
-			items.defaultSnippets = [];
-			this.debuggers.forEach(adapter => {
-				const schemaAttributes = adapter.getSchemaAttributes(definitions);
-				if (schemaAttributes && items.oneOf) {
-					items.oneOf.push(...schemaAttributes);
-				}
-				const configurationSnippets = adapter.configurationSnippets;
-				if (configurationSnippets && items.defaultSnippets) {
-					items.defaultSnippets.push(...configurationSnippets);
-				}
-			});
-			jsonRegistry.registerSchema(launchSchemaId, launchSchema);
-
+			this.updateDebugAdapterSchema();
 			this._onDidDebuggersExtPointRead.fire();
 		});
 
@@ -174,6 +124,60 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 				added.value.forEach(breakpoints => this.breakpointModeIdsSet.add(breakpoints.language));
 			});
 		});
+	}
+
+	private updateDebugAdapterSchema(): void {
+		// update the schema to include all attributes, snippets and types from extensions.
+		const items = (<IJSONSchema>launchSchema.properties!['configurations'].items);
+		const taskSchema = TaskDefinitionRegistry.getJsonSchema();
+		const definitions: IJSONSchemaMap = {
+			'common': {
+				properties: {
+					'name': {
+						type: 'string',
+						description: nls.localize('debugName', "Name of configuration; appears in the launch configuration dropdown menu."),
+						default: 'Launch'
+					},
+					'debugServer': {
+						type: 'number',
+						description: nls.localize('debugServer', "For debug extension development only: if a port is specified VS Code tries to connect to a debug adapter running in server mode"),
+						default: 4711
+					},
+					'preLaunchTask': {
+						anyOf: [taskSchema, {
+							type: ['string']
+						}],
+						default: '',
+						defaultSnippets: [{ body: { task: '', type: '' } }],
+						description: nls.localize('debugPrelaunchTask', "Task to run before debug session starts.")
+					},
+					'postDebugTask': {
+						anyOf: [taskSchema, {
+							type: ['string'],
+						}],
+						default: '',
+						defaultSnippets: [{ body: { task: '', type: '' } }],
+						description: nls.localize('debugPostDebugTask', "Task to run after debug session ends.")
+					},
+					'presentation': presentationSchema,
+					'internalConsoleOptions': INTERNAL_CONSOLE_OPTIONS_SCHEMA,
+				}
+			}
+		};
+		launchSchema.definitions = definitions;
+		items.oneOf = [];
+		items.defaultSnippets = [];
+		this.debuggers.forEach(adapter => {
+			const schemaAttributes = adapter.getSchemaAttributes(definitions);
+			if (schemaAttributes && items.oneOf) {
+				items.oneOf.push(...schemaAttributes);
+			}
+			const configurationSnippets = adapter.configurationSnippets;
+			if (configurationSnippets && items.defaultSnippets) {
+				items.defaultSnippets.push(...configurationSnippets);
+			}
+		});
+		jsonRegistry.registerSchema(launchSchemaId, launchSchema);
 	}
 
 	registerDebugAdapterFactory(debugTypes: string[], debugAdapterLauncher: IDebugAdapterFactory): IDisposable {

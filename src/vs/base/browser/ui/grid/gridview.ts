@@ -10,7 +10,7 @@ import { equals as arrayEquals, tail2 as tail } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event, Relay } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { clamp } from 'vs/base/common/numbers';
+import { rot } from 'vs/base/common/numbers';
 import { isUndefined } from 'vs/base/common/types';
 import 'vs/css!./gridview';
 
@@ -233,6 +233,14 @@ function fromAbsoluteBoundarySashes(sashes: IBoundarySashes, orientation: Orient
 	} else {
 		return { start: sashes.top, end: sashes.bottom, orthogonalStart: sashes.left, orthogonalEnd: sashes.right };
 	}
+}
+
+function validateIndex(index: number, numChildren: number): number {
+	if (Math.abs(index) > numChildren) {
+		throw new Error('Invalid index');
+	}
+
+	return rot(index, numChildren + 1);
 }
 
 class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
@@ -474,9 +482,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 	}
 
 	addChild(node: Node, size: number | Sizing, index: number, skipLayout?: boolean): void {
-		if (index < 0 || index > this.children.length) {
-			throw new Error('Invalid index');
-		}
+		index = validateIndex(index, this.children.length);
 
 		this.splitview.addView(node, size, index, skipLayout);
 		this._addChild(node, index);
@@ -511,9 +517,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 	}
 
 	removeChild(index: number, sizing?: Sizing): void {
-		if (index < 0 || index >= this.children.length) {
-			throw new Error('Invalid index');
-		}
+		index = validateIndex(index, this.children.length);
 
 		this.splitview.removeView(index, sizing);
 		this._removeChild(index);
@@ -543,15 +547,12 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 	}
 
 	moveChild(from: number, to: number): void {
+		from = validateIndex(from, this.children.length);
+		to = validateIndex(to, this.children.length);
+
 		if (from === to) {
 			return;
 		}
-
-		if (from < 0 || from >= this.children.length) {
-			throw new Error('Invalid from index');
-		}
-
-		to = clamp(to, 0, this.children.length);
 
 		if (from < to) {
 			to--;
@@ -566,15 +567,12 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 	}
 
 	swapChildren(from: number, to: number): void {
+		from = validateIndex(from, this.children.length);
+		to = validateIndex(to, this.children.length);
+
 		if (from === to) {
 			return;
 		}
-
-		if (from < 0 || from >= this.children.length) {
-			throw new Error('Invalid from index');
-		}
-
-		to = clamp(to, 0, this.children.length);
 
 		this.splitview.swapViews(from, to);
 
@@ -589,9 +587,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 	}
 
 	resizeChild(index: number, size: number): void {
-		if (index < 0 || index >= this.children.length) {
-			throw new Error('Invalid index');
-		}
+		index = validateIndex(index, this.children.length);
 
 		this.splitview.resizeView(index, size);
 	}
@@ -609,25 +605,19 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 	}
 
 	getChildSize(index: number): number {
-		if (index < 0 || index >= this.children.length) {
-			throw new Error('Invalid index');
-		}
+		index = validateIndex(index, this.children.length);
 
 		return this.splitview.getViewSize(index);
 	}
 
 	isChildVisible(index: number): boolean {
-		if (index < 0 || index >= this.children.length) {
-			throw new Error('Invalid index');
-		}
+		index = validateIndex(index, this.children.length);
 
 		return this.splitview.isViewVisible(index);
 	}
 
 	setChildVisible(index: number, visible: boolean): void {
-		if (index < 0 || index >= this.children.length) {
-			throw new Error('Invalid index');
-		}
+		index = validateIndex(index, this.children.length);
 
 		if (this.splitview.isViewVisible(index) === visible) {
 			return;
@@ -637,9 +627,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 	}
 
 	getChildCachedVisibleSize(index: number): number | undefined {
-		if (index < 0 || index >= this.children.length) {
-			throw new Error('Invalid index');
-		}
+		index = validateIndex(index, this.children.length);
 
 		return this.splitview.getViewCachedVisibleSize(index);
 	}
