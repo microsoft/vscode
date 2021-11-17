@@ -4,41 +4,103 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual } from 'assert';
-import { ITerminalProfile } from 'vs/platform/terminal/common/terminal';
-import { convertProfileToShellLaunchConfig } from 'vs/workbench/contrib/terminal/browser/terminalService';
+import { IShellLaunchConfig, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
+import { TerminalService } from 'vs/workbench/contrib/terminal/browser/terminalService';
 import { URI } from 'vs/base/common/uri';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { Emitter } from 'vs/base/common/event';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
+
+class TestTerminalInstanceHost implements ITerminalInstanceHost {
+	activeInstance: ITerminalInstance | undefined = undefined;
+	instances: readonly ITerminalInstance[] = [];
+	onDidChangeInstances = new Emitter<void>().event;
+	onDidDisposeInstance = new Emitter<ITerminalInstance>().event;
+	onDidChangeActiveInstance = new Emitter<ITerminalInstance | undefined>().event;
+	onDidFocusInstance = new Emitter<ITerminalInstance>().event;
+	setActiveInstance(instance: ITerminalInstance): void {
+		throw new Error('Method not implemented.');
+	}
+	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined {
+		throw new Error('Method not implemented.');
+	}
+}
+
+class TestTerminalService extends TerminalService {
+	convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig {
+		return this._convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile, cwd);
+	}
+}
 
 suite('Workbench - TerminalService', () => {
+	let instantiationService: TestInstantiationService;
+	let terminalService: TestTerminalService;
+
+	setup(async () => {
+		const configurationService = new TestConfigurationService({
+			terminal: {
+				integrated: {
+					fontWeight: 'normal'
+				}
+			}
+		});
+
+		instantiationService = new TestInstantiationService();
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IContextKeyService, instantiationService.createInstance(ContextKeyService));
+		instantiationService.stub(ILifecycleService, new TestLifecycleService());
+		instantiationService.stub(IThemeService, new TestThemeService());
+		instantiationService.stub(ITerminalEditorService, new TestTerminalInstanceHost());
+		instantiationService.stub(ITerminalGroupService, new TestTerminalInstanceHost());
+		instantiationService.stub(ITerminalGroupService, 'onDidChangeActiveGroup', new Emitter().event);
+		instantiationService.stub(ITerminalInstanceService, {});
+		instantiationService.stub(ITerminalInstanceService, 'onDidCreateInstance', new Emitter().event);
+		instantiationService.stub(ITerminalProfileService, {});
+		instantiationService.stub(ITerminalProfileService, 'onDidChangeAvailableProfiles', new Emitter().event);
+
+		terminalService = instantiationService.createInstance(TestTerminalService);
+		instantiationService.stub(ITerminalService, terminalService);
+	});
+
 	suite('convertProfileToShellLaunchConfig', () => {
 		test('should return an empty shell launch config when undefined is provided', () => {
-			deepStrictEqual(convertProfileToShellLaunchConfig(), {});
-			deepStrictEqual(convertProfileToShellLaunchConfig(undefined), {});
+			deepStrictEqual(terminalService.convertProfileToShellLaunchConfig(), {});
+			deepStrictEqual(terminalService.convertProfileToShellLaunchConfig(undefined), {});
 		});
 		test('should return the same shell launch config when provided', () => {
 			deepStrictEqual(
-				convertProfileToShellLaunchConfig({}),
+				terminalService.convertProfileToShellLaunchConfig({}),
 				{}
 			);
 			deepStrictEqual(
-				convertProfileToShellLaunchConfig({ executable: '/foo' }),
+				terminalService.convertProfileToShellLaunchConfig({ executable: '/foo' }),
 				{ executable: '/foo' }
 			);
 			deepStrictEqual(
-				convertProfileToShellLaunchConfig({ executable: '/foo', cwd: '/bar', args: ['a', 'b'] }),
+				terminalService.convertProfileToShellLaunchConfig({ executable: '/foo', cwd: '/bar', args: ['a', 'b'] }),
 				{ executable: '/foo', cwd: '/bar', args: ['a', 'b'] }
 			);
 			deepStrictEqual(
-				convertProfileToShellLaunchConfig({ executable: '/foo' }, '/bar'),
+				terminalService.convertProfileToShellLaunchConfig({ executable: '/foo' }, '/bar'),
 				{ executable: '/foo', cwd: '/bar' }
 			);
 			deepStrictEqual(
-				convertProfileToShellLaunchConfig({ executable: '/foo', cwd: '/bar' }, '/baz'),
+				terminalService.convertProfileToShellLaunchConfig({ executable: '/foo', cwd: '/bar' }, '/baz'),
 				{ executable: '/foo', cwd: '/baz' }
 			);
 		});
 		test('should convert a provided profile to a shell launch config', () => {
 			deepStrictEqual(
-				convertProfileToShellLaunchConfig({
+				terminalService.convertProfileToShellLaunchConfig({
 					profileName: 'abc',
 					path: '/foo',
 					isDefault: true
@@ -55,7 +117,7 @@ suite('Workbench - TerminalService', () => {
 			);
 			const icon = URI.file('/icon');
 			deepStrictEqual(
-				convertProfileToShellLaunchConfig({
+				terminalService.convertProfileToShellLaunchConfig({
 					profileName: 'abc',
 					path: '/foo',
 					isDefault: true,
@@ -77,7 +139,7 @@ suite('Workbench - TerminalService', () => {
 		});
 		test('should respect overrideName in profile', () => {
 			deepStrictEqual(
-				convertProfileToShellLaunchConfig({
+				terminalService.convertProfileToShellLaunchConfig({
 					profileName: 'abc',
 					path: '/foo',
 					isDefault: true,

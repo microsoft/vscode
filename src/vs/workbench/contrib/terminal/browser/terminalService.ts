@@ -876,7 +876,7 @@ export class TerminalService implements ITerminalService {
 		}
 
 		const config = options?.config || this._terminalProfileService.availableProfiles?.find(p => p.profileName === this._terminalProfileService.getDefaultProfileName());
-		const shellLaunchConfig = config && 'extensionIdentifier' in config ? {} : convertProfileToShellLaunchConfig(config || {});
+		const shellLaunchConfig = config && 'extensionIdentifier' in config ? {} : this._convertProfileToShellLaunchConfig(config || {});
 
 		// Get the contributed profile if it was provided
 		let contributedProfile = config && 'extensionIdentifier' in config ? config : undefined;
@@ -1043,39 +1043,39 @@ export class TerminalService implements ITerminalService {
 		this._onDidChangeGroups.fire();
 	}
 
+	protected _convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig {
+		if (shellLaunchConfigOrProfile && 'profileName' in shellLaunchConfigOrProfile) {
+			const profile = shellLaunchConfigOrProfile;
+			if (!profile.path) {
+				return shellLaunchConfigOrProfile;
+			}
+			return {
+				executable: profile.path,
+				args: profile.args,
+				env: profile.env,
+				icon: profile.icon,
+				color: profile.color,
+				name: profile.overrideName ? profile.profileName : undefined,
+				cwd
+			};
+		}
+
+		// A shell launch config was provided
+		if (shellLaunchConfigOrProfile) {
+			if (cwd) {
+				shellLaunchConfigOrProfile.cwd = cwd;
+			}
+			return shellLaunchConfigOrProfile;
+		}
+
+		// Return empty shell launch config
+		return {};
+	}
+
 	async setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): Promise<void> {
 		this._configHelper.panelContainer = panelContainer;
 		this._terminalGroupService.setContainer(terminalContainer);
 	}
-}
-
-export function convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig {
-	if (shellLaunchConfigOrProfile && 'profileName' in shellLaunchConfigOrProfile) {
-		const profile = shellLaunchConfigOrProfile;
-		if (!profile.path) {
-			return shellLaunchConfigOrProfile;
-		}
-		return {
-			executable: profile.path,
-			args: profile.args,
-			env: profile.env,
-			icon: profile.icon,
-			color: profile.color,
-			name: profile.overrideName ? profile.profileName : undefined,
-			cwd
-		};
-	}
-
-	// A shell launch config was provided
-	if (shellLaunchConfigOrProfile) {
-		if (cwd) {
-			shellLaunchConfigOrProfile.cwd = cwd;
-		}
-		return shellLaunchConfigOrProfile;
-	}
-
-	// Return empty shell launch config
-	return {};
 }
 
 class TerminalEditorStyle extends Themable {
