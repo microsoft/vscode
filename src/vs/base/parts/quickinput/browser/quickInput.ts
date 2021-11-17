@@ -19,7 +19,7 @@ import { Action } from 'vs/base/common/actions';
 import { equals } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Codicon, registerCodicon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -74,11 +74,8 @@ const $ = dom.$;
 
 type Writeable<T> = { -readonly [P in keyof T]: T[P] };
 
-
-const backButtonIcon = registerCodicon('quick-input-back', Codicon.arrowLeft);
-
 const backButton = {
-	iconClass: backButtonIcon.classNames,
+	iconClass: Codicon.quickInputBack.classNames,
 	tooltip: localize('quickInput.back', "Back"),
 	handle: -1 // TODO
 };
@@ -1690,7 +1687,7 @@ export class QuickInputController extends Disposable {
 				while (currentElement && !currentElement.offsetParent) {
 					currentElement = withNullAsUndefined(currentElement.parentElement);
 				}
-				if (currentElement?.offsetParent && !currentElement.parentElement?.classList.contains('monaco-editor')) {
+				if (currentElement?.offsetParent) {
 					currentElement.focus();
 					this.previousFocusElement = undefined;
 				} else {

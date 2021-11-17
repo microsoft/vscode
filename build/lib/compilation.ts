@@ -224,7 +224,7 @@ function apiProposalNamesGenerator() {
 
 			const t1 = Date.now();
 			const proposalNames: [name: string, url: string][] = [];
-			for (let file of fs.readdirSync(dtsFolder)) {
+			for (let file of fs.readdirSync(dtsFolder).sort()) {
 				const match = pattern.exec(file);
 				if (match) {
 					proposalNames.push([match[1], `https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/${file}`]);
@@ -243,7 +243,6 @@ function apiProposalNamesGenerator() {
 				`${proposalNames.map(t => `\t${t[0]}: '${t[1]}'`).join(',\n')}`,
 				'});',
 				'export type ApiProposalName = keyof typeof allApiProposals;',
-				'export const allApiProposalNames = <readonly ApiProposalName[]><unknown>Object.keys(allApiProposals);',
 				'',
 			].join('\n');
 

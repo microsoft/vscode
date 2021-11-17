@@ -8598,10 +8598,10 @@ declare module 'vscode' {
 		 *
 		 * @param command Identifier of the command to execute.
 		 * @param rest Parameters passed to the command function.
-		 * @return A thenable that resolves to the returned value of the given command. `undefined` when
+		 * @return A thenable that resolves to the returned value of the given command. Returns `undefined` when
 		 * the command handler function doesn't return anything.
 		 */
-		export function executeCommand<T>(command: string, ...rest: any[]): Thenable<T | undefined>;
+		export function executeCommand<T = unknown>(command: string, ...rest: any[]): Thenable<T>;
 
 		/**
 		 * Retrieve the list of all available commands. Commands starting with an underscore are
@@ -10784,6 +10784,11 @@ declare module 'vscode' {
 
 		/**
 		 * An event that is emitted when a workspace folder is added or removed.
+		 *
+		 * **Note:** this event will not fire if the first workspace folder is added, removed or changed,
+		 * because in that case the currently executing extensions (including the one that listens to this
+		 * event) will be terminated and restarted so that the (deprecated) `rootPath` property is updated
+		 * to point to the first workspace folder.
 		 */
 		export const onDidChangeWorkspaceFolders: Event<WorkspaceFoldersChangeEvent>;
 
@@ -13914,6 +13919,15 @@ declare module 'vscode' {
 		 */
 		createIfNone?: boolean;
 
+		/**
+		 * Whether we should attempt to reauthenticate even if there is already a session available.
+		 *
+		 * If true, a modal dialog will be shown asking the user to sign in again. This is mostly used for scenarios
+		 * where the token needs to be re minted because it has lost some authorization.
+		 *
+		 * Defaults to false.
+		 */
+		forceNewSession?: boolean | { detail: string };
 
 		/**
 		 * Whether we should show the indication to sign in in the Accounts menu.
@@ -14064,6 +14078,21 @@ declare module 'vscode' {
 		 * @returns A thenable that resolves to an authentication session if available, or undefined if there are no sessions
 		 */
 		export function getSession(providerId: string, scopes: readonly string[], options?: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
+
+		/**
+		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
+		 * registered, or if the user does not consent to sharing authentication information with
+		 * the extension. If there are multiple sessions with the same scopes, the user will be shown a
+		 * quickpick to select which account they would like to use.
+		 *
+		 * Currently, there are only two authentication providers that are contributed from built in extensions
+		 * to the editor that implement GitHub and Microsoft authentication: their providerId's are 'github' and 'microsoft'.
+		 * @param providerId The id of the provider to use
+		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
+		 * @param options The {@link AuthenticationGetSessionOptions} to use
+		 * @returns A thenable that resolves to an authentication session
+		 */
+		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { forceNewSession: true | { detail: string } }): Thenable<AuthenticationSession>;
 
 		/**
 		 * An {@link Event} which fires when the authentication sessions of an authentication provider have

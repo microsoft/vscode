@@ -32,8 +32,20 @@ import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { minimizeInlineCompletion } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsModel';
+import { rangeStartsWith } from 'vs/editor/contrib/inlineCompletions/suggestWidgetInlineCompletionProvider';
 
 suite('Suggest Widget Model', () => {
+	test('rangeStartsWith', () => {
+		assert.strictEqual(rangeStartsWith(new Range(1, 1, 10, 5), new Range(1, 1, 1, 1)), true);
+		assert.strictEqual(rangeStartsWith(new Range(1, 1, 10, 5), new Range(1, 1, 10, 5)), true);
+		assert.strictEqual(rangeStartsWith(new Range(1, 1, 10, 5), new Range(1, 1, 10, 4)), true);
+		assert.strictEqual(rangeStartsWith(new Range(1, 1, 10, 5), new Range(1, 1, 9, 6)), true);
+
+		assert.strictEqual(rangeStartsWith(new Range(2, 1, 10, 5), new Range(1, 1, 10, 5)), false);
+		assert.strictEqual(rangeStartsWith(new Range(1, 1, 10, 5), new Range(1, 1, 10, 6)), false);
+		assert.strictEqual(rangeStartsWith(new Range(1, 1, 10, 5), new Range(1, 1, 11, 4)), false);
+	});
+
 	test('Active', async () => {
 		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
 			{ fakeClock: true, provider, },

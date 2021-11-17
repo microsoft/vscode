@@ -139,9 +139,8 @@ export abstract class BaseWindowDriver implements IWindowDriver {
 		}
 
 		const lines: string[] = [];
-
-		for (let i = 0; i < xterm.buffer.length; i++) {
-			lines.push(xterm.buffer.getLine(i)!.translateToString(true));
+		for (let i = 0; i < xterm.buffer.active.length; i++) {
+			lines.push(xterm.buffer.active.getLine(i)!.translateToString(true));
 		}
 
 		return lines;

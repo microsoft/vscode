@@ -230,13 +230,13 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 	private _validateInput: IValidateInput | undefined;
 
 	get validateInput(): IValidateInput | undefined {
-		checkProposedApiEnabled(this._extension);
+		checkProposedApiEnabled(this._extension, 'scmValidation');
 
 		return this._validateInput;
 	}
 
 	set validateInput(fn: IValidateInput | undefined) {
-		checkProposedApiEnabled(this._extension);
+		checkProposedApiEnabled(this._extension, 'scmValidation');
 
 		if (fn && typeof fn !== 'function') {
 			throw new Error(`[${this._extension.identifier.value}]: Invalid SCM input box validation function`);
@@ -268,7 +268,7 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 	}
 
 	showValidationMessage(message: string | vscode.MarkdownString, type: vscode.SourceControlInputBoxValidationType) {
-		checkProposedApiEnabled(this._extension);
+		checkProposedApiEnabled(this._extension, 'scmValidation');
 
 		this._proxy.$showValidationMessage(this._sourceControlHandle, message, type as any);
 	}
@@ -502,11 +502,11 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	private _actionButtonDisposables = new MutableDisposable<DisposableStore>();
 	private _actionButton: vscode.Command | undefined;
 	get actionButton(): vscode.Command | undefined {
-		checkProposedApiEnabled(this._extension);
+		checkProposedApiEnabled(this._extension, 'scmActionButton');
 		return this._actionButton;
 	}
 	set actionButton(actionButton: vscode.Command | undefined) {
-		checkProposedApiEnabled(this._extension);
+		checkProposedApiEnabled(this._extension, 'scmActionButton');
 		this._actionButtonDisposables.value = new DisposableStore();
 
 		this._actionButton = actionButton;

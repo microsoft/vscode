@@ -11,6 +11,7 @@ import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/envi
 
 export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	'port': { type: 'string' },
+	'pick-port': { type: 'string' },
 	'connectionToken': { type: 'string' },
 	'connection-secret': { type: 'string', description: nls.localize('connection-secret', "Path to file that contains the connection token. This will require that all incoming connections know the secret.") },
 	'host': { type: 'string' },
@@ -58,6 +59,7 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 
 export interface ServerParsedArgs {
 	port?: string;
+	'pick-port'?: string;
 	connectionToken?: string;
 	/**
 	 * A path to a filename which will be read on startup.

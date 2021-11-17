@@ -8,11 +8,10 @@ import { AbstractScrollbar, ISimplifiedMouseEvent, ScrollbarHost } from 'vs/base
 import { ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import { ARROW_IMG_SIZE } from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
 import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
-import { Codicon, registerCodicon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 import { INewScrollPosition, Scrollable, ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 
-const scrollbarButtonUpIcon = registerCodicon('scrollbar-button-up', Codicon.triangleUp);
-const scrollbarButtonDownIcon = registerCodicon('scrollbar-button-down', Codicon.triangleDown);
+
 
 export class VerticalScrollbar extends AbstractScrollbar {
 
@@ -43,7 +42,7 @@ export class VerticalScrollbar extends AbstractScrollbar {
 
 			this._createArrow({
 				className: 'scra',
-				icon: scrollbarButtonUpIcon,
+				icon: Codicon.scrollbarButtonUp,
 				top: arrowDelta,
 				left: scrollbarDelta,
 				bottom: undefined,
@@ -55,7 +54,7 @@ export class VerticalScrollbar extends AbstractScrollbar {
 
 			this._createArrow({
 				className: 'scra',
-				icon: scrollbarButtonDownIcon,
+				icon: Codicon.scrollbarButtonDown,
 				top: undefined,
 				left: scrollbarDelta,
 				bottom: arrowDelta,

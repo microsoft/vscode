@@ -190,13 +190,13 @@ export class SuggestWidgetInlineCompletionProvider extends Disposable {
 	}
 }
 
-function rangeStartsWith(rangeToTest: Range, prefix: Range): boolean {
+export function rangeStartsWith(rangeToTest: Range, prefix: Range): boolean {
 	return (
-		rangeToTest.startLineNumber === prefix.startLineNumber &&
-		rangeToTest.startColumn === prefix.startColumn &&
-		(rangeToTest.endLineNumber < prefix.endLineNumber ||
-			(rangeToTest.endLineNumber === prefix.endLineNumber &&
-				rangeToTest.endColumn <= prefix.endColumn))
+		prefix.startLineNumber === rangeToTest.startLineNumber &&
+		prefix.startColumn === rangeToTest.startColumn &&
+		(prefix.endLineNumber < rangeToTest.endLineNumber ||
+			(prefix.endLineNumber === rangeToTest.endLineNumber &&
+				prefix.endColumn <= rangeToTest.endColumn))
 	);
 }
 

@@ -9,6 +9,7 @@ import * as nls from 'vscode-nls';
 import { provideInstalledExtensionProposals } from './extensionsProposals';
 
 const localize = nls.loadMessageBundle();
+const OVERRIDE_IDENTIFIER_REGEX = /\[([^\[\]]*)\]/g;
 
 export class SettingsDocument {
 
@@ -186,61 +187,60 @@ export class SettingsDocument {
 			.then(languages => languages.map(l => this.newSimpleCompletionItem(formatFunc(l), range)));
 	}
 
-	private provideLanguageCompletionItemsForLanguageOverrides(_location: Location, range: vscode.Range, formatFunc: (string: string) => string = (l) => JSON.stringify(l)): Thenable<vscode.CompletionItem[]> {
-		return vscode.languages.getLanguages().then(languages => {
-			const completionItems = [];
-			const configuration = vscode.workspace.getConfiguration();
-			for (const language of languages) {
-				const inspect = configuration.inspect(`[${language}]`);
-				if (!inspect || !inspect.defaultValue) {
-					const item = new vscode.CompletionItem(formatFunc(language));
-					item.kind = vscode.CompletionItemKind.Property;
-					item.range = range;
-					completionItems.push(item);
-				}
-			}
-			return completionItems;
-		});
+	private async provideLanguageCompletionItemsForLanguageOverrides(_location: Location, range: vscode.Range): Promise<vscode.CompletionItem[]> {
+		const languages = await vscode.languages.getLanguages();
+		const completionItems = [];
+		for (const language of languages) {
+			const item = new vscode.CompletionItem(JSON.stringify(language));
+			item.kind = vscode.CompletionItemKind.Property;
+			item.range = range;
+			completionItems.push(item);
+		}
+		return completionItems;
 	}
 
-	private provideLanguageOverridesCompletionItems(location: Location, position: vscode.Position): vscode.ProviderResult<vscode.CompletionItem[]> {
-
-		if (location.path.length === 0) {
-
-			let range = this.document.getWordRangeAtPosition(position, /^\s*\[.*]?/) || new vscode.Range(position, position);
-			let text = this.document.getText(range);
-			if (text && text.trim().startsWith('[')) {
-				range = new vscode.Range(new vscode.Position(range.start.line, range.start.character + text.indexOf('[')), range.end);
-				return this.provideLanguageCompletionItemsForLanguageOverrides(location, range, language => `"[${language}]"`);
-			}
-
-			range = this.document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
-			text = this.document.getText(range);
-			let snippet = '"[${1:language}]": {\n\t"$0"\n}';
-
-			// Suggestion model word matching includes quotes,
-			// hence exclude the starting quote from the snippet and the range
-			// ending quote gets replaced
-			if (text && text.startsWith('"')) {
-				range = new vscode.Range(new vscode.Position(range.start.line, range.start.character + 1), range.end);
-				snippet = snippet.substring(1);
-			}
-
-			return Promise.resolve([this.newSnippetCompletionItem({
-				label: localize('languageSpecificEditorSettings', "Language specific editor settings"),
-				documentation: localize('languageSpecificEditorSettingsDescription', "Override editor settings for language"),
-				snippet,
-				range
-			})]);
-		}
-
+	private async provideLanguageOverridesCompletionItems(location: Location, position: vscode.Position): Promise<vscode.CompletionItem[]> {
 		if (location.path.length === 1 && location.previousNode && typeof location.previousNode.value === 'string' && location.previousNode.value.startsWith('[')) {
-			// Suggestion model word matching includes closed sqaure bracket and ending quote
-			// Hence include them in the proposal to replace
-			const range = this.document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
-			return this.provideLanguageCompletionItemsForLanguageOverrides(location, range, language => `"[${language}]"`);
+			const startPosition = this.document.positionAt(location.previousNode.offset + 1);
+			const endPosition = startPosition.translate(undefined, location.previousNode.value.length);
+			const donotSuggestLanguages: string[] = [];
+			const languageOverridesRanges: vscode.Range[] = [];
+			let matches = OVERRIDE_IDENTIFIER_REGEX.exec(location.previousNode.value);
+			let lastLanguageOverrideRange: vscode.Range | undefined;
+			while (matches?.length) {
+				lastLanguageOverrideRange = new vscode.Range(this.document.positionAt(location.previousNode.offset + 1 + matches.index), this.document.positionAt(location.previousNode.offset + 1 + matches.index + matches[0].length));
+				languageOverridesRanges.push(lastLanguageOverrideRange);
+				/* Suggest the configured language if the position is in the match range */
+				if (!lastLanguageOverrideRange.contains(position)) {
+					donotSuggestLanguages.push(matches[1].trim());
+				}
+				matches = OVERRIDE_IDENTIFIER_REGEX.exec(location.previousNode.value);
+			}
+			const lastLanguageOverrideEndPosition = lastLanguageOverrideRange ? lastLanguageOverrideRange.end : startPosition;
+			if (lastLanguageOverrideEndPosition.isBefore(endPosition)) {
+				languageOverridesRanges.push(new vscode.Range(lastLanguageOverrideEndPosition, endPosition));
+			}
+			const languageOverrideRange = languageOverridesRanges.find(range => range.contains(position));
+
+			/**
+			 *  Skip if suggestsions are for first language override range
+			 *  Since VSCode registers language overrides to the schema, JSON language server does suggestions for first language override.
+			 */
+			if (languageOverrideRange && !languageOverrideRange.isEqual(languageOverridesRanges[0])) {
+				const languages = await vscode.languages.getLanguages();
+				const completionItems = [];
+				for (const language of languages) {
+					if (!donotSuggestLanguages.includes(language)) {
+						const item = new vscode.CompletionItem(`[${language}]`);
+						item.kind = vscode.CompletionItemKind.Property;
+						item.range = languageOverrideRange;
+						completionItems.push(item);
+					}
+				}
+				return completionItems;
+			}
 		}
-		return Promise.resolve([]);
+		return [];
 	}
 
 	private providePortsAttributesCompletionItem(range: vscode.Range): vscode.CompletionItem[] {

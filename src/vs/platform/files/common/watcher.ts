@@ -185,20 +185,20 @@ export function toFileChanges(changes: IDiskFileChange[]): IFileChange[] {
 	}));
 }
 
-export function normalizeFileChanges(changes: IDiskFileChange[]): IDiskFileChange[] {
+export function coalesceEvents(changes: IDiskFileChange[]): IDiskFileChange[] {
 
 	// Build deltas
-	const normalizer = new EventNormalizer();
+	const coalescer = new EventCoalescer();
 	for (const event of changes) {
-		normalizer.processEvent(event);
+		coalescer.processEvent(event);
 	}
 
-	return normalizer.normalize();
+	return coalescer.coalesce();
 }
 
-class EventNormalizer {
+class EventCoalescer {
 
-	private readonly normalized = new Set<IDiskFileChange>();
+	private readonly coalesced = new Set<IDiskFileChange>();
 	private readonly mapPathToChange = new Map<string, IDiskFileChange>();
 
 	private toKey(event: IDiskFileChange): string {
@@ -232,7 +232,7 @@ class EventNormalizer {
 			// Ignore CREATE followed by DELETE in one go
 			else if (currentChangeType === FileChangeType.ADDED && newChangeType === FileChangeType.DELETED) {
 				this.mapPathToChange.delete(this.toKey(event));
-				this.normalized.delete(existingEvent);
+				this.coalesced.delete(existingEvent);
 			}
 
 			// Flatten DELETE followed by CREATE into CHANGE
@@ -255,12 +255,12 @@ class EventNormalizer {
 		}
 
 		if (keepEvent) {
-			this.normalized.add(event);
+			this.coalesced.add(event);
 			this.mapPathToChange.set(this.toKey(event), event);
 		}
 	}
 
-	normalize(): IDiskFileChange[] {
+	coalesce(): IDiskFileChange[] {
 		const addOrChangeEvents: IDiskFileChange[] = [];
 		const deletedPaths: string[] = [];
 
@@ -271,7 +271,7 @@ class EventNormalizer {
 		// 1.) split ADD/CHANGE and DELETED events
 		// 2.) sort short deleted paths to the top
 		// 3.) for each DELETE, check if there is a deleted parent and ignore the event in that case
-		return Array.from(this.normalized).filter(e => {
+		return Array.from(this.coalesced).filter(e => {
 			if (e.type !== FileChangeType.DELETED) {
 				addOrChangeEvents.push(e);
 

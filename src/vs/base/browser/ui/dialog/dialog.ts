@@ -10,7 +10,7 @@ import { ButtonBar, ButtonWithDescription, IButtonStyles } from 'vs/base/browser
 import { ISimpleCheckboxStyles, SimpleCheckbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Action } from 'vs/base/common/actions';
-import { Codicon, registerCodicon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
@@ -64,11 +64,6 @@ interface ButtonMapEntry {
 	readonly label: string;
 	readonly index: number;
 }
-
-const dialogErrorIcon = registerCodicon('dialog-error', Codicon.error);
-const dialogWarningIcon = registerCodicon('dialog-warning', Codicon.warning);
-const dialogInfoIcon = registerCodicon('dialog-info', Codicon.info);
-const dialogCloseIcon = registerCodicon('dialog-close', Codicon.close);
 
 export class Dialog extends Disposable {
 	private readonly element: HTMLElement;
@@ -350,17 +345,17 @@ export class Dialog extends Disposable {
 
 			const spinModifierClassName = 'codicon-modifier-spin';
 
-			this.iconElement.classList.remove(...dialogErrorIcon.classNamesArray, ...dialogWarningIcon.classNamesArray, ...dialogInfoIcon.classNamesArray, ...Codicon.loading.classNamesArray, spinModifierClassName);
+			this.iconElement.classList.remove(...Codicon.dialogError.classNamesArray, ...Codicon.dialogWarning.classNamesArray, ...Codicon.dialogInfo.classNamesArray, ...Codicon.loading.classNamesArray, spinModifierClassName);
 
 			if (this.options.icon) {
 				this.iconElement.classList.add(...this.options.icon.classNamesArray);
 			} else {
 				switch (this.options.type) {
 					case 'error':
-						this.iconElement.classList.add(...dialogErrorIcon.classNamesArray);
+						this.iconElement.classList.add(...Codicon.dialogError.classNamesArray);
 						break;
 					case 'warning':
-						this.iconElement.classList.add(...dialogWarningIcon.classNamesArray);
+						this.iconElement.classList.add(...Codicon.dialogWarning.classNamesArray);
 						break;
 					case 'pending':
 						this.iconElement.classList.add(...Codicon.loading.classNamesArray, spinModifierClassName);
@@ -369,7 +364,7 @@ export class Dialog extends Disposable {
 					case 'info':
 					case 'question':
 					default:
-						this.iconElement.classList.add(...dialogInfoIcon.classNamesArray);
+						this.iconElement.classList.add(...Codicon.dialogInfo.classNamesArray);
 						break;
 				}
 			}
@@ -378,7 +373,7 @@ export class Dialog extends Disposable {
 			if (!this.options.disableCloseAction) {
 				const actionBar = this._register(new ActionBar(this.toolbarContainer, {}));
 
-				const action = this._register(new Action('dialog.close', nls.localize('dialogClose', "Close Dialog"), dialogCloseIcon.classNames, true, async () => {
+				const action = this._register(new Action('dialog.close', nls.localize('dialogClose', "Close Dialog"), Codicon.dialogClose.classNames, true, async () => {
 					resolve({
 						button: this.options.cancelId || 0,
 						checkboxChecked: this.checkbox ? this.checkbox.checked : undefined

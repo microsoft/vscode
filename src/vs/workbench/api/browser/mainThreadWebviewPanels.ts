@@ -17,7 +17,7 @@ import { WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewI
 import { ICreateWebViewShowOptions, IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { columnToEditorGroup, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ACTIVE_GROUP, IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 /**
@@ -154,11 +154,10 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		initData: extHostProtocol.IWebviewInitData,
 		showOptions: extHostProtocol.WebviewPanelShowOptions,
 	): void {
-		const mainThreadShowOptions: ICreateWebViewShowOptions = Object.create(null);
-		if (showOptions) {
-			mainThreadShowOptions.preserveFocus = !!showOptions.preserveFocus;
-			mainThreadShowOptions.group = columnToEditorGroup(this._editorGroupService, showOptions.viewColumn);
-		}
+		const mainThreadShowOptions: ICreateWebViewShowOptions = showOptions ? {
+			preserveFocus: !!showOptions.preserveFocus,
+			group: columnToEditorGroup(this._editorGroupService, showOptions.viewColumn)
+		} : {};
 
 		const extension = reviveWebviewExtension(extensionData);
 
@@ -198,10 +197,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 			return;
 		}
 
-		const targetGroup = this._editorGroupService.getGroup(columnToEditorGroup(this._editorGroupService, showOptions.viewColumn)) || this._editorGroupService.getGroup(webview.group || 0);
-		if (targetGroup) {
-			this._webviewWorkbenchService.revealWebview(webview, targetGroup, !!showOptions.preserveFocus);
-		}
+		this._webviewWorkbenchService.revealWebview(webview, showOptions.viewColumn ?? ACTIVE_GROUP, !!showOptions.preserveFocus);
 	}
 
 	public $registerSerializer(viewType: string, options: { serializeBuffersForPostMessage: boolean }): void {

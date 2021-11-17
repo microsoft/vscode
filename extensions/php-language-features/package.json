@@ -9,7 +9,6 @@
   "engines": {
     "vscode": "0.10.x"
   },
-  "enableProposedApi": true,
   "activationEvents": [
     "onLanguage:php"
   ],

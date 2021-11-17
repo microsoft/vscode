@@ -356,7 +356,7 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	setupExtensionTests(opts);
 	if (!opts.web) { setupMultirootTests(opts); }
 	if (!opts.web) { setupLocalizationTests(opts); }
-	if (!opts.web) { setupLaunchTests(); }
+	if (!opts.web) { setupLaunchTests(opts); }
 
 	// TODO: Enable terminal tests for non-web
 	if (opts.web) { setupTerminalProfileTests(opts); }

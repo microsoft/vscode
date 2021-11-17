@@ -417,10 +417,10 @@
   dependencies:
     "@octokit/openapi-types" "^10.2.2"
 
-"@parcel/watcher@2.0.1":
-  version "2.0.1"
-  resolved "https://registry.yarnpkg.com/@parcel/watcher/-/watcher-2.0.1.tgz#ec4bb6c43d9588a1ffd3d2abe6df5b501463c62d"
-  integrity sha512-XegFF4L8sFn1RzU5KKOZxXUuzgOSwd6+X2ez3Cy6MVhYMbiLZ1moceMTqDhuT3N8DNbdumK3zP1wojsIsnX40w==
+"@parcel/watcher@2.0.2":
+  version "2.0.2"
+  resolved "https://registry.yarnpkg.com/@parcel/watcher/-/watcher-2.0.2.tgz#46bef14584497147bad5247cfb41f80b24d24dfb"
+  integrity sha512-WGJY55/mTAGse2C9VVi2oo+p05oJ0kiSHmOjV33+ywgKgUkUh6B/qFQ5kBO/9mH686qqtV3k2zH1QNm+XX4+lw==
   dependencies:
     node-addon-api "^3.2.1"
     node-gyp-build "^4.3.0"
@@ -6977,10 +6977,10 @@ node-libs-browser@^2.2.1:
     util "^0.11.0"
     vm-browserify "^1.0.1"
 
-node-pty@0.11.0-beta7:
-  version "0.11.0-beta7"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.11.0-beta7.tgz#aed0888b5032d96c54d8473455e6adfae3bbebbe"
-  integrity sha512-uApPGLglZRiHQcUMWakbZOrBo8HVWvhzIqNnrWvBGJOvc6m/S5lCdbbg93BURyJqHFmBS0GV+4hwiMNDuGRbSA==
+node-pty@0.11.0-beta11:
+  version "0.11.0-beta11"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.11.0-beta11.tgz#10843516868129c26a97253903c46fe0e4520eb0"
+  integrity sha512-Gw58duqHle4k/BunssCE1CUKKWipRQZTUFhaTegkKC19fw3IXsvillblLUuD2bQL42+3mQCAFSgTDo+OsJzYCQ==
   dependencies:
     nan "^2.14.0"
 
@@ -10033,10 +10033,10 @@ typescript@^2.6.2:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.6.2.tgz#3c5b6fd7f6de0914269027f03c0946758f7673a4"
   integrity sha1-PFtv1/beCRQmkCfwPAlGdY92c6Q=
 
-typescript@^4.6.0-dev.20211108:
-  version "4.6.0-dev.20211108"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.6.0-dev.20211108.tgz#d9e65b39f0876ba9d5e82b7955d1183c38d1e40b"
-  integrity sha512-5a0mWJq05zNPSb0vF4s6OJbCxT0Cz6XIjgkaiYy5pkSXlu2E8mYRnYlo9IKKn34eUFO5FiO0uwm0Z3dsbcEgDw==
+typescript@^4.6.0-dev.20211115:
+  version "4.6.0-dev.20211115"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.6.0-dev.20211115.tgz#215e5d032e77cb83f382dc88e901a0757c02cc53"
+  integrity sha512-rYdYp/j8OhCRFs97l7GNOX9xGHndwwgY8AcL7LDzmFXgBOXC2VLoQP48nCg8FgVzjK6s0M5V4nijTYHRlwiqGQ==
 
 typical@^4.0.0:
   version "4.0.0"
@@ -10488,10 +10488,10 @@ vscode-windows-ca-certs@^0.3.0:
   dependencies:
     node-addon-api "^3.0.2"
 
-vscode-windows-registry@1.0.3:
-  version "1.0.3"
-  resolved "https://registry.yarnpkg.com/vscode-windows-registry/-/vscode-windows-registry-1.0.3.tgz#377e9a8bf75c0acac81a188282a4f16f748ecd47"
-  integrity sha512-IXCwNAm+H5yPCn6JBz89T9AAMgy5xEN2LxbxrvHPlErmyQqCYtpCCjvisfgT2dCuaJ2T9FfiqIeIrOpDm2Jc4Q==
+vscode-windows-registry@1.0.4:
+  version "1.0.4"
+  resolved "https://registry.yarnpkg.com/vscode-windows-registry/-/vscode-windows-registry-1.0.4.tgz#9e565a497c84b6b82d200f88930baeff12912079"
+  integrity sha512-vjYaMzEygZrb8bN6I33XTajpF/gtDOk5CtQPPSaxanXg2kkrerEM9qovY6t6FtBGl3oLq6YHytYdYw4IpXgJdA==
 
 watchpack-chokidar2@^2.0.1:
   version "2.0.1"

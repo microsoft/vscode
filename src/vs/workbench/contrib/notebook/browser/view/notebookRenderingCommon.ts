@@ -19,9 +19,9 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { IMenu } from 'vs/platform/actions/common/actions';
-import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
+import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellWidgets';
 import { ICellOutputViewModel, ICellViewModel, IGenericCellViewModel, INotebookCellOutputLayoutInfo, INotebookEditorCreationOptions, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import type { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 
 export interface INotebookCellList {
 	isDisposed: boolean;
@@ -80,12 +80,21 @@ export interface INotebookCellList {
 	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void;
 	updateElementHeight2(element: ICellViewModel, size: number): void;
 	domFocus(): void;
+	focusContainer(): void;
 	setCellSelection(element: ICellViewModel, range: Range): void;
 	style(styles: IListStyles): void;
 	getRenderHeight(): number;
 	updateOptions(options: IListOptions<ICellViewModel>): void;
 	layout(height?: number, width?: number): void;
 	dispose(): void;
+}
+
+export interface ICellToolbars {
+	toolbar: ToolBar;
+	deleteToolbar: ToolBar;
+	betweenCellToolbar: ToolBar;
+	updateContext(element: ICellViewModel, elementDisposables: DisposableStore): void;
+	setupCellToolbarActions(templateData: BaseCellRenderTemplate, disposables: DisposableStore): void;
 }
 
 export interface BaseCellRenderTemplate {
@@ -96,17 +105,13 @@ export interface BaseCellRenderTemplate {
 	container: HTMLElement;
 	cellContainer: HTMLElement;
 	decorationContainer: HTMLElement;
-	toolbar: ToolBar;
-	deleteToolbar: ToolBar;
-	betweenCellToolbar: ToolBar;
+	cellToolbars: ICellToolbars;
 	focusIndicatorLeft: FastDomNode<HTMLElement>;
 	focusIndicatorRight: FastDomNode<HTMLElement>;
-	readonly disposables: DisposableStore;
+	readonly templateDisposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
-	bottomCellContainer: HTMLElement;
 	currentRenderedCell?: ICellViewModel;
 	statusBar: CellEditorStatusBar;
-	titleMenu: IMenu;
 	toJSON: () => object;
 }
 
@@ -117,9 +122,13 @@ export interface MarkdownCellRenderTemplate extends BaseCellRenderTemplate {
 	currentEditor?: ICodeEditor;
 }
 
+export interface IRunToolbar {
+	toolbar: ToolBar;
+	updateContext(context: INotebookCellActionContext): void;
+}
+
 export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
-	runToolbar: ToolBar;
-	runButtonContainer: HTMLElement;
+	runToolbar: IRunToolbar;
 	executionOrderLabel: HTMLElement;
 	outputContainer: FastDomNode<HTMLElement>;
 	cellOutputCollapsedContainer: HTMLElement;

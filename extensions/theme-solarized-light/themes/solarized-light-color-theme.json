@@ -355,6 +355,7 @@
 		// "scrollbarSlider.hoverBackground": "",
 		// Editor
 		"editor.background": "#FDF6E3",
+		"notebook.cellEditorBackground": "#F7F0E0",
 		// "editor.foreground": "#6688cc",
 		"editorWidget.background": "#EEE8D5",
 		"editorCursor.foreground": "#657B83",

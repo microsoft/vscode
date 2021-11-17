@@ -7,9 +7,11 @@
   "publisher": "vscode",
   "license": "MIT",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
-  "enableProposedApi": true,
   "enabledApiProposals": [
-    "languageStatus"
+    "inlayHints",
+    "languageStatus",
+    "resolvers",
+    "workspaceTrust"
   ],
   "capabilities": {
     "virtualWorkspaces": {
