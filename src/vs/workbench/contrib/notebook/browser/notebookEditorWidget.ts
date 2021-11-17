@@ -760,6 +760,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 			// boder should always show
 			styleSheets.push(`
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-inner-container.cell-output-focus .cell-focus-indicator-left:before,
 			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container .cell-focus-indicator-left:before {
 				border-color: var(--notebook-focused-cell-border-color) !important;
 			}
