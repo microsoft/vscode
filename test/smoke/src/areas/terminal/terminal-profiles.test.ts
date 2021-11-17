@@ -57,12 +57,6 @@ export function setup(opts: ParsedArgs) {
 			await terminal.assertTerminalGroups([[{ name: ANY_NAME }, { name: ANY_NAME }]]);
 		});
 
-		it('clicking the plus button should create a terminal and display the tabs view showing no split decorations', async () => {
-			await terminal.runCommand(TerminalCommandId.Show);
-			await terminal.clickPlusButton();
-			await terminal.assertTerminalGroups([[{}, {}]]);
-		});
-
 		it('createWithProfile command should create a terminal with a profile', async () => {
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.NewWithProfile);
 			await terminal.assertSingleTab({ name: ANY_NAME });

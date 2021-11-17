@@ -29,6 +29,7 @@ export function setup(opts: ParsedArgs) {
 
 		it('clicking the plus button should create a terminal and display the tabs view showing no split decorations', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
+			await terminal.runCommand(TerminalCommandId.CreateNew);
 			await terminal.clickPlusButton();
 			await terminal.assertTerminalGroups([[{}, {}]]);
 		});
