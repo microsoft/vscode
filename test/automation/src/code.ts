@@ -225,7 +225,7 @@ async function poll<T>(
 		if (trial > retryCount) {
 			console.error('** Timeout!');
 			console.error(lastError);
-
+			console.error(`Timeout: ${timeoutMessage} after ${(retryCount * retryInterval) / 1000} seconds.`);
 			throw new Error(`Timeout: ${timeoutMessage} after ${(retryCount * retryInterval) / 1000} seconds.`);
 		}
 
