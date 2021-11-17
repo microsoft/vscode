@@ -12,28 +12,12 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { Emitter } from 'vs/base/common/event';
+import { TestLifecycleService, TestTerminalEditorService, TestTerminalGroupService, TestTerminalInstanceService, TestTerminalProfileService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { ITerminalEditorService, ITerminalGroupService, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
-
-class TestTerminalInstanceHost implements ITerminalInstanceHost {
-	activeInstance: ITerminalInstance | undefined = undefined;
-	instances: readonly ITerminalInstance[] = [];
-	onDidChangeInstances = new Emitter<void>().event;
-	onDidDisposeInstance = new Emitter<ITerminalInstance>().event;
-	onDidChangeActiveInstance = new Emitter<ITerminalInstance | undefined>().event;
-	onDidFocusInstance = new Emitter<ITerminalInstance>().event;
-	setActiveInstance(instance: ITerminalInstance): void {
-		throw new Error('Method not implemented.');
-	}
-	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined {
-		throw new Error('Method not implemented.');
-	}
-}
 
 class TestTerminalService extends TerminalService {
 	convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig {
@@ -46,26 +30,21 @@ suite('Workbench - TerminalService', () => {
 	let terminalService: TestTerminalService;
 
 	setup(async () => {
-		const configurationService = new TestConfigurationService({
+		instantiationService = new TestInstantiationService();
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
 			terminal: {
 				integrated: {
 					fontWeight: 'normal'
 				}
 			}
-		});
-
-		instantiationService = new TestInstantiationService();
-		instantiationService.stub(IConfigurationService, configurationService);
+		}));
 		instantiationService.stub(IContextKeyService, instantiationService.createInstance(ContextKeyService));
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());
 		instantiationService.stub(IThemeService, new TestThemeService());
-		instantiationService.stub(ITerminalEditorService, new TestTerminalInstanceHost());
-		instantiationService.stub(ITerminalGroupService, new TestTerminalInstanceHost());
-		instantiationService.stub(ITerminalGroupService, 'onDidChangeActiveGroup', new Emitter().event);
-		instantiationService.stub(ITerminalInstanceService, {});
-		instantiationService.stub(ITerminalInstanceService, 'onDidCreateInstance', new Emitter().event);
-		instantiationService.stub(ITerminalProfileService, {});
-		instantiationService.stub(ITerminalProfileService, 'onDidChangeAvailableProfiles', new Emitter().event);
+		instantiationService.stub(ITerminalEditorService, new TestTerminalEditorService());
+		instantiationService.stub(ITerminalGroupService, new TestTerminalGroupService());
+		instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());
+		instantiationService.stub(ITerminalProfileService, new TestTerminalProfileService());
 
 		terminalService = instantiationService.createInstance(TestTerminalService);
 		instantiationService.stub(ITerminalService, terminalService);
