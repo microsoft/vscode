@@ -90,6 +90,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private readonly _onDidGroupChange = this._register(new Emitter<IGroupChangeEvent>());
 	readonly onDidGroupChange = this._onDidGroupChange.event;
 
+	private readonly _onDidModelChange = this._register(new Emitter<IGroupChangeEvent>());
+	readonly onDidModelChange = this._onDidModelChange.event;
+
 	private readonly _onDidOpenEditorFail = this._register(new Emitter<EditorInput>());
 	readonly onDidOpenEditorFail = this._onDidOpenEditorFail.event;
 
@@ -524,6 +527,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Model Events
 		this._register(this.model.onDidModelChange(e => {
+			this._onDidModelChange.fire(e);
 			if (e.kind === GroupChangeKind.GROUP_LOCKED) {
 				this.onDidChangeGroupLocked();
 				return;
@@ -828,6 +832,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		if (this._index !== newIndex) {
 			this._index = newIndex;
 			this._onDidGroupChange.fire({ kind: GroupChangeKind.GROUP_INDEX });
+			// TODO @lramos15 ENRICH THE MODEL TO LEARN ABOUT INDEX CHANGES THIS IS A HACK
+			this._onDidModelChange.fire({ kind: GroupChangeKind.GROUP_INDEX });
 		}
 	}
 

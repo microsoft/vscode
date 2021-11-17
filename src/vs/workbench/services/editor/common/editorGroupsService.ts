@@ -471,6 +471,11 @@ export interface IEditorGroup {
 	readonly onDidGroupChange: Event<IGroupChangeEvent>;
 
 	/**
+	 * An event which fires whenever the underlying group model changes.
+	 */
+	readonly onDidModelChange: Event<IGroupChangeEvent>;
+
+	/**
 	 * An event that is fired when the group gets disposed.
 	 */
 	readonly onWillDispose: Event<void>;
