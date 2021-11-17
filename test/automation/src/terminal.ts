@@ -82,7 +82,7 @@ export class Terminal {
 	async assertSingleTab(label: TerminalLabel, editor?: boolean): Promise<void> {
 		const selector = editor ? EDITOR_TAB_SELECTOR : SINGLE_TAB_SELECTOR;
 		const element = await this.code.waitForElement(selector, elt => elt ? elt.textContent.trim().length > 1 : false);
-		await this.tabMatchesExpected(element, false, label.name, label.icon, label.color);
+		await this.assertTabExpected(element, false, label.name, label.icon, label.color);
 	}
 
 	async assertTerminalGroups(expectedGroups: TerminalGroup[]): Promise<void> {
@@ -94,8 +94,8 @@ export class Terminal {
 			const isSplit = terminalsInGroup > 1;
 			while (indexInGroup < terminalsInGroup) {
 				let instance = expectedGroups[groupIndex][indexInGroup];
-				const tabMatchesExpected = await this.tabMatchesExpected(tabs[index], isSplit, instance.name, instance.icon, instance.color);
-				if (!tabMatchesExpected) {
+				const expected = await this.assertTabExpected(tabs[index], isSplit, instance.name, instance.icon, instance.color);
+				if (!expected) {
 					throw new Error(`Expected a split ${isSplit} terminal with name ${instance.name} and icon ${instance.icon} but class was ${tabs[index].className} and text content was ${tabs[index].textContent}`);
 				}
 				indexInGroup++;
@@ -104,7 +104,7 @@ export class Terminal {
 		}
 	}
 
-	private async tabMatchesExpected(tab: IElement, split: boolean, name?: string, icon?: string, color?: string): Promise<boolean> {
+	private async assertTabExpected(tab: IElement, split: boolean, name?: string, icon?: string, color?: string): Promise<boolean> {
 		const splitDecoration = tab.textContent.match(/^[├┌└]/);
 		if ((split && !splitDecoration) || (!split && splitDecoration)) {
 			throw new Error(`Expected a split terminal ${split} and had split decoration ${splitDecoration}`);
