@@ -6,7 +6,7 @@
 import { ok } from 'assert';
 import { ParsedArgs } from 'minimist';
 import { Code, Terminal } from '../../../../automation';
-import { afterSuite, beforeSuite } from '../../utils';
+import { afterSuite, beforeSuite, timeout } from '../../utils';
 
 const ContributedProfileName = `JavaScript Debug Terminal`;
 
@@ -43,6 +43,7 @@ export function setup(opts: ParsedArgs) {
 		it('should set the default profile to a contributed one', async () => {
 			await terminal.runProfileCommand(TerminalCommandId.SelectDefaultProfile, true);
 			await terminal.runCommand(TerminalCommandId.CreateNew);
+			await timeout(2000);
 			await code.waitForElement('.single-terminal-tab', e => e ? e.textContent.endsWith(ContributedProfileName) : false);
 		});
 
@@ -50,6 +51,7 @@ export function setup(opts: ParsedArgs) {
 			await terminal.runProfileCommand(TerminalCommandId.SelectDefaultProfile, true);
 			await terminal.runCommand(TerminalCommandId.Show);
 			await terminal.runCommand(TerminalCommandId.Split);
+			await timeout(2000);
 			const tabs = await terminal.getTabLabels(2);
 			ok(tabs[0].startsWith('┌') && tabs[0].endsWith(ContributedProfileName));
 			ok(tabs[1].startsWith('└') && tabs[1].endsWith(ContributedProfileName));
@@ -84,6 +86,7 @@ export function setup(opts: ParsedArgs) {
 
 		it('createWithProfile command should create a terminal with a contributed profile', async () => {
 			await terminal.runProfileCommand(TerminalCommandId.NewWithProfile, true);
+			await timeout(2000);
 			await code.waitForElement('.single-terminal-tab', e => e ? e.textContent.endsWith(ContributedProfileName) : false);
 		});
 
@@ -97,8 +100,10 @@ export function setup(opts: ParsedArgs) {
 
 		it('createWithProfile command should create a split terminal with a contributed profile', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
+			await timeout(2000);
 			await code.waitForElement('.single-terminal-tab', e => e ? !e.textContent.endsWith(ContributedProfileName) : false);
 			await terminal.runProfileCommand(TerminalCommandId.NewWithProfile, true, true);
+			await timeout(2000);
 			const tabs = await terminal.getTabLabels(2, true);
 			ok(tabs[0].startsWith('┌') && !tabs[0].endsWith(ContributedProfileName));
 			ok(tabs[1].startsWith('└') && tabs[1].endsWith(ContributedProfileName));
