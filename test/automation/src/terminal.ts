@@ -105,9 +105,9 @@ export class Terminal {
 	}
 
 	private async tabMatchesExpected(tab: IElement, split: boolean, name?: string, icon?: string, color?: string): Promise<boolean> {
-		const noSplitDecoration = tab.textContent.startsWith(' ');
-		if ((split && noSplitDecoration) || (!split && !noSplitDecoration)) {
-			throw new Error(`Expected a split terminal ${split} and had split decoration ${!noSplitDecoration}`);
+		const splitDecoration = tab.textContent.match(/^[├┌└]/);
+		if ((split && !splitDecoration) || (!split && splitDecoration)) {
+			throw new Error(`Expected a split terminal ${split} and had split decoration ${splitDecoration}`);
 		}
 		let expected = true;
 		if (icon) {
@@ -117,8 +117,7 @@ export class Terminal {
 			expected = expected && tab.children.some(c => c.className.includes(color));
 		}
 		if (name) {
-			const tabName = split ? tab.textContent?.trim().substring(1) : tab.textContent?.trim();
-			expected = expected && !!tabName.match(name);
+			expected = expected && name === '*' || tab.textContent.includes(name);
 		}
 		return expected;
 	}
