@@ -52,7 +52,7 @@ export function setup(opts: ParsedArgs) {
 			await terminal.runCommand(TerminalCommandId.Show);
 			const icon = 'symbol-method';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeIcon, icon);
-			await code.waitForElement(`.single-terminal-tab .codicon-${icon}`);
+			await terminal.assertSingleTab({ icon });
 		});
 
 		it('should update icon of the tab in the tabs list', async () => {
@@ -90,7 +90,7 @@ export function setup(opts: ParsedArgs) {
 		it('should do nothing when join tabs is run with only one terminal', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
 			await terminal.runCommand(TerminalCommandId.Join);
-			await code.waitForElement(SINGLE_TAB_SELECTOR);
+			await terminal.assertSingleTab({});
 		});
 
 		it('should join tabs when more than one terminal', async () => {
@@ -120,7 +120,7 @@ export function setup(opts: ParsedArgs) {
 			await terminal.runCommand(TerminalCommandId.Show);
 			await terminal.assertSingleTab({});
 			await terminal.runCommand(TerminalCommandId.MoveToEditor);
-			await code.waitForElements('.editor .split-view-view', true, editorGroups => editorGroups && editorGroups.length === 1);
+			await terminal.assertEditorGroupCount(1);
 		});
 	});
 }
