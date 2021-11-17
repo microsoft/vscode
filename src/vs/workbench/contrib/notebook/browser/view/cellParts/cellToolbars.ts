@@ -29,11 +29,11 @@ export class BetweenCellToolbar extends Disposable {
 
 	constructor(
 		readonly notebookEditor: INotebookEditorDelegate,
-		readonly contextKeyService: IContextKeyService,
 		readonly titleToolbarContainer: HTMLElement,
 		readonly bottomCellToolbarContainer: HTMLElement,
 		@IInstantiationService readonly instantiationService: IInstantiationService,
 		@IContextMenuService readonly contextMenuService: IContextMenuService,
+		@IContextKeyService readonly contextKeyService: IContextKeyService,
 		@IKeybindingService readonly keybindingService: IKeybindingService,
 		@IMenuService readonly menuService: IMenuService
 	) {

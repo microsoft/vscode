@@ -221,7 +221,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			rootClassDelegate,
 			this.notebookEditor.creationOptions.menuIds.cellTitleToolbar,
 			this.notebookEditor));
-		const betweenCellToolbar = templateDisposables.add(scopedInstaService.createInstance(BetweenCellToolbar, this.notebookEditor, contextKeyService, titleToolbarContainer, bottomCellContainer));
+		const betweenCellToolbar = templateDisposables.add(scopedInstaService.createInstance(BetweenCellToolbar, this.notebookEditor, titleToolbarContainer, bottomCellContainer));
 		const focusIndicatorBottom = DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-bottom'));
 		const statusBar = templateDisposables.add(this.instantiationService.createInstance(CellEditorStatusBar, editorPart));
 
@@ -516,7 +516,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			rootClassDelegate,
 			this.notebookEditor.creationOptions.menuIds.cellTitleToolbar,
 			this.notebookEditor));
-		const betweenCellToolbar = templateDisposables.add(scopedInstaService.createInstance(BetweenCellToolbar, this.notebookEditor, contextKeyService, titleToolbarContainer, bottomCellToolbarContainer));
+		const betweenCellToolbar = templateDisposables.add(scopedInstaService.createInstance(BetweenCellToolbar, this.notebookEditor, titleToolbarContainer, bottomCellToolbarContainer));
 
 		const templateData: CodeCellRenderTemplate = {
 			rootContainer,
