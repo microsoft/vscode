@@ -46,6 +46,9 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { isAbsolute } from 'vs/base/common/path';
+import { ITerminalQuickPickItem } from 'vs/workbench/contrib/terminal/browser/terminalProfileQuickpick';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { getIconId, getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 
 // allow-any-unicode-next-line
 export const switchTerminalActionViewItemSeparator = '─────────';
@@ -1585,6 +1588,52 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TerminalCommandId.Join,
+				title: { value: localize('workbench.action.terminal.join', "Join Terminals"), original: 'Join Terminals' },
+				category,
+				f1: true,
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated))
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			const themeService = accessor.get(IThemeService);
+			const groupService = accessor.get(ITerminalGroupService);
+			const picks: ITerminalQuickPickItem[] = [];
+			if (!groupService.activeInstance || groupService.instances.length === 1) {
+				return;
+			}
+			const otherInstances = groupService.instances.filter(i => i.instanceId !== groupService.activeInstance?.instanceId);
+			for (const terminal of otherInstances) {
+				const group = groupService.getGroupForInstance(terminal);
+				if (group?.terminalInstances.length === 1) {
+					const iconId = getIconId(terminal);
+					const label = `$(${iconId}): ${terminal.title}`;
+					const iconClasses: string[] = [];
+					const colorClass = getColorClass(terminal);
+					if (colorClass) {
+						iconClasses.push(colorClass);
+					}
+					const uriClasses = getUriClasses(terminal, themeService.getColorTheme().type);
+					if (uriClasses) {
+						iconClasses.push(...uriClasses);
+					}
+					picks.push({
+						terminal,
+						label,
+						iconClasses
+					});
+				}
+			}
+			const result = await accessor.get(IQuickInputService).pick(picks, {});
+			if (result) {
+				groupService.joinInstances([result.terminal, groupService.activeInstance!]);
+			}
+		}
+	}
+	);
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TerminalCommandId.SplitInActiveWorkspace,
 				title: { value: localize('workbench.action.terminal.splitInActiveWorkspace', "Split Terminal (In Active Workspace)"), original: 'Split Terminal (In Active Workspace)' },
 				f1: true,
@@ -1739,6 +1788,24 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TerminalCommandId.KillAll,
+				title: { value: localize('workbench.action.terminal.killAll', "Kill All Terminals"), original: 'Kill All Terminals' },
+				f1: true,
+				category,
+				precondition: ContextKeyExpr.or(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen),
+				icon: Codicon.trash
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			const terminalService = accessor.get(ITerminalService);
+			for (const instance of terminalService.instances) {
+				await terminalService.safeDisposeTerminal(instance);
+			}
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TerminalCommandId.KillEditor,
 				title: { value: localize('workbench.action.terminal.killEditor', "Kill the Active Terminal in Editor Area"), original: 'Kill the Active Terminal in Editor Area' },
 				f1: true,
@@ -1818,7 +1885,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.SelectDefaultProfile,
-				title: { value: localize('workbench.action.terminal.selectDefaultProfile', "Select Default Profile"), original: 'Select Default Profile' },
+				title: { value: localize('workbench.action.terminal.selectDefaultShell', "Select Default Profile"), original: 'Select Default Profile' },
 				f1: true,
 				category,
 				precondition: TerminalContextKeys.processSupported

@@ -889,7 +889,7 @@ export class TerminalService implements ITerminalService {
 		// Launch the contributed profile
 		if (contributedProfile) {
 			const resolvedLocation = this.resolveLocation(options?.location);
-			const splitActiveTerminal = typeof options?.location === 'object' && 'splitActiveTerminal' in options.location ? options.location.splitActiveTerminal : false;
+			const splitActiveTerminal = typeof options?.location === 'object' && 'splitActiveTerminal' in options.location ? options.location.splitActiveTerminal : typeof options?.location === 'object' ? 'parentTerminal' in options.location : false;
 			let location: TerminalLocation | { viewColumn: number, preserveState?: boolean } | { splitActiveTerminal: boolean } | undefined;
 			if (splitActiveTerminal) {
 				location = resolvedLocation === TerminalLocation.Editor ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };
