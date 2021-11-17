@@ -232,7 +232,6 @@ async function poll<T>(
 		let result;
 		try {
 			result = await fn();
-			console.log('DEBUG: poll result', result);
 			if (acceptFn(result)) {
 				return result;
 			} else {
