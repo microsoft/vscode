@@ -8,8 +8,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { Action, IAction } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -25,19 +24,17 @@ import { ITextModel } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { localize } from 'vs/nls';
-import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenu, IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { INotebookCellActionContext, INotebookCellToolbarActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { CodeCellLayoutInfo, EXPAND_CELL_OUTPUT_COMMAND_ID, ICellViewModel, INotebookEditorDelegate, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CodeCellLayoutInfo, EXPAND_CELL_OUTPUT_COMMAND_ID, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { BaseCellRenderTemplate, CodeCellRenderTemplate, MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellContextKeys';
 import { CellDragAndDropController, DRAGGING_CLASS } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellDnd';
@@ -46,6 +43,7 @@ import { CellToolbars } from 'vs/workbench/contrib/notebook/browser/view/cellPar
 import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellWidgets';
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/cellParts/codeCell';
 import { StatefulMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view/cellParts/markdownCell';
+import { RunToolbar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/codeCellRunToolbar';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
@@ -452,7 +450,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const runButtonContainer = DOM.append(cellContainer, $('.run-button-container'));
 		const cellInputCollapsedContainer = DOM.append(cellContainer, $('.input-collapse-container'));
 
-		const runToolbar = this.setupRunToolbar(runButtonContainer, container, contextKeyService, templateDisposables);
+		const runToolbar = templateDisposables.add(this.instantiationService.createInstance(RunToolbar, this.notebookEditor, contextKeyService, container, runButtonContainer));
 		const executionOrderLabel = DOM.append(cellContainer, $('div.execution-count-label'));
 		executionOrderLabel.title = localize('cellExecutionOrderCountLabel', 'Execution Order');
 
@@ -632,64 +630,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		return combinedDisposable(dragHandleListener, collapsedPartListener, clickHandler);
 	}
 
-	private createRunCellToolbar(container: HTMLElement, cellContainer: HTMLElement, contextKeyService: IContextKeyService, disposables: DisposableStore): ToolBar {
-		const actionViewItemDisposables = disposables.add(new DisposableStore());
-		const dropdownAction = disposables.add(new Action('notebook.moreRunActions', localize('notebook.moreRunActionsLabel', "More..."), 'codicon-chevron-down', true));
-
-		const keybindingProvider = (action: IAction) => this.keybindingService.lookupKeybinding(action.id, executionContextKeyService);
-		const executionContextKeyService = disposables.add(getCodeCellExecutionContextKeyService(contextKeyService));
-		const toolbar = disposables.add(new ToolBar(container, this.contextMenuService, {
-			getKeyBinding: keybindingProvider,
-			actionViewItemProvider: _action => {
-				actionViewItemDisposables.clear();
-
-				const primaryMenu = actionViewItemDisposables.add(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecutePrimary!, contextKeyService));
-				const primary = this.getCellToolbarActions(primaryMenu).primary[0];
-				if (!(primary instanceof MenuItemAction)) {
-					return undefined;
-				}
-
-				const menu = actionViewItemDisposables.add(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecuteToolbar, contextKeyService));
-				const secondary = this.getCellToolbarActions(menu).secondary;
-				if (!secondary.length) {
-					return undefined;
-				}
-
-				const item = this.instantiationService.createInstance(DropdownWithPrimaryActionViewItem,
-					primary,
-					dropdownAction,
-					secondary,
-					'notebook-cell-run-toolbar',
-					this.contextMenuService,
-					{
-						getKeyBinding: keybindingProvider
-					});
-				actionViewItemDisposables.add(item.onDidChangeDropdownVisibility(visible => {
-					cellContainer.classList.toggle('cell-run-toolbar-dropdown-active', visible);
-				}));
-
-				return item;
-			},
-			renderDropdownAsChildElement: true
-		}));
-
-		return toolbar;
-	}
-
-	private setupRunToolbar(runButtonContainer: HTMLElement, cellContainer: HTMLElement, contextKeyService: IContextKeyService, disposables: DisposableStore): ToolBar {
-		const menu = disposables.add(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecutePrimary!, contextKeyService));
-		const runToolbar = this.createRunCellToolbar(runButtonContainer, cellContainer, contextKeyService, disposables);
-		const updateActions = () => {
-			const actions = this.getCellToolbarActions(menu);
-			const primary = actions.primary[0]; // Only allow one primary action
-			runToolbar.setActions(primary ? [primary] : []);
-		};
-		updateActions();
-		disposables.add(menu.onDidChange(updateActions));
-		disposables.add(this.notebookEditor.notebookOptions.onDidChangeOptions(updateActions));
-		return runToolbar;
-	}
-
 	private updateForOutputs(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
 		if (element.outputsViewModels.length) {
 			DOM.show(templateData.focusSinkElement);
@@ -831,7 +771,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			$mid: MarshalledId.NotebookCellActionContext
 		};
 		templateData.cellToolbars.updateContext(element, templateData.elementDisposables);
-		templateData.runToolbar.context = toolbarContext;
+		templateData.runToolbar.updateContext(toolbarContext);
 		templateData.statusBar.updateContext(toolbarContext);
 	}
 
@@ -843,19 +783,4 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		templateData.elementDisposables.clear();
 		this.renderedEditors.delete(element);
 	}
-}
-
-export function getCodeCellExecutionContextKeyService(contextKeyService: IContextKeyService): IContextKeyService {
-	// Create a fake ContextKeyService, and look up the keybindings within this context.
-	const executionContextKeyService = contextKeyService.createScoped(document.createElement('div'));
-	InputFocusedContext.bindTo(executionContextKeyService).set(true);
-	EditorContextKeys.editorTextFocus.bindTo(executionContextKeyService).set(true);
-	EditorContextKeys.focus.bindTo(executionContextKeyService).set(true);
-	EditorContextKeys.textInputFocus.bindTo(executionContextKeyService).set(true);
-	NOTEBOOK_CELL_EXECUTION_STATE.bindTo(executionContextKeyService).set('idle');
-	NOTEBOOK_CELL_LIST_FOCUSED.bindTo(executionContextKeyService).set(true);
-	NOTEBOOK_EDITOR_FOCUSED.bindTo(executionContextKeyService).set(true);
-	NOTEBOOK_CELL_TYPE.bindTo(executionContextKeyService).set('code');
-
-	return executionContextKeyService;
 }

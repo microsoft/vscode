@@ -21,6 +21,7 @@ import { IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCom
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellWidgets';
 import { ICellOutputViewModel, ICellViewModel, IGenericCellViewModel, INotebookCellOutputLayoutInfo, INotebookEditorCreationOptions, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import type { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 
 export interface INotebookCellList {
 	isDisposed: boolean;
@@ -121,8 +122,13 @@ export interface MarkdownCellRenderTemplate extends BaseCellRenderTemplate {
 	currentEditor?: ICodeEditor;
 }
 
+export interface IRunToolbar {
+	toolbar: ToolBar;
+	updateContext(context: INotebookCellActionContext): void;
+}
+
 export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
-	runToolbar: ToolBar;
+	runToolbar: IRunToolbar;
 	runButtonContainer: HTMLElement;
 	executionOrderLabel: HTMLElement;
 	outputContainer: FastDomNode<HTMLElement>;
