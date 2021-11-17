@@ -524,48 +524,46 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Model Events
 		this._register(this.model.onDidModelChange(e => {
+			if (e.kind === GroupChangeKind.GROUP_LOCKED) {
+				this.onDidChangeGroupLocked();
+				return;
+			}
+			if (!e.editor) {
+				return;
+			}
 			switch (e.kind) {
-				case GroupChangeKind.GROUP_LOCKED:
-					this.onDidChangeGroupLocked();
-					break;
 				case GroupChangeKind.EDITOR_PIN:
-					if (e.editorInputOrEvent instanceof EditorInput) {
-						this.onDidChangeEditorPinned(e.editorInputOrEvent);
-					}
+					this.onDidChangeEditorPinned(e.editor);
 					break;
 				case GroupChangeKind.EDITOR_STICKY:
-					if (e.editorInputOrEvent instanceof EditorInput) {
-						this.onDidChangeEditorSticky(e.editorInputOrEvent);
-					}
+					this.onDidChangeEditorSticky(e.editor);
 					break;
 				case GroupChangeKind.EDITOR_MOVE:
-					this.onDidMoveEditor(e.editorInputOrEvent as IEditorMoveEvent);
+					if (e.oldEditorIndex !== undefined && e.editorIndex !== undefined) {
+						this.onDidMoveEditor({ editor: e.editor, index: e.oldEditorIndex, newIndex: e.editorIndex, target: this.id, groupId: this.id });
+					}
 					break;
 				case GroupChangeKind.EDITOR_OPEN:
-					this.onDidOpenEditor(e.editorInputOrEvent as IEditorOpenEvent);
+					if (e.editorIndex !== undefined) {
+						this.onDidOpenEditor({ editor: e.editor, index: e.editorIndex, groupId: this.id });
+					}
 					break;
 				case GroupChangeKind.EDITOR_CLOSE:
-					this.handleOnDidCloseEditor(e.editorInputOrEvent as IEditorCloseEvent);
+					if (e.editorIndex !== undefined && e.closeContext !== undefined && e.closedSticky !== undefined) {
+						this.handleOnDidCloseEditor({ editor: e.editor, index: e.editorIndex, groupId: this.id, context: e.closeContext, sticky: e.closedSticky });
+					}
 					break;
 				case GroupChangeKind.EDITOR_DISPOSE:
-					if (e.editorInputOrEvent instanceof EditorInput) {
-						this.onWillDisposeEditor(e.editorInputOrEvent);
-					}
+					this.onWillDisposeEditor(e.editor);
 					break;
 				case GroupChangeKind.EDITOR_DIRTY:
-					if (e.editorInputOrEvent instanceof EditorInput) {
-						this.onDidChangeEditorDirty(e.editorInputOrEvent);
-					}
+					this.onDidChangeEditorDirty(e.editor);
 					break;
 				case GroupChangeKind.EDITOR_LABEL:
-					if (e.editorInputOrEvent instanceof EditorInput) {
-						this.onDidChangeEditorLabel(e.editorInputOrEvent);
-					}
+					this.onDidChangeEditorLabel(e.editor);
 					break;
 				case GroupChangeKind.EDITOR_CAPABILITIES:
-					if (e.editorInputOrEvent instanceof EditorInput) {
-						this.onDidChangeEditorCapabilities(e.editorInputOrEvent);
-					}
+					this.onDidChangeEditorCapabilities(e.editor);
 					break;
 			}
 		}));

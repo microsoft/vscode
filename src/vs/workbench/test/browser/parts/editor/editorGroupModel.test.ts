@@ -107,30 +107,40 @@ suite('EditorGroupModel', () => {
 		};
 
 		group.onDidModelChange(e => {
+			if (e.kind === GroupChangeKind.GROUP_LOCKED) {
+				groupEvents.locked.push(group.id);
+				return;
+			}
+			if (!e.editor) {
+				return;
+			}
 			switch (e.kind) {
-				case GroupChangeKind.GROUP_LOCKED:
-					groupEvents.locked.push(group.id);
-					break;
 				case GroupChangeKind.EDITOR_OPEN:
-					groupEvents.opened.push(e.editorInputOrEvent as IEditorOpenEvent);
+					if (e.editorIndex !== undefined) {
+						groupEvents.opened.push({ editor: e.editor, index: e.editorIndex, groupId: group.id });
+					}
 					break;
 				case GroupChangeKind.EDITOR_CLOSE:
-					groupEvents.closed.push(e.editorInputOrEvent as IEditorCloseEvent);
+					if (e.editorIndex !== undefined && e.closeContext !== undefined && e.closedSticky !== undefined) {
+						groupEvents.closed.push({ editor: e.editor, index: e.editorIndex, groupId: group.id, context: e.closeContext, sticky: e.closedSticky });
+					}
 					break;
 				case GroupChangeKind.EDITOR_ACTIVE:
-					groupEvents.activated.push(e.editorInputOrEvent as EditorInput);
+					groupEvents.activated.push(e.editor);
 					break;
 				case GroupChangeKind.EDITOR_PIN:
-					group.isPinned(e.editorInputOrEvent as EditorInput) ? groupEvents.pinned.push(e.editorInputOrEvent as EditorInput) : groupEvents.unpinned.push(e.editorInputOrEvent as EditorInput);
+					group.isPinned(e.editor) ? groupEvents.pinned.push(e.editor) : groupEvents.unpinned.push(e.editor);
 					break;
 				case GroupChangeKind.EDITOR_STICKY:
-					group.isSticky(e.editorInputOrEvent as EditorInput) ? groupEvents.sticky.push(e.editorInputOrEvent as EditorInput) : groupEvents.unsticky.push(e.editorInputOrEvent as EditorInput);
+					group.isSticky(e.editor) ? groupEvents.sticky.push(e.editor) : groupEvents.unsticky.push(e.editor);
 					break;
 				case GroupChangeKind.EDITOR_MOVE:
-					groupEvents.moved.push(e.editorInputOrEvent as IEditorMoveEvent);
+					if (e.oldEditorIndex !== undefined && e.editorIndex !== undefined) {
+						groupEvents.moved.push({ editor: e.editor, index: e.oldEditorIndex, newIndex: e.editorIndex, target: group.id, groupId: group.id });
+					}
 					break;
 				case GroupChangeKind.EDITOR_DISPOSE:
-					groupEvents.disposed.push(e.editorInputOrEvent as EditorInput);
+					groupEvents.disposed.push(e.editor);
 					break;
 			}
 		});
