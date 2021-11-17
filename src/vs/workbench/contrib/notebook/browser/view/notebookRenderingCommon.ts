@@ -22,6 +22,8 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellWidgets';
 import { ICellOutputViewModel, ICellViewModel, IGenericCellViewModel, INotebookCellOutputLayoutInfo, INotebookEditorCreationOptions, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import type { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
+import { BetweenCellToolbar, CellTitleToolbarPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellToolbars';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export interface INotebookCellList {
 	isDisposed: boolean;
@@ -89,23 +91,16 @@ export interface INotebookCellList {
 	dispose(): void;
 }
 
-export interface ICellToolbars {
-	toolbar: ToolBar;
-	deleteToolbar: ToolBar;
-	betweenCellToolbar: ToolBar;
-	updateContext(element: ICellViewModel, elementDisposables: DisposableStore): void;
-	setupCellToolbarActions(templateData: BaseCellRenderTemplate, disposables: DisposableStore): void;
-}
-
 export interface BaseCellRenderTemplate {
 	rootContainer: HTMLElement;
 	editorPart: HTMLElement;
 	cellInputCollapsedContainer: HTMLElement;
-	contextKeyService: IContextKeyService;
+	instantiationService: IInstantiationService;
 	container: HTMLElement;
 	cellContainer: HTMLElement;
 	decorationContainer: HTMLElement;
-	cellToolbars: ICellToolbars;
+	betweenCellToolbar: BetweenCellToolbar;
+	titleToolbar: CellTitleToolbarPart;
 	focusIndicatorLeft: FastDomNode<HTMLElement>;
 	focusIndicatorRight: FastDomNode<HTMLElement>;
 	readonly templateDisposables: DisposableStore;
