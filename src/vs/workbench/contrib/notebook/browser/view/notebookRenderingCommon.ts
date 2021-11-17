@@ -109,7 +109,6 @@ export interface BaseCellRenderTemplate {
 	focusIndicatorRight: FastDomNode<HTMLElement>;
 	readonly templateDisposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
-	bottomCellContainer: HTMLElement;
 	currentRenderedCell?: ICellViewModel;
 	statusBar: CellEditorStatusBar;
 	toJSON: () => object;

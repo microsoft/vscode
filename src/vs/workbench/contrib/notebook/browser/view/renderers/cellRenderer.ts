@@ -232,7 +232,6 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			templateDisposables,
 			elementDisposables: new DisposableStore(),
 			cellToolbars,
-			bottomCellContainer,
 			statusBar,
 			toJSON: () => { return {}; }
 		};
@@ -526,7 +525,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			editor,
 			templateDisposables,
 			elementDisposables: new DisposableStore(),
-			bottomCellContainer: bottomCellToolbarContainer,
 			dragHandle,
 			toJSON: () => { return {}; }
 		};
