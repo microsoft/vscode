@@ -5,7 +5,7 @@
 
 import { ok } from 'assert';
 import { ParsedArgs } from 'minimist';
-import { Code, Terminal, TerminalCommandId } from '../../../../automation';
+import { Code, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation';
 import { afterSuite, beforeSuite, timeout } from '../../utils';
 
 const ContributedProfileName = `JavaScript Debug Terminal`;
@@ -35,14 +35,14 @@ export function setup(opts: ParsedArgs) {
 		});
 
 		it('should set the default profile to a contributed one', async () => {
-			await terminal.runProfileCommand(TerminalCommandId.SelectDefaultProfile, true);
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.SelectDefaultProfile, ContributedProfileName);
 			await terminal.runCommand(TerminalCommandId.CreateNew);
 			await timeout(2000);
 			await code.waitForElement(SINGLE_TAB_SELECTOR, e => e ? e.textContent.endsWith(ContributedProfileName) : false);
 		});
 
 		it('should use the default contributed profile on panel open and for splitting', async () => {
-			await terminal.runProfileCommand(TerminalCommandId.SelectDefaultProfile, true);
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.SelectDefaultProfile, ContributedProfileName);
 			await terminal.runCommand(TerminalCommandId.Show);
 			await terminal.runCommand(TerminalCommandId.Split);
 			await timeout(2000);
@@ -52,7 +52,7 @@ export function setup(opts: ParsedArgs) {
 		});
 
 		it('should set the default profile', async () => {
-			await terminal.runProfileCommand(TerminalCommandId.SelectDefaultProfile, undefined);
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.SelectDefaultProfile);
 			await terminal.runCommand(TerminalCommandId.CreateNew);
 			await code.waitForElement(SINGLE_TAB_SELECTOR, e => e ? !e.textContent.endsWith(ContributedProfileName) : false);
 		});
@@ -74,19 +74,19 @@ export function setup(opts: ParsedArgs) {
 		});
 
 		it('createWithProfile command should create a terminal with a profile', async () => {
-			await terminal.runProfileCommand(TerminalCommandId.NewWithProfile);
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.NewWithProfile);
 			await code.waitForElement(SINGLE_TAB_SELECTOR, e => e ? !e.textContent.endsWith(ContributedProfileName) : false);
 		});
 
 		it('createWithProfile command should create a terminal with a contributed profile', async () => {
-			await terminal.runProfileCommand(TerminalCommandId.NewWithProfile, true);
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.NewWithProfile, ContributedProfileName);
 			await timeout(2000);
 			await code.waitForElement(SINGLE_TAB_SELECTOR, e => e ? e.textContent.endsWith(ContributedProfileName) : false);
 		});
 
 		it('createWithProfile command should create a split terminal with a profile', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
-			await terminal.runProfileCommand(TerminalCommandId.NewWithProfile, undefined, true);
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.NewWithProfile, undefined, true);
 			const tabs = await terminal.getTabLabels(2, true);
 			ok(tabs[0].startsWith('┌') && !tabs[0].endsWith(ContributedProfileName));
 			ok(tabs[1].startsWith('└') && !tabs[1].endsWith(ContributedProfileName));
@@ -96,7 +96,7 @@ export function setup(opts: ParsedArgs) {
 			await terminal.runCommand(TerminalCommandId.Show);
 			await timeout(2000);
 			await code.waitForElement(SINGLE_TAB_SELECTOR, e => e ? !e.textContent.endsWith(ContributedProfileName) : false);
-			await terminal.runProfileCommand(TerminalCommandId.NewWithProfile, true, true);
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.NewWithProfile, ContributedProfileName, true);
 			await timeout(2000);
 			const tabs = await terminal.getTabLabels(2, true);
 			ok(tabs[0].startsWith('┌') && !tabs[0].endsWith(ContributedProfileName));

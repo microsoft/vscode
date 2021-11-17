@@ -9,7 +9,6 @@ import { QuickAccess } from './quickaccess';
 
 const TERMINAL_VIEW_SELECTOR = `#terminal`;
 const XTERM_SELECTOR = `${TERMINAL_VIEW_SELECTOR} .terminal-wrapper`;
-const CONTRIBUTED_PROFILE_NAME = `JavaScript Debug Terminal`;
 const TABS = '.tabs-list .terminal-tabs-entry';
 const XTERM_FOCUSED_SELECTOR = '.terminal.xterm.focus';
 
@@ -17,6 +16,8 @@ export enum TerminalCommandIdWithValue {
 	Rename = 'workbench.action.terminal.rename',
 	ChangeColor = 'workbench.action.terminal.changeColor',
 	ChangeIcon = 'workbench.action.terminal.changeIcon',
+	NewWithProfile = 'workbench.action.terminal.newWithProfile',
+	SelectDefaultProfile = 'workbench.action.terminal.selectDefaultShell'
 }
 
 export enum TerminalCommandId {
@@ -26,8 +27,6 @@ export enum TerminalCommandId {
 	Join = 'workbench.action.terminal.join',
 	Show = 'workbench.action.terminal.toggleTerminal',
 	CreateNew = 'workbench.action.terminal.new',
-	NewWithProfile = 'workbench.action.terminal.newWithProfile',
-	SelectDefaultProfile = 'workbench.action.terminal.selectDefaultShell',
 	CreateNewEditor = 'workbench.action.createTerminalEditor',
 	SplitEditor = 'workbench.action.createTerminalEditorSide',
 	MoveToPanel = 'workbench.action.terminal.moveToTerminalPanel'
@@ -46,12 +45,12 @@ export class Terminal {
 		await this.quickinput.waitForQuickInputClosed();
 	}
 
-	async runCommandWithValue(commandId: TerminalCommandIdWithValue, value?: string): Promise<void> {
-		await this.quickaccess.runCommand(commandId, !!value);
+	async runCommandWithValue(commandId: TerminalCommandIdWithValue, value?: string, altKey?: boolean): Promise<void> {
+		await this.quickaccess.runCommand(commandId, !!value || commandId === TerminalCommandIdWithValue.SelectDefaultProfile || commandId === TerminalCommandIdWithValue.NewWithProfile);
 		if (value) {
 			await this.code.waitForSetValue(QuickInput.QUICK_INPUT_INPUT, value);
 		}
-		await this.code.dispatchKeybinding('enter');
+		await this.code.dispatchKeybinding(altKey ? 'Alt+Enter' : 'enter');
 		await this.quickinput.waitForQuickInputClosed();
 	}
 
@@ -74,15 +73,6 @@ export class Terminal {
 			return [first, second];
 		}
 		return result;
-	}
-
-	async runProfileCommand(command: string, contributed?: boolean, altKey?: boolean): Promise<void> {
-		await this.quickaccess.runCommand(command, true);
-		if (contributed) {
-			await this.code.waitForSetValue(QuickInput.QUICK_INPUT_INPUT, CONTRIBUTED_PROFILE_NAME);
-		}
-		await this.code.dispatchKeybinding(altKey ? 'Alt+Enter' : 'enter');
-		await this.quickinput.waitForQuickInputClosed();
 	}
 
 	async waitForTerminalText(accept: (buffer: string[]) => boolean, message?: string): Promise<void> {
