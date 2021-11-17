@@ -9,7 +9,8 @@ import { Code, Terminal } from '../../../../automation/out';
 import { afterSuite, beforeSuite } from '../../utils';
 
 export function setup(opts: ParsedArgs) {
-	describe('Terminal Tabs', () => {
+	// TODO: Re-enable when stable
+	describe.skip('Terminal Tabs', () => {
 		let code: Code;
 		let terminal: Terminal;
 
