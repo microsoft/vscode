@@ -7,12 +7,11 @@ import { ParsedArgs } from 'minimist';
 import { Code, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation/out';
 import { afterSuite, beforeSuite } from '../../utils';
 
-const EDITOR_GROUPS_SELECTOR = '.editor .split-view-view';
 const TAB_SELECTOR = '.terminal-tab';
 const SPLIT_BUTTON_SELECTOR = '.editor .codicon-split-horizontal';
 
 export function setup(opts: ParsedArgs) {
-	describe.only('Terminal Editors', () => {
+	describe('Terminal Editors', () => {
 		let code: Code;
 		let terminal: Terminal;
 
@@ -59,25 +58,25 @@ export function setup(opts: ParsedArgs) {
 		it('should open a terminal in a new group for open to the side', async () => {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
 			await terminal.runCommand(TerminalCommandId.SplitEditor);
-			await code.waitForElements(EDITOR_GROUPS_SELECTOR, true, editorGroups => editorGroups && editorGroups.length === 2);
+			await terminal.assertEditorGroupCount(2);
 		});
 
 		it('should open a terminal in a new group when the split button is pressed', async () => {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
 			await code.waitAndClick(SPLIT_BUTTON_SELECTOR);
-			await code.waitForElements(EDITOR_GROUPS_SELECTOR, true, editorGroups => editorGroups && editorGroups.length === 2);
+			await terminal.assertEditorGroupCount(2);
 		});
 
 		it('should create new terminals in the active editor group via command', async () => {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
-			await code.waitForElements(EDITOR_GROUPS_SELECTOR, true, editorGroups => editorGroups && editorGroups.length === 1);
+			await terminal.assertEditorGroupCount(1);
 		});
 
 		it('should create new terminals in the active editor group via plus button', async () => {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
 			await terminal.clickPlusButton();
-			await code.waitForElements(EDITOR_GROUPS_SELECTOR, true, editorGroups => editorGroups && editorGroups.length === 1);
+			await terminal.assertEditorGroupCount(1);
 		});
 	});
 }

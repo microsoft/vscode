@@ -12,7 +12,7 @@ const XTERM_SELECTOR = `${TERMINAL_VIEW_SELECTOR} .terminal-wrapper`;
 const TABS = '.tabs-list .terminal-tabs-entry';
 const XTERM_FOCUSED_SELECTOR = '.terminal.xterm.focus';
 const PLUS_BUTTON_SELECTOR = 'li.action-item.monaco-dropdown-with-primary .codicon-plus';
-const CONTRIBUTED_PROFILE_NAME = `JavaScript Debug Terminal`;
+const EDITOR_GROUPS_SELECTOR = '.editor .split-view-view';
 
 export enum TerminalCommandIdWithValue {
 	Rename = 'workbench.action.terminal.rename',
@@ -34,9 +34,8 @@ export enum TerminalCommandId {
 	MoveToPanel = 'workbench.action.terminal.moveToTerminalPanel',
 	MoveToEditor = 'workbench.action.terminal.moveToEditor'
 }
-type NotContributedProfile = boolean;
 interface TerminalLabel {
-	name?: string | NotContributedProfile,
+	name?: string,
 	icon?: string,
 	color?: string
 }
@@ -72,6 +71,10 @@ export class Terminal {
 		await this.code.dispatchKeybinding('enter');
 	}
 
+	async assertEditorGroupCount(count: number): Promise<void> {
+		await this.code.waitForElements(EDITOR_GROUPS_SELECTOR, true, editorGroups => editorGroups && editorGroups.length === count);
+	}
+
 	async assertTerminalGroups(expectedGroups: TerminalGroup[]): Promise<boolean> {
 		const tabs = await this.code.waitForElements(TABS, true, e => e.every(elt => elt.textContent.trim().length > 1));
 		let index = 0;
@@ -92,7 +95,7 @@ export class Terminal {
 		return true;
 	}
 
-	private async tabMatchesExpected(tab: IElement, split: boolean, name?: string | boolean, icon?: string, color?: string): Promise<boolean> {
+	private async tabMatchesExpected(tab: IElement, split: boolean, name?: string, icon?: string, color?: string): Promise<boolean> {
 		const noSplitDecoration = tab.textContent.startsWith(' ');
 		if ((split && noSplitDecoration) || (!split && !noSplitDecoration)) {
 			throw new Error(`Expected a split terminal ${split} and had split decoration ${!noSplitDecoration}`);
@@ -105,11 +108,8 @@ export class Terminal {
 			expected = expected && tab.children.some(c => c.className.includes(color));
 		}
 		if (name) {
-			if (typeof name === 'string') {
-				expected = expected && tab.textContent.trim().includes(name);
-			} else {
-				expected = expected && !tab.textContent.trim().includes(CONTRIBUTED_PROFILE_NAME);
-			}
+			const tabName = split ? tab.textContent?.trim().substring(1) : tab.textContent?.trim();
+			expected = expected && !!tabName.match(name);
 		}
 		return expected;
 	}

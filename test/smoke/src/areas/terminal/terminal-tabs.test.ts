@@ -11,7 +11,7 @@ import { afterSuite, beforeSuite } from '../../utils';
 const SINGLE_TAB_SELECTOR = '.single-terminal-tab';
 
 export function setup(opts: ParsedArgs) {
-	describe.only('Terminal Tabs', () => {
+	describe('Terminal Tabs', () => {
 		let code: Code;
 		let terminal: Terminal;
 

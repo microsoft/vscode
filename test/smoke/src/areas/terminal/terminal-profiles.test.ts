@@ -9,6 +9,7 @@ import { afterSuite, beforeSuite } from '../../utils';
 
 const CONTRIBUTED_PROFILE_NAME = `JavaScript Debug Terminal`;
 const SINGLE_TAB_SELECTOR = '.single-terminal-tab';
+const ANY_NAME = '*';
 
 export function setup(opts: ParsedArgs) {
 	describe.only('Terminal Profiles', () => {
@@ -55,7 +56,7 @@ export function setup(opts: ParsedArgs) {
 			await terminal.runCommand(TerminalCommandId.Show);
 			await code.waitForElement(SINGLE_TAB_SELECTOR, e => e ? !e.textContent.endsWith(CONTRIBUTED_PROFILE_NAME) : false);
 			await terminal.runCommand(TerminalCommandId.Split);
-			await terminal.assertTerminalGroups([[{ name: true }, { name: true }]]);
+			await terminal.assertTerminalGroups([[{ name: ANY_NAME }, { name: ANY_NAME }]]);
 		});
 
 		it('clicking the plus button should create a terminal and display the tabs view showing no split decorations', async () => {
@@ -77,14 +78,14 @@ export function setup(opts: ParsedArgs) {
 		it('createWithProfile command should create a split terminal with a profile', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.NewWithProfile, undefined, true);
-			await terminal.assertTerminalGroups([[{ name: true }, { name: true }]]);
+			await terminal.assertTerminalGroups([[{ name: ANY_NAME }, { name: ANY_NAME }]]);
 		});
 
 		it('createWithProfile command should create a split terminal with a contributed profile', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
 			await code.waitForElement(SINGLE_TAB_SELECTOR, e => e ? !e.textContent.endsWith(CONTRIBUTED_PROFILE_NAME) : false);
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.NewWithProfile, CONTRIBUTED_PROFILE_NAME, true);
-			await terminal.assertTerminalGroups([[{ name: true }, { name: CONTRIBUTED_PROFILE_NAME }]]);
+			await terminal.assertTerminalGroups([[{ name: ANY_NAME }, { name: CONTRIBUTED_PROFILE_NAME }]]);
 		});
 	});
 }
