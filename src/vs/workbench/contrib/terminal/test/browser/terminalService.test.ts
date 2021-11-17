@@ -29,7 +29,7 @@ class TestTerminalService extends TerminalService {
 	}
 }
 
-suite.only('Workbench - TerminalService', () => {
+suite('Workbench - TerminalService', () => {
 	let instantiationService: TestInstantiationService;
 	let terminalService: TestTerminalService;
 	let configurationService: TestConfigurationService;
