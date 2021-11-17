@@ -12,7 +12,7 @@ const SINGLE_TAB_SELECTOR = '.single-terminal-tab';
 const ANY_NAME = '*';
 
 export function setup(opts: ParsedArgs) {
-	describe.only('Terminal Profiles', () => {
+	describe('Terminal Profiles', () => {
 		let code: Code;
 		let terminal: Terminal;
 
