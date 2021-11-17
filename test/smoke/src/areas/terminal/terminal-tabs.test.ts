@@ -30,7 +30,7 @@ export function setup(opts: ParsedArgs) {
 		it('clicking the plus button should create a terminal and display the tabs view showing no split decorations', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
 			await terminal.clickPlusButton();
-			const tabLabels = await terminal.getTabLabels(2);
+			const tabLabels = await terminal.assertTerminalGroups([[{}, {}]]);
 			ok(!tabLabels[0].startsWith('┌') && !tabLabels[1].startsWith('└'));
 		});
 
@@ -45,12 +45,9 @@ export function setup(opts: ParsedArgs) {
 		it('should update color of the tab in the tabs list', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
 			await terminal.runCommand(TerminalCommandId.Split);
-			const tabs = await terminal.getTabLabels(2);
-			ok(tabs[0].startsWith('┌'));
-			ok(tabs[1].startsWith('└'));
 			const color = 'Cyan';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeColor, color);
-			await code.waitForElement(`.terminal-tabs-entry .terminal-icon-terminal_ansi${color}`);
+			await terminal.assertTerminalGroups([[{}, { color }]]);
 		});
 
 		it('should update icon of the single tab', async () => {
@@ -63,12 +60,9 @@ export function setup(opts: ParsedArgs) {
 		it('should update icon of the tab in the tabs list', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
 			await terminal.runCommand(TerminalCommandId.Split);
-			const tabs = await terminal.getTabLabels(2);
-			ok(tabs[0].startsWith('┌'));
-			ok(tabs[1].startsWith('└'));
 			const icon = 'symbol-method';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeIcon, icon);
-			await code.waitForElement(`.terminal-tabs-entry .codicon-${icon}`);
+			await terminal.assertTerminalGroups([[{}, { icon }]]);
 		});
 
 		it('should rename the single tab', async () => {
@@ -83,7 +77,7 @@ export function setup(opts: ParsedArgs) {
 			await terminal.runCommand(TerminalCommandId.Split);
 			const name = 'my terminal name';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.Rename, name);
-			await terminal.getTabLabels(2, true, t => t.some(element => element.textContent.includes(name)));
+			await terminal.assertTerminalGroups([[{}, { name }]]);
 		});
 
 		it('should create a split terminal when single tab is alt clicked', async () => {
@@ -92,7 +86,7 @@ export function setup(opts: ParsedArgs) {
 			page.keyboard.down('Alt');
 			await code.waitAndClick(SINGLE_TAB_SELECTOR);
 			page.keyboard.up('Alt');
-			await terminal.getTabLabels(2, true);
+			await terminal.assertTerminalGroups([[{}, {}]]);
 		});
 
 		it('should do nothing when join tabs is run with only one terminal', async () => {
@@ -105,23 +99,23 @@ export function setup(opts: ParsedArgs) {
 			await terminal.runCommand(TerminalCommandId.Show);
 			await terminal.runCommand(TerminalCommandId.CreateNew);
 			await terminal.runCommand(TerminalCommandId.Join);
-			await terminal.getTabLabels(2, true);
+			await terminal.assertTerminalGroups([[{}, {}]]);
 		});
 
 		it('should do nothing when unsplit tabs called with no splits', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
 			await terminal.runCommand(TerminalCommandId.CreateNew);
-			await terminal.getTabLabels(2, false);
+			await terminal.assertTerminalGroups([[{}], [{}]]);
 			await terminal.runCommand(TerminalCommandId.Unsplit);
-			await terminal.getTabLabels(2, false);
+			await terminal.assertTerminalGroups([[{}], [{}]]);
 		});
 
 		it('should unsplit tabs', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
 			await terminal.runCommand(TerminalCommandId.Split);
-			await terminal.getTabLabels(2, true);
+			await terminal.assertTerminalGroups([[{}, {}]]);
 			await terminal.runCommand(TerminalCommandId.Unsplit);
-			await terminal.getTabLabels(2, false, t => t.every(label => !label.textContent.startsWith('┌') && !label.textContent.startsWith('└')));
+			await terminal.assertTerminalGroups([[{}], [{}]]);
 		});
 
 		it('should move the terminal to the editor area', async () => {

@@ -12,6 +12,7 @@ const XTERM_SELECTOR = `${TERMINAL_VIEW_SELECTOR} .terminal-wrapper`;
 const TABS = '.tabs-list .terminal-tabs-entry';
 const XTERM_FOCUSED_SELECTOR = '.terminal.xterm.focus';
 const PLUS_BUTTON_SELECTOR = 'li.action-item.monaco-dropdown-with-primary .codicon-plus';
+const CONTRIBUTED_PROFILE_NAME = `JavaScript Debug Terminal`;
 
 export enum TerminalCommandIdWithValue {
 	Rename = 'workbench.action.terminal.rename',
@@ -33,6 +34,13 @@ export enum TerminalCommandId {
 	MoveToPanel = 'workbench.action.terminal.moveToTerminalPanel',
 	MoveToEditor = 'workbench.action.terminal.moveToEditor'
 }
+type NotContributedProfile = boolean;
+interface TerminalLabel {
+	name?: string | NotContributedProfile,
+	icon?: string,
+	color?: string
+}
+type TerminalGroup = TerminalLabel[];
 
 export class Terminal {
 
@@ -48,7 +56,8 @@ export class Terminal {
 	}
 
 	async runCommandWithValue(commandId: TerminalCommandIdWithValue, value?: string, altKey?: boolean): Promise<void> {
-		await this.quickaccess.runCommand(commandId, !!value || commandId === TerminalCommandIdWithValue.SelectDefaultProfile || commandId === TerminalCommandIdWithValue.NewWithProfile);
+		const shouldKeepOpen = !!value || commandId === TerminalCommandIdWithValue.SelectDefaultProfile || commandId === TerminalCommandIdWithValue.NewWithProfile;
+		await this.quickaccess.runCommand(commandId, shouldKeepOpen);
 		if (value) {
 			await this.code.waitForSetValue(QuickInput.QUICK_INPUT_INPUT, value);
 		}
@@ -63,18 +72,46 @@ export class Terminal {
 		await this.code.dispatchKeybinding('enter');
 	}
 
-	async getTabLabels(expectedCount: number, splits?: boolean, accept?: (result: IElement[]) => boolean): Promise<string[]> {
-		const result: string[] = [];
-		const tabs = await this.code.waitForElements(TABS, true, e => accept ? accept(e) : e.length === expectedCount && (!splits || e.some(e => e.textContent.startsWith('┌'))) && e.every(element => element.textContent.trim().length > 1));
-		for (const t of tabs) {
-			result.push(t.textContent);
+	async assertTerminalGroups(expectedGroups: TerminalGroup[]): Promise<boolean> {
+		const tabs = await this.code.waitForElements(TABS, true, e => e.every(elt => elt.textContent.trim().length > 1));
+		let index = 0;
+		for (let groupIndex = 0; groupIndex < expectedGroups.length; groupIndex++) {
+			let terminalsInGroup = expectedGroups[groupIndex].length;
+			let indexInGroup = 0;
+			let instance = expectedGroups[groupIndex][indexInGroup];
+			while (indexInGroup < terminalsInGroup) {
+				// splits
+				if (!this.tabMatchesExpected(tabs[index], terminalsInGroup > 1, instance.name, instance.icon)) {
+					throw new Error(`Expected a split ${terminalsInGroup > 1} terminal with name ${instance.name} and icon ${instance.icon} but class was ${tabs[index].className} and text content was ${tabs[index].textContent}`);
+				}
+				indexInGroup++;
+				instance = expectedGroups[groupIndex][indexInGroup];
+				index++;
+			}
 		}
-		if (!result[0].startsWith('┌')) {
-			const first = result[1];
-			const second = result[0];
-			return [first, second];
+		return true;
+	}
+
+	private async tabMatchesExpected(tab: IElement, split: boolean, name?: string | boolean, icon?: string, color?: string): Promise<boolean> {
+		const noSplitDecoration = tab.textContent.startsWith(' ');
+		if ((split && noSplitDecoration) || (!split && !noSplitDecoration)) {
+			throw new Error(`Expected a split terminal ${split} and had split decoration ${!noSplitDecoration}`);
 		}
-		return result;
+		let expected = true;
+		if (icon) {
+			expected = tab.className.includes(icon);
+		}
+		if (color) {
+			expected = expected && tab.children.some(c => c.className.includes(color));
+		}
+		if (name) {
+			if (typeof name === 'string') {
+				expected = expected && tab.textContent.trim().includes(name);
+			} else {
+				expected = expected && !tab.textContent.trim().includes(CONTRIBUTED_PROFILE_NAME);
+			}
+		}
+		return expected;
 	}
 
 	async clickPlusButton(): Promise<void> {
