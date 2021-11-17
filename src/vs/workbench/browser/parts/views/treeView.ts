@@ -57,6 +57,8 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { Command } from 'vs/editor/common/modes';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
+import { CodeDataTransfers, fillEditorsDragData } from 'vs/workbench/browser/dnd';
+import { Schemas } from 'vs/base/common/network';
 
 export class TreeViewPane extends ViewPane {
 
@@ -1224,7 +1226,8 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 	private readonly treeMimeType: string;
 	constructor(
 		private readonly treeId: string,
-		@ILabelService private readonly labelService: ILabelService) {
+		@ILabelService private readonly labelService: ILabelService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService) {
 		this.treeMimeType = `tree/${treeId.toLowerCase()}`;
 	}
 
@@ -1233,13 +1236,35 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		this.dndController = controller;
 	}
 
+	private addResourceInfoToTransfer(originalEvent: DragEvent, resources: URI[]) {
+		if (resources.length && originalEvent.dataTransfer) {
+			// Apply some datatransfer types to allow for dragging the element outside of the application
+			this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, resources, originalEvent));
+
+			// The only custom data transfer we set from the explorer is a file transfer
+			// to be able to DND between multiple code file explorers across windows
+			const fileResources = resources.filter(s => s.scheme === Schemas.file).map(r => r.fsPath);
+			if (fileResources.length) {
+				originalEvent.dataTransfer.setData(CodeDataTransfers.FILES, JSON.stringify(fileResources));
+			}
+		}
+	}
+
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
 		if (originalEvent.dataTransfer) {
 			const treeItemsData = (data as ElementsDragAndDropData<ITreeItem, ITreeItem[]>).getData();
+			const resources: URI[] = [];
 			const sourceInfo: TreeDragSourceInfo = {
 				id: this.treeId,
-				itemHandles: treeItemsData.map(item => item.handle)
+				itemHandles: []
 			};
+			treeItemsData.forEach(item => {
+				sourceInfo.itemHandles.push(item.handle);
+				if (item.resourceUri) {
+					resources.push(URI.revive(item.resourceUri));
+				}
+			});
+			this.addResourceInfoToTransfer(originalEvent, resources);
 			originalEvent.dataTransfer.setData(this.treeMimeType,
 				JSON.stringify(sourceInfo));
 		}
@@ -1247,7 +1272,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 
 	onDragOver(data: IDragAndDropData, targetElement: ITreeItem, targetIndex: number, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
 		const dndController = this.dndController;
-		if (!dndController || !originalEvent.dataTransfer) {
+		if (!dndController || !originalEvent.dataTransfer || (dndController.supportedMimeTypes.length === 0)) {
 			return false;
 		}
 		const dragContainersSupportedType = originalEvent.dataTransfer.types.some((value, index) => {

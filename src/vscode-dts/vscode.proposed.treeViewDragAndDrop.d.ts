@@ -96,7 +96,7 @@ declare module 'vscode' {
 		 *
 		 * @param source The source items for the drag and drop operation.
 		 */
-		onWillDrop(source: T[]): Thenable<TreeDataTransfer>;
+		onWillDrop?(source: T[]): Thenable<TreeDataTransfer>;
 
 		/**
 		 * Called when a drag and drop action results in a drop on the tree that this `DragAndDropController` belongs too.
