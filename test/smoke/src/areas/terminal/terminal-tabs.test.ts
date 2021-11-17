@@ -6,7 +6,7 @@
 
 import { ParsedArgs } from 'minimist';
 import { Code, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation/out';
-import { afterSuite, beforeSuite } from '../../utils';
+import { afterSuite, beforeSuite, timeout } from '../../utils';
 
 const SINGLE_TAB_SELECTOR = '.single-terminal-tab';
 
@@ -73,6 +73,7 @@ export function setup(opts: ParsedArgs) {
 		it('should rename the tab in the tabs list', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
 			await terminal.runCommand(TerminalCommandId.Split);
+			await timeout(500);
 			const name = 'my terminal name';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.Rename, name);
 			await terminal.assertTerminalGroups([[{}, { name }]]);

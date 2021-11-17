@@ -50,7 +50,7 @@ export function setup(opts: ParsedArgs) {
 		it('should show the panel when the terminal is moved there and close the editor', async () => {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
 			await terminal.runCommand(TerminalCommandId.MoveToPanel);
-			await terminal.assertSingleTab({}, true);
+			await terminal.assertSingleTab({});
 		});
 
 		it('should open a terminal in a new group for open to the side', async () => {
