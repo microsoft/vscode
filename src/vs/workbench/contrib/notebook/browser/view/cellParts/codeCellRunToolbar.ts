@@ -35,7 +35,7 @@ export class RunToolbar extends Disposable implements IRunToolbar {
 	) {
 		super();
 
-		const menu = this._register(menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecutePrimary!, contextKeyService))
+		const menu = this._register(menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecutePrimary!, contextKeyService));
 		this.createRunCellToolbar(runButtonContainer, cellContainer, contextKeyService);
 		const updateActions = () => {
 			const actions = this.getCellToolbarActions(menu);
