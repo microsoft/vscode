@@ -30,8 +30,7 @@ export function setup(opts: ParsedArgs) {
 		it('clicking the plus button should create a terminal and display the tabs view showing no split decorations', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
 			await terminal.clickPlusButton();
-			const tabLabels = await terminal.assertTerminalGroups([[{}, {}]]);
-			ok(!tabLabels[0].startsWith('┌') && !tabLabels[1].startsWith('└'));
+			await terminal.assertTerminalGroups([[{}, {}]]);
 		});
 
 		it('should update color of the single tab', async () => {
