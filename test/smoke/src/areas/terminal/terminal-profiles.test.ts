@@ -41,13 +41,13 @@ export function setup(opts: ParsedArgs) {
 			await code.waitForElement('.single-terminal-tab', e => e ? !e.textContent.endsWith(ContributedProfileName) : false);
 		});
 
-		it('should set the default profile to a contributed one', async () => {
+		it.skip('should set the default profile to a contributed one', async () => {
 			await terminal.runProfileCommand(TerminalCommandId.SelectDefaultProfile, true);
 			await terminal.runCommand(TerminalCommandId.CreateNew);
 			await code.waitForElement('.single-terminal-tab', e => e ? e.textContent.endsWith(ContributedProfileName) : false);
 		});
 
-		it('should use the default contributed profile on panel open and for splitting', async () => {
+		it.skip('should use the default contributed profile on panel open and for splitting', async () => {
 			await terminal.runProfileCommand(TerminalCommandId.SelectDefaultProfile, true);
 			await terminal.runCommand(TerminalCommandId.Show);
 			await terminal.runCommand(TerminalCommandId.Split);
@@ -84,7 +84,7 @@ export function setup(opts: ParsedArgs) {
 			await code.waitForElement('.single-terminal-tab', e => e ? !e.textContent.endsWith(ContributedProfileName) : false);
 		});
 
-		it('createWithProfile command should create a terminal with a contributed profile', async () => {
+		it.skip('createWithProfile command should create a terminal with a contributed profile', async () => {
 			await terminal.runProfileCommand(TerminalCommandId.NewWithProfile, true);
 			await code.waitForElement('.single-terminal-tab', e => e ? e.textContent.endsWith(ContributedProfileName) : false);
 		});
@@ -97,7 +97,7 @@ export function setup(opts: ParsedArgs) {
 			ok(tabs[1].startsWith('└') && !tabs[1].endsWith(ContributedProfileName));
 		});
 
-		it('createWithProfile command should create a split terminal with a contributed profile', async () => {
+		it.skip('createWithProfile command should create a split terminal with a contributed profile', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
 			await code.waitForElement('.single-terminal-tab', e => e ? !e.textContent.endsWith(ContributedProfileName) : false);
 			await terminal.runProfileCommand(TerminalCommandId.NewWithProfile, true, true);
