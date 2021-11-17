@@ -4,27 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ParsedArgs } from 'minimist';
-import { Code, Terminal } from '../../../../automation/out';
+import { Code, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation/out';
 import { afterSuite, beforeSuite } from '../../utils';
+
+const EDITOR_GROUP_SELECTOR = '.editor .split-view-view';
+const TAB_SELECTOR = '.terminal-tab';
+const PLUS_BUTTON_SELECTOR = 'li.action-item.monaco-dropdown-with-primary .codicon-plus';
+const SPLIT_BUTTON_SELECTOR = '.editor .codicon-split-horizontal';
 
 export function setup(opts: ParsedArgs) {
 	describe.only('Terminal Editors', () => {
 		let code: Code;
 		let terminal: Terminal;
-		const editorGroupSelector = '.editor > div.content > div.grid-view-container > div > div > div > div.monaco-scrollable-element > div.split-view-container';
-		// TODO: Move into automation/terminal
-		const enum TerminalCommandId {
-			Rename = 'workbench.action.terminal.rename',
-			ChangeColor = 'workbench.action.terminal.changeColor',
-			ChangeIcon = 'workbench.action.terminal.changeIcon',
-			KillAll = 'workbench.action.terminal.killAll',
-			CreateNewEditor = 'workbench.action.createTerminalEditor',
-			SplitEditor = 'workbench.action.createTerminalEditorSide',
-			Split = 'workbench.action.terminal.split',
-			MoveToPanel = 'workbench.action.terminal.moveToTerminalPanel'
-		}
 
-		const tabSelector = '.terminal-tab';
 
 		beforeSuite(opts);
 		afterSuite(opts);
@@ -41,22 +33,22 @@ export function setup(opts: ParsedArgs) {
 		it('should update color of the tab', async () => {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
 			const color = 'Cyan';
-			await terminal.runCommand(TerminalCommandId.ChangeColor, color);
-			await code.waitForElement(`${tabSelector}.terminal-icon-terminal_ansi${color}`);
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeColor, color);
+			await code.waitForElement(`${TAB_SELECTOR}.terminal-icon-terminal_ansi${color}`);
 		});
 
 		it('should update icon of the tab', async () => {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
 			const icon = 'symbol-method';
-			await terminal.runCommand(TerminalCommandId.ChangeIcon, icon);
-			await code.waitForElement(`${tabSelector}.codicon-${icon}`);
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeIcon, icon);
+			await code.waitForElement(`${TAB_SELECTOR}.codicon-${icon}`);
 		});
 
 		it('should rename the tab', async () => {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
 			const name = 'my terminal name';
-			await terminal.runCommand(TerminalCommandId.Rename, name);
-			await code.waitForElement(tabSelector, e => e ? e?.textContent === name : false);
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.Rename, name);
+			await code.waitForElement(TAB_SELECTOR, e => e ? e?.textContent === name : false);
 		});
 
 		it('should show the panel when the terminal is moved there', async () => {
@@ -68,20 +60,25 @@ export function setup(opts: ParsedArgs) {
 		it('should open a terminal in a new group for open to the side', async () => {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
 			await terminal.runCommand(TerminalCommandId.SplitEditor);
-			await code.waitForElements(editorGroupSelector, true, e => e && e.length > 0 ? e[0].children.length === 2 : false);
+			await code.waitForElements(EDITOR_GROUP_SELECTOR, true, editorGroups => editorGroups && editorGroups.length === 2);
 		});
 
-		it.skip('should open a terminal in a new group when the split button is pressed', async () => {
+		it('should open a terminal in a new group when the split button is pressed', async () => {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
-			//TODO: split button
-			// await terminal.runCommand(TerminalCommandId.SplitEditor);
-			await code.waitForElements(editorGroupSelector, true, e => e && e.length > 0 ? e[0].children.length === 2 : false);
+			await code.waitAndClick(SPLIT_BUTTON_SELECTOR);
+			await code.waitForElements(EDITOR_GROUP_SELECTOR, true, editorGroups => editorGroups && editorGroups.length === 2);
 		});
 
-		it('should open a terminal in the active editor group', async () => {
+		it('should create new terminals in the active editor group via command', async () => {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
-			await terminal.runCommand(TerminalCommandId.MoveToPanel);
-			await code.waitForElements(editorGroupSelector, true, e => e && e.length > 0 ? e[0].children.length === 1 : false);
+			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
+			await code.waitForElements(EDITOR_GROUP_SELECTOR, true, editorGroups => editorGroups && editorGroups.length === 1);
+		});
+
+		it('should create new terminals in the active editor group via plus button', async () => {
+			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
+			await code.waitAndClick(PLUS_BUTTON_SELECTOR);
+			await code.waitForElements(EDITOR_GROUP_SELECTOR, true, editorGroups => editorGroups && editorGroups.length === 1);
 		});
 	});
 }

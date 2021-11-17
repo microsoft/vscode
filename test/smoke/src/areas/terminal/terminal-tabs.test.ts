@@ -5,26 +5,16 @@
 
 import { ok } from 'assert';
 import { ParsedArgs } from 'minimist';
-import { Code, Terminal } from '../../../../automation/out';
+import { Code, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation/out';
 import { afterSuite, beforeSuite } from '../../utils';
 
+const SINGLE_TAB_SELECTOR = '.single-terminal-tab';
+const PLUS_BUTTON_SELECTOR = 'li.action-item.monaco-dropdown-with-primary .codicon-plus';
+
 export function setup(opts: ParsedArgs) {
-	describe('Terminal Tabs', () => {
+	describe.only('Terminal Tabs', () => {
 		let code: Code;
 		let terminal: Terminal;
-
-		// TODO: Move into automation/terminal
-		const enum TerminalCommandId {
-			Rename = 'workbench.action.terminal.rename',
-			ChangeColor = 'workbench.action.terminal.changeColor',
-			ChangeIcon = 'workbench.action.terminal.changeIcon',
-			Split = 'workbench.action.terminal.split',
-			KillAll = 'workbench.action.terminal.killAll',
-			Unsplit = 'workbench.action.terminal.unsplit',
-			Join = 'workbench.action.terminal.join',
-			Show = 'workbench.action.terminal.toggleTerminal',
-			CreateNew = 'workbench.action.terminal.new'
-		}
 
 		beforeSuite(opts);
 		afterSuite(opts);
@@ -40,7 +30,7 @@ export function setup(opts: ParsedArgs) {
 
 		it('clicking the plus button should create a terminal and display the tabs view showing no split decorations', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
-			await code.waitAndClick('li.action-item.monaco-dropdown-with-primary > div.action-container.menu-entry > a');
+			await code.waitAndClick(PLUS_BUTTON_SELECTOR);
 			const tabLabels = await terminal.getTabLabels(2);
 			ok(!tabLabels[0].startsWith('┌') && !tabLabels[1].startsWith('└'));
 		});
@@ -48,8 +38,8 @@ export function setup(opts: ParsedArgs) {
 		it('should update color of the single tab', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
 			const color = 'Cyan';
-			await terminal.runCommand(TerminalCommandId.ChangeColor, color);
-			const singleTab = await code.waitForElement('.single-terminal-tab');
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeColor, color);
+			const singleTab = await code.waitForElement(SINGLE_TAB_SELECTOR);
 			ok(singleTab.className.includes(`terminal-icon-terminal_ansi${color}`));
 		});
 
@@ -60,14 +50,14 @@ export function setup(opts: ParsedArgs) {
 			ok(tabs[0].startsWith('┌'));
 			ok(tabs[1].startsWith('└'));
 			const color = 'Cyan';
-			await terminal.runCommand(TerminalCommandId.ChangeColor, color);
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeColor, color);
 			await code.waitForElement(`.terminal-tabs-entry .terminal-icon-terminal_ansi${color}`);
 		});
 
 		it('should update icon of the single tab', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
 			const icon = 'symbol-method';
-			await terminal.runCommand(TerminalCommandId.ChangeIcon, icon);
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeIcon, icon);
 			await code.waitForElement(`.single-terminal-tab .codicon-${icon}`);
 		});
 
@@ -78,22 +68,22 @@ export function setup(opts: ParsedArgs) {
 			ok(tabs[0].startsWith('┌'));
 			ok(tabs[1].startsWith('└'));
 			const icon = 'symbol-method';
-			await terminal.runCommand(TerminalCommandId.ChangeIcon, icon);
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeIcon, icon);
 			await code.waitForElement(`.terminal-tabs-entry .codicon-${icon}`);
 		});
 
 		it('should rename the single tab', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
 			const name = 'my terminal name';
-			await terminal.runCommand(TerminalCommandId.Rename, name);
-			await code.waitForElement('.single-terminal-tab', e => e ? e?.textContent.includes(name) : false);
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.Rename, name);
+			await code.waitForElement(SINGLE_TAB_SELECTOR, e => e ? e?.textContent.includes(name) : false);
 		});
 
 		it('should rename the tab in the tabs list', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
 			await terminal.runCommand(TerminalCommandId.Split);
 			const name = 'my terminal name';
-			await terminal.runCommand(TerminalCommandId.Rename, name);
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.Rename, name);
 			await terminal.getTabLabels(2, true, t => t.some(element => element.textContent.includes(name)));
 		});
 
@@ -101,7 +91,7 @@ export function setup(opts: ParsedArgs) {
 			await terminal.runCommand(TerminalCommandId.Show);
 			const page = await terminal.getPage();
 			page.keyboard.down('Alt');
-			await code.waitAndClick('.single-terminal-tab');
+			await code.waitAndClick(SINGLE_TAB_SELECTOR);
 			page.keyboard.up('Alt');
 			await terminal.getTabLabels(2, true);
 		});
@@ -109,7 +99,7 @@ export function setup(opts: ParsedArgs) {
 		it('should do nothing when join tabs is run with only one terminal', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
 			await terminal.runCommand(TerminalCommandId.Join);
-			await code.waitForElement('.single-terminal-tab');
+			await code.waitForElement(SINGLE_TAB_SELECTOR);
 		});
 
 		it('should join tabs when more than one terminal', async () => {

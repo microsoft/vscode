@@ -13,10 +13,13 @@ const CONTRIBUTED_PROFILE_NAME = `JavaScript Debug Terminal`;
 const TABS = '.tabs-list .terminal-tabs-entry';
 const XTERM_FOCUSED_SELECTOR = '.terminal.xterm.focus';
 
-const enum TerminalCommandId {
+export enum TerminalCommandIdWithValue {
 	Rename = 'workbench.action.terminal.rename',
 	ChangeColor = 'workbench.action.terminal.changeColor',
 	ChangeIcon = 'workbench.action.terminal.changeIcon',
+}
+
+export enum TerminalCommandId {
 	Split = 'workbench.action.terminal.split',
 	KillAll = 'workbench.action.terminal.killAll',
 	Unsplit = 'workbench.action.terminal.unsplit',
@@ -24,18 +27,27 @@ const enum TerminalCommandId {
 	Show = 'workbench.action.terminal.toggleTerminal',
 	CreateNew = 'workbench.action.terminal.new',
 	NewWithProfile = 'workbench.action.terminal.newWithProfile',
-	SelectDefaultProfile = 'workbench.action.terminal.selectDefaultShell'
+	SelectDefaultProfile = 'workbench.action.terminal.selectDefaultShell',
+	CreateNewEditor = 'workbench.action.createTerminalEditor',
+	SplitEditor = 'workbench.action.createTerminalEditorSide',
+	MoveToPanel = 'workbench.action.terminal.moveToTerminalPanel'
 }
 
 export class Terminal {
 
 	constructor(private code: Code, private quickaccess: QuickAccess, private quickinput: QuickInput) { }
 
-	async runCommand(commandId: string, value?: string): Promise<void> {
-		await this.quickaccess.runCommand(commandId, !!value || commandId === TerminalCommandId.Join);
+	async runCommand(commandId: TerminalCommandId): Promise<void> {
+		await this.quickaccess.runCommand(commandId, commandId === TerminalCommandId.Join);
 		if (commandId === TerminalCommandId.Show || commandId === TerminalCommandId.CreateNew) {
 			return await this._waitForTerminal();
 		}
+		await this.code.dispatchKeybinding('enter');
+		await this.quickinput.waitForQuickInputClosed();
+	}
+
+	async runCommandWithValue(commandId: TerminalCommandIdWithValue, value?: string): Promise<void> {
+		await this.quickaccess.runCommand(commandId, !!value);
 		if (value) {
 			await this.code.waitForSetValue(QuickInput.QUICK_INPUT_INPUT, value);
 		}
