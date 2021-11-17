@@ -255,7 +255,11 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 
 	// A schema has changed
 	connection.onNotification(SchemaContentChangeNotification.type, uri => {
-		languageService.resetSchema(uri);
+		if (languageService.resetSchema(uri)) {
+			for (const doc of documents.all()) {
+				triggerValidation(doc);
+			}
+		}
 	});
 
 	// Retry schema validation on all open documents

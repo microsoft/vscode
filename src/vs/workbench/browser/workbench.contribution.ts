@@ -367,6 +367,13 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('auxiliaryBarEnabled', "Controls whether the side panel opposite the side bar is enabled."),
 				'included': product.quality !== 'stable'
 			},
+			'workbench.experimental.panel.alignment': {
+				'type': 'string',
+				'enum': ['left', 'center', 'right', 'justified'],
+				'default': 'center',
+				'description': localize('panelAlignment', "Controls the alignment of the panel (terminal, debug console, output, problems) and whether or not it spans beneath the side bar and side panel."),
+				'included': product.quality !== 'stable'
+			},
 		}
 	});
 

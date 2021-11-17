@@ -451,9 +451,11 @@ export class SuggestController implements IEditorContribution {
 			fileExtension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; };
 			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; };
 		};
-
+		// _debugDisplayName looks like `vscode.css-language-features(/-:)`, where the last bit is the trigger chars
+		// normalize it to just the extension ID and lowercase
+		const providerId = (acceptedSuggestion.item.provider._debugDisplayName ?? 'unknown').split('(', 1)[0].toLowerCase();
 		this._telemetryService.publicLog2<AcceptedSuggestion, AcceptedSuggestionClassification>('suggest.acceptedSuggestion', {
-			providerId: acceptedSuggestion.item.provider._debugDisplayName ?? 'unknown',
+			providerId,
 			basenameHash: hash(basename(model.uri)).toString(16),
 			languageId: model.getLanguageId(),
 			fileExtension: extname(model.uri),
