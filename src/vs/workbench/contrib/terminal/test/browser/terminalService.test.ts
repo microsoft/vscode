@@ -20,6 +20,8 @@ import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService
 import { ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { TestRemoteAgentService } from 'vs/workbench/services/remote/test/common/testServices';
 
 class TestTerminalService extends TerminalService {
 	convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig {
@@ -52,6 +54,8 @@ suite.only('Workbench - TerminalService', () => {
 		instantiationService.stub(ITerminalGroupService, new TestTerminalGroupService());
 		instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());
 		instantiationService.stub(ITerminalProfileService, new TestTerminalProfileService());
+		instantiationService.stub(IRemoteAgentService, new TestRemoteAgentService());
+		instantiationService.stub(IRemoteAgentService, 'getConnection', null);
 		instantiationService.stub(IDialogService, dialogService);
 
 		terminalService = instantiationService.createInstance(TestTerminalService);
