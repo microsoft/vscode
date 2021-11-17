@@ -292,6 +292,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 
 					#container > div.preview.dragging {
 						background-color: var(--theme-background);
+						opacity: 0.5 !important;
 					}
 
 					.monaco-workbench.vs-dark .notebookOverlay .cell.markdown .latex img,
