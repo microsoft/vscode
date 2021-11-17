@@ -129,7 +129,6 @@ export interface IRunToolbar {
 
 export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
 	runToolbar: IRunToolbar;
-	runButtonContainer: HTMLElement;
 	executionOrderLabel: HTMLElement;
 	outputContainer: FastDomNode<HTMLElement>;
 	cellOutputCollapsedContainer: HTMLElement;

@@ -516,7 +516,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			cellToolbars,
 			focusSinkElement,
 			runToolbar,
-			runButtonContainer,
 			executionOrderLabel,
 			outputContainer,
 			outputShowMoreContainer,
