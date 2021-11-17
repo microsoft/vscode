@@ -9,7 +9,6 @@ import { Code, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '.
 import { afterSuite, beforeSuite } from '../../utils';
 
 const SINGLE_TAB_SELECTOR = '.single-terminal-tab';
-const PLUS_BUTTON_SELECTOR = 'li.action-item.monaco-dropdown-with-primary .codicon-plus';
 
 export function setup(opts: ParsedArgs) {
 	describe.only('Terminal Tabs', () => {
@@ -30,7 +29,7 @@ export function setup(opts: ParsedArgs) {
 
 		it('clicking the plus button should create a terminal and display the tabs view showing no split decorations', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
-			await code.waitAndClick(PLUS_BUTTON_SELECTOR);
+			await terminal.clickPlusButton();
 			const tabLabels = await terminal.getTabLabels(2);
 			ok(!tabLabels[0].startsWith('┌') && !tabLabels[1].startsWith('└'));
 		});
@@ -123,6 +122,13 @@ export function setup(opts: ParsedArgs) {
 			await terminal.getTabLabels(2, true);
 			await terminal.runCommand(TerminalCommandId.Unsplit);
 			await terminal.getTabLabels(2, false, t => t.every(label => !label.textContent.startsWith('┌') && !label.textContent.startsWith('└')));
+		});
+
+		it('should move the terminal to the editor area', async () => {
+			await terminal.runCommand(TerminalCommandId.Show);
+			await code.waitForElement('.single-terminal-tab');
+			await terminal.runCommand(TerminalCommandId.MoveToEditor);
+			await code.waitForElements('.editor .split-view-view', true, editorGroups => editorGroups && editorGroups.length === 1);
 		});
 	});
 }

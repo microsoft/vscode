@@ -11,6 +11,7 @@ const TERMINAL_VIEW_SELECTOR = `#terminal`;
 const XTERM_SELECTOR = `${TERMINAL_VIEW_SELECTOR} .terminal-wrapper`;
 const TABS = '.tabs-list .terminal-tabs-entry';
 const XTERM_FOCUSED_SELECTOR = '.terminal.xterm.focus';
+const PLUS_BUTTON_SELECTOR = 'li.action-item.monaco-dropdown-with-primary .codicon-plus';
 
 export enum TerminalCommandIdWithValue {
 	Rename = 'workbench.action.terminal.rename',
@@ -29,7 +30,8 @@ export enum TerminalCommandId {
 	CreateNew = 'workbench.action.terminal.new',
 	CreateNewEditor = 'workbench.action.createTerminalEditor',
 	SplitEditor = 'workbench.action.createTerminalEditorSide',
-	MoveToPanel = 'workbench.action.terminal.moveToTerminalPanel'
+	MoveToPanel = 'workbench.action.terminal.moveToTerminalPanel',
+	MoveToEditor = 'workbench.action.terminal.moveToEditor'
 }
 
 export class Terminal {
@@ -73,6 +75,10 @@ export class Terminal {
 			return [first, second];
 		}
 		return result;
+	}
+
+	async clickPlusButton(): Promise<void> {
+		this.code.waitAndClick(PLUS_BUTTON_SELECTOR);
 	}
 
 	async waitForTerminalText(accept: (buffer: string[]) => boolean, message?: string): Promise<void> {

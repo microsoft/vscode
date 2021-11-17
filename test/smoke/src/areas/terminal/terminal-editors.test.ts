@@ -7,9 +7,8 @@ import { ParsedArgs } from 'minimist';
 import { Code, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation/out';
 import { afterSuite, beforeSuite } from '../../utils';
 
-const EDITOR_GROUP_SELECTOR = '.editor .split-view-view';
+const EDITOR_GROUPS_SELECTOR = '.editor .split-view-view';
 const TAB_SELECTOR = '.terminal-tab';
-const PLUS_BUTTON_SELECTOR = 'li.action-item.monaco-dropdown-with-primary .codicon-plus';
 const SPLIT_BUTTON_SELECTOR = '.editor .codicon-split-horizontal';
 
 export function setup(opts: ParsedArgs) {
@@ -51,7 +50,7 @@ export function setup(opts: ParsedArgs) {
 			await code.waitForElement(TAB_SELECTOR, e => e ? e?.textContent === name : false);
 		});
 
-		it('should show the panel when the terminal is moved there', async () => {
+		it('should show the panel when the terminal is moved there and close the editor', async () => {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
 			await terminal.runCommand(TerminalCommandId.MoveToPanel);
 			await code.waitForElement('.single-terminal-tab');
@@ -60,25 +59,25 @@ export function setup(opts: ParsedArgs) {
 		it('should open a terminal in a new group for open to the side', async () => {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
 			await terminal.runCommand(TerminalCommandId.SplitEditor);
-			await code.waitForElements(EDITOR_GROUP_SELECTOR, true, editorGroups => editorGroups && editorGroups.length === 2);
+			await code.waitForElements(EDITOR_GROUPS_SELECTOR, true, editorGroups => editorGroups && editorGroups.length === 2);
 		});
 
 		it('should open a terminal in a new group when the split button is pressed', async () => {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
 			await code.waitAndClick(SPLIT_BUTTON_SELECTOR);
-			await code.waitForElements(EDITOR_GROUP_SELECTOR, true, editorGroups => editorGroups && editorGroups.length === 2);
+			await code.waitForElements(EDITOR_GROUPS_SELECTOR, true, editorGroups => editorGroups && editorGroups.length === 2);
 		});
 
 		it('should create new terminals in the active editor group via command', async () => {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
-			await code.waitForElements(EDITOR_GROUP_SELECTOR, true, editorGroups => editorGroups && editorGroups.length === 1);
+			await code.waitForElements(EDITOR_GROUPS_SELECTOR, true, editorGroups => editorGroups && editorGroups.length === 1);
 		});
 
 		it('should create new terminals in the active editor group via plus button', async () => {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
-			await code.waitAndClick(PLUS_BUTTON_SELECTOR);
-			await code.waitForElements(EDITOR_GROUP_SELECTOR, true, editorGroups => editorGroups && editorGroups.length === 1);
+			await terminal.clickPlusButton();
+			await code.waitForElements(EDITOR_GROUPS_SELECTOR, true, editorGroups => editorGroups && editorGroups.length === 1);
 		});
 	});
 }
