@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ParsedArgs } from 'minimist';
-import { Code, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation';
+import { Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation';
 import { afterSuite, beforeSuite } from '../../utils';
 
 const CONTRIBUTED_PROFILE_NAME = `JavaScript Debug Terminal`;
@@ -12,14 +12,12 @@ const ANY_NAME = '*';
 
 export function setup(opts: ParsedArgs) {
 	describe.only('Terminal Profiles', () => {
-		let code: Code;
 		let terminal: Terminal;
 
 		beforeSuite(opts);
 		afterSuite(opts);
 
 		before(function () {
-			code = this.app.code;
 			terminal = this.app.workbench.terminal;
 		});
 
