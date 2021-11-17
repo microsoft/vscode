@@ -85,7 +85,7 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 		}
 
 		try {
-			await pkill(server.pid);
+			await pkill(server.pid!);
 		} catch (error) {
 			console.error(`Error when killing server process tree: ${error}`);
 		}
