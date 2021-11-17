@@ -335,8 +335,8 @@ export class TerminalService implements ITerminalService {
 			instance.hasChildProcesses &&
 			(this.configHelper.config.confirmOnKill === 'panel' || this.configHelper.config.confirmOnKill === 'always')) {
 
-			const notConfirmed = await this._showTerminalCloseConfirmation(true);
-			if (notConfirmed) {
+			const veto = await this._showTerminalCloseConfirmation(true);
+			if (veto) {
 				return;
 			}
 		}
