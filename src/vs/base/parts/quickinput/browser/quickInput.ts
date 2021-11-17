@@ -1061,7 +1061,6 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 }
 
 class InputBox extends QuickInput implements IInputBox {
-	private _value = '';
 	private _valueSelection: Readonly<[number, number]> | undefined;
 	private valueSelectionUpdated = true;
 	private _placeholder: string | undefined;
@@ -1071,12 +1070,11 @@ class InputBox extends QuickInput implements IInputBox {
 	private readonly onDidAcceptEmitter = this._register(new Emitter<void>());
 
 	get value() {
-		return this._value;
+		return this.ui.inputBox.value;
 	}
 
 	set value(value: string) {
-		this._value = value || '';
-		this.update();
+		this.ui.inputBox.value = value ?? '';
 	}
 
 	set valueSelection(valueSelection: Readonly<[number, number]>) {
@@ -1123,10 +1121,6 @@ class InputBox extends QuickInput implements IInputBox {
 		if (!this.visible) {
 			this.visibleDisposables.add(
 				this.ui.inputBox.onDidChange(value => {
-					if (value === this.value) {
-						return;
-					}
-					this._value = value;
 					this.onDidValueChangeEmitter.fire(value);
 				}));
 			this.visibleDisposables.add(this.ui.onDidAccept(() => this.onDidAcceptEmitter.fire()));
@@ -1146,9 +1140,6 @@ class InputBox extends QuickInput implements IInputBox {
 		};
 		this.ui.setVisibilities(visibilities);
 		super.update();
-		if (this.ui.inputBox.value !== this.value) {
-			this.ui.inputBox.value = this.value;
-		}
 		if (this.valueSelectionUpdated) {
 			this.valueSelectionUpdated = false;
 			this.ui.inputBox.select(this._valueSelection && { start: this._valueSelection[0], end: this._valueSelection[1] });
