@@ -31,6 +31,7 @@ export class Terminal {
 
 	constructor(private code: Code, private quickaccess: QuickAccess, private quickinput: QuickInput) { }
 
+	// TODO: Strongly type using non-const enum TerminalCommandId
 	async runCommand(commandId: string, value?: string): Promise<void> {
 		await this.quickaccess.runCommand(commandId, !!value || commandId === TerminalCommandId.Join);
 		if (commandId === TerminalCommandId.Show || commandId === TerminalCommandId.CreateNew) {
@@ -50,6 +51,13 @@ export class Terminal {
 		await this.code.dispatchKeybinding('enter');
 	}
 
+	// TODO: Return something more robust:
+	// export interface ITerminalInstance {
+	//   name: string;
+	//   icon: string;
+	// }
+	// export type TerminalGroup = ITerminalInstance[];
+	// export type TerminalLayout = TerminalGroup[];
 	async getTabLabels(expectedCount: number, splits?: boolean, accept?: (result: IElement[]) => boolean): Promise<string[]> {
 		const result: string[] = [];
 		const tabs = await this.code.waitForElements(TABS, true, e => accept ? accept(e) : e.length === expectedCount && (!splits || e.some(e => e.textContent.startsWith('┌'))) && e.every(element => element.textContent.trim().length > 1));

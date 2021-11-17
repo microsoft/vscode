@@ -37,6 +37,7 @@ export function setup(opts: ParsedArgs) {
 
 		it('should launch the default profile', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
+			// TODO: Use getSingleTabLabel? Share logic with getTabLabel?
 			await code.waitForElement('.single-terminal-tab', e => e ? !e.textContent.endsWith(ContributedProfileName) : false);
 		});
 
@@ -51,6 +52,7 @@ export function setup(opts: ParsedArgs) {
 			await terminal.runCommand(TerminalCommandId.Show);
 			await terminal.runCommand(TerminalCommandId.Split);
 			const tabs = await terminal.getTabLabels(2);
+			console.log('DEBUG: tabs', tabs);
 			ok(tabs[0].startsWith('┌') && tabs[0].endsWith(ContributedProfileName));
 			ok(tabs[1].startsWith('└') && tabs[1].endsWith(ContributedProfileName));
 		});
