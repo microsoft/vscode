@@ -9,7 +9,6 @@ import { IAction } from 'vs/base/common/actions';
 import { disposableTimeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshalling';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { createActionViewItem, createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -17,7 +16,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INotebookCellActionContext, INotebookCellToolbarActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
+import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { DeleteCellAction } from 'vs/workbench/contrib/notebook/browser/controller/editActions';
 import { INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellActionView';
@@ -28,28 +27,23 @@ export class BetweenCellToolbar extends Disposable {
 	private _betweenCellToolbar!: ToolBar;
 
 	constructor(
-		readonly notebookEditor: INotebookEditorDelegate,
-		readonly titleToolbarContainer: HTMLElement,
-		readonly bottomCellToolbarContainer: HTMLElement,
-		@IInstantiationService readonly instantiationService: IInstantiationService,
-		@IContextMenuService readonly contextMenuService: IContextMenuService,
-		@IContextKeyService readonly contextKeyService: IContextKeyService,
-		@IKeybindingService readonly keybindingService: IKeybindingService,
-		@IMenuService readonly menuService: IMenuService
+		private readonly _notebookEditor: INotebookEditorDelegate,
+		_titleToolbarContainer: HTMLElement,
+		private readonly _bottomCellToolbarContainer: HTMLElement,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IMenuService menuService: IMenuService
 	) {
 		super();
 
-		this.createBetweenCellToolbar();
-	}
-
-	createBetweenCellToolbar() {
-		this._betweenCellToolbar = this._register(new ToolBar(this.bottomCellToolbarContainer, this.contextMenuService, {
+		this._betweenCellToolbar = this._register(new ToolBar(this._bottomCellToolbarContainer, contextMenuService, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
-					if (this.notebookEditor.notebookOptions.getLayoutConfiguration().insertToolbarAlignment === 'center') {
-						return this.instantiationService.createInstance(CodiconActionViewItem, action);
+					if (this._notebookEditor.notebookOptions.getLayoutConfiguration().insertToolbarAlignment === 'center') {
+						return instantiationService.createInstance(CodiconActionViewItem, action);
 					} else {
-						return this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined);
+						return instantiationService.createInstance(MenuEntryActionViewItem, action, undefined);
 					}
 				}
 
@@ -57,14 +51,14 @@ export class BetweenCellToolbar extends Disposable {
 			}
 		}));
 
-		const menu = this._register(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellInsertToolbar, this.contextKeyService));
+		const menu = this._register(menuService.createMenu(this._notebookEditor.creationOptions.menuIds.cellInsertToolbar, contextKeyService));
 		const updateActions = () => {
 			const actions = getCellToolbarActions(menu);
 			this._betweenCellToolbar.setActions(actions.primary, actions.secondary);
 		};
 
 		this._register(menu.onDidChange(() => updateActions()));
-		this._register(this.notebookEditor.notebookOptions.onDidChangeOptions((e) => {
+		this._register(this._notebookEditor.notebookOptions.onDidChangeOptions((e) => {
 			if (e.insertToolbarAlignment) {
 				updateActions();
 			}
@@ -72,20 +66,13 @@ export class BetweenCellToolbar extends Disposable {
 		updateActions();
 	}
 
-	updateContext(element: CodeCellViewModel | MarkupCellViewModel) {
-		const toolbarContext = <INotebookCellToolbarActionContext>{
-			ui: true,
-			cell: element,
-			notebookEditor: this.notebookEditor,
-			$mid: MarshalledId.NotebookCellActionContext
-		};
-
-		this._betweenCellToolbar.context = toolbarContext;
+	updateContext(context: INotebookCellActionContext) {
+		this._betweenCellToolbar.context = context;
 	}
 
 	updateForLayout(element: CodeCellViewModel | MarkupCellViewModel) {
 		const bottomToolbarOffset = element.layoutInfo.bottomToolbarOffset;
-		this.bottomCellToolbarContainer.style.transform = `translateY(${bottomToolbarOffset}px)`;
+		this._bottomCellToolbarContainer.style.transform = `translateY(${bottomToolbarOffset}px)`;
 	}
 }
 

@@ -274,8 +274,6 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			this.updateForLayout(element, templateData);
 		}));
 
-		templateData.betweenCellToolbar.updateContext(element);
-
 		const markdownCell = templateData.instantiationService.createInstance(StatefulMarkdownCell, this.notebookEditor, element, templateData, this.renderedEditors);
 		elementDisposables.add(markdownCell);
 
@@ -285,6 +283,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			notebookEditor: this.notebookEditor,
 			$mid: MarshalledId.NotebookCellActionContext
 		};
+		templateData.betweenCellToolbar.updateContext(toolbarContext);
 		templateData.statusBar.updateContext(toolbarContext);
 	}
 
@@ -794,7 +793,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		this.updateForKernel(element, templateData);
 
-		templateData.betweenCellToolbar.updateContext(element);
 		const toolbarContext = <INotebookCellActionContext>{
 			ui: true,
 			cell: element,
@@ -802,6 +800,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			notebookEditor: this.notebookEditor,
 			$mid: MarshalledId.NotebookCellActionContext
 		};
+		templateData.betweenCellToolbar.updateContext(toolbarContext);
 		templateData.titleToolbar.updateContext(toolbarContext);
 		templateData.runToolbar.updateContext(toolbarContext);
 		templateData.statusBar.updateContext(toolbarContext);
