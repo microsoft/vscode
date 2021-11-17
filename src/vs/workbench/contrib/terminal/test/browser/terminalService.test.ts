@@ -151,7 +151,7 @@ suite('Workbench - TerminalService', () => {
 
 	suite('safeDisposeTerminal', () => {
 		test('should not show prompt when confirmOnKill is never', async () => {
-			configurationService.setUserConfiguration('terminal.integrated.confirmOnKill', 'never');
+			setConfirmOnKill(configurationService, 'never');
 			await new Promise<void>(r => {
 				terminalService.safeDisposeTerminal({
 					target: TerminalLocation.Editor,
@@ -168,7 +168,7 @@ suite('Workbench - TerminalService', () => {
 			});
 		});
 		test('should not show prompt when any terminal editor is closed (handled by editor itself)', async () => {
-			configurationService.setUserConfiguration('terminal.integrated.confirmOnKill', 'editor');
+			setConfirmOnKill(configurationService, 'editor');
 			await new Promise<void>(r => {
 				terminalService.safeDisposeTerminal({
 					target: TerminalLocation.Editor,
@@ -176,7 +176,7 @@ suite('Workbench - TerminalService', () => {
 					dispose: () => r()
 				} as Partial<ITerminalInstance> as any);
 			});
-			configurationService.setUserConfiguration('terminal.integrated.confirmOnKill', 'always');
+			setConfirmOnKill(configurationService, 'always');
 			await new Promise<void>(r => {
 				terminalService.safeDisposeTerminal({
 					target: TerminalLocation.Editor,
@@ -186,7 +186,7 @@ suite('Workbench - TerminalService', () => {
 			});
 		});
 		test('should not show prompt when confirmOnKill is editor and panel terminal is closed', async () => {
-			configurationService.setUserConfiguration('terminal.integrated.confirmOnKill', 'editor');
+			setConfirmOnKill(configurationService, 'editor');
 			await new Promise<void>(r => {
 				terminalService.safeDisposeTerminal({
 					target: TerminalLocation.Panel,
@@ -196,8 +196,7 @@ suite('Workbench - TerminalService', () => {
 			});
 		});
 		test('should show prompt when confirmOnKill is panel and panel terminal is closed', async () => {
-			configurationService.setUserConfiguration('terminal', { integrated: { confirmOnKill: 'panel' } });
-			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
+			setConfirmOnKill(configurationService, 'panel');
 			// No child process cases
 			dialogService.setConfirmResult({ confirmed: false });
 			await new Promise<void>(r => {
@@ -232,8 +231,7 @@ suite('Workbench - TerminalService', () => {
 			});
 		});
 		test('should show prompt when confirmOnKill is always and panel terminal is closed', async () => {
-			configurationService.setUserConfiguration('terminal', { integrated: { confirmOnKill: 'always' } });
-			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
+			setConfirmOnKill(configurationService, 'always');
 			// No child process cases
 			dialogService.setConfirmResult({ confirmed: false });
 			await new Promise<void>(r => {
@@ -269,3 +267,11 @@ suite('Workbench - TerminalService', () => {
 		});
 	});
 });
+
+async function setConfirmOnKill(configurationService: TestConfigurationService, value: 'never' | 'always' | 'panel' | 'editor') {
+	await configurationService.setUserConfiguration('terminal', { integrated: { confirmOnKill: value } });
+	configurationService.onDidChangeConfigurationEmitter.fire({
+		affectsConfiguration: () => true,
+		affectedKeys: ['terminal.integrated.confirmOnKill']
+	} as any);
+}
