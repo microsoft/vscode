@@ -646,9 +646,7 @@ export interface ITreeDataTransferItem {
 	asString(): Thenable<string>;
 }
 
-export interface ITreeDataTransfer {
-	items: Map<string, ITreeDataTransferItem>;
-}
+export type ITreeDataTransfer = Map<string, ITreeDataTransferItem>;
 
 export interface ITreeView extends IDisposable {
 
@@ -839,6 +837,7 @@ export interface ITreeViewDataProvider {
 }
 
 export interface ITreeViewDragAndDropController {
+	readonly supportedMimeTypes: string[];
 	onDrop(elements: ITreeDataTransfer, target: ITreeItem, sourceTreeId?: string, sourceTreeItemHandles?: string[]): Promise<void>;
 }
 

@@ -2297,6 +2297,30 @@ export enum TreeItemCollapsibleState {
 }
 
 @es5ClassCompat
+export class TreeDataTransferItem {
+	async asString(): Promise<string> {
+		return JSON.stringify(this._value);
+	}
+
+	constructor(private readonly _value: any) { }
+}
+
+@es5ClassCompat
+export class TreeDataTransfer<T extends TreeDataTransferItem = TreeDataTransferItem> {
+	private readonly _items: Map<string, T> = new Map();
+	get(mimeType: string): T | undefined {
+		return this._items.get(mimeType);
+	}
+	set(mimeType: string, value: T): void {
+		this._items.set(mimeType, value);
+	}
+	forEach(callbackfn: (value: T, key: string) => void): void {
+		this._items.forEach(callbackfn);
+	}
+}
+
+
+@es5ClassCompat
 export class ThemeIcon {
 
 	static File: ThemeIcon;

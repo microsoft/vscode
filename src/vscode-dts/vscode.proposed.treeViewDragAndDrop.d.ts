@@ -26,24 +26,25 @@ declare module 'vscode' {
 		dragAndDropController?: DragAndDropController<T>;
 	}
 
-	export interface TreeDataTransferItem {
+	export class TreeDataTransferItem {
 		asString(): Thenable<string>;
+
+		constructor(value: any);
 	}
 
-	export interface TreeDataTransfer {
+	export class TreeDataTransfer<T extends TreeDataTransferItem = TreeDataTransferItem> {
 		/**
 		 * A map containing a mapping of the mime type of the corresponding data.
 		 * Trees that support drag and drop can implement `DragAndDropController.onWillDrop` to add additional mime types
 		 * when the drop occurs on an item in the same tree.
 		 */
-		items: {
-			get: (mimeType: string) => TreeDataTransferItem | undefined
-			forEach: (callbackfn: (value: TreeDataTransferItem, key: string) => void) => void;
-		};
+		get(mimeType: string): T | undefined;
+		set(mimeType: string, value: T): void;
+		forEach(callbackfn: (value: T, key: string) => void): void;
 	}
 
 	export interface DragAndDropController<T> extends Disposable {
-		readonly supportedTypes: string[];
+		readonly supportedMimeTypes: string[];
 
 		/**
 		 * When the user drops an item from this DragAndDropController on **another tree item** in **the same tree**,

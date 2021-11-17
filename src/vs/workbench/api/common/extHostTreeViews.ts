@@ -85,8 +85,8 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		if (!options || !options.treeDataProvider) {
 			throw new Error('Options with treeDataProvider is mandatory');
 		}
-		const canDragAndDrop = options.dragAndDropController !== undefined;
-		const registerPromise = this._proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany, canDragAndDrop: canDragAndDrop });
+		const dragAndDropMimeTypes = (options.dragAndDropController === undefined) ? [] : options.dragAndDropController.supportedMimeTypes;
+		const registerPromise = this._proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany, dragAndDropMimeTypes });
 		const treeView = this.createExtHostTreeView(viewId, options, extension);
 		return {
 			get onDidCollapseElement() { return treeView.onDidCollapseElement; },
@@ -139,9 +139,9 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		if ((sourceViewId === destinationViewId) && sourceTreeItemHandles) {
 			const additionalTransferItems = await treeView.onWillDrop(sourceTreeItemHandles);
 			if (additionalTransferItems) {
-				additionalTransferItems.items.forEach((value, key) => {
+				additionalTransferItems.forEach((value, key) => {
 					if (value) {
-						treeDataTransfer.items.set(key, value);
+						treeDataTransfer.set(key, value);
 					}
 				});
 			}
