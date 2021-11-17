@@ -487,7 +487,11 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	}
 
 	set value(value: string) {
-		this.ui.inputBox.value = value ?? '';
+		if (this._value !== value) {
+			this._value = value || '';
+			this.update();
+			this.onDidChangeValueEmitter.fire(this._value);
+		}
 	}
 
 	filterValue = (value: string) => value;
@@ -1066,7 +1070,8 @@ class InputBox extends QuickInput implements IInputBox {
 	}
 
 	set value(value: string) {
-		this.ui.inputBox.value = value ?? '';
+		this._value = value || '';
+		this.update();
 	}
 
 	set valueSelection(valueSelection: Readonly<[number, number]>) {
