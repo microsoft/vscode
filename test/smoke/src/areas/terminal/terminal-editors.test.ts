@@ -7,14 +7,12 @@ import { ParsedArgs } from 'minimist';
 import { Code, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation/out';
 import { afterSuite, beforeSuite } from '../../utils';
 
-const TAB_SELECTOR = '.terminal-tab';
 const SPLIT_BUTTON_SELECTOR = '.editor .codicon-split-horizontal';
 
 export function setup(opts: ParsedArgs) {
-	describe('Terminal Editors', () => {
+	describe.only('Terminal Editors', () => {
 		let code: Code;
 		let terminal: Terminal;
-
 
 		beforeSuite(opts);
 		afterSuite(opts);
@@ -32,27 +30,27 @@ export function setup(opts: ParsedArgs) {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
 			const color = 'Cyan';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeColor, color);
-			await code.waitForElement(`${TAB_SELECTOR}.terminal-icon-terminal_ansi${color}`);
+			await terminal.assertSingleTab({ color }, true);
 		});
 
 		it('should update icon of the tab', async () => {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
 			const icon = 'symbol-method';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeIcon, icon);
-			await code.waitForElement(`${TAB_SELECTOR}.codicon-${icon}`);
+			await terminal.assertSingleTab({ icon }, true);
 		});
 
 		it('should rename the tab', async () => {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
 			const name = 'my terminal name';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.Rename, name);
-			await code.waitForElement(TAB_SELECTOR, e => e ? e?.textContent === name : false);
+			await terminal.assertSingleTab({ name }, true);
 		});
 
 		it('should show the panel when the terminal is moved there and close the editor', async () => {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
 			await terminal.runCommand(TerminalCommandId.MoveToPanel);
-			await code.waitForElement('.single-terminal-tab');
+			await terminal.assertSingleTab({}, true);
 		});
 
 		it('should open a terminal in a new group for open to the side', async () => {

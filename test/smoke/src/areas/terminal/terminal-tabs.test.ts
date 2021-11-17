@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ok } from 'assert';
+
 import { ParsedArgs } from 'minimist';
 import { Code, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation/out';
 import { afterSuite, beforeSuite } from '../../utils';
@@ -11,7 +11,7 @@ import { afterSuite, beforeSuite } from '../../utils';
 const SINGLE_TAB_SELECTOR = '.single-terminal-tab';
 
 export function setup(opts: ParsedArgs) {
-	describe('Terminal Tabs', () => {
+	describe.only('Terminal Tabs', () => {
 		let code: Code;
 		let terminal: Terminal;
 
@@ -37,8 +37,7 @@ export function setup(opts: ParsedArgs) {
 			await terminal.runCommand(TerminalCommandId.Show);
 			const color = 'Cyan';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeColor, color);
-			const singleTab = await code.waitForElement(SINGLE_TAB_SELECTOR);
-			ok(singleTab.className.includes(`terminal-icon-terminal_ansi${color}`));
+			await terminal.assertSingleTab({ color });
 		});
 
 		it('should update color of the tab in the tabs list', async () => {
@@ -68,7 +67,7 @@ export function setup(opts: ParsedArgs) {
 			await terminal.runCommand(TerminalCommandId.Show);
 			const name = 'my terminal name';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.Rename, name);
-			await code.waitForElement(SINGLE_TAB_SELECTOR, e => e ? e?.textContent.includes(name) : false);
+			await terminal.assertSingleTab({ name });
 		});
 
 		it('should rename the tab in the tabs list', async () => {
@@ -119,7 +118,7 @@ export function setup(opts: ParsedArgs) {
 
 		it('should move the terminal to the editor area', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
-			await code.waitForElement('.single-terminal-tab');
+			await terminal.assertSingleTab({});
 			await terminal.runCommand(TerminalCommandId.MoveToEditor);
 			await code.waitForElements('.editor .split-view-view', true, editorGroups => editorGroups && editorGroups.length === 1);
 		});

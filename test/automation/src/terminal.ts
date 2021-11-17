@@ -13,6 +13,8 @@ const TABS = '.tabs-list .terminal-tabs-entry';
 const XTERM_FOCUSED_SELECTOR = '.terminal.xterm.focus';
 const PLUS_BUTTON_SELECTOR = 'li.action-item.monaco-dropdown-with-primary .codicon-plus';
 const EDITOR_GROUPS_SELECTOR = '.editor .split-view-view';
+const EDITOR_TAB_SELECTOR = '.terminal-tab';
+const SINGLE_TAB_SELECTOR = '.single-terminal-tab';
 
 export enum TerminalCommandIdWithValue {
 	Rename = 'workbench.action.terminal.rename',
@@ -77,24 +79,29 @@ export class Terminal {
 		await this.code.waitForElements(EDITOR_GROUPS_SELECTOR, true, editorGroups => editorGroups && editorGroups.length === count);
 	}
 
-	async assertTerminalGroups(expectedGroups: TerminalGroup[]): Promise<boolean> {
+	async assertSingleTab(label: TerminalLabel, editor?: boolean): Promise<void> {
+		const selector = editor ? EDITOR_TAB_SELECTOR : SINGLE_TAB_SELECTOR;
+		const element = await this.code.waitForElement(selector, elt => elt ? elt.textContent.trim().length > 1 : false);
+		await this.tabMatchesExpected(element, false, label.name, label.icon, label.color);
+	}
+
+	async assertTerminalGroups(expectedGroups: TerminalGroup[]): Promise<void> {
 		const tabs = await this.code.waitForElements(TABS, true, e => e.every(elt => elt.textContent.trim().length > 1));
 		let index = 0;
 		for (let groupIndex = 0; groupIndex < expectedGroups.length; groupIndex++) {
 			let terminalsInGroup = expectedGroups[groupIndex].length;
 			let indexInGroup = 0;
-			let instance = expectedGroups[groupIndex][indexInGroup];
+			const isSplit = terminalsInGroup > 1;
 			while (indexInGroup < terminalsInGroup) {
-				// splits
-				if (!this.tabMatchesExpected(tabs[index], terminalsInGroup > 1, instance.name, instance.icon)) {
-					throw new Error(`Expected a split ${terminalsInGroup > 1} terminal with name ${instance.name} and icon ${instance.icon} but class was ${tabs[index].className} and text content was ${tabs[index].textContent}`);
+				let instance = expectedGroups[groupIndex][indexInGroup];
+				const tabMatchesExpected = await this.tabMatchesExpected(tabs[index], isSplit, instance.name, instance.icon, instance.color);
+				if (!tabMatchesExpected) {
+					throw new Error(`Expected a split ${isSplit} terminal with name ${instance.name} and icon ${instance.icon} but class was ${tabs[index].className} and text content was ${tabs[index].textContent}`);
 				}
 				indexInGroup++;
-				instance = expectedGroups[groupIndex][indexInGroup];
 				index++;
 			}
 		}
-		return true;
 	}
 
 	private async tabMatchesExpected(tab: IElement, split: boolean, name?: string, icon?: string, color?: string): Promise<boolean> {
