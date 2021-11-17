@@ -27,12 +27,12 @@ suite('Native Modules (all platforms)', () => {
 		assert.ok(typeof watchDog.start === 'function', testErrorMessage('native-watchdog'));
 	});
 
-	test('node-pty', async () => {
+	test.skip('node-pty', async () => {
 		const nodePty = await import('node-pty');
 		assert.ok(typeof nodePty.spawn === 'function', testErrorMessage('node-pty'));
 	});
 
-	test('spdlog', async () => {
+	test.skip('spdlog', async () => {
 		const spdlog = await import('spdlog');
 		assert.ok(typeof spdlog.createRotatingLogger === 'function', testErrorMessage('spdlog'));
 	});
@@ -72,7 +72,7 @@ suite('Native Modules (all platforms)', () => {
 
 (!isWindows ? suite.skip : suite)('Native Modules (Windows)', () => {
 
-	test('windows-mutex', async () => {
+	test.skip('windows-mutex', async () => {
 		const mutex = await import('windows-mutex');
 		assert.ok(mutex && typeof mutex.isActive === 'function', testErrorMessage('windows-mutex'));
 		assert.ok(typeof mutex.isActive === 'function', testErrorMessage('windows-mutex'));
