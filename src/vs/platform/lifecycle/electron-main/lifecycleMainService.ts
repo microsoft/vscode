@@ -117,8 +117,16 @@ export interface ILifecycleMainService {
 	quit(willRestart?: boolean): Promise<boolean /* veto */>;
 
 	/**
-	 * Forcefully shutdown the application. The only lifecycle event handler
-	 * that is triggered is `onWillShutdown`.
+	 * Forcefully shutdown the application and optionally set an exit code.
+	 *
+	 * This method should only be used in rare situations where it is important
+	 * to set an exit code (e.g. running tests) or when the application is
+	 * not in a healthy state and should terminate asap.
+	 *
+	 * This method does not fire the normal lifecycle events to the windows,
+	 * that normally can be vetoed. Windows are destroyed without a chance
+	 * of components to participate. The only lifecycle event handler that
+	 * is triggered is `onWillShutdown` in the main process.
 	 */
 	kill(code?: number): Promise<void>;
 
@@ -590,17 +598,13 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	async kill(code?: number): Promise<void> {
 		this.logService.trace('Lifecycle#kill()');
 
-		// Start shutdown sequence
+		// Give main process participants a chance to oderly shutdown
 		await this.fireOnWillShutdown();
 
-		// The kill() method is only used in 2 situations:
-		// - when an instance fails to start at all
-		// - when extension tests run from CLI to report proper exit code
-		//
 		// From extension tests we have seen issues where calling app.exit()
-		// with an opened window can lead to native crashes (Linux) when webviews
-		// are involved. As such, we should make sure to destroy any opened
-		// window before calling app.exit().
+		// with an opened window can lead to native crashes (Linux). As such,
+		// we should make sure to destroy any opened window before calling
+		// `app.exit()`.
 		//
 		// Note: Electron implements a similar logic here:
 		// https://github.com/electron/electron/blob/fe5318d753637c3903e23fc1ed1b263025887b6a/spec-main/window-helpers.ts#L5

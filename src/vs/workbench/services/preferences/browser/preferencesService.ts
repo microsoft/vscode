@@ -19,7 +19,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Extensions, getDefaultValue, IConfigurationRegistry, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
+import { Extensions, getDefaultValue, IConfigurationRegistry, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
 import { EditorResolution } from 'vs/platform/editor/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
@@ -541,7 +541,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return null;
 		}
 		const schema = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[settingKey];
-		const isOverrideProperty = OVERRIDE_PROPERTY_PATTERN.test(settingKey);
+		const isOverrideProperty = OVERRIDE_PROPERTY_REGEX.test(settingKey);
 		if (!schema && !isOverrideProperty) {
 			return null;
 		}

@@ -66,7 +66,7 @@ export class CellEditorStatusBar extends Disposable {
 
 		this.itemsDisposable = this._register(new DisposableStore());
 
-		this._register(this._themeService.onDidColorThemeChange(() => this.currentContext && this.update(this.currentContext)));
+		this._register(this._themeService.onDidColorThemeChange(() => this.currentContext && this.updateContext(this.currentContext)));
 
 		this._register(DOM.addDisposableListener(this.statusBarContainer, DOM.EventType.CLICK, e => {
 			if (e.target === leftItemsContainer || e.target === rightItemsContainer || e.target === this.statusBarContainer) {
@@ -116,7 +116,7 @@ export class CellEditorStatusBar extends Disposable {
 		return this.width / 2;
 	}
 
-	update(context: INotebookCellActionContext) {
+	updateContext(context: INotebookCellActionContext) {
 		this.currentContext = context;
 		this.itemsDisposable.clear();
 

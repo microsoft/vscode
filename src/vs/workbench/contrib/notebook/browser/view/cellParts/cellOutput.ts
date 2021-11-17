@@ -28,7 +28,7 @@ import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browse
 import { ICellOutputViewModel, ICellViewModel, IInsetRenderOutput, INotebookEditorDelegate, IRenderOutput, JUPYTER_EXTENSION_ID, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { mimetypeIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CodeCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
+import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellWidgets';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { BUILTIN_RENDERER_ID, CellUri, IOrderedMimeType, NotebookCellOutputsSplice, RENDERER_NOT_AVAILABLE } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -630,7 +630,7 @@ export class CellOutputContainer extends Disposable {
 
 		this.templateData.outputShowMoreContainer.domNode.innerText = '';
 		if (this.viewCell.outputsViewModels.length > this.options.limit) {
-			this.templateData.outputShowMoreContainer.domNode.appendChild(this._generateShowMoreElement(this.templateData.disposables));
+			this.templateData.outputShowMoreContainer.domNode.appendChild(this._generateShowMoreElement(this.templateData.templateDisposables));
 		} else {
 			DOM.hide(this.templateData.outputShowMoreContainer.domNode);
 			this.viewCell.updateOutputShowMoreContainerHeight(0);
@@ -835,7 +835,7 @@ export class CellOutputContainer extends Disposable {
 		if (this.viewCell.outputsViewModels.length > this.options.limit) {
 			DOM.show(this.templateData.outputShowMoreContainer.domNode);
 			if (!this.templateData.outputShowMoreContainer.domNode.hasChildNodes()) {
-				this.templateData.outputShowMoreContainer.domNode.appendChild(this._generateShowMoreElement(this.templateData.disposables));
+				this.templateData.outputShowMoreContainer.domNode.appendChild(this._generateShowMoreElement(this.templateData.templateDisposables));
 			}
 			this.viewCell.updateOutputShowMoreContainerHeight(46);
 		} else {

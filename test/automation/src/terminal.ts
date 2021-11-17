@@ -32,7 +32,9 @@ export enum TerminalCommandId {
 	CreateNewEditor = 'workbench.action.createTerminalEditor',
 	SplitEditor = 'workbench.action.createTerminalEditorSide',
 	MoveToPanel = 'workbench.action.terminal.moveToTerminalPanel',
-	MoveToEditor = 'workbench.action.terminal.moveToEditor'
+	MoveToEditor = 'workbench.action.terminal.moveToEditor',
+	NewWithProfile = 'workbench.action.terminal.newWithProfile',
+	SelectDefaultProfile = 'workbench.action.terminal.selectDefaultShell'
 }
 interface TerminalLabel {
 	name?: string,

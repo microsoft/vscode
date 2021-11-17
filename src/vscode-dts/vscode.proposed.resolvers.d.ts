@@ -30,6 +30,11 @@ declare module 'vscode' {
 		extensionHostEnv?: { [key: string]: string | null; };
 
 		isTrusted?: boolean;
+
+		/**
+		 * When provided, remote server will be initialized with the extensions synced using the given user account.
+		 */
+		authenticationSessionForInitializingExtensions?: AuthenticationSession & { providerId: string };
 	}
 
 	export interface TunnelPrivacy {

@@ -66,7 +66,8 @@ suite('QuickAccess', () => {
 		provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
 			assert.ok(picker);
 			provider2Called = true;
-			token.onCancellationRequested(() => provider2Canceled = true);
+			token.onCancellationRequested(() =>
+				provider2Canceled = true);
 
 			return toDisposable(() => provider2Disposed = true);
 		}

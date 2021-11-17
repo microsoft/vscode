@@ -19,7 +19,7 @@ export interface ResolvedAuthority {
 export interface ResolvedOptions {
 	readonly extensionHostEnv?: { [key: string]: string | null };
 	readonly isTrusted?: boolean;
-	readonly initializeUsingAccount?: { providerId: string, sessionId: string };
+	readonly authenticationSession?: { id: string, providerId: string };
 }
 
 export interface TunnelDescription {

@@ -201,12 +201,12 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeWorkspaceSymbolProvider', 'testing').then(value => {
 
+				assert.strictEqual(value.length, 2); // de-duped
 				for (let info of value) {
 					assert.strictEqual(info instanceof types.SymbolInformation, true);
 					assert.strictEqual(info.name, 'testing');
 					assert.strictEqual(info.kind, types.SymbolKind.Array);
 				}
-				assert.strictEqual(value.length, 3);
 			});
 		});
 	});
