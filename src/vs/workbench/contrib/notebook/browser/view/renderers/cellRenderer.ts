@@ -7,7 +7,6 @@ import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { IAction } from 'vs/base/common/actions';
 import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
@@ -36,8 +35,9 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { INotebookCellActionContext, INotebookCellToolbarActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { CodeCellLayoutInfo, EXPAND_CELL_OUTPUT_COMMAND_ID, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellContextKeys';
-import { CellDragAndDropController, DRAGGING_CLASS } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellDnd';
+import { CellDragAndDropController } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellDnd';
 import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
+import { CellProgressBar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellProgressBar';
 import { BetweenCellToolbar, CellTitleToolbarPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellToolbars';
 import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellWidgets';
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/cellParts/codeCell';
@@ -47,7 +47,7 @@ import { BaseCellRenderTemplate, CodeCellRenderTemplate, MarkdownCellRenderTempl
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellKind, NotebookCellExecutionState, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const $ = DOM.$;
 
@@ -157,11 +157,7 @@ abstract class AbstractCellRenderer {
 
 		generateCellTopDecorations();
 
-		if (element.dragging) {
-			templateData.container.classList.add(DRAGGING_CLASS);
-		} else {
-			templateData.container.classList.remove(DRAGGING_CLASS);
-		}
+		this.dndController?.renderElement(element, templateData);
 
 		templateData.elementDisposables.add(templateData.instantiationService.createInstance(CellContextKeyManager, this.notebookEditor, element));
 	}
@@ -484,13 +480,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		templateDisposables.add(editor);
 
-		const progressBar = new ProgressBar(editorPart);
-		progressBar.hide();
-		templateDisposables.add(progressBar);
-
-		const collapsedProgressBar = new ProgressBar(cellInputCollapsedContainer);
-		collapsedProgressBar.hide();
-		templateDisposables.add(collapsedProgressBar);
+		const progressBar = templateDisposables.add(new CellProgressBar(editorPart, cellInputCollapsedContainer));
 
 		const statusBar = templateDisposables.add(this.instantiationService.createInstance(CellEditorStatusBar, editorPart));
 
@@ -527,7 +517,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			decorationContainer,
 			cellContainer,
 			progressBar,
-			collapsedProgressBar,
 			statusBar,
 			focusIndicatorLeft: focusIndicator,
 			focusIndicatorRight,
@@ -664,13 +653,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		const internalMetadata = element.internalMetadata;
 		this.updateExecutionOrder(internalMetadata, templateData);
-
-		const progressBar = element.isInputCollapsed ? templateData.collapsedProgressBar : templateData.progressBar;
-		if (internalMetadata.runState === NotebookCellExecutionState.Executing && !internalMetadata.isPaused) {
-			progressBar.infinite().show(500);
-		} else {
-			progressBar.hide();
-		}
+		templateData.progressBar.updateForInternalMetadata(element, internalMetadata);
 	}
 
 	private updateForKernel(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
@@ -779,13 +762,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 				cellEditorOptions.setLineNumbers(element.lineNumbers);
 			}
 
-			if (e.inputCollapsedChanged) {
-				if (element.isInputCollapsed) {
-					templateData.progressBar.hide();
-				} else {
-					templateData.collapsedProgressBar.hide();
-				}
-			}
+			templateData.progressBar.updateForCellState(e, element);
 		}));
 
 		this.updateForOutputs(element, templateData);
