@@ -18,7 +18,7 @@ import { INotebookCellToolbarActionContext } from 'vs/workbench/contrib/notebook
 import { DeleteCellAction } from 'vs/workbench/contrib/notebook/browser/controller/editActions';
 import { INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { BaseCellRenderTemplate, ICellToolbars, isCodeCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/viewParts/cellActionView';
+import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellActionView';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 

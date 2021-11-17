@@ -14,7 +14,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotebookActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/viewParts/cellActionView';
+import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellActionView';
 
 export class ListTopCellToolbar extends Disposable {
 	private topCellToolbar: HTMLElement;
