@@ -3,31 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ok } from 'assert';
 import { ParsedArgs } from 'minimist';
-import { Code, Terminal } from '../../../../automation';
+import { Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation';
 import { afterSuite, beforeSuite } from '../../utils';
 
-const ContributedProfileName = `JavaScript Debug Terminal`;
+const CONTRIBUTED_PROFILE_NAME = `JavaScript Debug Terminal`;
+const ANY_PROFILE_NAME = '^((?!JavaScript Debug Terminal).)*$';
 
 export function setup(opts: ParsedArgs) {
-
 	describe('Terminal Profiles', () => {
-		let code: Code;
 		let terminal: Terminal;
-		const enum TerminalCommandId {
-			Split = 'workbench.action.terminal.split',
-			KillAll = 'workbench.action.terminal.killAll',
-			Show = 'workbench.action.terminal.toggleTerminal',
-			CreateNew = 'workbench.action.terminal.new',
-			NewWithProfile = 'workbench.action.terminal.newWithProfile',
-			SelectDefaultProfile = 'workbench.action.terminal.selectDefaultShell'
-		}
+
 		beforeSuite(opts);
 		afterSuite(opts);
 
 		before(function () {
-			code = this.app.code;
 			terminal = this.app.workbench.terminal;
 		});
 
@@ -37,73 +27,56 @@ export function setup(opts: ParsedArgs) {
 
 		it('should launch the default profile', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
-			// TODO: Use getSingleTabLabel? Share logic with getTabLabel?
-			await code.waitForElement('.single-terminal-tab', e => e ? !e.textContent.endsWith(ContributedProfileName) : false);
+			await terminal.assertSingleTab({ name: ANY_PROFILE_NAME });
 		});
 
 		it.skip('should set the default profile to a contributed one', async () => {
-			await terminal.runProfileCommand(TerminalCommandId.SelectDefaultProfile, true);
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.SelectDefaultProfile, CONTRIBUTED_PROFILE_NAME);
 			await terminal.runCommand(TerminalCommandId.CreateNew);
-			await code.waitForElement('.single-terminal-tab', e => e ? e.textContent.endsWith(ContributedProfileName) : false);
+			await terminal.assertSingleTab({ name: CONTRIBUTED_PROFILE_NAME });
 		});
 
 		it.skip('should use the default contributed profile on panel open and for splitting', async () => {
-			await terminal.runProfileCommand(TerminalCommandId.SelectDefaultProfile, true);
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.SelectDefaultProfile, CONTRIBUTED_PROFILE_NAME);
 			await terminal.runCommand(TerminalCommandId.Show);
 			await terminal.runCommand(TerminalCommandId.Split);
-			const tabs = await terminal.getTabLabels(2);
-			console.log('DEBUG: tabs', tabs);
-			ok(tabs[0].startsWith('┌') && tabs[0].endsWith(ContributedProfileName));
-			ok(tabs[1].startsWith('└') && tabs[1].endsWith(ContributedProfileName));
+			await terminal.assertTerminalGroups([[{ name: CONTRIBUTED_PROFILE_NAME }, { name: CONTRIBUTED_PROFILE_NAME }]]);
 		});
 
 		it('should set the default profile', async () => {
-			await terminal.runProfileCommand(TerminalCommandId.SelectDefaultProfile, undefined);
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.SelectDefaultProfile);
 			await terminal.runCommand(TerminalCommandId.CreateNew);
-			await code.waitForElement('.single-terminal-tab', e => e ? !e.textContent.endsWith(ContributedProfileName) : false);
+			await terminal.assertSingleTab({ name: ANY_PROFILE_NAME });
 		});
 
 		it('should use the default profile on panel open and for splitting', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
-			await code.waitForElement('.single-terminal-tab', e => e ? !e.textContent.endsWith(ContributedProfileName) : false);
+			await terminal.assertSingleTab({ name: ANY_PROFILE_NAME });
 			await terminal.runCommand(TerminalCommandId.Split);
-			const tabs = await terminal.getTabLabels(2, true);
-			ok(tabs[0].startsWith('┌') && !tabs[0].endsWith(ContributedProfileName));
-			ok(tabs[1].startsWith('└') && !tabs[1].endsWith(ContributedProfileName));
-		});
-
-		it('clicking the plus button should create a terminal and display the tabs view showing no split decorations', async () => {
-			await terminal.runCommand(TerminalCommandId.Show);
-			await code.waitAndClick('li.action-item.monaco-dropdown-with-primary > div.action-container.menu-entry > a');
-			const tabLabels = await terminal.getTabLabels(2);
-			ok(!tabLabels[0].startsWith('┌') && !tabLabels[1].startsWith('└'));
+			await terminal.assertTerminalGroups([[{}, {}]]);
 		});
 
 		it('createWithProfile command should create a terminal with a profile', async () => {
-			await terminal.runProfileCommand(TerminalCommandId.NewWithProfile);
-			await code.waitForElement('.single-terminal-tab', e => e ? !e.textContent.endsWith(ContributedProfileName) : false);
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.NewWithProfile);
+			await terminal.assertSingleTab({ name: ANY_PROFILE_NAME });
 		});
 
 		it.skip('createWithProfile command should create a terminal with a contributed profile', async () => {
-			await terminal.runProfileCommand(TerminalCommandId.NewWithProfile, true);
-			await code.waitForElement('.single-terminal-tab', e => e ? e.textContent.endsWith(ContributedProfileName) : false);
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.NewWithProfile, CONTRIBUTED_PROFILE_NAME);
+			await terminal.assertSingleTab({ name: CONTRIBUTED_PROFILE_NAME });
 		});
 
 		it('createWithProfile command should create a split terminal with a profile', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
-			await terminal.runProfileCommand(TerminalCommandId.NewWithProfile, undefined, true);
-			const tabs = await terminal.getTabLabels(2, true);
-			ok(tabs[0].startsWith('┌') && !tabs[0].endsWith(ContributedProfileName));
-			ok(tabs[1].startsWith('└') && !tabs[1].endsWith(ContributedProfileName));
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.NewWithProfile, undefined, true);
+			await terminal.assertTerminalGroups([[{}, {}]]);
 		});
 
 		it.skip('createWithProfile command should create a split terminal with a contributed profile', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
-			await code.waitForElement('.single-terminal-tab', e => e ? !e.textContent.endsWith(ContributedProfileName) : false);
-			await terminal.runProfileCommand(TerminalCommandId.NewWithProfile, true, true);
-			const tabs = await terminal.getTabLabels(2, true);
-			ok(tabs[0].startsWith('┌') && !tabs[0].endsWith(ContributedProfileName));
-			ok(tabs[1].startsWith('└') && tabs[1].endsWith(ContributedProfileName));
+			await terminal.assertSingleTab({});
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.NewWithProfile, CONTRIBUTED_PROFILE_NAME, true);
+			await terminal.assertTerminalGroups([[{ name: ANY_PROFILE_NAME }, { name: CONTRIBUTED_PROFILE_NAME }]]);
 		});
 	});
 }

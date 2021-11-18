@@ -687,6 +687,7 @@ export class TerminalService implements ITerminalService {
 		}
 
 		if (source.target !== TerminalLocation.Editor) {
+			await this._terminalGroupService.showPanel(true);
 			return;
 		}
 		source.target = TerminalLocation.Panel;
