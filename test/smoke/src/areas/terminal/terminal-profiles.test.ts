@@ -5,7 +5,7 @@
 
 import { ParsedArgs } from 'minimist';
 import { Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation';
-import { afterSuite, beforeSuite, timeout } from '../../utils';
+import { afterSuite, beforeSuite } from '../../utils';
 
 const CONTRIBUTED_PROFILE_NAME = `JavaScript Debug Terminal`;
 const ANY_NAME = '*';

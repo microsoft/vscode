@@ -96,7 +96,7 @@ export class Terminal {
 				let instance = expectedGroups[groupIndex][indexInGroup];
 				const expected = await this.assertTabExpected(tabs[index], isSplit, instance.name, instance.icon, instance.color);
 				if (!expected) {
-					throw new Error(`Expected a split ${isSplit} terminal with name ${instance.name} and icon ${instance.icon} but class was ${tabs[index].className} and text content was ${tabs[index].textContent}, tabs ${tabs.map(t => `content ${t.textContent}`)}`);
+					throw new Error(`Expected a split ${isSplit} terminal with name ${instance.name} and icon ${instance.icon} but element was ${JSON.stringify(tabs[index])}`);
 				}
 				indexInGroup++;
 				index++;
@@ -107,11 +107,11 @@ export class Terminal {
 	private async assertTabExpected(tab: IElement, split: boolean, name?: string, icon?: string, color?: string): Promise<boolean> {
 		const splitDecoration = tab.textContent.match(/^[├┌└]/);
 		if ((split && !splitDecoration) || (!split && splitDecoration)) {
-			throw new Error(`Expected a split terminal ${split} and had split decoration ${splitDecoration}`);
+			throw new Error(`Expected a split terminal ${split} and had split decoration ${splitDecoration} `);
 		}
 		let expected = true;
 		if (icon) {
-			const element = this.code.waitForElement(`.terminal-tabs-entry .codicon-${icon}`);
+			const element = this.code.waitForElement(`.terminal - tabs - entry.codicon - ${icon} `);
 			expected = expected && !!element;
 		}
 		if (color) {
@@ -132,7 +132,7 @@ export class Terminal {
 			await this.code.waitForTerminalBuffer(XTERM_SELECTOR, accept);
 		} catch (err: any) {
 			if (message) {
-				throw new Error(`${message}\n\nInner exception:\n${err.message}`);
+				throw new Error(`${message} \n\nInner exception: \n${err.message} `);
 			}
 			throw err;
 		}
