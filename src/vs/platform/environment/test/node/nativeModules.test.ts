@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { isWindows } from 'vs/base/common/platform';
+import { isLinux, isWindows } from 'vs/base/common/platform';
 
 function testErrorMessage(module: string): string {
 	return `Unable to load "${module}" dependency. It was probably not compiled for the right operating system architecture or had missing build tools.`;
@@ -46,6 +46,9 @@ suite('Native Modules (all platforms)', () => {
 		const sqlite3 = await import('@vscode/sqlite3');
 		assert.ok(typeof sqlite3.Database === 'function', testErrorMessage('@vscode/sqlite3'));
 	});
+});
+
+(isLinux ? suite.skip : suite)('Native Modules (Windows, macOS)', () => {
 
 	test('keytar', async () => {
 		const keytar = await import('keytar');
@@ -58,13 +61,11 @@ suite('Native Modules (all platforms)', () => {
 			await keytar.deletePassword(name, 'foo');
 			assert.strictEqual(await keytar.getPassword(name, 'foo'), null);
 		} catch (err) {
-			// try to clean up
 			try {
-				await keytar.deletePassword(name, 'foo');
-			} finally {
-				// eslint-disable-next-line no-unsafe-finally
-				throw err;
-			}
+				await keytar.deletePassword(name, 'foo'); // try to clean up
+			} catch { }
+
+			throw err;
 		}
 	});
 });
@@ -93,7 +94,9 @@ suite('Native Modules (all platforms)', () => {
 	});
 
 	test('vscode-windows-ca-certs', async () => {
-		// @ts-ignore Windows only
+		// @ts-ignore we do not directly depend on this module anymore
+		// but indirectly from our dependency to `vscode-proxy-agent`
+		// we still want to ensure this module can work properly.
 		const windowsCerts = await import('vscode-windows-ca-certs');
 		const store = new windowsCerts.Crypt32();
 		assert.ok(windowsCerts, testErrorMessage('vscode-windows-ca-certs'));
