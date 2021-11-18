@@ -7,10 +7,8 @@ import { ParsedArgs } from 'minimist';
 import { Code, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation/out';
 import { afterSuite, beforeSuite } from '../../utils';
 
-const SPLIT_BUTTON_SELECTOR = '.editor .codicon-split-horizontal';
-
 export function setup(opts: ParsedArgs) {
-	describe('Terminal Editors', () => {
+	describe.only('Terminal Editors', () => {
 		let code: Code;
 		let terminal: Terminal;
 
@@ -61,7 +59,7 @@ export function setup(opts: ParsedArgs) {
 
 		it('should open a terminal in a new group when the split button is pressed', async () => {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
-			await code.waitAndClick(SPLIT_BUTTON_SELECTOR);
+			await terminal.clickSplitButton();
 			await terminal.assertEditorGroupCount(2);
 		});
 

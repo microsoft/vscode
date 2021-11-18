@@ -76,7 +76,7 @@ export function setup(opts: ParsedArgs) {
 			await terminal.runCommand(TerminalCommandId.Split);
 			const name = 'my terminal name';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.Rename, name);
-			await terminal.assertTerminalGroups([[{ name }, {}]]);
+			await terminal.assertTerminalGroups([[{}, { name }]]);
 		});
 
 		it('should create a split terminal when single tab is alt clicked', async () => {

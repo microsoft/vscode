@@ -8,9 +8,10 @@ import { Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../.
 import { afterSuite, beforeSuite } from '../../utils';
 
 const CONTRIBUTED_PROFILE_NAME = `JavaScript Debug Terminal`;
+const ANY_PROFILE_NAME = '^((?!JavaScript Debug Terminal).)*$';
 
 export function setup(opts: ParsedArgs) {
-	describe('Terminal Profiles', () => {
+	describe.only('Terminal Profiles', () => {
 		let terminal: Terminal;
 
 		beforeSuite(opts);
@@ -26,7 +27,7 @@ export function setup(opts: ParsedArgs) {
 
 		it('should launch the default profile', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
-			await terminal.assertSingleTab({});
+			await terminal.assertSingleTab({ name: ANY_PROFILE_NAME });
 		});
 
 		it.skip('should set the default profile to a contributed one', async () => {
@@ -45,19 +46,19 @@ export function setup(opts: ParsedArgs) {
 		it('should set the default profile', async () => {
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.SelectDefaultProfile);
 			await terminal.runCommand(TerminalCommandId.CreateNew);
-			await terminal.assertSingleTab({});
+			await terminal.assertSingleTab({ name: ANY_PROFILE_NAME });
 		});
 
 		it('should use the default profile on panel open and for splitting', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
-			await terminal.assertSingleTab({});
+			await terminal.assertSingleTab({ name: ANY_PROFILE_NAME });
 			await terminal.runCommand(TerminalCommandId.Split);
 			await terminal.assertTerminalGroups([[{}, {}]]);
 		});
 
 		it('createWithProfile command should create a terminal with a profile', async () => {
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.NewWithProfile);
-			await terminal.assertSingleTab({});
+			await terminal.assertSingleTab({ name: ANY_PROFILE_NAME });
 		});
 
 		it.skip('createWithProfile command should create a terminal with a contributed profile', async () => {
@@ -75,7 +76,7 @@ export function setup(opts: ParsedArgs) {
 			await terminal.runCommand(TerminalCommandId.Show);
 			await terminal.assertSingleTab({});
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.NewWithProfile, CONTRIBUTED_PROFILE_NAME, true);
-			await terminal.assertTerminalGroups([[{}, { name: CONTRIBUTED_PROFILE_NAME }]]);
+			await terminal.assertTerminalGroups([[{ name: ANY_PROFILE_NAME }, { name: CONTRIBUTED_PROFILE_NAME }]]);
 		});
 	});
 }
