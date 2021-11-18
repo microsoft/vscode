@@ -2007,6 +2007,12 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 			this._hasFocus = false;
 			this._onChange.fire(undefined);
 		}));
+		this._register(dom.addDisposableListener(domElement, 'focusin', () => {
+			this._domFocusTracker.refreshState();
+		}));
+		this._register(dom.addDisposableListener(domElement, 'focusout', () => {
+			this._domFocusTracker.refreshState();
+		}));
 	}
 
 	public hasFocus(): boolean {
