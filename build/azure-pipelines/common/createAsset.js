@@ -185,7 +185,7 @@ async function main() {
         asset.supportsFastUpdate = true;
     }
     console.log('Asset:', JSON.stringify(asset, null, '  '));
-    const client = new cosmos_1.CosmosClient({ endpoint: process.env['AZURE_DOCUMENTDB_ENDPOINT'], key: process.env['AZURE_DOCUMENTDB_MASTERKEY'] });
+    const client = new cosmos_1.CosmosClient({ endpoint: process.env['AZURE_DOCUMENTDB_ENDPOINT'], aadCredentials: credential });
     const scripts = client.database('builds').container(quality).scripts;
     await (0, retry_1.retry)(() => scripts.storedProcedure('createAsset').execute('', [commit, asset, true]));
     console.log(`  Done ✔️`);
