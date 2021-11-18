@@ -64,10 +64,10 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 			const foundInFrameHandler = (_: unknown, result: FoundInFrameResult) => {
 				if (result.finalUpdate) {
 					this._onFoundInFrame.fire(result);
-					(initialFrame as unknown as WebFrameMainWithFindSupport).removeListener('found-in-frame', foundInFrameHandler);
+					frame.removeListener('found-in-frame', foundInFrameHandler);
 				}
 			};
-			(initialFrame as unknown as WebFrameMainWithFindSupport).on('found-in-frame', foundInFrameHandler);
+			frame.on('found-in-frame', foundInFrameHandler);
 		}
 	}
 
