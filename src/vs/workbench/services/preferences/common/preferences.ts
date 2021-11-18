@@ -118,13 +118,12 @@ export interface IFilterResult {
 /**
  * The ways a setting could match a query,
  * sorted in increasing order of relevance.
+ * For now, ignore description and value matches.
  */
 export enum SettingMatchType {
 	None = 0,
-	DescriptionMatch = 1 << 0,
-	ValueMatch = 1 << 1,
-	KeyMatch = 1 << 2,
-	WholeWordMatch = 1 << 3
+	WholeWordMatch = 1 << 0,
+	KeyMatch = 1 << 1
 }
 
 export interface ISettingMatch {

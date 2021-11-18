@@ -468,7 +468,7 @@ export class SettingMatches {
 				const subSettingValueRanges: IRange[] = this.getRangesForWords(words, subSettingMatches.valueMatchingWords, [this.descriptionMatchingWords, this.keyMatchingWords, subSettingMatches.keyMatchingWords]);
 				result.push(...descriptionRanges, ...keyRanges, ...subSettingKeyRanges, ...subSettingValueRanges);
 				result.push(...subSettingMatches.matches);
-				this.refreshMatchType(descriptionRanges.length, keyRanges.length + subSettingKeyRanges.length, subSettingValueRanges.length);
+				this.refreshMatchType(keyRanges.length + subSettingKeyRanges.length);
 				this.matchType |= subSettingMatches.matchType;
 			}
 		}
@@ -533,13 +533,13 @@ export class SettingMatches {
 			valueRanges = this.valuesMatcher(searchString, setting);
 		}
 
-		this.refreshMatchType(descriptionRanges.length, keyRanges.length, valueRanges.length);
+		this.refreshMatchType(keyRanges.length);
 		return [...descriptionRanges, ...keyRanges, ...valueRanges];
 	}
 
 	private checkForWholeWordMatchType(singleWordQuery: string, lineToSearch: string) {
 		// Trim excess ending characters off the query.
-		singleWordQuery = singleWordQuery.toLowerCase().trimEnd().replace(/[-\._]+$/, '');
+		singleWordQuery = singleWordQuery.toLowerCase().replace(/[\s-\._]+$/, '');
 		lineToSearch = lineToSearch.toLowerCase();
 		const singleWordRegex = new RegExp(`\\b${singleWordQuery}\\b`);
 		if (singleWordRegex.test(lineToSearch)) {
@@ -547,15 +547,9 @@ export class SettingMatches {
 		}
 	}
 
-	private refreshMatchType(descriptionRangesLength: number, keyRangesLength: number, valueRangesLength: number) {
-		if (descriptionRangesLength) {
-			this.matchType |= SettingMatchType.DescriptionMatch;
-		}
+	private refreshMatchType(keyRangesLength: number) {
 		if (keyRangesLength) {
 			this.matchType |= SettingMatchType.KeyMatch;
-		}
-		if (valueRangesLength) {
-			this.matchType |= SettingMatchType.ValueMatch;
 		}
 	}
 
