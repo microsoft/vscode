@@ -3,16 +3,12 @@ steps:
     inputs:
       versionSpec: "12.x"
 
-  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
-    inputs:
-      versionSpec: "1.x"
-
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
-      SecretsFilter: 'builds-docdb-key-readwrite,github-distro-mixin-password,ticino-storage-key,vscode-storage-key,vscode-mooncake-storage-key'
+      SecretsFilter: "builds-docdb-key-readwrite,github-distro-mixin-password,ticino-storage-key,vscode-storage-key,vscode-mooncake-storage-key"
 
   - pwsh: |
       . build/azure-pipelines/win32/exec.ps1
@@ -21,7 +17,7 @@ steps:
     displayName: Install dependencies
 
   - download: current
-    patterns: '**/artifacts_processed_*.txt'
+    patterns: "**/artifacts_processed_*.txt"
     displayName: Download all artifacts_processed text files
 
   - pwsh: |

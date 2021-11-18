@@ -3,10 +3,6 @@ steps:
     inputs:
       versionSpec: "14.x"
 
-  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
-    inputs:
-      versionSpec: "1.x"
-
   - task: DownloadPipelineArtifact@0
     displayName: "Download Pipeline Artifact"
     inputs:
