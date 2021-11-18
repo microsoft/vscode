@@ -12,7 +12,8 @@ import { configureTerminalProfileIcon } from 'vs/workbench/contrib/terminal/brow
 import * as nls from 'vs/nls';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IQuickPickTerminalObject } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IQuickPickTerminalObject, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 
 
 type DefaultProfileName = string;
@@ -237,4 +238,8 @@ export interface IProfileQuickPickItem extends IQuickPickItem {
 	profile: ITerminalProfile | IExtensionTerminalProfile;
 	profileName: string;
 	keyMods?: IKeyMods | undefined;
+}
+
+export interface ITerminalQuickPickItem extends IPickerQuickAccessItem {
+	terminal: ITerminalInstance
 }

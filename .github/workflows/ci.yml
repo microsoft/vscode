@@ -75,8 +75,19 @@ jobs:
       - name: Run Unit Tests (Browser)
         run: yarn test-browser --browser chromium
 
+      - name: Compile Integration Tests
+        run: yarn --cwd test/integration/browser compile
+
       - name: Run Integration Tests (Electron)
         run: .\scripts\test-integration.bat
+
+      - name: Run Integration Tests (Browser)
+        timeout-minutes: 10
+        run: .\resources\server\test\test-web-integration.bat --browser firefox
+
+      - name: Run Remote Integration Tests (Electron)
+        timeout-minutes: 10
+        run: .\resources\server\test\test-remote-integration.bat
 
   linux:
     name: Linux
@@ -140,9 +151,21 @@ jobs:
         id: browser-unit-tests
         run: DISPLAY=:10 yarn test-browser --browser chromium
 
+      - name: Compile Integration Tests
+        run: yarn --cwd test/integration/browser compile
+
       - name: Run Integration Tests (Electron)
         id: electron-integration-tests
         run: DISPLAY=:10 ./scripts/test-integration.sh
+
+      - name: Run Integration Tests (Browser)
+        id: browser-integration-tests
+        run: DISPLAY=:10 ./resources/server/test/test-web-integration.sh --browser chromium
+
+      - name: Run Remote Integration Tests (Electron)
+        id: electron-remote-integration-tests
+        timeout-minutes: 7
+        run: DISPLAY=:10 ./resources/server/test/test-remote-integration.sh
 
   darwin:
     name: macOS
@@ -202,8 +225,18 @@ jobs:
       - name: Run Unit Tests (Browser)
         run: DISPLAY=:10 yarn test-browser --browser chromium
 
+      - name: Compile Integration Tests
+        run: yarn --cwd test/integration/browser compile
+
       - name: Run Integration Tests (Electron)
         run: DISPLAY=:10 ./scripts/test-integration.sh
+
+      - name: Run Integration Tests (Browser)
+        run: DISPLAY=:10 ./resources/server/test/test-web-integration.sh --browser webkit
+
+      - name: Run Remote Integration Tests (Electron)
+        timeout-minutes: 7
+        run: DISPLAY=:10 ./resources/server/test/test-remote-integration.sh
 
   hygiene:
     name: Hygiene, Layering and Monaco Editor

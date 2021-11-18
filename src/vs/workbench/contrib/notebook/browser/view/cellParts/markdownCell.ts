@@ -25,7 +25,7 @@ import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellEditorOptions';
+import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 

@@ -509,17 +509,25 @@ import { assertNoRpc } from '../utils';
 					}));
 					const created = window.createTerminal({ name: 'foo', pty });
 				});
+				// Exit the test early if dimensions already match which may happen if the exthost
+				// has high latency
+				if (terminal.dimensions?.columns === 10 && terminal.dimensions?.rows === 5) {
+					return;
+				}
+				// TODO: Remove logs when the test is verified as non-flaky
 				await new Promise<void>(r => {
+					// Does this never fire because it's already set to 10x5?
 					disposables.push(window.onDidChangeTerminalDimensions(e => {
-						strictEqual(e.terminal, terminal);
+						console.log(`window.onDidChangeTerminalDimensions event, dimensions = ${e.dimensions?.columns}x${e.dimensions?.rows}`);
 						// The default pty dimensions have a chance to appear here since override
 						// dimensions happens after the terminal is created. If so just ignore and
 						// wait for the right dimensions
-						if (e.dimensions.columns === 10 || e.dimensions.rows === 5) {
+						if (e.terminal === terminal && e.dimensions.columns === 10 && e.dimensions.rows === 5) {
 							disposables.push(window.onDidCloseTerminal(() => r()));
 							terminal.dispose();
 						}
 					}));
+					console.log(`listening for window.onDidChangeTerminalDimensions, current dimensions = ${terminal.dimensions?.columns}x${terminal.dimensions?.rows}`);
 					terminal.show();
 				});
 			});

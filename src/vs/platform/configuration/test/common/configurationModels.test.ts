@@ -12,6 +12,35 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
+suite('ConfigurationModelParser', () => {
+
+	test('parse configuration model with single override identifier', () => {
+		const testObject = new ConfigurationModelParser('');
+
+		testObject.parse(JSON.stringify({ '[x]': { 'a': 1 } }));
+
+		assert.deepStrictEqual(JSON.stringify(testObject.configurationModel.overrides), JSON.stringify([{ identifiers: ['x'], keys: ['a'], contents: { 'a': 1 } }]));
+	});
+
+	test('parse configuration model with multiple override identifiers', () => {
+		const testObject = new ConfigurationModelParser('');
+
+		testObject.parse(JSON.stringify({ '[x][y]': { 'a': 1 } }));
+
+		assert.deepStrictEqual(JSON.stringify(testObject.configurationModel.overrides), JSON.stringify([{ identifiers: ['x', 'y'], keys: ['a'], contents: { 'a': 1 } }]));
+	});
+
+	test('parse configuration model with multiple duplicate override identifiers', () => {
+		const testObject = new ConfigurationModelParser('');
+
+		testObject.parse(JSON.stringify({ '[x][y][x][z]': { 'a': 1 } }));
+
+		assert.deepStrictEqual(JSON.stringify(testObject.configurationModel.overrides), JSON.stringify([{ identifiers: ['x', 'y', 'z'], keys: ['a'], contents: { 'a': 1 } }]));
+	});
+
+
+});
+
 suite('ConfigurationModel', () => {
 
 	test('setValue for a key that has no sections and not defined', () => {
@@ -621,11 +650,14 @@ suite('ConfigurationChangeEvent', () => {
 			'files.autoSave': 'off',
 			'[markdown]': {
 				'editor.wordWrap': 'off'
+			},
+			'[typescript][jsonc]': {
+				'editor.lineNumbers': 'off'
 			}
 		}));
 		let testObject = new ConfigurationChangeEvent(change, undefined, configuration);
 
-		assert.deepStrictEqual(testObject.affectedKeys, ['files.autoSave', '[markdown]', 'editor.wordWrap']);
+		assert.deepStrictEqual(testObject.affectedKeys, ['files.autoSave', '[markdown]', '[typescript][jsonc]', 'editor.wordWrap', 'editor.lineNumbers']);
 
 		assert.ok(testObject.affectsConfiguration('files'));
 		assert.ok(testObject.affectsConfiguration('files.autoSave'));
@@ -637,8 +669,16 @@ suite('ConfigurationChangeEvent', () => {
 
 		assert.ok(testObject.affectsConfiguration('editor'));
 		assert.ok(testObject.affectsConfiguration('editor.wordWrap'));
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers'));
 		assert.ok(testObject.affectsConfiguration('editor', { overrideIdentifier: 'markdown' }));
+		assert.ok(testObject.affectsConfiguration('editor', { overrideIdentifier: 'jsonc' }));
+		assert.ok(testObject.affectsConfiguration('editor', { overrideIdentifier: 'typescript' }));
 		assert.ok(testObject.affectsConfiguration('editor.wordWrap', { overrideIdentifier: 'markdown' }));
+		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { overrideIdentifier: 'jsonc' }));
+		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { overrideIdentifier: 'typescript' }));
+		assert.ok(!testObject.affectsConfiguration('editor.lineNumbers', { overrideIdentifier: 'markdown' }));
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { overrideIdentifier: 'typescript' }));
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { overrideIdentifier: 'jsonc' }));
 		assert.ok(!testObject.affectsConfiguration('editor', { overrideIdentifier: 'json' }));
 		assert.ok(!testObject.affectsConfiguration('editor.fontSize', { overrideIdentifier: 'markdown' }));
 
@@ -654,6 +694,10 @@ suite('ConfigurationChangeEvent', () => {
 				'editor.fontSize': 12,
 				'editor.wordWrap': 'off'
 			},
+			'[css][scss]': {
+				'editor.lineNumbers': 'off',
+				'css.lint.emptyRules': 'error'
+			},
 			'files.autoSave': 'off',
 		}));
 		const data = configuration.toData();
@@ -663,11 +707,15 @@ suite('ConfigurationChangeEvent', () => {
 				'editor.fontSize': 13,
 				'editor.wordWrap': 'off'
 			},
+			'[css][scss]': {
+				'editor.lineNumbers': 'relative',
+				'css.lint.emptyRules': 'error'
+			},
 			'window.zoomLevel': 1,
 		}));
 		let testObject = new ConfigurationChangeEvent(change, { data }, configuration);
 
-		assert.deepStrictEqual(testObject.affectedKeys, ['window.zoomLevel', '[markdown]', 'workbench.editor.enablePreview', 'editor.fontSize']);
+		assert.deepStrictEqual(testObject.affectedKeys, ['window.zoomLevel', '[markdown]', '[css][scss]', 'workbench.editor.enablePreview', 'editor.fontSize', 'editor.lineNumbers']);
 
 		assert.ok(!testObject.affectsConfiguration('files'));
 
@@ -676,10 +724,18 @@ suite('ConfigurationChangeEvent', () => {
 		assert.ok(!testObject.affectsConfiguration('[markdown].editor.fontSize'));
 		assert.ok(!testObject.affectsConfiguration('[markdown].editor.wordWrap'));
 		assert.ok(!testObject.affectsConfiguration('[markdown].workbench'));
+		assert.ok(testObject.affectsConfiguration('[css][scss]'));
 
 		assert.ok(testObject.affectsConfiguration('editor'));
 		assert.ok(testObject.affectsConfiguration('editor', { overrideIdentifier: 'markdown' }));
+		assert.ok(testObject.affectsConfiguration('editor', { overrideIdentifier: 'css' }));
+		assert.ok(testObject.affectsConfiguration('editor', { overrideIdentifier: 'scss' }));
 		assert.ok(testObject.affectsConfiguration('editor.fontSize', { overrideIdentifier: 'markdown' }));
+		assert.ok(!testObject.affectsConfiguration('editor.fontSize', { overrideIdentifier: 'css' }));
+		assert.ok(!testObject.affectsConfiguration('editor.fontSize', { overrideIdentifier: 'scss' }));
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { overrideIdentifier: 'scss' }));
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { overrideIdentifier: 'css' }));
+		assert.ok(!testObject.affectsConfiguration('editor.lineNumbers', { overrideIdentifier: 'markdown' }));
 		assert.ok(!testObject.affectsConfiguration('editor.wordWrap'));
 		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { overrideIdentifier: 'markdown' }));
 		assert.ok(!testObject.affectsConfiguration('editor', { overrideIdentifier: 'json' }));

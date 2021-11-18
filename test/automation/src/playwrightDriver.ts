@@ -41,12 +41,13 @@ function buildDriver(browser: playwright.Browser, context: playwright.BrowserCon
 
 class PlaywrightDriver implements IDriver {
 	_serviceBrand: undefined;
-
+	page: playwright.Page;
 	constructor(
 		private readonly _browser: playwright.Browser,
 		private readonly _context: playwright.BrowserContext,
 		private readonly _page: playwright.Page
 	) {
+		this.page = _page;
 	}
 
 	async getWindowIds() { return [1]; }
@@ -70,6 +71,12 @@ class PlaywrightDriver implements IDriver {
 			if (i > 0) {
 				await timeout(100);
 			}
+
+			if (keybinding.startsWith('Alt') || keybinding.startsWith('Control')) {
+				await this._page.keyboard.press(keybinding);
+				return;
+			}
+
 			const keys = chord.split('+');
 			const keysDown: string[] = [];
 			for (let i = 0; i < keys.length; i++) {

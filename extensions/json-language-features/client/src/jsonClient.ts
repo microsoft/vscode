@@ -6,6 +6,8 @@ import * as nls from 'vscode-nls';
 
 const localize = nls.loadMessageBundle();
 
+export type JSONLanguageStatus = { schemas: string[] };
+
 import {
 	workspace, window, languages, commands, ExtensionContext, extensions, Uri,
 	Diagnostic, StatusBarAlignment, TextEditor, TextDocument, FormattingOptions, CancellationToken,
@@ -19,6 +21,7 @@ import {
 
 import { hash } from './utils/hash';
 import { RequestService, joinPath } from './requests';
+import { createLanguageStatusItem } from './languageStatus';
 
 namespace VSCodeContentRequest {
 	export const type: RequestType<string, string, any> = new RequestType('vscode/content');
@@ -31,6 +34,11 @@ namespace SchemaContentChangeNotification {
 namespace ForceValidateRequest {
 	export const type: RequestType<string, Diagnostic[], any> = new RequestType('json/validate');
 }
+
+namespace LanguageStatusRequest {
+	export const type: RequestType<string, JSONLanguageStatus, any> = new RequestType('json/languageStatus');
+}
+
 
 export interface ISchemaAssociations {
 	[pattern: string]: string[];
@@ -313,6 +321,8 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 				}
 			}
 		});
+
+		toDispose.push(createLanguageStatusItem(documentSelector, (uri: string) => client.sendRequest(LanguageStatusRequest.type, uri)));
 
 		function updateFormatterRegistration() {
 			const formatEnabled = workspace.getConfiguration().get(SettingIds.enableFormatter);

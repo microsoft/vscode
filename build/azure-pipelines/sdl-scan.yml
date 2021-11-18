@@ -49,10 +49,6 @@ stages:
         inputs:
           versionSpec: "14.x"
 
-      - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
-        inputs:
-          versionSpec: "1.x"
-
       - task: AzureKeyVault@1
         displayName: "Azure Key Vault: Get Secrets"
         inputs:
@@ -143,10 +139,6 @@ stages:
       - task: NodeTool@0
         inputs:
           versionSpec: "14.x"
-
-      - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
-        inputs:
-          versionSpec: "1.x"
 
       - task: AzureKeyVault@1
         displayName: "Azure Key Vault: Get Secrets"

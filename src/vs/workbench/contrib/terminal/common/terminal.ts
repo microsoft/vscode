@@ -341,6 +341,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly isDisconnected: boolean;
 	readonly hasWrittenData: boolean;
 	readonly hasChildProcesses: boolean;
+	readonly backend: ITerminalBackend | undefined;
 
 	readonly onPtyDisconnect: Event<void>;
 	readonly onPtyReconnect: Event<void>;
@@ -430,6 +431,7 @@ export const enum TerminalCommandId {
 	Kill = 'workbench.action.terminal.kill',
 	KillEditor = 'workbench.action.terminal.killEditor',
 	KillInstance = 'workbench.action.terminal.killInstance',
+	KillAll = 'workbench.action.terminal.killAll',
 	QuickKill = 'workbench.action.terminal.quickKill',
 	ConfigureTerminalSettings = 'workbench.action.terminal.openSettings',
 	CopySelection = 'workbench.action.terminal.copySelection',
@@ -450,6 +452,7 @@ export const enum TerminalCommandId {
 	Unsplit = 'workbench.action.terminal.unsplit',
 	UnsplitInstance = 'workbench.action.terminal.unsplitInstance',
 	JoinInstance = 'workbench.action.terminal.joinInstance',
+	Join = 'workbench.action.terminal.join',
 	Relaunch = 'workbench.action.terminal.relaunch',
 	FocusPreviousPane = 'workbench.action.terminal.focusPreviousPane',
 	ShowTabs = 'workbench.action.terminal.showTabs',

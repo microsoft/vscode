@@ -18,7 +18,7 @@ See the [Feedback Channels](https://github.com/microsoft/vscode/wiki/Feedback-Ch
 
 ## Reporting Issues
 
-Have you identified a reproducible problem in VS Code? Have a feature request? We want to hear about it! Here's how you can make reporting your issue as effective as possible.
+Have you identified a reproducible problem in VS Code? Have a feature request? We want to hear about it! Here's how you can report your issue as effectively as possible.
 
 ### Identify Where to Report
 
@@ -43,7 +43,7 @@ If you cannot find an existing issue that describes your bug or feature, create 
 
 File a single issue per problem and feature request. Do not enumerate multiple bugs or feature requests in the same issue.
 
-Do not add your issue as a comment to an existing issue unless it's for the identical input. Many issues look similar, but have different causes.
+Do not add your issue as a comment to an existing issue unless it's for the identical input. Many issues look similar but have different causes.
 
 The more information you can provide, the more likely someone will be successful at reproducing the issue and finding a fix.
 

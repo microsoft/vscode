@@ -521,19 +521,30 @@ export namespace CellUri {
 		};
 	}
 
-	export function parseCellMetadataUri(metadata: URI) {
-		if (metadata.scheme !== Schemas.vscodeNotebookCellMetadata) {
-			return undefined;
+	export function generateCellOutputUri(notebook: URI, handle: number, outputId?: string) {
+		return notebook.with({
+			scheme: Schemas.vscodeNotebookCellOutput,
+			fragment: `ch${handle.toString().padStart(7, '0')},${outputId ?? ''},${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
+		});
+	}
+
+	export function parseCellOutputUri(uri: URI): { notebook: URI, handle: number; outputId?: string } | undefined {
+		if (uri.scheme !== Schemas.vscodeNotebookCellOutput) {
+			return;
 		}
-		const match = _regex.exec(metadata.fragment);
+
+		const match = /^ch(\d{7,})\,([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?\,(.*)$/i.exec(uri.fragment);
 		if (!match) {
 			return undefined;
 		}
 		const handle = Number(match[1]);
+		const outputId = (match[2] && match[2] !== '') ? match[2] : undefined;
+		const scheme = match[3];
 		return {
 			handle,
-			notebook: metadata.with({
-				scheme: metadata.fragment.substr(match[0].length) || Schemas.file,
+			outputId,
+			notebook: uri.with({
+				scheme: scheme || Schemas.file,
 				fragment: null
 			})
 		};

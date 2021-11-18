@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import * as types from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { Extensions, IConfigurationRegistry, overrideIdentifierFromKey, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -24,6 +24,16 @@ export interface IConfigurationOverrides {
 	overrideIdentifier?: string | null;
 	resource?: URI | null;
 }
+
+export function isConfigurationUpdateOverrides(thing: any): thing is IConfigurationUpdateOverrides {
+	return thing
+		&& typeof thing === 'object'
+		&& (!thing.overrideIdentifiers || types.isArray(thing.overrideIdentifiers))
+		&& !thing.overrideIdentifier
+		&& (!thing.resource || thing.resource instanceof URI);
+}
+
+export type IConfigurationUpdateOverrides = Omit<IConfigurationOverrides, 'overrideIdentifier'> & { overrideIdentifiers?: string[] | null; };
 
 export const enum ConfigurationTarget {
 	USER = 1,
@@ -106,9 +116,9 @@ export interface IConfigurationService {
 	getValue<T>(section: string, overrides: IConfigurationOverrides): T;
 
 	updateValue(key: string, value: any): Promise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides): Promise<void>;
+	updateValue(key: string, value: any, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides): Promise<void>;
 	updateValue(key: string, value: any, target: ConfigurationTarget): Promise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget, donotNotifyError?: boolean): Promise<void>;
+	updateValue(key: string, value: any, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides, target: ConfigurationTarget, donotNotifyError?: boolean): Promise<void>;
 
 	inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<Readonly<T>>;
 
@@ -147,24 +157,6 @@ export interface IConfigurationCompareResult {
 	removed: string[];
 	updated: string[];
 	overrides: [string, string[]][];
-}
-
-export function toOverrides(raw: any, conflictReporter: (message: string) => void): IOverrides[] {
-	const overrides: IOverrides[] = [];
-	for (const key of Object.keys(raw)) {
-		if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
-			const overrideRaw: any = {};
-			for (const keyInOverrideRaw in raw[key]) {
-				overrideRaw[keyInOverrideRaw] = raw[key][keyInOverrideRaw];
-			}
-			overrides.push({
-				identifiers: [overrideIdentifierFromKey(key).trim()],
-				keys: Object.keys(overrideRaw),
-				contents: toValuesTree(overrideRaw, conflictReporter)
-			});
-		}
-	}
-	return overrides;
 }
 
 export function toValuesTree(properties: { [qualifiedKey: string]: any }, conflictReporter: (message: string) => void): any {
@@ -285,10 +277,6 @@ export function getDefaultValues(): any {
 	}
 
 	return valueTreeRoot;
-}
-
-export function keyFromOverrideIdentifier(overrideIdentifier: string): string {
-	return `[${overrideIdentifier}]`;
 }
 
 export function getMigratedSettingValue<T>(configurationService: IConfigurationService, currentSettingName: string, legacySettingName: string): T {

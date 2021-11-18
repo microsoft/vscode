@@ -30,7 +30,7 @@ import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEd
 import { isCompositeNotebookEditorInput, NotebookEditorInput, NotebookEditorInputOptions } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
-import { CellKind, CellUri, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookWorkingCopyTypeIdentifier, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellUri, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookWorkingCopyTypeIdentifier, NotebookSetting, ICellOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
@@ -372,13 +372,32 @@ class CellInfoContentProvider {
 		return result;
 	}
 
+	private parseStreamOutput(resource: URI, op?: ICellOutput) {
+		if (!op) {
+			return;
+		}
+
+		const streamOutputData = getStreamOutputData(op.outputs);
+		if (streamOutputData) {
+			const result = this._modelService.createModel(
+				streamOutputData,
+				this._modeService.create('plaintext'),
+				resource
+			);
+
+			return result;
+		}
+
+		return;
+	}
+
 	async provideOutputTextContent(resource: URI): Promise<ITextModel | null> {
 		const existing = this._modelService.getModel(resource);
 		if (existing) {
 			return existing;
 		}
 
-		const data = CellUri.parseCellUri(resource, Schemas.vscodeNotebookCellOutput);
+		const data = CellUri.parseCellOutputUri(resource);
 		if (!data) {
 			return null;
 		}
@@ -389,36 +408,33 @@ class CellInfoContentProvider {
 		const mode = this._modeService.create('json');
 
 		for (const cell of ref.object.notebook.cells) {
-			if (cell.handle === data.handle) {
-				if (cell.outputs.length === 1) {
-					// single output
-					const streamOutputData = getStreamOutputData(cell.outputs[0].outputs);
-					if (streamOutputData) {
-						result = this._modelService.createModel(
-							streamOutputData,
-							this._modeService.create('plaintext'),
-							resource
-						);
-						break;
-					}
-				}
+			if (cell.handle !== data.handle) {
+				continue;
+			}
 
-				const content = JSON.stringify(cell.outputs.map(output => ({
-					metadata: output.metadata,
-					outputItems: output.outputs.map(opit => ({
-						mimeType: opit.mime,
-						data: opit.data.toString()
-					}))
-				})));
-				const edits = format(content, undefined, {});
-				const outputSource = applyEdits(content, edits);
-				result = this._modelService.createModel(
-					outputSource,
-					mode,
-					resource
-				);
+			const op = cell.outputs.find(op => op.outputId === data.outputId);
+			const streamOutputData = this.parseStreamOutput(resource, op);
+			if (streamOutputData) {
+				result = streamOutputData;
 				break;
 			}
+
+			const content = JSON.stringify(cell.outputs.map(output => ({
+				metadata: output.metadata,
+				outputItems: output.outputs.map(opit => ({
+					mimeType: opit.mime,
+					data: opit.data.toString()
+				}))
+			})));
+
+			const edits = format(content, undefined, {});
+			const outputSource = applyEdits(content, edits);
+			result = this._modelService.createModel(
+				outputSource,
+				mode,
+				resource
+			);
+			break;
 		}
 
 		if (result) {
