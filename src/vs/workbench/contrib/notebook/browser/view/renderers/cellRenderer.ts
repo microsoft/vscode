@@ -7,7 +7,6 @@ import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IAction } from 'vs/base/common/actions';
 import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -23,8 +22,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { localize } from 'vs/nls';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
+import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -35,6 +33,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { INotebookCellActionContext, INotebookCellToolbarActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { CodeCellLayoutInfo, EXPAND_CELL_OUTPUT_COMMAND_ID, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellContextKeys';
+import { CellDecorations } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellDecorations';
 import { CellDragAndDropController } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellDnd';
 import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
 import { CellProgressBar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellProgressBar';
@@ -107,16 +106,6 @@ abstract class AbstractCellRenderer {
 		this.dndController = undefined;
 	}
 
-	protected getCellToolbarActions(menu: IMenu): { primary: IAction[], secondary: IAction[]; } {
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary };
-
-		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
-
-		return result;
-	}
-
 	protected commonRenderTemplate(templateData: BaseCellRenderTemplate): void {
 		templateData.templateDisposables.add(DOM.addDisposableListener(templateData.container, DOM.EventType.FOCUS, () => {
 			if (templateData.currentRenderedCell) {
@@ -126,39 +115,8 @@ abstract class AbstractCellRenderer {
 	}
 
 	protected commonRenderElement(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
-		const removedClassNames: string[] = [];
-		templateData.rootContainer.classList.forEach(className => {
-			if (/^nb\-.*$/.test(className)) {
-				removedClassNames.push(className);
-			}
-		});
-
-		removedClassNames.forEach(className => {
-			templateData.rootContainer.classList.remove(className);
-		});
-
-		templateData.decorationContainer.innerText = '';
-
-		const generateCellTopDecorations = () => {
-			templateData.decorationContainer.innerText = '';
-
-			element.getCellDecorations().filter(options => options.topClassName !== undefined).forEach(options => {
-				templateData.decorationContainer.append(DOM.$(`.${options.topClassName!}`));
-			});
-		};
-
-		templateData.elementDisposables.add(element.onCellDecorationsChanged((e) => {
-			const modified = e.added.find(e => e.topClassName) || e.removed.find(e => e.topClassName);
-
-			if (modified) {
-				generateCellTopDecorations();
-			}
-		}));
-
-		generateCellTopDecorations();
-
 		this.dndController?.renderElement(element, templateData);
-
+		templateData.elementDisposables.add(new CellDecorations(templateData.rootContainer, templateData.decorationContainer, element));
 		templateData.elementDisposables.add(templateData.instantiationService.createInstance(CellContextKeyManager, this.notebookEditor, element));
 	}
 }
