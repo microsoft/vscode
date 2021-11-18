@@ -18,7 +18,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ICreateContributedTerminalProfileOptions, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalLocationString } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalLocationString } from 'vs/platform/terminal/common/terminal';
 import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IconDefinition } from 'vs/platform/theme/common/iconRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
@@ -876,7 +876,7 @@ export class TerminalService implements ITerminalService {
 		}
 
 		const config = options?.config || this._terminalProfileService.availableProfiles?.find(p => p.profileName === this._terminalProfileService.getDefaultProfileName());
-		const shellLaunchConfig = config && 'extensionIdentifier' in config ? {} : this._convertProfileToShellLaunchConfig(config || {});
+		const shellLaunchConfig = config && 'extensionIdentifier' in config ? {} : this._terminalInstanceService.convertProfileToShellLaunchConfig(config || {});
 
 		// Get the contributed profile if it was provided
 		let contributedProfile = config && 'extensionIdentifier' in config ? config : undefined;
@@ -1041,35 +1041,6 @@ export class TerminalService implements ITerminalService {
 
 		this._onDidChangeInstances.fire();
 		this._onDidChangeGroups.fire();
-	}
-
-	protected _convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig {
-		if (shellLaunchConfigOrProfile && 'profileName' in shellLaunchConfigOrProfile) {
-			const profile = shellLaunchConfigOrProfile;
-			if (!profile.path) {
-				return shellLaunchConfigOrProfile;
-			}
-			return {
-				executable: profile.path,
-				args: profile.args,
-				env: profile.env,
-				icon: profile.icon,
-				color: profile.color,
-				name: profile.overrideName ? profile.profileName : undefined,
-				cwd
-			};
-		}
-
-		// A shell launch config was provided
-		if (shellLaunchConfigOrProfile) {
-			if (cwd) {
-				shellLaunchConfigOrProfile.cwd = cwd;
-			}
-			return shellLaunchConfigOrProfile;
-		}
-
-		// Return empty shell launch config
-		return {};
 	}
 
 	async setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): Promise<void> {

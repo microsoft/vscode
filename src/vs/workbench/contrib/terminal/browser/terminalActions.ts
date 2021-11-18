@@ -511,7 +511,6 @@ export function registerTerminalActions() {
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
 			const terminalGroupService = accessor.get(ITerminalGroupService);
-			const terminalInstanceService = accessor.get(ITerminalInstanceService);
 			const codeEditorService = accessor.get(ICodeEditorService);
 			const notificationService = accessor.get(INotificationService);
 			const workbenchEnvironmentService = accessor.get(IWorkbenchEnvironmentService);
@@ -534,8 +533,7 @@ export function registerTerminalActions() {
 			}
 
 			// TODO: Convert this to ctrl+c, ctrl+v for pwsh?
-			const path = await terminalInstanceService.preparePathForTerminalAsync(uri.fsPath, instance.shellLaunchConfig.executable, instance.title, instance.shellType, instance.remoteAuthority);
-			instance.sendText(path, true);
+			await instance.sendPath(uri.fsPath, true);
 			return terminalGroupService.showPanel();
 		}
 	});
