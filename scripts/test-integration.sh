@@ -54,7 +54,7 @@ else
 fi
 
 if [ -z "$INTEGRATION_TEST_APP_NAME" ]; then
-	after_suite() { killall Electron || true; }
+	after_suite() { true; }
 else
 	after_suite() { killall $INTEGRATION_TEST_APP_NAME || true; }
 fi
