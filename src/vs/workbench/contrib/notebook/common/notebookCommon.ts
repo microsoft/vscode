@@ -525,7 +525,7 @@ export namespace CellUri {
 		return notebook.with({
 			scheme: Schemas.vscodeNotebookCellOutput,
 			fragment: `ch${handle.toString().padStart(7, '0')},${outputId ?? ''},${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
-		})
+		});
 	}
 
 	export function parseCellOutputUri(uri: URI): { notebook: URI, handle: number; outputId?: string } | undefined {
