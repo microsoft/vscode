@@ -535,6 +535,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			toJSON: () => { return {}; }
 		};
 
+		this.setupOutputCollapsedPart(templateData);
+
 		this.dndController?.registerDragHandle(templateData, rootContainer, dragHandle.domNode, () => new CodeCellDragImageRenderer().getDragImage(templateData, templateData.editor, 'code'));
 
 		templateDisposables.add(this.addCollapseClickCollapseHandler(templateData));
@@ -555,9 +557,10 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		return templateData;
 	}
 
-	private setupOutputCollapsedPart(templateData: CodeCellRenderTemplate, cellOutputCollapseContainer: HTMLElement, element: CodeCellViewModel) {
+	private setupOutputCollapsedPart(templateData: CodeCellRenderTemplate) {
+		const cellOutputCollapseContainer = templateData.cellOutputCollapsedContainer;
 		const placeholder = DOM.append(cellOutputCollapseContainer, $('span.expandOutputPlaceholder')) as HTMLElement;
-		placeholder.textContent = 'Outputs are collapsed';
+		placeholder.textContent = localize('cellOutputsCollapsedMsg', "Outputs are collapsed");
 		const expandIcon = DOM.append(cellOutputCollapseContainer, $('span.expandOutputIcon'));
 		expandIcon.classList.add(...CSSIcon.asClassNameArray(Codicon.more));
 
@@ -680,7 +683,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	}
 
 	private updateForLayout(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
-		templateData.templateDisposables.add(DOM.scheduleAtNextAnimationFrame(() => {
+		templateData.elementDisposables.add(DOM.scheduleAtNextAnimationFrame(() => {
 			const layoutInfo = this.notebookEditor.notebookOptions.getLayoutConfiguration();
 			const bottomToolbarDimensions = this.notebookEditor.notebookOptions.computeBottomToolbarDimensions(this.notebookEditor.textModel?.viewType);
 			templateData.focusIndicatorLeft.setHeight(element.layoutInfo.indicatorHeight);
@@ -722,9 +725,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		}
 
 		templateData.outputContainer.domNode.innerText = '';
-		const cellOutputCollapsedContainer = DOM.append(templateData.outputContainer.domNode, $('.output-collapse-container'));
-		templateData.cellOutputCollapsedContainer = cellOutputCollapsedContainer;
-		this.setupOutputCollapsedPart(templateData, cellOutputCollapsedContainer, element);
+		templateData.outputContainer.domNode.appendChild(templateData.cellOutputCollapsedContainer);
 
 		const elementDisposables = templateData.elementDisposables;
 		elementDisposables.add(templateData.instantiationService.createInstance(CodeCell, this.notebookEditor, element, templateData));
