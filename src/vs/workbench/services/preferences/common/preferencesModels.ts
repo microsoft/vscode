@@ -1009,7 +1009,8 @@ class SettingsContentBuilder {
 
 		setting.descriptionRanges = [];
 		const descriptionPreValue = indent + '// ';
-		for (let line of (setting.deprecationMessage ? [setting.deprecationMessage, ...setting.description] : setting.description)) {
+		const deprecationMessageLines = setting.deprecationMessage?.split(/\n/g) ?? [];
+		for (let line of [...deprecationMessageLines, ...setting.description]) {
 			line = fixSettingLink(line);
 
 			this._contentByLines.push(descriptionPreValue + line);

@@ -817,34 +817,33 @@ export class CompatChangeAll extends MultiCursorSelectionControllerAction {
 }
 
 class SelectionHighlighterState {
-	public readonly searchText: string;
-	public readonly matchCase: boolean;
-	public readonly wordSeparators: string | null;
-	public readonly modelVersionId: number;
+	private readonly _modelVersionId: number = this._model.getVersionId();
+	private _cachedFindMatches: Range[] | null = null;
 
-	constructor(searchText: string, matchCase: boolean, wordSeparators: string | null, modelVersionId: number) {
-		this.searchText = searchText;
-		this.matchCase = matchCase;
-		this.wordSeparators = wordSeparators;
-		this.modelVersionId = modelVersionId;
+	constructor(
+		private readonly _model: ITextModel,
+		private readonly _searchText: string,
+		private readonly _matchCase: boolean,
+		private readonly _wordSeparators: string | null,
+		prevState: SelectionHighlighterState | null
+	) {
+		if (prevState
+			&& this._model === prevState._model
+			&& this._searchText === prevState._searchText
+			&& this._matchCase === prevState._matchCase
+			&& this._wordSeparators === prevState._wordSeparators
+			&& this._modelVersionId === prevState._modelVersionId
+		) {
+			this._cachedFindMatches = prevState._cachedFindMatches;
+		}
 	}
 
-	/**
-	 * Everything equals except for `lastWordUnderCursor`
-	 */
-	public static softEquals(a: SelectionHighlighterState | null, b: SelectionHighlighterState | null): boolean {
-		if (!a && !b) {
-			return true;
+	public findMatches(): Range[] {
+		if (this._cachedFindMatches === null) {
+			this._cachedFindMatches = this._model.findMatches(this._searchText, true, false, this._matchCase, this._wordSeparators, false).map(m => m.range);
+			this._cachedFindMatches.sort(Range.compareRangesUsingStarts);
 		}
-		if (!a || !b) {
-			return false;
-		}
-		return (
-			a.searchText === b.searchText
-			&& a.matchCase === b.matchCase
-			&& a.wordSeparators === b.wordSeparators
-			&& a.modelVersionId === b.modelVersionId
-		);
+		return this._cachedFindMatches;
 	}
 }
 
@@ -904,10 +903,10 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 	}
 
 	private _update(): void {
-		this._setState(SelectionHighlighter._createState(this._isEnabled, this.editor));
+		this._setState(SelectionHighlighter._createState(this.state, this._isEnabled, this.editor));
 	}
 
-	private static _createState(isEnabled: boolean, editor: ICodeEditor): SelectionHighlighterState | null {
+	private static _createState(oldState: SelectionHighlighterState | null, isEnabled: boolean, editor: ICodeEditor): SelectionHighlighterState | null {
 		if (!isEnabled) {
 			return null;
 		}
@@ -980,15 +979,11 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 			}
 		}
 
-		return new SelectionHighlighterState(r.searchText, r.matchCase, r.wholeWord ? editor.getOption(EditorOption.wordSeparators) : null, editor.getModel().getVersionId());
+		return new SelectionHighlighterState(editor.getModel(), r.searchText, r.matchCase, r.wholeWord ? editor.getOption(EditorOption.wordSeparators) : null, oldState);
 	}
 
-	private _setState(state: SelectionHighlighterState | null): void {
-		if (SelectionHighlighterState.softEquals(this.state, state)) {
-			this.state = state;
-			return;
-		}
-		this.state = state;
+	private _setState(newState: SelectionHighlighterState | null): void {
+		this.state = newState;
 
 		if (!this.state) {
 			this.decorations = this.editor.deltaDecorations(this.decorations, []);
@@ -1001,20 +996,17 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 
 		const model = this.editor.getModel();
 		if (model.isTooLargeForTokenization()) {
-			// the file is too large, so searching word under cursor in the whole document takes is blocking the UI.
+			// the file is too large, so searching word under cursor in the whole document would be blocking the UI.
 			return;
 		}
 
-		const hasFindOccurrences = DocumentHighlightProviderRegistry.has(model) && this.editor.getOption(EditorOption.occurrencesHighlight);
+		const allMatches = this.state.findMatches();
 
-		let allMatches = model.findMatches(this.state.searchText, true, false, this.state.matchCase, this.state.wordSeparators, false).map(m => m.range);
-		allMatches.sort(Range.compareRangesUsingStarts);
-
-		let selections = this.editor.getSelections();
+		const selections = this.editor.getSelections();
 		selections.sort(Range.compareRangesUsingStarts);
 
 		// do not overlap with selection (issue #64 and #512)
-		let matches: Range[] = [];
+		const matches: Range[] = [];
 		for (let i = 0, j = 0, len = allMatches.length, lenJ = selections.length; i < len;) {
 			const match = allMatches[i];
 
@@ -1041,6 +1033,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 			}
 		}
 
+		const hasFindOccurrences = DocumentHighlightProviderRegistry.has(model) && this.editor.getOption(EditorOption.occurrencesHighlight);
 		const decorations = matches.map(r => {
 			return {
 				range: r,

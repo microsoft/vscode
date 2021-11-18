@@ -10,9 +10,6 @@ import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalIcon, TitleEventSource, TerminalShellType, IExtensionTerminalProfile, TerminalLocation, ProcessPropertyType, ProcessCapability, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
 import { ICommandTracker, INavigationMode, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalFont, ITerminalBackend, ITerminalProcessExtHostProxy, IRegisterContributedProfileArgs } from 'vs/workbench/contrib/terminal/common/terminal';
-import type { Terminal as XTermTerminal } from 'xterm';
-import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
-import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { IEditableData } from 'vs/workbench/common/views';
@@ -27,38 +24,41 @@ export const ITerminalGroupService = createDecorator<ITerminalGroupService>('ter
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
 
 /**
- * A service used by TerminalInstance (and components owned by it) that allows it to break its
- * dependency on electron-browser and node layers, while at the same time avoiding a cyclic
- * dependency on ITerminalService.
+ * A service used to create instances or fetch backends, this services allows services that
+ * ITerminalService depends on to also create instances.
  *
  * **This service is intended to only be used within the terminal contrib.**
  */
 export interface ITerminalInstanceService {
 	readonly _serviceBrand: undefined;
 
+	/**
+	 * An event that's fired when a terminal instance is created.
+	 */
 	onDidCreateInstance: Event<ITerminalInstance>;
 
-	getXtermConstructor(): Promise<typeof XTermTerminal>;
-	getXtermSearchConstructor(): Promise<typeof XTermSearchAddon>;
-	getXtermUnicode11Constructor(): Promise<typeof XTermUnicode11Addon>;
+	/**
+	 * Helper function to convert a shell launch config, a profile or undefined into its equivalent
+	 * shell launch config.
+	 * @param shellLaunchConfigOrProfile A shell launch config, a profile or undefined
+	 * @param cwd A cwd to override.
+	 */
+	convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig;
 
 	/**
-	 * Takes a path and returns the properly escaped path to send to the terminal.
-	 * On Windows, this included trying to prepare the path for WSL if needed.
-	 *
-	 * @param executable The executable off the shellLaunchConfig
-	 * @param title The terminal's title
-	 * @param path The path to be escaped and formatted.
-	 * @param remoteAuthority The remote authority of the terminal's pty.
-	 * @returns An escaped version of the path to be execuded in the terminal.
+	 * Create a new terminal instance.
+	 * @param launchConfig The shell launch config.
+	 * @param target The target of the terminal, when this is undefined the default target will be
+	 * used.
+	 * @param resource The URI for the terminal. Note that this is the unique identifier for the
+	 * terminal, not the cwd.
 	 */
-	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType, remoteAuthority: string | undefined): Promise<string>;
-
 	createInstance(launchConfig: IShellLaunchConfig, target?: TerminalLocation, resource?: URI): ITerminalInstance;
 
 	/**
 	 * Gets the registered backend for a remote authority (undefined = local). This is a convenience
 	 * method to avoid using the more verbose fetching from the registry.
+	 * @param remoteAuthority The remote authority of the backend.
 	 */
 	getBackend(remoteAuthority?: string): ITerminalBackend | undefined;
 }
@@ -658,11 +658,23 @@ export interface ITerminalInstance {
 	 * process (shell) of the terminal instance.
 	 *
 	 * @param text The text to send.
-	 * @param addNewLine Whether to add a new line to the text being sent, this is normally
-	 * required to run a command in the terminal. The character(s) added are \n or \r\n
-	 * depending on the platform. This defaults to `true`.
+	 * @param addNewLine Whether to add a new line to the text being sent, this is normally required
+	 * to run a command in the terminal. The character(s) added are \n or \r\n depending on the
+	 * platform. This defaults to `true`.
 	 */
 	sendText(text: string, addNewLine: boolean): Promise<void>;
+
+	/**
+	 * Sends a path to the terminal instance, preparing it as needed based on the detected shell
+	 * running within the terminal. The text is written to the stdin of the underlying pty process
+	 * (shell) of the terminal instance.
+	 *
+	 * @param originalPath The path to send.
+	 * @param addNewLine Whether to add a new line to the path being sent, this is normally required
+	 * to run a command in the terminal. The character(s) added are \n or \r\n depending on the
+	 * platform. This defaults to `true`.
+	 */
+	sendPath(originalPath: string, addNewLine: boolean): Promise<void>;
 
 	/** Scroll the terminal buffer down 1 line. */   scrollDownLine(): void;
 	/** Scroll the terminal buffer down 1 page. */   scrollDownPage(): void;

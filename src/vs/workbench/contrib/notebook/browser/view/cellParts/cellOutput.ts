@@ -11,7 +11,6 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshalling';
-import { Schemas } from 'vs/base/common/network';
 import * as nls from 'vs/nls';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
@@ -862,7 +861,7 @@ export class CellOutputContainer extends Disposable {
 			actionHandler: {
 				callback: (content) => {
 					if (content === 'command:workbench.action.openLargeOutput') {
-						this.openerService.open(CellUri.generateCellUri(this.notebookEditor.textModel!.uri, this.viewCell.handle, Schemas.vscodeNotebookCellOutput));
+						this.openerService.open(CellUri.generateCellOutputUri(this.notebookEditor.textModel!.uri, this.viewCell.handle));
 					}
 
 					return;

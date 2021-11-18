@@ -3,16 +3,12 @@ steps:
     inputs:
       versionSpec: "14.x"
 
-  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
-    inputs:
-      versionSpec: "1.x"
-
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
-      SecretsFilter: 'github-distro-mixin-password,ticino-storage-key'
+      SecretsFilter: "github-distro-mixin-password,ticino-storage-key"
 
   - script: |
       set -e

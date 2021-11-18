@@ -12,7 +12,8 @@
   "icon": "icons/json.png",
   "activationEvents": [
     "onLanguage:json",
-    "onLanguage:jsonc"
+    "onLanguage:jsonc",
+    "onCommand:json.showSchemas"
   ],
   "main": "./client/out/node/jsonClientMain",
   "browser": "./client/dist/browser/jsonClientMain",
@@ -22,6 +23,9 @@
       "supported": true
     }
   },
+  "enabledApiProposals": [
+    "languageStatus"
+  ],
   "scripts": {
     "compile": "npx gulp compile-extension:json-language-features-client compile-extension:json-language-features-server",
     "watch": "npx gulp watch-extension:json-language-features-client watch-extension:json-language-features-server",
