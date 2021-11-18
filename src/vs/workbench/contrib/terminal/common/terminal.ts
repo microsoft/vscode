@@ -341,6 +341,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly isDisconnected: boolean;
 	readonly hasWrittenData: boolean;
 	readonly hasChildProcesses: boolean;
+	readonly backend: ITerminalBackend | undefined;
 
 	readonly onPtyDisconnect: Event<void>;
 	readonly onPtyReconnect: Event<void>;

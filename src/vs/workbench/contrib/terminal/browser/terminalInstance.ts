@@ -23,11 +23,11 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessManager, ProcessState, TERMINAL_VIEW_ID, INavigationMode, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, ITerminalProfileResolverService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessManager, ProcessState, TERMINAL_VIEW_ID, INavigationMode, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, ITerminalProfileResolverService, TerminalCommandId, ITerminalBackend } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ITerminalInstanceService, ITerminalInstance, ITerminalExternalLinkProvider, IRequestAddInstanceToGroupEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, ITerminalExternalLinkProvider, IRequestAddInstanceToGroupEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import type { Terminal as XTermTerminal, ITerminalAddon } from 'xterm';
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/xterm/navigationModeAddon';
@@ -296,7 +296,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		private readonly _configHelper: TerminalConfigHelper,
 		private _shellLaunchConfig: IShellLaunchConfig,
 		resource: URI | undefined,
-		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@IPathService private readonly _pathService: IPathService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -971,7 +970,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async sendPath(originalPath: string, addNewLine: boolean): Promise<void> {
-		const preparedPath = await preparePathForShell(originalPath, this.shellLaunchConfig.executable, this.title, this.shellType, (e) => this._terminalInstanceService.getBackend(this.remoteAuthority)?.getWslPath(e));
+		const preparedPath = await preparePathForShell(originalPath, this.shellLaunchConfig.executable, this.title, this.shellType, this._processManager.backend);
 		return this.sendText(preparedPath, addNewLine);
 	}
 
@@ -2182,10 +2181,10 @@ export function parseExitResult(
  * @param executable The executable off the shellLaunchConfig.
  * @param title The terminal's title.
  * @param shellType The type of shell the path is being sent to.
- * @param getWslPath A callback to convert a path to its WSL version.
+ * @param backend The backend for the terminal.
  * @returns An escaped version of the path to be execuded in the terminal.
  */
-async function preparePathForShell(originalPath: string, executable: string | undefined, title: string, shellType: TerminalShellType, getWslPath: ((original: string) => Promise<string> | undefined) | undefined): Promise<string> {
+async function preparePathForShell(originalPath: string, executable: string | undefined, title: string, shellType: TerminalShellType, backend: ITerminalBackend | undefined): Promise<string> {
 	return new Promise<string>(c => {
 		if (!executable) {
 			c(originalPath);
@@ -2220,7 +2219,7 @@ async function preparePathForShell(originalPath: string, executable: string | un
 					c(originalPath.replace(/\\/g, '/'));
 				}
 				else if (shellType === WindowsShellType.Wsl) {
-					c(getWslPath?.(originalPath) || originalPath);
+					c(backend?.getWslPath(originalPath) || originalPath);
 				}
 
 				else if (hasSpace) {
@@ -2231,7 +2230,7 @@ async function preparePathForShell(originalPath: string, executable: string | un
 			} else {
 				const lowerExecutable = executable.toLowerCase();
 				if (lowerExecutable.indexOf('wsl') !== -1 || (lowerExecutable.indexOf('bash.exe') !== -1 && lowerExecutable.toLowerCase().indexOf('git') === -1)) {
-					c(getWslPath?.(originalPath) || originalPath);
+					c(backend?.getWslPath(originalPath) || originalPath);
 				} else if (hasSpace) {
 					c('"' + originalPath + '"');
 				} else {
