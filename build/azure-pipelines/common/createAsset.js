@@ -142,9 +142,8 @@ async function main() {
     console.log('SHA256:', sha256hash);
     const blobName = commit + '/' + fileName;
     const storagePipelineOptions = { retryOptions: { retryPolicyType: storage_blob_1.StorageRetryPolicyType.EXPONENTIAL, maxTries: 6, tryTimeoutInMs: 10 * 60 * 1000 } };
-    const storageAccount = process.env['AZURE_STORAGE_ACCOUNT_2'];
-    const credential = new identity_1.AzureCliCredential();
-    const blobServiceClient = new storage_blob_1.BlobServiceClient(`https://${storageAccount}.blob.core.windows.net`, credential, storagePipelineOptions);
+    const credential = new identity_1.ClientSecretCredential(process.env['AZURE_TENANT_ID'], process.env['AZURE_CLIENT_ID'], process.env['AZURE_CLIENT_SECRET']);
+    const blobServiceClient = new storage_blob_1.BlobServiceClient(`https://vscode.blob.core.windows.net`, credential, storagePipelineOptions);
     const containerClient = blobServiceClient.getContainerClient(quality);
     const blobClient = containerClient.getBlockBlobClient(blobName);
     const blobExists = await blobClient.exists();
@@ -152,10 +151,8 @@ async function main() {
         console.log(`Blob ${quality}, ${blobName} already exists, not publishing again.`);
         return;
     }
-    const mooncakeStorageAccount = process.env['AZURE_STORAGE_ACCOUNT_2'];
-    const mooncakeStorageKey = process.env['AZURE_STORAGE_ACCESS_KEY_2'];
-    const mooncakeCredential = new storage_blob_1.StorageSharedKeyCredential(mooncakeStorageAccount, mooncakeStorageKey);
-    const mooncakeBlobServiceClient = new storage_blob_1.BlobServiceClient(`https://${mooncakeStorageAccount}.blob.core.chinacloudapi.cn`, mooncakeCredential, storagePipelineOptions);
+    const mooncakeCredential = new identity_1.ClientSecretCredential(process.env['AZURE_MOONCAKE_TENANT_ID'], process.env['AZURE_MOONCAKE_CLIENT_ID'], process.env['AZURE_MOONCAKE_CLIENT_SECRET']);
+    const mooncakeBlobServiceClient = new storage_blob_1.BlobServiceClient(`https://vscode.blob.core.chinacloudapi.cn`, mooncakeCredential, storagePipelineOptions);
     const mooncakeContainerClient = mooncakeBlobServiceClient.getContainerClient(quality);
     const mooncakeBlobClient = mooncakeContainerClient.getBlockBlobClient(blobName);
     console.log('Uploading blobs to Azure storage and Mooncake Azure storage...');
