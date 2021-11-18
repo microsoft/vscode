@@ -273,14 +273,25 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 			let folderNames = associations.folderNames;
 			if (folderNames) {
 				for (let folderName in folderNames) {
-					addSelector(`${qualifier} .${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNames[folderName]);
+					if (/[^\\\/]/.test(folderName)) {
+						let directoryName = Paths.basename(Paths.dirname(folderName));
+						addSelector(`${qualifier} .${escapeCSS(directoryName.toLowerCase())}-name-dir-icon.${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNames[folderName]);
+					} else {
+						addSelector(`${qualifier} .${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNames[folderName]);
+					}
 					result.hasFolderIcons = true;
 				}
 			}
 			let folderNamesExpanded = associations.folderNamesExpanded;
 			if (folderNamesExpanded) {
 				for (let folderName in folderNamesExpanded) {
-					addSelector(`${qualifier} ${expanded} .${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNamesExpanded[folderName]);
+					if (/[^\\\/]/.test(folderName)) {
+						let directoryName = Paths.basename(Paths.dirname(folderName));
+						folderName = Paths.basename(folderName);
+						addSelector(`${qualifier} .${escapeCSS(directoryName.toLowerCase())}-name-dir-icon.${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNamesExpanded[folderName]);
+					} else {
+						addSelector(`${qualifier} ${expanded} .${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNamesExpanded[folderName]);
+					}
 					result.hasFolderIcons = true;
 				}
 			}
@@ -299,6 +310,11 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 			if (fileExtensions) {
 				for (let fileExtension in fileExtensions) {
 					let selectors: string[] = [];
+					if (/[^\\\/]/.test(fileExtension)) {
+						let directoryName = Paths.basename(Paths.dirname(fileExtension)).toLowerCase();
+						selectors.push(`.${escapeCSS(directoryName)}-name-dir-icon`);
+						fileExtension = Paths.basename(fileExtension);
+					}
 					let segments = fileExtension.toLowerCase().split('.');
 					if (segments.length) {
 						for (let i = 0; i < segments.length; i++) {
@@ -314,6 +330,11 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 			if (fileNames) {
 				for (let fileName in fileNames) {
 					let selectors: string[] = [];
+					if (/[^\\\/]/.test(fileName)) {
+						let directoryName = Paths.basename(Paths.dirname(fileName)).toLowerCase();
+						selectors.push(`.${escapeCSS(directoryName)}-name-dir-icon`);
+						fileName = Paths.basename(fileName);
+					}
 					fileName = fileName.toLowerCase();
 					selectors.push(`.${escapeCSS(fileName)}-name-file-icon`);
 					let segments = fileName.split('.');
