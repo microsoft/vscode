@@ -36,6 +36,14 @@ export interface ITerminalInstanceService {
 	onDidCreateInstance: Event<ITerminalInstance>;
 
 	/**
+	 * Helper function to convert a shell launch config, a profile or undefined into its equivalent
+	 * shell launch config.
+	 * @param shellLaunchConfigOrProfile A shell launch config, a profile or undefined
+	 * @param cwd A cwd to override.
+	 */
+	convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig;
+
+	/**
 	 * Takes a path and returns the properly escaped path to send to the terminal.
 	 * On Windows, this included trying to prepare the path for WSL if needed.
 	 *

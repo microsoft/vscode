@@ -46,7 +46,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	createInstance(profile: ITerminalProfile, target?: TerminalLocation, resource?: URI): ITerminalInstance;
 	createInstance(shellLaunchConfig: IShellLaunchConfig, target?: TerminalLocation, resource?: URI): ITerminalInstance;
 	createInstance(config: IShellLaunchConfig | ITerminalProfile, target?: TerminalLocation, resource?: URI): ITerminalInstance {
-		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(config);
+		const shellLaunchConfig = this.convertProfileToShellLaunchConfig(config);
 		const instance = this._instantiationService.createInstance(TerminalInstance,
 			this._terminalFocusContextKey,
 			this._terminalHasFixedWidth,
@@ -61,11 +61,13 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		return instance;
 	}
 
-	// TODO: This is duplicated in TerminalService
-	private _convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig {
+	convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig {
 		// Profile was provided
 		if (shellLaunchConfigOrProfile && 'profileName' in shellLaunchConfigOrProfile) {
 			const profile = shellLaunchConfigOrProfile;
+			if (!profile.path) {
+				return shellLaunchConfigOrProfile;
+			}
 			return {
 				executable: profile.path,
 				args: profile.args,
@@ -77,7 +79,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 			};
 		}
 
-		// Shell launch config was provided
+		// A shell launch config was provided
 		if (shellLaunchConfigOrProfile) {
 			if (cwd) {
 				shellLaunchConfigOrProfile.cwd = cwd;
