@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workbenchInstantiationService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ISearchService, IFileQuery } from 'vs/workbench/services/search/common/search';
 import { MainThreadWorkspace } from 'vs/workbench/api/browser/mainThreadWorkspace';
@@ -22,7 +22,7 @@ suite('MainThreadWorkspace', () => {
 
 	setup(() => {
 		disposables = new DisposableStore();
-		instantiationService = workbenchInstantiationService(disposables) as TestInstantiationService;
+		instantiationService = workbenchInstantiationService(undefined, disposables) as TestInstantiationService;
 
 		configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		configService.setUserConfiguration('search', {});
