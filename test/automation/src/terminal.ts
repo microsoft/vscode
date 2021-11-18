@@ -111,14 +111,14 @@ export class Terminal {
 		}
 		let expected = true;
 		if (icon) {
-			const element = this.code.waitForElement(`.terminal - tabs - entry.codicon - ${icon} `);
+			const element = this.code.waitForElement(`.terminal-tabs-entry.codicon-${icon} `);
 			expected = expected && !!element;
 		}
 		if (color) {
 			expected = expected && tab.children.some(c => c.className.includes(color));
 		}
 		if (name) {
-			expected = expected && name === '*' || tab.textContent.includes(name);
+			expected = expected && tab.textContent.includes(name);
 		}
 		return expected;
 	}
