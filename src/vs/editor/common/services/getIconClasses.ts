@@ -5,7 +5,7 @@
 
 import { Schemas } from 'vs/base/common/network';
 import { DataUri, basenameOrAuthority } from 'vs/base/common/resources';
-import * as Paths from 'vs/base/common/path';
+import * as paths from 'vs/base/common/path';
 import { URI as uri } from 'vs/base/common/uri';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -28,7 +28,7 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 		}
 
 		// Directory
-		classes.push(`${Paths.basename(Paths.dirname(resource.path))}-name-dir-icon`);
+		classes.push(`${paths.basename(paths.dirname(resource.path))}-name-dir-icon`);
 
 		// Folders
 		if (fileKind === FileKind.FOLDER) {

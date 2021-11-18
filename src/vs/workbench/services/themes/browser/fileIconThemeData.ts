@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
-import * as Paths from 'vs/base/common/path';
+import * as paths from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import * as Json from 'vs/base/common/json';
 import { ExtensionData, IThemeExtensionPoint, IWorkbenchFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -67,7 +67,7 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 
 	static fromExtensionTheme(iconTheme: IThemeExtensionPoint, iconThemeLocation: URI, extensionData: ExtensionData): FileIconThemeData {
 		const id = extensionData.extensionId + '-' + iconTheme.id;
-		const label = iconTheme.label || Paths.basename(iconTheme.path);
+		const label = iconTheme.label || paths.basename(iconTheme.path);
 		const settingsId = iconTheme.id;
 
 		const themeData = new FileIconThemeData(id, label, settingsId);
@@ -273,8 +273,8 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 			let folderNames = associations.folderNames;
 			if (folderNames) {
 				for (let folderName in folderNames) {
-					if (folderName !== Paths.basename(folderName)) {
-						let directoryName = Paths.basename(Paths.dirname(folderName));
+					if (/\//.test(folderName)) {
+						let directoryName = paths.basename(paths.dirname(folderName));
 						addSelector(`${qualifier} .${escapeCSS(directoryName.toLowerCase())}-name-dir-icon.${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNames[folderName]);
 					} else {
 						addSelector(`${qualifier} .${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNames[folderName]);
@@ -285,9 +285,9 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 			let folderNamesExpanded = associations.folderNamesExpanded;
 			if (folderNamesExpanded) {
 				for (let folderName in folderNamesExpanded) {
-					if (folderName !== Paths.basename(folderName)) {
-						let directoryName = Paths.basename(Paths.dirname(folderName));
-						folderName = Paths.basename(folderName);
+					if (/\//.test(folderName)) {
+						let directoryName = paths.basename(paths.dirname(folderName));
+						folderName = paths.basename(folderName);
 						addSelector(`${qualifier} .${escapeCSS(directoryName.toLowerCase())}-name-dir-icon.${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNamesExpanded[folderName]);
 					} else {
 						addSelector(`${qualifier} ${expanded} .${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNamesExpanded[folderName]);
@@ -310,10 +310,10 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 			if (fileExtensions) {
 				for (let fileExtension in fileExtensions) {
 					let selectors: string[] = [];
-					if (fileExtension !== Paths.basename(fileExtension)) {
-						let directoryName = Paths.basename(Paths.dirname(fileExtension)).toLowerCase();
+					if (/\//.test(fileExtension)) {
+						let directoryName = paths.basename(paths.dirname(fileExtension)).toLowerCase();
 						selectors.push(`.${escapeCSS(directoryName)}-name-dir-icon`);
-						fileExtension = Paths.basename(fileExtension);
+						fileExtension = paths.basename(fileExtension);
 					}
 					let segments = fileExtension.toLowerCase().split('.');
 					if (segments.length) {
@@ -330,10 +330,10 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 			if (fileNames) {
 				for (let fileName in fileNames) {
 					let selectors: string[] = [];
-					if (fileName !== Paths.basename(fileName)) {
-						let directoryName = Paths.basename(Paths.dirname(fileName)).toLowerCase();
+					if (/\//.test(fileName)) {
+						let directoryName = paths.basename(paths.dirname(fileName)).toLowerCase();
 						selectors.push(`.${escapeCSS(directoryName)}-name-dir-icon`);
-						fileName = Paths.basename(fileName);
+						fileName = paths.basename(fileName);
 					}
 					fileName = fileName.toLowerCase();
 					selectors.push(`.${escapeCSS(fileName)}-name-file-icon`);
