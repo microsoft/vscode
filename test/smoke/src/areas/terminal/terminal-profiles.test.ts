@@ -11,7 +11,7 @@ const CONTRIBUTED_PROFILE_NAME = `JavaScript Debug Terminal`;
 const ANY_PROFILE_NAME = '^((?!JavaScript Debug Terminal).)*$';
 
 export function setup(opts: ParsedArgs) {
-	describe.only('Terminal Profiles', () => {
+	describe('Terminal Profiles', () => {
 		let terminal: Terminal;
 
 		beforeSuite(opts);

@@ -4,19 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ParsedArgs } from 'minimist';
-import { Code, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation/out';
+import { Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation/out';
 import { afterSuite, beforeSuite } from '../../utils';
 
 export function setup(opts: ParsedArgs) {
-	describe.only('Terminal Editors', () => {
-		let code: Code;
+	describe('Terminal Editors', () => {
 		let terminal: Terminal;
 
 		beforeSuite(opts);
 		afterSuite(opts);
 
 		before(function () {
-			code = this.app.code;
 			terminal = this.app.workbench.terminal;
 		});
 

@@ -99,7 +99,7 @@ export class Terminal {
 				const isSplit = terminalsInGroup > 1;
 				while (indexInGroup < terminalsInGroup) {
 					let instance = expectedGroups[groupIndex][indexInGroup];
-					const nameRegex = instance.name && isSplit ? new RegExp(/^[├┌└]\s*/ + instance.name) : instance.name ? new RegExp(/^\s*/ + instance.name) : undefined;
+					const nameRegex = instance.name && isSplit ? new RegExp(/[├┌└]\s*/ + instance.name) : instance.name ? new RegExp(/^\s*/ + instance.name) : undefined;
 					await this.assertTabExpected(undefined, index, nameRegex, instance.icon, instance.color);
 					indexInGroup++;
 					index++;
@@ -111,7 +111,7 @@ export class Terminal {
 	private async assertTabExpected(selector?: string, listIndex?: number, nameRegex?: RegExp, icon?: string, color?: string): Promise<void> {
 		if (listIndex) {
 			if (nameRegex) {
-				// await this.code.waitForElement(`${Selector.Tabs}[data-index="${listIndex}"] ${Selector.TabsEntry}`, entry => !!entry && !!entry?.textContent.match(nameRegex));
+				await this.code.waitForElement(`${Selector.Tabs}[data-index="${listIndex}"] ${Selector.TabsEntry}`, entry => !!entry && !!entry?.textContent.match(nameRegex));
 				const tab = await this.code.waitForElement(`${Selector.Tabs}[data-index="${listIndex}"] ${Selector.TabsEntry}`);
 				console.log(tab?.textContent.match(nameRegex));
 				console.log('regex', nameRegex);
@@ -137,11 +137,15 @@ export class Terminal {
 	}
 
 	async clickPlusButton(): Promise<void> {
-		this.code.waitAndClick(Selector.PlusButton);
+		await this.code.waitAndClick(Selector.PlusButton);
 	}
 
 	async clickSplitButton(): Promise<void> {
-		this.code.waitAndClick(Selector.SplitButton);
+		await this.code.waitAndClick(Selector.SplitButton);
+	}
+
+	async clickSingleTab(): Promise<void> {
+		await this.code.waitAndClick(Selector.SingleTab);
 	}
 
 	async waitForTerminalText(accept: (buffer: string[]) => boolean, message?: string): Promise<void> {

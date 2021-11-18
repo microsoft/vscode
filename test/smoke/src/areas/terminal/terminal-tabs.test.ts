@@ -5,21 +5,17 @@
 
 
 import { ParsedArgs } from 'minimist';
-import { Code, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation/out';
+import { Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation/out';
 import { afterSuite, beforeSuite } from '../../utils';
 
-const SINGLE_TAB_SELECTOR = '.single-terminal-tab';
-
 export function setup(opts: ParsedArgs) {
-	describe.only('Terminal Tabs', () => {
-		let code: Code;
+	describe('Terminal Tabs', () => {
 		let terminal: Terminal;
 
 		beforeSuite(opts);
 		afterSuite(opts);
 
 		before(function () {
-			code = this.app.code;
 			terminal = this.app.workbench.terminal;
 		});
 
@@ -71,7 +67,7 @@ export function setup(opts: ParsedArgs) {
 			await terminal.assertSingleTab({ name });
 		});
 
-		it('should rename the tab in the tabs list', async () => {
+		it.only('should rename the tab in the tabs list', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
 			await terminal.runCommand(TerminalCommandId.Split);
 			const name = 'my terminal name';
@@ -83,7 +79,7 @@ export function setup(opts: ParsedArgs) {
 			await terminal.runCommand(TerminalCommandId.Show);
 			const page = await terminal.getPage();
 			page.keyboard.down('Alt');
-			await code.waitAndClick(SINGLE_TAB_SELECTOR);
+			await terminal.clickSingleTab();
 			page.keyboard.up('Alt');
 			await terminal.assertTerminalGroups([[{}, {}]]);
 		});
