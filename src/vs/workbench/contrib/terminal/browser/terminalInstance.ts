@@ -832,10 +832,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const dndController = this._instantiationService.createInstance(TerminalInstanceDragAndDropController, container);
 		dndController.onDropTerminal(e => this._onRequestAddInstanceToGroup.fire(e));
 		dndController.onDropFile(async path => {
-			// TODO: Create ITerminalInstance.sendPathToTerminal
-			const preparedPath = await preparePathForShell(path, this.shellLaunchConfig.executable, this.title, this.shellType, (e) => this._terminalInstanceService.getBackend(this.remoteAuthority)?.getWslPath(e));
-			this.sendText(preparedPath, false);
 			this.focus();
+			await this.sendPath(path, false);
 		});
 		this._dndObserver = new DragAndDropObserver(container, dndController);
 	}
@@ -970,6 +968,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Send it to the process
 		await this._processManager.write(text);
 		this._onDidInputData.fire(this);
+	}
+
+	async sendPath(originalPath: string, addNewLine: boolean): Promise<void> {
+		const preparedPath = await preparePathForShell(originalPath, this.shellLaunchConfig.executable, this.title, this.shellType, (e) => this._terminalInstanceService.getBackend(this.remoteAuthority)?.getWslPath(e));
+		return this.sendText(preparedPath, addNewLine);
 	}
 
 	setVisible(visible: boolean): void {

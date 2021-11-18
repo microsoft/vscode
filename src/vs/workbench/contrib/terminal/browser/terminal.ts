@@ -647,11 +647,23 @@ export interface ITerminalInstance {
 	 * process (shell) of the terminal instance.
 	 *
 	 * @param text The text to send.
-	 * @param addNewLine Whether to add a new line to the text being sent, this is normally
-	 * required to run a command in the terminal. The character(s) added are \n or \r\n
-	 * depending on the platform. This defaults to `true`.
+	 * @param addNewLine Whether to add a new line to the text being sent, this is normally required
+	 * to run a command in the terminal. The character(s) added are \n or \r\n depending on the
+	 * platform. This defaults to `true`.
 	 */
 	sendText(text: string, addNewLine: boolean): Promise<void>;
+
+	/**
+	 * Sends a path to the terminal instance, preparing it as needed based on the detected shell
+	 * running within the terminal. The text is written to the stdin of the underlying pty process
+	 * (shell) of the terminal instance.
+	 *
+	 * @param originalPath The path to send.
+	 * @param addNewLine Whether to add a new line to the path being sent, this is normally required
+	 * to run a command in the terminal. The character(s) added are \n or \r\n depending on the
+	 * platform. This defaults to `true`.
+	 */
+	sendPath(originalPath: string, addNewLine: boolean): Promise<void>;
 
 	/** Scroll the terminal buffer down 1 line. */   scrollDownLine(): void;
 	/** Scroll the terminal buffer down 1 page. */   scrollDownPage(): void;

@@ -9,7 +9,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalGroupService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -46,7 +46,6 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { getTerminalResourcesFromDragEvent, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
-import { preparePathForShell } from 'vs/platform/terminal/common/terminalEnvironment';
 
 const $ = DOM.$;
 
@@ -549,7 +548,6 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
-		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 	) {
 		this._primaryBackend = this._terminalService.getPrimaryBackend();
 	}
@@ -711,8 +709,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 
 		this._terminalService.setActiveInstance(instance);
 
-		const preparedPath = await preparePathForShell(path, instance.shellLaunchConfig.executable, instance.title, instance.shellType, (e) => this._terminalInstanceService.getBackend(instance.remoteAuthority)?.getWslPath(e));
-		instance.sendText(preparedPath, false);
 		instance.focus();
+		await instance.sendPath(path, false);
 	}
 }

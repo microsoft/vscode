@@ -49,7 +49,6 @@ import { isAbsolute } from 'vs/base/common/path';
 import { ITerminalQuickPickItem } from 'vs/workbench/contrib/terminal/browser/terminalProfileQuickpick';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { getIconId, getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
-import { preparePathForShell } from 'vs/platform/terminal/common/terminalEnvironment';
 
 // allow-any-unicode-next-line
 export const switchTerminalActionViewItemSeparator = '─────────';
@@ -512,7 +511,6 @@ export function registerTerminalActions() {
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
 			const terminalGroupService = accessor.get(ITerminalGroupService);
-			const terminalInstanceService = accessor.get(ITerminalInstanceService);
 			const codeEditorService = accessor.get(ICodeEditorService);
 			const notificationService = accessor.get(INotificationService);
 			const workbenchEnvironmentService = accessor.get(IWorkbenchEnvironmentService);
@@ -535,8 +533,7 @@ export function registerTerminalActions() {
 			}
 
 			// TODO: Convert this to ctrl+c, ctrl+v for pwsh?
-			const path = await preparePathForShell(uri.fsPath, instance.shellLaunchConfig.executable, instance.title, instance.shellType, (e) => terminalInstanceService.getBackend(instance!.remoteAuthority)?.getWslPath(e));
-			instance.sendText(path, true);
+			await instance.sendPath(uri.fsPath, true);
 			return terminalGroupService.showPanel();
 		}
 	});
