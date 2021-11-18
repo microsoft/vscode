@@ -847,6 +847,11 @@
   dependencies:
     nan "2.14.2"
 
+"@vscode/sudo-prompt@^9.3.0":
+  version "9.3.0"
+  resolved "https://registry.yarnpkg.com/@vscode/sudo-prompt/-/sudo-prompt-9.3.0.tgz#5c63b195986d1d6a142856146e51c6b46a3319b2"
+  integrity sha512-/c/A4/fEBhKXiEW2+Cv8qid6uWA6Igg9iaHrlMoNyoHynziYLYFCaF8lGcmvQ20wEi5l7xyx4YxG2h5nVKazeg==
+
 "@vscode/vscode-languagedetection@1.0.21":
   version "1.0.21"
   resolved "https://registry.yarnpkg.com/@vscode/vscode-languagedetection/-/vscode-languagedetection-1.0.21.tgz#89b48f293f6aa3341bb888c1118d16ff13b032d3"
@@ -9529,11 +9534,6 @@ stylehacks@^4.0.0:
     browserslist "^4.0.0"
     postcss "^7.0.0"
     postcss-selector-parser "^3.0.0"
-
-sudo-prompt@9.2.1:
-  version "9.2.1"
-  resolved "https://registry.yarnpkg.com/sudo-prompt/-/sudo-prompt-9.2.1.tgz#77efb84309c9ca489527a4e749f287e6bdd52afd"
-  integrity sha512-Mu7R0g4ig9TUuGSxJavny5Rv0egCEtpZRNMrZaYS1vxkiIxGiGUwoezU3LazIQ+KE04hTrTfNPgxU5gzi7F5Pw==
 
 sumchecker@^3.0.1:
   version "3.0.1"
