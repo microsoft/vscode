@@ -51,7 +51,21 @@ const CORE_TYPES = [
 	'self',
 	'trimLeft',
 	'trimRight',
-	'queueMicrotask'
+	'queueMicrotask',
+	'Array',
+	'Uint8Array',
+	'Uint16Array',
+	'Uint32Array',
+	'Int8Array',
+	'Int16Array',
+	'Int32Array',
+	'Float32Array',
+	'Float64Array',
+	'Uint8ClampedArray',
+	'BigUint64Array',
+	'BigInt64Array',
+	'btoa',
+	'atob'
 ];
 
 // Types that are defined in a common layer but are known to be only
@@ -154,6 +168,9 @@ const RULES = [
 		target: '**/vs/**/browser/**',
 		allowedTypes: CORE_TYPES,
 		disallowedTypes: NATIVE_TYPES,
+		allowedDefinitions: [
+			'@types/node/stream/consumers.d.ts' // node.js started to duplicate types from lib.dom.d.ts so we have to account for that
+		],
 		disallowedDefinitions: [
 			'@types/node'	// no node.js
 		]
@@ -227,6 +244,7 @@ interface IRule {
 	target: string;
 	skip?: boolean;
 	allowedTypes?: string[];
+	allowedDefinitions?: string[];
 	disallowedDefinitions?: string[];
 	disallowedTypes?: string[];
 }
@@ -260,13 +278,20 @@ function checkFile(program: ts.Program, sourceFile: ts.SourceFile, rule: IRule) 
 		if (symbol) {
 			const declarations = symbol.declarations;
 			if (Array.isArray(declarations)) {
-				for (const declaration of declarations) {
+				DeclarationLoop: for (const declaration of declarations) {
 					if (declaration) {
 						const parent = declaration.parent;
 						if (parent) {
 							const parentSourceFile = parent.getSourceFile();
 							if (parentSourceFile) {
 								const definitionFileName = parentSourceFile.fileName;
+								if (rule.allowedDefinitions) {
+									for (const allowedDefinition of rule.allowedDefinitions) {
+										if (definitionFileName.indexOf(allowedDefinition) >= 0) {
+											continue DeclarationLoop;
+										}
+									}
+								}
 								if (rule.disallowedDefinitions) {
 									for (const disallowedDefinition of rule.disallowedDefinitions) {
 										if (definitionFileName.indexOf(disallowedDefinition) >= 0) {
