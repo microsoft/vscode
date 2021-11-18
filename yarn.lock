@@ -839,10 +839,10 @@
   resolved "https://registry.yarnpkg.com/@ungap/promise-all-settled/-/promise-all-settled-1.1.2.tgz#aa58042711d6e3275dd37dc597e5d31e8c290a44"
   integrity sha512-sL/cEvJWAnClXw0wHk85/2L0G6Sj8UB0Ctc1TEMbKSsmpRosqhwj9gWgFRZSrBr2f9tiXISwNhCPmlfqUqyb9Q==
 
-"@vscode/sqlite3@5.0.3":
-  version "5.0.3"
-  resolved "https://registry.yarnpkg.com/@vscode/sqlite3/-/sqlite3-5.0.3.tgz#3e31932a5903d05b436c4d20647a0565ca01edee"
-  integrity sha512-eoVrbp+xJylcdZzNCVBceBRDos1XC5a1X+Vkf3TN4byWnj10vKHvvDs5pmAi2CMWmn7ovaqeRBTPxC/1TI7ivw==
+"@vscode/sqlite3@5.0.4":
+  version "5.0.4"
+  resolved "https://registry.yarnpkg.com/@vscode/sqlite3/-/sqlite3-5.0.4.tgz#a14f48d75fa86907cb5d1f741dbc0ba680e874a7"
+  integrity sha512-cbZOqncifUEn2M7K+z94ETiC2qgujHcMwPrVun9p+fPnL/fXHfg7JTHyiXCohcHt3LskxXJ8u0B1SRIUEKXz5w==
   dependencies:
     node-addon-api "^4.2.0"
   optionalDependencies:
