@@ -16,6 +16,8 @@ import { RequestService, basename, resolvePath } from './requests';
 
 type ISchemaAssociations = Record<string, string[]>;
 
+type JSONLanguageStatus = { schemas: string[] };
+
 namespace SchemaAssociationNotification {
 	export const type: NotificationType<ISchemaAssociations | SchemaConfiguration[]> = new NotificationType('json/schemaAssociations');
 }
@@ -34,6 +36,10 @@ namespace ResultLimitReachedNotification {
 
 namespace ForceValidateRequest {
 	export const type: RequestType<string, Diagnostic[], any> = new RequestType('json/validate');
+}
+
+namespace LanguageStatusRequest {
+	export const type: RequestType<string, JSONLanguageStatus, any> = new RequestType('json/languageStatus');
 }
 
 
@@ -275,6 +281,16 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 				resolve([]);
 			}
 		});
+	});
+
+	connection.onRequest(LanguageStatusRequest.type, async uri => {
+		const document = documents.get(uri);
+		if (document) {
+			const jsonDocument = getJSONDocument(document);
+			return languageService.getLanguageStatus(document, jsonDocument);
+		} else {
+			return { schemas: [] };
+		}
 	});
 
 	function updateConfiguration() {
