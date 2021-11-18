@@ -84,8 +84,6 @@ import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyn
 import { UserDataSyncStoreManagementService, UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataAutoSyncService } from 'vs/platform/userDataSync/electron-sandbox/userDataAutoSyncService';
 import { ActiveWindowManager } from 'vs/platform/windows/node/windowTracker';
-import { IExtensionHostStarter, ipcExtensionHostStarterChannelName } from 'vs/platform/extensions/common/extensionHostStarter';
-import { ExtensionHostStarter } from 'vs/platform/extensions/node/extensionHostStarter';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/node/signService';
 import { ISharedTunnelsService } from 'vs/platform/remote/common/tunnel';
@@ -337,9 +335,6 @@ class SharedProcessMain extends Disposable {
 		// Terminal
 		services.set(ILocalPtyService, this._register(ptyHostService));
 
-		// Extension Host
-		services.set(IExtensionHostStarter, this._register(new ExtensionHostStarter(logService)));
-
 		// Signing
 		services.set(ISignService, new SyncDescriptor(SignService));
 
@@ -397,10 +392,6 @@ class SharedProcessMain extends Disposable {
 		const localPtyService = accessor.get(ILocalPtyService);
 		const localPtyChannel = ProxyChannel.fromService(localPtyService);
 		this.server.registerChannel(TerminalIpcChannels.LocalPty, localPtyChannel);
-
-		// Extension Host
-		const extensionHostStarterChannel = ProxyChannel.fromService(accessor.get(IExtensionHostStarter));
-		this.server.registerChannel(ipcExtensionHostStarterChannelName, extensionHostStarterChannel);
 
 		// Tunnel
 		const sharedProcessTunnelChannel = ProxyChannel.fromService(accessor.get(ISharedProcessTunnelService));
