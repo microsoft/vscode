@@ -39,8 +39,6 @@ export interface ITerminalInstanceService {
 	onDidCreateInstance: Event<ITerminalInstance>;
 
 	getXtermConstructor(): Promise<typeof XTermTerminal>;
-	getXtermSearchConstructor(): Promise<typeof XTermSearchAddon>;
-	getXtermUnicode11Constructor(): Promise<typeof XTermUnicode11Addon>;
 
 	/**
 	 * Takes a path and returns the properly escaped path to send to the terminal.

@@ -24,8 +24,6 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 import { Registry } from 'vs/platform/registry/common/platform';
 
 let Terminal: typeof XTermTerminal;
-let SearchAddon: typeof XTermSearchAddon;
-let Unicode11Addon: typeof XTermUnicode11Addon;
 
 export class TerminalInstanceService extends Disposable implements ITerminalInstanceService {
 	declare _serviceBrand: undefined;
@@ -68,6 +66,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		return instance;
 	}
 
+	// TODO: This is duplicated in TerminalService
 	private _convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig {
 		// Profile was provided
 		if (shellLaunchConfigOrProfile && 'profileName' in shellLaunchConfigOrProfile) {
@@ -100,20 +99,6 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 			Terminal = (await import('xterm')).Terminal;
 		}
 		return Terminal;
-	}
-
-	async getXtermSearchConstructor(): Promise<typeof XTermSearchAddon> {
-		if (!SearchAddon) {
-			SearchAddon = (await import('xterm-addon-search')).SearchAddon;
-		}
-		return SearchAddon;
-	}
-
-	async getXtermUnicode11Constructor(): Promise<typeof XTermUnicode11Addon> {
-		if (!Unicode11Addon) {
-			Unicode11Addon = (await import('xterm-addon-unicode11')).Unicode11Addon;
-		}
-		return Unicode11Addon;
 	}
 
 	async preparePathForTerminalAsync(originalPath: string, executable: string | undefined, title: string, shellType: TerminalShellType, remoteAuthority: string | undefined): Promise<string> {
