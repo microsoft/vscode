@@ -306,9 +306,6 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      $env:AZURE_STORAGE_ACCESS_KEY_2 = "$(vscode-storage-key)"
-      $env:AZURE_DOCUMENTDB_MASTERKEY = "$(builds-docdb-key-readwrite)"
-      $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
       .\build\azure-pipelines\win32\prepare-publish.ps1
     displayName: Publish
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))

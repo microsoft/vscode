@@ -289,9 +289,6 @@ steps:
 
   - script: |
       set -e
-      AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
-      AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
-      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
       VSCODE_ARCH="$(VSCODE_ARCH)" \
       ./build/azure-pipelines/linux/prepare-publish.sh
     displayName: Prepare for Publish
