@@ -273,7 +273,7 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 			let folderNames = associations.folderNames;
 			if (folderNames) {
 				for (let folderName in folderNames) {
-					if (/[^\\\/]/.test(folderName)) {
+					if (folderName !== Paths.basename(folderName)) {
 						let directoryName = Paths.basename(Paths.dirname(folderName));
 						addSelector(`${qualifier} .${escapeCSS(directoryName.toLowerCase())}-name-dir-icon.${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNames[folderName]);
 					} else {
@@ -285,7 +285,7 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 			let folderNamesExpanded = associations.folderNamesExpanded;
 			if (folderNamesExpanded) {
 				for (let folderName in folderNamesExpanded) {
-					if (/[^\\\/]/.test(folderName)) {
+					if (folderName !== Paths.basename(folderName)) {
 						let directoryName = Paths.basename(Paths.dirname(folderName));
 						folderName = Paths.basename(folderName);
 						addSelector(`${qualifier} .${escapeCSS(directoryName.toLowerCase())}-name-dir-icon.${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNamesExpanded[folderName]);
@@ -310,7 +310,7 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 			if (fileExtensions) {
 				for (let fileExtension in fileExtensions) {
 					let selectors: string[] = [];
-					if (/[^\\\/]/.test(fileExtension)) {
+					if (fileExtension !== Paths.basename(fileExtension)) {
 						let directoryName = Paths.basename(Paths.dirname(fileExtension)).toLowerCase();
 						selectors.push(`.${escapeCSS(directoryName)}-name-dir-icon`);
 						fileExtension = Paths.basename(fileExtension);
@@ -330,7 +330,7 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 			if (fileNames) {
 				for (let fileName in fileNames) {
 					let selectors: string[] = [];
-					if (/[^\\\/]/.test(fileName)) {
+					if (fileName !== Paths.basename(fileName)) {
 						let directoryName = Paths.basename(Paths.dirname(fileName)).toLowerCase();
 						selectors.push(`.${escapeCSS(directoryName)}-name-dir-icon`);
 						fileName = Paths.basename(fileName);
