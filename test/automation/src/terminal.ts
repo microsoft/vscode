@@ -82,7 +82,7 @@ export class Terminal {
 	async assertSingleTab(label: TerminalLabel, editor?: boolean): Promise<void> {
 		const selector = editor ? EDITOR_TAB_SELECTOR : SINGLE_TAB_SELECTOR;
 		const element = await this.code.waitForElement(selector, elt => elt ? elt.textContent.trim().length > 1 : false);
-		await this.assertTabExpected(element, false, label.name, label.icon, label.color);
+		await this.assertTabExpected(element, false, label.name, label.icon ? `${selector} .codicon-${label.icon}` : undefined, label.color);
 	}
 
 	async assertTerminalGroups(expectedGroups: TerminalGroup[]): Promise<void> {
@@ -94,7 +94,7 @@ export class Terminal {
 			const isSplit = terminalsInGroup > 1;
 			while (indexInGroup < terminalsInGroup) {
 				let instance = expectedGroups[groupIndex][indexInGroup];
-				const expected = await this.assertTabExpected(tabs[index], isSplit, instance.name, instance.icon, instance.color);
+				const expected = await this.assertTabExpected(tabs[index], isSplit, instance.name, instance.icon ? `${TABS} .codicon-${instance.icon}` : undefined, instance.color);
 				if (!expected) {
 					throw new Error(`Expected a split ${isSplit} terminal with name ${instance.name} and icon ${instance.icon} but element was ${JSON.stringify(tabs[index])}`);
 				}
@@ -111,7 +111,7 @@ export class Terminal {
 		}
 		let expected = true;
 		if (icon) {
-			const element = this.code.waitForElement(`.terminal-tabs-entry.codicon-${icon} `);
+			const element = this.code.waitForElement(icon);
 			expected = expected && !!element;
 		}
 		if (color) {
