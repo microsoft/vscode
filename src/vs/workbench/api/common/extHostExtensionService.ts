@@ -8,7 +8,7 @@ import * as path from 'vs/base/common/path';
 import * as performance from 'vs/base/common/performance';
 import { originalFSPath, joinPath, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { asPromise, Barrier, timeout } from 'vs/base/common/async';
-import { dispose, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
+import { dispose, toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -110,8 +110,6 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	private _started: boolean;
 	private _remoteConnectionData: IRemoteConnectionData | null;
 
-	private readonly _disposables: DisposableStore;
-
 	constructor(
 		@IInstantiationService instaService: IInstantiationService,
 		@IHostUtils hostUtils: IHostUtils,
@@ -134,7 +132,6 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		this._logService = logService;
 		this._extHostTunnelService = extHostTunnelService;
 		this._extHostTerminalService = extHostTerminalService;
-		this._disposables = new DisposableStore();
 
 		this._mainThreadWorkspaceProxy = this._extHostContext.getProxy(MainContext.MainThreadWorkspace);
 		this._mainThreadTelemetryProxy = this._extHostContext.getProxy(MainContext.MainThreadTelemetry);
@@ -157,7 +154,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		const hostExtensions = new Set<string>();
 		this._initData.hostExtensions.forEach((extensionId) => hostExtensions.add(ExtensionIdentifier.toKey(extensionId)));
 
-		this._activator = new ExtensionsActivator(
+		this._activator = this._register(new ExtensionsActivator(
 			this._registry,
 			this._initData.resolvedExtensions,
 			this._initData.hostExtensions,
@@ -176,7 +173,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 				}
 			},
 			this._logService
-		);
+		));
 		this._extensionPathIndex = null;
 		this._resolvers = Object.create(null);
 		this._started = false;
@@ -523,7 +520,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			this._logService.error(err);
 		});
 
-		this._disposables.add(this._extHostWorkspace.onDidChangeWorkspace((e) => this._handleWorkspaceContainsEagerExtensions(e.added)));
+		this._register(this._extHostWorkspace.onDidChangeWorkspace((e) => this._handleWorkspaceContainsEagerExtensions(e.added)));
 		const folders = this._extHostWorkspace.workspace ? this._extHostWorkspace.workspace.folders : [];
 		const workspaceContainsActivation = this._handleWorkspaceContainsEagerExtensions(folders);
 		const eagerExtensionsActivation = Promise.all([starActivation, workspaceContainsActivation]).then(() => { });
@@ -684,7 +681,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		}
 
 		try {
-			this._disposables.add(await this._extHostTunnelService.setTunnelExtensionFunctions(resolver));
+			this._register(await this._extHostTunnelService.setTunnelExtensionFunctions(resolver));
 			performance.mark(`code/extHost/willResolveAuthority/${authorityPrefix}`);
 			const result = await resolver.resolve(remoteAuthority, { resolveAttempt });
 			performance.mark(`code/extHost/didResolveAuthorityOK/${authorityPrefix}`);
