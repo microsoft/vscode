@@ -11,7 +11,7 @@ import { afterSuite, beforeSuite, timeout } from '../../utils';
 const SINGLE_TAB_SELECTOR = '.single-terminal-tab';
 
 export function setup(opts: ParsedArgs) {
-	describe.only('Terminal Tabs', () => {
+	describe('Terminal Tabs', () => {
 		let code: Code;
 		let terminal: Terminal;
 
@@ -31,7 +31,7 @@ export function setup(opts: ParsedArgs) {
 			await terminal.runCommand(TerminalCommandId.Show);
 			await terminal.runCommand(TerminalCommandId.CreateNew);
 			await terminal.clickPlusButton();
-			await terminal.assertTerminalGroups([[{}, {}]]);
+			await terminal.assertTerminalGroups([[{}], [{}]]);
 		});
 
 		it('should update color of the single tab', async () => {
@@ -77,7 +77,7 @@ export function setup(opts: ParsedArgs) {
 			await timeout(500);
 			const name = 'my terminal name';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.Rename, name);
-			await terminal.assertTerminalGroups([[{}, { name }]]);
+			await terminal.assertTerminalGroups([[{ name }, {}]]);
 		});
 
 		it('should create a split terminal when single tab is alt clicked', async () => {

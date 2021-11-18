@@ -11,7 +11,7 @@ const CONTRIBUTED_PROFILE_NAME = `JavaScript Debug Terminal`;
 const ANY_NAME = '*';
 
 export function setup(opts: ParsedArgs) {
-	describe.only('Terminal Profiles', () => {
+	describe('Terminal Profiles', () => {
 		let terminal: Terminal;
 
 		beforeSuite(opts);
@@ -40,7 +40,6 @@ export function setup(opts: ParsedArgs) {
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.SelectDefaultProfile, CONTRIBUTED_PROFILE_NAME);
 			await terminal.runCommand(TerminalCommandId.Show);
 			await terminal.runCommand(TerminalCommandId.Split);
-			await timeout(1000);
 			await terminal.assertTerminalGroups([[{ name: CONTRIBUTED_PROFILE_NAME }, { name: CONTRIBUTED_PROFILE_NAME }]]);
 		});
 

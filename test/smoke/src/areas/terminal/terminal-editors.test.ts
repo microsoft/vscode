@@ -10,7 +10,7 @@ import { afterSuite, beforeSuite } from '../../utils';
 const SPLIT_BUTTON_SELECTOR = '.editor .codicon-split-horizontal';
 
 export function setup(opts: ParsedArgs) {
-	describe.only('Terminal Editors', () => {
+	describe('Terminal Editors', () => {
 		let code: Code;
 		let terminal: Terminal;
 
