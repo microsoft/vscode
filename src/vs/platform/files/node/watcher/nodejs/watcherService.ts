@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ThrottledDelayer } from 'vs/base/common/async';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { basename, join } from 'vs/base/common/path';
 import { realpath } from 'vs/base/node/extpath';
@@ -109,7 +110,7 @@ export class FileWatcher extends Disposable {
 			if (coalescedFileChanges.length > 0) {
 				this.onDidFilesChange(coalescedFileChanges);
 			}
-		});
+		}).catch(error => onUnexpectedError(error));
 	}
 
 	private onError(error: string): void {
