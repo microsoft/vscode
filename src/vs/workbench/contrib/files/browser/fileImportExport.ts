@@ -313,7 +313,7 @@ export class BrowserFileUpload {
 
 		// Read the file in chunks using File.stream() web APIs
 		try {
-			// TODO(@deepak1556): why do @electron types overload here ?
+			// TODO@electron: duplicate type definitions originate from `@types/node/stream/consumers.d.ts`
 			const reader: ReadableStreamDefaultReader<Uint8Array> = (file.stream() as unknown as ReadableStream<Uint8Array>).getReader();
 
 			let res = await reader.read();
