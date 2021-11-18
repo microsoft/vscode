@@ -46,7 +46,7 @@
 		 * @returns {Promise<void>}
 		 */
 		function rimraf(location) {
-			return new Promise((c, e) => fs.rmdir(location, { recursive: true }, err => (err && err.code !== 'ENOENT') ? e(err) : c()));
+			return new Promise((c, e) => fs.rm(location, { recursive: true }, err => (err && err.code !== 'ENOENT') ? e(err) : c()));
 		}
 
 		/**

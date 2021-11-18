@@ -72,8 +72,6 @@ async function rimrafMove(path: string): Promise<void> {
 }
 
 async function rimrafUnlink(path: string): Promise<void> {
-	// Use rm instead of rmdir for
-	// https://github.com/nodejs/node/commit/9948036ee0
 	return promisify(fs.rm)(path, { recursive: true, force: true, maxRetries: 3 });
 }
 
@@ -82,9 +80,7 @@ export function rimrafSync(path: string): void {
 		throw new Error('rimraf - will refuse to recursively delete root');
 	}
 
-	// Use rmSync instead of rmdirSync for
-	// https://github.com/nodejs/node/commit/9948036ee0
-	fs.rmSync(path, { recursive: true, force: true });
+	fs.rmSync(path, { recursive: true, force: true, maxRetries: 3 });
 }
 
 //#endregion
