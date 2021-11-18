@@ -64,6 +64,7 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/lineDataEventAddon';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
+import { preparePathForShell } from 'vs/platform/terminal/common/terminalEnvironment';
 
 const enum Constants {
 	/**
@@ -831,7 +832,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const dndController = this._instantiationService.createInstance(TerminalInstanceDragAndDropController, container);
 		dndController.onDropTerminal(e => this._onRequestAddInstanceToGroup.fire(e));
 		dndController.onDropFile(async path => {
-			const preparedPath = await this._terminalInstanceService.preparePathForTerminalAsync(path, this.shellLaunchConfig.executable, this.title, this.shellType, this._processManager.remoteAuthority);
+			// TODO: Create ITerminalInstance.sendPathToTerminal
+			const preparedPath = await preparePathForShell(path, this.shellLaunchConfig.executable, this.title, this.shellType, (e) => this._terminalInstanceService.getBackend(this.remoteAuthority)?.getWslPath(e));
 			this.sendText(preparedPath, false);
 			this.focus();
 		});

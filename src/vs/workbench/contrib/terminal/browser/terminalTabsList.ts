@@ -46,6 +46,7 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { getTerminalResourcesFromDragEvent, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
+import { preparePathForShell } from 'vs/platform/terminal/common/terminalEnvironment';
 
 const $ = DOM.$;
 
@@ -710,7 +711,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 
 		this._terminalService.setActiveInstance(instance);
 
-		const preparedPath = await this._terminalInstanceService.preparePathForTerminalAsync(path, instance.shellLaunchConfig.executable, instance.title, instance.shellType, instance.remoteAuthority);
+		const preparedPath = await preparePathForShell(path, instance.shellLaunchConfig.executable, instance.title, instance.shellType, (e) => this._terminalInstanceService.getBackend(instance.remoteAuthority)?.getWslPath(e));
 		instance.sendText(preparedPath, false);
 		instance.focus();
 	}
