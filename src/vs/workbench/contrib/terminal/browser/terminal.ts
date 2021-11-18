@@ -24,15 +24,17 @@ export const ITerminalGroupService = createDecorator<ITerminalGroupService>('ter
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
 
 /**
- * A service used by TerminalInstance (and components owned by it) that allows it to break its
- * dependency on electron-browser and node layers, while at the same time avoiding a cyclic
- * dependency on ITerminalService.
+ * A service used to create instances or fetch backends, this services allows services that
+ * ITerminalService depends on to also create instances.
  *
  * **This service is intended to only be used within the terminal contrib.**
  */
 export interface ITerminalInstanceService {
 	readonly _serviceBrand: undefined;
 
+	/**
+	 * An event that's fired when a terminal instance is created.
+	 */
 	onDidCreateInstance: Event<ITerminalInstance>;
 
 	/**
@@ -43,11 +45,20 @@ export interface ITerminalInstanceService {
 	 */
 	convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig;
 
+	/**
+	 * Create a new terminal instance.
+	 * @param launchConfig The shell launch config.
+	 * @param target The target of the terminal, when this is undefined the default target will be
+	 * used.
+	 * @param resource The URI for the terminal. Note that this is the unique identifier for the
+	 * terminal, not the cwd.
+	 */
 	createInstance(launchConfig: IShellLaunchConfig, target?: TerminalLocation, resource?: URI): ITerminalInstance;
 
 	/**
 	 * Gets the registered backend for a remote authority (undefined = local). This is a convenience
 	 * method to avoid using the more verbose fetching from the registry.
+	 * @param remoteAuthority The remote authority of the backend.
 	 */
 	getBackend(remoteAuthority?: string): ITerminalBackend | undefined;
 }
