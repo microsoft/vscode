@@ -8,10 +8,10 @@
 import * as fs from 'fs';
 import { Readable } from 'stream';
 import * as crypto from 'crypto';
-import { BlobServiceClient, BlockBlobParallelUploadOptions, StoragePipelineOptions, StorageRetryPolicyType, StorageSharedKeyCredential } from '@azure/storage-blob';
+import { BlobServiceClient, BlockBlobParallelUploadOptions, StoragePipelineOptions, StorageRetryPolicyType } from '@azure/storage-blob';
 import * as mime from 'mime';
 import { CosmosClient } from '@azure/cosmos';
-import { AzureCliCredential } from '@azure/identity';
+import { ClientSecretCredential } from '@azure/identity';
 import { retry } from './retry';
 
 interface Asset {
@@ -172,9 +172,8 @@ async function main(): Promise<void> {
 
 	const storagePipelineOptions: StoragePipelineOptions = { retryOptions: { retryPolicyType: StorageRetryPolicyType.EXPONENTIAL, maxTries: 6, tryTimeoutInMs: 10 * 60 * 1000 } };
 
-	const storageAccount = process.env['AZURE_STORAGE_ACCOUNT_2']!;
-	const credential = new AzureCliCredential();
-	const blobServiceClient = new BlobServiceClient(`https://${storageAccount}.blob.core.windows.net`, credential, storagePipelineOptions);
+	const credential = new ClientSecretCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, process.env['AZURE_CLIENT_SECRET']!);
+	const blobServiceClient = new BlobServiceClient(`https://vscode.blob.core.windows.net`, credential, storagePipelineOptions);
 	const containerClient = blobServiceClient.getContainerClient(quality);
 	const blobClient = containerClient.getBlockBlobClient(blobName);
 	const blobExists = await blobClient.exists();
@@ -184,10 +183,8 @@ async function main(): Promise<void> {
 		return;
 	}
 
-	const mooncakeStorageAccount = process.env['AZURE_STORAGE_ACCOUNT_2']!;
-	const mooncakeStorageKey = process.env['AZURE_STORAGE_ACCESS_KEY_2']!;
-	const mooncakeCredential = new StorageSharedKeyCredential(mooncakeStorageAccount, mooncakeStorageKey);
-	const mooncakeBlobServiceClient = new BlobServiceClient(`https://${mooncakeStorageAccount}.blob.core.chinacloudapi.cn`, mooncakeCredential, storagePipelineOptions);
+	const mooncakeCredential = new ClientSecretCredential(process.env['AZURE_MOONCAKE_TENANT_ID']!, process.env['AZURE_MOONCAKE_CLIENT_ID']!, process.env['AZURE_MOONCAKE_CLIENT_SECRET']!);
+	const mooncakeBlobServiceClient = new BlobServiceClient(`https://vscode.blob.core.chinacloudapi.cn`, mooncakeCredential, storagePipelineOptions);
 	const mooncakeContainerClient = mooncakeBlobServiceClient.getContainerClient(quality);
 	const mooncakeBlobClient = mooncakeContainerClient.getBlockBlobClient(blobName);
 
