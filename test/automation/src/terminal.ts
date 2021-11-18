@@ -96,7 +96,7 @@ export class Terminal {
 				let instance = expectedGroups[groupIndex][indexInGroup];
 				const expected = await this.assertTabExpected(tabs[index], isSplit, instance.name, instance.icon, instance.color);
 				if (!expected) {
-					throw new Error(`Expected a split ${isSplit} terminal with name ${instance.name} and icon ${instance.icon} but class was ${tabs[index].className} and text content was ${tabs[index].textContent}, tabs ${tabs.map(t => `content ${t.textContent}, classes ${t.children.map(c => c.className)}`)}`);
+					throw new Error(`Expected a split ${isSplit} terminal with name ${instance.name} and icon ${instance.icon} but class was ${tabs[index].className} and text content was ${tabs[index].textContent}, tabs ${tabs.map(t => `content ${t.textContent}`)}`);
 				}
 				indexInGroup++;
 				index++;
