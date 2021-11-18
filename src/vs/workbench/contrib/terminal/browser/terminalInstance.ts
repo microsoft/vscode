@@ -38,7 +38,7 @@ import { TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTy
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType, TerminalSettingId, TitleEventSource, TerminalIcon, TerminalLocation, ProcessPropertyType, ProcessCapability, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType, TerminalSettingId, TitleEventSource, TerminalIcon, TerminalLocation, ProcessPropertyType, ProcessCapability, IProcessPropertyMap, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { AutoOpenBarrier, Promises } from 'vs/base/common/async';
@@ -64,7 +64,7 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/lineDataEventAddon';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
-import { preparePathForShell } from 'vs/platform/terminal/common/terminalEnvironment';
+import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 
 const enum Constants {
 	/**
@@ -2172,4 +2172,76 @@ export function parseExitResult(
 	}
 
 	return { code, message };
+}
+
+/**
+ * Takes a path and returns the properly escaped path to send to a given shell. On Windows, this
+ * included trying to prepare the path for WSL if needed.
+ *
+ * @param originalPath The path to be escaped and formatted.
+ * @param executable The executable off the shellLaunchConfig.
+ * @param title The terminal's title.
+ * @param shellType The type of shell the path is being sent to.
+ * @param getWslPath A callback to convert a path to its WSL version.
+ * @returns An escaped version of the path to be execuded in the terminal.
+ */
+async function preparePathForShell(originalPath: string, executable: string | undefined, title: string, shellType: TerminalShellType, getWslPath: ((original: string) => Promise<string> | undefined) | undefined): Promise<string> {
+	return new Promise<string>(c => {
+		if (!executable) {
+			c(originalPath);
+			return;
+		}
+
+		const hasSpace = originalPath.indexOf(' ') !== -1;
+		const hasParens = originalPath.indexOf('(') !== -1 || originalPath.indexOf(')') !== -1;
+
+		const pathBasename = path.basename(executable, '.exe');
+		const isPowerShell = pathBasename === 'pwsh' ||
+			title === 'pwsh' ||
+			pathBasename === 'powershell' ||
+			title === 'powershell';
+
+		if (isPowerShell && (hasSpace || originalPath.indexOf('\'') !== -1)) {
+			c(`& '${originalPath.replace(/'/g, '\'\'')}'`);
+			return;
+		}
+
+		if (hasParens && isPowerShell) {
+			c(`& '${originalPath}'`);
+			return;
+		}
+
+		// TODO: This should use the process manager's OS, not the local OS
+		if (isWindows) {
+			// 17063 is the build number where wsl path was introduced.
+			// Update Windows uriPath to be executed in WSL.
+			if (shellType !== undefined) {
+				if (shellType === WindowsShellType.GitBash) {
+					c(originalPath.replace(/\\/g, '/'));
+				}
+				else if (shellType === WindowsShellType.Wsl) {
+					c(getWslPath?.(originalPath) || originalPath);
+				}
+
+				else if (hasSpace) {
+					c('"' + originalPath + '"');
+				} else {
+					c(originalPath);
+				}
+			} else {
+				const lowerExecutable = executable.toLowerCase();
+				if (lowerExecutable.indexOf('wsl') !== -1 || (lowerExecutable.indexOf('bash.exe') !== -1 && lowerExecutable.toLowerCase().indexOf('git') === -1)) {
+					c(getWslPath?.(originalPath) || originalPath);
+				} else if (hasSpace) {
+					c('"' + originalPath + '"');
+				} else {
+					c(originalPath);
+				}
+			}
+
+			return;
+		}
+
+		c(escapeNonWindowsPath(originalPath));
+	});
 }
