@@ -333,8 +333,8 @@ stages:
 
   - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), ne(variables['VSCODE_PUBLISH'], 'false')) }}:
       - stage: Publish
-        # dependsOn:
-        #   - Compile
+        dependsOn:
+          - Compile
         pool:
           vmImage: "Ubuntu-18.04"
         variables:
