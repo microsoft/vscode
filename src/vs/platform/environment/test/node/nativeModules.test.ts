@@ -37,19 +37,35 @@ suite('Native Modules (all platforms)', () => {
 		assert.ok(typeof spdlog.createRotatingLogger === 'function', testErrorMessage('spdlog'));
 	});
 
-	test('nsfw', async () => {
-		const nsfWatcher = await import('vscode-nsfw');
-		assert.ok(typeof nsfWatcher === 'function', testErrorMessage('nsfw'));
-	});
-
-	test('parcel', async () => {
+	test('@parcel/watcher', async () => {
 		const parcelWatcher = await import('@parcel/watcher');
 		assert.ok(typeof parcelWatcher.subscribe === 'function', testErrorMessage('parcel'));
 	});
 
-	test('sqlite3', async () => {
+	test('@vscode/sqlite3', async () => {
 		const sqlite3 = await import('@vscode/sqlite3');
 		assert.ok(typeof sqlite3.Database === 'function', testErrorMessage('@vscode/sqlite3'));
+	});
+
+	test('keytar', async () => {
+		const keytar = await import('keytar');
+		const name = `VSCode Test ${Math.floor(Math.random() * 1e9)}`;
+		try {
+			await keytar.setPassword(name, 'foo', 'bar');
+			assert.strictEqual(await keytar.findPassword(name), 'bar');
+			assert.strictEqual((await keytar.findCredentials(name)).length, 1);
+			assert.strictEqual(await keytar.getPassword(name, 'foo'), 'bar');
+			await keytar.deletePassword(name, 'foo');
+			assert.strictEqual(await keytar.getPassword(name, 'foo'), null);
+		} catch (err) {
+			// try to clean up
+			try {
+				await keytar.deletePassword(name, 'foo');
+			} finally {
+				// eslint-disable-next-line no-unsafe-finally
+				throw err;
+			}
+		}
 	});
 });
 
