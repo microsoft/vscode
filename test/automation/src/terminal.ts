@@ -99,7 +99,7 @@ export class Terminal {
 				const isSplit = terminalsInGroup > 1;
 				while (indexInGroup < terminalsInGroup) {
 					let instance = expectedGroups[groupIndex][indexInGroup];
-					const nameRegex = instance.name && isSplit ? new RegExp(/[├┌└]\s*/ + instance.name) : instance.name ? new RegExp(/^\s*/ + instance.name) : undefined;
+					const nameRegex = instance.name && isSplit ? new RegExp(/^\s*[├┌└]\s*/ + instance.name) : instance.name ? new RegExp(/^\s*/ + instance.name) : undefined;
 					await this.assertTabExpected(undefined, index, nameRegex, instance.icon, instance.color);
 					indexInGroup++;
 					index++;
@@ -112,10 +112,6 @@ export class Terminal {
 		if (listIndex) {
 			if (nameRegex) {
 				await this.code.waitForElement(`${Selector.Tabs}[data-index="${listIndex}"] ${Selector.TabsEntry}`, entry => !!entry && !!entry?.textContent.match(nameRegex));
-				const tab = await this.code.waitForElement(`${Selector.Tabs}[data-index="${listIndex}"] ${Selector.TabsEntry}`);
-				console.log(tab?.textContent.match(nameRegex));
-				console.log('regex', nameRegex);
-				console.log('text content', tab?.textContent);
 			}
 			if (color) {
 				await this.code.waitForElement(`${Selector.Tabs}[data-index="${listIndex}"] ${Selector.TabsEntry} .monaco-icon-label.terminal-icon-terminal_ansi${color}`);

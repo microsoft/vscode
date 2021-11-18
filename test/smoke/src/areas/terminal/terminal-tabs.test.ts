@@ -67,7 +67,7 @@ export function setup(opts: ParsedArgs) {
 			await terminal.assertSingleTab({ name });
 		});
 
-		it.only('should rename the tab in the tabs list', async () => {
+		it('should rename the tab in the tabs list', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
 			await terminal.runCommand(TerminalCommandId.Split);
 			const name = 'my terminal name';
