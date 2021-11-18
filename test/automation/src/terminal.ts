@@ -99,7 +99,7 @@ export class Terminal {
 				const isSplit = terminalsInGroup > 1;
 				while (indexInGroup < terminalsInGroup) {
 					let instance = expectedGroups[groupIndex][indexInGroup];
-					const nameRegex = instance.name && isSplit ? new RegExp(/^\s*[├┌└]\s*/ + instance.name) : instance.name ? new RegExp(/^\s*/ + instance.name) : undefined;
+					const nameRegex = instance.name && isSplit ? new RegExp('\\s*[├┌└]\\s*' + instance.name) : instance.name ? new RegExp(/^\s*/ + instance.name) : undefined;
 					await this.assertTabExpected(undefined, index, nameRegex, instance.icon, instance.color);
 					indexInGroup++;
 					index++;
