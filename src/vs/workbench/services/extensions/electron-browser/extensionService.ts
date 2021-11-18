@@ -336,10 +336,10 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		this._logService.info(`Invoking resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)})`);
 		try {
 			const result = await localProcessExtensionHost.resolveAuthority(remoteAuthority);
-			this._logService.info(`resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)}) returned '${result.authority.host}:${result.authority.port}' after ${sw.elapsed} ms`);
+			this._logService.info(`resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)}) returned '${result.authority.host}:${result.authority.port}' after ${sw.elapsed()} ms`);
 			this._remoteAuthorityResolverService._setResolvedAuthority(result.authority, result.options);
 		} catch (err) {
-			this._logService.error(`resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)}) returned an error after ${sw.elapsed} ms`, err);
+			this._logService.error(`resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)}) returned an error after ${sw.elapsed()} ms`, err);
 			this._remoteAuthorityResolverService._setResolvedAuthorityError(remoteAuthority, err);
 		}
 	}
@@ -374,9 +374,9 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			this._logService.info(`Invoking resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)})`);
 			try {
 				resolverResult = await localProcessExtensionHost.resolveAuthority(remoteAuthority);
-				this._logService.info(`resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)}) returned '${resolverResult.authority.host}:${resolverResult.authority.port}' after ${sw.elapsed} ms`);
+				this._logService.info(`resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)}) returned '${resolverResult.authority.host}:${resolverResult.authority.port}' after ${sw.elapsed()} ms`);
 			} catch (err) {
-				this._logService.error(`resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)}) returned an error after ${sw.elapsed} ms`, err);
+				this._logService.error(`resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)}) returned an error after ${sw.elapsed()} ms`, err);
 				if (RemoteAuthorityResolverError.isNoResolverFound(err)) {
 					err.isHandled = await this._handleNoResolverFound(remoteAuthority);
 				} else {
