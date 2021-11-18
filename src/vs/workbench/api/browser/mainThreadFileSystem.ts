@@ -149,6 +149,10 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 
 		throw err;
 	}
+
+	$ensureActivation(scheme: string): Promise<void> {
+		return this._fileService.activateProvider(scheme);
+	}
 }
 
 class RemoteFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileFolderCopyCapability {
