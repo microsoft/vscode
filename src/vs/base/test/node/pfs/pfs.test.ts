@@ -280,7 +280,6 @@ flakySuite('PFS', function () {
 			const linkTarget = await Promises.readlink(targetLinkMD5JSFolderLinked);
 			assert.strictEqual(linkTarget, targetLinkMD5JSFolder);
 
-			// Ref https://github.com/nodejs/node/commit/0ddd75bcd816a8e5f4e27411b8e913abb92c2ed5
 			await Promises.rm(targetLinkTestFolder);
 		}
 
