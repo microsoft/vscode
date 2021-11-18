@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { LanguageIdentifier, MetadataConsts } from 'vs/editor/common/modes';
+import { MetadataConsts } from 'vs/editor/common/modes';
 import { ViewLineToken, ViewLineTokenFactory } from 'vs/editor/test/common/core/viewLineToken';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
@@ -107,7 +107,7 @@ suite('ModelLinesTokens', () => {
 
 	function testApplyEdits(initial: IBufferLineState[], edits: IEdit[], expected: IBufferLineState[]): void {
 		const initialText = initial.map(el => el.text).join('\n');
-		const model = createTextModel(initialText, TextModel.DEFAULT_CREATION_OPTIONS, new LanguageIdentifier('test', 0));
+		const model = createTextModel(initialText, TextModel.DEFAULT_CREATION_OPTIONS, 'test');
 		for (let lineIndex = 0; lineIndex < initial.length; lineIndex++) {
 			const lineTokens = initial[lineIndex].tokens;
 			const lineTextLength = model.getLineMaxColumn(lineIndex + 1) - 1;
@@ -129,6 +129,8 @@ suite('ModelLinesTokens', () => {
 			assert.strictEqual(actualLine, expected[lineIndex].text);
 			assertLineTokens(actualTokens, expected[lineIndex].tokens);
 		}
+
+		model.dispose();
 	}
 
 	test('single delete 1', () => {
@@ -443,7 +445,7 @@ suite('ModelLinesTokens', () => {
 	}
 
 	test('insertion on empty line', () => {
-		const model = createTextModel('some text', TextModel.DEFAULT_CREATION_OPTIONS, new LanguageIdentifier('test', 0));
+		const model = createTextModel('some text', TextModel.DEFAULT_CREATION_OPTIONS, 'test');
 		const tokens = TestToken.toTokens([new TestToken(0, 1)]);
 		LineTokens.convertToEndOffset(tokens, model.getLineMaxColumn(1) - 1);
 		model.setLineTokens(1, tokens);
@@ -462,6 +464,8 @@ suite('ModelLinesTokens', () => {
 
 		const actualTokens = model.getLineTokens(1);
 		assertLineTokens(actualTokens, [new TestToken(0, 1)]);
+
+		model.dispose();
 	});
 
 	test('updates tokens on insertion 1', () => {

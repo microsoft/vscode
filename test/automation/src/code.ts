@@ -128,6 +128,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 
 	const env = { ...process.env };
 	const codePath = options.codePath;
+	const logsPath = path.join(repoPath, '.build', 'logs', options.remote ? 'smoke-tests-remote' : 'smoke-tests');
 	const outPath = codePath ? getBuildOutPath(codePath) : getDevOutPath();
 
 	const args = [
@@ -142,7 +143,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		'--disable-workspace-trust',
 		`--extensions-dir=${options.extensionsPath}`,
 		`--user-data-dir=${options.userDataDir}`,
-		`--logsPath=${path.join(repoPath, '.build', 'logs', 'smoke-tests')}`,
+		`--logsPath=${logsPath}`,
 		'--driver', handle
 	];
 
@@ -170,6 +171,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		}
 
 		env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
+		env['TESTRESOLVER_LOGS_FOLDER'] = path.join(logsPath, 'server');
 	}
 
 	const spawnOptions: cp.SpawnOptions = { env };
@@ -223,14 +225,13 @@ async function poll<T>(
 		if (trial > retryCount) {
 			console.error('** Timeout!');
 			console.error(lastError);
-
+			console.error(`Timeout: ${timeoutMessage} after ${(retryCount * retryInterval) / 1000} seconds.`);
 			throw new Error(`Timeout: ${timeoutMessage} after ${(retryCount * retryInterval) / 1000} seconds.`);
 		}
 
 		let result;
 		try {
 			result = await fn();
-
 			if (acceptFn(result)) {
 				return result;
 			} else {
@@ -248,7 +249,7 @@ async function poll<T>(
 export class Code {
 
 	private _activeWindowId: number | undefined = undefined;
-	private driver: IDriver;
+	driver: IDriver;
 
 	constructor(
 		private client: IDisposable,

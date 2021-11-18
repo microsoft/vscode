@@ -115,7 +115,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 
 			// ... to the same composite location
 			if (currentLocation === this.targetContainerLocation) {
-				return true;
+				return dragData.id !== targetCompositeId;
 			}
 
 			// ... to another composite location
@@ -244,7 +244,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 				// don't add feedback if this is over the composite bar actions or there are no actions
 				const visibleItems = this.getVisibleComposites();
 				if (!visibleItems.length || (e.eventData.target && isAncestor(e.eventData.target as HTMLElement, actionBarDiv))) {
-					insertDropBefore = this.updateFromDragging(parent, false, false);
+					insertDropBefore = this.updateFromDragging(parent, false, false, true);
 					return;
 				}
 
@@ -252,14 +252,14 @@ export class CompositeBar extends Widget implements ICompositeBar {
 				const target = insertAtFront ? visibleItems[0] : visibleItems[visibleItems.length - 1];
 				const validDropTarget = this.options.dndHandler.onDragOver(e.dragAndDropData, target.id, e.eventData);
 				toggleDropEffect(e.eventData.dataTransfer, 'move', validDropTarget);
-				insertDropBefore = this.updateFromDragging(parent, validDropTarget, insertAtFront);
+				insertDropBefore = this.updateFromDragging(parent, validDropTarget, insertAtFront, true);
 			},
 
 			onDragLeave: (e: IDraggedCompositeData) => {
-				insertDropBefore = this.updateFromDragging(parent, false, false);
+				insertDropBefore = this.updateFromDragging(parent, false, false, false);
 			},
 			onDragEnd: (e: IDraggedCompositeData) => {
-				insertDropBefore = this.updateFromDragging(parent, false, false);
+				insertDropBefore = this.updateFromDragging(parent, false, false, false);
 			},
 			onDrop: (e: IDraggedCompositeData) => {
 				const visibleItems = this.getVisibleComposites();
@@ -267,7 +267,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 					const target = this.insertAtFront(actionBarDiv, e.eventData) ? visibleItems[0] : visibleItems[visibleItems.length - 1];
 					this.options.dndHandler.drop(e.dragAndDropData, target.id, e.eventData, insertDropBefore);
 				}
-				insertDropBefore = this.updateFromDragging(parent, false, false);
+				insertDropBefore = this.updateFromDragging(parent, false, false, false);
 			}
 		}));
 
@@ -287,7 +287,8 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		}
 	}
 
-	private updateFromDragging(element: HTMLElement, showFeedback: boolean, front: boolean): Before2D | undefined {
+	private updateFromDragging(element: HTMLElement, showFeedback: boolean, front: boolean, isDragging: boolean): Before2D | undefined {
+		element.classList.toggle('dragged-over', isDragging);
 		element.classList.toggle('dragged-over-head', showFeedback && front);
 		element.classList.toggle('dragged-over-tail', showFeedback && !front);
 
@@ -510,42 +511,56 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		).map(item => item.id);
 
 		// Ensure we are not showing more composites than we have height for
-		let overflows = false;
 		let maxVisible = compositesToShow.length;
+		let totalComposites = compositesToShow.length;
 		let size = 0;
 		const limit = this.options.orientation === ActionsOrientation.VERTICAL ? this.dimension.height : this.dimension.width;
-		for (let i = 0; i < compositesToShow.length && size <= limit; i++) {
-			size += this.compositeSizeInBar.get(compositesToShow[i])!;
-			if (size > limit) {
+
+		// Add composites while they fit
+		for (let i = 0; i < compositesToShow.length; i++) {
+			const compositeSize = this.compositeSizeInBar.get(compositesToShow[i])!;
+			// Adding this composite will overflow available size, so don't
+			if (size + compositeSize > limit) {
 				maxVisible = i;
+				break;
 			}
-		}
-		overflows = compositesToShow.length > maxVisible;
 
-		if (overflows) {
-			size -= this.compositeSizeInBar.get(compositesToShow[maxVisible])!;
+			size += compositeSize;
+		}
+
+		// Remove the tail of composites that did not fit
+		if (totalComposites > maxVisible) {
 			compositesToShow = compositesToShow.slice(0, maxVisible);
-			size += this.options.overflowActionSize;
-		}
-		// Check if we need to make extra room for the overflow action
-		if (size > limit) {
-			size -= this.compositeSizeInBar.get(compositesToShow.pop()!)!;
 		}
 
-		// We always try show the active composite
+		// We always try show the active composite, so re-add it if it was sliced out
 		if (this.model.activeItem && compositesToShow.every(compositeId => !!this.model.activeItem && compositeId !== this.model.activeItem.id)) {
-			const removedComposite = compositesToShow.pop()!;
-			size = size - this.compositeSizeInBar.get(removedComposite)! + this.compositeSizeInBar.get(this.model.activeItem.id)!;
+			size += this.compositeSizeInBar.get(this.model.activeItem.id)!;
 			compositesToShow.push(this.model.activeItem.id);
 		}
 
-		// The active composite might have bigger size than the removed composite, check for overflow again
-		if (size > limit) {
-			compositesToShow.length ? compositesToShow.splice(compositesToShow.length - 2, 1) : compositesToShow.pop();
+		// The active composite might have pushed us over the limit
+		// Keep popping the composite before the active one until it fits
+		// If even the active one doesn't fit, we will resort to overflow
+		while (size > limit && compositesToShow.length) {
+			const removedComposite = compositesToShow.length > 1 ? compositesToShow.splice(compositesToShow.length - 2, 1)[0] : compositesToShow.pop();
+			size -= this.compositeSizeInBar.get(removedComposite!)!;
+		}
+
+		// We are overflowing, add the overflow size
+		if (totalComposites > compositesToShow.length) {
+			size += this.options.overflowActionSize;
+		}
+
+		// Check if we need to make extra room for the overflow action
+		while (size > limit && compositesToShow.length) {
+			const removedComposite = compositesToShow.length > 1 && compositesToShow[compositesToShow.length - 1] === this.model.activeItem?.id ?
+				compositesToShow.splice(compositesToShow.length - 2, 1)[0] : compositesToShow.pop();
+			size -= this.compositeSizeInBar.get(removedComposite!)!;
 		}
 
 		// Remove the overflow action if there are no overflows
-		if (!overflows && this.compositeOverflowAction) {
+		if (totalComposites === compositesToShow.length && this.compositeOverflowAction) {
 			compositeSwitcherBar.pull(compositeSwitcherBar.length() - 1);
 
 			this.compositeOverflowAction.dispose();
@@ -588,7 +603,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		});
 
 		// Add overflow action as needed
-		if ((overflows && !this.compositeOverflowAction)) {
+		if (totalComposites > compositesToShow.length && !this.compositeOverflowAction) {
 			this.compositeOverflowAction = this.instantiationService.createInstance(CompositeOverflowActivityAction, () => {
 				if (this.compositeOverflowActionViewItem) {
 					this.compositeOverflowActionViewItem.showMenu();

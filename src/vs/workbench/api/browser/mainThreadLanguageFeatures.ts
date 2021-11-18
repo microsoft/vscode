@@ -16,14 +16,13 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { LanguageConfiguration, IndentationRule, OnEnterRule } from 'vs/editor/common/modes/languageConfiguration';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import * as typeh from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { mixin } from 'vs/base/common/objects';
 import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
@@ -35,7 +34,6 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	constructor(
 		extHostContext: IExtHostContext,
 		@IModeService modeService: IModeService,
-		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostLanguageFeatures);
 		this._modeService = modeService;
@@ -45,12 +43,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				const langWordPairs = LanguageConfigurationRegistry.getWordDefinitions();
 				let wordDefinitionDtos: ILanguageWordDefinitionDto[] = [];
 				for (const [languageId, wordDefinition] of langWordPairs) {
-					const language = this._modeService.getLanguageIdentifier(languageId);
-					if (!language) {
-						continue;
-					}
 					wordDefinitionDtos.push({
-						languageId: language.language,
+						languageId: languageId,
 						regexSource: wordDefinition.source,
 						regexFlags: wordDefinition.flags
 					});
@@ -58,9 +52,9 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				this._proxy.$setWordDefinitions(wordDefinitionDtos);
 			};
 			LanguageConfigurationRegistry.onDidChange((e) => {
-				const wordDefinition = LanguageConfigurationRegistry.getWordDefinition(e.languageIdentifier.id);
+				const wordDefinition = LanguageConfigurationRegistry.getWordDefinition(e.languageId);
 				this._proxy.$setWordDefinitions([{
-					languageId: e.languageIdentifier.language,
+					languageId: e.languageId,
 					regexSource: wordDefinition.source,
 					regexFlags: wordDefinition.flags
 				}]);
@@ -390,27 +384,26 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- navigate type
 
-	$registerNavigateTypeSupport(handle: number): void {
+	$registerNavigateTypeSupport(handle: number, supportsResolve: boolean): void {
 		let lastResultId: number | undefined;
-		this._registrations.set(handle, search.WorkspaceSymbolProviderRegistry.register(<search.IWorkspaceSymbolProvider>{
-			provideWorkspaceSymbols: (search: string, token: CancellationToken): Promise<search.IWorkspaceSymbol[]> => {
-				return this._proxy.$provideWorkspaceSymbols(handle, search, token).then(result => {
-					if (lastResultId !== undefined) {
-						this._proxy.$releaseWorkspaceSymbols(handle, lastResultId);
-					}
-					lastResultId = result._id;
-					return MainThreadLanguageFeatures._reviveWorkspaceSymbolDto(result.symbols);
-				});
-			},
-			resolveWorkspaceSymbol: (item: search.IWorkspaceSymbol, token: CancellationToken): Promise<search.IWorkspaceSymbol | undefined> => {
-				return this._proxy.$resolveWorkspaceSymbol(handle, item, token).then(i => {
-					if (i) {
-						return MainThreadLanguageFeatures._reviveWorkspaceSymbolDto(i);
-					}
-					return undefined;
-				});
+
+		const provider: search.IWorkspaceSymbolProvider = {
+			provideWorkspaceSymbols: async (search: string, token: CancellationToken): Promise<search.IWorkspaceSymbol[]> => {
+				const result = await this._proxy.$provideWorkspaceSymbols(handle, search, token);
+				if (lastResultId !== undefined) {
+					this._proxy.$releaseWorkspaceSymbols(handle, lastResultId);
+				}
+				lastResultId = result._id;
+				return MainThreadLanguageFeatures._reviveWorkspaceSymbolDto(result.symbols);
 			}
-		}));
+		};
+		if (supportsResolve) {
+			provider.resolveWorkspaceSymbol = async (item: search.IWorkspaceSymbol, token: CancellationToken): Promise<search.IWorkspaceSymbol | undefined> => {
+				const resolvedItem = await this._proxy.$resolveWorkspaceSymbol(handle, item, token);
+				return resolvedItem && MainThreadLanguageFeatures._reviveWorkspaceSymbolDto(resolvedItem);
+			};
+		}
+		this._registrations.set(handle, search.WorkspaceSymbolProviderRegistry.register(provider));
 	}
 
 	// --- rename
@@ -568,10 +561,10 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		this._registrations.set(handle, modes.InlayHintsProviderRegistry.register(selector, provider));
 	}
 
-	$emitInlayHintsEvent(eventHandle: number, event?: UriComponents): void {
+	$emitInlayHintsEvent(eventHandle: number): void {
 		const obj = this._registrations.get(eventHandle);
 		if (obj instanceof Emitter) {
-			obj.fire(event && this._uriIdentService.asCanonicalUri(URI.revive(event)));
+			obj.fire(undefined);
 		}
 	}
 
@@ -685,7 +678,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 			prepareCallHierarchy: async (document, position, token) => {
 				const items = await this._proxy.$prepareCallHierarchy(handle, document.uri, position, token);
-				if (!items) {
+				if (!items || items.length === 0) {
 					return undefined;
 				}
 				return {
@@ -777,9 +770,9 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			};
 		}
 
-		const languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
-		if (languageIdentifier) {
-			this._registrations.set(handle, LanguageConfigurationRegistry.register(languageIdentifier, configuration, 100));
+		const validLanguageId = this._modeService.validateLanguageId(languageId);
+		if (validLanguageId) {
+			this._registrations.set(handle, LanguageConfigurationRegistry.register(validLanguageId, configuration, 100));
 		}
 	}
 

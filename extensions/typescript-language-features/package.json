@@ -7,7 +7,12 @@
   "publisher": "vscode",
   "license": "MIT",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
-  "enableProposedApi": true,
+  "enabledApiProposals": [
+    "inlayHints",
+    "languageStatus",
+    "resolvers",
+    "workspaceTrust"
+  ],
   "capabilities": {
     "virtualWorkspaces": {
       "supported": "limited",
@@ -33,8 +38,7 @@
   "dependencies": {
     "jsonc-parser": "^2.2.1",
     "semver": "5.5.1",
-    "typescript-vscode-sh-plugin": "^0.7.3",
-    "vscode-extension-telemetry": "0.4.2",
+    "vscode-extension-telemetry": "0.4.3",
     "vscode-nls": "^5.0.0"
   },
   "devDependencies": {
@@ -1110,6 +1114,18 @@
           "default": "allOpenProjects",
           "markdownDescription": "%typescript.workspaceSymbols.scope%",
           "scope": "window"
+        },
+        "javascript.suggest.includeCompletionsWithClassMemberSnippets": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.includeCompletionsWithClassMemberSnippets%",
+          "scope": "resource"
+        },
+        "typescript.suggest.includeCompletionsWithClassMemberSnippets": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.includeCompletionsWithClassMemberSnippets%",
+          "scope": "resource"
         }
       }
     },
@@ -1383,12 +1399,6 @@
             "title": "%codeActions.source.organizeImports.title%"
           }
         ]
-      }
-    ],
-    "typescriptServerPlugins": [
-      {
-        "name": "typescript-vscode-sh-plugin",
-        "enableForWorkspaceTypeScriptVersions": true
       }
     ]
   },

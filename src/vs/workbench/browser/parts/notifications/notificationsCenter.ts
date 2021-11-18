@@ -157,7 +157,9 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		notificationsToolBar.push(hideAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(hideAllAction) });
 
 		// Notifications List
-		this.notificationsList = this.instantiationService.createInstance(NotificationsList, this.notificationsCenterContainer, {});
+		this.notificationsList = this.instantiationService.createInstance(NotificationsList, this.notificationsCenterContainer, {
+			widgetAriaLabel: localize('notificationsCenterWidgetAriaLabel', "Notifications Center")
+		});
 		this.container.appendChild(this.notificationsCenterContainer);
 	}
 

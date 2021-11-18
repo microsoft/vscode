@@ -694,27 +694,26 @@ export class CommandCenter {
 				viewColumn: ViewColumn.Active
 			};
 
-			let document;
-			try {
-				document = await workspace.openTextDocument(uri);
-			} catch (error) {
-				await commands.executeCommand('vscode.open', uri, {
-					...opts,
-					override: arg instanceof Resource && arg.type === Status.BOTH_MODIFIED ? false : undefined
-				});
+			await commands.executeCommand('vscode.open', uri, {
+				...opts,
+				override: arg instanceof Resource && arg.type === Status.BOTH_MODIFIED ? false : undefined
+			});
+
+			const document = window.activeTextEditor?.document;
+
+			// If the document doesn't match what we opened then don't attempt to select the range
+			if (document?.uri.toString() !== uri.toString()) {
 				continue;
 			}
 
 			// Check if active text editor has same path as other editor. we cannot compare via
 			// URI.toString() here because the schemas can be different. Instead we just go by path.
-			if (activeTextEditor && activeTextEditor.document.uri.path === uri.path) {
+			if (activeTextEditor && activeTextEditor.document.uri.path === uri.path && document) {
 				// preserve not only selection but also visible range
 				opts.selection = activeTextEditor.selection;
 				const previousVisibleRanges = activeTextEditor.visibleRanges;
 				const editor = await window.showTextDocument(document, opts);
 				editor.revealRange(previousVisibleRanges[0]);
-			} else {
-				await commands.executeCommand('vscode.open', uri, opts);
 			}
 		}
 	}

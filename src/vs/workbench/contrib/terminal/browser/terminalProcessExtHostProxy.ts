@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, IProcessProperty, ProcessPropertyType, TerminalShellType, ProcessCapability } from 'vs/platform/terminal/common/terminal';
+import { IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalLaunchError, IProcessProperty, ProcessPropertyType, ProcessCapability, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 
@@ -16,16 +16,8 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	get capabilities(): ProcessCapability[] { return this._capabilities; }
 	private readonly _onProcessData = this._register(new Emitter<string>());
 	readonly onProcessData: Event<string> = this._onProcessData.event;
-	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
-	readonly onProcessExit: Event<number | undefined> = this._onProcessExit.event;
 	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
 	get onProcessReady(): Event<IProcessReadyEvent> { return this._onProcessReady.event; }
-	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
-	readonly onProcessTitleChanged: Event<string> = this._onProcessTitleChanged.event;
-	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensionsOverride | undefined>());
-	get onProcessOverrideDimensions(): Event<ITerminalDimensionsOverride | undefined> { return this._onProcessOverrideDimensions.event; }
-	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());
-	get onProcessResolvedShellLaunchConfig(): Event<IShellLaunchConfig> { return this._onProcessResolvedShellLaunchConfig.event; }
 
 	private readonly _onStart = this._register(new Emitter<void>());
 	readonly onStart: Event<void> = this._onStart.event;
@@ -45,10 +37,10 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	readonly onRequestCwd: Event<void> = this._onRequestCwd.event;
 	private readonly _onRequestLatency = this._register(new Emitter<void>());
 	readonly onRequestLatency: Event<void> = this._onRequestLatency.event;
-	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
-	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
+	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
+	readonly onProcessExit: Event<number | undefined> = this._onProcessExit.event;
 
 
 	private _pendingInitialCwdRequests: ((value: string | PromiseLike<string>) => void)[] = [];
@@ -63,18 +55,37 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	) {
 		super();
 	}
-	onDidChangeHasChildProcesses?: Event<boolean> | undefined;
 
 	emitData(data: string): void {
 		this._onProcessData.fire(data);
 	}
 
 	emitTitle(title: string): void {
-		this._onProcessTitleChanged.fire(title);
+		this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: title });
 	}
 
 	emitReady(pid: number, cwd: string): void {
 		this._onProcessReady.fire({ pid, cwd, capabilities: this.capabilities });
+	}
+
+	emitProcessProperty({ type, value }: IProcessProperty<any>): void {
+		switch (type) {
+			case ProcessPropertyType.Cwd:
+				this.emitCwd(value);
+				break;
+			case ProcessPropertyType.InitialCwd:
+				this.emitInitialCwd(value);
+				break;
+			case ProcessPropertyType.Title:
+				this.emitTitle(value);
+				break;
+			case ProcessPropertyType.OverrideDimensions:
+				this.emitOverrideDimensions(value);
+				break;
+			case ProcessPropertyType.ResolvedShellLaunchConfig:
+				this.emitResolvedShellLaunchConfig(value);
+				break;
+		}
 	}
 
 	emitExit(exitCode: number | undefined): void {
@@ -83,11 +94,11 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	}
 
 	emitOverrideDimensions(dimensions: ITerminalDimensions | undefined): void {
-		this._onProcessOverrideDimensions.fire(dimensions);
+		this._onDidChangeProperty.fire({ type: ProcessPropertyType.OverrideDimensions, value: dimensions });
 	}
 
 	emitResolvedShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig): void {
-		this._onProcessResolvedShellLaunchConfig.fire(shellLaunchConfig);
+		this._onDidChangeProperty.fire({ type: ProcessPropertyType.ResolvedShellLaunchConfig, value: shellLaunchConfig });
 	}
 
 	emitInitialCwd(initialCwd: string): void {
@@ -158,17 +169,11 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 		});
 	}
 
-	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<any> {
-		if (type === ProcessPropertyType.Cwd) {
-			return this.getCwd();
-		} else if (type === ProcessPropertyType.InitialCwd) {
-			return this.getInitialCwd();
-		}
+	async refreshProperty<T extends ProcessPropertyType>(type: T): Promise<any> {
+		// throws if called in extHostTerminalService
 	}
 
-	async updateProperty<T extends ProcessPropertyType>(type: ProcessPropertyType, value: any): Promise<void> {
-		if (type === ProcessPropertyType.FixedDimensions) {
-
-		}
+	async updateProperty<T extends ProcessPropertyType>(type: T, value: IProcessPropertyMap[T]): Promise<void> {
+		// throws if called in extHostTerminalService
 	}
 }

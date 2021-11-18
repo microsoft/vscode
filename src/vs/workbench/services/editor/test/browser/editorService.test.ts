@@ -45,7 +45,7 @@ suite('EditorService', () => {
 		disposables.clear();
 	});
 
-	async function createEditorService(instantiationService: ITestInstantiationService = workbenchInstantiationService()): Promise<[EditorPart, EditorService, TestServiceAccessor]> {
+	async function createEditorService(instantiationService: ITestInstantiationService = workbenchInstantiationService(undefined, disposables)): Promise<[EditorPart, EditorService, TestServiceAccessor]> {
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);
 
@@ -162,6 +162,68 @@ suite('EditorService', () => {
 		activeEditorChangeListener.dispose();
 		visibleEditorChangeListener.dispose();
 		didCloseEditorListener.dispose();
+	});
+
+	test('openEditor() - multiple calls are cancelled and indicated as such', async () => {
+		const [, service] = await createEditorService();
+
+		let input = new TestFileEditorInput(URI.parse('my://resource-basics'), TEST_EDITOR_INPUT_ID);
+		let otherInput = new TestFileEditorInput(URI.parse('my://resource2-basics'), TEST_EDITOR_INPUT_ID);
+
+		let activeEditorChangeEventCounter = 0;
+		const activeEditorChangeListener = service.onDidActiveEditorChange(() => {
+			activeEditorChangeEventCounter++;
+		});
+
+		let visibleEditorChangeEventCounter = 0;
+		const visibleEditorChangeListener = service.onDidVisibleEditorsChange(() => {
+			visibleEditorChangeEventCounter++;
+		});
+
+		const editorP1 = service.openEditor(input, { pinned: true });
+		const editorP2 = service.openEditor(otherInput, { pinned: true });
+
+		const editor1 = await editorP1;
+		assert.strictEqual(editor1, undefined);
+
+		const editor2 = await editorP2;
+		assert.strictEqual(editor2?.input, otherInput);
+
+		assert.strictEqual(activeEditorChangeEventCounter, 1);
+		assert.strictEqual(visibleEditorChangeEventCounter, 1);
+
+		activeEditorChangeListener.dispose();
+		visibleEditorChangeListener.dispose();
+	});
+
+	test('openEditor() - same input does not cancel previous one - https://github.com/microsoft/vscode/issues/136684', async () => {
+		const [, service] = await createEditorService();
+
+		let input = new TestFileEditorInput(URI.parse('my://resource-basics'), TEST_EDITOR_INPUT_ID);
+
+		let editorP1 = service.openEditor(input, { pinned: true });
+		let editorP2 = service.openEditor(input, { pinned: true });
+
+		let editor1 = await editorP1;
+		assert.strictEqual(editor1?.input, input);
+
+		let editor2 = await editorP2;
+		assert.strictEqual(editor2?.input, input);
+
+		assert.ok(editor2.group);
+		await editor2.group.closeAllEditors();
+
+		input = new TestFileEditorInput(URI.parse('my://resource-basics'), TEST_EDITOR_INPUT_ID);
+		let inputSame = new TestFileEditorInput(URI.parse('my://resource-basics'), TEST_EDITOR_INPUT_ID);
+
+		editorP1 = service.openEditor(input, { pinned: true });
+		editorP2 = service.openEditor(inputSame, { pinned: true });
+
+		editor1 = await editorP1;
+		assert.strictEqual(editor1?.input, input);
+
+		editor2 = await editorP2;
+		assert.strictEqual(editor2?.input, input);
 	});
 
 	test('openEditor() - locked groups', async () => {
@@ -296,7 +358,7 @@ suite('EditorService', () => {
 	});
 
 	test('locked groups - workbench.editor.revealIfOpen', async () => {
-		const instantiationService = workbenchInstantiationService();
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const configurationService = new TestConfigurationService();
 		await configurationService.setUserConfiguration('workbench', { 'editor': { 'revealIfOpen': true } });
 		instantiationService.stub(IConfigurationService, configurationService);
@@ -2172,7 +2234,7 @@ suite('EditorService', () => {
 	});
 
 	test('activeEditorPane scopedContextKeyService', async function () {
-		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) });
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
 		const [part, service] = await createEditorService(instantiationService);
 
 		const input1 = new TestFileEditorInput(URI.parse('file://resource1'), TEST_EDITOR_INPUT_ID);

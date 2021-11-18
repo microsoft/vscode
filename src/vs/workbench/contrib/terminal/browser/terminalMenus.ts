@@ -173,6 +173,17 @@ export function setupTerminalMenus(): void {
 				id: MenuId.TerminalInstanceContext,
 				item: {
 					command: {
+						id: TerminalCommandId.SizeToContentWidth,
+						title: terminalStrings.toggleSizeToContentWidth
+					},
+					group: ContextMenuGroup.Config
+				}
+			},
+
+			{
+				id: MenuId.TerminalInstanceContext,
+				item: {
+					command: {
 						id: TerminalCommandId.SelectAll,
 						title: localize('workbench.action.terminal.selectAll', "Select All"),
 					},
@@ -258,6 +269,16 @@ export function setupTerminalMenus(): void {
 					order: 3
 				}
 			},
+			{
+				id: MenuId.TerminalEditorInstanceContext,
+				item: {
+					command: {
+						id: TerminalCommandId.SizeToContentWidth,
+						title: terminalStrings.toggleSizeToContentWidth
+					},
+					group: ContextMenuGroup.Config
+				}
+			}
 		]
 	);
 
@@ -440,7 +461,8 @@ export function setupTerminalMenus(): void {
 					group: 'navigation',
 					order: 0,
 					when: ContextKeyExpr.and(
-						ContextKeyExpr.equals('view', TERMINAL_VIEW_ID)
+						ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
+						ContextKeyExpr.or(TerminalContextKeys.webExtensionContributedProfile, TerminalContextKeys.processSupported)
 					)
 				}
 			}
@@ -465,7 +487,7 @@ export function setupTerminalMenus(): void {
 				item: {
 					command: {
 						id: TerminalCommandId.MoveToEditor,
-						title: terminalStrings.moveToEditor.short
+						title: terminalStrings.moveToEditor.value
 					},
 					group: ContextMenuGroup.Create,
 					order: 2
@@ -542,7 +564,7 @@ export function setupTerminalMenus(): void {
 				item: {
 					command: {
 						id: TerminalCommandId.MoveToEditorInstance,
-						title: terminalStrings.moveToEditor.short
+						title: terminalStrings.moveToEditor.value
 					},
 					group: ContextMenuGroup.Create,
 					order: 2
@@ -688,6 +710,7 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 	let dropdownActions: IAction[] = [];
 	let submenuActions: IAction[] = [];
 
+	const splitLocation = (location === TerminalLocation.Editor || (typeof location === 'object' && 'viewColumn' in location && location.viewColumn === ACTIVE_GROUP)) ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };
 	for (const p of profiles) {
 		const isDefault = p.profileName === defaultProfileName;
 		const options: IMenuActionOptions = {
@@ -697,7 +720,6 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 			} as ICreateTerminalOptions,
 			shouldForwardArgs: true
 		};
-		const splitLocation = (location === TerminalLocation.Editor || location === { viewColumn: ACTIVE_GROUP }) ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };
 		const splitOptions: IMenuActionOptions = {
 			arg: {
 				config: p,
@@ -725,7 +747,6 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 			},
 			location
 		})));
-		const splitLocation = location === TerminalLocation.Editor ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };
 		submenuActions.push(new Action('contributed-split', title, undefined, true, () => terminalService.createTerminal({
 			config: {
 				extensionIdentifier: contributed.extensionIdentifier,
@@ -743,7 +764,7 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 	}
 
 	if (dropdownActions.length > 0) {
-		dropdownActions.push(new SubmenuAction('split.profile', 'Split...', submenuActions));
+		dropdownActions.push(new SubmenuAction('split.profile', localize('splitTerminal', 'Split Terminal'), submenuActions));
 		dropdownActions.push(new Separator());
 	}
 

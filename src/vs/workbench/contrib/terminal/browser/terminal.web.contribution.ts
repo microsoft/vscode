@@ -17,5 +17,5 @@ KeybindingsRegistry.registerKeybindingRule({
 	id: TerminalCommandId.New,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: undefined,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC
 });

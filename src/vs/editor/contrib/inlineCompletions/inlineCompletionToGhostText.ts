@@ -82,6 +82,11 @@ export function inlineCompletionToGhostText(
 
 	const changes = cachingDiff(valueToBeReplaced, inlineCompletion.text);
 
+	if (!changes) {
+		// No ghost text in case the diff would be too slow to compute
+		return undefined;
+	}
+
 	const lineNumber = inlineCompletion.range.startLineNumber;
 
 	const parts = new Array<GhostTextPart>();
@@ -130,8 +135,8 @@ export function inlineCompletionToGhostText(
 	return new GhostText(lineNumber, parts, 0);
 }
 
-let lastRequest: { originalValue: string; newValue: string; changes: readonly IDiffChange[]; } | undefined = undefined;
-function cachingDiff(originalValue: string, newValue: string): readonly IDiffChange[] {
+let lastRequest: { originalValue: string; newValue: string; changes: readonly IDiffChange[] | undefined; } | undefined = undefined;
+function cachingDiff(originalValue: string, newValue: string): readonly IDiffChange[] | undefined {
 	if (lastRequest?.originalValue === originalValue && lastRequest?.newValue === newValue) {
 		return lastRequest?.changes;
 	} else {
@@ -153,7 +158,12 @@ function cachingDiff(originalValue: string, newValue: string): readonly IDiffCha
  *
  * The parenthesis are preprocessed to ensure that they match correctly.
  */
-function smartDiff(originalValue: string, newValue: string): readonly IDiffChange[] {
+function smartDiff(originalValue: string, newValue: string): (readonly IDiffChange[]) | undefined {
+	if (originalValue.length > 5000 || newValue.length > 5000) {
+		// We don't want to work on strings that are too big
+		return undefined;
+	}
+
 	function getMaxCharCode(val: string): number {
 		let maxCharCode = 0;
 		for (let i = 0, len = val.length; i < len; i++) {

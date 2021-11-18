@@ -311,7 +311,7 @@ function withController(accessor: ServicesAccessor, fn: (controller: ReferencesC
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'togglePeekWidgetFocus',
 	weight: KeybindingWeight.EditorContrib,
-	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.F2),
+	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.F2),
 	when: ContextKeyExpr.or(ctxReferenceSearchVisible, PeekContext.inPeekEditor),
 	handler(accessor) {
 		withController(accessor, controller => {

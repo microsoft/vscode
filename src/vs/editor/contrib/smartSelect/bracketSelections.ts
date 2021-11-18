@@ -41,7 +41,7 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 				resolve();
 				break;
 			}
-			let bracket = model.findNextBracket(pos);
+			let bracket = model.bracketPairs.findNextBracket(pos);
 			if (!bracket) {
 				resolve();
 				break;
@@ -86,7 +86,7 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 				resolve();
 				break;
 			}
-			let bracket = model.findPrevBracket(pos);
+			let bracket = model.bracketPairs.findPrevBracket(pos);
 			if (!bracket) {
 				resolve();
 				break;

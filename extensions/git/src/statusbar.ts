@@ -154,7 +154,7 @@ class SyncStatusBar {
 			} else {
 				icon = '$(cloud-upload)';
 				command = 'git.publish';
-				tooltip = localize('publish changes', "Publish Changes");
+				tooltip = localize('publish branch', "Publish Branch");
 			}
 		} else {
 			command = '';

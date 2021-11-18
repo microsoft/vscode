@@ -298,12 +298,10 @@ export interface IEditorOptions {
 	wrappingStrategy?: 'simple' | 'advanced';
 	/**
 	 * Configure word wrapping characters. A break will be introduced before these characters.
-	 * Defaults to '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋'.
 	 */
 	wordWrapBreakBeforeCharacters?: string;
 	/**
 	 * Configure word wrapping characters. A break will be introduced after these characters.
-	 * Defaults to ' \t})]?|/&.,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣'.
 	 */
 	wordWrapBreakAfterCharacters?: string;
 	/**
@@ -575,7 +573,7 @@ export interface IEditorOptions {
 	renderWhitespace?: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
 	/**
 	 * Enable rendering of control characters.
-	 * Defaults to false.
+	 * Defaults to true.
 	 */
 	renderControlCharacters?: boolean;
 	/**
@@ -1152,6 +1150,9 @@ export interface IEditorCommentsOptions {
 	ignoreEmptyLines?: boolean;
 }
 
+/**
+ * @internal
+ */
 export type EditorCommentsOptions = Readonly<Required<IEditorCommentsOptions>>;
 
 class EditorComments extends BaseEditorOption<EditorOption.comments, EditorCommentsOptions> {
@@ -1382,6 +1383,9 @@ export interface IEditorFindOptions {
 	loop?: boolean;
 }
 
+/**
+ * @internal
+ */
 export type EditorFindOptions = Readonly<Required<IEditorFindOptions>>;
 
 class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> {
@@ -1634,6 +1638,9 @@ export interface IGotoLocationOptions {
 	alternativeReferenceCommand?: string;
 }
 
+/**
+ * @internal
+ */
 export type GoToLocationOptions = Readonly<Required<IGotoLocationOptions>>;
 
 class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, GoToLocationOptions> {
@@ -1767,8 +1774,16 @@ export interface IEditorHoverOptions {
 	 * Defaults to true.
 	 */
 	sticky?: boolean;
+	/**
+	 * Should the hover be shown above the line if possible?
+	 * Defaults to false.
+	 */
+	above?: boolean;
 }
 
+/**
+ * @internal
+ */
 export type EditorHoverOptions = Readonly<Required<IEditorHoverOptions>>;
 
 class EditorHover extends BaseEditorOption<EditorOption.hover, EditorHoverOptions> {
@@ -1777,7 +1792,8 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, EditorHoverOption
 		const defaults: EditorHoverOptions = {
 			enabled: true,
 			delay: 300,
-			sticky: true
+			sticky: true,
+			above: true,
 		};
 		super(
 			EditorOption.hover, 'hover', defaults,
@@ -1797,6 +1813,11 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, EditorHoverOption
 					default: defaults.sticky,
 					description: nls.localize('hover.sticky', "Controls whether the hover should remain visible when mouse is moved over it.")
 				},
+				'editor.hover.above': {
+					type: 'boolean',
+					default: defaults.above,
+					description: nls.localize('hover.above', "Prefer showing hovers above the line, if there's space.")
+				},
 			}
 		);
 	}
@@ -1809,7 +1830,8 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, EditorHoverOption
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			delay: EditorIntOption.clampedInt(input.delay, this.defaultValue.delay, 0, 10000),
-			sticky: boolean(input.sticky, this.defaultValue.sticky)
+			sticky: boolean(input.sticky, this.defaultValue.sticky),
+			above: boolean(input.above, this.defaultValue.above),
 		};
 	}
 }
@@ -2390,6 +2412,9 @@ export interface IEditorLightbulbOptions {
 	enabled?: boolean;
 }
 
+/**
+ * @internal
+ */
 export type EditorLightbulbOptions = Readonly<Required<IEditorLightbulbOptions>>;
 
 class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, EditorLightbulbOptions> {
@@ -2446,6 +2471,9 @@ export interface IEditorInlayHintsOptions {
 	fontFamily?: string;
 }
 
+/**
+ * @internal
+ */
 export type EditorInlayHintsOptions = Readonly<Required<IEditorInlayHintsOptions>>;
 
 class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, EditorInlayHintsOptions> {
@@ -2554,6 +2582,9 @@ export interface IEditorMinimapOptions {
 	scale?: number;
 }
 
+/**
+ * @internal
+ */
 export type EditorMinimapOptions = Readonly<Required<IEditorMinimapOptions>>;
 
 class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimapOptions> {
@@ -2667,10 +2698,10 @@ export interface IEditorPaddingOptions {
 	bottom?: number;
 }
 
-export interface InternalEditorPaddingOptions {
-	readonly top: number;
-	readonly bottom: number;
-}
+/**
+ * @internal
+ */
+export type InternalEditorPaddingOptions = Readonly<Required<IEditorPaddingOptions>>;
 
 class EditorPadding extends BaseEditorOption<EditorOption.padding, InternalEditorPaddingOptions> {
 
@@ -2728,6 +2759,9 @@ export interface IEditorParameterHintOptions {
 	cycle?: boolean;
 }
 
+/**
+ * @internal
+ */
 export type InternalParameterHintOptions = Readonly<Required<IEditorParameterHintOptions>>;
 
 class EditorParameterHints extends BaseEditorOption<EditorOption.parameterHints, InternalParameterHintOptions> {
@@ -2794,6 +2828,9 @@ export interface IQuickSuggestionsOptions {
 	strings?: boolean;
 }
 
+/**
+ * @internal
+ */
 export type ValidQuickSuggestionsOptions = boolean | Readonly<Required<IQuickSuggestionsOptions>>;
 
 class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggestions, ValidQuickSuggestionsOptions> {
@@ -3226,6 +3263,9 @@ export interface IInlineSuggestOptions {
 	mode?: 'prefix' | 'subword' | 'subwordSmart';
 }
 
+/**
+ * @internal
+ */
 export type InternalInlineSuggestOptions = Readonly<Required<IInlineSuggestOptions>>;
 
 /**
@@ -3273,6 +3313,9 @@ export interface IBracketPairColorizationOptions {
 	enabled?: boolean;
 }
 
+/**
+ * @internal
+ */
 export type InternalBracketPairColorizationOptions = Readonly<Required<IBracketPairColorizationOptions>>;
 
 /**
@@ -3314,8 +3357,21 @@ class BracketPairColorization extends BaseEditorOption<EditorOption.bracketPairC
 export interface IGuidesOptions {
 	/**
 	 * Enable rendering of bracket pair guides.
+	 * Defaults to false.
 	*/
-	bracketPairs?: boolean;
+	bracketPairs?: boolean | 'active';
+
+	/**
+	 * Enable rendering of vertical bracket pair guides.
+	 * Defaults to 'active'.
+	 */
+	bracketPairsHorizontal?: boolean | 'active';
+
+	/**
+	 * Enable highlighting of the active bracket pair.
+	 * Defaults to true.
+	*/
+	highlightActiveBracketPair?: boolean;
 
 	/**
 	 * Enable rendering of indent guides.
@@ -3330,6 +3386,9 @@ export interface IGuidesOptions {
 	highlightActiveIndentation?: boolean;
 }
 
+/**
+ * @internal
+ */
 export type InternalGuidesOptions = Readonly<Required<IGuidesOptions>>;
 
 /**
@@ -3339,6 +3398,9 @@ class GuideOptions extends BaseEditorOption<EditorOption.guides, InternalGuidesO
 	constructor() {
 		const defaults: InternalGuidesOptions = {
 			bracketPairs: false,
+			bracketPairsHorizontal: 'active',
+			highlightActiveBracketPair: true,
+
 			indentation: true,
 			highlightActiveIndentation: true
 		};
@@ -3347,9 +3409,31 @@ class GuideOptions extends BaseEditorOption<EditorOption.guides, InternalGuidesO
 			EditorOption.guides, 'guides', defaults,
 			{
 				'editor.guides.bracketPairs': {
-					type: 'boolean',
+					type: ['boolean', 'string'],
+					enum: [true, 'active', false],
+					enumDescriptions: [
+						nls.localize('editor.guides.bracketPairs.true', "Enables bracket pair guides."),
+						nls.localize('editor.guides.bracketPairs.active', "Enables bracket pair guides only for the active bracket pair."),
+						nls.localize('editor.guides.bracketPairs.false', "Disables bracket pair guides."),
+					],
 					default: defaults.bracketPairs,
 					description: nls.localize('editor.guides.bracketPairs', "Controls whether bracket pair guides are enabled or not.")
+				},
+				'editor.guides.bracketPairsHorizontal': {
+					type: ['boolean', 'string'],
+					enum: [true, 'active', false],
+					enumDescriptions: [
+						nls.localize('editor.guides.bracketPairsHorizontal.true', "Enables horizontal guides as addition to vertical bracket pair guides."),
+						nls.localize('editor.guides.bracketPairsHorizontal.active', "Enables horizontal guides only for the active bracket pair."),
+						nls.localize('editor.guides.bracketPairsHorizontal.false', "Disables horizontal bracket pair guides."),
+					],
+					default: defaults.bracketPairsHorizontal,
+					description: nls.localize('editor.guides.bracketPairsHorizontal', "Controls whether horizontal bracket pair guides are enabled or not.")
+				},
+				'editor.guides.highlightActiveBracketPair': {
+					type: 'boolean',
+					default: defaults.highlightActiveBracketPair,
+					description: nls.localize('editor.guides.highlightActiveBracketPair', "Controls whether bracket pair guides are enabled or not.")
 				},
 				'editor.guides.indentation': {
 					type: 'boolean',
@@ -3371,11 +3455,22 @@ class GuideOptions extends BaseEditorOption<EditorOption.guides, InternalGuidesO
 		}
 		const input = _input as IGuidesOptions;
 		return {
-			bracketPairs: boolean(input.bracketPairs, this.defaultValue.bracketPairs),
+			bracketPairs: primitiveSet(input.bracketPairs, this.defaultValue.bracketPairs, [true, false, 'active']),
+			bracketPairsHorizontal: primitiveSet(input.bracketPairsHorizontal, this.defaultValue.bracketPairsHorizontal, [true, false, 'active']),
+			highlightActiveBracketPair: boolean(input.highlightActiveBracketPair, this.defaultValue.highlightActiveBracketPair),
+
 			indentation: boolean(input.indentation, this.defaultValue.indentation),
 			highlightActiveIndentation: boolean(input.highlightActiveIndentation, this.defaultValue.highlightActiveIndentation),
 		};
 	}
+}
+
+function primitiveSet<T extends string | boolean>(value: unknown, defaultValue: T, allowedValues: T[]): T {
+	const idx = allowedValues.indexOf(value as any);
+	if (idx === -1) {
+		return defaultValue;
+	}
+	return allowedValues[idx];
 }
 
 //#endregion
@@ -3540,6 +3635,9 @@ export interface ISuggestOptions {
 	showSnippets?: boolean;
 }
 
+/**
+ * @internal
+ */
 export type InternalSuggestOptions = Readonly<Required<ISuggestOptions>>;
 
 class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSuggestOptions> {
@@ -3851,6 +3949,9 @@ export interface ISmartSelectOptions {
 	selectLeadingAndTrailingWhitespace?: boolean
 }
 
+/**
+ * @internal
+ */
 export type SmartSelectOptions = Readonly<Required<ISmartSelectOptions>>;
 
 class SmartSelect extends BaseEditorOption<EditorOption.smartSelect, SmartSelectOptions> {
@@ -4140,21 +4241,6 @@ export const enum EditorOption {
 	wrappingInfo,
 }
 
-/**
- * WORKAROUND: TS emits "any" for complex editor options values (anything except string, bool, enum, etc. ends up being "any")
- * @monacodtsreplace
- * /accessibilitySupport, any/accessibilitySupport, AccessibilitySupport/
- * /comments, any/comments, EditorCommentsOptions/
- * /find, any/find, EditorFindOptions/
- * /fontInfo, any/fontInfo, FontInfo/
- * /gotoLocation, any/gotoLocation, GoToLocationOptions/
- * /hover, any/hover, EditorHoverOptions/
- * /lightbulb, any/lightbulb, EditorLightbulbOptions/
- * /minimap, any/minimap, EditorMinimapOptions/
- * /parameterHints, any/parameterHints, InternalParameterHintOptions/
- * /quickSuggestions, any/quickSuggestions, ValidQuickSuggestionsOptions/
- * /suggest, any/suggest, InternalSuggestOptions/
- */
 export const EditorOptions = {
 	acceptSuggestionOnCommitCharacter: register(new EditorBooleanOption(
 		EditorOption.acceptSuggestionOnCommitCharacter, 'acceptSuggestionOnCommitCharacter', true,
@@ -4287,7 +4373,7 @@ export const EditorOptions = {
 		default: 0,
 		minimum: 0,
 		maximum: 100,
-		markdownDescription: nls.localize('codeLensFontSize', "Controls the font size in pixels for CodeLens. When set to `0`, the 90% of `#editor.fontSize#` is used.")
+		markdownDescription: nls.localize('codeLensFontSize', "Controls the font size in pixels for CodeLens. When set to `0`, 90% of `#editor.fontSize#` is used.")
 	})),
 	colorDecorators: register(new EditorBooleanOption(
 		EditorOption.colorDecorators, 'colorDecorators', true,
@@ -4490,7 +4576,7 @@ export const EditorOptions = {
 					'- `ctrlCmd` refers to a value the setting can take and should not be localized.',
 					'- `Control` and `Command` refer to the modifier keys Ctrl or Cmd on the keyboard and can be localized.'
 				]
-			}, "The modifier to be used to add multiple cursors with the mouse. The Go To Definition and Open Link mouse gestures will adapt such that they do not conflict with the multicursor modifier. [Read more](https://code.visualstudio.com/docs/editor/codebasics#_multicursor-modifier).")
+			}, "The modifier to be used to add multiple cursors with the mouse. The Go to Definition and Open Link mouse gestures will adapt such that they do not conflict with the multicursor modifier. [Read more](https://code.visualstudio.com/docs/editor/codebasics#_multicursor-modifier).")
 		}
 	)),
 	multiCursorPaste: register(new EditorStringEnumOption(
@@ -4549,8 +4635,8 @@ export const EditorOptions = {
 		{ description: nls.localize('renameOnType', "Controls whether the editor auto renames on type."), markdownDeprecationMessage: nls.localize('renameOnTypeDeprecate', "Deprecated, use `editor.linkedEditing` instead.") }
 	)),
 	renderControlCharacters: register(new EditorBooleanOption(
-		EditorOption.renderControlCharacters, 'renderControlCharacters', false,
-		{ description: nls.localize('renderControlCharacters', "Controls whether the editor should render control characters.") }
+		EditorOption.renderControlCharacters, 'renderControlCharacters', true,
+		{ description: nls.localize('renderControlCharacters', "Controls whether the editor should render control characters."), restricted: true }
 	)),
 	renderFinalNewline: register(new EditorBooleanOption(
 		EditorOption.renderFinalNewline, 'renderFinalNewline', true,
@@ -4778,10 +4864,12 @@ export const EditorOptions = {
 	)),
 	wordWrapBreakAfterCharacters: register(new EditorStringOption(
 		EditorOption.wordWrapBreakAfterCharacters, 'wordWrapBreakAfterCharacters',
+		// allow-any-unicode-next-line
 		' \t})]?|/&.,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣',
 	)),
 	wordWrapBreakBeforeCharacters: register(new EditorStringOption(
 		EditorOption.wordWrapBreakBeforeCharacters, 'wordWrapBreakBeforeCharacters',
+		// allow-any-unicode-next-line
 		'([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋'
 	)),
 	wordWrapColumn: register(new EditorIntOption(

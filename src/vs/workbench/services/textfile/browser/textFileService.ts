@@ -31,7 +31,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { isValidBasename } from 'vs/base/common/extpath';
 import { IWorkingCopyFileService, IFileOperationUndoRedoInfo, ICreateFileOperation } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, toEncodeReadable, toDecodeStream, IDecodeStreamResult } from 'vs/workbench/services/textfile/common/encoding';
@@ -133,7 +133,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				if (isReadonly && isOrphaned) {
 					return {
 						color: listErrorForeground,
-						letter: Codicon.lock,
+						letter: Codicon.lockSmall,
 						strikethrough: true,
 						tooltip: localize('readonlyAndDeleted', "Deleted, Read Only"),
 					};
@@ -142,7 +142,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				// Readonly
 				else if (isReadonly) {
 					return {
-						letter: Codicon.lock,
+						letter: Codicon.lockSmall,
 						tooltip: localize('readonly', "Read Only"),
 					};
 				}
@@ -503,9 +503,9 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			this.modelService.updateModel(targetTextModel, createTextBufferFactoryFromSnapshot(sourceTextModel.createSnapshot()));
 
 			// mode
-			const sourceMode = sourceTextModel.getLanguageIdentifier();
-			const targetMode = targetTextModel.getLanguageIdentifier();
-			if (sourceMode.language !== PLAINTEXT_MODE_ID && targetMode.language === PLAINTEXT_MODE_ID) {
+			const sourceMode = sourceTextModel.getLanguageId();
+			const targetMode = targetTextModel.getLanguageId();
+			if (sourceMode !== PLAINTEXT_MODE_ID && targetMode === PLAINTEXT_MODE_ID) {
 				targetTextModel.setMode(sourceMode); // only use if more specific than plain/text
 			}
 

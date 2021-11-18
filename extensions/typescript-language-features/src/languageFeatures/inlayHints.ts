@@ -10,7 +10,6 @@ import API from '../utils/api';
 import { Condition, conditionalRegistration, requireMinVersion, requireSomeCapability } from '../utils/dependentRegistration';
 import { Disposable } from '../utils/dispose';
 import { DocumentSelector } from '../utils/documentSelector';
-import { isSupportedLanguageMode } from '../utils/languageModeIds';
 import { Position } from '../utils/typeConverters';
 import FileConfigurationManager, { getInlayHintsPreferences, InlayHintSettingNames } from './fileConfigurationManager';
 
@@ -28,11 +27,12 @@ class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHin
 
 	public static readonly minVersion = API.v440;
 
-	private readonly _onDidChangeInlayHints = new vscode.EventEmitter<undefined | vscode.Uri>();
+	private readonly _onDidChangeInlayHints = new vscode.EventEmitter<void>();
 	public readonly onDidChangeInlayHints = this._onDidChangeInlayHints.event;
 
 	constructor(
 		modeId: string,
+		languageIds: readonly string[],
 		private readonly client: ITypeScriptServiceClient,
 		private readonly fileConfigurationManager: FileConfigurationManager
 	) {
@@ -40,7 +40,15 @@ class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHin
 
 		this._register(vscode.workspace.onDidChangeConfiguration(e => {
 			if (inlayHintSettingNames.some(settingName => e.affectsConfiguration(modeId + '.' + settingName))) {
-				this._onDidChangeInlayHints.fire(undefined);
+				this._onDidChangeInlayHints.fire();
+			}
+		}));
+
+		// When a JS/TS file changes, change inlay hints for all visible editors
+		// since changes in one file can effect the hints the others.
+		this._register(vscode.workspace.onDidChangeTextDocument(e => {
+			if (languageIds.includes(e.document.languageId)) {
+				this._onDidChangeInlayHints.fire();
 			}
 		}));
 	}
@@ -49,17 +57,6 @@ class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHin
 		const filepath = this.client.toOpenedFilePath(model);
 		if (!filepath) {
 			return [];
-		}
-
-		// If triggered for the active editor, then also trigger for all other visible editors since
-		// changes in the active editor may effect their hints too.
-		const modelUri = model.uri.toString();
-		if (modelUri === vscode.window.activeTextEditor?.document.uri.toString()) {
-			for (const visibleEditor of vscode.window.visibleTextEditors) {
-				if (isSupportedLanguageMode(visibleEditor.document) && visibleEditor.document.uri.toString() !== modelUri) {
-					this._onDidChangeInlayHints.fire(visibleEditor.document.uri);
-				}
-			}
 		}
 
 		const start = model.offsetAt(range.start);
@@ -118,6 +115,7 @@ export function requireInlayHintsConfiguration(
 export function register(
 	selector: DocumentSelector,
 	modeId: string,
+	languageIds: readonly string[],
 	client: ITypeScriptServiceClient,
 	fileConfigurationManager: FileConfigurationManager
 ) {
@@ -126,7 +124,7 @@ export function register(
 		requireMinVersion(client, TypeScriptInlayHintsProvider.minVersion),
 		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
-		const provider = new TypeScriptInlayHintsProvider(modeId, client, fileConfigurationManager);
+		const provider = new TypeScriptInlayHintsProvider(modeId, languageIds, client, fileConfigurationManager);
 		return vscode.languages.registerInlayHintsProvider(selector.semantic, provider);
 	});
 }

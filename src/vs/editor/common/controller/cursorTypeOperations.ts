@@ -598,7 +598,7 @@ export class TypeOperations {
 			}
 
 			// Do not auto-close ' or " after a word character
-			if (autoClosingPair.open.length === 1 && chIsQuote && autoCloseConfig !== 'always') {
+			if (autoClosingPair.open.length === 1 && (ch === '\'' || ch === '"') && autoCloseConfig !== 'always') {
 				const wordSeparators = getMapForWordSeparators(config.wordSeparators);
 				if (insertOpenCharacter && position.column > 1 && wordSeparators.get(lineText.charCodeAt(position.column - 2)) === WordCharacterClass.Regular) {
 					return null;
@@ -739,7 +739,7 @@ export class TypeOperations {
 
 		if (electricAction.matchOpenBracket) {
 			let endColumn = (lineTokens.getLineContent() + ch).lastIndexOf(electricAction.matchOpenBracket) + 1;
-			let match = model.findMatchingBracketUp(electricAction.matchOpenBracket, {
+			let match = model.bracketPairs.findMatchingBracketUp(electricAction.matchOpenBracket, {
 				lineNumber: position.lineNumber,
 				column: endColumn
 			});

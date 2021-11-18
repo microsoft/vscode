@@ -11,7 +11,6 @@ import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { ICommand, IConfiguration } from 'vs/editor/common/editorCommon';
 import { ITextModel, PositionAffinity, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { AutoClosingPairs, IAutoClosingPair } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
@@ -81,7 +80,7 @@ export class CursorConfiguration {
 	public readonly surroundingPairs: CharacterMap;
 	public readonly shouldAutoCloseBefore: { quote: (ch: string) => boolean, bracket: (ch: string) => boolean };
 
-	private readonly _languageIdentifier: LanguageIdentifier;
+	private readonly _languageId: string;
 	private _electricChars: { [key: string]: boolean; } | null;
 
 	public static shouldRecreate(e: ConfigurationChangedEvent): boolean {
@@ -103,11 +102,11 @@ export class CursorConfiguration {
 	}
 
 	constructor(
-		languageIdentifier: LanguageIdentifier,
+		languageId: string,
 		modelOptions: TextModelResolvedOptions,
 		configuration: IConfiguration
 	) {
-		this._languageIdentifier = languageIdentifier;
+		this._languageId = languageId;
 
 		const options = configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
@@ -136,13 +135,13 @@ export class CursorConfiguration {
 		this._electricChars = null;
 
 		this.shouldAutoCloseBefore = {
-			quote: CursorConfiguration._getShouldAutoClose(languageIdentifier, this.autoClosingQuotes),
-			bracket: CursorConfiguration._getShouldAutoClose(languageIdentifier, this.autoClosingBrackets)
+			quote: CursorConfiguration._getShouldAutoClose(languageId, this.autoClosingQuotes),
+			bracket: CursorConfiguration._getShouldAutoClose(languageId, this.autoClosingBrackets)
 		};
 
-		this.autoClosingPairs = LanguageConfigurationRegistry.getAutoClosingPairs(languageIdentifier.id);
+		this.autoClosingPairs = LanguageConfigurationRegistry.getAutoClosingPairs(languageId);
 
-		let surroundingPairs = CursorConfiguration._getSurroundingPairs(languageIdentifier);
+		let surroundingPairs = CursorConfiguration._getSurroundingPairs(languageId);
 		if (surroundingPairs) {
 			for (const pair of surroundingPairs) {
 				this.surroundingPairs[pair.open] = pair.close;
@@ -153,7 +152,7 @@ export class CursorConfiguration {
 	public get electricChars() {
 		if (!this._electricChars) {
 			this._electricChars = {};
-			let electricChars = CursorConfiguration._getElectricCharacters(this._languageIdentifier);
+			let electricChars = CursorConfiguration._getElectricCharacters(this._languageId);
 			if (electricChars) {
 				for (const char of electricChars) {
 					this._electricChars[char] = true;
@@ -167,21 +166,21 @@ export class CursorConfiguration {
 		return TextModel.normalizeIndentation(str, this.indentSize, this.insertSpaces);
 	}
 
-	private static _getElectricCharacters(languageIdentifier: LanguageIdentifier): string[] | null {
+	private static _getElectricCharacters(languageId: string): string[] | null {
 		try {
-			return LanguageConfigurationRegistry.getElectricCharacters(languageIdentifier.id);
+			return LanguageConfigurationRegistry.getElectricCharacters(languageId);
 		} catch (e) {
 			onUnexpectedError(e);
 			return null;
 		}
 	}
 
-	private static _getShouldAutoClose(languageIdentifier: LanguageIdentifier, autoCloseConfig: EditorAutoClosingStrategy): (ch: string) => boolean {
+	private static _getShouldAutoClose(languageId: string, autoCloseConfig: EditorAutoClosingStrategy): (ch: string) => boolean {
 		switch (autoCloseConfig) {
 			case 'beforeWhitespace':
 				return autoCloseBeforeWhitespace;
 			case 'languageDefined':
-				return CursorConfiguration._getLanguageDefinedShouldAutoClose(languageIdentifier);
+				return CursorConfiguration._getLanguageDefinedShouldAutoClose(languageId);
 			case 'always':
 				return autoCloseAlways;
 			case 'never':
@@ -189,9 +188,9 @@ export class CursorConfiguration {
 		}
 	}
 
-	private static _getLanguageDefinedShouldAutoClose(languageIdentifier: LanguageIdentifier): (ch: string) => boolean {
+	private static _getLanguageDefinedShouldAutoClose(languageId: string): (ch: string) => boolean {
 		try {
-			const autoCloseBeforeSet = LanguageConfigurationRegistry.getAutoCloseBeforeSet(languageIdentifier.id);
+			const autoCloseBeforeSet = LanguageConfigurationRegistry.getAutoCloseBeforeSet(languageId);
 			return c => autoCloseBeforeSet.indexOf(c) !== -1;
 		} catch (e) {
 			onUnexpectedError(e);
@@ -199,9 +198,9 @@ export class CursorConfiguration {
 		}
 	}
 
-	private static _getSurroundingPairs(languageIdentifier: LanguageIdentifier): IAutoClosingPair[] | null {
+	private static _getSurroundingPairs(languageId: string): IAutoClosingPair[] | null {
 		try {
-			return LanguageConfigurationRegistry.getSurroundingPairs(languageIdentifier.id);
+			return LanguageConfigurationRegistry.getSurroundingPairs(languageId);
 		} catch (e) {
 			onUnexpectedError(e);
 			return null;
@@ -288,31 +287,11 @@ export class SingleCursorState {
 	}
 
 	private static _computeSelection(selectionStart: Range, position: Position): Selection {
-		let startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number;
-		if (selectionStart.isEmpty()) {
-			startLineNumber = selectionStart.startLineNumber;
-			startColumn = selectionStart.startColumn;
-			endLineNumber = position.lineNumber;
-			endColumn = position.column;
+		if (selectionStart.isEmpty() || !position.isBeforeOrEqual(selectionStart.getStartPosition())) {
+			return Selection.fromPositions(selectionStart.getStartPosition(), position);
 		} else {
-			if (position.isBeforeOrEqual(selectionStart.getStartPosition())) {
-				startLineNumber = selectionStart.endLineNumber;
-				startColumn = selectionStart.endColumn;
-				endLineNumber = position.lineNumber;
-				endColumn = position.column;
-			} else {
-				startLineNumber = selectionStart.startLineNumber;
-				startColumn = selectionStart.startColumn;
-				endLineNumber = position.lineNumber;
-				endColumn = position.column;
-			}
+			return Selection.fromPositions(selectionStart.getEndPosition(), position);
 		}
-		return new Selection(
-			startLineNumber,
-			startColumn,
-			endLineNumber,
-			endColumn
-		);
 	}
 }
 
@@ -366,13 +345,11 @@ export class CursorState {
 	}
 
 	public static fromModelSelection(modelSelection: ISelection): PartialModelCursorState {
-		const selectionStartLineNumber = modelSelection.selectionStartLineNumber;
-		const selectionStartColumn = modelSelection.selectionStartColumn;
-		const positionLineNumber = modelSelection.positionLineNumber;
-		const positionColumn = modelSelection.positionColumn;
+		const selection = Selection.liftSelection(modelSelection);
 		const modelState = new SingleCursorState(
-			new Range(selectionStartLineNumber, selectionStartColumn, selectionStartLineNumber, selectionStartColumn), 0,
-			new Position(positionLineNumber, positionColumn), 0
+			Range.fromPositions(selection.getSelectionStart()),
+			0,
+			selection.getPosition(), 0
 		);
 		return CursorState.fromModelState(modelState);
 	}

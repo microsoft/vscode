@@ -134,7 +134,7 @@ export class CursorUndo extends EditorAction {
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_U,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyU,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});

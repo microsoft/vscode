@@ -23,7 +23,7 @@ import { Context } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
 import * as nls from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorHoverBackground, editorHoverBorder, editorHoverForeground, textCodeBlockBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorHoverBackground, editorHoverBorder, editorHoverForeground, registerColor, textCodeBlockBackground, textLinkActiveForeground, textLinkForeground, listHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -132,6 +132,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 			}
 			const fontInfo = this.editor.getOption(EditorOption.fontInfo);
 			this.domNodes.element.style.fontSize = `${fontInfo.fontSize}px`;
+			this.domNodes.element.style.lineHeight = `${fontInfo.lineHeight / fontInfo.fontSize}`;
 		};
 
 		updateFont();
@@ -383,6 +384,8 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 	}
 }
 
+export const editorHoverWidgetHighlightForeground = registerColor('editorHoverWidget.highlightForeground', { dark: listHighlightForeground, light: listHighlightForeground, hc: listHighlightForeground }, nls.localize('editorHoverWidgetHighlightForeground', 'Foreground color of the active item in the parameter hint.'));
+
 registerThemingParticipant((theme, collector) => {
 	const border = theme.getColor(editorHoverBorder);
 	if (border) {
@@ -415,4 +418,10 @@ registerThemingParticipant((theme, collector) => {
 	if (codeBackground) {
 		collector.addRule(`.monaco-editor .parameter-hints-widget code { background-color: ${codeBackground}; }`);
 	}
+
+	const parameterHighlightColor = theme.getColor(editorHoverWidgetHighlightForeground);
+	if (parameterHighlightColor) {
+		collector.addRule(`.monaco-editor .parameter-hints-widget .parameter.active { color: ${parameterHighlightColor}}`);
+	}
+
 });

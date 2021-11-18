@@ -17,7 +17,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
 import { IStorageChangeEvent, IStorageMain, IStorageMainOptions } from 'vs/platform/storage/electron-main/storageMain';
 import { StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
-import { currentSessionDateStorageKey, firstSessionDateStorageKey, instanceStorageKey } from 'vs/platform/telemetry/common/telemetry';
+import { currentSessionDateStorageKey, firstSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { ICodeWindow, UnloadReason } from 'vs/platform/windows/electron-main/windows';
 
 suite('StorageMainService', function () {
@@ -77,9 +77,7 @@ suite('StorageMainService', function () {
 		// Telemetry: added after init
 		if (isGlobal) {
 			strictEqual(storage.items.size, 0);
-			strictEqual(storage.get(instanceStorageKey), undefined);
 			await storage.init();
-			strictEqual(typeof storage.get(instanceStorageKey), 'string');
 			strictEqual(typeof storage.get(firstSessionDateStorageKey), 'string');
 			strictEqual(typeof storage.get(currentSessionDateStorageKey), 'string');
 		} else {

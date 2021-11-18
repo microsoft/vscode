@@ -100,7 +100,7 @@ function getResourceToLoad(
 
 function containsResource(root: URI, resource: URI): boolean {
 	if (root.scheme !== resource.scheme) {
-		return true;
+		return false;
 	}
 
 	let rootPath = root.fsPath + (root.fsPath.endsWith(sep) ? '' : sep);

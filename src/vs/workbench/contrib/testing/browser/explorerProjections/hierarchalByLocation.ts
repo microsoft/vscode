@@ -144,8 +144,15 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 						break;
 					}
 
+					// parent needs to be re-rendered on an expand update, so that its
+					// children are rewritten.
+					const needsParentUpdate = existing.test.expand === TestItemExpandState.NotExpandable && patch.expand;
 					existing.update(patch);
-					this.addUpdated(existing);
+					if (needsParentUpdate) {
+						this.changes.addedOrRemoved(existing);
+					} else {
+						this.changes.updated(existing);
+					}
 					break;
 				}
 

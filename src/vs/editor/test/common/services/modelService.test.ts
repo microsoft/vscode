@@ -31,23 +31,35 @@ import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
+import { getDocumentSemanticTokens, isSemanticTokens } from 'vs/editor/common/services/getSemanticTokens';
 
 const GENERATE_TESTS = false;
 
 suite('ModelService', () => {
+	let disposables: DisposableStore;
 	let modelService: ModelServiceImpl;
 
 	setup(() => {
+		disposables = new DisposableStore();
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('files', { 'eol': '\n' });
 		configService.setUserConfiguration('files', { 'eol': '\r\n' }, URI.file(platform.isWindows ? 'c:\\myroot' : '/myroot'));
 
 		const dialogService = new TestDialogService();
-		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService(), new NullLogService(), new UndoRedoService(dialogService, new TestNotificationService()));
+		modelService = disposables.add(new ModelServiceImpl(
+			configService,
+			new TestTextResourcePropertiesService(configService),
+			new TestThemeService(),
+			new NullLogService(),
+			new UndoRedoService(dialogService, new TestNotificationService()),
+			disposables.add(new ModeServiceImpl()),
+			new TestLanguageConfigurationService()
+		));
 	});
 
 	teardown(() => {
-		modelService.dispose();
+		disposables.dispose();
 	});
 
 	test('EOL setting respected depending on root', () => {
@@ -62,14 +74,14 @@ suite('ModelService', () => {
 
 	test('_computeEdits no change', function () {
 
-		const model = createTextModel(
+		const model = disposables.add(createTextModel(
 			[
 				'This is line one', //16
 				'and this is line number two', //27
 				'it is followed by #3', //20
 				'and finished with the fourth.', //29
 			].join('\n')
-		);
+		));
 
 		const textBuffer = createTextBuffer(
 			[
@@ -88,14 +100,14 @@ suite('ModelService', () => {
 
 	test('_computeEdits first line changed', function () {
 
-		const model = createTextModel(
+		const model = disposables.add(createTextModel(
 			[
 				'This is line one', //16
 				'and this is line number two', //27
 				'it is followed by #3', //20
 				'and finished with the fourth.', //29
 			].join('\n')
-		);
+		));
 
 		const textBuffer = createTextBuffer(
 			[
@@ -116,14 +128,14 @@ suite('ModelService', () => {
 
 	test('_computeEdits EOL changed', function () {
 
-		const model = createTextModel(
+		const model = disposables.add(createTextModel(
 			[
 				'This is line one', //16
 				'and this is line number two', //27
 				'it is followed by #3', //20
 				'and finished with the fourth.', //29
 			].join('\n')
-		);
+		));
 
 		const textBuffer = createTextBuffer(
 			[
@@ -142,14 +154,14 @@ suite('ModelService', () => {
 
 	test('_computeEdits EOL and other change 1', function () {
 
-		const model = createTextModel(
+		const model = disposables.add(createTextModel(
 			[
 				'This is line one', //16
 				'and this is line number two', //27
 				'it is followed by #3', //20
 				'and finished with the fourth.', //29
 			].join('\n')
-		);
+		));
 
 		const textBuffer = createTextBuffer(
 			[
@@ -178,13 +190,13 @@ suite('ModelService', () => {
 
 	test('_computeEdits EOL and other change 2', function () {
 
-		const model = createTextModel(
+		const model = disposables.add(createTextModel(
 			[
 				'package main',	// 1
 				'func foo() {',	// 2
 				'}'				// 3
 			].join('\n')
-		);
+		));
 
 		const textBuffer = createTextBuffer(
 			[
@@ -334,6 +346,8 @@ suite('ModelService', () => {
 		// undo
 		model2.undo();
 		assert.strictEqual(model2.getValue(), 'text');
+		// dispose it
+		modelService.destroyModel(resource);
 	});
 
 	test('maintains version id and alternative version id for same resource and same content', () => {
@@ -353,6 +367,8 @@ suite('ModelService', () => {
 		const model2 = modelService.createModel('text1', null, resource);
 		assert.strictEqual(model2.getVersionId(), versionId);
 		assert.strictEqual(model2.getAlternativeVersionId(), alternativeVersionId);
+		// dispose it
+		modelService.destroyModel(resource);
 	});
 
 	test('does not maintain undo for same resource and different content', () => {
@@ -371,6 +387,8 @@ suite('ModelService', () => {
 		// undo
 		model2.undo();
 		assert.strictEqual(model2.getValue(), 'text2');
+		// dispose it
+		modelService.destroyModel(resource);
 	});
 
 	test('setValue should clear undo stack', () => {
@@ -383,6 +401,8 @@ suite('ModelService', () => {
 		model.setValue('text2');
 		model.undo();
 		assert.strictEqual(model.getValue(), 'text2');
+		// dispose it
+		modelService.destroyModel(resource);
 	});
 });
 
@@ -404,7 +424,9 @@ suite('ModelSemanticColoring', () => {
 			new TestTextResourcePropertiesService(configService),
 			themeService,
 			new NullLogService(),
-			new UndoRedoService(new TestDialogService(), new TestNotificationService())
+			new UndoRedoService(new TestDialogService(), new TestNotificationService()),
+			disposables.add(new ModeServiceImpl()),
+			new TestLanguageConfigurationService()
 		));
 		modeService = disposables.add(new ModeServiceImpl(false));
 	});
@@ -465,6 +487,81 @@ suite('ModelSemanticColoring', () => {
 		// assert that it got called twice
 		assert.strictEqual(callCount, 2);
 	});
+
+	test('DocumentSemanticTokens should be pick the token provider with actual items', async () => {
+
+		let callCount = 0;
+		disposables.add(ModesRegistry.registerLanguage({ id: 'testMode2' }));
+		disposables.add(DocumentSemanticTokensProviderRegistry.register('testMode2', new class implements DocumentSemanticTokensProvider {
+			getLegend(): SemanticTokensLegend {
+				return { tokenTypes: ['class1'], tokenModifiers: [] };
+			}
+			async provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): Promise<SemanticTokens | SemanticTokensEdits | null> {
+				callCount++;
+				// For a secondary request return a different value
+				if (lastResultId) {
+					return {
+						data: new Uint32Array([2, 1, 1, 1, 1, 0, 2, 1, 1, 1])
+					};
+				}
+				return {
+					resultId: '1',
+					data: new Uint32Array([0, 1, 1, 1, 1, 0, 2, 1, 1, 1])
+				};
+			}
+			releaseDocumentSemanticTokens(resultId: string | undefined): void {
+			}
+		}));
+		disposables.add(DocumentSemanticTokensProviderRegistry.register('testMode2', new class implements DocumentSemanticTokensProvider {
+			getLegend(): SemanticTokensLegend {
+				return { tokenTypes: ['class2'], tokenModifiers: [] };
+			}
+			async provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): Promise<SemanticTokens | SemanticTokensEdits | null> {
+				callCount++;
+				return null;
+			}
+			releaseDocumentSemanticTokens(resultId: string | undefined): void {
+			}
+		}));
+
+		function toArr(arr: Uint32Array): number[] {
+			let result: number[] = [];
+			for (let i = 0; i < arr.length; i++) {
+				result[i] = arr[i];
+			}
+			return result;
+		}
+
+		const textModel = modelService.createModel('Hello world 2', modeService.create('testMode2'));
+		try {
+			let result = await getDocumentSemanticTokens(textModel, null, null, CancellationToken.None);
+			assert.ok(result, `We should have tokens (1)`);
+			assert.ok(result.tokens, `Tokens are found from multiple providers (1)`);
+			assert.ok(isSemanticTokens(result.tokens), `Tokens are full (1)`);
+			assert.ok(result.tokens.resultId, `Token result id found from multiple providers (1)`);
+			assert.deepStrictEqual(toArr(result.tokens.data), [0, 1, 1, 1, 1, 0, 2, 1, 1, 1], `Token data returned for multiple providers (1)`);
+			assert.deepStrictEqual(callCount, 2, `Called both token providers (1)`);
+			assert.deepStrictEqual(result.provider.getLegend(), { tokenTypes: ['class1'], tokenModifiers: [] }, `Legend matches the tokens (1)`);
+
+			// Make a second request. Make sure we get the secondary value
+			result = await getDocumentSemanticTokens(textModel, result.provider, result.tokens.resultId, CancellationToken.None);
+			assert.ok(result, `We should have tokens (2)`);
+			assert.ok(result.tokens, `Tokens are found from multiple providers (2)`);
+			assert.ok(isSemanticTokens(result.tokens), `Tokens are full (2)`);
+			assert.ok(!result.tokens.resultId, `Token result id found from multiple providers (2)`);
+			assert.deepStrictEqual(toArr(result.tokens.data), [2, 1, 1, 1, 1, 0, 2, 1, 1, 1], `Token data returned for multiple providers (2)`);
+			assert.deepStrictEqual(callCount, 4, `Called both token providers (2)`);
+			assert.deepStrictEqual(result.provider.getLegend(), { tokenTypes: ['class1'], tokenModifiers: [] }, `Legend matches the tokens (2)`);
+		} finally {
+			disposables.clear();
+
+			// Wait for scheduler to finish
+			await timeout(0);
+
+			// Now dispose the text model
+			textModel.dispose();
+		}
+	});
 });
 
 function assertComputeEdits(lines1: string[], lines2: string[]): void {
@@ -480,6 +577,7 @@ function assertComputeEdits(lines1: string[], lines2: string[]): void {
 	model.pushEditOperations([], edits, null);
 
 	assert.strictEqual(model.getValue(), lines2.join('\n'));
+	model.dispose();
 }
 
 function getRandomInt(min: number, max: number): number {

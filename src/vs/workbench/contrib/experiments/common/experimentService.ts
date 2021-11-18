@@ -227,12 +227,13 @@ export class ExperimentService extends Disposable implements IExperimentService 
 	}
 
 	protected async getExperiments(): Promise<IRawExperiment[] | null> {
-		if (!this.productService.experimentsUrl || this.configurationService.getValue('workbench.enableExperiments') === false) {
+		const experimentsUrl = this.configurationService.getValue<string>('_workbench.experimentsUrl') || this.productService.experimentsUrl;
+		if (!experimentsUrl || this.configurationService.getValue('workbench.enableExperiments') === false) {
 			return [];
 		}
 
 		try {
-			const context = await this.requestService.request({ type: 'GET', url: this.productService.experimentsUrl }, CancellationToken.None);
+			const context = await this.requestService.request({ type: 'GET', url: experimentsUrl }, CancellationToken.None);
 			if (context.res.statusCode !== 200) {
 				return null;
 			}

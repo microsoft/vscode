@@ -22,7 +22,7 @@ export type TokenClassificationString = string;
 export const idPattern = '\\w+[-_\\w+]*';
 export const typeAndModifierIdPattern = `^${idPattern}$`;
 
-export const selectorPattern = `^(${idPattern}|\\*)(\\${CLASSIFIER_MODIFIER_SEPARATOR}${idPattern})*(\\${TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR}${idPattern})?$`;
+export const selectorPattern = `^(${idPattern}|\\*)(\\${CLASSIFIER_MODIFIER_SEPARATOR}${idPattern})*(${TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR}${idPattern})?$`;
 
 export const fontStylePattern = '^(\\s*(italic|bold|underline))*\\s*$';
 
@@ -531,6 +531,7 @@ function createDefaultTokenClassificationRegistry(): TokenClassificationRegistry
 	registerTokenType('property', nls.localize('property', "Style for properties."), [['variable.other.property']]);
 	registerTokenType('enumMember', nls.localize('enumMember', "Style for enum members."), [['variable.other.enummember']]);
 	registerTokenType('event', nls.localize('event', "Style for events."), [['variable.other.event']]);
+	registerTokenType('decorator', nls.localize('decorator', "Style for decorators & annotations."), [['entity.name.decorator'], ['entity.name.function']]);
 
 	registerTokenType('label', nls.localize('labels', "Style for labels. "), undefined);
 

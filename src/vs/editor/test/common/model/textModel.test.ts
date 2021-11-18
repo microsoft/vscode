@@ -175,6 +175,7 @@ suite('Editor Model - TextModel', () => {
 		assert.strictEqual(m.getValueLengthInRange(new Range(1, 2, 3, 1)), 'y First Line\r\nMy Second Line\r\n'.length);
 		assert.strictEqual(m.getValueLengthInRange(new Range(1, 2, 3, 1000)), 'y First Line\r\nMy Second Line\r\nMy Third Line'.length);
 		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1000, 1000)), 'My First Line\r\nMy Second Line\r\nMy Third Line'.length);
+		m.dispose();
 
 		m = createTextModel('My First Line\nMy Second Line\nMy Third Line');
 		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1, 1)), ''.length);
@@ -188,6 +189,7 @@ suite('Editor Model - TextModel', () => {
 		assert.strictEqual(m.getValueLengthInRange(new Range(1, 2, 3, 1)), 'y First Line\nMy Second Line\n'.length);
 		assert.strictEqual(m.getValueLengthInRange(new Range(1, 2, 3, 1000)), 'y First Line\nMy Second Line\nMy Third Line'.length);
 		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1000, 1000)), 'My First Line\nMy Second Line\nMy Third Line'.length);
+		m.dispose();
 	});
 
 	test('guess indentation 1', () => {
@@ -687,6 +689,8 @@ suite('Editor Model - TextModel', () => {
 
 		assert.deepStrictEqual(m.validatePosition(new Position(Number.MAX_VALUE, Number.MAX_VALUE)), new Position(2, 9));
 		assert.deepStrictEqual(m.validatePosition(new Position(123.23, 47.5)), new Position(2, 9));
+
+		m.dispose();
 	});
 
 	test('validatePosition around high-low surrogate pairs 1', () => {
@@ -714,6 +718,8 @@ suite('Editor Model - TextModel', () => {
 
 		assert.deepStrictEqual(m.validatePosition(new Position(Number.MAX_VALUE, Number.MAX_VALUE)), new Position(1, 5));
 		assert.deepStrictEqual(m.validatePosition(new Position(123.23, 47.5)), new Position(1, 5));
+
+		m.dispose();
 	});
 
 	test('validatePosition around high-low surrogate pairs 2', () => {
@@ -728,6 +734,8 @@ suite('Editor Model - TextModel', () => {
 		assert.deepStrictEqual(m.validatePosition(new Position(1, 6)), new Position(1, 6));
 		assert.deepStrictEqual(m.validatePosition(new Position(1, 7)), new Position(1, 7));
 
+		m.dispose();
+
 	});
 
 	test('validatePosition handle NaN.', () => {
@@ -740,6 +748,8 @@ suite('Editor Model - TextModel', () => {
 		assert.deepStrictEqual(m.validatePosition(new Position(NaN, NaN)), new Position(1, 1));
 		assert.deepStrictEqual(m.validatePosition(new Position(2, NaN)), new Position(2, 1));
 		assert.deepStrictEqual(m.validatePosition(new Position(NaN, 3)), new Position(1, 3));
+
+		m.dispose();
 	});
 
 	test('issue #71480: validatePosition handle floats', () => {
@@ -753,6 +763,8 @@ suite('Editor Model - TextModel', () => {
 		assert.deepStrictEqual(m.validatePosition(new Position(2, 0.8)), new Position(2, 1), 'f');
 		assert.deepStrictEqual(m.validatePosition(new Position(1, 1.2)), new Position(1, 1), 'g');
 		assert.deepStrictEqual(m.validatePosition(new Position(2, 1.5)), new Position(2, 1), 'h');
+
+		m.dispose();
 	});
 
 	test('issue #71480: validateRange handle floats', () => {
@@ -760,6 +772,8 @@ suite('Editor Model - TextModel', () => {
 
 		assert.deepStrictEqual(m.validateRange(new Range(0.2, 1.5, 0.8, 2.5)), new Range(1, 1, 1, 1));
 		assert.deepStrictEqual(m.validateRange(new Range(1.2, 1.7, 1.8, 2.2)), new Range(1, 1, 1, 2));
+
+		m.dispose();
 	});
 
 	test('validateRange around high-low surrogate pairs 1', () => {
@@ -788,6 +802,8 @@ suite('Editor Model - TextModel', () => {
 		assert.deepStrictEqual(m.validateRange(new Range(1, 4, 1, 5)), new Range(1, 4, 1, 5));
 
 		assert.deepStrictEqual(m.validateRange(new Range(1, 5, 1, 5)), new Range(1, 5, 1, 5));
+
+		m.dispose();
 	});
 
 	test('validateRange around high-low surrogate pairs 2', () => {
@@ -831,6 +847,8 @@ suite('Editor Model - TextModel', () => {
 		assert.deepStrictEqual(m.validateRange(new Range(1, 6, 1, 7)), new Range(1, 6, 1, 7));
 
 		assert.deepStrictEqual(m.validateRange(new Range(1, 7, 1, 7)), new Range(1, 7, 1, 7));
+
+		m.dispose();
 	});
 
 	test('modifyPosition', () => {
@@ -861,6 +879,8 @@ suite('Editor Model - TextModel', () => {
 		assert.deepStrictEqual(m.modifyPosition(new Position(1, 2), -100), new Position(1, 1));
 		assert.deepStrictEqual(m.modifyPosition(new Position(2, 2), -100), new Position(1, 1));
 		assert.deepStrictEqual(m.modifyPosition(new Position(2, 9), -18), new Position(1, 1));
+
+		m.dispose();
 	});
 
 	test('normalizeIndentation 1', () => {
@@ -940,6 +960,8 @@ suite('Editor Model - TextModel', () => {
 		assert.strictEqual(model.getLineFirstNonWhitespaceColumn(10), 4, '10');
 		assert.strictEqual(model.getLineFirstNonWhitespaceColumn(11), 0, '11');
 		assert.strictEqual(model.getLineFirstNonWhitespaceColumn(12), 0, '12');
+
+		model.dispose();
 	});
 
 	test('getLineLastNonWhitespaceColumn', () => {
@@ -970,12 +992,15 @@ suite('Editor Model - TextModel', () => {
 		assert.strictEqual(model.getLineLastNonWhitespaceColumn(10), 4, '10');
 		assert.strictEqual(model.getLineLastNonWhitespaceColumn(11), 0, '11');
 		assert.strictEqual(model.getLineLastNonWhitespaceColumn(12), 0, '12');
+
+		model.dispose();
 	});
 
 	test('#50471. getValueInRange with invalid range', () => {
 		let m = createTextModel('My First Line\r\nMy Second Line\r\nMy Third Line');
 		assert.strictEqual(m.getValueInRange(new Range(1, NaN, 1, 3)), 'My');
 		assert.strictEqual(m.getValueInRange(new Range(NaN, NaN, NaN, NaN)), '');
+		m.dispose();
 	});
 });
 
@@ -984,11 +1009,13 @@ suite('TextModel.mightContainRTL', () => {
 	test('nope', () => {
 		let model = createTextModel('hello world!');
 		assert.strictEqual(model.mightContainRTL(), false);
+		model.dispose();
 	});
 
 	test('yes', () => {
 		let model = createTextModel('Hello,\nזוהי עובדה מבוססת שדעתו');
 		assert.strictEqual(model.mightContainRTL(), true);
+		model.dispose();
 	});
 
 	test('setValue resets 1', () => {
@@ -996,6 +1023,7 @@ suite('TextModel.mightContainRTL', () => {
 		assert.strictEqual(model.mightContainRTL(), false);
 		model.setValue('Hello,\nזוהי עובדה מבוססת שדעתו');
 		assert.strictEqual(model.mightContainRTL(), true);
+		model.dispose();
 	});
 
 	test('setValue resets 2', () => {
@@ -1003,6 +1031,7 @@ suite('TextModel.mightContainRTL', () => {
 		assert.strictEqual(model.mightContainRTL(), true);
 		model.setValue('hello world!');
 		assert.strictEqual(model.mightContainRTL(), false);
+		model.dispose();
 	});
 
 });

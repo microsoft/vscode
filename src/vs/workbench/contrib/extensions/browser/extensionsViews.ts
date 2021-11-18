@@ -83,6 +83,7 @@ export interface ExtensionsListViewOptions {
 	server?: IExtensionManagementServer;
 	fixedHeight?: boolean;
 	onDidChangeTitle?: Event<string>;
+	hideBadge?: boolean;
 }
 
 interface IQueryResult {
@@ -155,8 +156,10 @@ export class ExtensionsListView extends ViewPane {
 		container.classList.add('extension-view-header');
 		super.renderHeader(container);
 
-		this.badge = new CountBadge(append(container, $('.count-badge-wrapper')));
-		this._register(attachBadgeStyler(this.badge, this.themeService));
+		if (!this.options.hideBadge) {
+			this.badge = new CountBadge(append(container, $('.count-badge-wrapper')));
+			this._register(attachBadgeStyler(this.badge, this.themeService));
+		}
 	}
 
 	override renderBody(container: HTMLElement): void {

@@ -241,8 +241,9 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			this.valueType = SettingValueType.Number;
 		} else if (this.setting.type === 'boolean') {
 			this.valueType = SettingValueType.Boolean;
-		} else if (this.setting.type === 'array' && (this.setting.arrayItemType === 'string' || this.setting.arrayItemType === 'enum')) {
-			this.valueType = SettingValueType.StringOrEnumArray;
+		} else if (this.setting.type === 'array' && this.setting.arrayItemType &&
+			['string', 'enum', 'number', 'integer'].includes(this.setting.arrayItemType)) {
+			this.valueType = SettingValueType.Array;
 		} else if (isArray(this.setting.type) && this.setting.type.includes(SettingValueType.Null) && this.setting.type.length === 2) {
 			if (this.setting.type.includes(SettingValueType.Integer)) {
 				this.valueType = SettingValueType.NullableInteger;
@@ -520,6 +521,7 @@ export function settingKeyToDisplayFormat(key: string, groupId = ''): { category
 
 function wordifyKey(key: string): string {
 	key = key
+		// allow-any-unicode-next-line
 		.replace(/\.([a-z0-9])/g, (_, p1) => ` › ${p1.toUpperCase()}`) // Replace dot with spaced '>'
 		.replace(/([a-z0-9])([A-Z])/g, '$1 $2') // Camel case to spacing, fooBar => foo Bar
 		.replace(/^[a-z]/g, match => match.toUpperCase()) // Upper casing all first letters, foo => Foo
@@ -574,7 +576,7 @@ export function isExcludeSetting(setting: ISetting): boolean {
 }
 
 function isObjectRenderableSchema({ type }: IJSONSchema): boolean {
-	return type === 'string' || type === 'boolean';
+	return type === 'string' || type === 'boolean' || type === 'integer' || type === 'number';
 }
 
 function isObjectSetting({
@@ -596,14 +598,18 @@ function isObjectSetting({
 		return false;
 	}
 
-	// object additional properties allow it to have any shape
-	if (objectAdditionalProperties === true || objectAdditionalProperties === undefined) {
+	// objectAdditionalProperties allow the setting to have any shape,
+	// but if there's a pattern property that handles everything, then every
+	// property will match that patternProperty, so we don't need to look at
+	// the value of objectAdditionalProperties in that case.
+	if ((objectAdditionalProperties === true || objectAdditionalProperties === undefined)
+		&& !Object.keys(objectPatternProperties ?? {}).includes('.*')) {
 		return false;
 	}
 
 	const schemas = [...Object.values(objectProperties ?? {}), ...Object.values(objectPatternProperties ?? {})];
 
-	if (typeof objectAdditionalProperties === 'object') {
+	if (objectAdditionalProperties && typeof objectAdditionalProperties === 'object') {
 		schemas.push(objectAdditionalProperties);
 	}
 

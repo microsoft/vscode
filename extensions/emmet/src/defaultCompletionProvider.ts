@@ -49,7 +49,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 
 		const mappedLanguages = getMappingForIncludedLanguages();
 		const isSyntaxMapped = mappedLanguages[document.languageId] ? true : false;
-		let emmetMode = getEmmetMode((isSyntaxMapped ? mappedLanguages[document.languageId] : document.languageId), excludedLanguages);
+		let emmetMode = getEmmetMode((isSyntaxMapped ? mappedLanguages[document.languageId] : document.languageId), mappedLanguages, excludedLanguages);
 
 		if (!emmetMode
 			|| emmetConfig['showExpandedAbbreviation'] === 'never'

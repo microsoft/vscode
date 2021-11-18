@@ -30,28 +30,6 @@ export const enum LanguageId {
 }
 
 /**
- * @internal
- */
-export class LanguageIdentifier {
-
-	/**
-	 * A string identifier. Unique across languages. e.g. 'javascript'.
-	 */
-	public readonly language: string;
-
-	/**
-	 * A numeric identifier. Unique across languages. e.g. 5
-	 * Will vary at runtime based on registration order, etc.
-	 */
-	public readonly id: LanguageId;
-
-	constructor(language: string, id: LanguageId) {
-		this.language = language;
-		this.id = id;
-	}
-}
-
-/**
  * A font style. Values are 2^x such that a bit mask can be used.
  * @internal
  */
@@ -189,6 +167,14 @@ export class TokenMetadata {
 		}
 		return result;
 	}
+}
+
+/**
+ * @internal
+ */
+export interface ILanguageIdCodec {
+	encodeLanguageId(languageId: string): LanguageId;
+	decodeLanguageId(languageId: LanguageId): string;
 }
 
 /**
@@ -497,6 +483,11 @@ export const enum CompletionItemInsertTextRule {
 	InsertAsSnippet = 0b100,
 }
 
+export interface CompletionItemRanges {
+	insert: IRange;
+	replace: IRange;
+}
+
 /**
  * A completion item represents a text snippet that is
  * proposed to complete text that is being typed.
@@ -565,7 +556,7 @@ export interface CompletionItem {
 	 * *Note:* The range must be a {@link Range.isSingleLine single line} and it must
 	 * {@link Range.contains contain} the position at which completion has been {@link CompletionItemProvider.provideCompletionItems requested}.
 	 */
-	range: IRange | { insert: IRange, replace: IRange };
+	range: IRange | CompletionItemRanges;
 	/**
 	 * An optional set of characters that when pressed while this completion is active will accept it first and
 	 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
@@ -1755,7 +1746,7 @@ export interface InlayHint {
 }
 
 export interface InlayHintsProvider {
-	onDidChangeInlayHints?: Event<void | URI>;
+	onDidChangeInlayHints?: Event<void>;
 	provideInlayHints(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlayHint[]>;
 }
 

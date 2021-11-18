@@ -25,6 +25,9 @@ export const enum TerminalSettingId {
 	AutomationShellLinux = 'terminal.integrated.automationShell.linux',
 	AutomationShellMacOs = 'terminal.integrated.automationShell.osx',
 	AutomationShellWindows = 'terminal.integrated.automationShell.windows',
+	AutomationProfileLinux = 'terminal.integrated.automationProfile.linux',
+	AutomationProfileMacOs = 'terminal.integrated.automationProfile.osx',
+	AutomationProfileWindows = 'terminal.integrated.automationProfile.windows',
 	ShellArgsLinux = 'terminal.integrated.shellArgs.linux',
 	ShellArgsMacOs = 'terminal.integrated.shellArgs.osx',
 	ShellArgsWindows = 'terminal.integrated.shellArgs.windows',
@@ -96,6 +99,7 @@ export const enum TerminalSettingId {
 	PersistentSessionScrollback = 'terminal.integrated.persistentSessionScrollback',
 	InheritEnv = 'terminal.integrated.inheritEnv',
 	ShowLinkHover = 'terminal.integrated.showLinkHover',
+	IgnoreProcessNames = 'terminal.integrated.ignoreProcessNames',
 }
 
 export enum WindowsShellType {
@@ -180,7 +184,12 @@ export const IPtyService = createDecorator<IPtyService>('ptyService');
 export const enum ProcessPropertyType {
 	Cwd = 'cwd',
 	InitialCwd = 'initialCwd',
-	FixedDimensions = 'fixedDimensions'
+	FixedDimensions = 'fixedDimensions',
+	Title = 'title',
+	ShellType = 'shellType',
+	HasChildProcesses = 'hasChildProcesses',
+	ResolvedShellLaunchConfig = 'resolvedShellLaunchConfig',
+	OverrideDimensions = 'overrideDimensions'
 }
 
 export interface IProcessProperty<T extends ProcessPropertyType> {
@@ -191,7 +200,12 @@ export interface IProcessProperty<T extends ProcessPropertyType> {
 export interface IProcessPropertyMap {
 	[ProcessPropertyType.Cwd]: string,
 	[ProcessPropertyType.InitialCwd]: string,
-	[ProcessPropertyType.FixedDimensions]: IFixedTerminalDimensions
+	[ProcessPropertyType.FixedDimensions]: IFixedTerminalDimensions,
+	[ProcessPropertyType.Title]: string
+	[ProcessPropertyType.ShellType]: TerminalShellType | undefined,
+	[ProcessPropertyType.HasChildProcesses]: boolean,
+	[ProcessPropertyType.ResolvedShellLaunchConfig]: IShellLaunchConfig,
+	[ProcessPropertyType.OverrideDimensions]: ITerminalDimensionsOverride | undefined
 }
 
 export interface IFixedTerminalDimensions {
@@ -217,17 +231,12 @@ export interface IPtyService {
 	readonly onPtyHostRequestResolveVariables?: Event<IRequestResolveVariablesEvent>;
 
 	readonly onProcessData: Event<{ id: number, event: IProcessDataEvent | string }>;
-	readonly onProcessExit: Event<{ id: number, event: number | undefined }>;
-	readonly onProcessReady: Event<{ id: number, event: { pid: number, cwd: string, capabilities: ProcessCapability[] } }>;
-	readonly onProcessTitleChanged: Event<{ id: number, event: string }>;
-	readonly onProcessShellTypeChanged: Event<{ id: number, event: TerminalShellType }>;
-	readonly onProcessOverrideDimensions: Event<{ id: number, event: ITerminalDimensionsOverride | undefined }>;
-	readonly onProcessResolvedShellLaunchConfig: Event<{ id: number, event: IShellLaunchConfig }>;
+	readonly onProcessReady: Event<{ id: number, event: IProcessReadyEvent }>;
 	readonly onProcessReplay: Event<{ id: number, event: IPtyHostProcessReplayEvent }>;
 	readonly onProcessOrphanQuestion: Event<{ id: number }>;
 	readonly onDidRequestDetach: Event<{ requestId: number, workspaceId: string, instanceId: number }>;
-	readonly onProcessDidChangeHasChildProcesses: Event<{ id: number, event: boolean }>;
 	readonly onDidChangeProperty: Event<{ id: number, property: IProcessProperty<any> }>
+	readonly onProcessExit: Event<{ id: number, event: number | undefined }>;
 
 	restartPtyHost?(): Promise<void>;
 	shutdownAll?(): Promise<void>;
@@ -287,8 +296,10 @@ export interface IPtyService {
 	 * flow for restoring terminals after reloading.
 	 */
 	reviveTerminalProcesses(state: string): Promise<void>;
-	refreshProperty(id: number, property: ProcessPropertyType): Promise<any>;
-	updateProperty(id: number, property: ProcessPropertyType, value: any): Promise<void>;
+	refreshProperty<T extends ProcessPropertyType>(id: number, property: T): Promise<IProcessPropertyMap[T]>;
+	updateProperty<T extends ProcessPropertyType>(id: number, property: T, value: IProcessPropertyMap[T]): Promise<void>;
+
+	refreshIgnoreProcessNames?(names: string[]): Promise<void>;
 }
 
 export interface IRequestResolveVariablesEvent {
@@ -524,14 +535,9 @@ export interface ITerminalChildProcess {
 	capabilities: ProcessCapability[];
 
 	onProcessData: Event<IProcessDataEvent | string>;
-	onProcessExit: Event<number | undefined>;
 	onProcessReady: Event<IProcessReadyEvent>;
-	onProcessTitleChanged: Event<string>;
-	onProcessShellTypeChanged: Event<TerminalShellType>;
-	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined>;
-	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig>;
-	onDidChangeHasChildProcesses?: Event<boolean>;
 	onDidChangeProperty: Event<IProcessProperty<any>>;
+	onProcessExit: Event<number | undefined>;
 
 	/**
 	 * Starts the process.
@@ -574,8 +580,8 @@ export interface ITerminalChildProcess {
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
 	getLatency(): Promise<number>;
-	refreshProperty<T extends ProcessPropertyType>(property: ProcessPropertyType): Promise<IProcessPropertyMap[T]>;
-	updateProperty<T extends ProcessPropertyType>(property: ProcessPropertyType, value: IProcessPropertyMap[T]): Promise<void>;
+	refreshProperty<T extends ProcessPropertyType>(property: T): Promise<IProcessPropertyMap[T]>;
+	updateProperty<T extends ProcessPropertyType>(property: T, value: IProcessPropertyMap[T]): Promise<void>;
 }
 
 export interface IReconnectConstants {

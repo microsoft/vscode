@@ -40,6 +40,10 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 			}
 		}
 
+		if (json.nbformat && json.nbformat < 4) {
+			throw new Error('Only Jupyter notebooks version 4+ are supported');
+		}
+
 		// Then compute indent from the contents (only use first 1K characters as a perf optimization)
 		const indentAmount = contents ? detectIndent(contents.substring(0, 1_000)).indent : ' ';
 
@@ -78,11 +82,7 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 	}
 
 	public serializeNotebookToString(data: vscode.NotebookData): string {
-		const notebookContent: Partial<nbformat.INotebookContent> = data.metadata?.custom || {};
-		notebookContent.cells = notebookContent.cells || [];
-		notebookContent.nbformat = notebookContent.nbformat || 4;
-		notebookContent.nbformat_minor = notebookContent.nbformat_minor ?? 2;
-		notebookContent.metadata = notebookContent.metadata || { orig_nbformat: 4 };
+		const notebookContent = getNotebookMetadata(data);
 
 		notebookContent.cells = data.cells
 			.map(cell => createJupyterCellFromNotebookCell(cell))
@@ -94,4 +94,13 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 		// ipynb always ends with a trailing new line (we add this so that SCMs do not show unnecesary changes, resulting from a missing trailing new line).
 		return JSON.stringify(sortObjectPropertiesRecursively(notebookContent), undefined, indentAmount) + '\n';
 	}
+}
+
+export function getNotebookMetadata(document: vscode.NotebookDocument | vscode.NotebookData) {
+	const notebookContent: Partial<nbformat.INotebookContent> = document.metadata?.custom || {};
+	notebookContent.cells = notebookContent.cells || [];
+	notebookContent.nbformat = notebookContent.nbformat || 4;
+	notebookContent.nbformat_minor = notebookContent.nbformat_minor ?? 2;
+	notebookContent.metadata = notebookContent.metadata || { orig_nbformat: 4 };
+	return notebookContent;
 }

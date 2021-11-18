@@ -65,18 +65,6 @@ export function setup(opts: minimist.ParsedArgs) {
 			await app.workbench.problems.waitForProblemsView();
 		});
 
-		it(`checks if 'Go to Line' works if called from the status bar`, async function () {
-			const app = this.app as Application;
-
-			await app.workbench.quickaccess.openFile('app.js');
-			await app.workbench.statusbar.clickOn(StatusBarElement.SELECTION_STATUS);
-
-			await app.workbench.quickinput.waitForQuickInputOpened();
-
-			await app.workbench.quickinput.submit(':15');
-			await app.workbench.editor.waitForHighlightingLine('app.js', 15);
-		});
-
 		it(`verifies if changing EOL is reflected in the status bar`, async function () {
 			const app = this.app as Application;
 

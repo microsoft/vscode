@@ -10,8 +10,8 @@ import { IActiveCodeEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { reviveWebviewContentOptions } from 'vs/workbench/api/browser/mainThreadWebviews';
-import { ExtHostContext, ExtHostEditorInsetsShape, IExtHostContext, IWebviewOptions, MainContext, MainThreadEditorInsetsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
+import { ExtHostContext, ExtHostEditorInsetsShape, IExtHostContext, IWebviewContentOptions, MainContext, MainThreadEditorInsetsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { IWebviewService, IWebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { extHostNamedCustomer } from '../common/extHostCustomers';
 
 // todo@jrieken move these things back into something like contrib/insets
@@ -34,7 +34,7 @@ class EditorWebviewZone implements IViewZone {
 		readonly editor: IActiveCodeEditor,
 		readonly line: number,
 		readonly height: number,
-		readonly webview: WebviewElement,
+		readonly webview: IWebviewElement,
 	) {
 		this.domNode = document.createElement('div');
 		this.domNode.style.zIndex = '10'; // without this, the webview is not interactive
@@ -70,7 +70,7 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 		this._disposables.dispose();
 	}
 
-	async $createEditorInset(handle: number, id: string, uri: UriComponents, line: number, height: number, options: IWebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): Promise<void> {
+	async $createEditorInset(handle: number, id: string, uri: UriComponents, line: number, height: number, options: IWebviewContentOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): Promise<void> {
 
 		let editor: IActiveCodeEditor | undefined;
 		id = id.substr(0, id.indexOf(',')); //todo@jrieken HACK
@@ -121,7 +121,7 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 		inset.webview.html = value;
 	}
 
-	$setOptions(handle: number, options: IWebviewOptions): void {
+	$setOptions(handle: number, options: IWebviewContentOptions): void {
 		const inset = this.getInset(handle);
 		inset.webview.contentOptions = reviveWebviewContentOptions(options);
 	}

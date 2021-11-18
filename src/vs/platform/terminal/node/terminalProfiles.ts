@@ -17,6 +17,7 @@ import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 let profileSources: Map<string, IPotentialTerminalProfile> | undefined;
+let logIfWslNotInstalled: boolean = true;
 
 export function detectAvailableProfiles(
 	profiles: unknown,
@@ -27,7 +28,7 @@ export function detectAvailableProfiles(
 	fsProvider?: IFsProvider,
 	logService?: ILogService,
 	variableResolver?: (text: string[]) => Promise<string[]>,
-	testPwshSourcePaths?: string[],
+	testPwshSourcePaths?: string[]
 ): Promise<ITerminalProfile[]> {
 	fsProvider = fsProvider || {
 		existsFile: pfs.SymlinkSupport.existsFile,
@@ -130,7 +131,10 @@ async function detectAvailableWindowsProfiles(
 				}
 			}
 		} catch (e) {
-			logService?.info('WSL is not installed, so could not detect WSL profiles');
+			if (logIfWslNotInstalled) {
+				logService?.info('WSL is not installed, so could not detect WSL profiles');
+				logIfWslNotInstalled = false;
+			}
 		}
 	}
 
@@ -232,7 +236,7 @@ async function getWslProfiles(wslPath: string, defaultProfileName: string | unde
 	const profiles: ITerminalProfile[] = [];
 	const distroOutput = await new Promise<string>((resolve, reject) => {
 		// wsl.exe output is encoded in utf16le (ie. A -> 0x4100)
-		cp.exec('wsl.exe -l -q', { encoding: 'utf16le' }, (err, stdout) => {
+		cp.exec('wsl.exe -l -q', { encoding: 'utf16le', timeout: 1000 }, (err, stdout) => {
 			if (err) {
 				return reject('Problem occurred when getting wsl distros');
 			}

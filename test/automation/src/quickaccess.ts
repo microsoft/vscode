@@ -40,22 +40,53 @@ export class QuickAccess {
 	}
 
 	async openFile(fileName: string): Promise<void> {
-		await this.openQuickAccess(fileName);
+		let retries = 0;
+		let fileFound = false;
+		while (++retries < 10) {
+			let retry = false;
 
-		await this.quickInput.waitForQuickInputElements(names => names[0] === fileName);
+			await this.openQuickAccess(fileName);
+
+			await this.quickInput.waitForQuickInputElements(names => {
+				const name = names[0];
+				if (name === fileName) {
+					fileFound = true;
+					return true;
+				}
+
+				if (name === 'No matching results') {
+					retry = true;
+					return true;
+				}
+
+				return false;
+			});
+
+			if (!retry) {
+				break;
+			}
+
+			await this.quickInput.closeQuickInput();
+			await new Promise(c => setTimeout(c, 500));
+		}
+
+		if (!fileFound) {
+			throw new Error(`Quick open file search was unable to find '${fileName}' after 10 attempts, giving up.`);
+		}
+
 		await this.code.dispatchKeybinding('enter');
 		await this.editors.waitForActiveTab(fileName);
 		await this.editors.waitForEditorFocus(fileName);
 	}
 
-	async runCommand(commandId: string): Promise<void> {
+	async runCommand(commandId: string, keepOpen?: boolean): Promise<void> {
 		await this.openQuickAccess(`>${commandId}`);
 
 		// wait for best choice to be focused
 		await this.code.waitForTextContent(QuickInput.QUICK_INPUT_FOCUSED_ELEMENT);
 
 		// wait and click on best choice
-		await this.quickInput.selectQuickInputElement(0);
+		await this.quickInput.selectQuickInputElement(0, keepOpen);
 	}
 
 	async openQuickOutline(): Promise<void> {
@@ -75,7 +106,7 @@ export class QuickAccess {
 			}
 
 			await this.quickInput.closeQuickInput();
-			await new Promise(c => setTimeout(c, 250));
+			await new Promise(c => setTimeout(c, 500));
 		}
 	}
 }

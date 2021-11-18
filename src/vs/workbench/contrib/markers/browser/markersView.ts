@@ -49,7 +49,7 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Codicon } from 'vs/base/common/codicons';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { groupBy } from 'vs/base/common/arrays';
 import { ResourceMap } from 'vs/base/common/map';
@@ -268,7 +268,12 @@ export class MarkersView extends ViewPane implements IMarkersView {
 					} else {
 						// Update resource
 						for (const updated of markerOrChange.updated) {
-							this.tree.setChildren(updated, createResourceMarkersIterator(updated));
+							this.tree.setChildren(updated, createResourceMarkersIterator(updated), {
+								/* Pass Identitiy Provider only when updating while the tree is visible */
+								diffIdentityProvider: {
+									getId(element: MarkerElement): string { return element.id; }
+								}
+							});
 							this.tree.rerender(updated);
 						}
 					}
@@ -404,7 +409,8 @@ export class MarkersView extends ViewPane implements IMarkersView {
 				overrideStyles: {
 					listBackground: this.getBackgroundColor()
 				},
-				selectionNavigation: true
+				selectionNavigation: true,
+				multipleSelectionSupport: true,
 			},
 		));
 
@@ -484,6 +490,8 @@ export class MarkersView extends ViewPane implements IMarkersView {
 				this.onVisibleDisposables.add(disposable);
 			}
 			this.refreshPanel();
+		} else if (this.tree) {
+			this.tree.toggleVisibility(true);
 		}
 	}
 
@@ -757,17 +765,12 @@ export class MarkersView extends ViewPane implements IMarkersView {
 	}
 
 	private onContextMenu(e: ITreeContextMenuEvent<MarkerElement | null>): void {
-		const element = e.element;
-		if (!element) {
-			return;
-		}
-
 		e.browserEvent.preventDefault();
 		e.browserEvent.stopPropagation();
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor!,
-			getActions: () => this.getMenuActions(element),
+			getActions: () => this.getMenuActions(e.element),
 			getActionViewItem: (action) => {
 				const keybinding = this.keybindingService.lookupKeybinding(action.id);
 				if (keybinding) {
@@ -783,7 +786,7 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		});
 	}
 
-	private getMenuActions(element: MarkerElement): IAction[] {
+	private getMenuActions(element: MarkerElement | null): IAction[] {
 		const result: IAction[] = [];
 
 		if (element instanceof Marker) {
@@ -805,6 +808,29 @@ export class MarkersView extends ViewPane implements IMarkersView {
 
 	public getFocusElement(): MarkerElement | undefined {
 		return this.tree?.getFocus()[0] || undefined;
+	}
+
+	public getFocusedSelectedElements(): MarkerElement[] | null {
+		const focus = this.getFocusElement();
+		if (!focus) {
+			return null;
+		}
+		const selection = this.tree!.getSelection();
+		if (selection.includes(focus)) {
+			const result: MarkerElement[] = [];
+			for (const selected of selection) {
+				if (selected) {
+					result.push(selected);
+				}
+			}
+			return result;
+		} else {
+			return [focus];
+		}
+	}
+
+	public getAllResourceMarkers(): ResourceMarkers[] {
+		return this.markersModel.resourceMarkers;
 	}
 
 	public override getActionViewItem(action: IAction): IActionViewItem | undefined {
@@ -884,6 +910,8 @@ export class MarkersView extends ViewPane implements IMarkersView {
 
 class MarkersTree extends WorkbenchObjectTree<MarkerElement, FilterData> {
 
+	private readonly visibilityContextKey: IContextKey<boolean>;
+
 	constructor(
 		user: string,
 		readonly container: HTMLElement,
@@ -898,6 +926,7 @@ class MarkersTree extends WorkbenchObjectTree<MarkerElement, FilterData> {
 		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
 		super(user, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, keybindingService, accessibilityService);
+		this.visibilityContextKey = Constants.MarkersTreeVisibilityContextKey.bindTo(contextKeyService);
 	}
 
 	override layout(height: number, width: number): void {
@@ -906,6 +935,7 @@ class MarkersTree extends WorkbenchObjectTree<MarkerElement, FilterData> {
 	}
 
 	toggleVisibility(hide: boolean): void {
+		this.visibilityContextKey.set(!hide);
 		this.container.classList.toggle('hidden', hide);
 	}
 

@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { LanguageIdentifier, StandardTokenType } from 'vs/editor/common/modes';
+import { StandardTokenType } from 'vs/editor/common/modes';
 import { BracketElectricCharacterSupport, IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
 import { RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
 import { TokenText, createFakeScopedLineTokens } from 'vs/editor/test/common/modesTestUtils';
 
-const fakeLanguageIdentifier = new LanguageIdentifier('test', 3);
+const fakeLanguageId = 'test';
 
 suite('Editor Modes - Auto Indentation', () => {
 	function _testOnElectricCharacter(electricCharacterSupport: BracketElectricCharacterSupport, line: TokenText[], character: string, offset: number): IElectricAction | null {
@@ -28,7 +28,7 @@ suite('Editor Modes - Auto Indentation', () => {
 
 	test('getElectricCharacters uses all sources and dedups', () => {
 		let sup = new BracketElectricCharacterSupport(
-			new RichEditBrackets(fakeLanguageIdentifier, [
+			new RichEditBrackets(fakeLanguageId, [
 				['{', '}'],
 				['(', ')']
 			])
@@ -39,7 +39,7 @@ suite('Editor Modes - Auto Indentation', () => {
 
 	test('matchOpenBracket', () => {
 		let sup = new BracketElectricCharacterSupport(
-			new RichEditBrackets(fakeLanguageIdentifier, [
+			new RichEditBrackets(fakeLanguageId, [
 				['{', '}'],
 				['(', ')']
 			])

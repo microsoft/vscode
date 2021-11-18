@@ -6,6 +6,7 @@
 import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
 import { Disposable, dispose, MutableDisposable } from 'vs/base/common/lifecycle';
+import { mark } from 'vs/base/common/performance';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { InMemoryStorageDatabase, IStorage, Storage } from 'vs/base/parts/storage/common/storage';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -271,8 +272,14 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		if (!this.initializationPromise) {
 			this.initializationPromise = (async () => {
 
-				// Ask subclasses to initialize storage
-				await this.doInitialize();
+				// Init all storage locations
+				mark('code/willInitStorage');
+				try {
+					// Ask subclasses to initialize storage
+					await this.doInitialize();
+				} finally {
+					mark('code/didInitStorage');
+				}
 
 				// On some OS we do not get enough time to persist state on shutdown (e.g. when
 				// Windows restarts after applying updates). In other cases, VSCode might crash,
@@ -454,16 +461,33 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		return this.getBoolean(IS_NEW_KEY, scope) === true;
 	}
 
-	async flush(reason: WillSaveStateReason = WillSaveStateReason.NONE): Promise<void> {
+	async flush(reason = WillSaveStateReason.NONE): Promise<void> {
 
 		// Signal event to collect changes
 		this._onWillSaveState.fire({ reason });
 
-		// Await flush
-		await Promises.settled([
-			this.getStorage(StorageScope.GLOBAL)?.whenFlushed() ?? Promise.resolve(),
-			this.getStorage(StorageScope.WORKSPACE)?.whenFlushed() ?? Promise.resolve()
-		]);
+		const globalStorage = this.getStorage(StorageScope.GLOBAL);
+		const workspaceStorage = this.getStorage(StorageScope.WORKSPACE);
+
+		switch (reason) {
+
+			// Unspecific reason: just wait when data is flushed
+			case WillSaveStateReason.NONE:
+				await Promises.settled([
+					globalStorage?.whenFlushed() ?? Promise.resolve(),
+					workspaceStorage?.whenFlushed() ?? Promise.resolve()
+				]);
+				break;
+
+			// Shutdown: we want to flush as soon as possible
+			// and not hit any delays that might be there
+			case WillSaveStateReason.SHUTDOWN:
+				await Promises.settled([
+					globalStorage?.flush(0) ?? Promise.resolve(),
+					workspaceStorage?.flush(0) ?? Promise.resolve()
+				]);
+				break;
+		}
 	}
 
 	async logStorage(): Promise<void> {

@@ -63,6 +63,14 @@ export namespace ThemeIcon {
 		return { id };
 	}
 
+	export function getModifier(icon: ThemeIcon): string | undefined {
+		const tildeIndex = icon.id.lastIndexOf('~');
+		if (tildeIndex !== -1) {
+			return icon.id.substring(tildeIndex + 1);
+		}
+		return undefined;
+	}
+
 	export function isEqual(ti1: ThemeIcon, ti2: ThemeIcon): boolean {
 		return ti1.id === ti2.id && ti1.color?.id === ti2.color?.id;
 	}

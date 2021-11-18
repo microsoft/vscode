@@ -3,12 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* eslint-disable @typescript-eslint/naming-convention */
+
 import { IBufferCell } from 'xterm';
 
-export type XTermAttributes = Omit<IBufferCell, 'getWidth' | 'getChars' | 'getCode'> & { clone?(): XTermAttributes };
+export type XtermAttributes = Omit<IBufferCell, 'getWidth' | 'getChars' | 'getCode'> & { clone?(): XtermAttributes };
 
-export interface XTermCore {
-	_onScroll: IEventEmitter<number>;
+export interface IXtermCore {
+	viewport?: {
+		_innerRefresh(): void;
+	};
 	_onKey: IEventEmitter<{ key: string }>;
 
 	_charSizeService: {
@@ -21,7 +25,7 @@ export interface XTermCore {
 	};
 
 	_inputHandler: {
-		_curAttrData: XTermAttributes;
+		_curAttrData: XtermAttributes;
 	};
 
 	_renderService: {
@@ -30,7 +34,7 @@ export interface XTermCore {
 			actualCellHeight: number;
 		},
 		_renderer: {
-			_renderLayers: any[];
+			_renderLayers?: any[];
 		};
 		_onIntersectionChange: any;
 	};

@@ -129,8 +129,13 @@
 
 .notebook-text-diff-editor .cell-diff-editor-container .output-header-container .property-status span,
 .notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container .property-status span {
-	margin: 0 8px;
+	margin: 0 0 0 8px;
 	line-height: 21px;
+}
+
+.notebook-text-diff-editor .cell-diff-editor-container .output-header-container .property-status span.property-description,
+.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container .property-status span.property-description {
+	font-style: italic;
 }
 
 .notebook-text-diff-editor {

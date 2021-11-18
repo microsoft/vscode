@@ -6,6 +6,7 @@
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { getErrorMessage } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { parse } from 'vs/base/common/json';
 import { applyEdits } from 'vs/base/common/jsonEdit';
@@ -21,6 +22,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { AbstractInitializer, AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview, isSyncData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { edit } from 'vs/platform/userDataSync/common/content';
 import { merge } from 'vs/platform/userDataSync/common/globalStateMerge';
@@ -83,8 +85,9 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(SyncResource.GlobalState, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncResourceEnablementService, telemetryService, logService, configurationService);
+		super(SyncResource.GlobalState, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncResourceEnablementService, telemetryService, logService, configurationService, uriIdentityService);
 		this._register(fileService.watch(this.extUri.dirname(this.environmentService.argvResource)));
 		this._register(
 			Event.any(
@@ -291,9 +294,13 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 
 	private async getLocalArgvContent(): Promise<string> {
 		try {
+			this.logService.debug('GlobalStateSync#getLocalArgvContent', this.environmentService.argvResource);
 			const content = await this.fileService.readFile(this.environmentService.argvResource);
+			this.logService.debug('GlobalStateSync#getLocalArgvContent - Resolved', this.environmentService.argvResource);
 			return content.value.toString();
-		} catch (error) { }
+		} catch (error) {
+			this.logService.debug(getErrorMessage(error));
+		}
 		return '{}';
 	}
 
@@ -373,8 +380,9 @@ export class GlobalStateInitializer extends AbstractInitializer {
 		@IFileService fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(SyncResource.GlobalState, environmentService, logService, fileService);
+		super(SyncResource.GlobalState, environmentService, logService, fileService, uriIdentityService);
 	}
 
 	async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {

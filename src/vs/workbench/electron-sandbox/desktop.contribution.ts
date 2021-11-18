@@ -19,9 +19,6 @@ import { IsMacContext } from 'vs/platform/contextkey/common/contextkeys';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { PartsSplash } from 'vs/workbench/electron-sandbox/splash';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { InstallShellScriptAction, UninstallShellScriptAction } from 'vs/workbench/electron-sandbox/actions/installActions';
 import { EditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
 import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
@@ -48,7 +45,7 @@ import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 			id: CloseWindowAction.ID,
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.and(EditorsVisibleContext.toNegated(), SingleEditorGroupsContext),
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_W
+			primary: KeyMod.CtrlCmd | KeyCode.KeyW
 		});
 	}
 
@@ -67,8 +64,8 @@ import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 			nativeHostService.quit();
 		},
 		when: undefined,
-		mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_Q },
-		linux: { primary: KeyMod.CtrlCmd | KeyCode.KEY_Q }
+		mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyQ },
+		linux: { primary: KeyMod.CtrlCmd | KeyCode.KeyQ }
 	});
 
 	// Actions: macOS Native Tabs
@@ -235,7 +232,7 @@ import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 				'description': localize('telemetry.enableCrashReporting', "Enable crash reports to be collected. This helps us improve stability. \nThis option requires restart to take effect."),
 				'default': true,
 				'tags': ['usesOnlineServices', 'telemetry'],
-				'markdownDeprecationMessage': localize('enableCrashReporterDeprecated', "Deprecated due to being combined into the {0} setting.", `\`#${TELEMETRY_SETTING_ID}#\``),
+				'markdownDeprecationMessage': localize('enableCrashReporterDeprecated', "If this setting is false, no telemetry will be sent regardless of the new setting's value. Deprecated due to being combined into the {0} setting.", `\`#${TELEMETRY_SETTING_ID}#\``),
 			}
 		}
 	});
@@ -323,11 +320,4 @@ import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 	}
 
 	jsonRegistry.registerSchema(argvDefinitionFileSchemaId, schema);
-})();
-
-// Workbench Contributions
-(function registerWorkbenchContributions() {
-
-	// Splash
-	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(PartsSplash, LifecyclePhase.Starting);
 })();

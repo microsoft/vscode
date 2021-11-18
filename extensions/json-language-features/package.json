@@ -12,17 +12,20 @@
   "icon": "icons/json.png",
   "activationEvents": [
     "onLanguage:json",
-    "onLanguage:jsonc"
+    "onLanguage:jsonc",
+    "onCommand:json.showSchemas"
   ],
   "main": "./client/out/node/jsonClientMain",
   "browser": "./client/dist/browser/jsonClientMain",
-  "enableProposedApi": true,
   "capabilities": {
     "virtualWorkspaces": true,
     "untrustedWorkspaces": {
       "supported": true
     }
   },
+  "enabledApiProposals": [
+    "languageStatus"
+  ],
   "scripts": {
     "compile": "npx gulp compile-extension:json-language-features-client compile-extension:json-language-features-server",
     "watch": "npx gulp watch-extension:json-language-features-client watch-extension:json-language-features-server",
@@ -135,7 +138,7 @@
   },
   "dependencies": {
     "request-light": "^0.5.4",
-    "vscode-extension-telemetry": "0.4.2",
+    "vscode-extension-telemetry": "0.4.3",
     "vscode-languageclient": "^7.0.0",
     "vscode-nls": "^5.0.0"
   },

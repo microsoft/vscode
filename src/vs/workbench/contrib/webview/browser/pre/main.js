@@ -6,11 +6,12 @@
 
 /// <reference lib="dom" />
 
-
-const isSafari = navigator.vendor && navigator.vendor.indexOf('Apple') > -1 &&
+const isSafari = (
+	navigator.vendor && navigator.vendor.indexOf('Apple') > -1 &&
 	navigator.userAgent &&
 	navigator.userAgent.indexOf('CriOS') === -1 &&
-	navigator.userAgent.indexOf('FxiOS') === -1;
+	navigator.userAgent.indexOf('FxiOS') === -1
+);
 
 const isFirefox = (
 	navigator.userAgent &&
@@ -31,7 +32,7 @@ const parentOrigin = searchParams.get('parentOrigin');
  * @param {() => void} handlers.onBlur
  */
 const trackFocus = ({ onFocus, onBlur }) => {
-	const interval = 50;
+	const interval = 250;
 	let isFocused = document.hasFocus();
 	setInterval(() => {
 		const isCurrentlyFocused = document.hasFocus();
@@ -48,11 +49,11 @@ const trackFocus = ({ onFocus, onBlur }) => {
 };
 
 const getActiveFrame = () => {
-	return /** @type {HTMLIFrameElement} */ (document.getElementById('active-frame'));
+	return /** @type {HTMLIFrameElement | undefined} */ (document.getElementById('active-frame'));
 };
 
 const getPendingFrame = () => {
-	return /** @type {HTMLIFrameElement} */ (document.getElementById('pending-frame'));
+	return /** @type {HTMLIFrameElement | undefined} */ (document.getElementById('pending-frame'));
 };
 
 /**
@@ -350,7 +351,7 @@ const unloadMonitor = new class {
 		});
 	}
 
-	onIframeLoaded(/** @type {HTMLIFrameElement} */frame) {
+	onIframeLoaded(/** @type {HTMLIFrameElement} */ frame) {
 		frame.contentWindow.addEventListener('keydown', e => {
 			this.isModifierKeyDown = e.metaKey || e.ctrlKey || e.altKey;
 		});
@@ -447,11 +448,11 @@ const applyStyles = (document, body) => {
  * @param {MouseEvent} event
  */
 const handleInnerClick = (event) => {
-	if (!event || !event.view || !event.view.document) {
+	if (!event?.view?.document) {
 		return;
 	}
 
-	const baseElement = event.view.document.getElementsByTagName('base')[0];
+	const baseElement = event.view.document.querySelector('base');
 
 	for (const pathElement of event.composedPath()) {
 		/** @type {any} */
@@ -460,10 +461,9 @@ const handleInnerClick = (event) => {
 			if (node.getAttribute('href') === '#') {
 				event.view.scrollTo(0, 0);
 			} else if (node.hash && (node.getAttribute('href') === node.hash || (baseElement && node.href === baseElement.href + node.hash))) {
-				const scrollTarget = event.view.document.getElementById(node.hash.substr(1, node.hash.length - 1));
-				if (scrollTarget) {
-					scrollTarget.scrollIntoView();
-				}
+				const fragment = node.hash.substr(1, node.hash.length - 1);
+				const scrollTarget = event.view.document.getElementById(decodeURIComponent(fragment));
+				scrollTarget?.scrollIntoView();
 			} else {
 				hostMessaging.postMessage('did-click-link', node.href.baseVal || node.href);
 			}
@@ -476,24 +476,23 @@ const handleInnerClick = (event) => {
 /**
  * @param {MouseEvent} event
  */
-const handleAuxClick =
-	(event) => {
-		// Prevent middle clicks opening a broken link in the browser
-		if (!event.view || !event.view.document) {
-			return;
-		}
+const handleAuxClick = (event) => {
+	// Prevent middle clicks opening a broken link in the browser
+	if (!event?.view?.document) {
+		return;
+	}
 
-		if (event.button === 1) {
-			for (const pathElement of event.composedPath()) {
-				/** @type {any} */
-				const node = pathElement;
-				if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
-					event.preventDefault();
-					return;
-				}
+	if (event.button === 1) {
+		for (const pathElement of event.composedPath()) {
+			/** @type {any} */
+			const node = pathElement;
+			if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
+				event.preventDefault();
+				return;
 			}
 		}
-	};
+	}
+};
 
 /**
  * @param {KeyboardEvent} e
@@ -503,7 +502,7 @@ const handleInnerKeydown = (e) => {
 	// make sure we block the browser from dispatching it. Instead VS Code
 	// handles these events and will dispatch a copy/paste back to the webview
 	// if needed
-	if (isUndoRedo(e) || isPrint(e)) {
+	if (isUndoRedo(e) || isPrint(e) || isFindEvent(e)) {
 		e.preventDefault();
 	} else if (isCopyPasteOrCut(e)) {
 		if (onElectron) {
@@ -568,6 +567,15 @@ function isPrint(e) {
 	return hasMeta && e.key.toLowerCase() === 'p';
 }
 
+/**
+ * @param {KeyboardEvent} e
+ * @return {boolean}
+ */
+function isFindEvent(e) {
+	const hasMeta = e.ctrlKey || e.metaKey;
+	return hasMeta && e.key.toLowerCase() === 'f';
+}
+
 let isHandlingScroll = false;
 
 /**
@@ -598,7 +606,7 @@ const handleInnerScroll = (event) => {
 
 	const target = /** @type {HTMLDocument | null} */ (event.target);
 	const currentTarget = /** @type {Window | null} */ (event.currentTarget);
-	if (!target || !currentTarget || !target.body) {
+	if (!currentTarget || !target?.body) {
 		return;
 	}
 
@@ -880,6 +888,7 @@ onDomReady(() => {
 
 			const newFrame = getPendingFrame();
 			if (newFrame && newFrame.contentDocument && newFrame.contentDocument === contentDocument) {
+				const wasFocused = document.hasFocus();
 				const oldActiveFrame = getActiveFrame();
 				if (oldActiveFrame) {
 					document.body.removeChild(oldActiveFrame);
@@ -894,7 +903,7 @@ onDomReady(() => {
 				contentWindow.addEventListener('scroll', handleInnerScroll);
 				contentWindow.addEventListener('wheel', handleWheel);
 
-				if (document.hasFocus()) {
+				if (wasFocused) {
 					contentWindow.focus();
 				}
 
@@ -978,6 +987,36 @@ onDomReady(() => {
 			return;
 		}
 		assertIsDefined(target.contentDocument).execCommand(data);
+	});
+
+	hostMessaging.onMessage('find', (_event, data) => {
+		const target = getActiveFrame();
+		if (!target) {
+			return;
+		}
+		const didFind = (/** @type {any} */ (target.contentWindow)).find(
+			data.value,
+			false,
+			/* backwards*/ data.previous,
+			/* wrapAround*/ true,
+			false,
+			/*aSearchInFrames*/ true,
+			false);
+		hostMessaging.postMessage('did-find', didFind);
+	});
+
+	hostMessaging.onMessage('find-stop', (_event, data) => {
+		const target = getActiveFrame();
+		if (!target) {
+			return;
+		}
+
+		if (!data.clearSelection) {
+			const selection = target.contentWindow.getSelection();
+			for (let i = 0; i < selection.rangeCount; i++) {
+				selection.removeRange(selection.getRangeAt(i));
+			}
+		}
 	});
 
 	trackFocus({

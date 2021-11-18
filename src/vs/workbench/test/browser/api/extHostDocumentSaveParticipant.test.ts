@@ -15,7 +15,7 @@ import type * as vscode from 'vscode';
 import { mock } from 'vs/base/test/common/mock';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { timeout } from 'vs/base/common/async';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 
 suite('ExtHostDocumentSaveParticipant', () => {
 
@@ -23,25 +23,13 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	let mainThreadBulkEdits = new class extends mock<MainThreadBulkEditsShape>() { };
 	let documents: ExtHostDocuments;
 	let nullLogService = new NullLogService();
-	let nullExtensionDescription: IExtensionDescription = {
-		identifier: new ExtensionIdentifier('nullExtensionDescription'),
-		name: 'Null Extension Description',
-		publisher: 'vscode',
-		enableProposedApi: false,
-		engines: undefined!,
-		extensionLocation: undefined!,
-		isBuiltin: false,
-		isUserBuiltin: false,
-		isUnderDevelopment: false,
-		version: undefined!
-	};
 
 	setup(() => {
 		const documentsAndEditors = new ExtHostDocumentsAndEditors(SingleProxyRPCProtocol(null), new NullLogService());
 		documentsAndEditors.$acceptDocumentsAndEditorsDelta({
 			addedDocuments: [{
 				isDirty: false,
-				modeId: 'foo',
+				languageId: 'foo',
 				uri: resource,
 				versionId: 1,
 				lines: ['foo'],
@@ -159,32 +147,30 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		assert.strictEqual(callCount, 2);
 	});
 
-	test('event delivery, overall timeout', () => {
+	test('event delivery, overall timeout', async function () {
 		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadBulkEdits, { timeout: 20, errors: 5 });
 
-		let callCount = 0;
+		// let callCount = 0;
+		let calls: number[] = [];
 		let sub1 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
-			callCount += 1;
-			event.waitUntil(timeout(1));
+			calls.push(1);
 		});
 
 		let sub2 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
-			callCount += 1;
-			event.waitUntil(timeout(170));
+			calls.push(2);
+			event.waitUntil(timeout(100));
 		});
 
 		let sub3 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
-			callCount += 1;
+			calls.push(3);
 		});
 
-		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(values => {
-			sub1.dispose();
-			sub2.dispose();
-			sub3.dispose();
-
-			assert.strictEqual(callCount, 2);
-			assert.strictEqual(values.length, 2);
-		});
+		const values = await participant.$participateInSave(resource, SaveReason.EXPLICIT);
+		sub1.dispose();
+		sub2.dispose();
+		sub3.dispose();
+		assert.deepStrictEqual(calls, [1, 2]);
+		assert.strictEqual(values.length, 2);
 	});
 
 	test('event delivery, waitUntil', () => {

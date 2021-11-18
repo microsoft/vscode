@@ -26,3 +26,15 @@ jobs:
           sku_name: standardLinux32gb
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  createPrebuildDev:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: github/codespaces-precache@v1.0.1
+        with:
+          target: development
+          regions: WestUs2
+          sku_name: standardLinux32gb
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

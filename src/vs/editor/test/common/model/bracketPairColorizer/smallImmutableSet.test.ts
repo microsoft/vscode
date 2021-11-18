@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert = require('assert');
-import { DenseKeyProvider, SmallImmutableSet } from 'vs/editor/common/model/bracketPairColorizer/smallImmutableSet';
+import { DenseKeyProvider, SmallImmutableSet } from 'vs/editor/common/model/bracketPairs/bracketPairsTree/smallImmutableSet';
 
 suite('Bracket Pair Colorizer - ImmutableSet', () => {
 	test('Basic', () => {

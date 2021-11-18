@@ -117,10 +117,6 @@ export class NotebookEditor extends EditorPane {
 
 	protected createEditor(parent: HTMLElement): void {
 		this._rootElement = DOM.append(parent, DOM.$('.notebook-editor'));
-
-		// this._widget.createEditor();
-		this._register(this.onDidFocus(() => this._widget.value?.updateEditorFocus()));
-		this._register(this.onDidBlur(() => this._widget.value?.updateEditorFocus()));
 	}
 
 	getDomNode() {
@@ -223,14 +219,14 @@ export class NotebookEditor extends EditorPane {
 
 
 
-		const viewState = this._loadNotebookEditorViewState(input);
+		const viewState = options?.viewState ?? this._loadNotebookEditorViewState(input);
 
 		this._widget.value?.setParentContextKeyService(this._contextKeyService);
 		await this._widget.value!.setModel(model.notebook, viewState);
 		const isReadOnly = input.hasCapability(EditorInputCapabilities.Readonly);
 		await this._widget.value!.setOptions({ ...options, isReadOnly });
-		this._widgetDisposableStore.add(this._widget.value!.onDidFocus(() => this._onDidFocusWidget.fire()));
-		this._widgetDisposableStore.add(this._widget.value!.onDidBlur(() => this._onDidBlurWidget.fire()));
+		this._widgetDisposableStore.add(this._widget.value!.onDidFocusWidget(() => this._onDidFocusWidget.fire()));
+		this._widgetDisposableStore.add(this._widget.value!.onDidBlurWidget(() => this._onDidBlurWidget.fire()));
 
 		this._widgetDisposableStore.add(this._editorDropService.createEditorDropTarget(this._widget.value!.getDomNode(), {
 			containsGroup: (group) => this.group?.id === group.id
@@ -287,7 +283,7 @@ export class NotebookEditor extends EditorPane {
 					editorLoaded: editorLoaded - startTime
 				});
 			} else {
-				console.warn('notebook file open perf marks are broken');
+				console.warn(`notebook file open perf marks are broken: startTime ${startTime}, extensionActiviated ${extensionActivated}, inputLoaded ${inputLoaded}, customMarkdownLoaded ${customMarkdownLoaded}, editorLoaded ${editorLoaded}`);
 			}
 		}
 	}
@@ -311,6 +307,17 @@ export class NotebookEditor extends EditorPane {
 		this._saveEditorViewState(this.input);
 		super.saveState();
 	}
+
+	override getViewState(): INotebookEditorViewState | undefined {
+		const input = this.input;
+		if (!(input instanceof NotebookEditorInput)) {
+			return undefined;
+		}
+
+		this._saveEditorViewState(input);
+		return this._loadNotebookEditorViewState(input);
+	}
+
 
 	private _saveEditorViewState(input: EditorInput | undefined): void {
 		if (this.group && this._widget.value && input instanceof NotebookEditorInput) {

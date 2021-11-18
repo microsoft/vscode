@@ -20,7 +20,7 @@ import { workbenchInstantiationService, TestNativeTextFileServiceWithEncodingOve
 import createSuite from 'vs/workbench/services/textfile/test/common/textFileService.io.test';
 import { IWorkingCopyFileService, WorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 
 flakySuite('Files - NativeTextFileService i/o', function () {
 	const disposables = new DisposableStore();
@@ -36,7 +36,7 @@ flakySuite('Files - NativeTextFileService i/o', function () {
 
 	createSuite({
 		setup: async () => {
-			const instantiationService = workbenchInstantiationService();
+			const instantiationService = workbenchInstantiationService(disposables);
 
 			const logService = new NullLogService();
 			const fileService = new FileService(logService);

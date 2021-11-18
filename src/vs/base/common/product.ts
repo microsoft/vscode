@@ -53,6 +53,7 @@ export interface IProductConfiguration {
 	readonly updateUrl?: string;
 	readonly webEndpointUrl?: string;
 	readonly webEndpointUrlTemplate?: string;
+	readonly webviewContentExternalBaseUrlTemplate?: string;
 	readonly target?: string;
 
 	readonly settingsSearchBuildId?: number;
@@ -92,6 +93,7 @@ export interface IProductConfiguration {
 	};
 
 	readonly enableTelemetry?: boolean;
+	readonly openToWelcomeMainPage?: boolean;
 	readonly aiConfig?: {
 		readonly asimovKey: string;
 	};
@@ -117,6 +119,8 @@ export interface IProductConfiguration {
 	readonly privacyStatementUrl?: string;
 	readonly showTelemetryOptOut?: boolean;
 
+	readonly serverGreeting: string[];
+
 	readonly npsSurveyUrl?: string;
 	readonly cesSurveyUrl?: string;
 	readonly surveys?: readonly ISurveyData[];
@@ -131,7 +135,9 @@ export interface IProductConfiguration {
 	readonly extensionKind?: { readonly [extensionId: string]: ('ui' | 'workspace' | 'web')[]; };
 	readonly extensionPointExtensionKind?: { readonly [extensionPointId: string]: ('ui' | 'workspace' | 'web')[]; };
 	readonly extensionSyncedKeys?: { readonly [extensionId: string]: string[]; };
+	/** @deprecated */
 	readonly extensionAllowedProposedApi?: readonly string[];
+	readonly extensionEnabledApiProposals?: { readonly [extensionId: string]: string[] }
 	readonly extensionUntrustedWorkspaceSupport?: { readonly [extensionId: string]: ExtensionUntrustedWorkspaceSupport };
 	readonly extensionVirtualWorkspacesSupport?: { readonly [extensionId: string]: ExtensionVirtualWorkspaceSupport };
 
@@ -141,8 +147,6 @@ export interface IProductConfiguration {
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
 
 	readonly darwinUniversalAssetId?: string;
-
-	readonly webviewContentExternalBaseUrlTemplate?: string;
 }
 
 export type ImportantExtensionTip = { name: string; languages?: string[]; pattern?: string; isExtensionPack?: boolean };

@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ExtensionType, IExtension } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, IExtension, isResolverExtension } from 'vs/platform/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -22,6 +22,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
 // --- bisect service
 
@@ -102,21 +103,20 @@ class ExtensionBisectService implements IExtensionBisectService {
 			// bisect isn't active
 			return false;
 		}
-		if (this._isRemoteResolver(extension)) {
+		if (isResolverExtension(extension.manifest, this._envService.remoteAuthority)) {
 			// the current remote resolver extension cannot be disabled
+			return false;
+		}
+		if (this._isEnabledInEnv(extension)) {
+			// Extension enabled in env cannot be disabled
 			return false;
 		}
 		const disabled = this._disabled.get(extension.identifier.id);
 		return disabled ?? false;
 	}
 
-	private _isRemoteResolver(extension: IExtension): boolean {
-		if (extension.manifest.enableProposedApi !== true) {
-			return false;
-		}
-		const idx = this._envService.remoteAuthority?.indexOf('+');
-		const activationEvent = `onResolveRemoteAuthority:${this._envService.remoteAuthority?.substr(0, idx)}`;
-		return Boolean(extension.manifest.activationEvents?.find(e => e === activationEvent));
+	private _isEnabledInEnv(extension: IExtension): boolean {
+		return Array.isArray(this._envService.enableExtensions) && this._envService.enableExtensions.some(id => areSameExtensions({ id }, extension.identifier));
 	}
 
 	async start(extensions: ILocalExtension[]): Promise<void> {

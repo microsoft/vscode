@@ -13,20 +13,6 @@ import { isTypeScriptDocument } from '../utils/languageModeIds';
 import { equals } from '../utils/objects';
 import { ResourceMap } from '../utils/resourceMap';
 
-namespace ExperimentalProto {
-	export interface UserPreferences extends Proto.UserPreferences {
-		displayPartsForJSDoc: true
-
-		includeInlayParameterNameHints?: 'none' | 'literals' | 'all';
-		includeInlayParameterNameHintsWhenArgumentMatchesName?: boolean;
-		includeInlayFunctionParameterTypeHints?: boolean;
-		includeInlayVariableTypeHints?: boolean;
-		includeInlayPropertyDeclarationTypeHints?: boolean;
-		includeInlayFunctionLikeReturnTypeHints?: boolean;
-		includeInlayEnumMemberValueHints?: boolean;
-	}
-}
-
 interface FileConfiguration {
 	readonly formatOptions: Proto.FormatCodeSettings;
 	readonly preferences: Proto.UserPreferences;
@@ -187,11 +173,10 @@ export default class FileConfigurationManager extends Disposable {
 			isTypeScriptDocument(document) ? 'typescript.preferences' : 'javascript.preferences',
 			document.uri);
 
-		const preferences: ExperimentalProto.UserPreferences = {
+		const preferences: Proto.UserPreferences = {
 			quotePreference: this.getQuoteStylePreference(preferencesConfig),
 			importModuleSpecifierPreference: getImportModuleSpecifierPreference(preferencesConfig),
 			importModuleSpecifierEnding: getImportModuleSpecifierEndingPreference(preferencesConfig),
-			// @ts-expect-error until TS 4.5 protocol update
 			jsxAttributeCompletionStyle: getJsxAttributeCompletionStyle(preferencesConfig),
 			allowTextChangesInNewFiles: document.uri.scheme === fileSchemes.file,
 			providePrefixAndSuffixTextForRename: preferencesConfig.get<boolean>('renameShorthandProperties', true) === false ? false : preferencesConfig.get<boolean>('useAliasesForRenames', true),
@@ -201,6 +186,7 @@ export default class FileConfigurationManager extends Disposable {
 			generateReturnInDocTemplate: config.get<boolean>('suggest.jsdoc.generateReturns', true),
 			includeCompletionsForImportStatements: config.get<boolean>('suggest.includeCompletionsForImportStatements', true),
 			includeCompletionsWithSnippetText: config.get<boolean>('suggest.includeCompletionsWithSnippetText', true),
+			includeCompletionsWithClassMemberSnippets: config.get<boolean>('suggest.includeCompletionsWithClassMemberSnippets', true),
 			allowIncompleteCompletions: true,
 			displayPartsForJSDoc: true,
 			...getInlayHintsPreferences(config),

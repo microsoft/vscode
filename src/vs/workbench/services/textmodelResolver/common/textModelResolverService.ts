@@ -17,7 +17,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { ModelUndoRedoParticipant } from 'vs/editor/common/services/modelUndoRedoParticipant';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorModel>> {
 
@@ -89,7 +89,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 		}
 
 		// Track as being disposed before waiting for model to load
-		// to handle the case that the reference is aquired again
+		// to handle the case that the reference is acquired again
 		this.modelsToDispose.add(key);
 
 		(async () => {
@@ -97,7 +97,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 				const model = await modelPromise;
 
 				if (!this.modelsToDispose.has(key)) {
-					// return if model has been aquired again meanwhile
+					// return if model has been acquired again meanwhile
 					return;
 				}
 
@@ -108,7 +108,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 				}
 
 				if (!this.modelsToDispose.has(key)) {
-					// return if model has been aquired again meanwhile
+					// return if model has been acquired again meanwhile
 					return;
 				}
 

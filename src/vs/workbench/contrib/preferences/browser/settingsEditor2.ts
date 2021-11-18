@@ -122,7 +122,7 @@ export class SettingsEditor2 extends EditorPane {
 			return false;
 		}
 		return type === SettingValueType.Enum ||
-			type === SettingValueType.StringOrEnumArray ||
+			type === SettingValueType.Array ||
 			type === SettingValueType.BooleanObject ||
 			type === SettingValueType.Object ||
 			type === SettingValueType.Complex ||
@@ -667,7 +667,7 @@ export class SettingsEditor2 extends EditorPane {
 	private addCtrlAInterceptor(container: HTMLElement): void {
 		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_DOWN, (e: StandardKeyboardEvent) => {
 			if (
-				e.keyCode === KeyCode.KEY_A &&
+				e.keyCode === KeyCode.KeyA &&
 				(platform.isMacintosh ? e.metaKey : e.ctrlKey) &&
 				e.target.tagName !== 'TEXTAREA' &&
 				e.target.tagName !== 'INPUT'
@@ -1181,6 +1181,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		const query = this.searchWidget.getValue().trim();
 		this.delayedFilterLogging.cancel();
+		// allow-any-unicode-next-line
 		await this.triggerSearch(query.replace(/›/g, ' '));
 
 		if (query && this.searchResultModel) {
@@ -1372,6 +1373,7 @@ export class SettingsEditor2 extends EditorPane {
 				this.tocTree.expandAll();
 			}
 
+			this.settingsTree.scrollTop = 0;
 			this.refreshTOCTree();
 			this.renderTree(undefined, true);
 			return result;

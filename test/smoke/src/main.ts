@@ -17,16 +17,18 @@ import { Quality, ApplicationOptions, MultiLogger, Logger, ConsoleLogger, FileLo
 
 import { setup as setupDataMigrationTests } from './areas/workbench/data-migration.test';
 import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
-import { setup as setupDataPreferencesTests } from './areas/preferences/preferences.test';
-import { setup as setupDataSearchTests } from './areas/search/search.test';
-import { setup as setupDataNotebookTests } from './areas/notebook/notebook.test';
-import { setup as setupDataLanguagesTests } from './areas/languages/languages.test';
-import { setup as setupDataEditorTests } from './areas/editor/editor.test';
-import { setup as setupDataStatusbarTests } from './areas/statusbar/statusbar.test';
-import { setup as setupDataExtensionTests } from './areas/extensions/extensions.test';
-import { setup as setupDataMultirootTests } from './areas/multiroot/multiroot.test';
-import { setup as setupDataLocalizationTests } from './areas/workbench/localization.test';
+import { setup as setupPreferencesTests } from './areas/preferences/preferences.test';
+import { setup as setupSearchTests } from './areas/search/search.test';
+import { setup as setupNotebookTests } from './areas/notebook/notebook.test';
+import { setup as setupLanguagesTests } from './areas/languages/languages.test';
+import { setup as setupEditorTests } from './areas/editor/editor.test';
+import { setup as setupStatusbarTests } from './areas/statusbar/statusbar.test';
+import { setup as setupExtensionTests } from './areas/extensions/extensions.test';
+import { setup as setupMultirootTests } from './areas/multiroot/multiroot.test';
+import { setup as setupLocalizationTests } from './areas/workbench/localization.test';
 import { setup as setupLaunchTests } from './areas/workbench/launch.test';
+import { setup as setupTerminalProfileTests } from './areas/terminal/terminal-profiles.test';
+import { setup as setupTerminalTabsTests } from './areas/terminal/terminal-tabs.test';
 
 const testDataPath = path.join(os.tmpdir(), 'vscsmoke');
 if (fs.existsSync(testDataPath)) {
@@ -162,7 +164,11 @@ if (!opts.web) {
 		quality = Quality.Stable;
 	}
 
-	console.log(`Running desktop smoke tests against ${electronPath}`);
+	if (opts.remote) {
+		console.log(`Running desktop remote smoke tests against ${electronPath}`);
+	} else {
+		console.log(`Running desktop smoke tests against ${electronPath}`);
+	}
 }
 
 //
@@ -342,14 +348,18 @@ if (!opts.web && opts['build'] && !opts['remote']) {
 
 describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	if (!opts.web) { setupDataLossTests(opts); }
-	if (!opts.web) { setupDataPreferencesTests(opts); }
-	setupDataSearchTests(opts);
-	setupDataNotebookTests(opts);
-	setupDataLanguagesTests(opts);
-	setupDataEditorTests(opts);
-	setupDataStatusbarTests(opts);
-	setupDataExtensionTests(opts);
-	if (!opts.web) { setupDataMultirootTests(opts); }
-	if (!opts.web) { setupDataLocalizationTests(opts); }
-	if (!opts.web) { setupLaunchTests(); }
+	if (!opts.web) { setupPreferencesTests(opts); }
+	setupSearchTests(opts);
+	setupNotebookTests(opts);
+	setupLanguagesTests(opts);
+	setupEditorTests(opts);
+	setupStatusbarTests(opts);
+	setupExtensionTests(opts);
+	if (!opts.web) { setupMultirootTests(opts); }
+	if (!opts.web) { setupLocalizationTests(opts); }
+	if (!opts.web) { setupLaunchTests(opts); }
+
+	// TODO: Enable terminal tests for non-web
+	if (opts.web) { setupTerminalProfileTests(opts); }
+	if (opts.web) { setupTerminalTabsTests(opts); }
 });

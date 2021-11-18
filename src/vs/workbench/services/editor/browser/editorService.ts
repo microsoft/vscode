@@ -27,7 +27,7 @@ import { EditorsObserver } from 'vs/workbench/browser/parts/editor/editorsObserv
 import { Promises, timeout } from 'vs/base/common/async';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { indexOfPath } from 'vs/base/common/extpath';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IEditorResolverService, ResolvedStatus } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkspaceTrustRequestService, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
@@ -147,24 +147,18 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private registerGroupListeners(group: IEditorGroupView): void {
 		const groupDisposables = new DisposableStore();
 
-		// Here we only really care about model change events
-		groupDisposables.add(group.onDidModelChange(e => {
+		groupDisposables.add(group.onDidGroupChange(e => {
 			switch (e.kind) {
 				case GroupChangeKind.EDITOR_ACTIVE:
 					if (group.activeEditor) {
 						this._onDidEditorsChange.fire([{ groupId: group.id, editor: group.activeEditor, kind: GroupChangeKind.EDITOR_ACTIVE }]);
 					}
+					this.handleActiveEditorChange(group);
+					this._onDidVisibleEditorsChange.fire();
 					break;
 				default:
 					this._onDidEditorsChange.fire([{ groupId: group.id, ...e }]);
 					break;
-			}
-		}));
-
-		groupDisposables.add(group.onDidGroupChange(e => {
-			if (e.kind === GroupChangeKind.EDITOR_ACTIVE) {
-				this.handleActiveEditorChange(group);
-				this._onDidVisibleEditorsChange.fire();
 			}
 		}));
 
@@ -432,7 +426,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			activeCodeEditor = activeTextEditorControl;
 		}
 
-		return activeCodeEditor?.getModel()?.getLanguageIdentifier().language;
+		return activeCodeEditor?.getModel()?.getLanguageId();
 	}
 
 	get count(): number {
@@ -607,7 +601,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		// Open in target groups
-		const result: Promise<IEditorPane | null>[] = [];
+		const result: Promise<IEditorPane | undefined>[] = [];
 		for (const [group, editors] of mapGroupToTypedEditors) {
 			result.push(group.openEditors(editors));
 		}

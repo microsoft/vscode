@@ -4,33 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { LanguageIdentifier, SelectionRangeProvider, SelectionRangeRegistry } from 'vs/editor/common/modes';
+import { SelectionRangeProvider, SelectionRangeRegistry } from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { IModelService } from 'vs/editor/common/services/modelService';
 import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/bracketSelections';
 import { provideSelectionRanges } from 'vs/editor/contrib/smartSelect/smartSelect';
 import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/wordSelections';
+import { createModelServices } from 'vs/editor/test/common/editorTestUtils';
 import { MockMode, StaticLanguageSelector } from 'vs/editor/test/common/mocks/mockMode';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
-import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 
 class MockJSMode extends MockMode {
 
-	private static readonly _id = new LanguageIdentifier('mockJSMode', 3);
+	private static readonly _id = 'mockJSMode';
 
 	constructor() {
 		super(MockJSMode._id);
 
-		this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+		this._register(LanguageConfigurationRegistry.register(this.languageId, {
 			brackets: [
 				['(', ')'],
 				['{', '}'],
@@ -55,24 +50,25 @@ suite('SmartSelect', () => {
 		BracketSelectionRangeProvider._maxDuration = OriginalBracketSelectionRangeProviderMaxDuration;
 	});
 
-	let modelService: ModelServiceImpl;
+	let disposables: DisposableStore;
+	let modelService: IModelService;
 	let mode: MockJSMode;
 
 	setup(() => {
-		const configurationService = new TestConfigurationService();
-		const dialogService = new TestDialogService();
-		modelService = new ModelServiceImpl(configurationService, new TestTextResourcePropertiesService(configurationService), new TestThemeService(), new NullLogService(), new UndoRedoService(dialogService, new TestNotificationService()));
-		mode = new MockJSMode();
+		disposables = new DisposableStore();
+		const instantiationService = createModelServices(disposables);
+		modelService = instantiationService.invokeFunction((accessor) => accessor.get(IModelService));
+		mode = disposables.add(new MockJSMode());
 	});
 
 	teardown(() => {
-		modelService.dispose();
 		mode.dispose();
+		disposables.dispose();
 	});
 
 	async function assertGetRangesToPosition(text: string[], lineNumber: number, column: number, ranges: Range[], selectLeadingAndTrailingWhitespace = true): Promise<void> {
 		let uri = URI.file('test.js');
-		let model = modelService.createModel(text.join('\n'), new StaticLanguageSelector(mode.getLanguageIdentifier()), uri);
+		let model = modelService.createModel(text.join('\n'), new StaticLanguageSelector(mode.languageId), uri);
 		let [actual] = await provideSelectionRanges(model, [new Position(lineNumber, column)], { selectLeadingAndTrailingWhitespace }, CancellationToken.None);
 		let actualStr = actual!.map(r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn).toString());
 		let desiredStr = ranges.reverse().map(r => String(r));
@@ -219,7 +215,7 @@ suite('SmartSelect', () => {
 		let index = value.indexOf('|');
 		value = value.replace('|', '');
 
-		let model = modelService.createModel(value, new StaticLanguageSelector(mode.getLanguageIdentifier()), URI.parse('fake:lang'));
+		let model = modelService.createModel(value, new StaticLanguageSelector(mode.languageId), URI.parse('fake:lang'));
 		let pos = model.getPositionAt(index);
 		let all = await provider.provideSelectionRanges(model, [pos], CancellationToken.None);
 		let ranges = all![0];
@@ -339,7 +335,7 @@ suite('SmartSelect', () => {
 		);
 	});
 
-	test('Smart select: only add line ranges if they’re contained by the next range #73850', async function () {
+	test('Smart select: only add line ranges if they\'re contained by the next range #73850', async function () {
 
 		const reg = SelectionRangeRegistry.register('*', {
 			provideSelectionRanges() {

@@ -17,8 +17,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { mock } from 'vs/base/test/common/mock';
 import { TreeItemCollapsibleState, ITreeItem, IRevealOptions } from 'vs/workbench/common/views';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import type { IDisposable } from 'vs/base/common/lifecycle';
+import { nullExtensionDescription as extensionsDescription } from 'vs/workbench/services/extensions/common/extensions';
 
 suite('ExtHostTreeView', function () {
 
@@ -80,9 +80,9 @@ suite('ExtHostTreeView', function () {
 		), new NullLogService());
 		onDidChangeTreeNode = new Emitter<{ key: string } | undefined>();
 		onDidChangeTreeNodeWithId = new Emitter<{ key: string }>();
-		testObject.createTreeView('testNodeTreeProvider', { treeDataProvider: aNodeTreeDataProvider() }, { enableProposedApi: true } as IExtensionDescription);
-		testObject.createTreeView('testNodeWithIdTreeProvider', { treeDataProvider: aNodeWithIdTreeDataProvider() }, { enableProposedApi: true } as IExtensionDescription);
-		testObject.createTreeView('testNodeWithHighlightsTreeProvider', { treeDataProvider: aNodeWithHighlightedLabelTreeDataProvider() }, { enableProposedApi: true } as IExtensionDescription);
+		testObject.createTreeView('testNodeTreeProvider', { treeDataProvider: aNodeTreeDataProvider() }, extensionsDescription);
+		testObject.createTreeView('testNodeWithIdTreeProvider', { treeDataProvider: aNodeWithIdTreeDataProvider() }, extensionsDescription);
+		testObject.createTreeView('testNodeWithHighlightsTreeProvider', { treeDataProvider: aNodeWithHighlightedLabelTreeDataProvider() }, extensionsDescription);
 
 		return loadCompleteTree('testNodeTreeProvider');
 	});
@@ -482,14 +482,14 @@ suite('ExtHostTreeView', function () {
 	});
 
 	test('reveal will throw an error if getParent is not implemented', () => {
-		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aNodeTreeDataProvider() }, { enableProposedApi: true } as IExtensionDescription);
+		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aNodeTreeDataProvider() }, extensionsDescription);
 		return treeView.reveal({ key: 'a' })
 			.then(() => assert.fail('Reveal should throw an error as getParent is not implemented'), () => null);
 	});
 
 	test('reveal will return empty array for root element', () => {
 		const revealTarget = sinon.spy(target, '$reveal');
-		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() }, { enableProposedApi: true } as IExtensionDescription);
+		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() }, extensionsDescription);
 		const expected = {
 			item:
 				{ handle: '0/0:a', label: { label: 'a' }, collapsibleState: TreeItemCollapsibleState.Collapsed },
@@ -506,7 +506,7 @@ suite('ExtHostTreeView', function () {
 
 	test('reveal will return parents array for an element when hierarchy is not loaded', () => {
 		const revealTarget = sinon.spy(target, '$reveal');
-		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() }, { enableProposedApi: true } as IExtensionDescription);
+		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() }, extensionsDescription);
 		const expected = {
 			item: { handle: '0/0:a/0:aa', label: { label: 'aa' }, collapsibleState: TreeItemCollapsibleState.None, parentHandle: '0/0:a' },
 			parentChain: [{ handle: '0/0:a', label: { label: 'a' }, collapsibleState: TreeItemCollapsibleState.Collapsed }]
@@ -523,7 +523,7 @@ suite('ExtHostTreeView', function () {
 
 	test('reveal will return parents array for an element when hierarchy is loaded', () => {
 		const revealTarget = sinon.spy(target, '$reveal');
-		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() }, { enableProposedApi: true } as IExtensionDescription);
+		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() }, extensionsDescription);
 		const expected = {
 			item: { handle: '0/0:a/0:aa', label: { label: 'aa' }, collapsibleState: TreeItemCollapsibleState.None, parentHandle: '0/0:a' },
 			parentChain: [{ handle: '0/0:a', label: { label: 'a' }, collapsibleState: TreeItemCollapsibleState.Collapsed }]
@@ -549,7 +549,7 @@ suite('ExtHostTreeView', function () {
 			}
 		};
 		const revealTarget = sinon.spy(target, '$reveal');
-		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() }, { enableProposedApi: true } as IExtensionDescription);
+		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() }, extensionsDescription);
 		const expected = {
 			item: { handle: '0/0:b/0:ba/0:bac', label: { label: 'bac' }, collapsibleState: TreeItemCollapsibleState.None, parentHandle: '0/0:b/0:ba' },
 			parentChain: [
@@ -569,7 +569,7 @@ suite('ExtHostTreeView', function () {
 
 	test('reveal after first udpate', () => {
 		const revealTarget = sinon.spy(target, '$reveal');
-		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() }, { enableProposedApi: true } as IExtensionDescription);
+		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() }, extensionsDescription);
 		const expected = {
 			item: { handle: '0/0:a/0:ac', label: { label: 'ac' }, collapsibleState: TreeItemCollapsibleState.None, parentHandle: '0/0:a' },
 			parentChain: [{ handle: '0/0:a', label: { label: 'a' }, collapsibleState: TreeItemCollapsibleState.Collapsed }]
@@ -601,7 +601,7 @@ suite('ExtHostTreeView', function () {
 
 	test('reveal after second udpate', () => {
 		const revealTarget = sinon.spy(target, '$reveal');
-		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() }, { enableProposedApi: true } as IExtensionDescription);
+		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() }, extensionsDescription);
 		return loadCompleteTree('treeDataProvider')
 			.then(() => {
 				return runWithEventMerging((resolve) => {

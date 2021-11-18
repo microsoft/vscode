@@ -138,7 +138,7 @@ export class MainThreadCommentThread implements modes.CommentThread {
 
 		if (modified('range')) { this._range = changes.range!; }
 		if (modified('label')) { this._label = changes.label; }
-		if (modified('contextValue')) { this._contextValue = changes.contextValue; }
+		if (modified('contextValue')) { this._contextValue = changes.contextValue === null ? undefined : changes.contextValue; }
 		if (modified('comments')) { this._comments = changes.comments; }
 		if (modified('collapseState')) { this._collapsibleState = changes.collapseState; }
 		if (modified('canReply')) { this.canReply = changes.canReply!; }
@@ -290,6 +290,10 @@ export class MainThreadCommentController {
 		}
 	}
 
+	updateCommentingRanges() {
+		this._commentService.updateCommentingRanges(this._uniqueId);
+	}
+
 	private getKnownThread(commentThreadHandle: number): MainThreadCommentThread {
 		const thread = this._threads.get(commentThreadHandle);
 		if (!thread) {
@@ -412,12 +416,15 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 	$unregisterCommentController(handle: number): void {
 		const providerId = this._handlers.get(handle);
-		if (typeof providerId !== 'string') {
-			throw new Error('unknown handler');
-		}
-		this._commentService.unregisterCommentController(providerId);
 		this._handlers.delete(handle);
 		this._commentControllers.delete(handle);
+
+		if (typeof providerId !== 'string') {
+			return;
+			// throw new Error('unknown handler');
+		} else {
+			this._commentService.unregisterCommentController(providerId);
+		}
 	}
 
 	$updateCommentControllerFeatures(handle: number, features: CommentProviderFeatures): void {
@@ -468,6 +475,16 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		}
 
 		return provider.deleteCommentThread(commentThreadHandle);
+	}
+
+	$updateCommentingRanges(handle: number) {
+		let provider = this._commentControllers.get(handle);
+
+		if (!provider) {
+			return;
+		}
+
+		provider.updateCommentingRanges();
 	}
 
 	private registerView(commentsViewAlreadyRegistered: boolean) {

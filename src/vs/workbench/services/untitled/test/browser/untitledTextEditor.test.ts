@@ -17,19 +17,23 @@ import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/u
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('Untitled text editors', () => {
 
+	let disposables: DisposableStore;
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
+		disposables = new DisposableStore();
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 	});
 
 	teardown(() => {
 		(accessor.untitledTextEditorService as UntitledTextEditorService).dispose();
+		disposables.dispose();
 	});
 
 	test('basics', async () => {

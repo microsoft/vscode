@@ -456,13 +456,6 @@ export interface IEditorGroup {
 	readonly onDidGroupChange: Event<IGroupChangeEvent>;
 
 	/**
-	 * An aggregated event that fires whenever the model changes in any way.
-	 * This is very similar to `onDidGroupChange` except its specifically
-	 * for things whihc would affect the model. Primarily used for the tabs API
-	 */
-	readonly onDidModelChange: Event<IGroupChangeEvent>;
-
-	/**
 	 * An event that is fired when the group gets disposed.
 	 */
 	readonly onWillDispose: Event<void>;
@@ -606,7 +599,7 @@ export interface IEditorGroup {
 	 * a group can only ever have one active editor, even if many editors are
 	 * opened, the result will only be one editor.
 	 */
-	openEditors(editors: EditorInputWithOptions[]): Promise<IEditorPane | null>;
+	openEditors(editors: EditorInputWithOptions[]): Promise<IEditorPane | undefined>;
 
 	/**
 	 * Find out if the provided editor is pinned in the group.
@@ -661,9 +654,11 @@ export interface IEditorGroup {
 	 * @param editor the editor to close, or the currently active editor
 	 * if unspecified.
 	 *
-	 * @returns a promise when the editor is closed.
+	 * @returns a promise when the editor is closed or not. If `true`, the editor
+	 * is closed and if `false` there was a veto closing the editor, e.g. when it
+	 * is dirty.
 	 */
-	closeEditor(editor?: EditorInput, options?: ICloseEditorOptions): Promise<void>;
+	closeEditor(editor?: EditorInput, options?: ICloseEditorOptions): Promise<boolean>;
 
 	/**
 	 * Closes specific editors in this group. This may trigger a confirmation dialog if

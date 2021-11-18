@@ -1845,7 +1845,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	registerWorkspaceSymbolProvider(extension: IExtensionDescription, provider: vscode.WorkspaceSymbolProvider): vscode.Disposable {
 		const handle = this._addNewAdapter(new NavigateTypeAdapter(provider, this._logService), extension);
-		this._proxy.$registerNavigateTypeSupport(handle);
+		this._proxy.$registerNavigateTypeSupport(handle, typeof provider.resolveWorkspaceSymbol === 'function');
 		return this._createDisposable(handle);
 	}
 
@@ -1988,7 +1988,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		let result = this._createDisposable(handle);
 
 		if (eventHandle !== undefined) {
-			const subscription = provider.onDidChangeInlayHints!(uri => this._proxy.$emitInlayHintsEvent(eventHandle, uri));
+			const subscription = provider.onDidChangeInlayHints!(uri => this._proxy.$emitInlayHintsEvent(eventHandle));
 			result = Disposable.from(result, subscription);
 		}
 		return result;

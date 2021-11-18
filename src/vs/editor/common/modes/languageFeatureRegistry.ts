@@ -132,7 +132,7 @@ export class LanguageFeatureRegistry<T> {
 
 		let candidate = {
 			uri: model.uri.toString(),
-			language: model.getLanguageIdentifier().language
+			language: model.getLanguageId()
 		};
 
 		if (this._lastCandidate
@@ -146,7 +146,7 @@ export class LanguageFeatureRegistry<T> {
 		this._lastCandidate = candidate;
 
 		for (let entry of this._entries) {
-			entry._score = score(entry.selector, model.uri, model.getLanguageIdentifier().language, shouldSynchronizeModel(model));
+			entry._score = score(entry.selector, model.uri, model.getLanguageId(), shouldSynchronizeModel(model));
 
 			if (isExclusive(entry.selector) && entry._score > 0) {
 				// support for one exclusive selector that overwrites

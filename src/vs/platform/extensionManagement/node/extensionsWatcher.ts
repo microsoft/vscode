@@ -5,14 +5,14 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ExtUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { DidUninstallExtensionEvent, IExtensionManagementService, ILocalExtension, InstallExtensionEvent, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { FileChangeType, FileSystemProviderCapabilities, IFileChange, IFileService } from 'vs/platform/files/common/files';
+import { FileChangeType, IFileChange, IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 export class ExtensionsWatcher extends Disposable {
 
@@ -28,6 +28,7 @@ export class ExtensionsWatcher extends Disposable {
 		@IFileService fileService: IFileService,
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 		@ILogService private readonly logService: ILogService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		this.extensionsManagementService.getInstalled(ExtensionType.User).then(extensions => {
@@ -39,19 +40,18 @@ export class ExtensionsWatcher extends Disposable {
 		this._register(extensionsManagementService.onDidUninstallExtension(e => this.onDidUninstallExtension(e)));
 
 		const extensionsResource = URI.file(environmentService.extensionsPath);
-		const extUri = new ExtUri(resource => !fileService.hasCapability(resource, FileSystemProviderCapabilities.PathCaseSensitive));
 		this._register(fileService.watch(extensionsResource));
-		this._register(Event.filter(fileService.onDidChangeFilesRaw, e => e.changes.some(change => this.doesChangeAffects(change, extensionsResource, extUri)))(() => this.onDidChange()));
+		this._register(Event.filter(fileService.onDidChangeFilesRaw, e => e.changes.some(change => this.doesChangeAffects(change, extensionsResource)))(() => this.onDidChange()));
 	}
 
-	private doesChangeAffects(change: IFileChange, extensionsResource: URI, extUri: ExtUri): boolean {
+	private doesChangeAffects(change: IFileChange, extensionsResource: URI): boolean {
 		// Is not immediate child of extensions resource
-		if (!extUri.isEqual(extUri.dirname(change.resource), extensionsResource)) {
+		if (!this.uriIdentityService.extUri.isEqual(this.uriIdentityService.extUri.dirname(change.resource), extensionsResource)) {
 			return false;
 		}
 
 		// .obsolete file changed
-		if (extUri.isEqual(change.resource, extUri.joinPath(extensionsResource, '.obsolete'))) {
+		if (this.uriIdentityService.extUri.isEqual(change.resource, this.uriIdentityService.extUri.joinPath(extensionsResource, '.obsolete'))) {
 			return true;
 		}
 
@@ -61,7 +61,7 @@ export class ExtensionsWatcher extends Disposable {
 		}
 
 		// Ingore changes to files starting with `.`
-		if (extUri.basename(change.resource).startsWith('.')) {
+		if (this.uriIdentityService.extUri.basename(change.resource).startsWith('.')) {
 			return false;
 		}
 

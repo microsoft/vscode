@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { ITreeNavigator } from 'vs/base/browser/ui/tree/tree';
 import { Action } from 'vs/base/common/actions';
-import { createKeybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { createKeybinding, ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { isWindows, OS } from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -30,7 +30,7 @@ import { OpenSearchEditorArgs } from 'vs/workbench/contrib/searchEditor/browser/
 import { SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ISearchConfiguration, VIEW_ID } from 'vs/workbench/services/search/common/search';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 export function isSearchViewFocused(viewsService: IViewsService): boolean {
 	const searchView = getSearchView(viewsService);

@@ -93,7 +93,11 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 
 		const forceHTTPS = (location.protocol === 'https:');
 
-		if (this._environmentService.options && this._environmentService.options.__uniqueWebWorkerExtensionHostOrigin) {
+		let uniqueWebWorkerExtensionHostOrigin = true;
+		if (this._environmentService.options && typeof this._environmentService.options.__uniqueWebWorkerExtensionHostOrigin !== 'undefined') {
+			uniqueWebWorkerExtensionHostOrigin = this._environmentService.options.__uniqueWebWorkerExtensionHostOrigin;
+		}
+		if (uniqueWebWorkerExtensionHostOrigin) {
 			const webEndpointUrlTemplate = this._productService.webEndpointUrlTemplate;
 			const commit = this._productService.commit;
 			const quality = this._productService.quality;
@@ -383,7 +387,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			environment: {
 				isExtensionDevelopmentDebug: this._environmentService.debugRenderer,
 				appName: this._productService.nameLong,
-				appHost: this._productService.embedderIdentifier || platform.isWeb ? 'web' : 'desktop',
+				appHost: this._productService.embedderIdentifier ?? (platform.isWeb ? 'web' : 'desktop'),
 				appUriScheme: this._productService.urlProtocol,
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,

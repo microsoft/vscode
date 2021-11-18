@@ -18,6 +18,7 @@ import { IProductConfiguration } from 'vs/base/common/product';
 import { mark } from 'vs/base/common/performance';
 import { ICredentialsProvider } from 'vs/workbench/services/credentials/common/credentials';
 import { TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
+import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
@@ -35,6 +36,21 @@ interface ICommonTelemetryPropertiesResolver {
 
 interface IExternalUriResolver {
 	(uri: URI): Promise<URI>;
+}
+
+/**
+ * External URL opener
+ */
+interface IExternalURLOpener {
+
+	/**
+	 * Overrides the behavior when an external URL is about to be opened.
+	 * Returning false means that the URL wasn't handled, and the default
+	 * handling behavior should be used: `window.open(href, '_blank', 'noopener');`
+	 *
+	 * @returns true if URL was handled, false otherwise.
+	 */
+	openExternal(href: string): boolean | Promise<boolean>;
 }
 
 interface ITunnelProvider {
@@ -128,6 +144,12 @@ interface ICommand {
 	 * using the `vscode.commands.executeCommand` API using that command ID.
 	 */
 	id: string,
+
+	/**
+	 * The optional label of the command. If provided, the command will appear
+	 * in the command palette.
+	 */
+	label?: string,
 
 	/**
 	 * A function that is being executed with any arguments passed over. The
@@ -344,7 +366,7 @@ interface IWorkbenchConstructionOptions {
 	/**
 	 * [TEMPORARY]: This will be removed soon.
 	 * Use an unique origin for the web worker extension host.
-	 * Defaults to false.
+	 * Defaults to true.
 	 */
 	readonly __uniqueWebWorkerExtensionHostOrigin?: boolean;
 
@@ -420,6 +442,13 @@ interface IWorkbenchConstructionOptions {
 	 * link protection popup.
 	 */
 	readonly additionalTrustedDomains?: string[];
+
+	/**
+	 * Urls that will be opened externally that are allowed access
+	 * to the opener window. This is primarily used to allow
+	 * `window.close()` to be called from the newly opened window.
+	 */
+	readonly openerAllowedExternalUrlPrefixes?: string[];
 
 	/**
 	 * Support for URL callbacks.
@@ -581,8 +610,11 @@ interface IWorkbench {
 	 *
 	 * This will also remove any `beforeUnload` handlers that would bring up a
 	 * confirmation dialog.
+	 *
+	 * The returned promise should be awaited on to ensure any data to persist
+	 * has been persisted.
 	 */
-	shutdown: () => void;
+	shutdown: () => Promise<void>;
 }
 
 /**
@@ -609,12 +641,19 @@ function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions)
 
 	// Register commands if any
 	if (Array.isArray(options.commands)) {
-		for (const command of options.commands) {
+		for (const c of options.commands) {
+			const command: ICommand = c;
+
 			CommandsRegistry.registerCommand(command.id, (accessor, ...args) => {
 				// we currently only pass on the arguments but not the accessor
 				// to the command to reduce our exposure of internal API.
 				return command.handler(...args);
 			});
+
+			// Commands with labels appear in the command palette
+			if (command.label) {
+				MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: command.id, title: command.label } });
+			}
 		}
 	}
 
@@ -741,6 +780,9 @@ export {
 
 	// External Uris
 	IExternalUriResolver,
+
+	// External URL Opener
+	IExternalURLOpener,
 
 	// Tunnel
 	ITunnelProvider,

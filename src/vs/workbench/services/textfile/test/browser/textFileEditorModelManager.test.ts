@@ -15,15 +15,22 @@ import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRe
 import { ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { timeout } from 'vs/base/common/async';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('Files - TextFileEditorModelManager', () => {
 
+	let disposables: DisposableStore;
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
+		disposables = new DisposableStore();
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
+	});
+
+	teardown(() => {
+		disposables.dispose();
 	});
 
 	test('add, remove, clear, get, getAll', function () {
@@ -377,10 +384,10 @@ suite('Files - TextFileEditorModelManager', () => {
 		const resource = toResource.call(this, '/path/index_something.txt');
 
 		let model = await manager.resolve(resource, { mode });
-		assert.strictEqual(model.textEditorModel!.getModeId(), mode);
+		assert.strictEqual(model.textEditorModel!.getLanguageId(), mode);
 
 		model = await manager.resolve(resource, { mode: 'text' });
-		assert.strictEqual(model.textEditorModel!.getModeId(), PLAINTEXT_MODE_ID);
+		assert.strictEqual(model.textEditorModel!.getLanguageId(), PLAINTEXT_MODE_ID);
 
 		model.dispose();
 		manager.dispose();

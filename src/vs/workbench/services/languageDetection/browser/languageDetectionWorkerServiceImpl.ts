@@ -51,8 +51,8 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 				: FileAccess.asBrowserUri(`${moduleLocation}/model/group1-shard1of1.bin`, require).toString(true));
 	}
 
-	public isEnabledForMode(modeId: string): boolean {
-		return !!modeId && this._configurationService.getValue<boolean>(LanguageDetectionService.enablementSettingKey, { overrideIdentifier: modeId });
+	public isEnabledForMode(languageId: string): boolean {
+		return !!languageId && this._configurationService.getValue<boolean>(LanguageDetectionService.enablementSettingKey, { overrideIdentifier: languageId });
 	}
 
 	private getModeId(language: string | undefined): string | undefined {

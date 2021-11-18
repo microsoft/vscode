@@ -9,7 +9,6 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { deserializePipePositions, serializePipePositions, testRepeatedActionAndExtractPositions } from 'vs/editor/contrib/wordOperations/test/wordTestUtils';
@@ -731,11 +730,11 @@ suite('WordOperations', () => {
 	});
 
 	test('deleteWordLeft - issue #91855: Matching (quote, bracket, paren) doesn\'t get deleted when hitting Ctrl+Backspace', () => {
-		const languageId = new LanguageIdentifier('myTestMode', 5);
+		const languageId = 'myTestMode';
 		class TestMode extends MockMode {
 			constructor() {
 				super(languageId);
-				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+				this._register(LanguageConfigurationRegistry.register(this.languageId, {
 					autoClosingPairs: [
 						{ open: '\"', close: '\"' }
 					]

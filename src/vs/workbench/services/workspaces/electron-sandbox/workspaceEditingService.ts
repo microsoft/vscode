@@ -8,7 +8,7 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/commo
 import { URI } from 'vs/base/common/uri';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkspacesService, isUntitledWorkspace, IWorkspaceIdentifier, hasWorkspaceFileExtension, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesService, isUntitledWorkspace, hasWorkspaceFileExtension, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -30,7 +30,7 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { isMacintosh } from 'vs/base/common/platform';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { WorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackupService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 
 export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingService {
@@ -164,7 +164,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		if (result) {
 
 			// Migrate storage to new workspace
-			await this.migrateStorage(result.workspace);
+			await this.storageService.migrate(result.workspace);
 
 			// Reinitialize backup service
 			if (this.workingCopyBackupService instanceof WorkingCopyBackupService) {
@@ -183,10 +183,6 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		else {
 			this.extensionService.restartExtensionHost();
 		}
-	}
-
-	private migrateStorage(toWorkspace: IWorkspaceIdentifier): Promise<void> {
-		return this.storageService.migrate(toWorkspace);
 	}
 }
 

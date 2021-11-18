@@ -23,6 +23,7 @@ import { IExtensionRecommendationNotificationService } from 'vs/platform/extensi
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { ExtensionRecommendationNotificationServiceChannel } from 'vs/platform/extensionRecommendations/electron-sandbox/extensionRecommendationsIpc';
 import { Codicon } from 'vs/base/common/codicons';
+import { RemoteExtensionsInitializerContribution } from 'vs/workbench/contrib/extensions/electron-sandbox/remoteExtensionsInit';
 
 // Running Extensions Editor
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -60,6 +61,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(ExtensionsContributions, LifecyclePhase.Starting);
+workbenchRegistry.registerWorkbenchContribution(RemoteExtensionsInitializerContribution, LifecyclePhase.Restored);
 
 // Register Commands
 

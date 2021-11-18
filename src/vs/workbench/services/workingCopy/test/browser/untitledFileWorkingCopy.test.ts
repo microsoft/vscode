@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { VSBufferReadableStream, newWriteableBufferStream, VSBuffer, streamToBuffer, bufferToStream } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/resources';
 import { consumeReadable, consumeStream, isReadableStream } from 'vs/base/common/stream';
@@ -90,6 +90,7 @@ suite('UntitledFileWorkingCopy', () => {
 
 	const factory = new TestUntitledFileWorkingCopyModelFactory();
 
+	let disposables: DisposableStore;
 	let resource = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
@@ -111,7 +112,8 @@ suite('UntitledFileWorkingCopy', () => {
 	}
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
+		disposables = new DisposableStore();
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
 		workingCopy = createWorkingCopy();
@@ -119,6 +121,7 @@ suite('UntitledFileWorkingCopy', () => {
 
 	teardown(() => {
 		workingCopy.dispose();
+		disposables.dispose();
 	});
 
 	test('registers with working copy service', async () => {

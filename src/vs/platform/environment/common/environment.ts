@@ -18,6 +18,7 @@ export interface IDebugParams {
 
 export interface IExtensionHostDebugParams extends IDebugParams {
 	debugId?: string;
+	env?: Record<string, string>;
 }
 
 /**
@@ -66,9 +67,6 @@ export interface IEnvironmentService {
 	extensionDevelopmentLocationURI?: URI[];
 	extensionDevelopmentKind?: ExtensionKind[];
 	extensionTestsLocationURI?: URI;
-
-	// --- workspace trust
-	disableWorkspaceTrust: boolean;
 
 	// --- logging
 	logsPath: string;

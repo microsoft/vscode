@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
+const identity_1 = require("@azure/identity");
 const cosmos_1 = require("@azure/cosmos");
 const retry_1 = require("./retry");
 function getEnv(name) {
@@ -30,7 +31,8 @@ async function getConfig(client, quality) {
 async function main() {
     const commit = getEnv('BUILD_SOURCEVERSION');
     const quality = getEnv('VSCODE_QUALITY');
-    const client = new cosmos_1.CosmosClient({ endpoint: process.env['AZURE_DOCUMENTDB_ENDPOINT'], key: process.env['AZURE_DOCUMENTDB_MASTERKEY'] });
+    const aadCredentials = new identity_1.ClientSecretCredential(process.env['AZURE_TENANT_ID'], process.env['AZURE_CLIENT_ID'], process.env['AZURE_CLIENT_SECRET']);
+    const client = new cosmos_1.CosmosClient({ endpoint: process.env['AZURE_DOCUMENTDB_ENDPOINT'], aadCredentials });
     const config = await getConfig(client, quality);
     console.log('Quality config:', config);
     if (config.frozen) {

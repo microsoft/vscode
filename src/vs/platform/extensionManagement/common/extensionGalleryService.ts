@@ -54,12 +54,20 @@ interface IRawGalleryExtensionStatistics {
 	readonly value: number;
 }
 
+interface IRawGalleryExtensionPublisher {
+	readonly displayName: string;
+	readonly publisherId: string;
+	readonly publisherName: string;
+	readonly domain?: string | null;
+	readonly isDomainVerified?: boolean;
+}
+
 interface IRawGalleryExtension {
 	readonly extensionId: string;
 	readonly extensionName: string;
 	readonly displayName: string;
 	readonly shortDescription: string;
-	readonly publisher: { displayName: string, publisherId: string, publisherName: string; };
+	readonly publisher: IRawGalleryExtensionPublisher;
 	readonly versions: IRawGalleryExtensionVersion[];
 	readonly statistics: IRawGalleryExtensionStatistics[];
 	readonly tags: string[] | undefined;
@@ -398,6 +406,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 		publisherId: galleryExtension.publisher.publisherId,
 		publisher: galleryExtension.publisher.publisherName,
 		publisherDisplayName: galleryExtension.publisher.displayName,
+		publisherDomain: galleryExtension.publisher.domain ? { link: galleryExtension.publisher.domain, verified: !!galleryExtension.publisher.isDomainVerified } : undefined,
 		description: galleryExtension.shortDescription || '',
 		installCount: getStatistic(galleryExtension.statistics, 'install'),
 		rating: getStatistic(galleryExtension.statistics, 'averagerating'),
@@ -575,12 +584,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		return isEngineValid(engine, this.productService.version, this.productService.date);
 	}
 
-	query(token: CancellationToken): Promise<IPager<IGalleryExtension>>;
-	query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>>;
-	async query(arg1: any, arg2?: any): Promise<IPager<IGalleryExtension>> {
-		const options: IQueryOptions = CancellationToken.isCancellationToken(arg1) ? {} : arg1;
-		const token: CancellationToken = CancellationToken.isCancellationToken(arg1) ? arg1 : arg2;
-
+	async query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>> {
 		if (!this.isEnabled()) {
 			throw new Error('No extension gallery service configured.');
 		}

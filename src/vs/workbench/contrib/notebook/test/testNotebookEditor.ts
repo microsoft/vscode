@@ -8,16 +8,19 @@ import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/lis
 import { VSBuffer } from 'vs/base/common/buffer';
 import { NotImplementedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
 import { EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
+import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { NullCommandService } from 'vs/platform/commands/common/commands';
@@ -153,12 +156,13 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 	}
 }
 
-export function setupInstantiationService() {
+export function setupInstantiationService(disposables = new DisposableStore()) {
 	const instantiationService = new TestInstantiationService();
-	instantiationService.stub(IModeService, new ModeServiceImpl());
+	instantiationService.stub(IModeService, disposables.add(new ModeServiceImpl()));
 	instantiationService.stub(IUndoRedoService, instantiationService.createInstance(UndoRedoService));
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(IThemeService, new TestThemeService());
+	instantiationService.stub(ILanguageConfigurationService, new TestLanguageConfigurationService());
 	instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
 	instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 	instantiationService.stub(IContextKeyService, instantiationService.createInstance(ContextKeyService));
@@ -291,14 +295,15 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 	return { editor: notebookEditor, viewModel };
 }
 
-export function createTestNotebookEditor(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): { editor: INotebookEditorDelegate, viewModel: NotebookViewModel; } {
-	return _createTestNotebookEditor(setupInstantiationService(), cells);
+export function createTestNotebookEditor(instantiationService: TestInstantiationService, cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): { editor: INotebookEditorDelegate, viewModel: NotebookViewModel; } {
+	return _createTestNotebookEditor(instantiationService, cells);
 }
 
 export async function withTestNotebookDiffModel<R = any>(originalCells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], modifiedCells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (diffModel: INotebookDiffEditorModel, accessor: TestInstantiationService) => Promise<R> | R): Promise<R> {
-	const instantiationService = setupInstantiationService();
-	const originalNotebook = createTestNotebookEditor(originalCells);
-	const modifiedNotebook = createTestNotebookEditor(modifiedCells);
+	const disposables = new DisposableStore();
+	const instantiationService = setupInstantiationService(disposables);
+	const originalNotebook = createTestNotebookEditor(instantiationService, originalCells);
+	const modifiedNotebook = createTestNotebookEditor(instantiationService, modifiedCells);
 	const originalResource = new class extends mock<IResolvedNotebookEditorModel>() {
 		override get notebook() {
 			return originalNotebook.viewModel.notebookDocument;
@@ -327,18 +332,21 @@ export async function withTestNotebookDiffModel<R = any>(originalCells: [source:
 			originalNotebook.viewModel.dispose();
 			modifiedNotebook.editor.dispose();
 			modifiedNotebook.viewModel.dispose();
+			disposables.dispose();
 		});
 	} else {
 		originalNotebook.editor.dispose();
 		originalNotebook.viewModel.dispose();
 		modifiedNotebook.editor.dispose();
 		modifiedNotebook.viewModel.dispose();
+		disposables.dispose();
 	}
 	return res;
 }
 
 export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveNotebookEditorDelegate, viewModel: NotebookViewModel, accessor: TestInstantiationService) => Promise<R> | R, accessor?: TestInstantiationService): Promise<R> {
-	const instantiationService = accessor ?? setupInstantiationService();
+	const disposables = new DisposableStore();
+	const instantiationService = accessor ?? setupInstantiationService(disposables);
 	const notebookEditor = _createTestNotebookEditor(instantiationService, cells);
 
 	const res = await callback(notebookEditor.editor, notebookEditor.viewModel, instantiationService);
@@ -346,10 +354,12 @@ export async function withTestNotebook<R = any>(cells: [source: string, lang: st
 		res.finally(() => {
 			notebookEditor.editor.dispose();
 			notebookEditor.viewModel.dispose();
+			disposables.dispose();
 		});
 	} else {
 		notebookEditor.editor.dispose();
 		notebookEditor.viewModel.dispose();
+		disposables.dispose();
 	}
 	return res;
 }

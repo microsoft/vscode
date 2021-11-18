@@ -469,8 +469,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return AnchorAlignment.RIGHT;
 	}
 
-	override layout(width: number, height: number): void {
-		super.layout(width, height);
+	override layout(width: number, height: number, top: number, left: number): void {
+		super.layout(width, height, top, left);
 
 		// Layout contents
 		this.contentAreaSize = Dimension.lift(super.layoutContents(width, height).contentSize);

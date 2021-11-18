@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { commonPrefixLength } from 'vs/base/common/arrays';
-import { Codicon, registerCodicon } from 'vs/base/common/codicons';
+import { CSSIcon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -35,8 +35,6 @@ export interface IBreadcrumbsItemEvent {
 	payload: any;
 }
 
-const breadcrumbSeparatorIcon = registerCodicon('breadcrumb-separator', Codicon.chevronRight);
-
 export class BreadcrumbsWidget {
 
 	private readonly _disposables = new DisposableStore();
@@ -55,6 +53,7 @@ export class BreadcrumbsWidget {
 	private readonly _items = new Array<BreadcrumbsItem>();
 	private readonly _nodes = new Array<HTMLDivElement>();
 	private readonly _freeNodes = new Array<HTMLDivElement>();
+	private readonly _separatorIcon: CSSIcon;
 
 	private _enabled: boolean = true;
 	private _focusedItemIdx: number = -1;
@@ -66,6 +65,7 @@ export class BreadcrumbsWidget {
 	constructor(
 		container: HTMLElement,
 		horizontalScrollbarSize: number,
+		separatorIcon: CSSIcon
 	) {
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'monaco-breadcrumbs';
@@ -78,6 +78,7 @@ export class BreadcrumbsWidget {
 			useShadows: false,
 			scrollYToX: true
 		});
+		this._separatorIcon = separatorIcon;
 		this._disposables.add(this._scrollable);
 		this._disposables.add(dom.addStandardDisposableListener(this._domNode, 'click', e => this._onClick(e)));
 		container.appendChild(this._scrollable.getDomNode());
@@ -327,7 +328,7 @@ export class BreadcrumbsWidget {
 		container.tabIndex = -1;
 		container.setAttribute('role', 'listitem');
 		container.classList.add('monaco-breadcrumb-item');
-		const iconContainer = dom.$(breadcrumbSeparatorIcon.cssSelector);
+		const iconContainer = dom.$(CSSIcon.asCSSSelector(this._separatorIcon));
 		container.appendChild(iconContainer);
 	}
 

@@ -24,6 +24,7 @@ let outputChannel: vscode.OutputChannel;
 export function activate(context: vscode.ExtensionContext) {
 
 	function doResolve(_authority: string, progress: vscode.Progress<{ message?: string; increment?: number }>): Promise<vscode.ResolvedAuthority> {
+		// eslint-disable-next-line no-async-promise-executor
 		const serverPromise = new Promise<vscode.ResolvedAuthority>(async (res, rej) => {
 			progress.report({ message: 'Starting Test Resolver' });
 			outputChannel = vscode.window.createOutputChannel('TestResolver');
@@ -82,6 +83,10 @@ export function activate(context: vscode.ExtensionContext) {
 			const commandArgs = ['--port=0', '--disable-telemetry'];
 			const env = getNewEnv();
 			const remoteDataDir = process.env['TESTRESOLVER_DATA_FOLDER'] || path.join(os.homedir(), serverDataFolderName || `${dataFolderName}-testresolver`);
+			const logsDir = process.env['TESTRESOLVER_LOGS_FOLDER'];
+			if (logsDir) {
+				commandArgs.push('--logsPath', logsDir);
+			}
 
 			env['VSCODE_AGENT_FOLDER'] = remoteDataDir;
 			outputChannel.appendLine(`Using data folder at ${remoteDataDir}`);
@@ -129,7 +134,7 @@ export function activate(context: vscode.ExtensionContext) {
 			});
 		});
 		return serverPromise.then(serverAddr => {
-			return new Promise<vscode.ResolvedAuthority>(async (res, _rej) => {
+			return new Promise<vscode.ResolvedAuthority>((res, _rej) => {
 				const proxyServer = net.createServer(proxySocket => {
 					outputChannel.appendLine(`Proxy connection accepted`);
 					let remoteReady = true, localReady = true;
