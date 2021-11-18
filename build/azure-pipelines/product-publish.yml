@@ -45,6 +45,8 @@ steps:
       scriptLocation: inlineScript
       addSpnToEnvironment: true
       inlineScript: |
+        Write-Host "Hello World"
+        Write-Host "Hello World $tenantId"
         Write-Host "##vso[task.setvariable variable=AZURE_TENANT_ID]$tenantId"
         Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$servicePrincipalId"
         Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_SECRET;issecret=true]$servicePrincipalKey"
@@ -56,6 +58,8 @@ steps:
       scriptLocation: inlineScript
       addSpnToEnvironment: true
       inlineScript: |
+        Write-Host "Hello World"
+        Write-Host "Hello World $tenantId"
         Write-Host "##vso[task.setvariable variable=AZURE_MOONCAKE_TENANT_ID]$tenantId"
         Write-Host "##vso[task.setvariable variable=AZURE_MOONCAKE_CLIENT_ID]$servicePrincipalId"
         Write-Host "##vso[task.setvariable variable=AZURE_MOONCAKE_CLIENT_SECRET;issecret=true]$servicePrincipalKey"
