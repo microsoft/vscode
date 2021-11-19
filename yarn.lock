@@ -10476,10 +10476,10 @@ vscode-telemetry-extractor@^1.9.5:
     ts-morph "^12.2.0"
     vscode-ripgrep "^1.12.1"
 
-vscode-textmate@5.4.1:
-  version "5.4.1"
-  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-5.4.1.tgz#09d566724fc76b60b3ad9791eebf1f0b50f29e5a"
-  integrity sha512-4CvPHmfuZQaXrcCpathdh6jo7myuR+MU8BvscgQADuponpbqfmu2rwTOtCXhGwwEgStvJF8V4s9FwMKRVLNmKQ==
+vscode-textmate@5.5.0:
+  version "5.5.0"
+  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-5.5.0.tgz#d83776562c07d1e3181c2c7f1b3d5f20afcab483"
+  integrity sha512-jToQkPGMNKn0eyKyitYeINJF0NoD240aYyKPIWJv5W2jfPt++jIRg0OSergubtGhbw6SoefkvBYEpX7TsfoSUQ==
 
 vscode-windows-ca-certs@^0.3.0:
   version "0.3.0"
