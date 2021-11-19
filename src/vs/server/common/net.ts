@@ -40,3 +40,15 @@ export const ICON_SIZES = [192, 512];
 export function getPathPrefix(pathname: string) {
 	return posix.join(posix.dirname(pathname), '/');
 }
+
+class HTTPError extends Error {
+	constructor (message: string, public readonly code: number) {
+		super(message);
+	}
+}
+
+export class HTTPNotFoundError extends HTTPError {
+	constructor (message: string) {
+		super(message, 404);
+	}
+}

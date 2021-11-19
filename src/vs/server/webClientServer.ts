@@ -26,7 +26,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 // eslint-disable-next-line code-import-patterns
 import type { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import { editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ClientTheme, getPathPrefix, WebManifest } from 'vs/server/common/net';
+import { ClientTheme, getPathPrefix, HTTPNotFoundError, WebManifest } from 'vs/server/common/net';
 import { IServerThemeService } from 'vs/server/serverThemeService';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 
@@ -130,8 +130,7 @@ export class WebClientServer {
 				return this._handleRoot(req, res, parsedUrl);
 			}
 
-			const message = `"${parsedUrl.pathname}" not found.`;
-			const error = new Error(message);
+			const error = new HTTPNotFoundError(`"${parsedUrl.pathname}" not found.`);
 			req.emit('error', error);
 			return;
 		} catch (error) {
