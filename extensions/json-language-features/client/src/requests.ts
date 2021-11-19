@@ -5,10 +5,6 @@
 
 import { Uri } from 'vscode';
 
-export interface RequestService {
-	getContent(uri: string, encoding?: string): Promise<string>;
-}
-
 export function getScheme(uri: string) {
 	return uri.substr(0, uri.indexOf(':'));
 }

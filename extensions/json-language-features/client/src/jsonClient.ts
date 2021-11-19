@@ -20,7 +20,7 @@ import {
 } from 'vscode-languageclient';
 
 import { hash } from './utils/hash';
-import { RequestService, joinPath } from './requests';
+import { joinPath } from './requests';
 import { createLanguageStatusItem } from './languageStatus';
 
 namespace VSCodeContentRequest {
@@ -96,9 +96,15 @@ export interface TelemetryReporter {
 export type LanguageClientConstructor = (name: string, description: string, clientOptions: LanguageClientOptions) => CommonLanguageClient;
 
 export interface Runtime {
-	http: RequestService;
+	schemaRequests: SchemaRequestService;
 	telemetry?: TelemetryReporter
 }
+
+export interface SchemaRequestService {
+	getContent(uri: string): Promise<string>;
+}
+
+export const languageServerDescription = localize('jsonserver.name', 'JSON Language Server');
 
 export function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime) {
 
@@ -198,7 +204,7 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 	};
 
 	// Create the language client and start the client.
-	const client = newLanguageClient('json', localize('jsonserver.name', 'JSON Language Server'), clientOptions);
+	const client = newLanguageClient('json', languageServerDescription, clientOptions);
 	client.registerProposedFeatures();
 
 	const disposable = client.start();
@@ -228,7 +234,7 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 					 */
 					runtime.telemetry.sendTelemetryEvent('json.schema', { schemaURL: uriPath });
 				}
-				return runtime.http.getContent(uriPath).catch(e => {
+				return runtime.schemaRequests.getContent(uriPath).catch(e => {
 					return Promise.reject(new ResponseError(4, e.toString()));
 				});
 			} else {
