@@ -687,7 +687,9 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 				cellEditorOptions.setLineNumbers(element.lineNumbers);
 			}
 
-			templateData.progressBar.updateForCellState(e, element);
+			if (e.inputCollapsedChanged) {
+				templateData.progressBar.updateForCellState(element);
+			}
 		}));
 
 		this.updateForKernel(element, templateData);
