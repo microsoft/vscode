@@ -406,7 +406,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const decorationContainer = DOM.append(rootContainer, $('.cell-decoration'));
 		DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-top'));
 		const titleToolbarContainer = DOM.append(container, $('.cell-title-toolbar'));
-		const focusIndicator = new FastDomNode(DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left')));
+		const focusIndicatorLeft = new FastDomNode(DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left')));
 		const dragHandle = new FastDomNode(DOM.append(container, DOM.$('.cell-drag-handle')));
 
 		const cellContainer = DOM.append(container, $('.cell.code'));
@@ -476,7 +476,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			cellContainer,
 			progressBar,
 			statusBar,
-			focusIndicatorLeft: focusIndicator,
+			focusIndicatorLeft,
 			focusIndicatorRight,
 			focusIndicatorBottom,
 			titleToolbar,
