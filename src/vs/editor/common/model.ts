@@ -168,6 +168,12 @@ export interface IModelDecorationOptions {
 	 * If set, text will be injected in the view before the range.
 	 */
 	before?: InjectedTextOptions | null;
+
+	/**
+	 * If set, this decoration will not be rendered for comment tokens.
+	 * @internal
+	*/
+	hideInCommentTokens?: boolean | null;
 }
 
 /**

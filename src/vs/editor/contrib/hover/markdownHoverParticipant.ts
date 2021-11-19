@@ -118,24 +118,35 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	}
 
 	public renderHoverParts(hoverParts: MarkdownHover[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable {
-		const disposables = new DisposableStore();
-		for (const hoverPart of hoverParts) {
-			for (const contents of hoverPart.contents) {
-				if (isEmptyMarkdownString(contents)) {
-					continue;
-				}
-				const markdownHoverElement = $('div.hover-row.markdown-hover');
-				const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
-				const renderer = disposables.add(new MarkdownRenderer({ editor: this._editor }, this._modeService, this._openerService));
-				disposables.add(renderer.onDidRenderAsync(() => {
-					hoverContentsElement.className = 'hover-contents code-hover-contents';
-					this._hover.onContentsChanged();
-				}));
-				const renderedContents = disposables.add(renderer.render(contents));
-				hoverContentsElement.appendChild(renderedContents.element);
-				fragment.appendChild(markdownHoverElement);
-			}
-		}
-		return disposables;
+		return renderMarkdownHovers(hoverParts, fragment, this._editor, this._hover, this._modeService, this._openerService);
 	}
+}
+
+export function renderMarkdownHovers(
+	hoverParts: MarkdownHover[],
+	fragment: DocumentFragment,
+	editor: ICodeEditor,
+	hover: IEditorHover,
+	modeService: IModeService,
+	openerService: IOpenerService,
+): IDisposable {
+	const disposables = new DisposableStore();
+	for (const hoverPart of hoverParts) {
+		for (const contents of hoverPart.contents) {
+			if (isEmptyMarkdownString(contents)) {
+				continue;
+			}
+			const markdownHoverElement = $('div.hover-row.markdown-hover');
+			const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
+			const renderer = disposables.add(new MarkdownRenderer({ editor }, modeService, openerService));
+			disposables.add(renderer.onDidRenderAsync(() => {
+				hoverContentsElement.className = 'hover-contents code-hover-contents';
+				hover.onContentsChanged();
+			}));
+			const renderedContents = disposables.add(renderer.render(contents));
+			hoverContentsElement.appendChild(renderedContents.element);
+			fragment.appendChild(markdownHoverElement);
+		}
+	}
+	return disposables;
 }

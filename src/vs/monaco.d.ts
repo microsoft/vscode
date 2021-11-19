@@ -3299,6 +3299,7 @@ declare namespace monaco.editor {
 		 * Controls the behavior of editor guides.
 		*/
 		guides?: IGuidesOptions;
+		unicodeSpoofingProtection?: IUnicodeHighlightOptions;
 	}
 
 	export interface IDiffEditorBaseOptions {
@@ -3862,6 +3863,14 @@ declare namespace monaco.editor {
 		readonly scrollByPage: boolean;
 	}
 
+	export interface IUnicodeHighlightOptions {
+		nonBasicASCII?: boolean;
+		invisibleCharacters?: boolean;
+		ambiguousCharacters?: boolean;
+		includeComments?: boolean;
+		excludedCharacters?: string[];
+	}
+
 	export interface IInlineSuggestOptions {
 		/**
 		 * Enable or disable the rendering of automatic inline completions.
@@ -4216,25 +4225,26 @@ declare namespace monaco.editor {
 		suggestSelection = 109,
 		tabCompletion = 110,
 		tabIndex = 111,
-		unusualLineTerminators = 112,
-		useShadowDOM = 113,
-		useTabStops = 114,
-		wordSeparators = 115,
-		wordWrap = 116,
-		wordWrapBreakAfterCharacters = 117,
-		wordWrapBreakBeforeCharacters = 118,
-		wordWrapColumn = 119,
-		wordWrapOverride1 = 120,
-		wordWrapOverride2 = 121,
-		wrappingIndent = 122,
-		wrappingStrategy = 123,
-		showDeprecated = 124,
-		inlayHints = 125,
-		editorClassName = 126,
-		pixelRatio = 127,
-		tabFocusMode = 128,
-		layoutInfo = 129,
-		wrappingInfo = 130
+		unicodeHighlighting = 112,
+		unusualLineTerminators = 113,
+		useShadowDOM = 114,
+		useTabStops = 115,
+		wordSeparators = 116,
+		wordWrap = 117,
+		wordWrapBreakAfterCharacters = 118,
+		wordWrapBreakBeforeCharacters = 119,
+		wordWrapColumn = 120,
+		wordWrapOverride1 = 121,
+		wordWrapOverride2 = 122,
+		wrappingIndent = 123,
+		wrappingStrategy = 124,
+		showDeprecated = 125,
+		inlayHints = 126,
+		editorClassName = 127,
+		pixelRatio = 128,
+		tabFocusMode = 129,
+		layoutInfo = 130,
+		wrappingInfo = 131
 	}
 
 	export const EditorOptions: {
@@ -4352,6 +4362,7 @@ declare namespace monaco.editor {
 		suggestSelection: IEditorOption<EditorOption.suggestSelection, 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix'>;
 		tabCompletion: IEditorOption<EditorOption.tabCompletion, 'on' | 'off' | 'onlySnippets'>;
 		tabIndex: IEditorOption<EditorOption.tabIndex, number>;
+		unicodeSpoofingProtection: IEditorOption<EditorOption.unicodeHighlighting, Readonly<IUnicodeHighlightOptions>>;
 		unusualLineTerminators: IEditorOption<EditorOption.unusualLineTerminators, 'auto' | 'off' | 'prompt'>;
 		useShadowDOM: IEditorOption<EditorOption.useShadowDOM, boolean>;
 		useTabStops: IEditorOption<EditorOption.useTabStops, boolean>;

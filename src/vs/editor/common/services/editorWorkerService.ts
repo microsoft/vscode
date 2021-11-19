@@ -7,6 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
 import { IChange, ILineChange } from 'vs/editor/common/editorCommon';
 import { IInplaceReplaceSupportResult, TextEdit } from 'vs/editor/common/modes';
+import { UnicodeHighlighterOptions } from 'vs/editor/common/modes/unicodeTextModelHighlighter';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const ID_EDITOR_WORKER_SERVICE = 'editorWorkerService';
@@ -21,6 +22,9 @@ export interface IDiffComputationResult {
 export interface IEditorWorkerService {
 	readonly _serviceBrand: undefined;
 
+	canFindUnicodeCharacters(uri: URI): boolean;
+	computedUnicodeHighlights(uri: URI, options: UnicodeHighlighterOptions, range?: IRange): Promise<IRange[]>;
+
 	computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean, maxComputationTime: number): Promise<IDiffComputationResult | null>;
 
 	canComputeDirtyDiff(original: URI, modified: URI): boolean;
@@ -34,3 +38,4 @@ export interface IEditorWorkerService {
 	canNavigateValueSet(resource: URI): boolean;
 	navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<IInplaceReplaceSupportResult | null>;
 }
+

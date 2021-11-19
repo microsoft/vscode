@@ -640,6 +640,8 @@ export interface IEditorOptions {
 	 * Controls the behavior of editor guides.
 	*/
 	guides?: IGuidesOptions;
+
+	unicodeSpoofingProtection?: IUnicodeHighlightOptions;
 }
 
 /**
@@ -890,6 +892,20 @@ class SimpleEditorOption<K1 extends EditorOption, V> implements IEditorOption<K1
 export function boolean(value: any, defaultValue: boolean): boolean {
 	if (typeof value === 'undefined') {
 		return defaultValue;
+	}
+	if (value === 'false') {
+		// treat the string 'false' as false
+		return false;
+	}
+	return Boolean(value);
+}
+
+/**
+ * @internal
+ */
+function booleanOrUndefined(value: any): boolean | undefined {
+	if (typeof value === 'undefined') {
+		return undefined;
 	}
 	if (value === 'false') {
 		// treat the string 'false' as false
@@ -3245,6 +3261,121 @@ class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, InternalE
 
 //#endregion
 
+//#region UnicodeHighlight
+
+export interface IUnicodeHighlightOptions {
+	nonBasicASCII?: boolean;
+	invisibleCharacters?: boolean;
+	ambiguousCharacters?: boolean;
+	includeComments?: boolean;
+	excludedCharacters?: string[];
+}
+
+/**
+ * @internal
+ */
+export type InternalUnicodeHighlightOptions = Readonly<IUnicodeHighlightOptions>;
+
+/**
+ * @internal
+ */
+export const unicodeHighlightConfigKeys = {
+	excludedCharacters: 'editor.unicodeHighlight.excludedCharacters',
+	invisibleCharacters: 'editor.unicodeHighlight.invisibleCharacters',
+	nonBasicASCII: 'editor.unicodeHighlight.nonBasicASCII',
+	ambiguousCharacters: 'editor.unicodeHighlight.ambiguousCharacters',
+	includeComments: 'editor.unicodeHighlight.includeComments',
+};
+
+class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting, InternalUnicodeHighlightOptions> {
+	constructor() {
+		const defaults: InternalUnicodeHighlightOptions = {
+			nonBasicASCII: false,
+			invisibleCharacters: true,
+			ambiguousCharacters: false,
+			includeComments: false,
+			excludedCharacters: [],
+		};
+
+		super(
+			EditorOption.unicodeHighlighting, 'unicodeHighlight', defaults,
+			{
+				[unicodeHighlightConfigKeys.nonBasicASCII]: {
+					restricted: true,
+					type: 'boolean',
+					default: defaults.nonBasicASCII,
+					description: nls.localize('unicodeHighlight.nonBasicASCII', "Controls whether all non-basic ASCII characters are highlighted. Only characters between U+20 and U+7E, tab, line-feed and carriage-return are considered basic ASCII.")
+				},
+				[unicodeHighlightConfigKeys.invisibleCharacters]: {
+					restricted: true,
+					type: 'boolean',
+					default: defaults.invisibleCharacters,
+					description: nls.localize('unicodeHighlight.invisibleCharacters', "Controls whether characters are highlighted that just reserve space or have no width at all.")
+				},
+				[unicodeHighlightConfigKeys.ambiguousCharacters]: {
+					restricted: true,
+					type: 'boolean',
+					default: defaults.ambiguousCharacters,
+					description: nls.localize('unicodeHighlight.ambiguousCharacters', "Controls whether characters are highlighted that can be confused with basic ASCII characters, except those that are common in the current user locale.")
+				},
+				[unicodeHighlightConfigKeys.includeComments]: {
+					restricted: true,
+					type: 'boolean',
+					default: defaults.includeComments,
+					description: nls.localize('unicodeHighlight.includeComments', "Controls whether characters in comments should also be subject to unicode highlighting.")
+				},
+				[unicodeHighlightConfigKeys.excludedCharacters]: {
+					restricted: true,
+					type: 'array',
+					default: defaults.excludedCharacters,
+					description: nls.localize('unicodeHighlight.excludedCharacters', "Defines a list of characters that are excluded from being highlighted.")
+				},
+			}
+		);
+	}
+
+	public validate(_input: any): InternalUnicodeHighlightOptions {
+		if (!_input || typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		const input = _input as IUnicodeHighlightOptions;
+		return {
+			nonBasicASCII: booleanOrUndefined(input.nonBasicASCII),
+			invisibleCharacters: booleanOrUndefined(input.invisibleCharacters),
+			ambiguousCharacters: booleanOrUndefined(input.ambiguousCharacters),
+			includeComments: booleanOrUndefined(input.includeComments),
+			excludedCharacters: validateArray(input.excludedCharacters, validateString),
+		};
+	}
+}
+
+function validateString(value: any): string | typeof invalid {
+	if (typeof value === 'string') {
+		return value;
+	}
+	return invalid;
+}
+
+const invalid = Symbol('invalid');
+
+function validateArray<T>(value: any, validateItem: (item: any) => T | typeof invalid): T[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	const result = new Array<T>();
+
+	for (const item of value) {
+		const validatedItem = validateItem(item);
+		if (validatedItem !== invalid) {
+			result.push(validatedItem);
+		}
+	}
+	return result;
+}
+
+
+//#endregion
+
 //#region inlineSuggest
 
 export interface IInlineSuggestOptions {
@@ -4219,6 +4350,7 @@ export const enum EditorOption {
 	suggestSelection,
 	tabCompletion,
 	tabIndex,
+	unicodeHighlighting,
 	unusualLineTerminators,
 	useShadowDOM,
 	useTabStops,
@@ -4807,6 +4939,7 @@ export const EditorOptions = {
 		EditorOption.tabIndex, 'tabIndex',
 		0, -1, Constants.MAX_SAFE_SMALL_INTEGER
 	)),
+	unicodeSpoofingProtection: register(new UnicodeHighlight()),
 	unusualLineTerminators: register(new EditorStringEnumOption(
 		EditorOption.unusualLineTerminators, 'unusualLineTerminators',
 		'prompt' as 'auto' | 'off' | 'prompt',
