@@ -79,7 +79,7 @@
     "tas-client-umd": "0.1.4",
     "v8-inspect-profiler": "^0.0.22",
     "vscode-nsfw": "2.1.8",
-    "vscode-oniguruma": "1.5.1",
+    "vscode-oniguruma": "1.6.1",
     "vscode-proxy-agent": "^0.11.0",
     "vscode-regexpp": "^3.1.0",
     "vscode-ripgrep": "^1.12.1",
