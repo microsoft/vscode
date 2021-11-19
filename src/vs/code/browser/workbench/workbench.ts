@@ -10,7 +10,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { encodePath, URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { request } from 'vs/base/parts/request/browser/request';
 import { localize } from 'vs/nls';
@@ -36,16 +36,6 @@ function doCreateUri(path: string, queryValues: Map<string, string>): URI {
 
 	return URI.parse(window.location.href).with({ path, query });
 }
-
-/**
- * Encode a path for opening via the folder or workspace query parameter. This
- * preserves slashes so it can be edited by hand more easily.
- *
- * @author coder
- */
-export const encodePath = (path: string): string => {
-	return path.split('/').map((p) => encodeURIComponent(p)).join('/');
-};
 
 interface ICredential {
 	service: string;
@@ -454,11 +444,11 @@ class WindowIndicator implements IWindowIndicator {
 	 * @author coder
 	 */
 	const toRemote = (value: string): string => {
-		if (value.startsWith("/")) {
-			return "vscode-remote://" + value;
+		if (value.startsWith('/')) {
+			return 'vscode-remote://' + value;
 		}
-		return value
-	}
+		return value;
+	};
 
 	const query = new URL(document.location.href).searchParams;
 	query.forEach((value, key) => {

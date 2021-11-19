@@ -22,12 +22,12 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { setFullscreen } from 'vs/base/browser/browser';
-import { URI } from 'vs/base/common/uri';
-import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
+import { encodePath, URI } from 'vs/base/common/uri';
+import { isRecentFolder, IWorkspaceInitializationPayload, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
 import { ISignService } from 'vs/platform/sign/common/sign';
@@ -68,6 +68,7 @@ import { safeStringify } from 'vs/base/common/objects';
 import { ICredentialsService } from 'vs/workbench/services/credentials/common/credentials';
 import { IndexedDB } from 'vs/base/browser/indexedDB';
 import { CodeServerClientAdditions } from 'vs/workbench/browser/client';
+import { BrowserWorkspacesService } from 'vs/workbench/services/workspaces/browser/workspacesService';
 
 class BrowserMain extends Disposable {
 
@@ -218,6 +219,63 @@ class BrowserMain extends Disposable {
 				return service;
 			})
 		]);
+
+		/**
+		 * Added to persist recent workspaces in the browser.
+		 * @author coder
+		 * @example User specified a directory at startup.
+		 * ```sh
+		 * code-server ./path/to/project/
+		 * ```
+		 *
+		 * @example Blank project without CLI arguments,
+		 * using the last opened directory in the browser.
+		 * ```sh
+		 * code-server
+		 * open http://localhost:8000/
+		 * ```
+		 *
+		 * @example Query params override CLI arguments.
+		 * ```sh
+		 * code-server ./path/to/project/
+		 * open http://localhost:8000/?folder=/path/to/different/project
+		 * ```
+		*/
+		const browserWorkspacesService = new BrowserWorkspacesService(storageService, configurationService, logService, fileService, environmentService, uriIdentityService);
+		serviceCollection.set(IWorkspacesService, browserWorkspacesService);
+		const workspace = configurationService.getWorkspace();
+
+		logService.debug('Workspace Folders:', workspace.folders);
+
+		if (workspace.folders.length === 0) {
+			logService.debug('Workspace is empty. Checking for recent folders...');
+
+			const recentlyOpened = await browserWorkspacesService.getRecentlyOpened();
+
+			for (const recent of recentlyOpened.workspaces) {
+				if (isRecentFolder(recent)) {
+					logService.debug('Recent folder found...');
+					const folder = toWorkspaceFolder(recent.folderUri);
+					// Note that the `folders` property should be reassigned instead of pushed into.
+					// This property has a setter which updates the workspace's file cache.
+					workspace.folders = [folder];
+
+
+					/**
+					 * Opening a folder from the browser navigates to a URL including the folder param.
+					 * However, since we're overriding the default state of a blank editor,
+					 * we update the URL query param to match this behavior.
+					 * This is especially useful when a user wants to share a link to server with a specific folder.
+					 *
+					 * @see `WorkspaceProvider.createTargetUrl`
+					 * @see `WorkspaceProvider.QUERY_PARAM_FOLDER`
+					 */
+					const nextQueryParam = `?folder=${encodePath(folder.uri.path)}`;
+					window.history.replaceState(null, '', nextQueryParam);
+					break;
+				}
+			}
+		}
 
 		// Workspace Trust Service
 		const workspaceTrustEnablementService = new WorkspaceTrustEnablementService(configurationService, environmentService);
