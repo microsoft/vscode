@@ -12,6 +12,7 @@ import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription, 
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
+import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 
 export const nullExtensionDescription = Object.freeze(<IExtensionDescription>{
 	identifier: new ExtensionIdentifier('nullExtensionDescription'),
@@ -41,6 +42,19 @@ export const enum ExtensionRunningLocation {
 	LocalProcess,
 	LocalWebWorker,
 	Remote
+}
+
+export function extensionRunningLocationToString(location: ExtensionRunningLocation) {
+	switch (location) {
+		case ExtensionRunningLocation.None:
+			return 'None';
+		case ExtensionRunningLocation.LocalProcess:
+			return 'LocalProcess';
+		case ExtensionRunningLocation.LocalWebWorker:
+			return 'LocalWebWorker';
+		case ExtensionRunningLocation.Remote:
+			return 'Remote';
+	}
 }
 
 export interface IExtensionsStatus {
@@ -118,6 +132,19 @@ export interface IExtensionHost {
 	getInspectPort(): number | undefined;
 	enableInspectPort(): Promise<boolean>;
 	dispose(): void;
+}
+
+export function isProposedApiEnabled(extension: IExtensionDescription, proposal: ApiProposalName): boolean {
+	if (extension.enabledApiProposals?.includes(proposal)) {
+		return true;
+	}
+	return Boolean(extension.enableProposedApi);
+}
+
+export function checkProposedApiEnabled(extension: IExtensionDescription, proposal: ApiProposalName): void {
+	if (!isProposedApiEnabled(extension, proposal)) {
+		throw new Error(`Extension '${extension.identifier.value}' CANNOT use API proposal: ${proposal}.\nAccording to its package.json#enabledApiProposals-property it wants: ${extension.enabledApiProposals?.join(', ') ?? '<none>'}.\n You MUST start in extension development mode or use the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
+	}
 }
 
 
@@ -275,25 +302,35 @@ export interface IExtensionService {
 	 */
 	setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
 
+	/**
+	 * Please do not use!
+	 * (This is public such that the extension host process can coordinate with and call back in the IExtensionService)
+	 */
 	_activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void>;
+	/**
+	 * Please do not use!
+	 * (This is public such that the extension host process can coordinate with and call back in the IExtensionService)
+	 */
 	_onWillActivateExtension(extensionId: ExtensionIdentifier): void;
+	/**
+	 * Please do not use!
+	 * (This is public such that the extension host process can coordinate with and call back in the IExtensionService)
+	 */
 	_onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void;
+	/**
+	 * Please do not use!
+	 * (This is public such that the extension host process can coordinate with and call back in the IExtensionService)
+	 */
 	_onDidActivateExtensionError(extensionId: ExtensionIdentifier, error: Error): void;
+	/**
+	 * Please do not use!
+	 * (This is public such that the extension host process can coordinate with and call back in the IExtensionService)
+	 */
 	_onExtensionRuntimeError(extensionId: ExtensionIdentifier, err: Error): void;
 }
 
 export interface ProfileSession {
 	stop(): Promise<IExtensionHostProfile>;
-}
-
-export function checkProposedApiEnabled(extension: IExtensionDescription): void {
-	if (!extension.enableProposedApi) {
-		throwProposedApiError(extension);
-	}
-}
-
-export function throwProposedApiError(extension: IExtensionDescription): never {
-	throw new Error(`[${extension.identifier.value}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
 }
 
 export function toExtension(extensionDescription: IExtensionDescription): IExtension {

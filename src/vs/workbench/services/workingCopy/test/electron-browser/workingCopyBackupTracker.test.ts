@@ -37,10 +37,10 @@ import { createEditorPart, registerTestFileEditor, TestBeforeShutdownEvent, Test
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { TestWorkspace, Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
@@ -89,9 +89,11 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 	let workspaceBackupPath: string;
 
 	let accessor: TestServiceAccessor;
-	const disposables = new DisposableStore();
+	let disposables: DisposableStore;
 
 	setup(async () => {
+		disposables = new DisposableStore();
+
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'backuprestorer');
 		backupHome = join(testDir, 'Backups');
 		const workspacesJsonPath = join(backupHome, 'workspaces.json');
@@ -99,7 +101,7 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 		const workspaceResource = URI.file(isWindows ? 'c:\\workspace' : '/workspace');
 		workspaceBackupPath = join(backupHome, hash(workspaceResource.fsPath).toString(16));
 
-		const instantiationService = workbenchInstantiationService();
+		const instantiationService = workbenchInstantiationService(disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 		disposables.add((<TextFileEditorModelManager>accessor.textFileService.files));
 
@@ -112,14 +114,14 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 	});
 
 	teardown(async () => {
-		disposables.clear();
+		disposables.dispose();
 
 		return Promises.rm(testDir);
 	});
 
 	async function createTracker(autoSaveEnabled = false): Promise<{ accessor: TestServiceAccessor, part: EditorPart, tracker: TestWorkingCopyBackupTracker, instantiationService: IInstantiationService, cleanup: () => Promise<void> }> {
 		const workingCopyBackupService = new NodeTestWorkingCopyBackupService(testDir, workspaceBackupPath);
-		const instantiationService = workbenchInstantiationService();
+		const instantiationService = workbenchInstantiationService(disposables);
 		instantiationService.stub(IWorkingCopyBackupService, workingCopyBackupService);
 
 		const configurationService = new TestConfigurationService();
@@ -130,7 +132,8 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 
 		instantiationService.stub(IFilesConfigurationService, new TestFilesConfigurationService(
 			<IContextKeyService>instantiationService.createInstance(MockContextKeyService),
-			configurationService
+			configurationService,
+			new TestContextService(TestWorkspace)
 		));
 
 		const part = await createEditorPart(instantiationService, disposables);

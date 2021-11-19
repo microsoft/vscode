@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jeff-hykin/cpp-textmate-grammar/commit/f074a48ae0b7ba313af3faf3d8bfda8537864bd1",
+	"version": "https://github.com/jeff-hykin/cpp-textmate-grammar/commit/0ef79f098ed80ce5a86be4ed40f99ebcdbac4895",
 	"name": "C",
 	"scopeName": "source.c",
 	"patterns": [

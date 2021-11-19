@@ -94,7 +94,6 @@ export const languagesExtPoint: IExtensionPoint<IRawLanguageExtensionPoint[]> = 
 export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 	private _configurationService: IConfigurationService;
 	private _extensionService: IExtensionService;
-	private _onReadyPromise: Promise<boolean> | undefined;
 
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
@@ -151,19 +150,9 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 			this.updateMime();
 		});
 
-		this.onDidCreateMode((mode) => {
-			this._extensionService.activateByEvent(`onLanguage:${mode.getId()}`);
+		this.onDidEncounterLanguage((languageId) => {
+			this._extensionService.activateByEvent(`onLanguage:${languageId}`);
 		});
-	}
-
-	protected override _onReady(): Promise<boolean> {
-		if (!this._onReadyPromise) {
-			this._onReadyPromise = Promise.resolve(
-				this._extensionService.whenInstalledExtensionsRegistered().then(() => true)
-			);
-		}
-
-		return this._onReadyPromise;
 	}
 
 	private updateMime(): void {

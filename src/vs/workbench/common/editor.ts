@@ -17,7 +17,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IEncodingSupport, IModeSupport } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ICompositeControl, IComposite } from 'vs/workbench/common/composite';
-import { IFileService } from 'vs/platform/files/common/files';
+import { FileType, IFileService } from 'vs/platform/files/common/files';
 import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce } from 'vs/base/common/arrays';
 import { IExtUri } from 'vs/base/common/resources';
@@ -38,7 +38,7 @@ export const DEFAULT_EDITOR_ASSOCIATION = {
 };
 
 // Editor State Context Keys
-export const ActiveEditorDirtyContext = new RawContextKey<boolean>('activeEditorIsDirty', false, localize('activeEditorIsDirty', "Whether the active editor is dirty"));
+export const ActiveEditorDirtyContext = new RawContextKey<boolean>('activeEditorIsDirty', false, localize('activeEditorIsDirty', "Whether the active editor has unsaved changes"));
 export const ActiveEditorPinnedContext = new RawContextKey<boolean>('activeEditorIsNotPreview', false, localize('activeEditorIsNotPreview', "Whether the active editor is not in preview mode"));
 export const ActiveEditorStickyContext = new RawContextKey<boolean>('activeEditorIsPinned', false, localize('activeEditorIsPinned', "Whether the active editor is pinned"));
 export const ActiveEditorReadonlyContext = new RawContextKey<boolean>('activeEditorIsReadonly', false, localize('activeEditorIsReadonly', "Whether the active editor is readonly"));
@@ -114,7 +114,7 @@ export interface IEditorDescriptor<T extends IEditorPane> {
 export interface IEditorPane extends IComposite {
 
 	/**
-	 * An event to notify when the `IEditorControl´ in this
+	 * An event to notify when the `IEditorControl` in this
 	 * editor pane changes.
 	 *
 	 * This can be used for editor panes that are a compound
@@ -749,7 +749,9 @@ export enum EditorCloseContext {
 	UNKNOWN,
 
 	/**
-	 * The editor closed because it was in preview mode and got replaced.
+	 * The editor closed because it was replaced with another editor.
+	 * This can either happen via explicit replace call or when an
+	 * editor is in preview mode and another editor opens.
 	 */
 	REPLACE,
 
@@ -1064,8 +1066,8 @@ class EditorFactoryRegistry implements IEditorFactoryRegistry {
 
 	private fileEditorFactory: IFileEditorFactory | undefined;
 
-	private readonly editorSerializerConstructors: Map<string /* Type ID */, IConstructorSignature0<IEditorSerializer>> = new Map();
-	private readonly editorSerializerInstances: Map<string /* Type ID */, IEditorSerializer> = new Map();
+	private readonly editorSerializerConstructors = new Map<string /* Type ID */, IConstructorSignature0<IEditorSerializer>>();
+	private readonly editorSerializerInstances = new Map<string /* Type ID */, IEditorSerializer>();
 
 	start(accessor: ServicesAccessor): void {
 		const instantiationService = this.instantiationService = accessor.get(IInstantiationService);
@@ -1131,17 +1133,27 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 			return;
 		}
 
-		// Since we are possibly the first ones to use the file service
-		// on the resource, we must ensure to activate the provider first
-		// before asking whether the resource can be handled.
-		await fileService.activateProvider(resource.scheme);
-
-		if (!fileService.canHandleResource(resource)) {
+		const canHandleResource = await fileService.canHandleResource(resource);
+		if (!canHandleResource) {
 			return;
 		}
 
-		const exists = (typeof path.exists === 'boolean') ? path.exists : await fileService.exists(resource);
+		let exists = path.exists;
+		let type = path.type;
+		if (typeof exists !== 'boolean' || typeof type !== 'number') {
+			try {
+				type = (await fileService.resolve(resource)).isFile ? FileType.File : FileType.Unknown;
+				exists = true;
+			} catch {
+				exists = false;
+			}
+		}
+
 		if (!exists && path.openOnlyIfExists) {
+			return;
+		}
+
+		if (type !== FileType.File) {
 			return;
 		}
 

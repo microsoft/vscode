@@ -25,7 +25,7 @@ export class FocusSideBarAction extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: null,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_0
+				primary: KeyMod.CtrlCmd | KeyCode.Digit0
 			}
 		});
 	}

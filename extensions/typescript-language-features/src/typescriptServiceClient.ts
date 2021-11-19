@@ -19,7 +19,7 @@ import { TypeScriptVersionManager } from './tsServer/versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './tsServer/versionProvider';
 import { ClientCapabilities, ClientCapability, ExecConfig, ITypeScriptServiceClient, ServerResponse, TypeScriptRequests } from './typescriptService';
 import API from './utils/api';
-import { areServiceConfigurationsEqual, SyntaxServerConfiguration, ServiceConfigurationProvider, TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';
+import { areServiceConfigurationsEqual, ServiceConfigurationProvider, SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';
 import { Disposable } from './utils/dispose';
 import * as fileSchemes from './utils/fileSchemes';
 import { Logger } from './utils/logger';
@@ -681,7 +681,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				}
 			default:
 				{
-					return this.inMemoryResourcePrefix + '/' + resource.scheme + resource.path;
+					return this.inMemoryResourcePrefix + '/' + resource.scheme
+						+ (resource.path.startsWith('/') ? resource.path : '/' + resource.path)
+						+ (resource.fragment ? '#' + resource.fragment : '');
 				}
 		}
 	}
@@ -720,15 +722,18 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	public toResource(filepath: string): vscode.Uri {
 		if (isWeb()) {
-			// On web, treat absolute paths as pointing to standard lib files
-			if (filepath.startsWith('/')) {
+			// On web, the stdlib paths that TS return look like: '/lib.es2015.collection.d.ts'
+			if (filepath.startsWith('/lib.') && filepath.endsWith('.d.ts')) {
 				return vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'browser', 'typescript', filepath.slice(1));
 			}
 		}
 
 		if (filepath.startsWith(this.inMemoryResourcePrefix)) {
-			const resource = vscode.Uri.parse(filepath.slice(1));
-			return this.bufferSyncSupport.toVsCodeResource(resource);
+			const parts = filepath.match(/^\^\/([^\/]+)\/(.+)$/);
+			if (parts) {
+				const resource = vscode.Uri.parse(parts[1] + ':' + parts[2]);
+				return this.bufferSyncSupport.toVsCodeResource(resource);
+			}
 		}
 		return this.bufferSyncSupport.toResource(filepath);
 	}

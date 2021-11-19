@@ -292,3 +292,4 @@ export const gotoPreviousLocation = registerIcon('goto-previous-location', Codic
 export const gotoNextLocation = registerIcon('goto-next-location', Codicons.Codicon.arrowDown, localize('nextChangeIcon', 'Icon for goto next editor location.'));
 
 export const syncing = ThemeIcon.modify(Codicons.Codicon.sync, 'spin');
+export const spinningLoading = ThemeIcon.modify(Codicons.Codicon.loading, 'spin');

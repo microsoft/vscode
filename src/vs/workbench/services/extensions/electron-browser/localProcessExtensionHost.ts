@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Server, Socket, createServer } from 'net';
+import { findFreePort } from 'vs/base/node/ports';
+import { createRandomIPCHandle, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+
 import * as nls from 'vs/nls';
 import { CrashReporterStartOptions } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
 import { timeout } from 'vs/base/common/async';
@@ -13,7 +17,7 @@ import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IRemoteConsoleLog, log } from 'vs/base/common/console';
-import { logRemoteEntry } from 'vs/workbench/services/extensions/common/remoteConsoleUtil';
+import { logRemoteEntry, logRemoteEntryIfError } from 'vs/workbench/services/extensions/common/remoteConsoleUtil';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
@@ -42,11 +46,8 @@ import { isUUID } from 'vs/base/common/uuid';
 import { join } from 'vs/base/common/path';
 import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
 import { IExtensionHostProcessOptions, IExtensionHostStarter } from 'vs/platform/extensions/common/extensionHostStarter';
-
-import { Server, Socket, createServer } from 'net';
-import { findFreePort } from 'vs/base/node/ports';
-import { createRandomIPCHandle, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { SerializedError } from 'vs/base/common/errors';
+import { removeDangerousEnvVariables } from 'vs/base/node/processes';
 
 export interface ILocalProcessExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -67,23 +68,23 @@ class ExtensionHostProcess {
 	private readonly _id: string;
 
 	public get onStdout(): Event<string> {
-		return this._extensionHostStarter.onScopedStdout(this._id);
+		return this._extensionHostStarter.onDynamicStdout(this._id);
 	}
 
 	public get onStderr(): Event<string> {
-		return this._extensionHostStarter.onScopedStderr(this._id);
+		return this._extensionHostStarter.onDynamicStderr(this._id);
 	}
 
 	public get onMessage(): Event<any> {
-		return this._extensionHostStarter.onScopedMessage(this._id);
+		return this._extensionHostStarter.onDynamicMessage(this._id);
 	}
 
 	public get onError(): Event<{ error: SerializedError; }> {
-		return this._extensionHostStarter.onScopedError(this._id);
+		return this._extensionHostStarter.onDynamicError(this._id);
 	}
 
 	public get onExit(): Event<{ code: number; signal: string }> {
-		return this._extensionHostStarter.onScopedExit(this._id);
+		return this._extensionHostStarter.onDynamicExit(this._id);
 	}
 
 	constructor(
@@ -222,11 +223,11 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 					VSCODE_LOG_LEVEL: this._environmentService.verbose ? 'trace' : this._environmentService.log
 				});
 
-				if (platform.isMacintosh) {
-					// Unset `DYLD_LIBRARY_PATH`, as it leads to extension host crashes
-					// See https://github.com/microsoft/vscode/issues/104525
-					delete env['DYLD_LIBRARY_PATH'];
+				if (this._environmentService.debugExtensionHost.env) {
+					objects.mixin(env, this._environmentService.debugExtensionHost.env);
 				}
+
+				removeDangerousEnvVariables(env);
 
 				if (this._isExtensionDevHost) {
 					// Unset `VSCODE_CODE_CACHE_PATH` when developing extensions because it might
@@ -263,6 +264,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				}
 
 				// On linux crash reporter needs to be started on child node processes explicitly
+				// TODO@bpasero TODO@deepak1556 remove once we updated to Electron 15
 				if (platform.isLinux) {
 					const crashReporterStartOptions: CrashReporterStartOptions = {
 						companyName: this._productService.crashReporter?.companyName || 'Microsoft',
@@ -347,6 +349,8 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				let startupTimeoutHandle: any;
 				if (!this._environmentService.isBuilt && !this._environmentService.remoteAuthority || this._isExtensionDevHost) {
 					startupTimeoutHandle = setTimeout(() => {
+						this._logService.error(`[LocalProcessExtensionHost]: Extension host did not start in 10 seconds (debugBrk: ${this._isExtensionDevDebugBrk})`);
+
 						const msg = this._isExtensionDevDebugBrk
 							? nls.localize('extensionHost.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.")
 							: nls.localize('extensionHost.startupFail', "Extension host did not start in 10 seconds, that might be a problem.");
@@ -361,12 +365,10 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 					}, 10000);
 				}
 
-				return this._extensionHostProcess.start(opts).then(() => {
-					// Initialize extension host process with hand shakes
-					return this._tryExtHostHandshake().then((protocol) => {
-						clearTimeout(startupTimeoutHandle);
-						return protocol;
-					});
+				// Initialize extension host process with hand shakes
+				return this._tryExtHostHandshake(opts).then((protocol) => {
+					clearTimeout(startupTimeoutHandle);
+					return protocol;
 				});
 			});
 		}
@@ -422,7 +424,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		return port || 0;
 	}
 
-	private _tryExtHostHandshake(): Promise<PersistentProtocol> {
+	private _tryExtHostHandshake(opts: IExtensionHostProcessOptions): Promise<PersistentProtocol> {
 
 		return new Promise<PersistentProtocol>((resolve, reject) => {
 
@@ -433,10 +435,11 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 					this._namedPipeServer.close();
 					this._namedPipeServer = null;
 				}
-				reject('timeout');
+				reject('The local extension host took longer than 60s to connect.');
 			}, 60 * 1000);
 
 			this._namedPipeServer!.on('connection', socket => {
+
 				clearTimeout(handle);
 				if (this._namedPipeServer) {
 					this._namedPipeServer.close();
@@ -450,6 +453,13 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				resolve(new PersistentProtocol(new NodeSocket(this._extensionHostConnection)));
 			});
 
+			// Now that the named pipe listener is installed, start the ext host process
+			this._extensionHostProcess!.start(opts).then(() => {
+			}, (err) => {
+				// Starting the ext host process resulted in an error
+				reject(err);
+			});
+
 		}).then((protocol) => {
 
 			// 1) wait for the incoming `ready` event and send the initialization data.
@@ -459,7 +469,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				let timeoutHandle: NodeJS.Timer;
 				const installTimeoutCheck = () => {
 					timeoutHandle = setTimeout(() => {
-						reject('timeout');
+						reject('The local extenion host took longer than 60s to send its ready message.');
 					}, 60 * 1000);
 				};
 				const uninstallTimeoutCheck = () => {
@@ -472,6 +482,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				const disposable = protocol.onMessage(msg => {
 
 					if (isMessageOfType(msg, MessageType.Ready)) {
+
 						// 1) Extension Host is ready to receive messages, initialize it
 						uninstallTimeoutCheck();
 
@@ -486,6 +497,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 					}
 
 					if (isMessageOfType(msg, MessageType.Initialized)) {
+
 						// 2) Extension Host is initialized
 						uninstallTimeoutCheck();
 
@@ -531,7 +543,8 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				configuration: withNullAsUndefined(workspace.configuration),
 				id: workspace.id,
 				name: this._labelService.getWorkspaceLabel(workspace),
-				isUntitled: workspace.configuration ? isUntitledWorkspace(workspace.configuration, this._environmentService) : false
+				isUntitled: workspace.configuration ? isUntitledWorkspace(workspace.configuration, this._environmentService) : false,
+				transient: workspace.transient
 			},
 			remote: {
 				authority: this._environmentService.remoteAuthority,
@@ -551,14 +564,12 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 	}
 
 	private _logExtensionHostMessage(entry: IRemoteConsoleLog) {
-
 		if (this._isExtensionDevTestFromCli) {
-
-			// Log on main side if running tests from cli
+			// If running tests from cli, log to the log service everything
 			logRemoteEntry(this._logService, entry);
 		} else {
-
-			// Send to local console
+			// Log to the log service only errors and log everything to local console
+			logRemoteEntryIfError(this._logService, entry, 'Extension Host');
 			log(entry, 'Extension Host');
 		}
 	}

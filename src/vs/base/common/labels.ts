@@ -92,8 +92,8 @@ export function getBaseLabel(resource: URI | string | undefined): string | undef
 	return base;
 }
 
-export function normalizeDriveLetter(path: string): string {
-	if (hasDriveLetter(path)) {
+export function normalizeDriveLetter(path: string, continueAsWindows?: boolean): string {
+	if (hasDriveLetter(path, continueAsWindows)) {
 		return path.charAt(0).toUpperCase() + path.slice(1);
 	}
 

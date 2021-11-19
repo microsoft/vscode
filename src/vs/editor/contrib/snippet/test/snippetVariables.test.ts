@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import * as sinon from 'sinon';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { sep } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
@@ -65,6 +66,8 @@ suite('Snippet Variables Resolver', function () {
 
 	test('editor variables, file/dir', function () {
 
+		const disposables = new DisposableStore();
+
 		assertVariableResolve(resolver, 'TM_FILENAME', 'text.txt');
 		if (!isWindows) {
 			assertVariableResolve(resolver, 'TM_DIRECTORY', '/foo/files');
@@ -73,7 +76,7 @@ suite('Snippet Variables Resolver', function () {
 
 		resolver = new ModelBasedVariableResolver(
 			labelService,
-			createTextModel('', undefined, undefined, URI.parse('http://www.pb.o/abc/def/ghi'))
+			disposables.add(createTextModel('', undefined, undefined, URI.parse('http://www.pb.o/abc/def/ghi')))
 		);
 		assertVariableResolve(resolver, 'TM_FILENAME', 'ghi');
 		if (!isWindows) {
@@ -83,11 +86,12 @@ suite('Snippet Variables Resolver', function () {
 
 		resolver = new ModelBasedVariableResolver(
 			labelService,
-			createTextModel('', undefined, undefined, URI.parse('mem:fff.ts'))
+			disposables.add(createTextModel('', undefined, undefined, URI.parse('mem:fff.ts')))
 		);
 		assertVariableResolve(resolver, 'TM_DIRECTORY', '');
 		assertVariableResolve(resolver, 'TM_FILEPATH', 'fff.ts');
 
+		disposables.dispose();
 	});
 
 	test('Path delimiters in code snippet variables aren\'t specific to remote OS #76840', function () {
@@ -103,6 +107,8 @@ suite('Snippet Variables Resolver', function () {
 		const resolver = new CompositeSnippetVariableResolver([new ModelBasedVariableResolver(labelService, model)]);
 
 		assertVariableResolve(resolver, 'TM_FILEPATH', '|foo|files|text.txt');
+
+		model.dispose();
 	});
 
 	test('editor variables, selection', function () {
@@ -146,25 +152,29 @@ suite('Snippet Variables Resolver', function () {
 
 	test('More useful environment variables for snippets, #32737', function () {
 
+		const disposables = new DisposableStore();
+
 		assertVariableResolve(resolver, 'TM_FILENAME_BASE', 'text');
 
 		resolver = new ModelBasedVariableResolver(
 			labelService,
-			createTextModel('', undefined, undefined, URI.parse('http://www.pb.o/abc/def/ghi'))
+			disposables.add(createTextModel('', undefined, undefined, URI.parse('http://www.pb.o/abc/def/ghi')))
 		);
 		assertVariableResolve(resolver, 'TM_FILENAME_BASE', 'ghi');
 
 		resolver = new ModelBasedVariableResolver(
 			labelService,
-			createTextModel('', undefined, undefined, URI.parse('mem:.git'))
+			disposables.add(createTextModel('', undefined, undefined, URI.parse('mem:.git')))
 		);
 		assertVariableResolve(resolver, 'TM_FILENAME_BASE', '.git');
 
 		resolver = new ModelBasedVariableResolver(
 			labelService,
-			createTextModel('', undefined, undefined, URI.parse('mem:foo.'))
+			disposables.add(createTextModel('', undefined, undefined, URI.parse('mem:foo.')))
 		);
 		assertVariableResolve(resolver, 'TM_FILENAME_BASE', 'foo');
+
+		disposables.dispose();
 	});
 
 
@@ -417,5 +427,7 @@ suite('Snippet Variables Resolver', function () {
 		} else {
 			assertVariableResolve(resolver, 'RELATIVE_FILEPATH', 'files\\text.txt');
 		}
+
+		model.dispose();
 	});
 });

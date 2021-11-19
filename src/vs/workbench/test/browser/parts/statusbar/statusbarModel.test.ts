@@ -132,11 +132,11 @@ suite('Workbench status bar model', () => {
 		assert.strictEqual(entries[2].id, 'b');
 	});
 
-	test('entry with reference to other entry (not-existing)', () => {
+	test('entry with reference to other entry (nonexistent)', () => {
 		const container = document.createElement('div');
 		const model = new StatusbarViewModel(new TestStorageService());
 
-		// Non-Existing reference, Alignment: left
+		// Nonexistent reference, Alignment: left
 		model.add({ id: 'a', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 2, secondary: 1 }, container, labelContainer: container, hasCommand: false });
 		model.add({ id: 'b', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false });
 
@@ -151,7 +151,7 @@ suite('Workbench status bar model', () => {
 
 		model.remove(entry);
 
-		// Non-Existing reference, Alignment: right
+		// Nonexistent reference, Alignment: right
 		entry = { id: 'c', alignment: StatusbarAlignment.RIGHT, name: '3', priority: { primary: { id: 'not-existing', alignment: StatusbarAlignment.RIGHT }, secondary: 1 }, container, labelContainer: container, hasCommand: false };
 		model.add(entry);
 

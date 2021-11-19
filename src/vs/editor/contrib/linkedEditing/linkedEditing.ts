@@ -120,9 +120,9 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 			return;
 		}
 
-		this._languageWordPattern = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
+		this._languageWordPattern = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageId());
 		this._localToDispose.add(model.onDidChangeLanguageConfiguration(() => {
-			this._languageWordPattern = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
+			this._languageWordPattern = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageId());
 		}));
 
 		const rangeUpdateScheduler = new Delayer(this._debounceDuration);

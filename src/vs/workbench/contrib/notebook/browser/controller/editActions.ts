@@ -439,14 +439,14 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 	private async setLanguage(context: IChangeCellContext, languageId: string) {
 		if (languageId === 'markdown' && context.cell?.language !== 'markdown') {
 			const idx = context.notebookEditor.getCellIndex(context.cell);
-			await changeCellToKind(CellKind.Markup, { cell: context.cell, notebookEditor: context.notebookEditor }, 'markdown', Mimes.markdown);
+			await changeCellToKind(CellKind.Markup, { cell: context.cell, notebookEditor: context.notebookEditor, ui: true }, 'markdown', Mimes.markdown);
 			const newCell = context.notebookEditor.cellAt(idx);
 
 			if (newCell) {
 				context.notebookEditor.focusNotebookCell(newCell, 'editor');
 			}
 		} else if (languageId !== 'markdown' && context.cell?.cellKind === CellKind.Markup) {
-			await changeCellToKind(CellKind.Code, { cell: context.cell, notebookEditor: context.notebookEditor }, languageId);
+			await changeCellToKind(CellKind.Code, { cell: context.cell, notebookEditor: context.notebookEditor, ui: true }, languageId);
 		} else {
 			const index = context.notebookEditor.textModel.cells.indexOf(context.cell.model);
 			context.notebookEditor.textModel.applyEdits(

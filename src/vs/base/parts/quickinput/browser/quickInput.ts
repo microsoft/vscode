@@ -19,14 +19,14 @@ import { Action } from 'vs/base/common/actions';
 import { equals } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Codicon, registerCodicon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { isIOS } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
-import { isString } from 'vs/base/common/types';
+import { isString, withNullAsUndefined } from 'vs/base/common/types';
 import { getIconClass } from 'vs/base/parts/quickinput/browser/quickInputUtils';
 import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickWillAcceptEvent, ItemActivation, NO_KEY_MODS, QuickInputHideReason, QuickPickInput } from 'vs/base/parts/quickinput/common/quickInput';
 import 'vs/css!./media/quickInput';
@@ -74,11 +74,8 @@ const $ = dom.$;
 
 type Writeable<T> = { -readonly [P in keyof T]: T[P] };
 
-
-const backButtonIcon = registerCodicon('quick-input-back', Codicon.arrowLeft);
-
 const backButton = {
-	iconClass: backButtonIcon.classNames,
+	iconClass: Codicon.quickInputBack.classNames,
 	tooltip: localize('quickInput.back', "Back"),
 	handle: -1 // TODO
 };
@@ -493,6 +490,11 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		if (this._value !== value) {
 			this._value = value || '';
 			this.update();
+			// TODO: Remove this duplicate code and have the updating of the input box handle this.
+			const didFilter = this.ui.list.filter(this.filterValue(this.ui.inputBox.value));
+			if (didFilter) {
+				this.trySelectFirst();
+			}
 			this.onDidChangeValueEmitter.fire(this._value);
 		}
 	}
@@ -817,7 +819,16 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 				}
 			}));
 			this.visibleDisposables.add(this.ui.onDidAccept(() => {
-				if (!this.canSelectMany && this.activeItems[0]) {
+				if (this.canSelectMany) {
+					// if there are no checked elements, it means that an onDidChangeSelection never fired to overwrite
+					// `_selectedItems`. In that case, we should emit one with an empty array to ensure that
+					// `.selectedItems` is up to date.
+					if (!this.ui.list.getCheckedElements().length) {
+						this._selectedItems = [];
+						this.onDidChangeSelectionEmitter.fire(this.selectedItems);
+					}
+				} else if (this.activeItems[0]) {
+					// For single-select, we set `selectedItems` to the item that was accepted.
 					this._selectedItems = [this.activeItems[0]];
 					this.onDidChangeSelectionEmitter.fire(this.selectedItems);
 				}
@@ -1050,7 +1061,6 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 }
 
 class InputBox extends QuickInput implements IInputBox {
-	private _value = '';
 	private _valueSelection: Readonly<[number, number]> | undefined;
 	private valueSelectionUpdated = true;
 	private _placeholder: string | undefined;
@@ -1060,12 +1070,11 @@ class InputBox extends QuickInput implements IInputBox {
 	private readonly onDidAcceptEmitter = this._register(new Emitter<void>());
 
 	get value() {
-		return this._value;
+		return this.ui.inputBox.value;
 	}
 
 	set value(value: string) {
-		this._value = value || '';
-		this.update();
+		this.ui.inputBox.value = value ?? '';
 	}
 
 	set valueSelection(valueSelection: Readonly<[number, number]>) {
@@ -1112,10 +1121,6 @@ class InputBox extends QuickInput implements IInputBox {
 		if (!this.visible) {
 			this.visibleDisposables.add(
 				this.ui.inputBox.onDidChange(value => {
-					if (value === this.value) {
-						return;
-					}
-					this._value = value;
 					this.onDidValueChangeEmitter.fire(value);
 				}));
 			this.visibleDisposables.add(this.ui.onDidAccept(() => this.onDidAcceptEmitter.fire()));
@@ -1135,9 +1140,6 @@ class InputBox extends QuickInput implements IInputBox {
 		};
 		this.ui.setVisibilities(visibilities);
 		super.update();
-		if (this.ui.inputBox.value !== this.value) {
-			this.ui.inputBox.value = this.value;
-		}
 		if (this.valueSelectionUpdated) {
 			this.valueSelectionUpdated = false;
 			this.ui.inputBox.select(this._valueSelection && { start: this._valueSelection[0], end: this._valueSelection[1] });
@@ -1677,8 +1679,12 @@ export class QuickInputController extends Disposable {
 			this.onHideEmitter.fire();
 			this.getUI().container.style.display = 'none';
 			if (!focusChanged) {
-				if (this.previousFocusElement && this.previousFocusElement.offsetParent) {
-					this.previousFocusElement.focus();
+				let currentElement = this.previousFocusElement;
+				while (currentElement && !currentElement.offsetParent) {
+					currentElement = withNullAsUndefined(currentElement.parentElement);
+				}
+				if (currentElement?.offsetParent) {
+					currentElement.focus();
 					this.previousFocusElement = undefined;
 				} else {
 					this.options.returnFocus();

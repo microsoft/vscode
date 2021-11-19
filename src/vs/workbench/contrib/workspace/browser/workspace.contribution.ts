@@ -29,13 +29,12 @@ import { WORKSPACE_TRUST_BANNER, WORKSPACE_TRUST_EMPTY_WINDOW, WORKSPACE_TRUST_E
 import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspaceFoldersWillChangeEvent, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { isWeb } from 'vs/base/common/platform';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { dirname, resolve } from 'vs/base/common/path';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import product from 'vs/platform/product/common/product';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
@@ -49,6 +48,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { WORKSPACE_TRUST_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 const BANNER_RESTRICTED_MODE = 'workbench.banner.restrictedMode';
 const STARTUP_PROMPT_SHOWN_KEY = 'workspace.trust.startupPrompt.shown';
@@ -242,6 +242,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 		@IBannerService private readonly bannerService: IBannerService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IHostService private readonly hostService: IHostService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 
@@ -278,9 +279,10 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 			if (!this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
 				return;
 			}
-			const trusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
 
-			return e.join(new Promise(async resolve => {
+			const addWorkspaceFolder = async (e: IWorkspaceFoldersWillChangeEvent): Promise<void> => {
+				const trusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
+
 				// Workspace is trusted and there are added/changed folders
 				if (trusted && (e.changes.added.length || e.changes.changed.length)) {
 					const addedFoldersTrustInfo = await Promise.all(e.changes.added.map(folder => this.workspaceTrustManagementService.getUriTrustInfo(folder.uri)));
@@ -303,13 +305,11 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 
 						// Mark added/changed folders as trusted
 						await this.workspaceTrustManagementService.setUrisTrust(addedFoldersTrustInfo.map(i => i.uri), result.choice === 0);
-
-						resolve();
 					}
 				}
+			};
 
-				resolve();
-			}));
+			return e.join(addWorkspaceFolder(e));
 		}));
 
 		this._register(this.workspaceTrustManagementService.onDidChangeTrust(trusted => {
@@ -431,8 +431,8 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 			{ label: localize('dontTrustOption', "No, I don't trust the authors"), sublabel: isSingleFolderWorkspace ? localize('dontTrustFolderOptionDescription', "Browse folder in restricted mode") : localize('dontTrustWorkspaceOptionDescription', "Browse workspace in restricted mode") },
 			[
 				!isSingleFolderWorkspace ?
-					localize('workspaceStartupTrustDetails', "{0} provides features that may automatically execute files in this workspace.", product.nameShort) :
-					localize('folderStartupTrustDetails', "{0} provides features that may automatically execute files in this folder.", product.nameShort),
+					localize('workspaceStartupTrustDetails', "{0} provides features that may automatically execute files in this workspace.", this.productService.nameShort) :
+					localize('folderStartupTrustDetails', "{0} provides features that may automatically execute files in this folder.", this.productService.nameShort),
 				localize('startupTrustRequestLearnMore', "If you don't trust the authors of these files, we recommend to continue in restricted mode as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more."),
 				`\`${this.labelService.getWorkspaceLabel(workspaceIdentifier, { verbose: true })}\``,
 			],

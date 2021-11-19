@@ -14,7 +14,7 @@ import { insert } from 'vs/base/common/arrays';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Promises } from 'vs/base/common/async';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { URI } from 'vs/base/common/uri';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -176,8 +176,25 @@ export function whenEditorClosed(accessor: ServicesAccessor, resources: URI[]): 
 				return; // ignore move events where the editor will open in another group
 			}
 
-			const primaryResource = EditorResourceAccessor.getOriginalUri(event.editor, { supportSideBySide: SideBySideEditor.PRIMARY });
-			const secondaryResource = EditorResourceAccessor.getOriginalUri(event.editor, { supportSideBySide: SideBySideEditor.SECONDARY });
+			let primaryResource = EditorResourceAccessor.getOriginalUri(event.editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+			let secondaryResource = EditorResourceAccessor.getOriginalUri(event.editor, { supportSideBySide: SideBySideEditor.SECONDARY });
+
+			// Specially handle an editor getting replaced: if the new active editor
+			// matches any of the resources from the closed editor, ignore those
+			// resources because they were actually not closed, but replaced.
+			// (see https://github.com/microsoft/vscode/issues/134299)
+			if (event.context === EditorCloseContext.REPLACE) {
+				const newPrimaryResource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+				const newSecondaryResource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.SECONDARY });
+
+				if (uriIdentityService.extUri.isEqual(primaryResource, newPrimaryResource)) {
+					primaryResource = undefined;
+				}
+
+				if (uriIdentityService.extUri.isEqual(secondaryResource, newSecondaryResource)) {
+					secondaryResource = undefined;
+				}
+			}
 
 			// Remove from resources to wait for being closed based on the
 			// resources from editors that got closed

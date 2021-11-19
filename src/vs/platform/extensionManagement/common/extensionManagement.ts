@@ -243,6 +243,7 @@ export interface IGalleryExtension {
 	publisherId: string;
 	publisher: string;
 	publisherDisplayName: string;
+	publisherDomain?: { link: string, verified: boolean };
 	description: string;
 	installCount: number;
 	rating: number;
@@ -322,7 +323,6 @@ export const IExtensionGalleryService = createDecorator<IExtensionGalleryService
 export interface IExtensionGalleryService {
 	readonly _serviceBrand: undefined;
 	isEnabled(): boolean;
-	query(token: CancellationToken): Promise<IPager<IGalleryExtension>>;
 	query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>>;
 	getExtensions(identifiers: ReadonlyArray<IExtensionIdentifier | IExtensionIdentifierWithVersion>, token: CancellationToken): Promise<IGalleryExtension[]>;
 	download(extension: IGalleryExtension, location: URI, operation: InstallOperation): Promise<void>;
@@ -355,12 +355,22 @@ export interface DidUninstallExtensionEvent {
 	error?: string;
 }
 
-export const INSTALL_ERROR_NOT_SUPPORTED = 'notsupported';
-export const INSTALL_ERROR_MALICIOUS = 'malicious';
-export const INSTALL_ERROR_INCOMPATIBLE = 'incompatible';
+export enum ExtensionManagementErrorCode {
+	Unsupported = 'Unsupported',
+	Malicious = 'Malicious',
+	Incompatible = 'Incompatible',
+	Invalid = 'Invalid',
+	Download = 'Download',
+	Extract = 'Extract',
+	Delete = 'Delete',
+	Rename = 'Rename',
+	CorruptZip = 'CorruptZip',
+	IncompleteZip = 'IncompleteZip',
+	Internal = 'Internal',
+}
 
 export class ExtensionManagementError extends Error {
-	constructor(message: string, readonly code: string) {
+	constructor(message: string, readonly code: ExtensionManagementErrorCode) {
 		super(message);
 		this.name = code;
 	}
@@ -392,7 +402,7 @@ export interface IExtensionManagementService {
 	installFromGallery(extension: IGalleryExtension, options?: InstallOptions): Promise<ILocalExtension>;
 	uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void>;
 	reinstallFromGallery(extension: ILocalExtension): Promise<void>;
-	getInstalled(type?: ExtensionType): Promise<ILocalExtension[]>;
+	getInstalled(type?: ExtensionType, donotIgnoreInvalidExtensions?: boolean): Promise<ILocalExtension[]>;
 	getExtensionsReport(): Promise<IReportedExtension[]>;
 
 	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension>;

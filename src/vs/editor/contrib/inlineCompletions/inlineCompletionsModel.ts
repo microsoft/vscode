@@ -11,7 +11,6 @@ import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/bas
 import { commonPrefixLength, commonSuffixLength } from 'vs/base/common/strings';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
@@ -43,8 +42,6 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 		this._register(commandService.onDidExecuteCommand(e => {
 			// These commands don't trigger onDidType.
 			const commands = new Set([
-				UndoCommand.id,
-				RedoCommand.id,
 				CoreEditingCommands.Tab.id,
 				CoreEditingCommands.DeleteLeft.id,
 				CoreEditingCommands.DeleteRight.id,
@@ -68,6 +65,10 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 
 		this._register(toDisposable(() => {
 			this.disposed = true;
+		}));
+
+		this._register(this.editor.onDidBlurEditorWidget(() => {
+			this.hide();
 		}));
 	}
 
@@ -583,6 +584,11 @@ export async function provideInlineCompletions(
 	};
 }
 
+/**
+ * Shrinks the range if the text has a suffix/prefix that agrees with the text buffer.
+ * E.g. text buffer: `ab[cdef]ghi`, [...] is the replace range, `cxyzf` is the new text.
+ * Then the minimized inline completion has range `abc[de]fghi` and text `xyz`.
+ */
 export function minimizeInlineCompletion(model: ITextModel, inlineCompletion: NormalizedInlineCompletion): NormalizedInlineCompletion;
 export function minimizeInlineCompletion(model: ITextModel, inlineCompletion: NormalizedInlineCompletion | undefined): NormalizedInlineCompletion | undefined;
 export function minimizeInlineCompletion(model: ITextModel, inlineCompletion: NormalizedInlineCompletion | undefined): NormalizedInlineCompletion | undefined {

@@ -456,7 +456,9 @@ function getSuggestEnabledInputOptions(ariaLabel?: string): IEditorOptions {
 		wordWrap: 'off',
 		scrollbar: { vertical: 'hidden', },
 		roundedSelection: false,
-		renderIndentGuides: false,
+		guides: {
+			indentation: false
+		},
 		cursorWidth: 1,
 		fontFamily: DEFAULT_FONT_FAMILY,
 		ariaLabel: ariaLabel || '',

@@ -7,105 +7,76 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { canceled } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { newWriteableStream, ReadableStreamEventPayload, ReadableStreamEvents } from 'vs/base/common/stream';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { FileChangeType, FileDeleteOptions, FileOpenOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, IFileChange, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
-
-interface IFileChangeDto {
-	resource: UriComponents;
-	type: FileChangeType;
-}
+import { createFileSystemProviderError, FileChangeType, FileDeleteOptions, FileOpenOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileChange, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 
 /**
- * An abstract file system provider that delegates all calls to a provided
- * `IChannel` via IPC communication.
+ * An implementation of a file system provider that is backed by a `IChannel`
+ * and thus implemented via IPC on a different process.
  */
-export abstract class IPCFileSystemProvider extends Disposable implements
+export class IPCFileSystemProvider extends Disposable implements
 	IFileSystemProviderWithFileReadWriteCapability,
 	IFileSystemProviderWithOpenReadWriteCloseCapability,
 	IFileSystemProviderWithFileReadStreamCapability,
 	IFileSystemProviderWithFileFolderCopyCapability {
 
-	private readonly session: string = generateUuid();
-
-	private readonly _onDidChange = this._register(new Emitter<readonly IFileChange[]>());
-	readonly onDidChangeFile = this._onDidChange.event;
-
-	private _onDidWatchErrorOccur = this._register(new Emitter<string>());
-	readonly onDidErrorOccur = this._onDidWatchErrorOccur.event;
-
-	private readonly _onDidChangeCapabilities = this._register(new Emitter<void>());
-	readonly onDidChangeCapabilities = this._onDidChangeCapabilities.event;
-
-	private _capabilities = FileSystemProviderCapabilities.FileReadWrite
-		| FileSystemProviderCapabilities.FileOpenReadWriteClose
-		| FileSystemProviderCapabilities.FileReadStream
-		| FileSystemProviderCapabilities.FileFolderCopy
-		| FileSystemProviderCapabilities.FileWriteUnlock;
-	get capabilities(): FileSystemProviderCapabilities { return this._capabilities; }
-
-	constructor(private readonly channel: IChannel) {
+	constructor(private readonly channel: IChannel, private readonly extraCapabilities: { trash?: boolean, pathCaseSensitive?: boolean }) {
 		super();
 
-		this.registerListeners();
+		this.registerFileChangeListeners();
 	}
 
-	private registerListeners(): void {
-		this._register(this.channel.listen<IFileChangeDto[] | string>('filechange', [this.session])(eventsOrError => {
-			if (Array.isArray(eventsOrError)) {
-				const events = eventsOrError;
-				this._onDidChange.fire(events.map(event => ({ resource: URI.revive(event.resource), type: event.type })));
-			} else {
-				const error = eventsOrError;
-				this._onDidWatchErrorOccur.fire(error);
+	//#region File Capabilities
+
+	readonly onDidChangeCapabilities: Event<void> = Event.None;
+
+	private _capabilities: FileSystemProviderCapabilities | undefined;
+	get capabilities(): FileSystemProviderCapabilities {
+		if (!this._capabilities) {
+			this._capabilities =
+				FileSystemProviderCapabilities.FileReadWrite |
+				FileSystemProviderCapabilities.FileOpenReadWriteClose |
+				FileSystemProviderCapabilities.FileReadStream |
+				FileSystemProviderCapabilities.FileFolderCopy |
+				FileSystemProviderCapabilities.FileWriteUnlock;
+
+			if (this.extraCapabilities.pathCaseSensitive) {
+				this._capabilities |= FileSystemProviderCapabilities.PathCaseSensitive;
 			}
-		}));
-	}
 
-	protected setCaseSensitive(isCaseSensitive: boolean) {
-		if (isCaseSensitive) {
-			this._capabilities |= FileSystemProviderCapabilities.PathCaseSensitive;
-		} else {
-			this._capabilities &= ~FileSystemProviderCapabilities.PathCaseSensitive;
+			if (this.extraCapabilities.trash) {
+				this._capabilities |= FileSystemProviderCapabilities.Trash;
+			}
 		}
 
-		this._onDidChangeCapabilities.fire(undefined);
+		return this._capabilities;
 	}
 
-	// --- forwarding calls
+	//#endregion
+
+	//#region File Metadata Resolving
 
 	stat(resource: URI): Promise<IStat> {
 		return this.channel.call('stat', [resource]);
 	}
 
-	open(resource: URI, opts: FileOpenOptions): Promise<number> {
-		return this.channel.call('open', [resource, opts]);
+	readdir(resource: URI): Promise<[string, FileType][]> {
+		return this.channel.call('readdir', [resource]);
 	}
 
-	close(fd: number): Promise<void> {
-		return this.channel.call('close', [fd]);
-	}
+	//#endregion
 
-	async read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
-		const [bytes, bytesRead]: [VSBuffer, number] = await this.channel.call('read', [fd, pos, length]);
-
-		// copy back the data that was written into the buffer on the remote
-		// side. we need to do this because buffers are not referenced by
-		// pointer, but only by value and as such cannot be directly written
-		// to from the other process.
-		data.set(bytes.buffer.slice(0, bytesRead), offset);
-
-		return bytesRead;
-	}
+	//#region File Reading/Writing
 
 	async readFile(resource: URI): Promise<Uint8Array> {
-		const buff = <VSBuffer>await this.channel.call('readFile', [resource]);
+		const { buffer } = await this.channel.call('readFile', [resource]) as VSBuffer;
 
-		return buff.buffer;
+		return buffer;
 	}
 
 	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
@@ -131,7 +102,7 @@ export abstract class IPCFileSystemProvider extends Disposable implements
 					// error here to forward it properly.
 					let error = dataOrErrorOrEnd;
 					if (!(error instanceof Error)) {
-						error = new Error(toErrorMessage(error));
+						error = createFileSystemProviderError(toErrorMessage(error), FileSystemProviderErrorCode.Unknown);
 					}
 
 					stream.error(error);
@@ -160,24 +131,44 @@ export abstract class IPCFileSystemProvider extends Disposable implements
 		return stream;
 	}
 
-	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
-		return this.channel.call('write', [fd, pos, VSBuffer.wrap(data), offset, length]);
-	}
-
 	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
 		return this.channel.call('writeFile', [resource, VSBuffer.wrap(content), opts]);
 	}
 
-	delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
-		return this.channel.call('delete', [resource, opts]);
+	open(resource: URI, opts: FileOpenOptions): Promise<number> {
+		return this.channel.call('open', [resource, opts]);
 	}
+
+	close(fd: number): Promise<void> {
+		return this.channel.call('close', [fd]);
+	}
+
+	async read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+		const [bytes, bytesRead]: [VSBuffer, number] = await this.channel.call('read', [fd, pos, length]);
+
+		// copy back the data that was written into the buffer on the remote
+		// side. we need to do this because buffers are not referenced by
+		// pointer, but only by value and as such cannot be directly written
+		// to from the other process.
+		data.set(bytes.buffer.slice(0, bytesRead), offset);
+
+		return bytesRead;
+	}
+
+	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+		return this.channel.call('write', [fd, pos, VSBuffer.wrap(data), offset, length]);
+	}
+
+	//#endregion
+
+	//#region Move/Copy/Delete/Create Folder
 
 	mkdir(resource: URI): Promise<void> {
 		return this.channel.call('mkdir', [resource]);
 	}
 
-	readdir(resource: URI): Promise<[string, FileType][]> {
-		return this.channel.call('readdir', [resource]);
+	delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
+		return this.channel.call('delete', [resource, opts]);
 	}
 
 	rename(resource: URI, target: URI, opts: FileOverwriteOptions): Promise<void> {
@@ -188,10 +179,50 @@ export abstract class IPCFileSystemProvider extends Disposable implements
 		return this.channel.call('copy', [resource, target, opts]);
 	}
 
-	watch(resource: URI, opts: IWatchOptions): IDisposable {
-		const req = Math.random();
-		this.channel.call('watch', [this.session, req, resource, opts]);
+	//#endregion
 
-		return toDisposable(() => this.channel.call('unwatch', [this.session, req]));
+	//#region File Watching
+
+	private readonly _onDidChange = this._register(new Emitter<readonly IFileChange[]>());
+	readonly onDidChangeFile = this._onDidChange.event;
+
+	private readonly _onDidErrorOccur = this._register(new Emitter<string>());
+	readonly onDidErrorOccur = this._onDidErrorOccur.event;
+
+	// The contract for file watching via remote is to identify us
+	// via a unique but readonly session ID. Since the remote is
+	// managing potentially many watchers from different clients,
+	// this helps the server to properly partition events to the right
+	// clients.
+	private readonly sessionId = generateUuid();
+
+	private registerFileChangeListeners(): void {
+
+		// The contract for file changes is that there is one listener
+		// for both events and errors from the watcher. So we need to
+		// unwrap the event from the remote and emit through the proper
+		// emitter.
+		this._register(this.channel.listen<{ resource: UriComponents; type: FileChangeType; }[] | string>('fileChange', [this.sessionId])(eventsOrError => {
+			if (Array.isArray(eventsOrError)) {
+				const events = eventsOrError;
+				this._onDidChange.fire(events.map(event => ({ resource: URI.revive(event.resource), type: event.type })));
+			} else {
+				const error = eventsOrError;
+				this._onDidErrorOccur.fire(error);
+			}
+		}));
 	}
+
+	watch(resource: URI, opts: IWatchOptions): IDisposable {
+
+		// Generate a request UUID to correlate the watcher
+		// back to us when we ask to dispose the watcher later.
+		const req = generateUuid();
+
+		this.channel.call('watch', [this.sessionId, req, resource, opts]);
+
+		return toDisposable(() => this.channel.call('unwatch', [this.sessionId, req]));
+	}
+
+	//#endregion
 }

@@ -18,7 +18,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { ITextBuffer, ITextModel } from 'vs/editor/common/model';
+import { ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { isDefined } from 'vs/base/common/types';
 
@@ -555,6 +555,15 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					&& last.cellIndex === edit.cellIndex
 				) {
 					last.edit.outputs = [...last.edit.outputs, ...edit.edit.outputs];
+				} else if (last.edit.editType === CellEditType.Output
+					&& !last.edit.append // last cell is not append
+					&& last.edit.outputs.length === 0 // last cell is clear outputs
+					&& edit.edit.editType === CellEditType.Output
+					&& edit.edit.append
+					&& last.cellIndex === edit.cellIndex
+				) {
+					last.edit.append = false;
+					last.edit.outputs = edit.edit.outputs;
 				} else {
 					mergedEdits.push(edit);
 				}
@@ -598,9 +607,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			if (textModel && textModel instanceof TextModel) {
 				cell.textModel = textModel;
 				cell.language = cellDto.language;
-				if (!cell.textModel.equalsTextBuffer(cell.textBuffer as ITextBuffer)) {
-					cell.textModel.setValue(cellDto.source);
-				}
+				cell.textModel.setValue(cellDto.source);
+				cell.resetTextBuffer(cell.textModel.getTextBuffer());
 			}
 			const dirtyStateListener = cell.onDidChangeContent((e) => {
 				this._bindCellContentHandler(cell, e);

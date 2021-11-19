@@ -32,29 +32,30 @@ export const CONTEXT_FIND_INPUT_FOCUSED = new RawContextKey<boolean>('findInputF
 export const CONTEXT_REPLACE_INPUT_FOCUSED = new RawContextKey<boolean>('replaceInputFocussed', false);
 
 export const ToggleCaseSensitiveKeybinding: IKeybindings = {
-	primary: KeyMod.Alt | KeyCode.KEY_C,
-	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C }
+	primary: KeyMod.Alt | KeyCode.KeyC,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyC }
 };
 export const ToggleWholeWordKeybinding: IKeybindings = {
-	primary: KeyMod.Alt | KeyCode.KEY_W,
-	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_W }
+	primary: KeyMod.Alt | KeyCode.KeyW,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyW }
 };
 export const ToggleRegexKeybinding: IKeybindings = {
-	primary: KeyMod.Alt | KeyCode.KEY_R,
-	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R }
+	primary: KeyMod.Alt | KeyCode.KeyR,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyR }
 };
 export const ToggleSearchScopeKeybinding: IKeybindings = {
-	primary: KeyMod.Alt | KeyCode.KEY_L,
-	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_L }
+	primary: KeyMod.Alt | KeyCode.KeyL,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyL }
 };
 export const TogglePreserveCaseKeybinding: IKeybindings = {
-	primary: KeyMod.Alt | KeyCode.KEY_P,
-	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_P }
+	primary: KeyMod.Alt | KeyCode.KeyP,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyP }
 };
 
 export const FIND_IDS = {
 	StartFindAction: 'actions.find',
 	StartFindWithSelection: 'actions.findWithSelection',
+	StartFindWithArgs: 'editor.actions.findWithArgs',
 	NextMatchFindAction: 'editor.action.nextMatchFindAction',
 	PreviousMatchFindAction: 'editor.action.previousMatchFindAction',
 	NextSelectionMatchFindAction: 'editor.action.nextSelectionMatchFindAction',

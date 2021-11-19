@@ -17,7 +17,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { toLocalResource, extUri, IExtUri } from 'vs/base/common/resources';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { Emitter } from 'vs/base/common/event';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ResourceMap } from 'vs/base/common/map';
@@ -29,8 +29,9 @@ export class BoundModelReferenceCollection {
 
 	constructor(
 		private readonly _extUri: IExtUri,
-		private readonly _maxAge: number = 1000 * 60 * 3,
-		private readonly _maxLength: number = 1024 * 1024 * 80,
+		private readonly _maxAge: number = 1000 * 60 * 3, // auto-dispse by age
+		private readonly _maxLength: number = 1024 * 1024 * 80, // auto-dispose by total length
+		private readonly _maxSize: number = 50 // auto-dispose by number of references
 	) {
 		//
 	}
@@ -69,8 +70,14 @@ export class BoundModelReferenceCollection {
 	}
 
 	private _cleanup(): void {
+		// clean-up wrt total length
 		while (this._length > this._maxLength) {
 			this._data[0].dispose();
+		}
+		// clean-up wrt number of documents
+		const extraSize = Math.ceil(this._maxSize * 1.2);
+		if (this._data.length >= extraSize) {
+			dispose(this._data.slice(0, extraSize - this._maxSize));
 		}
 	}
 }
@@ -191,7 +198,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		if (!this._modelIsSynced.has(model.uri)) {
 			return;
 		}
-		this._proxy.$acceptModelModeChanged(model.uri, model.getLanguageIdentifier().language);
+		this._proxy.$acceptModelModeChanged(model.uri, model.getLanguageId());
 	}
 
 	private _onModelRemoved(modelUrl: URI): void {

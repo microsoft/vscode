@@ -11,9 +11,9 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IFileMatch, IFileQuery, ISearchComplete, ISearchProgressItem, ISearchResultProvider, ISearchService, ITextQuery, TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/search';
+import { IFileMatch, IFileQuery, ISearchComplete, ISearchProgressItem, ISearchResultProvider, ISearchService, ITextQuery, SearchProviderType, TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/search';
 import { SearchService } from 'vs/workbench/services/search/common/searchService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkerClient, logOnceWebWorkerWarning, SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
@@ -38,7 +38,9 @@ export class RemoteSearchService extends SearchService {
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
 		super(modelService, editorService, telemetryService, logService, extensionService, fileService, uriIdentityService);
-		this.diskSearch = this.instantiationService.createInstance(LocalFileSearchWorkerClient);
+		const searchProvider = this.instantiationService.createInstance(LocalFileSearchWorkerClient);
+		this.registerSearchResultProvider(Schemas.file, SearchProviderType.file, searchProvider);
+		this.registerSearchResultProvider(Schemas.file, SearchProviderType.text, searchProvider);
 	}
 }
 

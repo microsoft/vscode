@@ -6,6 +6,7 @@
 import * as http from 'http';
 import * as https from 'https';
 import { parse as parseUrl } from 'url';
+import { Promises } from 'vs/base/common/async';
 import { streamToBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
@@ -63,9 +64,17 @@ export class RequestService extends Disposable implements IRequestService {
 		this.logService.trace('RequestService#request', options.url);
 
 		const { proxyUrl, strictSSL } = this;
+
+		let shellEnv: typeof process.env | undefined = undefined;
+		try {
+			shellEnv = await resolveShellEnv(this.logService, this.environmentService.args, process.env);
+		} catch (error) {
+			this.logService.error('RequestService#request resolving shell environment failed', error);
+		}
+
 		const env = {
 			...process.env,
-			...(await resolveShellEnv(this.logService, this.environmentService.args, process.env)),
+			...shellEnv
 		};
 		const agent = options.agent ? options.agent : await getProxyAgent(options.url || '', env, { proxyUrl, strictSSL });
 
@@ -90,7 +99,7 @@ export class RequestService extends Disposable implements IRequestService {
 
 	private _request(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 
-		return new Promise<IRequestContext>(async (c, e) => {
+		return Promises.withAsyncBody<IRequestContext>(async (c, e) => {
 			let req: http.ClientRequest;
 
 			const endpoint = parseUrl(options.url!);

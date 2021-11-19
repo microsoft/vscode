@@ -659,6 +659,40 @@ suite('IndexTreeModel', () => {
 		assert.deepStrictEqual(toArray(list), ['vscode', '.build', 'github', 'build.js', 'build']);
 	});
 
+	test('recursive filter updates when children change (#133272)', () => {
+		const list: ITreeNode<string>[] = [];
+		let query = '';
+		const filter = new class implements ITreeFilter<string> {
+			filter(element: string): TreeVisibility {
+				return element.includes(query) ? TreeVisibility.Visible : TreeVisibility.Recurse;
+			}
+		};
+
+		const model = new IndexTreeModel<string>('test', toList(list), 'root', { filter });
+
+		model.splice([0], 0, [
+			{
+				element: 'a',
+				children: [
+					{ element: 'b' },
+				],
+			},
+		]);
+
+		assert.deepStrictEqual(toArray(list), ['a', 'b']);
+		query = 'visible';
+		model.refilter();
+		assert.deepStrictEqual(toArray(list), []);
+
+		model.splice([0, 0, 0], 0, [
+			{
+				element: 'visible', children: []
+			},
+		]);
+
+		assert.deepStrictEqual(toArray(list), ['a', 'b', 'visible']);
+	});
+
 	test('recursive filter with collapse', () => {
 		const list: ITreeNode<string>[] = [];
 		let query = new RegExp('');

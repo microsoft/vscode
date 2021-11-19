@@ -21,6 +21,8 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 	private readonly _disposables = new DisposableStore();
 	private readonly _proxy: ExtHostLanguagesShape;
 
+	private readonly _status = new Map<number, IDisposable>();
+
 	constructor(
 		_extHostContext: IExtHostContext,
 		@IModeService private readonly _modeService: IModeService,
@@ -38,12 +40,17 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 
 	dispose(): void {
 		this._disposables.dispose();
+
+		for (const status of this._status.values()) {
+			status.dispose();
+		}
+		this._status.clear();
 	}
 
 	async $changeLanguage(resource: UriComponents, languageId: string): Promise<void> {
 
-		const languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
-		if (!languageIdentifier || languageIdentifier.language !== languageId) {
+		const validLanguageId = this._modeService.validateLanguageId(languageId);
+		if (!validLanguageId || validLanguageId !== languageId) {
 			return Promise.reject(new Error(`Unknown language id: ${languageId}`));
 		}
 
@@ -72,8 +79,6 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 	}
 
 	// --- language status
-
-	private readonly _status = new Map<number, IDisposable>();
 
 	$setLanguageStatus(handle: number, status: ILanguageStatus): void {
 		this._status.get(handle)?.dispose();

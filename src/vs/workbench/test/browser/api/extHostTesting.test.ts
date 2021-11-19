@@ -7,16 +7,16 @@ import * as assert from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Iterable } from 'vs/base/common/iterator';
+import { URI } from 'vs/base/common/uri';
 import { mockObject, MockObject } from 'vs/base/test/common/mock';
 import { MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
 import { TestRunCoordinator, TestRunDto, TestRunProfileImpl } from 'vs/workbench/api/common/extHostTesting';
 import * as convert from 'vs/workbench/api/common/extHostTypeConverters';
-import { TestMessage, TestResultState, TestRunProfileKind, TestTag, Location, Position, Range } from 'vs/workbench/api/common/extHostTypes';
+import { Location, Position, Range, TestMessage, TestResultState, TestRunProfileKind, TestRunRequest as TestRunRequestImpl, TestTag } from 'vs/workbench/api/common/extHostTypes';
 import { TestDiffOpType, TestItemExpandState, TestMessageType } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestItemImpl, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
 import { TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
-import { URI } from 'vs/base/common/uri';
 import type { TestItem, TestRunRequest } from 'vscode';
 
 const simplify = (item: TestItem) => ({
@@ -654,7 +654,7 @@ suite('ExtHost Testing', () => {
 			const childB = new TestItemImpl('ctrlId', 'id-child', 'child', undefined);
 			testB!.children.replace([childB]);
 
-			const task1 = c.createTestRun('ctrl', single, {}, 'hello world', false);
+			const task1 = c.createTestRun('ctrl', single, new TestRunRequestImpl(), 'hello world', false);
 			const tracker = Iterable.first(c.trackers)!;
 
 			task1.passed(childA);

@@ -53,24 +53,6 @@ import 'vs/editor/contrib/inlayHints/inlayHintsController';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 
-const defaultSelector = { scheme: 'far' };
-const model: ITextModel = createTextModel(
-	[
-		'This is the first line',
-		'This is the second line',
-		'This is the third line',
-	].join('\n'),
-	undefined,
-	undefined,
-	URI.parse('far://testing/file.b'));
-
-let rpcProtocol: TestRPCProtocol;
-let extHost: ExtHostLanguageFeatures;
-let mainThread: MainThreadLanguageFeatures;
-let commands: ExtHostCommands;
-let disposables: vscode.Disposable[] = [];
-let originalErrorHandler: (e: any) => any;
-
 function assertRejects(fn: () => Promise<any>, message: string = 'Expected rejection') {
 	return fn().then(() => assert.ok(false, message), _err => assert.ok(true));
 }
@@ -81,9 +63,26 @@ function isLocation(value: vscode.Location | vscode.LocationLink): value is vsco
 }
 
 suite('ExtHostLanguageFeatureCommands', function () {
+	const defaultSelector = { scheme: 'far' };
+	let model: ITextModel;
+
+	let rpcProtocol: TestRPCProtocol;
+	let extHost: ExtHostLanguageFeatures;
+	let mainThread: MainThreadLanguageFeatures;
+	let commands: ExtHostCommands;
+	let disposables: vscode.Disposable[] = [];
+	let originalErrorHandler: (e: any) => any;
 
 	suiteSetup(() => {
-
+		model = createTextModel(
+			[
+				'This is the first line',
+				'This is the second line',
+				'This is the third line',
+			].join('\n'),
+			undefined,
+			undefined,
+			URI.parse('far://testing/file.b'));
 		originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
 		setUnexpectedErrorHandler(() => { });
 
@@ -132,7 +131,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			addedDocuments: [{
 				isDirty: false,
 				versionId: model.getVersionId(),
-				modeId: model.getLanguageIdentifier().language,
+				languageId: model.getLanguageId(),
 				uri: model.uri,
 				lines: model.getValue().split(model.getEOL()),
 				EOL: model.getEOL(),
@@ -202,12 +201,12 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeWorkspaceSymbolProvider', 'testing').then(value => {
 
+				assert.strictEqual(value.length, 2); // de-duped
 				for (let info of value) {
 					assert.strictEqual(info instanceof types.SymbolInformation, true);
 					assert.strictEqual(info.name, 'testing');
 					assert.strictEqual(info.kind, types.SymbolKind.Array);
 				}
-				assert.strictEqual(value.length, 3);
 			});
 		});
 	});
@@ -245,6 +244,36 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 
 	// --- rename
+	test('vscode.prepareRename', async function () {
+		disposables.push(extHost.registerRenameProvider(nullExtensionDescription, defaultSelector, new class implements vscode.RenameProvider {
+
+			prepareRename(document: vscode.TextDocument, position: vscode.Position) {
+				return {
+					range: new types.Range(0, 12, 0, 24),
+					placeholder: 'foooPlaceholder'
+				};
+			}
+
+			provideRenameEdits(document: vscode.TextDocument, position: vscode.Position, newName: string) {
+				const edit = new types.WorkspaceEdit();
+				edit.insert(document.uri, <types.Position>position, newName);
+				return edit;
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		const data = await commands.executeCommand<{ range: vscode.Range, placeholder: string }>('vscode.prepareRename', model.uri, new types.Position(0, 12));
+
+		assert.ok(data);
+		assert.strictEqual(data.placeholder, 'foooPlaceholder');
+		assert.strictEqual(data.range.start.line, 0);
+		assert.strictEqual(data.range.start.character, 12);
+		assert.strictEqual(data.range.end.line, 0);
+		assert.strictEqual(data.range.end.character, 24);
+
+	});
+
 	test('vscode.executeDocumentRenameProvider', async function () {
 		disposables.push(extHost.registerRenameProvider(nullExtensionDescription, defaultSelector, new class implements vscode.RenameProvider {
 			provideRenameEdits(document: vscode.TextDocument, position: vscode.Position, newName: string) {
@@ -1335,6 +1364,28 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		const outgoing = await commands.executeCommand<vscode.CallHierarchyOutgoingCall[]>('vscode.provideOutgoingCalls', root[0]);
 		assert.strictEqual(outgoing.length, 1);
 		assert.strictEqual(outgoing[0].to.name, 'OUTGOING');
+	});
+
+	test('prepareCallHierarchy throws TypeError if clangd returns empty result #137415', async function () {
+
+		disposables.push(extHost.registerCallHierarchyProvider(nullExtensionDescription, defaultSelector, new class implements vscode.CallHierarchyProvider {
+			prepareCallHierarchy(document: vscode.TextDocument, position: vscode.Position,): vscode.ProviderResult<vscode.CallHierarchyItem[]> {
+				return [];
+			}
+			provideCallHierarchyIncomingCalls(item: vscode.CallHierarchyItem, token: vscode.CancellationToken): vscode.ProviderResult<vscode.CallHierarchyIncomingCall[]> {
+				return [];
+			}
+			provideCallHierarchyOutgoingCalls(item: vscode.CallHierarchyItem, token: vscode.CancellationToken): vscode.ProviderResult<vscode.CallHierarchyOutgoingCall[]> {
+				return [];
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		const root = await commands.executeCommand<vscode.CallHierarchyItem[]>('vscode.prepareCallHierarchy', model.uri, new types.Position(0, 0));
+
+		assert.ok(Array.isArray(root));
+		assert.strictEqual(root.length, 0);
 	});
 
 	// --- type hierarchy

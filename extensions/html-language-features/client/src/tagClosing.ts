@@ -40,7 +40,7 @@ export function activateTagClosing(tagProvider: (document: TextDocument, positio
 	}
 
 	function onDidChangeTextDocument({ document, contentChanges, reason }: TextDocumentChangeEvent) {
-		if (!isEnabled || contentChanges.length === 0 || reason === TextDocumentChangeReason.Undo) {
+		if (!isEnabled || contentChanges.length === 0 || reason === TextDocumentChangeReason.Undo || reason === TextDocumentChangeReason.Redo) {
 			return;
 		}
 		const activeDocument = window.activeTextEditor && window.activeTextEditor.document;

@@ -8,7 +8,7 @@ import * as detectIndent from 'detect-indent';
 import * as vscode from 'vscode';
 import { defaultNotebookFormat } from './constants';
 import { getPreferredLanguage, jupyterNotebookModelToNotebookData } from './deserializers';
-import { createJupyterCellFromNotebookCell, pruneCell } from './serializers';
+import { createJupyterCellFromNotebookCell, pruneCell, sortObjectPropertiesRecursively } from './serializers';
 import * as fnv from '@enonic/fnv-plus';
 
 export class NotebookSerializer implements vscode.NotebookSerializer {
@@ -38,6 +38,10 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 				contents = json.contents;
 				json = JSON.parse(contents) as Partial<nbformat.INotebookContent>;
 			}
+		}
+
+		if (json.nbformat && json.nbformat < 4) {
+			throw new Error('Only Jupyter notebooks version 4+ are supported');
 		}
 
 		// Then compute indent from the contents (only use first 1K characters as a perf optimization)
@@ -78,11 +82,7 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 	}
 
 	public serializeNotebookToString(data: vscode.NotebookData): string {
-		const notebookContent: Partial<nbformat.INotebookContent> = data.metadata?.custom || {};
-		notebookContent.cells = notebookContent.cells || [];
-		notebookContent.nbformat = notebookContent.nbformat || 4;
-		notebookContent.nbformat_minor = notebookContent.nbformat_minor || 2;
-		notebookContent.metadata = notebookContent.metadata || { orig_nbformat: 4 };
+		const notebookContent = getNotebookMetadata(data);
 
 		notebookContent.cells = data.cells
 			.map(cell => createJupyterCellFromNotebookCell(cell))
@@ -91,6 +91,16 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 		const indentAmount = data.metadata && 'indentAmount' in data.metadata && typeof data.metadata.indentAmount === 'string' ?
 			data.metadata.indentAmount :
 			' ';
-		return JSON.stringify(notebookContent, undefined, indentAmount);
+		// ipynb always ends with a trailing new line (we add this so that SCMs do not show unnecesary changes, resulting from a missing trailing new line).
+		return JSON.stringify(sortObjectPropertiesRecursively(notebookContent), undefined, indentAmount) + '\n';
 	}
+}
+
+export function getNotebookMetadata(document: vscode.NotebookDocument | vscode.NotebookData) {
+	const notebookContent: Partial<nbformat.INotebookContent> = document.metadata?.custom || {};
+	notebookContent.cells = notebookContent.cells || [];
+	notebookContent.nbformat = notebookContent.nbformat || 4;
+	notebookContent.nbformat_minor = notebookContent.nbformat_minor ?? 2;
+	notebookContent.metadata = notebookContent.metadata || { orig_nbformat: 4 };
+	return notebookContent;
 }

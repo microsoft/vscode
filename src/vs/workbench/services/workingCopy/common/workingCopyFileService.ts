@@ -14,7 +14,7 @@ import { IFileService, FileOperation, IFileStatWithMetadata } from 'vs/platform/
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { WorkingCopyFileOperationParticipant } from 'vs/workbench/services/workingCopy/common/workingCopyFileOperationParticipant';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { SaveReason } from 'vs/workbench/common/editor';
@@ -296,7 +296,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		// register a default working copy provider that uses the working copy service
 		this._register(this.registerWorkingCopyProvider(resource => {
 			return this.workingCopyService.workingCopies.filter(workingCopy => {
-				if (this.fileService.canHandleResource(resource)) {
+				if (this.fileService.hasProvider(resource)) {
 					// only check for parents if the resource can be handled
 					// by the file system where we then assume a folder like
 					// path structure

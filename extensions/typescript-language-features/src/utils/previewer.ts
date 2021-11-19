@@ -39,9 +39,9 @@ function getTagBodyText(
 		return undefined;
 	}
 
-	// Convert to markdown code block if it is not already one
+	// Convert to markdown code block if it does not already contain one
 	function makeCodeblock(text: string): string {
-		if (text.match(/^\s*[~`]{3}/g)) {
+		if (text.match(/^\s*[~`]{3}/m)) {
 			return text;
 		}
 		return '```\n' + text + '\n```';
@@ -53,7 +53,7 @@ function getTagBodyText(
 			// check for caption tags, fix for #79704
 			const captionTagMatches = text.match(/<caption>(.*?)<\/caption>\s*(\r\n|\n)/);
 			if (captionTagMatches && captionTagMatches.index === 0) {
-				return captionTagMatches[1] + '\n\n' + makeCodeblock(text.substr(captionTagMatches[0].length));
+				return captionTagMatches[1] + '\n' + makeCodeblock(text.substr(captionTagMatches[0].length));
 			} else {
 				return makeCodeblock(text);
 			}
@@ -90,6 +90,7 @@ function getTagDocumentation(
 				if (!doc) {
 					return label;
 				}
+				// allow-any-unicode-next-line
 				return label + (doc.match(/\r\n|\n/g) ? '  \n' + processInlineTags(doc) : ` — ${processInlineTags(doc)}`);
 			}
 	}
@@ -100,6 +101,7 @@ function getTagDocumentation(
 	if (!text) {
 		return label;
 	}
+	// allow-any-unicode-next-line
 	return label + (text.match(/\r\n|\n/g) ? '  \n' + text : ` — ${text}`);
 }
 

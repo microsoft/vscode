@@ -19,7 +19,7 @@ import * as pfs from 'vs/base/node/pfs';
 import { extract, ExtractError } from 'vs/base/node/zip';
 import { localize } from 'vs/nls';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ExtensionManagementError, IGalleryMetadata, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionManagementError, ExtensionManagementErrorCode, IGalleryMetadata, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, ExtensionIdentifierWithVersion, getGalleryExtensionId, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
 import { ExtensionType, IExtensionIdentifier, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
@@ -27,12 +27,6 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { CancellationToken } from 'vscode';
-
-const ERROR_SCANNING_SYS_EXTENSIONS = 'scanningSystem';
-const ERROR_SCANNING_USER_EXTENSIONS = 'scanningUser';
-const INSTALL_ERROR_EXTRACTING = 'extracting';
-const INSTALL_ERROR_DELETING = 'deleting';
-const INSTALL_ERROR_RENAMING = 'renaming';
 
 export type IMetadata = Partial<IGalleryMetadata & { isMachineScoped: boolean; isBuiltin: boolean; }>;
 type IStoredMetadata = IMetadata & { installedTimestamp: number | undefined };
@@ -69,11 +63,11 @@ export class ExtensionsScanner extends Disposable {
 		const promises: Promise<ILocalExtension[]>[] = [];
 
 		if (type === null || type === ExtensionType.System) {
-			promises.push(this.scanSystemExtensions().then(null, e => Promise.reject(new ExtensionManagementError(this.joinErrors(e).message, ERROR_SCANNING_SYS_EXTENSIONS))));
+			promises.push(this.scanSystemExtensions().then(null, e => Promise.reject(new ExtensionManagementError(this.joinErrors(e).message, ExtensionManagementErrorCode.Internal))));
 		}
 
 		if (type === null || type === ExtensionType.User) {
-			promises.push(this.scanUserExtensions(true).then(null, e => Promise.reject(new ExtensionManagementError(this.joinErrors(e).message, ERROR_SCANNING_USER_EXTENSIONS))));
+			promises.push(this.scanUserExtensions(true).then(null, e => Promise.reject(new ExtensionManagementError(this.joinErrors(e).message, ExtensionManagementErrorCode.Internal))));
 		}
 
 		try {
@@ -111,7 +105,7 @@ export class ExtensionsScanner extends Disposable {
 			try {
 				await pfs.Promises.rm(extensionPath);
 			} catch (e) { /* ignore */ }
-			throw new ExtensionManagementError(localize('errorDeleting', "Unable to delete the existing folder '{0}' while installing the extension '{1}'. Please delete the folder manually and try again", extensionPath, identifierWithVersion.id), INSTALL_ERROR_DELETING);
+			throw new ExtensionManagementError(localize('errorDeleting', "Unable to delete the existing folder '{0}' while installing the extension '{1}'. Please delete the folder manually and try again", extensionPath, identifierWithVersion.id), ExtensionManagementErrorCode.Delete);
 		}
 
 		await this.extractAtLocation(identifierWithVersion, zipPath, tempPath, token);
@@ -236,7 +230,7 @@ export class ExtensionsScanner extends Disposable {
 		try {
 			await pfs.Promises.rm(location);
 		} catch (e) {
-			throw new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_DELETING);
+			throw new ExtensionManagementError(this.joinErrors(e).message, ExtensionManagementErrorCode.Delete);
 		}
 
 		try {
@@ -244,7 +238,15 @@ export class ExtensionsScanner extends Disposable {
 			this.logService.info(`Extracted extension to ${location}:`, identifier.id);
 		} catch (e) {
 			try { await pfs.Promises.rm(location); } catch (e) { /* Ignore */ }
-			throw new ExtensionManagementError(e.message, e instanceof ExtractError && e.type ? e.type : INSTALL_ERROR_EXTRACTING);
+			let errorCode = ExtensionManagementErrorCode.Extract;
+			if (e instanceof ExtractError) {
+				if (e.type === 'CorruptZip') {
+					errorCode = ExtensionManagementErrorCode.CorruptZip;
+				} else if (e.type === 'Incomplete') {
+					errorCode = ExtensionManagementErrorCode.IncompleteZip;
+				}
+			}
+			throw new ExtensionManagementError(e.message, errorCode);
 		}
 	}
 
@@ -256,7 +258,7 @@ export class ExtensionsScanner extends Disposable {
 				this.logService.info(`Failed renaming ${extractPath} to ${renamePath} with 'EPERM' error. Trying again...`, identifier.id);
 				return this.rename(identifier, extractPath, renamePath, retryUntil);
 			}
-			throw new ExtensionManagementError(error.message || localize('renameError', "Unknown error while renaming {0} to {1}", extractPath, renamePath), error.code || INSTALL_ERROR_RENAMING);
+			throw new ExtensionManagementError(error.message || localize('renameError', "Unknown error while renaming {0} to {1}", extractPath, renamePath), error.code || ExtensionManagementErrorCode.Rename);
 		}
 	}
 

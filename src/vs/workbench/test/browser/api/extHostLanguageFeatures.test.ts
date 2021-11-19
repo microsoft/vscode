@@ -52,28 +52,27 @@ import { Progress } from 'vs/platform/progress/common/progress';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 
-const defaultSelector = { scheme: 'far' };
-const model: ITextModel = createTextModel(
-	[
-		'This is the first line',
-		'This is the second line',
-		'This is the third line',
-	].join('\n'),
-	undefined,
-	undefined,
-	URI.parse('far://testing/file.a'));
-
-let extHost: ExtHostLanguageFeatures;
-let mainThread: MainThreadLanguageFeatures;
-let disposables: vscode.Disposable[] = [];
-let rpcProtocol: TestRPCProtocol;
-let originalErrorHandler: (e: any) => any;
-
-
-
 suite('ExtHostLanguageFeatures', function () {
 
+	const defaultSelector = { scheme: 'far' };
+	let model: ITextModel;
+	let extHost: ExtHostLanguageFeatures;
+	let mainThread: MainThreadLanguageFeatures;
+	let disposables: vscode.Disposable[] = [];
+	let rpcProtocol: TestRPCProtocol;
+	let originalErrorHandler: (e: any) => any;
+
 	suiteSetup(() => {
+
+		model = createTextModel(
+			[
+				'This is the first line',
+				'This is the second line',
+				'This is the third line',
+			].join('\n'),
+			undefined,
+			undefined,
+			URI.parse('far://testing/file.a'));
 
 		rpcProtocol = new TestRPCProtocol();
 
@@ -93,7 +92,7 @@ suite('ExtHostLanguageFeatures', function () {
 			addedDocuments: [{
 				isDirty: false,
 				versionId: model.getVersionId(),
-				modeId: model.getLanguageIdentifier().language,
+				languageId: model.getLanguageId(),
 				uri: model.uri,
 				lines: model.getValue().split(model.getEOL()),
 				EOL: model.getEOL(),
@@ -682,9 +681,41 @@ suite('ExtHostLanguageFeatures', function () {
 		let value = await getWorkspaceSymbols('');
 		assert.strictEqual(value.length, 1);
 		const [first] = value;
-		const [, symbols] = first;
-		assert.strictEqual(symbols.length, 1);
-		assert.strictEqual(symbols[0].name, 'testing');
+		assert.strictEqual(first.symbol.name, 'testing');
+	});
+
+	test('Navigate types, de-duplicate results', async () => {
+		const uri = URI.from({ scheme: 'foo', path: '/some/path' });
+		disposables.push(extHost.registerWorkspaceSymbolProvider(defaultExtension, new class implements vscode.WorkspaceSymbolProvider {
+			provideWorkspaceSymbols(): any {
+				return [new types.SymbolInformation('ONE', types.SymbolKind.Array, undefined, new types.Location(uri, new types.Range(0, 0, 1, 1)))];
+			}
+		}));
+
+		disposables.push(extHost.registerWorkspaceSymbolProvider(defaultExtension, new class implements vscode.WorkspaceSymbolProvider {
+			provideWorkspaceSymbols(): any {
+				return [new types.SymbolInformation('ONE', types.SymbolKind.Array, undefined, new types.Location(uri, new types.Range(0, 0, 1, 1)))]; // get de-duped
+			}
+		}));
+
+		disposables.push(extHost.registerWorkspaceSymbolProvider(defaultExtension, new class implements vscode.WorkspaceSymbolProvider {
+			provideWorkspaceSymbols(): any {
+				return [new types.SymbolInformation('ONE', types.SymbolKind.Array, undefined, new types.Location(uri, undefined!))]; // NO dedupe because of resolve
+			}
+			resolveWorkspaceSymbol(a: vscode.SymbolInformation) {
+				return a;
+			}
+		}));
+
+		disposables.push(extHost.registerWorkspaceSymbolProvider(defaultExtension, new class implements vscode.WorkspaceSymbolProvider {
+			provideWorkspaceSymbols(): any {
+				return [new types.SymbolInformation('ONE', types.SymbolKind.Struct, undefined, new types.Location(uri, new types.Range(0, 0, 1, 1)))]; // NO dedupe because of kind
+			}
+		}));
+
+		await rpcProtocol.sync();
+		let value = await getWorkspaceSymbols('');
+		assert.strictEqual(value.length, 3);
 	});
 
 	// --- rename

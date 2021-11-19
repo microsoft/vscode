@@ -298,6 +298,18 @@ export interface IViewDescriptor {
 	readonly openCommandActionDescriptor?: OpenCommandActionDescriptor
 }
 
+export interface ICustomTreeViewDescriptor extends ITreeViewDescriptor {
+	readonly extensionId: ExtensionIdentifier;
+	readonly originalContainerId: string;
+}
+
+export interface ICustomWebviewViewDescriptor extends IViewDescriptor {
+	readonly extensionId: ExtensionIdentifier;
+	readonly originalContainerId: string;
+}
+
+export type ICustomViewDescriptor = ICustomTreeViewDescriptor | ICustomWebviewViewDescriptor;
+
 export interface IViewDescriptorRef {
 	viewDescriptor: IViewDescriptor;
 	index: number;
@@ -634,9 +646,7 @@ export interface ITreeDataTransferItem {
 	asString(): Thenable<string>;
 }
 
-export interface ITreeDataTransfer {
-	items: Map<string, ITreeDataTransferItem>;
-}
+export type ITreeDataTransfer = Map<string, ITreeDataTransferItem>;
 
 export interface ITreeView extends IDisposable {
 
@@ -826,9 +836,9 @@ export interface ITreeViewDataProvider {
 	getChildren(element?: ITreeItem): Promise<ITreeItem[] | undefined>;
 }
 
-export const TREE_ITEM_DATA_TRANSFER_TYPE = 'text/treeitems';
 export interface ITreeViewDragAndDropController {
-	onDrop(elements: ITreeDataTransfer, target: ITreeItem): Promise<void>;
+	readonly supportedMimeTypes: string[];
+	onDrop(elements: ITreeDataTransfer, target: ITreeItem, sourceTreeId?: string, sourceTreeItemHandles?: string[]): Promise<void>;
 }
 
 export interface IEditableData {

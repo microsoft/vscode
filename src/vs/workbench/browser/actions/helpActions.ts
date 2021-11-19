@@ -34,7 +34,7 @@ class KeybindingsReferenceAction extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: null,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_R)
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyR)
 			},
 			menu: {
 				id: MenuId.MenubarHelpMenu,
@@ -57,16 +57,16 @@ class KeybindingsReferenceAction extends Action2 {
 
 class OpenIntroductoryVideosUrlAction extends Action2 {
 
-	static readonly ID = 'workbench.action.openIntroductoryVideosUrl';
+	static readonly ID = 'workbench.action.openVideoTutorialsUrl';
 	static readonly AVAILABLE = !!product.introductoryVideosUrl;
 
 	constructor() {
 		super({
 			id: OpenIntroductoryVideosUrlAction.ID,
 			title: {
-				value: localize('openIntroductoryVideosUrl', "Introductory Videos"),
-				mnemonicTitle: localize({ key: 'miIntroductoryVideos', comment: ['&& denotes a mnemonic'] }, "Introductory &&Videos"),
-				original: 'Introductory Videos'
+				value: localize('openVideoTutorialsUrl', "Video Tutorials"),
+				mnemonicTitle: localize({ key: 'miVideoTutorials', comment: ['&& denotes a mnemonic'] }, "&&Video Tutorials"),
+				original: 'Video Tutorials'
 			},
 			category: CATEGORIES.Help,
 			f1: true,

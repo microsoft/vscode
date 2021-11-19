@@ -318,21 +318,27 @@ export function compareSubstringIgnoreCase(a: string, b: string, aStart: number 
 			continue;
 		}
 
-		const diff = codeA - codeB;
-		if (diff === 32 && isUpperAsciiLetter(codeB)) { //codeB =[65-90] && codeA =[97-122]
-			continue;
-
-		} else if (diff === -32 && isUpperAsciiLetter(codeA)) {  //codeB =[97-122] && codeA =[65-90]
-			continue;
-		}
-
-		if (isLowerAsciiLetter(codeA) && isLowerAsciiLetter(codeB)) {
-			//
-			return diff;
-
-		} else {
+		if (codeA >= 128 || codeB >= 128) {
+			// not ASCII letters -> fallback to lower-casing strings
 			return compareSubstring(a.toLowerCase(), b.toLowerCase(), aStart, aEnd, bStart, bEnd);
 		}
+
+		// mapper lower-case ascii letter onto upper-case varinats
+		// [97-122] (lower ascii) --> [65-90] (upper ascii)
+		if (isLowerAsciiLetter(codeA)) {
+			codeA -= 32;
+		}
+		if (isLowerAsciiLetter(codeB)) {
+			codeB -= 32;
+		}
+
+		// compare both code points
+		const diff = codeA - codeB;
+		if (diff === 0) {
+			continue;
+		}
+
+		return diff;
 	}
 
 	const aLen = aEnd - aStart;
@@ -355,40 +361,8 @@ export function isUpperAsciiLetter(code: number): boolean {
 	return code >= CharCode.A && code <= CharCode.Z;
 }
 
-function isAsciiLetter(code: number): boolean {
-	return isLowerAsciiLetter(code) || isUpperAsciiLetter(code);
-}
-
 export function equalsIgnoreCase(a: string, b: string): boolean {
-	return a.length === b.length && doEqualsIgnoreCase(a, b);
-}
-
-function doEqualsIgnoreCase(a: string, b: string, stopAt = a.length): boolean {
-	for (let i = 0; i < stopAt; i++) {
-		const codeA = a.charCodeAt(i);
-		const codeB = b.charCodeAt(i);
-
-		if (codeA === codeB) {
-			continue;
-		}
-
-		// a-z A-Z
-		if (isAsciiLetter(codeA) && isAsciiLetter(codeB)) {
-			const diff = Math.abs(codeA - codeB);
-			if (diff !== 0 && diff !== 32) {
-				return false;
-			}
-		}
-
-		// Any other charcode
-		else {
-			if (String.fromCharCode(codeA).toLowerCase() !== String.fromCharCode(codeB).toLowerCase()) {
-				return false;
-			}
-		}
-	}
-
-	return true;
+	return a.length === b.length && compareSubstringIgnoreCase(a, b) === 0;
 }
 
 export function startsWithIgnoreCase(str: string, candidate: string): boolean {
@@ -397,7 +371,7 @@ export function startsWithIgnoreCase(str: string, candidate: string): boolean {
 		return false;
 	}
 
-	return doEqualsIgnoreCase(str, candidate, candidateLength);
+	return compareSubstringIgnoreCase(str, candidate, 0, candidateLength) === 0;
 }
 
 /**
@@ -622,43 +596,42 @@ export function containsFullWidthCharacter(str: string): boolean {
 export function isFullWidthCharacter(charCode: number): boolean {
 	// Do a cheap trick to better support wrapping of wide characters, treat them as 2 columns
 	// http://jrgraphix.net/research/unicode_blocks.php
-	//          2E80 — 2EFF   CJK Radicals Supplement
-	//          2F00 — 2FDF   Kangxi Radicals
-	//          2FF0 — 2FFF   Ideographic Description Characters
-	//          3000 — 303F   CJK Symbols and Punctuation
-	//          3040 — 309F   Hiragana
-	//          30A0 — 30FF   Katakana
-	//          3100 — 312F   Bopomofo
-	//          3130 — 318F   Hangul Compatibility Jamo
-	//          3190 — 319F   Kanbun
-	//          31A0 — 31BF   Bopomofo Extended
-	//          31F0 — 31FF   Katakana Phonetic Extensions
-	//          3200 — 32FF   Enclosed CJK Letters and Months
-	//          3300 — 33FF   CJK Compatibility
-	//          3400 — 4DBF   CJK Unified Ideographs Extension A
-	//          4DC0 — 4DFF   Yijing Hexagram Symbols
-	//          4E00 — 9FFF   CJK Unified Ideographs
-	//          A000 — A48F   Yi Syllables
-	//          A490 — A4CF   Yi Radicals
-	//          AC00 — D7AF   Hangul Syllables
-	// [IGNORE] D800 — DB7F   High Surrogates
-	// [IGNORE] DB80 — DBFF   High Private Use Surrogates
-	// [IGNORE] DC00 — DFFF   Low Surrogates
-	// [IGNORE] E000 — F8FF   Private Use Area
-	//          F900 — FAFF   CJK Compatibility Ideographs
-	// [IGNORE] FB00 — FB4F   Alphabetic Presentation Forms
-	// [IGNORE] FB50 — FDFF   Arabic Presentation Forms-A
-	// [IGNORE] FE00 — FE0F   Variation Selectors
-	// [IGNORE] FE20 — FE2F   Combining Half Marks
-	// [IGNORE] FE30 — FE4F   CJK Compatibility Forms
-	// [IGNORE] FE50 — FE6F   Small Form Variants
-	// [IGNORE] FE70 — FEFF   Arabic Presentation Forms-B
-	//          FF00 — FFEF   Halfwidth and Fullwidth Forms
+	//          2E80 - 2EFF   CJK Radicals Supplement
+	//          2F00 - 2FDF   Kangxi Radicals
+	//          2FF0 - 2FFF   Ideographic Description Characters
+	//          3000 - 303F   CJK Symbols and Punctuation
+	//          3040 - 309F   Hiragana
+	//          30A0 - 30FF   Katakana
+	//          3100 - 312F   Bopomofo
+	//          3130 - 318F   Hangul Compatibility Jamo
+	//          3190 - 319F   Kanbun
+	//          31A0 - 31BF   Bopomofo Extended
+	//          31F0 - 31FF   Katakana Phonetic Extensions
+	//          3200 - 32FF   Enclosed CJK Letters and Months
+	//          3300 - 33FF   CJK Compatibility
+	//          3400 - 4DBF   CJK Unified Ideographs Extension A
+	//          4DC0 - 4DFF   Yijing Hexagram Symbols
+	//          4E00 - 9FFF   CJK Unified Ideographs
+	//          A000 - A48F   Yi Syllables
+	//          A490 - A4CF   Yi Radicals
+	//          AC00 - D7AF   Hangul Syllables
+	// [IGNORE] D800 - DB7F   High Surrogates
+	// [IGNORE] DB80 - DBFF   High Private Use Surrogates
+	// [IGNORE] DC00 - DFFF   Low Surrogates
+	// [IGNORE] E000 - F8FF   Private Use Area
+	//          F900 - FAFF   CJK Compatibility Ideographs
+	// [IGNORE] FB00 - FB4F   Alphabetic Presentation Forms
+	// [IGNORE] FB50 - FDFF   Arabic Presentation Forms-A
+	// [IGNORE] FE00 - FE0F   Variation Selectors
+	// [IGNORE] FE20 - FE2F   Combining Half Marks
+	// [IGNORE] FE30 - FE4F   CJK Compatibility Forms
+	// [IGNORE] FE50 - FE6F   Small Form Variants
+	// [IGNORE] FE70 - FEFF   Arabic Presentation Forms-B
+	//          FF00 - FFEF   Halfwidth and Fullwidth Forms
 	//               [https://en.wikipedia.org/wiki/Halfwidth_and_fullwidth_forms]
 	//               of which FF01 - FF5E fullwidth ASCII of 21 to 7E
 	// [IGNORE]    and FF65 - FFDC halfwidth of Katakana and Hangul
-	// [IGNORE] FFF0 — FFFF   Specials
-	charCode = +charCode; // @perf
+	// [IGNORE] FFF0 - FFFF   Specials
 	return (
 		(charCode >= 0x2E80 && charCode <= 0xD7AF)
 		|| (charCode >= 0xF900 && charCode <= 0xFAFF)
@@ -1057,3 +1030,5 @@ const enum CodePoint {
 	 */
 	enclosingKeyCap = 0x20E3,
 }
+
+export const noBreakWhitespace = '\xa0';

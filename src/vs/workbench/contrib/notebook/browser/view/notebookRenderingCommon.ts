@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IListContextMenuEvent, IListEvent, IListMouseEvent } from 'vs/base/browser/ui/list/list';
 import { IListOptions, IListStyles } from 'vs/base/browser/ui/list/listWidget';
-import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -15,12 +15,15 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import type { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
+import { ICellOutputViewModel, ICellViewModel, IGenericCellViewModel, INotebookCellOutputLayoutInfo, INotebookEditorCreationOptions, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellProgressBar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellProgressBar';
+import { BetweenCellToolbar, CellTitleToolbarPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellToolbars';
+import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellWidgets';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { IMenu } from 'vs/platform/actions/common/actions';
-import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
-import { ICellOutputViewModel, ICellViewModel, IGenericCellViewModel, INotebookCellOutputLayoutInfo, INotebookEditorCreationOptions, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 export interface INotebookCellList {
 	isDisposed: boolean;
@@ -59,6 +62,7 @@ export interface INotebookCellList {
 	getFocusedElements(): ICellViewModel[];
 	getSelectedElements(): ICellViewModel[];
 	revealElementsInView(range: ICellRange): void;
+	isScrolledToBottom(): boolean;
 	scrollToBottom(): void;
 	revealElementInView(element: ICellViewModel): void;
 	revealElementInViewAtTop(element: ICellViewModel): void;
@@ -78,6 +82,7 @@ export interface INotebookCellList {
 	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void;
 	updateElementHeight2(element: ICellViewModel, size: number): void;
 	domFocus(): void;
+	focusContainer(): void;
 	setCellSelection(element: ICellViewModel, range: Range): void;
 	style(styles: IListStyles): void;
 	getRenderHeight(): number;
@@ -90,21 +95,18 @@ export interface BaseCellRenderTemplate {
 	rootContainer: HTMLElement;
 	editorPart: HTMLElement;
 	cellInputCollapsedContainer: HTMLElement;
-	contextKeyService: IContextKeyService;
+	instantiationService: IInstantiationService;
 	container: HTMLElement;
 	cellContainer: HTMLElement;
 	decorationContainer: HTMLElement;
-	toolbar: ToolBar;
-	deleteToolbar: ToolBar;
-	betweenCellToolbar: ToolBar;
-	focusIndicatorLeft: HTMLElement;
-	focusIndicatorRight: HTMLElement;
-	readonly disposables: DisposableStore;
+	betweenCellToolbar: BetweenCellToolbar;
+	titleToolbar: CellTitleToolbarPart;
+	focusIndicatorLeft: FastDomNode<HTMLElement>;
+	focusIndicatorRight: FastDomNode<HTMLElement>;
+	readonly templateDisposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
-	bottomCellContainer: HTMLElement;
 	currentRenderedCell?: ICellViewModel;
 	statusBar: CellEditorStatusBar;
-	titleMenu: IMenu;
 	toJSON: () => object;
 }
 
@@ -115,20 +117,23 @@ export interface MarkdownCellRenderTemplate extends BaseCellRenderTemplate {
 	currentEditor?: ICodeEditor;
 }
 
+export interface IRunToolbar {
+	toolbar: ToolBar;
+	updateContext(context: INotebookCellActionContext): void;
+}
+
 export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
-	runToolbar: ToolBar;
-	runButtonContainer: HTMLElement;
+	runToolbar: IRunToolbar;
 	executionOrderLabel: HTMLElement;
-	outputContainer: HTMLElement;
+	outputContainer: FastDomNode<HTMLElement>;
 	cellOutputCollapsedContainer: HTMLElement;
-	outputShowMoreContainer: HTMLElement;
+	outputShowMoreContainer: FastDomNode<HTMLElement>;
 	focusSinkElement: HTMLElement;
 	editor: ICodeEditor;
-	progressBar: ProgressBar;
-	collapsedProgressBar: ProgressBar;
-	focusIndicatorRight: HTMLElement;
-	focusIndicatorBottom: HTMLElement;
-	dragHandle: HTMLElement;
+	progressBar: CellProgressBar;
+	focusIndicatorRight: FastDomNode<HTMLElement>;
+	focusIndicatorBottom: FastDomNode<HTMLElement>;
+	dragHandle: FastDomNode<HTMLElement>;
 }
 
 export function isCodeCellRenderTemplate(templateData: BaseCellRenderTemplate): templateData is CodeCellRenderTemplate {

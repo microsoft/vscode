@@ -7,7 +7,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { isDefined } from 'vs/base/common/types';
-import { Range } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
@@ -360,7 +360,7 @@ export class RunAllAction extends RunOrDebugAllTestsAction {
 				icon: icons.testingRunAllIcon,
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib,
-					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_A),
+					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyCode.KeyA),
 				},
 			},
 			TestRunProfileBitset.Run,
@@ -379,7 +379,7 @@ export class DebugAllAction extends RunOrDebugAllTestsAction {
 				icon: icons.testingDebugIcon,
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib,
-					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_A),
+					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyA),
 				},
 			},
 			TestRunProfileBitset.Debug,
@@ -397,7 +397,7 @@ export class CancelTestRunAction extends Action2 {
 			icon: icons.testingCancelIcon,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_X),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyX),
 			},
 			menu: {
 				id: MenuId.ViewTitle,
@@ -526,6 +526,31 @@ export class TestingSortByLocationAction extends ViewAction<TestingExplorerView>
 	}
 }
 
+export class TestingSortByDurationAction extends ViewAction<TestingExplorerView> {
+	public static readonly ID = 'testing.sortByDuration';
+	constructor() {
+		super({
+			id: TestingSortByDurationAction.ID,
+			viewId: Testing.ExplorerViewId,
+			title: localize('testing.sortByDuration', "Sort by Duration"),
+			toggled: TestingContextKeys.viewSorting.isEqualTo(TestExplorerViewSorting.ByDuration),
+			menu: {
+				id: MenuId.ViewTitle,
+				order: ActionOrder.Sort,
+				group: 'sortBy',
+				when: ContextKeyExpr.equals('view', Testing.ExplorerViewId)
+			}
+		});
+	}
+
+	/**
+	 * @override
+	 */
+	public runInView(_accessor: ServicesAccessor, view: TestingExplorerView) {
+		view.viewModel.viewSorting = TestExplorerViewSorting.ByDuration;
+	}
+}
+
 export class ShowMostRecentOutputAction extends Action2 {
 	public static readonly ID = 'testing.showMostRecentOutput';
 	constructor() {
@@ -536,7 +561,7 @@ export class ShowMostRecentOutputAction extends Action2 {
 			icon: Codicon.terminal,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_O),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyO),
 			},
 			precondition: TestingContextKeys.hasAnyResults.isEqualTo(true),
 			menu: [{
@@ -705,21 +730,34 @@ abstract class ExecuteTestAtCursor extends Action2 {
 		}
 
 		const testService = accessor.get(ITestService);
-		let bestNode: InternalTestItem | undefined;
+		const profileService = accessor.get(ITestProfileService);
 
+		let bestNodes: InternalTestItem[] = [];
+		let bestRange: IRange | undefined;
+
+		// testsInFile will descend in the test tree. We assume that as we go
+		// deeper, ranges get more specific. We'll want to run all tests whose
+		// range is equal to the most specific range we find (see #133519)
 		await showDiscoveringWhile(accessor.get(IProgressService), (async () => {
 			for await (const test of testsInFile(testService.collection, model.uri)) {
-				if (test.item.range && Range.containsPosition(test.item.range, position)) {
-					bestNode = test;
+				if (!test.item.range || !Range.containsPosition(test.item.range, position) || !(profileService.capabilitiesForTest(test) & this.group)) {
+					continue;
+				}
+
+				if (bestRange && Range.equalsRange(test.item.range, bestRange)) {
+					bestNodes.push(test);
+				} else {
+					bestRange = test.item.range;
+					bestNodes = [test];
 				}
 			}
 		})());
 
 
-		if (bestNode) {
+		if (bestNodes.length) {
 			await testService.runTests({
 				group: this.group,
-				tests: [bestNode],
+				tests: bestNodes,
 			});
 		}
 	}
@@ -735,7 +773,7 @@ export class RunAtCursor extends ExecuteTestAtCursor {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_C),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyCode.KeyC),
 			},
 		}, TestRunProfileBitset.Run);
 	}
@@ -751,7 +789,7 @@ export class DebugAtCursor extends ExecuteTestAtCursor {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_C),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyC),
 			},
 		}, TestRunProfileBitset.Debug);
 	}
@@ -806,7 +844,7 @@ export class RunCurrentFile extends ExecuteTestsInCurrentFile {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_F),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyCode.KeyF),
 			},
 		}, TestRunProfileBitset.Run);
 	}
@@ -823,7 +861,7 @@ export class DebugCurrentFile extends ExecuteTestsInCurrentFile {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_F),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyF),
 			},
 		}, TestRunProfileBitset.Debug);
 	}
@@ -931,7 +969,7 @@ export class ReRunFailedTests extends RunOrDebugFailedTests {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_E),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyCode.KeyE),
 			},
 		});
 	}
@@ -953,7 +991,7 @@ export class DebugFailedTests extends RunOrDebugFailedTests {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_E),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyE),
 			},
 		});
 	}
@@ -975,7 +1013,7 @@ export class ReRunLastRun extends RunOrDebugLastRun {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_L),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyCode.KeyL),
 			},
 		});
 	}
@@ -997,7 +1035,7 @@ export class DebugLastRun extends RunOrDebugLastRun {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_L),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyL),
 			},
 		});
 	}
@@ -1036,7 +1074,7 @@ export class OpenOutputPeek extends Action2 {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_M),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyCode.KeyM),
 			},
 			menu: {
 				id: MenuId.CommandPalette,
@@ -1059,7 +1097,7 @@ export class ToggleInlineTestOutput extends Action2 {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_I),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyI),
 			},
 			menu: {
 				id: MenuId.CommandPalette,
@@ -1105,6 +1143,7 @@ export const allTestActions = [
 	ShowMostRecentOutputAction,
 	TestingSortByLocationAction,
 	TestingSortByStatusAction,
+	TestingSortByDurationAction,
 	TestingViewAsListAction,
 	TestingViewAsTreeAction,
 	ToggleInlineTestOutput,

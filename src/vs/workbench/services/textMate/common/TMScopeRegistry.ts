@@ -10,7 +10,7 @@ import { StandardTokenType, LanguageId } from 'vs/editor/common/modes';
 
 export interface IValidGrammarDefinition {
 	location: URI;
-	language?: LanguageId;
+	language?: string;
 	scopeName: string;
 	embeddedLanguages: IValidEmbeddedLanguagesMap;
 	tokenTypes: IValidTokenTypeMap;

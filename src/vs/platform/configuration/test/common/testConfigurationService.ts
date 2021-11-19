@@ -6,13 +6,14 @@
 import { Emitter } from 'vs/base/common/event';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
-import { getConfigurationKeys, getConfigurationValue, IConfigurationOverrides, IConfigurationService, IConfigurationValue, isConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
+import { getConfigurationKeys, getConfigurationValue, IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationService, IConfigurationValue, isConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 
 export class TestConfigurationService implements IConfigurationService {
 	public _serviceBrand: undefined;
 
 	private configuration: any;
-	readonly onDidChangeConfiguration = new Emitter<any>().event;
+	readonly onDidChangeConfigurationEmitter = new Emitter<IConfigurationChangeEvent>();
+	readonly onDidChangeConfiguration = this.onDidChangeConfigurationEmitter.event;
 
 	constructor(configuration?: any) {
 		this.configuration = configuration || Object.create(null);

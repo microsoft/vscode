@@ -4,15 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { createNotebookCellList, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 
 suite('NotebookCellList', () => {
-	const instantiationService = setupInstantiationService();
-	const notebookDefaultOptions = new NotebookOptions(instantiationService.get(IConfigurationService));
-	const topInsertToolbarHeight = notebookDefaultOptions.computeTopInserToolbarHeight();
+	let disposables: DisposableStore;
+	let instantiationService: TestInstantiationService;
+	let notebookDefaultOptions: NotebookOptions;
+	let topInsertToolbarHeight: number;
+
+	suiteSetup(() => {
+		disposables = new DisposableStore();
+		instantiationService = setupInstantiationService(disposables);
+		notebookDefaultOptions = new NotebookOptions(instantiationService.get(IConfigurationService));
+		topInsertToolbarHeight = notebookDefaultOptions.computeTopInserToolbarHeight();
+
+	});
+
+	suiteTeardown(() => disposables.dispose());
 
 	test('revealElementsInView: reveal fully visible cell should not scroll', async function () {
 		await withTestNotebook(
@@ -27,7 +40,9 @@ suite('NotebookCellList', () => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
-					cellTotalHeights: [50, 100, 50, 100, 50]
+					cellTotalHeights: [50, 100, 50, 100, 50],
+					collapsedInputCells: {},
+					collapsedOutputCells: {},
 				});
 
 				const cellList = createNotebookCellList(instantiationService);
@@ -71,7 +86,9 @@ suite('NotebookCellList', () => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
-					cellTotalHeights: [50, 100, 50, 100, 50]
+					cellTotalHeights: [50, 100, 50, 100, 50],
+					collapsedInputCells: {},
+					collapsedOutputCells: {},
 				});
 
 				const cellList = createNotebookCellList(instantiationService);
@@ -112,7 +129,9 @@ suite('NotebookCellList', () => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
-					cellTotalHeights: [50, 100, 50, 100, 50]
+					cellTotalHeights: [50, 100, 50, 100, 50],
+					collapsedInputCells: {},
+					collapsedOutputCells: {},
 				});
 
 				const cellList = createNotebookCellList(instantiationService);
@@ -146,7 +165,9 @@ suite('NotebookCellList', () => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
-					cellTotalHeights: [50, 100, 50, 100, 50]
+					cellTotalHeights: [50, 100, 50, 100, 50],
+					collapsedInputCells: {},
+					collapsedOutputCells: {},
 				});
 
 				const cellList = createNotebookCellList(instantiationService);
@@ -185,7 +206,9 @@ suite('NotebookCellList', () => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
-					cellTotalHeights: [50, 100, 50, 100, 50]
+					cellTotalHeights: [50, 100, 50, 100, 50],
+					collapsedInputCells: {},
+					collapsedOutputCells: {},
 				});
 
 				const cellList = createNotebookCellList(instantiationService);
@@ -235,7 +258,9 @@ suite('NotebookCellList', () => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
-					cellTotalHeights: [50, 100, 50, 100, 50]
+					cellTotalHeights: [50, 100, 50, 100, 50],
+					collapsedInputCells: {},
+					collapsedOutputCells: {},
 				});
 
 				const cellList = createNotebookCellList(instantiationService);
@@ -268,7 +293,9 @@ suite('NotebookCellList', () => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
-					cellTotalHeights: [50, 100, 50, 100, 50]
+					cellTotalHeights: [50, 100, 50, 100, 50],
+					collapsedInputCells: {},
+					collapsedOutputCells: {},
 				});
 
 				const cellList = createNotebookCellList(instantiationService);

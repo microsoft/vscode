@@ -3,10 +3,6 @@ steps:
     inputs:
       versionSpec: "14.x"
 
-  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
-    inputs:
-      versionSpec: "1.x"
-
   - task: UsePythonVersion@0
     inputs:
       versionSpec: "2.x"
@@ -79,7 +75,6 @@ steps:
       . build/azure-pipelines/win32/retry.ps1
       $ErrorActionPreference = "Stop"
       $env:npm_config_arch="$(VSCODE_ARCH)"
-      $env:npm_config_build_from_source="true"
       $env:CHILD_CONCURRENCY="1"
       retry { exec { yarn --frozen-lockfile } }
     env:
@@ -124,7 +119,6 @@ steps:
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
       $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
-      exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-code-helper" }
       exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-inno-updater" }
     displayName: Prepare Package
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
@@ -218,7 +212,7 @@ steps:
       $ErrorActionPreference = "Stop"
       $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
       $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-win32-$(VSCODE_ARCH)"
-      exec { yarn smoketest-no-compile --build "$AppRoot" --remote }
+      exec { yarn smoketest-no-compile --build "$AppRoot" --remote --screenshots $(Build.SourcesDirectory)\.build\logs\smoke-tests-remote }
     displayName: Run smoke tests (Remote)
     timeoutInMinutes: 5
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
@@ -257,7 +251,7 @@ steps:
 
   - task: UseDotNet@2
     inputs:
-      version: 2.x
+      version: 3.x
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - task: EsrpClientTool@1
@@ -312,9 +306,6 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      $env:AZURE_STORAGE_ACCESS_KEY_2 = "$(vscode-storage-key)"
-      $env:AZURE_DOCUMENTDB_MASTERKEY = "$(builds-docdb-key-readwrite)"
-      $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
       .\build\azure-pipelines\win32\prepare-publish.ps1
     displayName: Publish
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))

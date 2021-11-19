@@ -41,6 +41,8 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { IOutline } from 'vs/workbench/services/outline/browser/outline';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { Codicon } from 'vs/base/common/codicons';
 
 class OutlineItem extends BreadcrumbsItem {
 
@@ -62,7 +64,7 @@ class OutlineItem extends BreadcrumbsItem {
 		if (!(other instanceof OutlineItem)) {
 			return false;
 		}
-		return this.element === other.element &&
+		return this.element.element === other.element.element &&
 			this.options.showFileIcons === other.options.showFileIcons &&
 			this.options.showSymbolIcons === other.options.showSymbolIcons;
 	}
@@ -150,6 +152,8 @@ export interface IBreadcrumbsControlOptions {
 	showPlaceholder: boolean;
 }
 
+const separatorIcon = registerIcon('breadcrumb-separator', Codicon.chevronRight, localize('separatorIcon', 'Icon for the separator in the breadcrumbs.'));
+
 export class BreadcrumbsControl {
 
 	static readonly HEIGHT = 22;
@@ -208,7 +212,7 @@ export class BreadcrumbsControl {
 		this._cfTitleScrollbarSizing = BreadcrumbsConfig.TitleScrollbarSizing.bindTo(configurationService);
 
 		const sizing = this._cfTitleScrollbarSizing.getValue() ?? 'default';
-		this._widget = new BreadcrumbsWidget(this.domNode, BreadcrumbsControl.SCROLLBAR_SIZES[sizing]);
+		this._widget = new BreadcrumbsWidget(this.domNode, BreadcrumbsControl.SCROLLBAR_SIZES[sizing], separatorIcon);
 		this._widget.onDidSelectItem(this._onSelectEvent, this, this._disposables);
 		this._widget.onDidFocusItem(this._onFocusEvent, this, this._disposables);
 		this._widget.onDidChangeFocus(this._updateCkBreadcrumbsActive, this, this._disposables);
@@ -255,7 +259,7 @@ export class BreadcrumbsControl {
 		const uri = EditorResourceAccessor.getCanonicalUri(this._editorGroup.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		const wasHidden = this.isHidden();
 
-		if (!uri || !this._fileService.canHandleResource(uri)) {
+		if (!uri || !this._fileService.hasProvider(uri)) {
 			// cleanup and return when there is no input or when
 			// we cannot handle this input
 			this._ckBreadcrumbsPossible.set(false);
@@ -542,14 +546,14 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.focusAndSelect',
 	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Period,
 	when: BreadcrumbsControl.CK_BreadcrumbsPossible,
 	handler: accessor => focusAndSelectHandler(accessor, true)
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.focus',
 	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_SEMICOLON,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Semicolon,
 	when: BreadcrumbsControl.CK_BreadcrumbsPossible,
 	handler: accessor => focusAndSelectHandler(accessor, false)
 });
@@ -559,7 +563,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.toggleToOn',
 	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Period,
 	when: ContextKeyExpr.not('config.breadcrumbs.enabled'),
 	handler: async accessor => {
 		const instant = accessor.get(IInstantiationService);

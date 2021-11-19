@@ -16,6 +16,7 @@ import { PickerQuickAccessProvider, FastAndSlowPicks } from 'vs/platform/quickin
 
 suite('QuickAccess', () => {
 
+	let disposables: DisposableStore;
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
@@ -65,7 +66,8 @@ suite('QuickAccess', () => {
 		provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
 			assert.ok(picker);
 			provider2Called = true;
-			token.onCancellationRequested(() => provider2Canceled = true);
+			token.onCancellationRequested(() =>
+				provider2Canceled = true);
 
 			return toDisposable(() => provider2Disposed = true);
 		}
@@ -90,8 +92,13 @@ suite('QuickAccess', () => {
 	const providerDescriptor3 = { ctor: TestProvider3, prefix: 'changed', helpEntries: [] };
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
+		disposables = new DisposableStore();
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
+	});
+
+	teardown(() => {
+		disposables.dispose();
 	});
 
 	test('registry', () => {

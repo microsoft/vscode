@@ -223,18 +223,6 @@ export class TestingExplorerView extends ViewPane {
 			}
 		}));
 
-		const progress = new MutableDisposable<UnmanagedProgress>();
-		this._register(this.testProgressService.onCountChange(evt => {
-			if (!evt.isRunning && progress.value) {
-				progress.clear();
-			} else if (evt.isRunning) {
-				if (!progress.value) {
-					progress.value = this.instantiationService.createInstance(UnmanagedProgress, { location: this.getProgressLocation(), total: 100 });
-				}
-				progress.value.report({ increment: evt.runSoFar, total: evt.totalWillBeRun });
-			}
-		}));
-
 		const listContainer = dom.append(this.container, dom.$('.test-explorer-tree'));
 		this.viewModel = this.instantiationService.createInstance(TestingExplorerViewModel, listContainer, this.onDidChangeBodyVisibility);
 		this._register(this.viewModel.onChangeWelcomeVisibility(() => this._onDidChangeViewWelcomeState.fire()));
@@ -939,6 +927,11 @@ class TreeSorter implements ITreeSorter<TestExplorerTreeElement> {
 	public compare(a: TestExplorerTreeElement, b: TestExplorerTreeElement): number {
 		if (a instanceof TestTreeErrorMessage || b instanceof TestTreeErrorMessage) {
 			return (a instanceof TestTreeErrorMessage ? -1 : 0) + (b instanceof TestTreeErrorMessage ? 1 : 0);
+		}
+
+		const durationDelta = (b.duration || 0) - (a.duration || 0);
+		if (this.viewModel.viewSorting === TestExplorerViewSorting.ByDuration && durationDelta !== 0) {
+			return durationDelta;
 		}
 
 		const stateDelta = cmpPriority(a.state, b.state);

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Ikuyadeu/vscode-R/commit/c6a9803fbda262ea68c427a2339bddafed41a9d5",
+	"version": "https://github.com/Ikuyadeu/vscode-R/commit/c9290464add8409f35fcbe47339d4b2ca0e4416c",
 	"name": "R",
 	"scopeName": "source.r",
 	"patterns": [
@@ -459,7 +459,7 @@
 		"roxygen": {
 			"patterns": [
 				{
-					"begin": "^(#')\\s*",
+					"begin": "^\\s*(#')\\s*",
 					"beginCaptures": {
 						"1": {
 							"name": "punctuation.definition.comment.r"

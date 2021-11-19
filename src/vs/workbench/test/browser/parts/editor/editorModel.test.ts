@@ -30,6 +30,8 @@ import { Mimes } from 'vs/base/common/mime';
 import { LanguageDetectionService } from 'vs/workbench/services/languageDetection/browser/languageDetectionWorkerServiceImpl';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { TestAccessibilityService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
+import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 suite('EditorModel', () => {
 
@@ -55,6 +57,7 @@ suite('EditorModel', () => {
 		instantiationService.stub(INotificationService, notificationService);
 		instantiationService.stub(IUndoRedoService, undoRedoService);
 		instantiationService.stub(IThemeService, new TestThemeService());
+		instantiationService.stub(ILanguageConfigurationService, new TestLanguageConfigurationService());
 
 		return instantiationService.createInstance(ModelServiceImpl);
 	}

@@ -13,6 +13,7 @@ import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration } from
 import { equals } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { isWeb } from 'vs/base/common/platform';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export const AutoSaveAfterShortDelayContext = new RawContextKey<boolean>('autoSaveAfterShortDelayContext', false, true);
 
@@ -81,7 +82,8 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		super();
 
@@ -167,7 +169,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 			return AutoSaveMode.ON_WINDOW_CHANGE;
 		}
 
-		if (this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0) {
+		if (typeof this.configuredAutoSaveDelay === 'number' && this.configuredAutoSaveDelay >= 0) {
 			return this.configuredAutoSaveDelay <= 1000 ? AutoSaveMode.AFTER_SHORT_DELAY : AutoSaveMode.AFTER_LONG_DELAY;
 		}
 
@@ -176,7 +178,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 	getAutoSaveConfiguration(): IAutoSaveConfiguration {
 		return {
-			autoSaveDelay: this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0 ? this.configuredAutoSaveDelay : undefined,
+			autoSaveDelay: typeof this.configuredAutoSaveDelay === 'number' && this.configuredAutoSaveDelay >= 0 ? this.configuredAutoSaveDelay : undefined,
 			autoSaveFocusChange: !!this.configuredAutoSaveOnFocusChange,
 			autoSaveApplicationChange: !!this.configuredAutoSaveOnWindowChange
 		};
@@ -196,6 +198,12 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	}
 
 	get isHotExitEnabled(): boolean {
+		if (this.contextService.getWorkspace().transient) {
+			// Transient workspace: hot exit is disabled because
+			// transient workspaces are not restored upon restart
+			return false;
+		}
+
 		return this.currentHotExitConfig !== HotExitConfiguration.OFF;
 	}
 

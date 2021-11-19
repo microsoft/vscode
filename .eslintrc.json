@@ -20,6 +20,7 @@
 		"no-duplicate-case": "warn",
 		"no-duplicate-imports": "warn",
 		"no-eval": "warn",
+		"no-async-promise-executor": "warn",
 		"no-extra-semi": "warn",
 		"no-new-wrappers": "warn",
 		"no-redeclare": "off",
@@ -132,7 +133,9 @@
 				"restrictions": [
 					"vs/nls",
 					"**/vs/base/{common,node}/**",
-					"@vscode/*", "*" // node modules
+					"@vscode/*",
+					"@parcel/*",
+					"*" // node modules
 				]
 			},
 			{
@@ -170,7 +173,9 @@
 					"vs/nls",
 					"**/vs/base/{common,node}/**",
 					"**/vs/base/parts/*/{common,node}/**",
-					"@vscode/*", "*" // node modules
+					"@vscode/*",
+					"@parcel/*",
+					"*" // node modules
 				]
 			},
 			{
@@ -189,7 +194,9 @@
 					"vs/css!./**/*",
 					"**/vs/base/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"**/vs/base/parts/*/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"@vscode/*", "*" // node modules
+					"@vscode/*",
+					"@parcel/*",
+					"*" // node modules
 				]
 			},
 			{
@@ -198,7 +205,9 @@
 					"vs/nls",
 					"**/vs/base/{common,node,electron-main}/**",
 					"**/vs/base/parts/*/{common,node,electron-main}/**",
-					"@vscode/*", "*" // node modules
+					"@vscode/*",
+					"@parcel/*",
+					"*" // node modules
 				]
 			},
 			{
@@ -207,7 +216,8 @@
 					"vs/nls",
 					"**/vs/base/common/**",
 					"**/vs/base/parts/*/common/**",
-					"**/vs/platform/*/common/**"
+					"**/vs/platform/*/common/**",
+					"tas-client-umd"
 				]
 			},
 			{
@@ -255,7 +265,9 @@
 					"**/vs/base/{common,node}/**",
 					"**/vs/base/parts/*/{common,node}/**",
 					"**/vs/platform/*/{common,node}/**",
-					"@vscode/*", "*" // node modules
+					"@vscode/*",
+					"@parcel/*",
+					"*" // node modules
 				]
 			},
 			{
@@ -276,7 +288,9 @@
 					"**/vs/base/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"**/vs/base/parts/*/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"**/vs/platform/*/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"@vscode/*", "*" // node modules
+					"@vscode/*",
+					"@parcel/*",
+					"*" // node modules
 				]
 			},
 			{
@@ -286,7 +300,9 @@
 					"**/vs/base/{common,node,electron-main}/**",
 					"**/vs/base/parts/*/{common,node,electron-main}/**",
 					"**/vs/platform/*/{common,node,electron-main}/**",
-					"@vscode/*", "*" // node modules
+					"@vscode/*",
+					"@parcel/*",
+					"*" // node modules
 				]
 			},
 			{
@@ -513,7 +529,9 @@
 					"**/vs/workbench/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"**/vs/workbench/api/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"**/vs/workbench/services/*/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"@vscode/*", "*" // node modules
+					"@vscode/*",
+					"@parcel/*",
+					"*" // node modules
 				]
 			},
 			{
@@ -528,7 +546,9 @@
 					"vs/workbench/contrib/files/browser/editors/fileEditorInput",
 					"**/vs/workbench/services/**",
 					"**/vs/workbench/test/**",
-					"@vscode/*", "*" // node modules
+					"@vscode/*",
+					"@parcel/*",
+					"*" // node modules
 				]
 			},
 			{
@@ -592,7 +612,9 @@
 					"**/vs/workbench/{common,node}/**",
 					"**/vs/workbench/api/{common,node}/**",
 					"**/vs/workbench/services/**/{common,node}/**",
-					"@vscode/*", "*" // node modules
+					"@vscode/*",
+					"@parcel/*",
+					"*" // node modules
 				]
 			},
 			{
@@ -623,7 +645,9 @@
 					"**/vs/workbench/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"**/vs/workbench/api/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"**/vs/workbench/services/**/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"@vscode/*", "*" // node modules
+					"@vscode/*",
+					"@parcel/*",
+					"*" // node modules
 				]
 			},
 			{
@@ -742,7 +766,9 @@
 					"**/vs/workbench/api/{common,node}/**",
 					"**/vs/workbench/services/**/{common,node}/**",
 					"**/vs/workbench/contrib/**/{common,node}/**",
-					"@vscode/*", "*" // node modules
+					"@vscode/*",
+					"@parcel/*",
+					"*" // node modules
 				]
 			},
 			{
@@ -775,7 +801,9 @@
 					"**/vs/workbench/api/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"**/vs/workbench/services/**/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"**/vs/workbench/contrib/**/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"@vscode/*", "*" // node modules
+					"@vscode/*",
+					"@parcel/*",
+					"*" // node modules
 				]
 			},
 			{
@@ -798,7 +826,9 @@
 					"**/vs/base/parts/**/{common,node}/**",
 					"**/vs/platform/**/{common,node}/**",
 					"**/vs/code/**/{common,node}/**",
-					"@vscode/*", "*" // node modules
+					"@vscode/*",
+					"@parcel/*",
+					"*" // node modules
 				]
 			},
 			{
@@ -810,7 +840,9 @@
 					"**/vs/base/parts/**/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"**/vs/platform/**/{common,browser,node,electron-sandbox,electron-browser}/**",
 					"**/vs/code/**/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"@vscode/*", "*" // node modules
+					"@vscode/*",
+					"@parcel/*",
+					"*" // node modules
 				]
 			},
 			{
@@ -821,7 +853,9 @@
 					"**/vs/base/parts/**/{common,node,electron-main}/**",
 					"**/vs/platform/**/{common,node,electron-main}/**",
 					"**/vs/code/**/{common,node,electron-main}/**",
-					"@vscode/*", "*" // node modules
+					"@vscode/*",
+					"@parcel/*",
+					"*" // node modules
 				]
 			},
 			{
@@ -833,7 +867,9 @@
 					"**/vs/platform/**/{common,node}/**",
 					"**/vs/workbench/**/{common,node}/**",
 					"**/vs/server/**",
-					"@vscode/*", "*" // node modules
+					"@vscode/*",
+					"@parcel/*",
+					"*" // node modules
 				]
 			},
 			{
@@ -904,28 +940,37 @@
 				"target": "**/test/smoke/**",
 				"restrictions": [
 					"**/test/smoke/**",
-					"@vscode/*", "*" // node modules
+					"@vscode/*",
+					"@parcel/*",
+					"*" // node modules
 				]
 			},
 			{
 				"target": "**/test/automation/**",
 				"restrictions": [
 					"**/test/automation/**",
-					"@vscode/*", "*" // node modules
+					"@vscode/*",
+					"@parcel/*",
+					"playwright-core/**",
+					"*" // node modules
 				]
 			},
 			{
 				"target": "**/test/integration/**",
 				"restrictions": [
 					"**/test/integration/**",
-					"@vscode/*", "*" // node modules
+					"@vscode/*",
+					"@parcel/*",
+					"*" // node modules
 				]
 			},
 			{
 				"target": "**/test/monaco/**",
 				"restrictions": [
 					"**/test/monaco/**",
-					"@vscode/*", "*" // node modules
+					"@vscode/*",
+					"@parcel/*",
+					"*" // node modules
 				]
 			},
 			{
@@ -943,21 +988,27 @@
 				"target": "**/{node,electron-browser,electron-main}/**/*.test.ts",
 				"restrictions": [
 					"**/vs/**",
-					"@vscode/*", "*" // node modules
+					"@vscode/*",
+					"@parcel/*",
+					"*" // node modules
 				]
 			},
 			{
 				"target": "**/{node,electron-browser,electron-main}/**/test/**",
 				"restrictions": [
 					"**/vs/**",
-					"@vscode/*", "*" // node modules
+					"@vscode/*",
+					"@parcel/*",
+					"*" // node modules
 				]
 			},
 			{
 				"target": "**/test/{node,electron-browser,electron-main}/**",
 				"restrictions": [
 					"**/vs/**",
-					"@vscode/*", "*" // node modules
+					"@vscode/*",
+					"@parcel/*",
+					"*" // node modules
 				]
 			},
 			{
@@ -1005,8 +1056,16 @@
 		},
 		{
 			"files": [
+				"**/*.test.ts"
+			],
+			"rules": {
+				"code-no-test-only": "error"
+			}
+		},
+		{
+			"files": [
 				"**/vscode.d.ts",
-				"**/vscode.proposed.d.ts"
+				"**/vscode.proposed.*.d.ts"
 			],
 			"rules": {
 				"vscode-dts-create-func": "warn",
@@ -1068,17 +1127,6 @@
 							"write"
 						]
 					}
-				]
-			}
-		},
-		{
-			"files": [
-				"src/vs/server/*"
-			],
-			"rules": {
-				"header/header": [
-					// hygiene.js still checks that all files (even those in this directory) are MIT licensed.
-					"off"
 				]
 			}
 		}

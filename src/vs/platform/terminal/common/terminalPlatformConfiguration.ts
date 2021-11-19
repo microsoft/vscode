@@ -73,6 +73,9 @@ const terminalProfileSchema: IJSONSchema = {
 const shellDeprecationMessageLinux = localize('terminal.integrated.shell.linux.deprecation', "This is deprecated, the new recommended way to configure your default shell is by creating a terminal profile in {0} and setting its profile name as the default in {1}. This will currently take priority over the new profiles settings but that will change in the future.", '`#terminal.integrated.profiles.linux#`', '`#terminal.integrated.defaultProfile.linux#`');
 const shellDeprecationMessageOsx = localize('terminal.integrated.shell.osx.deprecation', "This is deprecated, the new recommended way to configure your default shell is by creating a terminal profile in {0} and setting its profile name as the default in {1}. This will currently take priority over the new profiles settings but that will change in the future.", '`#terminal.integrated.profiles.osx#`', '`#terminal.integrated.defaultProfile.osx#`');
 const shellDeprecationMessageWindows = localize('terminal.integrated.shell.windows.deprecation', "This is deprecated, the new recommended way to configure your default shell is by creating a terminal profile in {0} and setting its profile name as the default in {1}. This will currently take priority over the new profiles settings but that will change in the future.", '`#terminal.integrated.profiles.windows#`', '`#terminal.integrated.defaultProfile.windows#`');
+const automationShellDeprecationMessageLinux = localize('terminal.integrated.automationShell.linux.deprecation', "This is deprecated, the new recommended way to configure your automation shell is by creating a terminal automation profile with {0}. This will currently take priority over the new automation profile settings but that will change in the future.", '`#terminal.integrated.automationProfile.linux#`');
+const automationShellDeprecationMessageOsx = localize('terminal.integrated.automationShell.osx.deprecation', "This is deprecated, the new recommended way to configure your automation shell is by creating a terminal automation profile with {0}. This will currently take priority over the new automation profile settings but that will change in the future.", '`#terminal.integrated.automationProfile.osx#`');
+const automationShellDeprecationMessageWindows = localize('terminal.integrated.automationShell.windows.deprecation', "This is deprecated, the new recommended way to configure your automation shell is by creating a terminal automation profile with {0}. This will currently take priority over the new automation profile settings but that will change in the future.", '`#terminal.integrated.automationProfile.windows#`');
 
 const terminalPlatformConfiguration: IConfigurationNode = {
 	id: 'terminal',
@@ -87,7 +90,8 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 				comment: ['{0} and {1} are the `shell` and `shellArgs` settings keys']
 			}, "A path that when set will override {0} and ignore {1} values for automation-related terminal usage like tasks and debug.", '`terminal.integrated.shell.linux`', '`shellArgs`'),
 			type: ['string', 'null'],
-			default: null
+			default: null,
+			markdownDeprecationMessage: automationShellDeprecationMessageLinux
 		},
 		[TerminalSettingId.AutomationShellMacOs]: {
 			restricted: true,
@@ -96,7 +100,8 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 				comment: ['{0} and {1} are the `shell` and `shellArgs` settings keys']
 			}, "A path that when set will override {0} and ignore {1} values for automation-related terminal usage like tasks and debug.", '`terminal.integrated.shell.osx`', '`shellArgs`'),
 			type: ['string', 'null'],
-			default: null
+			default: null,
+			markdownDeprecationMessage: automationShellDeprecationMessageOsx
 		},
 		[TerminalSettingId.AutomationShellWindows]: {
 			restricted: true,
@@ -105,7 +110,38 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 				comment: ['{0} and {1} are the `shell` and `shellArgs` settings keys']
 			}, "A path that when set will override {0} and ignore {1} values for automation-related terminal usage like tasks and debug.", '`terminal.integrated.shell.windows`', '`shellArgs`'),
 			type: ['string', 'null'],
-			default: null
+			default: null,
+			markdownDeprecationMessage: automationShellDeprecationMessageWindows
+		},
+		[TerminalSettingId.AutomationProfileLinux]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.automationProfile.linux', "The terminal profile to use on Linux for automation-related terminal usage like tasks and debug. This setting will currently be ignored if {0} is set.", '#terminal.integrated.automationShell.linux#'),
+			type: ['object', 'null'],
+			default: null,
+			'anyOf': [
+				{ type: 'null' },
+				terminalProfileSchema
+			]
+		},
+		[TerminalSettingId.AutomationProfileMacOs]: {
+			restricted: true,
+			description: localize('terminal.integrated.automationProfile.osx', "The terminal profile to use on macOS for automation-related terminal usage like tasks and debug. This setting will currently be ignored if {0} is set.", '#terminal.integrated.automationShell.osx#'),
+			type: ['object', 'null'],
+			default: null,
+			'anyOf': [
+				{ type: 'null' },
+				terminalProfileSchema
+			]
+		},
+		[TerminalSettingId.AutomationProfileWindows]: {
+			restricted: true,
+			description: localize('terminal.integrated.automationProfile.windows', "The terminal profile to use for automation-related terminal usage like tasks and debug. This setting will currently be ignored if {0} is set.", '#terminal.integrated.automationShell.windows#'),
+			type: ['object', 'null'],
+			default: null,
+			'anyOf': [
+				{ type: 'null' },
+				terminalProfileSchema
+			]
 		},
 		[TerminalSettingId.ShellLinux]: {
 			restricted: true,
@@ -177,7 +213,7 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 					key: 'terminal.integrated.profiles.windows',
 					comment: ['{0}, {1}, and {2} are the `source`, `path` and optional `args` settings keys']
 				},
-				"The Windows profiles to present when creating a new terminal via the terminal dropdown. Set to null to exclude them, use the {0} property to use the default detected configuration. Or, set the {1} and optional {2}", '`source`', '`path`', '`args`.'
+				"The Windows profiles to present when creating a new terminal via the terminal dropdown. Use the {0} property to automatically detect the shell's location. Or set the {1} property manually with an optional {2}.\n\nSet an existing profile to {3} to hide the profile from the list, for example: {4}.", '`source`', '`path`', '`args`', '`null`', '`"Ubuntu-20.04 (WSL)": null`'
 			),
 			type: 'object',
 			default: {
@@ -241,7 +277,7 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 					key: 'terminal.integrated.profile.osx',
 					comment: ['{0} and {1} are the `path` and optional `args` settings keys']
 				},
-				"The macOS profiles to present when creating a new terminal via the terminal dropdown. When set, these will override the default detected profiles. They are comprised of a {0} and optional {1}", '`path`', '`args`.'
+				"The macOS profiles to present when creating a new terminal via the terminal dropdown. Set the {0} property manually with an optional {1}.\n\nSet an existing profile to {2} to hide the profile from the list, for example: {3}.", '`path`', '`args`', '`null`', '`"bash": null`'
 			),
 			type: 'object',
 			default: {
@@ -300,7 +336,7 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 					key: 'terminal.integrated.profile.linux',
 					comment: ['{0} and {1} are the `path` and optional `args` settings keys']
 				},
-				"The Linux profiles to present when creating a new terminal via the terminal dropdown. When set, these will override the default detected profiles. They are comprised of a {0} and optional {1}", '`path`', '`args`.'
+				"The Linux profiles to present when creating a new terminal via the terminal dropdown. Set the {0} property manually with an optional {1}.\n\nSet an existing profile to {2} to hide the profile from the list, for example: {3}.", '`path`', '`args`', '`null`', '`"bash": null`'
 			),
 			type: 'object',
 			default: {
@@ -371,6 +407,22 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			description: localize('terminal.integrated.showLinkHover', "Whether to show hovers for links in the terminal output."),
 			type: 'boolean',
 			default: true
+		},
+		[TerminalSettingId.IgnoreProcessNames]: {
+			description: localize('terminal.integrated.confirmIgnoreProcesses', "Configurable to provide a custom setting to ignore processes"),
+			type: 'array',
+			items: {
+				type: 'string',
+				uniqueItems: true
+			},
+			default: [
+				// Popular prompt programs, these should not count as child processes
+				'starship',
+				'oh-my-posh',
+				// Git bash may runs a subprocess of itself (bin\bash.exe -> usr\bin\bash.exe)
+				'bash',
+				'zsh',
+			]
 		}
 	}
 };

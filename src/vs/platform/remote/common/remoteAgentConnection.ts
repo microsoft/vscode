@@ -39,17 +39,19 @@ function connectionTypeToString(connectionType: ConnectionType): string {
 export interface AuthRequest {
 	type: 'auth';
 	auth: string;
+	data: string;
 }
 
 export interface SignRequest {
 	type: 'sign';
 	data: string;
+	signedData: string;
 }
 
 export interface ConnectionTypeRequest {
 	type: 'connectionType';
 	commit?: string;
-	signedData?: string;
+	signedData: string;
 	desiredConnectionType?: ConnectionType;
 	args?: any;
 }
@@ -250,9 +252,12 @@ async function connectToRemoteExtensionHostAgent(options: ISimpleConnectionOptio
 	}
 
 	options.logService.trace(`${logPrefix} 3/6. sending AuthRequest control message.`);
+	const message = await raceWithTimeoutCancellation(options.signService.createNewMessage(generateUuid()), timeoutCancellationToken);
+
 	const authRequest: AuthRequest = {
 		type: 'auth',
-		auth: options.connectionToken || '00000000000000000000'
+		auth: options.connectionToken || '00000000000000000000',
+		data: message.data
 	};
 	protocol.sendControl(VSBuffer.fromString(JSON.stringify(authRequest)));
 
@@ -266,6 +271,13 @@ async function connectToRemoteExtensionHostAgent(options: ISimpleConnectionOptio
 		}
 
 		options.logService.trace(`${logPrefix} 4/6. received SignRequest control message.`);
+
+		const isValid = await raceWithTimeoutCancellation(options.signService.validate(message, msg.signedData), timeoutCancellationToken);
+		if (!isValid) {
+			const error: any = new Error('Refused to connect to unsupported server');
+			error.code = 'VSCODE_CONNECTION_ERROR';
+			throw error;
+		}
 
 		const signed = await raceWithTimeoutCancellation(options.signService.sign(msg.data), timeoutCancellationToken);
 		const connTypeRequest: ConnectionTypeRequest = {

@@ -110,7 +110,7 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 		const deducedExtensionKind = this.deduceExtensionKind(manifest);
 		const configuredExtensionKind = this.getConfiguredExtensionKind(manifest);
 
-		if (configuredExtensionKind) {
+		if (configuredExtensionKind && configuredExtensionKind.length > 0) {
 			const result: ExtensionKind[] = [];
 			for (const extensionKind of configuredExtensionKind) {
 				if (extensionKind !== '-web') {
@@ -125,7 +125,7 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 			}
 
 			// Add web kind if not opted out from web and can run in web
-			if (!configuredExtensionKind.includes('-web') && !configuredExtensionKind.includes('web') && deducedExtensionKind.includes('web')) {
+			if (isWeb && !configuredExtensionKind.includes('-web') && !configuredExtensionKind.includes('web') && deducedExtensionKind.includes('web')) {
 				result.push('web');
 			}
 

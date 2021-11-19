@@ -17,6 +17,7 @@ import { triggerDownload, triggerUpload, WebFileSystemAccess } from 'vs/base/bro
 import Severity from 'vs/base/common/severity';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { extractFilesDropData } from 'vs/workbench/browser/dnd';
+import { Iterable } from 'vs/base/common/iterator';
 
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
 
@@ -113,8 +114,10 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		let fileHandle: FileSystemHandle | undefined = undefined;
+		const startIn = Iterable.first(this.fileSystemProvider.directories);
+
 		try {
-			fileHandle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters), ...{ suggestedName: basename(defaultUri) } });
+			fileHandle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters), ...{ suggestedName: basename(defaultUri), startIn } });
 		} catch (error) {
 			return; // `showSaveFilePicker` will throw an error when the user cancels
 		}
@@ -148,8 +151,10 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		let fileHandle: FileSystemHandle | undefined = undefined;
+		const startIn = Iterable.first(this.fileSystemProvider.directories);
+
 		try {
-			fileHandle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters), ...options.defaultUri ? { suggestedName: basename(options.defaultUri) } : undefined });
+			fileHandle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters), ...options.defaultUri ? { suggestedName: basename(options.defaultUri) } : undefined, ...{ startIn } });
 		} catch (error) {
 			return; // `showSaveFilePicker` will throw an error when the user cancels
 		}
@@ -169,14 +174,16 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		let uri: URI | undefined;
+		const startIn = Iterable.first(this.fileSystemProvider.directories) ?? 'documents';
+
 		try {
 			if (options.canSelectFiles) {
-				const handle = await window.showOpenFilePicker({ multiple: false, types: this.getFilePickerTypes(options.filters) });
+				const handle = await window.showOpenFilePicker({ multiple: false, types: this.getFilePickerTypes(options.filters), ...{ startIn } });
 				if (handle.length === 1) {
 					uri = this.fileSystemProvider.registerFileHandle(handle[0]);
 				}
 			} else {
-				const handle = await window.showDirectoryPicker();
+				const handle = await window.showDirectoryPicker({ ...{ startIn } });
 				uri = this.fileSystemProvider.registerDirectoryHandle(handle);
 			}
 		} catch (error) {
@@ -201,18 +208,16 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		// Otherwise inform the user about options
 
 		const buttons = context === 'open' ?
-			[localize('openRemote', "Open Remote..."), localize('upload', "Upload..."), localize('learnMore', "Learn More"), localize('cancel', "Cancel")] :
-			[localize('openRemote', "Open Remote..."), localize('learnMore', "Learn More"), localize('cancel', "Cancel")];
-
-		const cancelId = context === 'open' ? 3 : 2;
+			[localize('openRemote', "Open Remote..."), localize('openFiles', "Open Files..."), localize('learnMore', "Learn More")] :
+			[localize('openRemote', "Open Remote..."), localize('learnMore', "Learn More")];
 
 		const res = await this.dialogService.show(
 			Severity.Warning,
-			localize('unsupportedBrowserMessage', "Accessing local files is unsupported in your current browser."),
+			localize('unsupportedBrowserMessage', "Local File System Access is Unsupported"),
 			buttons,
 			{
-				detail: localize('unsupportedBrowserDetail', "Click 'Learn More' to see a list of supported browsers."),
-				cancelId
+				detail: localize('unsupportedBrowserDetail', "Your current browser doesn't support local file system access.\nYou can either open single files or open a remote repository."),
+				cancelId: -1 // no "Cancel" button offered
 			}
 		);
 
@@ -223,7 +228,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 				this.commandService.executeCommand('workbench.action.remote.showMenu');
 				break;
 
-			// Upload... (context === 'open')
+			// Open Files... (context === 'open')
 			case 1:
 				if (context === 'open') {
 					const files = await triggerUpload();

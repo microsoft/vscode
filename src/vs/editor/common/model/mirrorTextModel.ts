@@ -106,7 +106,7 @@ export class MirrorTextModel implements IMirrorTextModel {
 		this._lines[lineIndex] = newValue;
 		if (this._lineStarts) {
 			// update prefix sum
-			this._lineStarts.changeValue(lineIndex, this._lines[lineIndex].length + this._eol.length);
+			this._lineStarts.setValue(lineIndex, this._lines[lineIndex].length + this._eol.length);
 		}
 	}
 

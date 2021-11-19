@@ -20,8 +20,7 @@ import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import { TsServerProcessFactory } from './tsServer/server';
 import { ITypeScriptVersionProvider } from './tsServer/versionProvider';
 import TypeScriptServiceClient from './typescriptServiceClient';
-import { CapabilitiesStatus } from './ui/capabilitiesStatus';
-import { ProjectStatus } from './ui/projectStatus';
+import { IntellisenseStatus } from './ui/intellisenseStatus';
 import { VersionStatus } from './ui/versionStatus';
 import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
 import { coalesce, flatten } from './utils/arrays';
@@ -63,7 +62,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 	constructor(
 		descriptions: LanguageDescription[],
 		context: vscode.ExtensionContext,
-		onCaseInsenitiveFileSystem: boolean,
+		onCaseInsensitiveFileSystem: boolean,
 		services: {
 			pluginManager: PluginManager,
 			commandManager: CommandManager,
@@ -83,7 +82,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		const allModeIds = this.getAllModeIds(descriptions, services.pluginManager);
 		this.client = this._register(new TypeScriptServiceClient(
 			context,
-			onCaseInsenitiveFileSystem,
+			onCaseInsensitiveFileSystem,
 			services,
 			allModeIds));
 
@@ -94,14 +93,13 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		this.client.onConfigDiagnosticsReceived(diag => this.configFileDiagnosticsReceived(diag), null, this._disposables);
 		this.client.onResendModelsRequested(() => this.populateService(), null, this._disposables);
 
-		this._register(new CapabilitiesStatus(this.client));
 		this._register(new VersionStatus(this.client));
-		this._register(new ProjectStatus(this.client, services.commandManager, services.activeJsTsEditorTracker));
+		this._register(new IntellisenseStatus(this.client, services.commandManager, services.activeJsTsEditorTracker));
 		this._register(new AtaProgressReporter(this.client));
 		this.typingsStatus = this._register(new TypingsStatus(this.client));
 		this._register(LargeProjectStatus.create(this.client));
 
-		this.fileConfigurationManager = this._register(new FileConfigurationManager(this.client, onCaseInsenitiveFileSystem));
+		this.fileConfigurationManager = this._register(new FileConfigurationManager(this.client, onCaseInsensitiveFileSystem));
 
 		for (const description of descriptions) {
 			const manager = new LanguageProvider(this.client, description, this.commandManager, this.client.telemetryReporter, this.typingsStatus, this.fileConfigurationManager, onCompletionAccepted);
@@ -127,7 +125,8 @@ export default class TypeScriptServiceClientHost extends Disposable {
 						diagnosticSource: 'ts-plugin',
 						diagnosticLanguage: DiagnosticLanguage.TypeScript,
 						diagnosticOwner: 'typescript',
-						isExternal: true
+						isExternal: true,
+						standardFileExtensions: [],
 					}, onCompletionAccepted);
 				} else {
 					for (const language of plugin.languages) {
@@ -143,7 +142,8 @@ export default class TypeScriptServiceClientHost extends Disposable {
 					diagnosticSource: 'ts-plugin',
 					diagnosticLanguage: DiagnosticLanguage.TypeScript,
 					diagnosticOwner: 'typescript',
-					isExternal: true
+					isExternal: true,
+					standardFileExtensions: [],
 				}, onCompletionAccepted);
 			}
 		});
@@ -197,8 +197,20 @@ export default class TypeScriptServiceClientHost extends Disposable {
 
 	private async findLanguage(resource: vscode.Uri): Promise<LanguageProvider | undefined> {
 		try {
+			// First try finding language just based on the resource.
+			// This is not strictly correct but should be in the vast majority of cases
+			// (except when someone goes and maps `.js` to `typescript` or something...)
+			for (const language of this.languages) {
+				if (language.handlesUri(resource)) {
+					return language;
+				}
+			}
+
+			// If that doesn't work, fallback to using a text document language mode.
+			// This is not ideal since we have to open the document but should always
+			// be correct
 			const doc = await vscode.workspace.openTextDocument(resource);
-			return this.languages.find(language => language.handles(resource, doc));
+			return this.languages.find(language => language.handlesDocument(doc));
 		} catch {
 			return undefined;
 		}

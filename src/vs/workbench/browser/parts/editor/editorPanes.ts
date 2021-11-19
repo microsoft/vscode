@@ -32,12 +32,12 @@ export interface IOpenEditorResult {
 	 * open the editor and in cases where no placeholder is being
 	 * used.
 	 */
-	readonly editorPane?: EditorPane;
+	readonly pane?: EditorPane;
 
 	/**
 	 * Whether the editor changed as a result of opening.
 	 */
-	readonly editorChanged?: boolean;
+	readonly changed?: boolean;
 
 	/**
 	 * This property is set when an editor fails to restore and
@@ -45,6 +45,14 @@ export interface IOpenEditorResult {
 	 * to still present the error to the user in that case.
 	 */
 	readonly error?: Error;
+
+	/**
+	 * This property indicates whether the open editor operation was
+	 * cancelled or not. The operation may have been cancelled
+	 * in case another editor open operation was triggered right
+	 * after cancelling this one out.
+	 */
+	readonly cancelled?: boolean;
 }
 
 export class EditorPanes extends Disposable {
@@ -136,11 +144,20 @@ export class EditorPanes extends Disposable {
 	private async doOpenEditor(descriptor: IEditorPaneDescriptor, editor: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext = Object.create(null)): Promise<IOpenEditorResult> {
 
 		// Editor pane
-		const editorPane = this.doShowEditorPane(descriptor);
+		const pane = this.doShowEditorPane(descriptor);
 
 		// Apply input to pane
-		const editorChanged = await this.doSetInput(editorPane, editor, options, context);
-		return { editorPane, editorChanged };
+		const { changed, cancelled } = await this.doSetInput(pane, editor, options, context);
+
+		// Focus unless cancelled
+		if (!cancelled) {
+			const focus = !options || !options.preserveFocus;
+			if (focus) {
+				pane.focus();
+			}
+		}
+
+		return { pane, changed, cancelled };
 	}
 
 	private getEditorPaneDescriptor(editor: EditorInput): IEditorPaneDescriptor {
@@ -234,47 +251,36 @@ export class EditorPanes extends Disposable {
 		this._onDidChangeSizeConstraints.fire(undefined);
 	}
 
-	private async doSetInput(editorPane: EditorPane, editor: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext): Promise<boolean> {
+	private async doSetInput(editorPane: EditorPane, editor: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext): Promise<{ changed: boolean, cancelled: boolean }> {
 
-		// If the input did not change, return early and only apply the options
-		// unless the options instruct us to force open it even if it is the same
-		const forceReload = options?.forceReload;
-		const inputMatches = editorPane.input && editorPane.input.matches(editor);
-		if (inputMatches && !forceReload) {
-
-			// Forward options
+		// If the input did not change, return early and only
+		// apply the options unless the options instruct us to
+		// force open it even if it is the same
+		const inputMatches = editorPane.input?.matches(editor);
+		if (inputMatches && !options?.forceReload) {
 			editorPane.setOptions(options);
 
-			// Still focus as needed
-			const focus = !options || !options.preserveFocus;
-			if (focus) {
-				editorPane.focus();
-			}
-
-			return false;
+			return { changed: false, cancelled: false };
 		}
 
-		// Show progress while setting input after a certain timeout. If the workbench is opening
-		// be more relaxed about progress showing by increasing the delay a little bit to reduce flicker.
+		// Start a new editor input operation to report progress
+		// and to support cancellation. Any new operation that is
+		// started will cancel the previous one.
 		const operation = this.editorOperation.start(this.layoutService.isRestored() ? 800 : 3200);
 
-		// Call into editor pane
-		const editorWillChange = !inputMatches;
+		// Set the input to the editor pane
+		let cancelled = false;
 		try {
 			await editorPane.setInput(editor, options, context, operation.token);
 
-			// Focus (unless prevented or another operation is running)
-			if (operation.isCurrent()) {
-				const focus = !options || !options.preserveFocus;
-				if (focus) {
-					editorPane.focus();
-				}
+			if (!operation.isCurrent()) {
+				cancelled = true;
 			}
-
-			return editorWillChange;
 		} finally {
 			operation.stop();
 		}
+
+		return { changed: !inputMatches, cancelled };
 	}
 
 	private doHideActiveEditorPane(): void {

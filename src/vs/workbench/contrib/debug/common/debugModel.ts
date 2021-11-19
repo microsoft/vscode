@@ -23,7 +23,7 @@ import { IEditorPane } from 'vs/workbench/common/editor';
 import { mixin } from 'vs/base/common/objects';
 import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 
 interface IDebugProtocolVariableWithContext extends DebugProtocol.Variable {
@@ -1124,8 +1124,8 @@ export class DebugModel implements IDebugModel {
 					}
 
 					this.schedulers.get(thread.getId())!.schedule();
+					this._onDidChangeCallStack.fire();
 				});
-				this._onDidChangeCallStack.fire();
 			});
 
 			return { topCallStack, wholeCallStack };

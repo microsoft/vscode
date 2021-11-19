@@ -9,14 +9,12 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { IFilesConfiguration, IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ResourceMap } from 'vs/base/common/map';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { INotificationService, Severity, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { isAbsolute } from 'vs/base/common/path';
-import { isEqualOrParent } from 'vs/base/common/resources';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export class WorkspaceWatcher extends Disposable {
@@ -72,9 +70,6 @@ export class WorkspaceWatcher extends Disposable {
 	private onError(error: Error): void {
 		const msg = error.toString();
 
-		// Forward to unexpected error handler
-		onUnexpectedError(msg);
-
 		// Detect if we run into ENOSPC issues
 		if (msg.indexOf('ENOSPC') >= 0) {
 			this.notificationService.prompt(
@@ -91,18 +86,18 @@ export class WorkspaceWatcher extends Disposable {
 			);
 		}
 
-		// Detect when the watcher shutsdown unexpectedly
-		else if (msg.indexOf('ESHUTDOWN') >= 0) {
+		// Detect when the watcher throws an error unexpectedly
+		else if (msg.indexOf('EUNKNOWN') >= 0) {
 			this.notificationService.prompt(
 				Severity.Warning,
-				localize('eshutdownError', "File changes watcher stopped unexpectedly. Please reload the window to enable the watcher again."),
+				localize('eshutdownError', "File changes watcher stopped unexpectedly. A reload of the window may enable the watcher again unless the workspace cannot be watched for file changes."),
 				[{
 					label: localize('reload', "Reload"),
 					run: () => this.hostService.reload()
 				}],
 				{
 					sticky: true,
-					neverShowAgain: { id: 'ignoreEshutdownError', isSecondary: true, scope: NeverShowAgainScope.WORKSPACE }
+					silent: true // reduce potential spam since we don't really know how often this fires
 				}
 			);
 		}
@@ -136,7 +131,7 @@ export class WorkspaceWatcher extends Disposable {
 				// Absolute: verify a child of the workspace
 				if (isAbsolute(includePath)) {
 					const candidate = URI.file(includePath).with({ scheme: workspace.uri.scheme });
-					if (isEqualOrParent(candidate, workspace.uri)) {
+					if (this.uriIdentityService.extUri.isEqualOrParent(candidate, workspace.uri)) {
 						pathsToWatch.set(candidate, candidate);
 					}
 				}

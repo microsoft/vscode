@@ -325,7 +325,7 @@ registerAction2(class extends Action2 {
 			title: { value: localize('search.rerunSearchInEditor', "Search Again"), original: 'Search Again' },
 			category,
 			keybinding: {
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyR,
 				when: SearchEditorConstants.InSearchEditor,
 				weight: KeybindingWeight.EditorContrib
 			},
@@ -440,8 +440,8 @@ registerAction2(class extends Action2 {
 			precondition: SearchEditorConstants.InSearchEditor,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.Alt | KeyCode.KEY_L,
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_L }
+				primary: KeyMod.Alt | KeyCode.KeyL,
+				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyL }
 			}
 		});
 	}
@@ -460,7 +460,7 @@ registerAction2(class extends Action2 {
 			precondition: SearchEditorConstants.InSearchEditor,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.Alt | KeyCode.US_EQUAL
+				primary: KeyMod.Alt | KeyCode.Equal
 			}
 		});
 	}
@@ -477,7 +477,7 @@ registerAction2(class extends Action2 {
 			precondition: SearchEditorConstants.InSearchEditor,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.Alt | KeyCode.US_MINUS
+				primary: KeyMod.Alt | KeyCode.Minus
 			}
 		});
 	}
@@ -494,7 +494,7 @@ registerAction2(class extends Action2 {
 			precondition: SearchEditorConstants.InSearchEditor,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_L,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL,
 			}
 		});
 	}

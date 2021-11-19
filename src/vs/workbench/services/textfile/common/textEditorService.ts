@@ -18,7 +18,7 @@ import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/u
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -156,7 +156,7 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 			return this.createOrGetCached(canonicalResource, () => {
 
 				// File
-				if (textResourceEditorInput.forceFile || this.fileService.canHandleResource(canonicalResource)) {
+				if (textResourceEditorInput.forceFile || this.fileService.hasProvider(canonicalResource)) {
 					return this.fileEditorFactory.createFileEditor(canonicalResource, preferredResource, textResourceEditorInput.label, textResourceEditorInput.description, textResourceEditorInput.encoding, textResourceEditorInput.mode, textResourceEditorInput.contents, this.instantiationService);
 				}
 

@@ -117,7 +117,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		let sessionData: SessionData[];
 		try {
 			this._logger.info('Reading sessions from keychain...');
-			const storedSessions = await this._keychain.getToken() || await this._keychain.tryMigrate();
+			const storedSessions = await this._keychain.getToken();
 			if (!storedSessions) {
 				return [];
 			}
@@ -195,12 +195,13 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 				scopes: JSON.stringify(scopes),
 			});
 
-			const token = await this._githubServer.login(scopes.join(' '));
+			const scopeString = scopes.join(' ');
+			const token = await this._githubServer.login(scopeString);
 			this.afterTokenLoad(token);
 			const session = await this.tokenToSession(token, scopes);
 
 			const sessions = await this._sessionsPromise;
-			const sessionIndex = sessions.findIndex(s => s.id === session.id);
+			const sessionIndex = sessions.findIndex(s => s.id === session.id || s.scopes.join(' ') === scopeString);
 			if (sessionIndex > -1) {
 				sessions.splice(sessionIndex, 1, session);
 			} else {

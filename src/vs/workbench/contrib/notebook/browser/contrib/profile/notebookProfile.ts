@@ -9,8 +9,8 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CellToolbarLocation, CompactView, ConsolidatedRunButton, FocusIndicator, GlobalToolbar, InsertToolbarLocation, ShowCellStatusBar, UndoRedoPerCell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
+import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
@@ -22,34 +22,34 @@ export enum NotebookProfileType {
 
 const profiles = {
 	[NotebookProfileType.default]: {
-		[FocusIndicator]: 'gutter',
-		[InsertToolbarLocation]: 'both',
-		[GlobalToolbar]: true,
-		[CellToolbarLocation]: { default: 'right' },
-		[CompactView]: true,
-		[ShowCellStatusBar]: 'visible',
-		[ConsolidatedRunButton]: true,
-		[UndoRedoPerCell]: false
+		[NotebookSetting.focusIndicator]: 'gutter',
+		[NotebookSetting.insertToolbarLocation]: 'both',
+		[NotebookSetting.globalToolbar]: true,
+		[NotebookSetting.cellToolbarLocation]: { default: 'right' },
+		[NotebookSetting.compactView]: true,
+		[NotebookSetting.showCellStatusBar]: 'visible',
+		[NotebookSetting.consolidatedRunButton]: true,
+		[NotebookSetting.undoRedoPerCell]: false
 	},
 	[NotebookProfileType.jupyter]: {
-		[FocusIndicator]: 'gutter',
-		[InsertToolbarLocation]: 'notebookToolbar',
-		[GlobalToolbar]: true,
-		[CellToolbarLocation]: { default: 'left' },
-		[CompactView]: true,
-		[ShowCellStatusBar]: 'visible',
-		[ConsolidatedRunButton]: false,
-		[UndoRedoPerCell]: true
+		[NotebookSetting.focusIndicator]: 'gutter',
+		[NotebookSetting.insertToolbarLocation]: 'notebookToolbar',
+		[NotebookSetting.globalToolbar]: true,
+		[NotebookSetting.cellToolbarLocation]: { default: 'left' },
+		[NotebookSetting.compactView]: true,
+		[NotebookSetting.showCellStatusBar]: 'visible',
+		[NotebookSetting.consolidatedRunButton]: false,
+		[NotebookSetting.undoRedoPerCell]: true
 	},
 	[NotebookProfileType.colab]: {
-		[FocusIndicator]: 'border',
-		[InsertToolbarLocation]: 'betweenCells',
-		[GlobalToolbar]: false,
-		[CellToolbarLocation]: { default: 'right' },
-		[CompactView]: false,
-		[ShowCellStatusBar]: 'hidden',
-		[ConsolidatedRunButton]: true,
-		[UndoRedoPerCell]: false
+		[NotebookSetting.focusIndicator]: 'border',
+		[NotebookSetting.insertToolbarLocation]: 'betweenCells',
+		[NotebookSetting.globalToolbar]: false,
+		[NotebookSetting.cellToolbarLocation]: { default: 'right' },
+		[NotebookSetting.compactView]: false,
+		[NotebookSetting.showCellStatusBar]: 'hidden',
+		[NotebookSetting.consolidatedRunButton]: true,
+		[NotebookSetting.undoRedoPerCell]: false
 	}
 };
 
@@ -92,7 +92,7 @@ function isSetProfileArgs(args: unknown): args is ISetProfileArgs {
 }
 
 export class NotebookProfileContribution extends Disposable {
-	constructor(@IConfigurationService configService: IConfigurationService, @ITASExperimentService private readonly experimentService: ITASExperimentService) {
+	constructor(@IConfigurationService configService: IConfigurationService, @IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService) {
 		super();
 
 		if (this.experimentService) {
@@ -101,13 +101,13 @@ export class NotebookProfileContribution extends Disposable {
 					return;
 				} else {
 					// check if settings are already modified
-					const focusIndicator = configService.getValue(FocusIndicator);
-					const insertToolbarPosition = configService.getValue(InsertToolbarLocation);
-					const globalToolbar = configService.getValue(GlobalToolbar);
-					// const cellToolbarLocation = configService.getValue(CellToolbarLocation);
-					const compactView = configService.getValue(CompactView);
-					const showCellStatusBar = configService.getValue(ShowCellStatusBar);
-					const consolidatedRunButton = configService.getValue(ConsolidatedRunButton);
+					const focusIndicator = configService.getValue(NotebookSetting.focusIndicator);
+					const insertToolbarPosition = configService.getValue(NotebookSetting.insertToolbarLocation);
+					const globalToolbar = configService.getValue(NotebookSetting.globalToolbar);
+					// const cellToolbarLocation = configService.getValue(NotebookSetting.cellToolbarLocation);
+					const compactView = configService.getValue(NotebookSetting.compactView);
+					const showCellStatusBar = configService.getValue(NotebookSetting.showCellStatusBar);
+					const consolidatedRunButton = configService.getValue(NotebookSetting.consolidatedRunButton);
 					if (focusIndicator === 'border'
 						&& insertToolbarPosition === 'both'
 						&& globalToolbar === false

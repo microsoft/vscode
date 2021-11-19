@@ -270,7 +270,7 @@ export namespace SymlinkSupport {
 			return { stat: stats, symbolicLink: lstats?.isSymbolicLink() ? { dangling: false } : undefined };
 		} catch (error) {
 
-			// If the link points to a non-existing file we still want
+			// If the link points to a nonexistent file we still want
 			// to return it as result while setting dangling: true flag
 			if (error.code === 'ENOENT' && lstats) {
 				return { stat: lstats, symbolicLink: { dangling: true } };
@@ -285,7 +285,7 @@ export namespace SymlinkSupport {
 					return { stat: stats, symbolicLink: { dangling: false } };
 				} catch (error) {
 
-					// If the link points to a non-existing file we still want
+					// If the link points to a nonexistent file we still want
 					// to return it as result while setting dangling: true flag
 					if (error.code === 'ENOENT' && lstats) {
 						return { stat: lstats, symbolicLink: { dangling: true } };
@@ -304,7 +304,7 @@ export namespace SymlinkSupport {
 	 * for symlinks.
 	 *
 	 * Note: this will return `false` for a symlink that exists on
-	 * disk but is dangling (pointing to a non-existing path).
+	 * disk but is dangling (pointing to a nonexistent path).
 	 *
 	 * Use `exists` if you only care about the path existing on disk
 	 * or not without support for symbolic links.
@@ -326,7 +326,7 @@ export namespace SymlinkSupport {
 	 * symlinks.
 	 *
 	 * Note: this will return `false` for a symlink that exists on
-	 * disk but is dangling (pointing to a non-existing path).
+	 * disk but is dangling (pointing to a nonexistent path).
 	 *
 	 * Use `exists` if you only care about the path existing on disk
 	 * or not without support for symbolic links.

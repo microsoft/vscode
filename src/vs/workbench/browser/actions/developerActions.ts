@@ -19,7 +19,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { timeout } from 'vs/base/common/async';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
+import { registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { clamp } from 'vs/base/common/numbers';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -207,7 +207,7 @@ class ToggleScreencastModeAction extends Action2 {
 			const event = new StandardKeyboardEvent(e);
 			const shortcut = keybindingService.softDispatch(event, event.target);
 
-			if (shortcut || !configurationService.getValue('screencastMode.onlyKeyboardShortcuts')) {
+			if (shortcut?.commandId || !configurationService.getValue('screencastMode.onlyKeyboardShortcuts')) {
 				if (
 					event.ctrlKey || event.altKey || event.metaKey || event.shiftKey
 					|| length > 20
@@ -217,11 +217,37 @@ class ToggleScreencastModeAction extends Action2 {
 					length = 0;
 				}
 
+				const format = configurationService.getValue<'keys' | 'command' | 'commandWithGroup' | 'commandAndKeys' | 'commandWithGroupAndKeys'>('screencastMode.keyboardShortcutsFormat');
 				const keybinding = keybindingService.resolveKeyboardEvent(event);
-				const label = keybinding.getLabel();
-				const key = $('span.key', {}, label || '');
+				const command = shortcut?.commandId ? MenuRegistry.getCommand(shortcut.commandId) : null;
+
+				let titleLabel = '';
+				let keyLabel = keybinding.getLabel();
+
+				if (command) {
+					titleLabel = typeof command.title === 'string' ? command.title : command.title.value;
+
+					if ((format === 'commandWithGroup' || format === 'commandWithGroupAndKeys') && command.category) {
+						titleLabel = `${typeof command.category === 'string' ? command.category : command.category.value}: ${titleLabel} `;
+					}
+
+					if (shortcut?.commandId) {
+						const fullKeyLabel = keybindingService.lookupKeybinding(shortcut.commandId);
+						if (fullKeyLabel) {
+							keyLabel = fullKeyLabel.getLabel();
+						}
+					}
+				}
+
+				if (format !== 'keys' && titleLabel) {
+					append(keyboardMarker, $('span.title', {}, `${titleLabel} `));
+				}
+
+				if (!configurationService.getValue('screencastMode.onlyKeyboardShortcuts') || !titleLabel || shortcut?.commandId && (format === 'keys' || format === 'commandAndKeys' || format === 'commandWithGroupAndKeys')) {
+					append(keyboardMarker, $('span.key', {}, keyLabel || ''));
+				}
+
 				length++;
-				append(keyboardMarker, key);
 			}
 
 			const promise = timeout(keyboardMarkerTimeout);
@@ -317,6 +343,18 @@ configurationRegistry.registerConfiguration({
 			minimum: 20,
 			maximum: 100,
 			description: localize('screencastMode.fontSize', "Controls the font size (in pixels) of the screencast mode keyboard.")
+		},
+		'screencastMode.keyboardShortcutsFormat': {
+			enum: ['keys', 'command', 'commandWithGroup', 'commandAndKeys', 'commandWithGroupAndKeys'],
+			enumDescriptions: [
+				localize('keyboardShortcutsFormat.keys', "Keys."),
+				localize('keyboardShortcutsFormat.command', "Command title."),
+				localize('keyboardShortcutsFormat.commandWithGroup', "Command title prefixed by its group."),
+				localize('keyboardShortcutsFormat.commandAndKeys', "Command title and keys."),
+				localize('keyboardShortcutsFormat.commandWithGroupAndKeys', "Command title and keys, with the command prefixed by its group.")
+			],
+			description: localize('screencastMode.keyboardShortcutsFormat', "Controls what is displayed in the keyboard overlay when showing only shortcuts."),
+			default: 'commandAndKeys'
 		},
 		'screencastMode.onlyKeyboardShortcuts': {
 			type: 'boolean',

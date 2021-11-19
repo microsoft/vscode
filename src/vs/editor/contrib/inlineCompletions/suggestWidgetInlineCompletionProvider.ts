@@ -16,7 +16,7 @@ import { CompletionItem } from 'vs/editor/contrib/suggest/suggest';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { minimizeInlineCompletion } from './inlineCompletionsModel';
 import { NormalizedInlineCompletion, normalizedInlineCompletionsEquals } from './inlineCompletionToGhostText';
-import { compareBy, compareByNumberAsc, findMinBy } from './utils';
+import { compareBy, compareByNumber, findMaxBy } from './utils';
 
 export interface SuggestWidgetState {
 	/**
@@ -78,25 +78,32 @@ export class SuggestWidgetInlineCompletionProvider extends Disposable {
 		if (suggestController) {
 			this._register(suggestController.registerSelector({
 				priority: 100,
-				select: (model, pos, items) => {
+				select: (model, pos, suggestItems) => {
 					const textModel = this.editor.getModel();
-					const preselectedMinimized = minimizeInlineCompletion(textModel, this.suggestControllerPreselector());
-					if (!preselectedMinimized) {
+					const normalizedItemToPreselect = minimizeInlineCompletion(textModel, this.suggestControllerPreselector());
+					if (!normalizedItemToPreselect) {
 						return -1;
 					}
 					const position = Position.lift(pos);
 
-					const result = findMinBy(
-						items
-							.map((item, index) => {
-								const completion = suggestionToInlineCompletion(suggestController, position, item, this.isShiftKeyPressed);
-								// Minimization normalizes ranges.
-								const minimized = minimizeInlineCompletion(textModel, completion);
-								const valid = minimized.range.equalsRange(preselectedMinimized.range) && preselectedMinimized.text.startsWith(minimized.text);
-								return { index, valid, length: minimized.text.length };
-							})
-							.filter(item => item.valid),
-						compareBy(s => s.length, compareByNumberAsc()));
+					const candidates = suggestItems
+						.map((suggestItem, index) => {
+							const inlineSuggestItem = suggestionToInlineCompletion(suggestController, position, suggestItem, this.isShiftKeyPressed);
+							const normalizedSuggestItem = minimizeInlineCompletion(textModel, inlineSuggestItem);
+							if (!normalizedSuggestItem) {
+								return undefined;
+							}
+							const valid =
+								rangeStartsWith(normalizedItemToPreselect.range, normalizedSuggestItem.range) &&
+								normalizedItemToPreselect.text.startsWith(normalizedSuggestItem.text);
+							return { index, valid, prefixLength: normalizedSuggestItem.text.length, suggestItem };
+						})
+						.filter(item => item && item.valid);
+
+					const result = findMaxBy(
+						candidates,
+						compareBy(s => s!.prefixLength, compareByNumber())
+					);
 					return result ? result.index : - 1;
 				}
 			}));
@@ -183,7 +190,17 @@ export class SuggestWidgetInlineCompletionProvider extends Disposable {
 	}
 }
 
-function suggestionToInlineCompletion(suggestController: SuggestController, position: Position, item: CompletionItem, toggleMode: boolean): NormalizedInlineCompletion {
+export function rangeStartsWith(rangeToTest: Range, prefix: Range): boolean {
+	return (
+		prefix.startLineNumber === rangeToTest.startLineNumber &&
+		prefix.startColumn === rangeToTest.startColumn &&
+		(prefix.endLineNumber < rangeToTest.endLineNumber ||
+			(prefix.endLineNumber === rangeToTest.endLineNumber &&
+				prefix.endColumn <= rangeToTest.endColumn))
+	);
+}
+
+function suggestionToInlineCompletion(suggestController: SuggestController, position: Position, item: CompletionItem, toggleMode: boolean): NormalizedInlineCompletion | undefined {
 	// additionalTextEdits might not be resolved here, this could be problematic.
 	if (Array.isArray(item.completion.additionalTextEdits) && item.completion.additionalTextEdits.length > 0) {
 		// cannot represent additional text edits
@@ -197,11 +214,14 @@ function suggestionToInlineCompletion(suggestController: SuggestController, posi
 	if (item.completion.insertTextRules! & CompletionItemInsertTextRule.InsertAsSnippet) {
 		const snippet = new SnippetParser().parse(insertText);
 		const model = suggestController.editor.getModel()!;
-		SnippetSession.adjustWhitespace(
-			model, position, snippet,
-			true,
-			true
-		);
+
+		// Ignore snippets that are too large.
+		// Adjust whitespace is expensive for them.
+		if (snippet.children.length > 100) {
+			return undefined;
+		}
+
+		SnippetSession.adjustWhitespace(model, position, snippet, true, true);
 		insertText = snippet.toString();
 	}
 

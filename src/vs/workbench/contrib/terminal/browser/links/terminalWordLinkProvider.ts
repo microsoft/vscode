@@ -133,6 +133,9 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 		// that format
 		link = normalize(link).replace(/^(\.+[\\/])+/, '');
 
+		// Remove `:in` from the end which is how Ruby outputs stack traces
+		link = link.replace(/:in$/, '');
+
 		// If any of the names of the folders in the workspace matches
 		// a prefix of the link, remove that prefix and continue
 		this._workspaceContextService.getWorkspace().folders.forEach((folder) => {

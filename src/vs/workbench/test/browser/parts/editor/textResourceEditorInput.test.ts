@@ -11,15 +11,22 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
 import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('TextResourceEditorInput', () => {
 
+	let disposables: DisposableStore;
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
+		disposables = new DisposableStore();
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
+	});
+
+	teardown(() => {
+		disposables.dispose();
 	});
 
 	test('basics', async () => {
@@ -46,13 +53,13 @@ suite('TextResourceEditorInput', () => {
 
 		const model = await input.resolve();
 		assert.ok(model);
-		assert.strictEqual(model.textEditorModel?.getModeId(), 'resource-input-test');
+		assert.strictEqual(model.textEditorModel?.getLanguageId(), 'resource-input-test');
 
 		input.setMode('text');
-		assert.strictEqual(model.textEditorModel?.getModeId(), PLAINTEXT_MODE_ID);
+		assert.strictEqual(model.textEditorModel?.getLanguageId(), PLAINTEXT_MODE_ID);
 
 		await input.resolve();
-		assert.strictEqual(model.textEditorModel?.getModeId(), PLAINTEXT_MODE_ID);
+		assert.strictEqual(model.textEditorModel?.getLanguageId(), PLAINTEXT_MODE_ID);
 	});
 
 	test('preferred mode (via setPreferredMode)', async () => {
@@ -68,7 +75,7 @@ suite('TextResourceEditorInput', () => {
 
 		const model = await input.resolve();
 		assert.ok(model);
-		assert.strictEqual(model.textEditorModel?.getModeId(), 'resource-input-test');
+		assert.strictEqual(model.textEditorModel?.getLanguageId(), 'resource-input-test');
 	});
 
 	test('preferred contents (via ctor)', async () => {

@@ -177,7 +177,8 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			const editorPanes = this._editorService.visibleEditorPanes;
 			for (let editorPane of editorPanes) {
 				if (mainThreadEditor.matches(editorPane)) {
-					return editorPane.group.closeEditor(editorPane.input);
+					await editorPane.group.closeEditor(editorPane.input);
+					return;
 				}
 			}
 		}

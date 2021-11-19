@@ -21,11 +21,11 @@ export interface IExtensionHostProcessOptions {
 export interface IExtensionHostStarter {
 	readonly _serviceBrand: undefined;
 
-	onScopedStdout(id: string): Event<string>;
-	onScopedStderr(id: string): Event<string>;
-	onScopedMessage(id: string): Event<any>;
-	onScopedError(id: string): Event<{ error: SerializedError; }>;
-	onScopedExit(id: string): Event<{ code: number; signal: string }>;
+	onDynamicStdout(id: string): Event<string>;
+	onDynamicStderr(id: string): Event<string>;
+	onDynamicMessage(id: string): Event<any>;
+	onDynamicError(id: string): Event<{ error: SerializedError; }>;
+	onDynamicExit(id: string): Event<{ code: number; signal: string }>;
 
 	createExtensionHost(): Promise<{ id: string; }>;
 	start(id: string, opts: IExtensionHostProcessOptions): Promise<{ pid: number; }>;

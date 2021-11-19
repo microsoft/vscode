@@ -782,7 +782,7 @@ declare module DebugProtocol {
 		/** Reference to the Variable container if the data breakpoint is requested for a child of the container. */
 		variablesReference?: number;
 		/** The name of the Variable's child to obtain data breakpoint information for.
-			If variablesReference isn’t provided, this can be an expression.
+			If variablesReference isn't provided, this can be an expression.
 		*/
 		name: string;
 	}

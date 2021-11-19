@@ -3,16 +3,12 @@ steps:
     inputs:
       versionSpec: "14.x"
 
-  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
-    inputs:
-      versionSpec: "1.x"
-
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
-      SecretsFilter: 'github-distro-mixin-password'
+      SecretsFilter: "github-distro-mixin-password"
 
   - task: DownloadPipelineArtifact@2
     inputs:
@@ -58,7 +54,7 @@ steps:
 
   - task: Cache@2
     inputs:
-      key: 'nodeModules | $(Agent.OS) | .build/yarnlockhash'
+      key: "nodeModules | $(Agent.OS) | .build/yarnlockhash"
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
@@ -107,7 +103,7 @@ steps:
     displayName: Mix in quality
 
   - script: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-    displayName: 'Register Docker QEMU'
+    displayName: "Register Docker QEMU"
     condition: eq(variables['VSCODE_ARCH'], 'arm64')
 
   - script: |

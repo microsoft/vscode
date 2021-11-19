@@ -11,7 +11,7 @@ import * as platform from 'vs/base/common/platform';
 import { CharWidthRequest, CharWidthRequestType, readCharWidths } from 'vs/editor/browser/config/charWidthReader';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { CommonEditorConfiguration, IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { EditorOption, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, EditorFontLigatures, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo, SERIALIZED_FONT_INFO_VERSION } from 'vs/editor/common/config/fontInfo';
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
@@ -238,29 +238,13 @@ class CSSBasedConfiguration extends Disposable {
 		const wsmiddotWidth = this.createRequest(String.fromCharCode(0x2E31), CharWidthRequestType.Regular, all, null);
 
 		// monospace test: some characters
-		this.createRequest('|', CharWidthRequestType.Regular, all, monospace);
-		this.createRequest('/', CharWidthRequestType.Regular, all, monospace);
-		this.createRequest('-', CharWidthRequestType.Regular, all, monospace);
-		this.createRequest('_', CharWidthRequestType.Regular, all, monospace);
-		this.createRequest('i', CharWidthRequestType.Regular, all, monospace);
-		this.createRequest('l', CharWidthRequestType.Regular, all, monospace);
-		this.createRequest('m', CharWidthRequestType.Regular, all, monospace);
+		const monospaceTestChars = '|/-_ilm%';
+		for (let i = 0, len = monospaceTestChars.length; i < len; i++) {
+			this.createRequest(monospaceTestChars.charAt(i), CharWidthRequestType.Regular, all, monospace);
+			this.createRequest(monospaceTestChars.charAt(i), CharWidthRequestType.Italic, all, monospace);
+			this.createRequest(monospaceTestChars.charAt(i), CharWidthRequestType.Bold, all, monospace);
 
-		// monospace italic test
-		this.createRequest('|', CharWidthRequestType.Italic, all, monospace);
-		this.createRequest('_', CharWidthRequestType.Italic, all, monospace);
-		this.createRequest('i', CharWidthRequestType.Italic, all, monospace);
-		this.createRequest('l', CharWidthRequestType.Italic, all, monospace);
-		this.createRequest('m', CharWidthRequestType.Italic, all, monospace);
-		this.createRequest('n', CharWidthRequestType.Italic, all, monospace);
-
-		// monospace bold test
-		this.createRequest('|', CharWidthRequestType.Bold, all, monospace);
-		this.createRequest('_', CharWidthRequestType.Bold, all, monospace);
-		this.createRequest('i', CharWidthRequestType.Bold, all, monospace);
-		this.createRequest('l', CharWidthRequestType.Bold, all, monospace);
-		this.createRequest('m', CharWidthRequestType.Bold, all, monospace);
-		this.createRequest('n', CharWidthRequestType.Bold, all, monospace);
+		}
 
 		readCharWidths(bareFontInfo, all);
 
@@ -312,7 +296,7 @@ class CSSBasedConfiguration extends Disposable {
 export class Configuration extends CommonEditorConfiguration {
 
 	public static applyFontInfoSlow(domNode: HTMLElement, fontInfo: BareFontInfo): void {
-		domNode.style.fontFamily = fontInfo.getMassagedFontFamily();
+		domNode.style.fontFamily = fontInfo.getMassagedFontFamily(browser.isSafari ? EDITOR_FONT_DEFAULTS.fontFamily : null);
 		domNode.style.fontWeight = fontInfo.fontWeight;
 		domNode.style.fontSize = fontInfo.fontSize + 'px';
 		domNode.style.fontFeatureSettings = fontInfo.fontFeatureSettings;
@@ -321,7 +305,7 @@ export class Configuration extends CommonEditorConfiguration {
 	}
 
 	public static applyFontInfo(domNode: FastDomNode<HTMLElement>, fontInfo: BareFontInfo): void {
-		domNode.setFontFamily(fontInfo.getMassagedFontFamily());
+		domNode.setFontFamily(fontInfo.getMassagedFontFamily(browser.isSafari ? EDITOR_FONT_DEFAULTS.fontFamily : null));
 		domNode.setFontWeight(fontInfo.fontWeight);
 		domNode.setFontSize(fontInfo.fontSize);
 		domNode.setFontFeatureSettings(fontInfo.fontFeatureSettings);

@@ -43,12 +43,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				const langWordPairs = LanguageConfigurationRegistry.getWordDefinitions();
 				let wordDefinitionDtos: ILanguageWordDefinitionDto[] = [];
 				for (const [languageId, wordDefinition] of langWordPairs) {
-					const language = this._modeService.getLanguageIdentifier(languageId);
-					if (!language) {
-						continue;
-					}
 					wordDefinitionDtos.push({
-						languageId: language.language,
+						languageId: languageId,
 						regexSource: wordDefinition.source,
 						regexFlags: wordDefinition.flags
 					});
@@ -56,9 +52,9 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				this._proxy.$setWordDefinitions(wordDefinitionDtos);
 			};
 			LanguageConfigurationRegistry.onDidChange((e) => {
-				const wordDefinition = LanguageConfigurationRegistry.getWordDefinition(e.languageIdentifier.id);
+				const wordDefinition = LanguageConfigurationRegistry.getWordDefinition(e.languageId);
 				this._proxy.$setWordDefinitions([{
-					languageId: e.languageIdentifier.language,
+					languageId: e.languageId,
 					regexSource: wordDefinition.source,
 					regexFlags: wordDefinition.flags
 				}]);
@@ -388,27 +384,26 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- navigate type
 
-	$registerNavigateTypeSupport(handle: number): void {
+	$registerNavigateTypeSupport(handle: number, supportsResolve: boolean): void {
 		let lastResultId: number | undefined;
-		this._registrations.set(handle, search.WorkspaceSymbolProviderRegistry.register(<search.IWorkspaceSymbolProvider>{
-			provideWorkspaceSymbols: (search: string, token: CancellationToken): Promise<search.IWorkspaceSymbol[]> => {
-				return this._proxy.$provideWorkspaceSymbols(handle, search, token).then(result => {
-					if (lastResultId !== undefined) {
-						this._proxy.$releaseWorkspaceSymbols(handle, lastResultId);
-					}
-					lastResultId = result._id;
-					return MainThreadLanguageFeatures._reviveWorkspaceSymbolDto(result.symbols);
-				});
-			},
-			resolveWorkspaceSymbol: (item: search.IWorkspaceSymbol, token: CancellationToken): Promise<search.IWorkspaceSymbol | undefined> => {
-				return this._proxy.$resolveWorkspaceSymbol(handle, item, token).then(i => {
-					if (i) {
-						return MainThreadLanguageFeatures._reviveWorkspaceSymbolDto(i);
-					}
-					return undefined;
-				});
+
+		const provider: search.IWorkspaceSymbolProvider = {
+			provideWorkspaceSymbols: async (search: string, token: CancellationToken): Promise<search.IWorkspaceSymbol[]> => {
+				const result = await this._proxy.$provideWorkspaceSymbols(handle, search, token);
+				if (lastResultId !== undefined) {
+					this._proxy.$releaseWorkspaceSymbols(handle, lastResultId);
+				}
+				lastResultId = result._id;
+				return MainThreadLanguageFeatures._reviveWorkspaceSymbolDto(result.symbols);
 			}
-		}));
+		};
+		if (supportsResolve) {
+			provider.resolveWorkspaceSymbol = async (item: search.IWorkspaceSymbol, token: CancellationToken): Promise<search.IWorkspaceSymbol | undefined> => {
+				const resolvedItem = await this._proxy.$resolveWorkspaceSymbol(handle, item, token);
+				return resolvedItem && MainThreadLanguageFeatures._reviveWorkspaceSymbolDto(resolvedItem);
+			};
+		}
+		this._registrations.set(handle, search.WorkspaceSymbolProviderRegistry.register(provider));
 	}
 
 	// --- rename
@@ -566,10 +561,10 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		this._registrations.set(handle, modes.InlayHintsProviderRegistry.register(selector, provider));
 	}
 
-	$emitInlayHintsEvent(eventHandle: number, event?: any): void {
+	$emitInlayHintsEvent(eventHandle: number): void {
 		const obj = this._registrations.get(eventHandle);
 		if (obj instanceof Emitter) {
-			obj.fire(event);
+			obj.fire(undefined);
 		}
 	}
 
@@ -683,7 +678,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 			prepareCallHierarchy: async (document, position, token) => {
 				const items = await this._proxy.$prepareCallHierarchy(handle, document.uri, position, token);
-				if (!items) {
+				if (!items || items.length === 0) {
 					return undefined;
 				}
 				return {
@@ -775,9 +770,9 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			};
 		}
 
-		const languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
-		if (languageIdentifier) {
-			this._registrations.set(handle, LanguageConfigurationRegistry.register(languageIdentifier, configuration, 100));
+		const validLanguageId = this._modeService.validateLanguageId(languageId);
+		if (validLanguageId) {
+			this._registrations.set(handle, LanguageConfigurationRegistry.register(validLanguageId, configuration, 100));
 		}
 	}
 

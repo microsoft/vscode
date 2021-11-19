@@ -25,8 +25,6 @@ const { getUserDataPath } = require('./vs/platform/environment/node/userDataPath
 const product = require('../product.json');
 const { app, protocol, crashReporter } = require('electron');
 
-// Disable render process reuse, we still have
-// non-context aware native modules in the renderer.
 app.allowRendererProcessReuse = false;
 
 // Enable portable support
@@ -89,7 +87,7 @@ registerListeners();
  * Support user defined locale: load it early before app('ready')
  * to have more things running in parallel.
  *
- * @type {Promise<NLSConfiguration> | undefined}
+ * @type {Promise<NLSConfiguration> | undefined}
  */
 let nlsConfigurationPromise = undefined;
 
@@ -175,7 +173,10 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		'enable-proposed-api',
 
 		// Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.
-		'log-level'
+		'log-level',
+
+		// Enables render process reuse. Default value is 'false'. See https://github.com/electron/electron/issues/18397
+		'enable-render-process-reuse'
 	];
 
 	// Read argv config
@@ -218,6 +219,12 @@ function configureCommandlineSwitchesSync(cliArgs) {
 				case 'log-level':
 					if (typeof argvValue === 'string') {
 						process.argv.push('--log', argvValue);
+					}
+					break;
+
+				case 'enable-render-process-reuse':
+					if (argvValue === true) {
+						app.allowRendererProcessReuse = true;
 					}
 					break;
 			}
@@ -523,7 +530,7 @@ function mkdirp(dir) {
 }
 
 /**
- * @param {string | undefined} dir
+ * @param {string | undefined} dir
  * @returns {Promise<string | undefined>}
  */
 async function mkdirpIgnoreError(dir) {

@@ -46,17 +46,22 @@ suite.skip('Notebook Editor', function () {
 
 	test('showNotebookDocment', async function () {
 
-		const p = utils.asPromise(vscode.workspace.onDidOpenNotebookDocument);
+		const notebookDocumentsFromOnDidOpen = new Set<vscode.NotebookDocument>();
+		const sub = vscode.workspace.onDidOpenNotebookDocument(e => {
+			notebookDocumentsFromOnDidOpen.add(e);
+		});
+
 		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 
 		const editor = await vscode.window.showNotebookDocument(uri);
 		assert.strictEqual(uri.toString(), editor.document.uri.toString());
 
-		const event = await p;
-		assert.strictEqual(event.uri.toString(), uri.toString());
+		assert.strictEqual(notebookDocumentsFromOnDidOpen.has(editor.document), true);
 
 		const includes = vscode.workspace.notebookDocuments.includes(editor.document);
 		assert.strictEqual(true, includes);
+
+		sub.dispose();
 	});
 
 	// TODO@rebornix deal with getting started
@@ -72,7 +77,7 @@ suite.skip('Notebook Editor', function () {
 		assert.strictEqual(editor2.viewColumn, vscode.ViewColumn.Two);
 	});
 
-	test.skip('Opening a notebook should fire activeNotebook event changed only once', async function () {
+	test('Opening a notebook should fire activeNotebook event changed only once', async function () {
 		const openedEditor = utils.asPromise(vscode.window.onDidChangeActiveNotebookEditor);
 		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		const editor = await vscode.window.showNotebookDocument(resource);

@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { Event } from 'vs/base/common/event';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -22,8 +23,8 @@ import { workbenchInstantiationService } from 'vs/workbench/test/browser/workben
 suite('NotebookProviderInfoStore', function () {
 
 	test('Can\'t open untitled notebooks in test #119363', function () {
-
-		const instantiationService = workbenchInstantiationService();
+		const disposables = new DisposableStore();
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const store = new NotebookProviderInfoStore(
 			new class extends mock<IStorageService>() {
 				override get() { return ''; }
@@ -37,7 +38,7 @@ suite('NotebookProviderInfoStore', function () {
 			new class extends mock<IAccessibilityService>() { },
 			instantiationService,
 			new class extends mock<IFileService>() {
-				override canHandleResource() { return true; }
+				override hasProvider() { return true; }
 			},
 			new class extends mock<INotebookEditorModelResolverService>() { }
 		);
@@ -84,6 +85,8 @@ suite('NotebookProviderInfoStore', function () {
 		providers = store.getContributedNotebook(URI.parse('untitled:///test/nb.bar'));
 		assert.strictEqual(providers.length, 1);
 		assert.strictEqual(providers[0] === barInfo, true);
+
+		disposables.dispose();
 	});
 
 });

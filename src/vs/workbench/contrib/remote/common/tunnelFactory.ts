@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITunnelService, TunnelOptions, RemoteTunnel, TunnelCreationOptions, ITunnel, TunnelProtocol } from 'vs/platform/remote/common/tunnel';
+import * as nls from 'vs/nls';
+import { ITunnelService, TunnelOptions, RemoteTunnel, TunnelCreationOptions, ITunnel, TunnelProtocol, TunnelPrivacyId } from 'vs/platform/remote/common/tunnel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -24,8 +25,25 @@ export class TunnelFactoryContribution extends Disposable implements IWorkbenchC
 		super();
 		const tunnelFactory = environmentService.options?.tunnelProvider?.tunnelFactory;
 		if (tunnelFactory) {
+			let privacyOptions = environmentService.options?.tunnelProvider?.features?.privacyOptions ?? [];
+			if (environmentService.options?.tunnelProvider?.features?.public
+				&& (privacyOptions.length === 0)) {
+				privacyOptions = [
+					{
+						id: 'private',
+						label: nls.localize('tunnelPrivacy.private', "Private"),
+						themeIcon: 'lock'
+					},
+					{
+						id: 'public',
+						label: nls.localize('tunnelPrivacy.public', "Public"),
+						themeIcon: 'eye'
+					}
+				];
+			}
+
 			this._register(tunnelService.setTunnelProvider({
-				forwardPort: (tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<RemoteTunnel | undefined> | undefined => {
+				forwardPort: async (tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<RemoteTunnel | undefined> => {
 					let tunnelPromise: Promise<ITunnel> | undefined;
 					try {
 						tunnelPromise = tunnelFactory(tunnelOptions, tunnelCreationOptions);
@@ -33,34 +51,34 @@ export class TunnelFactoryContribution extends Disposable implements IWorkbenchC
 						logService.trace('tunnelFactory: tunnel provider error');
 					}
 
-					return new Promise(async (resolve) => {
-						if (!tunnelPromise) {
-							resolve(undefined);
-							return;
-						}
-						let tunnel: ITunnel;
-						try {
-							tunnel = await tunnelPromise;
-						} catch (e) {
-							logService.trace('tunnelFactory: tunnel provider promise error');
-							resolve(undefined);
-							return;
-						}
-						const localAddress = tunnel.localAddress.startsWith('http') ? tunnel.localAddress : `http://${tunnel.localAddress}`;
-						const remoteTunnel: RemoteTunnel = {
-							tunnelRemotePort: tunnel.remoteAddress.port,
-							tunnelRemoteHost: tunnel.remoteAddress.host,
-							// The tunnel factory may give us an inaccessible local address.
-							// To make sure this doesn't happen, resolve the uri immediately.
-							localAddress: await this.resolveExternalUri(localAddress),
-							public: !!tunnel.public,
-							protocol: tunnel.protocol ?? TunnelProtocol.Http,
-							dispose: async () => { await tunnel.dispose(); }
-						};
-						resolve(remoteTunnel);
-					});
+					if (!tunnelPromise) {
+						return undefined;
+					}
+					let tunnel: ITunnel;
+					try {
+						tunnel = await tunnelPromise;
+					} catch (e) {
+						logService.trace('tunnelFactory: tunnel provider promise error');
+						return undefined;
+					}
+					const localAddress = tunnel.localAddress.startsWith('http') ? tunnel.localAddress : `http://${tunnel.localAddress}`;
+					const remoteTunnel: RemoteTunnel = {
+						tunnelRemotePort: tunnel.remoteAddress.port,
+						tunnelRemoteHost: tunnel.remoteAddress.host,
+						// The tunnel factory may give us an inaccessible local address.
+						// To make sure this doesn't happen, resolve the uri immediately.
+						localAddress: await this.resolveExternalUri(localAddress),
+						privacy: tunnel.privacy ?? (tunnel.public ? TunnelPrivacyId.Public : TunnelPrivacyId.Private),
+						protocol: tunnel.protocol ?? TunnelProtocol.Http,
+						dispose: async () => { await tunnel.dispose(); }
+					};
+					return remoteTunnel;
 				}
-			}, environmentService.options?.tunnelProvider?.features ?? { elevation: false, public: false }));
+			}, {
+				elevation: !!environmentService.options?.tunnelProvider?.features?.elevation,
+				public: !!environmentService.options?.tunnelProvider?.features?.public,
+				privacyOptions
+			}));
 			remoteExplorerService.setTunnelInformation(undefined);
 		}
 	}

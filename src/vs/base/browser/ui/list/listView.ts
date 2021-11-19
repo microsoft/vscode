@@ -203,6 +203,16 @@ class ListViewAccessibilityProvider<T> implements Required<IListViewAccessibilit
 	}
 }
 
+/**
+ * The {@link ListView} is a virtual scrolling engine.
+ *
+ * Given that it only renders elements within its viewport, it can hold large
+ * collections of elements and stay very performant. The performance bottleneck
+ * usually lies within the user's rendering code for each element.
+ *
+ * @remarks It is a low-level widget, not meant to be used directly. Refer to the
+ * List widget instead.
+ */
 export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	private static InstanceCount = 0;
@@ -1317,6 +1327,16 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	private probeDynamicHeight(index: number): number {
 		const item = this.items[index];
+
+		if (!!this.virtualDelegate.getDynamicHeight) {
+			const newSize = this.virtualDelegate.getDynamicHeight(item.element);
+			if (newSize !== null) {
+				const size = item.size;
+				item.size = newSize;
+				item.lastDynamicHeightWidth = this.renderWidth;
+				return newSize - size;
+			}
+		}
 
 		if (!item.hasDynamicHeight || item.lastDynamicHeightWidth === this.renderWidth) {
 			return 0;

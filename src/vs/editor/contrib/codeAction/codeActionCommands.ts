@@ -218,7 +218,7 @@ export class QuickFixAction extends EditorAction {
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.US_DOT,
+				primary: KeyMod.CtrlCmd | KeyCode.Period,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -275,9 +275,9 @@ export class RefactorAction extends EditorAction {
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyR,
 				mac: {
-					primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_R
+					primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyR
 				},
 				weight: KeybindingWeight.EditorContrib
 			},
@@ -372,7 +372,7 @@ export class OrganizeImportsAction extends EditorAction {
 				contextKeyForSupportedActions(CodeActionKind.SourceOrganizeImports)),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_O,
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KeyO,
 				weight: KeybindingWeight.EditorContrib
 			},
 		});
@@ -421,9 +421,9 @@ export class AutoFixAction extends EditorAction {
 				contextKeyForSupportedActions(CodeActionKind.QuickFix)),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.US_DOT,
+				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.Period,
 				mac: {
-					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_DOT
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Period
 				},
 				weight: KeybindingWeight.EditorContrib
 			}

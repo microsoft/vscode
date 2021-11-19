@@ -3,12 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Token } from 'markdown-it';
+import Token = require('markdown-it/lib/token');
 import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
 import { TableOfContentsProvider } from '../tableOfContentsProvider';
 
 const rangeLimit = 5000;
+
+interface MarkdownItTokenWithMap extends Token {
+	map: [number, number];
+}
 
 export default class MarkdownFoldingProvider implements vscode.FoldingRangeProvider {
 
@@ -84,10 +88,14 @@ export default class MarkdownFoldingProvider implements vscode.FoldingRangeProvi
 const isStartRegion = (t: string) => /^\s*<!--\s*#?region\b.*-->/.test(t);
 const isEndRegion = (t: string) => /^\s*<!--\s*#?endregion\b.*-->/.test(t);
 
-const isRegionMarker = (token: Token) =>
-	token.type === 'html_block' && (isStartRegion(token.content) || isEndRegion(token.content));
+const isRegionMarker = (token: Token): token is MarkdownItTokenWithMap =>
+	!!token.map && token.type === 'html_block' && (isStartRegion(token.content) || isEndRegion(token.content));
 
-const isFoldableToken = (token: Token): boolean => {
+const isFoldableToken = (token: Token): token is MarkdownItTokenWithMap => {
+	if (!token.map) {
+		return false;
+	}
+
 	switch (token.type) {
 		case 'fence':
 		case 'list_item_open':

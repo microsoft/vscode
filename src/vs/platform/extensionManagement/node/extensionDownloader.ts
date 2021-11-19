@@ -72,7 +72,8 @@ export class ExtensionsDownloader extends Disposable {
 	}
 
 	async delete(location: URI): Promise<void> {
-		// noop as caching is enabled always
+		await this.cleanUpPromise;
+		await this.fileService.del(location);
 	}
 
 	private async rename(from: URI, to: URI, retryUntil: number): Promise<void> {

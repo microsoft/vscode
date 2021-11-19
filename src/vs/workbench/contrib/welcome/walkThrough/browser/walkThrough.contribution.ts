@@ -23,14 +23,14 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane)
 	.registerEditorPane(EditorPaneDescriptor.create(
 		WalkThroughPart,
 		WalkThroughPart.ID,
-		localize('walkThrough.editor.label', "Interactive Playground"),
+		localize('walkThrough.editor.label', "Playground"),
 	),
 		[new SyncDescriptor(WalkThroughInput)]);
 
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
 	.registerWorkbenchAction(
 		SyncActionDescriptor.from(EditorWalkThroughAction),
-		'Help: Interactive Playground', CATEGORIES.Help.value);
+		'Help: Interactive Editor Playground', CATEGORIES.Help.value);
 
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(EditorWalkThroughInputSerializer.ID, EditorWalkThroughInputSerializer);
 
@@ -49,7 +49,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 	group: '1_welcome',
 	command: {
 		id: 'workbench.action.showInteractivePlayground',
-		title: localize({ key: 'miInteractivePlayground', comment: ['&& denotes a mnemonic'] }, "I&&nteractive Playground")
+		title: localize({ key: 'miPlayground', comment: ['&& denotes a mnemonic'] }, "Editor Playgrou&&nd")
 	},
-	order: 2
+	order: 3
 });

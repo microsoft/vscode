@@ -80,6 +80,7 @@ export class WorkspaceTags implements IWorkbenchContribution {
 				telemetryId,
 				rendererSessionId: info.sessionId,
 				folders: workspace.folders,
+				transient: workspace.transient,
 				configuration: workspace.configuration
 			};
 		});

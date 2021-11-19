@@ -35,6 +35,7 @@ suite('Editor Model - Injected Text Events', () => {
 			options: {
 				after: { content: 'injected1' },
 				description: 'test1',
+				showIfCollapsed: true
 			},
 			range: new Range(1, 1, 1, 1),
 		}]);
@@ -51,12 +52,14 @@ suite('Editor Model - Injected Text Events', () => {
 			options: {
 				after: { content: 'injected1' },
 				description: 'test1',
+				showIfCollapsed: true
 			},
 			range: new Range(2, 1, 2, 1),
 		}, {
 			options: {
 				after: { content: 'injected2' },
 				description: 'test2',
+				showIfCollapsed: true
 			},
 			range: new Range(2, 2, 2, 2),
 		}]);

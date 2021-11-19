@@ -226,6 +226,9 @@ class RenameController implements IEditorContribution {
 				return;
 			}
 
+			// collapse selection to active end
+			this.editor.setSelection(Range.fromPositions(this.editor.getSelection().getPosition()));
+
 			this._bulkEditService.apply(ResourceEdit.convert(renameResult), {
 				editor: this.editor,
 				showPreview: inputFieldResult.wantsPreview,
@@ -355,6 +358,15 @@ registerModelAndPositionCommand('_executeDocumentRenameProvider', function (mode
 	const [newName] = args;
 	assertType(typeof newName === 'string');
 	return rename(model, position, newName);
+});
+
+registerModelAndPositionCommand('_executePrepareRename', async function (model, position) {
+	const skeleton = new RenameSkeleton(model, position);
+	const loc = await skeleton.resolveRenameLocation(CancellationToken.None);
+	if (loc?.rejectReason) {
+		throw new Error(loc.rejectReason);
+	}
+	return loc;
 });
 
 

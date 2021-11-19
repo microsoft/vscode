@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { groupBy } from 'vs/base/common/arrays';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { uppercaseFirstLetter } from 'vs/base/common/strings';
+import { compareIgnoreCase, uppercaseFirstLetter } from 'vs/base/common/strings';
 import { HoverProviderRegistry } from 'vs/editor/common/modes';
 import * as nls from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -14,13 +15,14 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IQuickInputButton, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import type { SelectKernelReturnArgs } from 'vs/workbench/api/common/extHostNotebookKernels';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSION_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
+import { CENTER_ACTIVE_CELL } from 'vs/workbench/contrib/notebook/browser/contrib/navigation/arrow';
 import { NOTEBOOK_ACTIONS_CATEGORY, SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { getNotebookEditorFromEditorPane, INotebookEditor, KERNEL_EXTENSIONS, NOTEBOOK_MISSING_KERNEL_EXTENSION, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
@@ -31,7 +33,7 @@ import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/no
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -127,7 +129,7 @@ registerAction2(class extends Action2 {
 		}
 
 		const notebook = editor.textModel;
-		const { selected, all } = notebookKernelService.getMatchingKernel(notebook);
+		const { selected, all, suggestions } = notebookKernelService.getMatchingKernel(notebook);
 
 		if (selected && controllerId && selected.id === controllerId && ExtensionIdentifier.equals(selected.extension, extensionId)) {
 			// current kernel is wanted kernel -> done
@@ -155,7 +157,7 @@ registerAction2(class extends Action2 {
 				iconClass: ThemeIcon.asClassName(configureKernelIcon),
 				tooltip: nls.localize('notebook.promptKernel.setDefaultTooltip', "Set as default for '{0}' notebooks", editor.textModel.viewType)
 			};
-			const picks: (KernelPick | IQuickPickItem)[] = all.map(kernel => {
+			function toQuickPick(kernel: INotebookKernel) {
 				const res = <KernelPick>{
 					kernel,
 					picked: kernel.id === selected?.id,
@@ -171,16 +173,38 @@ registerAction2(class extends Action2 {
 						res.description = nls.localize('current2', "{0} - Currently Selected", res.description);
 					}
 				}
-				{ return res; }
-			});
+				return res;
+			}
+			const quickPickItems: QuickPickInput<IQuickPickItem | KernelPick>[] = [];
 			if (!all.length) {
-				picks.push({
+				quickPickItems.push({
 					id: 'install',
 					label: nls.localize('installKernels', "Install kernels from the marketplace"),
 				});
+			} else {
+				// Always display suggested kernels on the top.
+				if (suggestions.length) {
+					quickPickItems.push({
+						type: 'separator',
+						label: nls.localize('suggestedKernels', "Suggested")
+					});
+					quickPickItems.push(...suggestions.map(toQuickPick));
+				}
+
+				// Next display all of the kernels grouped by categories or extensions.
+				// If we don't have a kind, always display those at the bottom.
+				const picks = all.filter(item => !suggestions.includes(item)).map(toQuickPick);
+				const kernelsPerCategory = groupBy(picks, (a, b) => compareIgnoreCase(a.kernel.kind || 'z', b.kernel.kind || 'z'));
+				kernelsPerCategory.forEach(items => {
+					quickPickItems.push({
+						type: 'separator',
+						label: items[0].kernel.kind || nls.localize('otherKernelKinds', "Other")
+					});
+					quickPickItems.push(...items);
+				});
 			}
 
-			const pick = await quickInputService.pick(picks, {
+			const pick = await quickInputService.pick(quickPickItems, {
 				placeHolder: selected
 					? nls.localize('prompt.placeholder.change', "Change kernel for '{0}'", labelService.getUriLabel(notebook.uri, { relative: true }))
 					: nls.localize('prompt.placeholder.select', "Select kernel for '{0}'", labelService.getUriLabel(notebook.uri, { relative: true })),
@@ -322,7 +346,8 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 
 		this._kernelInfoElement.clear();
 
-		let { selected, suggested, all } = this._notebookKernelService.getMatchingKernel(notebook);
+		let { selected, suggestions, all } = this._notebookKernelService.getMatchingKernel(notebook);
+		const suggested = (suggestions.length === 1 && all.length === 1) ? suggestions[0] : undefined;
 		let isSuggested = false;
 
 		if (all.length === 0) {
@@ -414,7 +439,12 @@ export class ActiveCellStatus extends Disposable implements IWorkbenchContributi
 			return;
 		}
 
-		const entry = { name: nls.localize('notebook.activeCellStatusName', "Notebook Editor Selections"), text: newText, ariaLabel: newText };
+		const entry: IStatusbarEntry = {
+			name: nls.localize('notebook.activeCellStatusName', "Notebook Editor Selections"),
+			text: newText,
+			ariaLabel: newText,
+			command: CENTER_ACTIVE_CELL
+		};
 		if (!this._accessor.value) {
 			this._accessor.value = this._statusbarService.addEntry(
 				entry,

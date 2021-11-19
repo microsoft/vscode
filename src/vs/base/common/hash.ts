@@ -34,7 +34,7 @@ export function doHash(obj: any, hashVal: number): number {
 	}
 }
 
-function numberHash(val: number, initialHashVal: number): number {
+export function numberHash(val: number, initialHashVal: number): number {
 	return (((initialHashVal << 5) - initialHashVal) + val) | 0;  // hashVal * 31 + ch, keep as int32
 }
 

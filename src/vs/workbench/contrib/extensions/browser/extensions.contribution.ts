@@ -44,7 +44,7 @@ import { CONTEXT_SYNC_ENABLEMENT } from 'vs/workbench/services/userDataSync/comm
 import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/clipboard';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { MultiCommand } from 'vs/editor/browser/editorExtensions';
-import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
 import { CATEGORIES } from 'vs/workbench/common/actions';
@@ -55,7 +55,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IAction } from 'vs/base/common/actions';
-import { IWorkpsaceExtensionsConfigService } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
+import { IWorkspaceExtensionsConfigService } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
 import { Schemas } from 'vs/base/common/network';
 import { ShowRuntimeExtensionsAction } from 'vs/workbench/contrib/extensions/browser/abstractRuntimeExtensionsEditor';
 import { ExtensionEnablementWorkspaceTrustTransitionParticipant } from 'vs/workbench/contrib/extensions/browser/extensionEnablementWorkspaceTrustTransitionParticipant';
@@ -110,7 +110,7 @@ Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegis
 		openCommandActionDescriptor: {
 			id: VIEWLET_ID,
 			mnemonicTitle: localize({ key: 'miViewExtensions', comment: ['&& denotes a mnemonic'] }, "E&&xtensions"),
-			keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_X },
+			keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyX },
 			order: 4,
 		},
 		ctorDescriptor: new SyncDescriptor(ExtensionsViewPaneContainer),
@@ -273,20 +273,25 @@ CommandsRegistry.registerCommand({
 							'type': 'boolean',
 							'description': localize('workbench.extensions.installExtension.option.installOnlyNewlyAddedFromExtensionPackVSIX', "When enabled, VS Code installs only newly added extensions from the extension pack VSIX. This option is considered only while installing a VSIX."),
 							default: false
+						},
+						'donotSync': {
+							'type': 'boolean',
+							'description': localize('workbench.extensions.installExtension.option.donotSync', "When enabled, VS Code do not sync this extension when Settings Sync is on."),
+							default: false
 						}
 					}
 				}
 			}
 		]
 	},
-	handler: async (accessor, arg: string | UriComponents, options?: { installOnlyNewlyAddedFromExtensionPackVSIX?: boolean }) => {
+	handler: async (accessor, arg: string | UriComponents, options?: { installOnlyNewlyAddedFromExtensionPackVSIX?: boolean, donotSync?: boolean }) => {
 		const extensionManagementService = accessor.get(IExtensionManagementService);
 		const extensionGalleryService = accessor.get(IExtensionGalleryService);
 		try {
 			if (typeof arg === 'string') {
 				const [extension] = await extensionGalleryService.getExtensions([{ id: arg }], CancellationToken.None);
 				if (extension) {
-					await extensionManagementService.installFromGallery(extension);
+					await extensionManagementService.installFromGallery(extension, options?.donotSync ? { isMachineScoped: true } : undefined);
 				} else {
 					throw new Error(localize('notFound', "Extension '{0}' not found.", arg));
 				}
@@ -361,7 +366,7 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-function overrideActionForActiveExtensionEditorWebview(command: MultiCommand | undefined, f: (webview: Webview) => void) {
+function overrideActionForActiveExtensionEditorWebview(command: MultiCommand | undefined, f: (webview: IWebview) => void) {
 	command?.addImplementation(105, 'extensions-editor', (accessor) => {
 		const editorService = accessor.get(IEditorService);
 		const editor = editorService.activeEditorPane;
@@ -1245,7 +1250,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				when: ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('empty'), ContextKeyExpr.has('isBuiltinExtension').negate(), ContextKeyExpr.has('isExtensionWorkspaceRecommended').negate(), ContextKeyExpr.has('isUserIgnoredRecommendation').negate()),
 				order: 2
 			},
-			run: (accessor: ServicesAccessor, id: string) => accessor.get(IWorkpsaceExtensionsConfigService).toggleRecommendation(id)
+			run: (accessor: ServicesAccessor, id: string) => accessor.get(IWorkspaceExtensionsConfigService).toggleRecommendation(id)
 		});
 
 		this.registerExtensionAction({
@@ -1257,7 +1262,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				when: ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('empty'), ContextKeyExpr.has('isBuiltinExtension').negate(), ContextKeyExpr.has('isExtensionWorkspaceRecommended')),
 				order: 2
 			},
-			run: (accessor: ServicesAccessor, id: string) => accessor.get(IWorkpsaceExtensionsConfigService).toggleRecommendation(id)
+			run: (accessor: ServicesAccessor, id: string) => accessor.get(IWorkspaceExtensionsConfigService).toggleRecommendation(id)
 		});
 
 		this.registerExtensionAction({
@@ -1270,16 +1275,16 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			},
 			async run(accessor: ServicesAccessor): Promise<any> {
 				const editorService = accessor.get(IEditorService);
-				const workpsaceExtensionsConfigService = accessor.get(IWorkpsaceExtensionsConfigService);
+				const workspaceExtensionsConfigService = accessor.get(IWorkspaceExtensionsConfigService);
 				if (!(editorService.activeEditor instanceof ExtensionsInput)) {
 					return;
 				}
 				const extensionId = editorService.activeEditor.extension.identifier.id.toLowerCase();
-				const recommendations = await workpsaceExtensionsConfigService.getRecommendations();
+				const recommendations = await workspaceExtensionsConfigService.getRecommendations();
 				if (recommendations.includes(extensionId)) {
 					return;
 				}
-				await workpsaceExtensionsConfigService.toggleRecommendation(extensionId);
+				await workspaceExtensionsConfigService.toggleRecommendation(extensionId);
 			}
 		});
 
@@ -1304,16 +1309,16 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			},
 			async run(accessor: ServicesAccessor): Promise<any> {
 				const editorService = accessor.get(IEditorService);
-				const workpsaceExtensionsConfigService = accessor.get(IWorkpsaceExtensionsConfigService);
+				const workspaceExtensionsConfigService = accessor.get(IWorkspaceExtensionsConfigService);
 				if (!(editorService.activeEditor instanceof ExtensionsInput)) {
 					return;
 				}
 				const extensionId = editorService.activeEditor.extension.identifier.id.toLowerCase();
-				const unwatedRecommendations = await workpsaceExtensionsConfigService.getUnwantedRecommendations();
-				if (unwatedRecommendations.includes(extensionId)) {
+				const unwantedRecommendations = await workspaceExtensionsConfigService.getUnwantedRecommendations();
+				if (unwantedRecommendations.includes(extensionId)) {
 					return;
 				}
-				await workpsaceExtensionsConfigService.toggleUnwantedRecommendation(extensionId);
+				await workspaceExtensionsConfigService.toggleUnwantedRecommendation(extensionId);
 			}
 		});
 

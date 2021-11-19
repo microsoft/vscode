@@ -36,7 +36,7 @@ export class ExtHostCell {
 		return {
 			EOL: cell.eol,
 			lines: cell.source,
-			modeId: cell.language,
+			languageId: cell.language,
 			uri: cell.uri,
 			isDirty: false,
 			versionId: 1,

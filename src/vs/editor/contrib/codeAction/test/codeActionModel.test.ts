@@ -29,7 +29,7 @@ const testProvider = {
 };
 suite('CodeActionModel', () => {
 
-	const languageIdentifier = new modes.LanguageIdentifier('foo-lang', 3);
+	const languageId = 'foo-lang';
 	let uri = URI.parse('untitled:path');
 	let model: TextModel;
 	let markerService: MarkerService;
@@ -39,7 +39,7 @@ suite('CodeActionModel', () => {
 	setup(() => {
 		disposables.clear();
 		markerService = new MarkerService();
-		model = createTextModel('foobar  foo bar\nfarboo far boo', undefined, languageIdentifier, uri);
+		model = createTextModel('foobar  foo bar\nfarboo far boo', undefined, languageId, uri);
 		editor = createTestCodeEditor({ model: model });
 		editor.setPosition({ lineNumber: 1, column: 1 });
 	});
@@ -52,7 +52,7 @@ suite('CodeActionModel', () => {
 	});
 
 	test('Orcale -> marker added', done => {
-		const reg = modes.CodeActionProviderRegistry.register(languageIdentifier.language, testProvider);
+		const reg = modes.CodeActionProviderRegistry.register(languageId, testProvider);
 		disposables.add(reg);
 
 		const contextKeys = new MockContextKeyService();
@@ -82,7 +82,7 @@ suite('CodeActionModel', () => {
 	});
 
 	test('Orcale -> position changed', () => {
-		const reg = modes.CodeActionProviderRegistry.register(languageIdentifier.language, testProvider);
+		const reg = modes.CodeActionProviderRegistry.register(languageId, testProvider);
 		disposables.add(reg);
 
 		markerService.changeOne('fake', uri, [{
@@ -115,7 +115,7 @@ suite('CodeActionModel', () => {
 	});
 
 	test('Lightbulb is in the wrong place, #29933', async function () {
-		const reg = modes.CodeActionProviderRegistry.register(languageIdentifier.language, {
+		const reg = modes.CodeActionProviderRegistry.register(languageId, {
 			provideCodeActions(_doc, _range): modes.CodeActionList {
 				return { actions: [], dispose() { /* noop*/ } };
 			}
@@ -156,7 +156,7 @@ suite('CodeActionModel', () => {
 	});
 
 	test('Orcale -> should only auto trigger once for cursor and marker update right after each other', done => {
-		const reg = modes.CodeActionProviderRegistry.register(languageIdentifier.language, testProvider);
+		const reg = modes.CodeActionProviderRegistry.register(languageId, testProvider);
 		disposables.add(reg);
 
 		let triggerCount = 0;

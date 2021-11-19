@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostNotebookRenderersShape, IMainContext, MainContext, MainThreadNotebookRenderersShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import { ExtHostNotebookEditor } from 'vs/workbench/api/common/extHostNotebookEditor';
+import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import * as vscode from 'vscode';
 
 
@@ -24,14 +25,14 @@ export class ExtHostNotebookRenderers implements ExtHostNotebookRenderersShape {
 		this._rendererMessageEmitters.get(rendererId)?.fire({ editor: editor.apiEditor, message });
 	}
 
-	public createRendererMessaging(manifest: IExtensionManifest, rendererId: string): vscode.NotebookRendererMessaging {
+	public createRendererMessaging(manifest: IExtensionDescription, rendererId: string): vscode.NotebookRendererMessaging {
 		if (!manifest.contributes?.notebookRenderer?.some(r => r.id === rendererId)) {
 			throw new Error(`Extensions may only call createRendererMessaging() for renderers they contribute (got ${rendererId})`);
 		}
 
 		// In the stable API, the editor is given as an empty object, and this map
 		// is used to maintain references. This can be removed after editor finalization.
-		const notebookEditorVisible = !!manifest.enableProposedApi;
+		const notebookEditorVisible = isProposedApiEnabled(manifest, 'notebookEditor');
 		const notebookEditorAliases = new WeakMap<{}, vscode.NotebookEditor>();
 
 		const messaging: vscode.NotebookRendererMessaging = {

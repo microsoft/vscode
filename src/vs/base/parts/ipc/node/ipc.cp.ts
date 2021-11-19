@@ -12,8 +12,7 @@ import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { deepClone } from 'vs/base/common/objects';
-import { isMacintosh } from 'vs/base/common/platform';
-import { createQueuedSender } from 'vs/base/node/processes';
+import { createQueuedSender, removeDangerousEnvVariables } from 'vs/base/node/processes';
 import { ChannelClient as IPCClient, ChannelServer as IPCServer, IChannel, IChannelClient } from 'vs/base/parts/ipc/common/ipc';
 
 /**
@@ -202,11 +201,7 @@ export class Client implements IChannelClient, IDisposable {
 				forkOpts.execArgv = process.execArgv.filter(a => !/^--inspect(-brk)?=/.test(a)); // remove
 			}
 
-			if (isMacintosh && forkOpts.env) {
-				// Unset `DYLD_LIBRARY_PATH`, as it leads to process crashes
-				// See https://github.com/microsoft/vscode/issues/105848
-				delete forkOpts.env['DYLD_LIBRARY_PATH'];
-			}
+			removeDangerousEnvVariables(forkOpts.env);
 
 			this.child = fork(this.modulePath, args, forkOpts);
 

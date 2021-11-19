@@ -102,7 +102,6 @@
 
 .monaco-editor .parameter-hints-widget .signature .parameter.active {
 	font-weight: bold;
-	text-decoration: underline;
 }
 
 .monaco-editor .parameter-hints-widget .documentation-parameter > .parameter {

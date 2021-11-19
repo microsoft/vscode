@@ -55,8 +55,8 @@ body.showEditorSelection .code-line {
 	position: relative;
 }
 
-body.showEditorSelection .code-active-line:before,
-body.showEditorSelection .code-line:hover:before {
+body.showEditorSelection :not(tr).code-active-line:before,
+body.showEditorSelection :not(tr).code-line:hover:before {
 	content: "";
 	display: block;
 	position: absolute;

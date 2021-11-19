@@ -9,7 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { relativePath } from 'vs/base/common/resources';
 import { TernarySearchTree } from 'vs/base/common/map';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 export class ResourceGlobMatcher {
 

@@ -42,6 +42,8 @@ export interface IWorkbenchEnvironmentService extends IEnvironmentService {
 
 	readonly debugRenderer: boolean;
 
+	readonly disableWorkspaceTrust: boolean;
+
 	/**
 	 * @deprecated this property will go away eventually as it
 	 * duplicates many properties of the environment service

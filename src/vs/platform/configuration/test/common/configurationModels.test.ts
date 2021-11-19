@@ -12,6 +12,35 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
+suite('ConfigurationModelParser', () => {
+
+	test('parse configuration model with single override identifier', () => {
+		const testObject = new ConfigurationModelParser('');
+
+		testObject.parse(JSON.stringify({ '[x]': { 'a': 1 } }));
+
+		assert.deepStrictEqual(JSON.stringify(testObject.configurationModel.overrides), JSON.stringify([{ identifiers: ['x'], keys: ['a'], contents: { 'a': 1 } }]));
+	});
+
+	test('parse configuration model with multiple override identifiers', () => {
+		const testObject = new ConfigurationModelParser('');
+
+		testObject.parse(JSON.stringify({ '[x][y]': { 'a': 1 } }));
+
+		assert.deepStrictEqual(JSON.stringify(testObject.configurationModel.overrides), JSON.stringify([{ identifiers: ['x', 'y'], keys: ['a'], contents: { 'a': 1 } }]));
+	});
+
+	test('parse configuration model with multiple duplicate override identifiers', () => {
+		const testObject = new ConfigurationModelParser('');
+
+		testObject.parse(JSON.stringify({ '[x][y][x][z]': { 'a': 1 } }));
+
+		assert.deepStrictEqual(JSON.stringify(testObject.configurationModel.overrides), JSON.stringify([{ identifiers: ['x', 'y', 'z'], keys: ['a'], contents: { 'a': 1 } }]));
+	});
+
+
+});
+
 suite('ConfigurationModel', () => {
 
 	test('setValue for a key that has no sections and not defined', () => {
@@ -190,7 +219,7 @@ suite('ConfigurationModel', () => {
 		let result = base.merge(add);
 
 		assert.deepStrictEqual(result.contents, { 'a': { 'b': 2 } });
-		assert.deepStrictEqual(result.overrides, [{ identifiers: ['c'], contents: { 'a': 2, 'b': 2 }, keys: ['a'] }]);
+		assert.deepStrictEqual(result.overrides, [{ identifiers: ['c'], contents: { 'a': 2, 'b': 2 }, keys: ['a', 'b'] }]);
 		assert.deepStrictEqual(result.override('c').contents, { 'a': 2, 'b': 2 });
 		assert.deepStrictEqual(result.keys, ['a.b']);
 	});
@@ -235,6 +264,45 @@ suite('ConfigurationModel', () => {
 		const testObject = new ConfigurationModel({ 'a': 1, 'c': 1 }, [], [{ identifiers: ['b'], contents: { 'a': 2 }, keys: ['a'] }]);
 
 		assert.deepStrictEqual(testObject.override('b').contents, { 'a': 2, 'c': 1 });
+	});
+
+	test('Test override when an override has multiple identifiers', () => {
+		const testObject = new ConfigurationModel({ 'a': 1, 'c': 1 }, ['a', 'c'], [{ identifiers: ['x', 'y'], contents: { 'a': 2 }, keys: ['a'] }]);
+
+		let actual = testObject.override('x');
+		assert.deepStrictEqual(actual.contents, { 'a': 2, 'c': 1 });
+		assert.deepStrictEqual(actual.keys, ['a', 'c']);
+		assert.deepStrictEqual(testObject.getKeysForOverrideIdentifier('x'), ['a']);
+
+		actual = testObject.override('y');
+		assert.deepStrictEqual(actual.contents, { 'a': 2, 'c': 1 });
+		assert.deepStrictEqual(actual.keys, ['a', 'c']);
+		assert.deepStrictEqual(testObject.getKeysForOverrideIdentifier('y'), ['a']);
+	});
+
+	test('Test override when an identifier is defined in multiple overrides', () => {
+		const testObject = new ConfigurationModel({ 'a': 1, 'c': 1 }, ['a', 'c'], [{ identifiers: ['x'], contents: { 'a': 3, 'b': 1 }, keys: ['a', 'b'] }, { identifiers: ['x', 'y'], contents: { 'a': 2 }, keys: ['a'] }]);
+
+		const actual = testObject.override('x');
+		assert.deepStrictEqual(actual.contents, { 'a': 3, 'c': 1, 'b': 1 });
+		assert.deepStrictEqual(actual.keys, ['a', 'c']);
+
+		assert.deepStrictEqual(testObject.getKeysForOverrideIdentifier('x'), ['a', 'b']);
+	});
+
+	test('Test merge when configuration models have multiple identifiers', () => {
+		const testObject = new ConfigurationModel({ 'a': 1, 'c': 1 }, ['a', 'c'], [{ identifiers: ['y'], contents: { 'c': 1 }, keys: ['c'] }, { identifiers: ['x', 'y'], contents: { 'a': 2 }, keys: ['a'] }]);
+		const target = new ConfigurationModel({ 'a': 2, 'b': 1 }, ['a', 'b'], [{ identifiers: ['x'], contents: { 'a': 3, 'b': 2 }, keys: ['a', 'b'] }, { identifiers: ['x', 'y'], contents: { 'b': 3 }, keys: ['b'] }]);
+
+		const actual = testObject.merge(target);
+
+		assert.deepStrictEqual(actual.contents, { 'a': 2, 'c': 1, 'b': 1 });
+		assert.deepStrictEqual(actual.keys, ['a', 'c', 'b']);
+		assert.deepStrictEqual(actual.overrides, [
+			{ identifiers: ['y'], contents: { 'c': 1 }, keys: ['c'] },
+			{ identifiers: ['x', 'y'], contents: { 'a': 2, 'b': 3 }, keys: ['a', 'b'] },
+			{ identifiers: ['x'], contents: { 'a': 3, 'b': 2 }, keys: ['a', 'b'] },
+		]);
 	});
 });
 
@@ -582,11 +650,14 @@ suite('ConfigurationChangeEvent', () => {
 			'files.autoSave': 'off',
 			'[markdown]': {
 				'editor.wordWrap': 'off'
+			},
+			'[typescript][jsonc]': {
+				'editor.lineNumbers': 'off'
 			}
 		}));
 		let testObject = new ConfigurationChangeEvent(change, undefined, configuration);
 
-		assert.deepStrictEqual(testObject.affectedKeys, ['files.autoSave', '[markdown]', 'editor.wordWrap']);
+		assert.deepStrictEqual(testObject.affectedKeys, ['files.autoSave', '[markdown]', '[typescript][jsonc]', 'editor.wordWrap', 'editor.lineNumbers']);
 
 		assert.ok(testObject.affectsConfiguration('files'));
 		assert.ok(testObject.affectsConfiguration('files.autoSave'));
@@ -598,8 +669,16 @@ suite('ConfigurationChangeEvent', () => {
 
 		assert.ok(testObject.affectsConfiguration('editor'));
 		assert.ok(testObject.affectsConfiguration('editor.wordWrap'));
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers'));
 		assert.ok(testObject.affectsConfiguration('editor', { overrideIdentifier: 'markdown' }));
+		assert.ok(testObject.affectsConfiguration('editor', { overrideIdentifier: 'jsonc' }));
+		assert.ok(testObject.affectsConfiguration('editor', { overrideIdentifier: 'typescript' }));
 		assert.ok(testObject.affectsConfiguration('editor.wordWrap', { overrideIdentifier: 'markdown' }));
+		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { overrideIdentifier: 'jsonc' }));
+		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { overrideIdentifier: 'typescript' }));
+		assert.ok(!testObject.affectsConfiguration('editor.lineNumbers', { overrideIdentifier: 'markdown' }));
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { overrideIdentifier: 'typescript' }));
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { overrideIdentifier: 'jsonc' }));
 		assert.ok(!testObject.affectsConfiguration('editor', { overrideIdentifier: 'json' }));
 		assert.ok(!testObject.affectsConfiguration('editor.fontSize', { overrideIdentifier: 'markdown' }));
 
@@ -615,6 +694,10 @@ suite('ConfigurationChangeEvent', () => {
 				'editor.fontSize': 12,
 				'editor.wordWrap': 'off'
 			},
+			'[css][scss]': {
+				'editor.lineNumbers': 'off',
+				'css.lint.emptyRules': 'error'
+			},
 			'files.autoSave': 'off',
 		}));
 		const data = configuration.toData();
@@ -624,11 +707,15 @@ suite('ConfigurationChangeEvent', () => {
 				'editor.fontSize': 13,
 				'editor.wordWrap': 'off'
 			},
+			'[css][scss]': {
+				'editor.lineNumbers': 'relative',
+				'css.lint.emptyRules': 'error'
+			},
 			'window.zoomLevel': 1,
 		}));
 		let testObject = new ConfigurationChangeEvent(change, { data }, configuration);
 
-		assert.deepStrictEqual(testObject.affectedKeys, ['window.zoomLevel', '[markdown]', 'workbench.editor.enablePreview', 'editor.fontSize']);
+		assert.deepStrictEqual(testObject.affectedKeys, ['window.zoomLevel', '[markdown]', '[css][scss]', 'workbench.editor.enablePreview', 'editor.fontSize', 'editor.lineNumbers']);
 
 		assert.ok(!testObject.affectsConfiguration('files'));
 
@@ -637,10 +724,18 @@ suite('ConfigurationChangeEvent', () => {
 		assert.ok(!testObject.affectsConfiguration('[markdown].editor.fontSize'));
 		assert.ok(!testObject.affectsConfiguration('[markdown].editor.wordWrap'));
 		assert.ok(!testObject.affectsConfiguration('[markdown].workbench'));
+		assert.ok(testObject.affectsConfiguration('[css][scss]'));
 
 		assert.ok(testObject.affectsConfiguration('editor'));
 		assert.ok(testObject.affectsConfiguration('editor', { overrideIdentifier: 'markdown' }));
+		assert.ok(testObject.affectsConfiguration('editor', { overrideIdentifier: 'css' }));
+		assert.ok(testObject.affectsConfiguration('editor', { overrideIdentifier: 'scss' }));
 		assert.ok(testObject.affectsConfiguration('editor.fontSize', { overrideIdentifier: 'markdown' }));
+		assert.ok(!testObject.affectsConfiguration('editor.fontSize', { overrideIdentifier: 'css' }));
+		assert.ok(!testObject.affectsConfiguration('editor.fontSize', { overrideIdentifier: 'scss' }));
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { overrideIdentifier: 'scss' }));
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { overrideIdentifier: 'css' }));
+		assert.ok(!testObject.affectsConfiguration('editor.lineNumbers', { overrideIdentifier: 'markdown' }));
 		assert.ok(!testObject.affectsConfiguration('editor.wordWrap'));
 		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { overrideIdentifier: 'markdown' }));
 		assert.ok(!testObject.affectsConfiguration('editor', { overrideIdentifier: 'json' }));

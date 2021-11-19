@@ -181,7 +181,7 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 			return; // require a live model
 		}
 
-		const currentMode = textModel.getModeId();
+		const currentMode = textModel.getLanguageId();
 		if (currentMode !== PLAINTEXT_MODE_ID) {
 			return; // require current mode to be unspecific
 		}
@@ -190,8 +190,8 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 
 		// A mode is provided via the paste event so text was copied using
 		// VSCode. As such we trust this mode and use it if specific
-		if (e.mode) {
-			candidateMode = e.mode;
+		if (e.languageId) {
+			candidateMode = e.languageId;
 		}
 
 		// A mode was not provided, so the data comes from outside VSCode

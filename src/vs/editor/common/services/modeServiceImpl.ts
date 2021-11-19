@@ -6,27 +6,26 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IMode, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
-import { FrankensteinMode } from 'vs/editor/common/modes/abstractMode';
-import { NULL_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/nullMode';
+import { NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
 import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
 import { ILanguageSelection, IModeService } from 'vs/editor/common/services/modeService';
 import { firstOrDefault } from 'vs/base/common/arrays';
+import { ILanguageIdCodec } from 'vs/editor/common/modes';
 
 class LanguageSelection implements ILanguageSelection {
 
-	public languageIdentifier: LanguageIdentifier;
+	public languageId: string;
 
-	private readonly _selector: () => LanguageIdentifier;
-	private readonly _onDidChange: Emitter<LanguageIdentifier>;
-	public readonly onDidChange: Event<LanguageIdentifier>;
+	private readonly _selector: () => string;
+	private readonly _onDidChange: Emitter<string>;
+	public readonly onDidChange: Event<string>;
 
-	constructor(onLanguagesMaybeChanged: Event<void>, selector: () => LanguageIdentifier) {
+	constructor(onLanguagesMaybeChanged: Event<void>, selector: () => string) {
 		this._selector = selector;
-		this.languageIdentifier = this._selector();
+		this.languageId = this._selector();
 
 		let listener: IDisposable;
-		this._onDidChange = new Emitter<LanguageIdentifier>({
+		this._onDidChange = new Emitter<string>({
 			onFirstListenerAdd: () => {
 				listener = onLanguagesMaybeChanged(() => this._evaluate());
 			},
@@ -38,38 +37,43 @@ class LanguageSelection implements ILanguageSelection {
 	}
 
 	private _evaluate(): void {
-		let languageIdentifier = this._selector();
-		if (languageIdentifier.id === this.languageIdentifier.id) {
+		const languageId = this._selector();
+		if (languageId === this.languageId) {
 			// no change
 			return;
 		}
-		this.languageIdentifier = languageIdentifier;
-		this._onDidChange.fire(this.languageIdentifier);
+		this.languageId = languageId;
+		this._onDidChange.fire(this.languageId);
 	}
 }
 
 export class ModeServiceImpl extends Disposable implements IModeService {
 	public _serviceBrand: undefined;
 
-	private readonly _instantiatedModes: { [modeId: string]: IMode; };
-	private readonly _registry: LanguagesRegistry;
+	static instanceCount = 0;
 
-	private readonly _onDidCreateMode = this._register(new Emitter<IMode>());
-	public readonly onDidCreateMode: Event<IMode> = this._onDidCreateMode.event;
+	private readonly _encounteredLanguages: Set<string>;
+	private readonly _registry: LanguagesRegistry;
+	public readonly languageIdCodec: ILanguageIdCodec;
+
+	private readonly _onDidEncounterLanguage = this._register(new Emitter<string>());
+	public readonly onDidEncounterLanguage: Event<string> = this._onDidEncounterLanguage.event;
 
 	protected readonly _onLanguagesMaybeChanged = this._register(new Emitter<void>({ leakWarningThreshold: 200 /* https://github.com/microsoft/vscode/issues/119968 */ }));
 	public readonly onLanguagesMaybeChanged: Event<void> = this._onLanguagesMaybeChanged.event;
 
 	constructor(warnOnOverwrite = false) {
 		super();
-		this._instantiatedModes = {};
-
+		ModeServiceImpl.instanceCount++;
+		this._encounteredLanguages = new Set<string>();
 		this._registry = this._register(new LanguagesRegistry(true, warnOnOverwrite));
+		this.languageIdCodec = this._registry.languageIdCodec;
 		this._register(this._registry.onDidChange(() => this._onLanguagesMaybeChanged.fire()));
 	}
 
-	protected _onReady(): Promise<boolean> {
-		return Promise.resolve(true);
+	public override dispose(): void {
+		ModeServiceImpl.instanceCount--;
+		super.dispose();
 	}
 
 	public isRegisteredMode(mimetypeOrModeId: string): boolean {
@@ -92,12 +96,12 @@ export class ModeServiceImpl extends Disposable implements IModeService {
 		return this._registry.getFilenames(alias);
 	}
 
-	public getMimeForMode(modeId: string): string | null {
-		return this._registry.getMimeForMode(modeId);
+	public getMimeForMode(languageId: string): string | null {
+		return this._registry.getMimeForMode(languageId);
 	}
 
-	public getLanguageName(modeId: string): string | null {
-		return this._registry.getLanguageName(modeId);
+	public getLanguageName(languageId: string): string | null {
+		return this._registry.getLanguageName(languageId);
 	}
 
 	public getModeIdForLanguageName(alias: string): string | null {
@@ -114,66 +118,59 @@ export class ModeServiceImpl extends Disposable implements IModeService {
 		return firstOrDefault(modeIds, null);
 	}
 
-	public getLanguageIdentifier(modeId: string | LanguageId): LanguageIdentifier | null {
-		return this._registry.getLanguageIdentifier(modeId);
+	public validateLanguageId(languageId: string | null): string | null {
+		return this._registry.validateLanguageId(languageId);
 	}
 
-	public getConfigurationFiles(modeId: string): URI[] {
-		return this._registry.getConfigurationFiles(modeId);
+	public getConfigurationFiles(languageId: string): URI[] {
+		return this._registry.getConfigurationFiles(languageId);
 	}
 
 	// --- instantiation
 
 	public create(commaSeparatedMimetypesOrCommaSeparatedIds: string | undefined): ILanguageSelection {
 		return new LanguageSelection(this.onLanguagesMaybeChanged, () => {
-			const modeId = this.getModeId(commaSeparatedMimetypesOrCommaSeparatedIds);
-			return this._createModeAndGetLanguageIdentifier(modeId);
+			const languageId = this.getModeId(commaSeparatedMimetypesOrCommaSeparatedIds);
+			return this._createModeAndGetLanguageIdentifier(languageId);
 		});
 	}
 
 	public createByLanguageName(languageName: string): ILanguageSelection {
 		return new LanguageSelection(this.onLanguagesMaybeChanged, () => {
-			const modeId = this._getModeIdByLanguageName(languageName);
-			return this._createModeAndGetLanguageIdentifier(modeId);
+			const languageId = this._getModeIdByLanguageName(languageName);
+			return this._createModeAndGetLanguageIdentifier(languageId);
 		});
 	}
 
 	public createByFilepathOrFirstLine(resource: URI | null, firstLine?: string): ILanguageSelection {
 		return new LanguageSelection(this.onLanguagesMaybeChanged, () => {
-			const modeId = this.getModeIdByFilepathOrFirstLine(resource, firstLine);
-			return this._createModeAndGetLanguageIdentifier(modeId);
+			const languageId = this.getModeIdByFilepathOrFirstLine(resource, firstLine);
+			return this._createModeAndGetLanguageIdentifier(languageId);
 		});
 	}
 
-	private _createModeAndGetLanguageIdentifier(modeId: string | null): LanguageIdentifier {
+	private _createModeAndGetLanguageIdentifier(languageId: string | null): string {
 		// Fall back to plain text if no mode was found
-		const languageIdentifier = this.getLanguageIdentifier(modeId || 'plaintext') || NULL_LANGUAGE_IDENTIFIER;
-		this._getOrCreateMode(languageIdentifier.language);
-		return languageIdentifier;
+		const validLanguageId = this.validateLanguageId(languageId || 'plaintext') || NULL_MODE_ID;
+		this._getOrCreateMode(validLanguageId);
+		return validLanguageId;
 	}
 
 	public triggerMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): void {
-		const modeId = this.getModeId(commaSeparatedMimetypesOrCommaSeparatedIds);
+		const languageId = this.getModeId(commaSeparatedMimetypesOrCommaSeparatedIds);
 		// Fall back to plain text if no mode was found
-		this._getOrCreateMode(modeId || 'plaintext');
-	}
-
-	public waitForLanguageRegistration(): Promise<void> {
-		return this._onReady().then(() => { });
+		this._getOrCreateMode(languageId || 'plaintext');
 	}
 
 	private _getModeIdByLanguageName(languageName: string): string | null {
-		const modeIds = this._registry.getModeIdsFromLanguageName(languageName);
-		return firstOrDefault(modeIds, null);
+		return this._registry.getModeIdFromLanguageName(languageName);
 	}
 
-	private _getOrCreateMode(modeId: string): IMode {
-		if (!this._instantiatedModes.hasOwnProperty(modeId)) {
-			let languageIdentifier = this.getLanguageIdentifier(modeId) || NULL_LANGUAGE_IDENTIFIER;
-			this._instantiatedModes[modeId] = new FrankensteinMode(languageIdentifier);
-
-			this._onDidCreateMode.fire(this._instantiatedModes[modeId]);
+	private _getOrCreateMode(languageId: string): void {
+		if (!this._encounteredLanguages.has(languageId)) {
+			this._encounteredLanguages.add(languageId);
+			const validLanguageId = this.validateLanguageId(languageId) || NULL_MODE_ID;
+			this._onDidEncounterLanguage.fire(validLanguageId);
 		}
-		return this._instantiatedModes[modeId];
 	}
 }

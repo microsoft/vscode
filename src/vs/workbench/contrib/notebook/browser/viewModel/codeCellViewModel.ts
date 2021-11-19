@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
 import { dispose } from 'vs/base/common/lifecycle';
 import * as UUID from 'vs/base/common/uuid';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
@@ -23,24 +24,21 @@ import { BaseCellViewModel } from './baseCellViewModel';
 
 export class CodeCellViewModel extends BaseCellViewModel implements ICellViewModel {
 	readonly cellKind = CellKind.Code;
+	protected readonly _onLayoutInfoRead = this._register(new Emitter<void>());
+	readonly onLayoutInfoRead = this._onLayoutInfoRead.event;
 	protected readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
 	readonly onDidChangeOutputs = this._onDidChangeOutputs.event;
 
 	private readonly _onDidRemoveOutputs = this._register(new Emitter<readonly ICellOutputViewModel[]>());
 	readonly onDidRemoveOutputs = this._onDidRemoveOutputs.event;
 
-	private readonly _onDidHideInput = this._register(new Emitter<void>());
-	readonly onDidHideInput = this._onDidHideInput.event;
-
-	private readonly _onDidHideOutputs = this._register(new Emitter<readonly ICellOutputViewModel[]>());
-	readonly onDidHideOutputs = this._onDidHideOutputs.event;
-
 	private _outputCollection: number[] = [];
 
 	private _outputsTop: PrefixSumComputer | null = null;
 
-	protected readonly _onDidChangeLayout = this._register(new Emitter<CodeCellLayoutChangeEvent>());
-	readonly onDidChangeLayout = this._onDidChangeLayout.event;
+	protected _pauseableEmitter = this._register(new PauseableEmitter<CodeCellLayoutChangeEvent>());
+
+	readonly onDidChangeLayout = this._pauseableEmitter.event;
 
 	private _editorHeight = 0;
 	set editorHeight(height: number) {
@@ -108,9 +106,10 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		@INotebookService private readonly _notebookService: INotebookService,
 		@ITextModelService modelService: ITextModelService,
 		@IUndoRedoService undoRedoService: IUndoRedoService,
-		@INotebookKeymapService keymapService: INotebookKeymapService
+		@INotebookKeymapService keymapService: INotebookKeymapService,
+		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
-		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, modelService, undoRedoService);
+		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, modelService, undoRedoService, codeEditorService);
 		this._outputViewModels = this.model.outputs.map(output => new CellOutputViewModel(this, output, this._notebookService));
 
 		this._register(this.model.onDidChangeOutputs((splice) => {
@@ -123,16 +122,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			this._onDidRemoveOutputs.fire(removedOutputs);
 			this.layoutChange({ outputHeight: true }, 'CodeCellViewModel#model.onDidChangeOutputs');
 			dispose(removedOutputs);
-		}));
-
-		this._register(this.model.onDidChangeMetadata(e => {
-			if (this.metadata.outputCollapsed) {
-				this._onDidHideOutputs.fire(this.outputsViewModels.slice(0));
-			}
-
-			if (this.metadata.inputCollapsed) {
-				this._onDidHideInput.fire();
-			}
 		}));
 
 		this._outputCollection = new Array(this.model.outputs.length);
@@ -160,16 +149,24 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		}
 	}
 
+	pauseLayout() {
+		this._pauseableEmitter.pause();
+	}
+
+	resumeLayout() {
+		this._pauseableEmitter.resume();
+	}
+
 	layoutChange(state: CodeCellLayoutChangeEvent, source?: string) {
 		// recompute
 		this._ensureOutputsTop();
 		const notebookLayoutConfiguration = this.viewContext.notebookOptions.getLayoutConfiguration();
 		const bottomToolbarDimensions = this.viewContext.notebookOptions.computeBottomToolbarDimensions();
 		const outputShowMoreContainerHeight = state.outputShowMoreContainerHeight ? state.outputShowMoreContainerHeight : this._layoutInfo.outputShowMoreContainerHeight;
-		let outputTotalHeight = Math.max(this._outputMinHeight, this.metadata.outputCollapsed ? notebookLayoutConfiguration.collapsedIndicatorHeight : this._outputsTop!.getTotalSum());
+		let outputTotalHeight = Math.max(this._outputMinHeight, this.isOutputCollapsed ? notebookLayoutConfiguration.collapsedIndicatorHeight : this._outputsTop!.getTotalSum());
 
 		const originalLayout = this.layoutInfo;
-		if (!this.metadata.inputCollapsed) {
+		if (!this.isInputCollapsed) {
 			let newState: CellLayoutState;
 			let editorHeight: number;
 			let totalHeight: number;
@@ -258,7 +255,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	}
 
 	private _fireOnDidChangeLayout(state: CodeCellLayoutChangeEvent) {
-		this._onDidChangeLayout.fire(state);
+		this._pauseableEmitter.fire(state);
 	}
 
 	override restoreEditorViewState(editorViewStates: editorCommon.ICodeEditorViewState | null, totalHeight?: number) {
@@ -283,6 +280,11 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	hasDynamicHeight() {
 		// CodeCellVM always measures itself and controls its cell's height
 		return false;
+	}
+
+	getDynamicHeight() {
+		this._onLayoutInfoRead.fire();
+		return this._layoutInfo.totalHeight;
 	}
 
 	firstLine(): string {
@@ -351,6 +353,11 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		this.outputMinHeight = height;
 	}
 
+	unlockOutputHeight() {
+		this.outputMinHeight = 0;
+		this.layoutChange({ outputHeight: true });
+	}
+
 	updateOutputHeight(index: number, height: number, source?: string) {
 		if (index >= this._outputCollection.length) {
 			throw new Error('Output index out of range!');
@@ -362,9 +369,18 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		}
 
 		this._outputCollection[index] = height;
-		if (this._outputsTop!.changeValue(index, height)) {
+		if (this._outputsTop!.setValue(index, height)) {
 			this.layoutChange({ outputHeight: true }, source);
 		}
+	}
+
+	getOutputHeight(index: number) {
+		if (index >= this._outputCollection.length) {
+			return -1;
+		}
+
+		this._ensureOutputsTop();
+		return this._outputCollection[index];
 	}
 
 	getOutputOffsetInContainer(index: number) {

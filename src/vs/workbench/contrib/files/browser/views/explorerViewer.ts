@@ -51,10 +51,10 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { isNumber } from 'vs/base/common/types';
 import { IEditableData } from 'vs/workbench/common/views';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
-import { BrowserFileUpload, NativeFileImport, getMultipleFilesOverwriteConfirm } from 'vs/workbench/contrib/files/browser/fileImportExport';
+import { BrowserFileUpload, ExternalFileImport, getMultipleFilesOverwriteConfirm } from 'vs/workbench/contrib/files/browser/fileImportExport';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
@@ -839,10 +839,6 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			if (!containsDragType(originalEvent, DataTransfers.FILES, CodeDataTransfers.FILES, DataTransfers.RESOURCES)) {
 				return false;
 			}
-			if (isWeb && originalEvent.dataTransfer?.types.indexOf('Files') === -1) {
-				// DnD from vscode to web is not supported #115535. Only if we are dragging from native finder / explorer then the "Files" data transfer will be set
-				return false;
-			}
 		}
 
 		// Other-Tree DND
@@ -980,14 +976,19 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		try {
 
-			// Desktop DND (Import file)
+			// External file DND (Import/Upload file)
 			if (data instanceof NativeDragAndDropData) {
-				if (isWeb) {
+				// Native OS file DND into Web
+				if (containsDragType(originalEvent, 'Files') && isWeb) {
 					const browserUpload = this.instantiationService.createInstance(BrowserFileUpload);
 					await browserUpload.upload(target, originalEvent);
-				} else {
-					const nativeImport = this.instantiationService.createInstance(NativeFileImport);
-					await nativeImport.import(resolvedTarget, originalEvent);
+				}
+				// 2 Cases handled for import:
+				// FS-Provided file DND into Web/Desktop
+				// Native OS file DND into Desktop
+				else {
+					const fileImport = this.instantiationService.createInstance(ExternalFileImport);
+					await fileImport.import(resolvedTarget, originalEvent);
 				}
 			}
 

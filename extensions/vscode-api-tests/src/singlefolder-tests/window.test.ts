@@ -190,6 +190,29 @@ suite('vscode API - window', () => {
 		}
 	});
 
+	test('editor, opening multiple at the same time #134786', async () => {
+		const fileA = await createRandomFile();
+		const fileB = await createRandomFile();
+		const fileC = await createRandomFile();
+
+		const testFiles = [fileA, fileB, fileC];
+		const result = await Promise.all(testFiles.map(async testFile => {
+			try {
+				const doc = await workspace.openTextDocument(testFile);
+				const editor = await window.showTextDocument(doc);
+
+				return editor.document.uri;
+			} catch (error) {
+				return undefined;
+			}
+		}));
+
+		assert.strictEqual(result.length, 3);
+		assert.strictEqual(result[0], undefined);
+		assert.strictEqual(result[1], undefined);
+		assert.strictEqual(result[2]?.toString(), fileC.toString());
+	});
+
 	test('default column when opening a file', async () => {
 		const [docA, docB, docC] = await Promise.all([
 			workspace.openTextDocument(await createRandomFile()),
@@ -408,7 +431,81 @@ suite('vscode API - window', () => {
 		await commands.executeCommand('workbench.action.closeActiveEditor');
 
 		assert.ok(!window.activeTab);
+	});
 
+	test('Tabs - Move Tab', async () => {
+		const [docA, docB, docC] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+		]);
+		await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
+		await window.showTextDocument(docB, { viewColumn: ViewColumn.One, preview: false });
+		await window.showTextDocument(docC, { viewColumn: ViewColumn.Two, preview: false });
+
+		let tabs = window.tabs;
+		assert.strictEqual(tabs.length, 3);
+
+		// Move the first tab of Group 1 to be the first tab of Group 2
+		await tabs[0].move(0, ViewColumn.Two);
+		assert.strictEqual(tabs.length, 3);
+		tabs = window.tabs;
+		// Tabs should now be B -> A -> C
+		assert.strictEqual(tabs[0].resource?.toString(), docB.uri.toString());
+
+		await tabs[2].move(0, ViewColumn.Two);
+		assert.strictEqual(tabs.length, 3);
+		tabs = window.tabs;
+		// Tabs should now be B -> C -> A
+		assert.strictEqual(tabs[1].resource?.toString(), docC.uri.toString());
+		await tabs[2].move(1000, ViewColumn.Two);
+		assert.strictEqual(tabs.length, 3);
+		tabs = window.tabs;
+		// Tabs should still be B -> C -> A
+		assert.strictEqual(tabs[2].resource?.toString(), docA.uri.toString());
+
+		await tabs[1].move(0, ViewColumn.Three);
+		assert.strictEqual(tabs.length, 3);
+		tabs = window.tabs;
+		// Tabs should now be B -> A -> C With C in a new group
+		assert.strictEqual(tabs[2].resource?.toString(), docC.uri.toString());
+		assert.strictEqual(tabs[2].viewColumn, ViewColumn.Three);
+
+		await commands.executeCommand('workbench.action.closeActiveEditor');
+		await commands.executeCommand('workbench.action.closeActiveEditor');
+		await commands.executeCommand('workbench.action.closeActiveEditor');
+
+		assert.ok(!window.activeTab);
+	});
+
+	test('Tabs - Close Tabs', async () => {
+		const [docA, docB, docC] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+		]);
+		await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
+		await window.showTextDocument(docB, { viewColumn: ViewColumn.One, preview: false });
+		await window.showTextDocument(docC, { viewColumn: ViewColumn.Two, preview: false });
+
+		let tabs = window.tabs;
+		assert.strictEqual(tabs.length, 3);
+
+		await tabs[0].close();
+		tabs = window.tabs;
+		assert.strictEqual(tabs.length, 2);
+		assert.strictEqual(tabs[0].resource?.toString(), docB.uri.toString());
+
+		await tabs[0].close();
+		tabs = window.tabs;
+		assert.strictEqual(tabs.length, 1);
+		assert.strictEqual(tabs[0].resource?.toString(), docC.uri.toString());
+
+		await tabs[0].close();
+		tabs = window.tabs;
+		assert.strictEqual(tabs.length, 0);
+		assert.strictEqual(tabs.length, 0);
+		assert.ok(!window.activeTab);
 	});
 
 	//#endregion

@@ -387,7 +387,6 @@ export interface ISearchConfigurationProperties {
 		experimental: {}
 	};
 	sortOrder: SearchSortOrder;
-	forceSearchProcess: boolean;
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {
@@ -639,6 +638,14 @@ export class QueryGlobTester {
 		if (includeExpression) {
 			this._parsedIncludeExpression = glob.parse(includeExpression);
 		}
+	}
+
+	matchesExcludesSync(testPath: string, basename?: string, hasSibling?: (name: string) => boolean): boolean {
+		if (this._parsedExcludeExpression && this._parsedExcludeExpression(testPath, basename, hasSibling)) {
+			return true;
+		}
+
+		return false;
 	}
 
 	/**

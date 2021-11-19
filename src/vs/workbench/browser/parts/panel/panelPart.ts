@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/basepanelpart';
 import 'vs/css!./media/panelpart';
 import { localize } from 'vs/nls';
 import { IAction, Separator, toAction } from 'vs/base/common/actions';
@@ -22,7 +23,7 @@ import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/com
 import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_INPUT_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, PANEL_DRAG_AND_DROP_BORDER } from 'vs/workbench/common/theme';
 import { activeContrastBorder, focusBorder, contrastBorder, editorBackground, badgeBackground, badgeForeground } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbench/browser/parts/compositeBar';
-import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
+import { IActivityHoverOptions, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension, trackFocus, EventHelper, $ } from 'vs/base/browser/dom';
@@ -91,7 +92,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	private readonly panelDisposables: Map<string, IDisposable> = new Map<string, IDisposable>();
 
 	private blockOpeningPanel = false;
-	private contentDimension: Dimension | undefined;
+	protected contentDimension: Dimension | undefined;
 
 	private extensionsRegistered = false;
 
@@ -111,6 +112,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		private readonly viewContainerLocation: ViewContainerLocation,
 		private readonly activePanelContextKey: IContextKey<string>,
 		private panelFocusContextKey: IContextKey<boolean>,
+		borderWidth: (() => number) | undefined,
 		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -120,7 +122,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
 		super(
@@ -139,7 +141,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 			'panel',
 			undefined,
 			partId,
-			{ hasTitle: true }
+			{ hasTitle: true, borderWidth }
 		);
 
 		this.panelRegistry = Registry.as<PaneCompositeRegistry>(panelRegistryId);
@@ -153,25 +155,14 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		this.compositeBar = this._register(this.instantiationService.createInstance(CompositeBar, this.getCachedPanels(), {
 			icon: false,
 			orientation: ActionsOrientation.HORIZONTAL,
-			activityHoverOptions: {
-				position: () => this.layoutService.getPanelPosition() === Position.BOTTOM && !this.layoutService.isPanelMaximized() ? HoverPosition.ABOVE : HoverPosition.BELOW,
-			},
+			activityHoverOptions: this.getActivityHoverOptions(),
 			openComposite: (compositeId, preserveFocus) => this.openPaneComposite(compositeId, !preserveFocus).then(panel => panel || null),
 			getActivityAction: compositeId => this.getCompositeActions(compositeId).activityAction,
 			getCompositePinnedAction: compositeId => this.getCompositeActions(compositeId).pinnedAction,
 			getOnCompositeClickAction: compositeId => this.instantiationService.createInstance(PanelActivityAction, assertIsDefined(this.getPaneComposite(compositeId)), this.viewContainerLocation),
-			fillExtraContextMenuActions: actions => {
-				actions.push(...[
-					new Separator(),
-					...PositionPanelActionConfigs
-						// show the contextual menu item if it is not in that position
-						.filter(({ when }) => contextKeyService.contextMatchesRules(when))
-						.map(({ id, label }) => this.instantiationService.createInstance(SetPanelPositionAction, id, label)),
-					this.instantiationService.createInstance(TogglePanelAction, TogglePanelAction.ID, localize('hidePanel', "Hide Panel"))
-				]);
-			},
+			fillExtraContextMenuActions: actions => this.fillExtraContextMenuActions(actions),
 			getContextMenuActionsForComposite: compositeId => this.getContextMenuActionsForComposite(compositeId),
-			getDefaultCompositeId: () => viewDescriptorService.getDefaultViewContainer(this.viewContainerLocation)!.id,
+			getDefaultCompositeId: () => viewDescriptorService.getDefaultViewContainer(this.viewContainerLocation)?.id,
 			hidePart: () => this.layoutService.setPartHidden(true, this.partId),
 			dndHandler: this.dndHandler,
 			compositeSize: 0,
@@ -191,6 +182,9 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		this.registerListeners();
 		this.onDidRegisterPanels([...this.getPaneComposites()]);
 	}
+
+	protected abstract getActivityHoverOptions(): IActivityHoverOptions;
+	protected abstract fillExtraContextMenuActions(actions: IAction[]): void;
 
 	private getContextMenuActionsForComposite(compositeId: string): IAction[] {
 		const result: IAction[] = [];
@@ -275,7 +269,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 
 		if (activeContainers.length) {
 			if (this.getActivePaneComposite()?.getId() === panelId) {
-				const defaultPanelId = this.viewDescriptorService.getDefaultViewContainer(this.viewContainerLocation)!.id;
+				const defaultPanelId = this.viewDescriptorService.getDefaultViewContainer(this.viewContainerLocation)?.id;
 				const containerToOpen = activeContainers.filter(c => c.id === defaultPanelId)[0] || activeContainers[0];
 				await this.openPaneComposite(containerToOpen.id);
 			}
@@ -301,6 +295,10 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		if (pinnedAction instanceof PlaceHolderToggleCompositePinnedAction) {
 			pinnedAction.setActivity(activity);
 		}
+
+		// Composite Bar Swither needs to refresh tabs sizes and overflow action
+		this.compositeBar.recomputeSizes();
+		this.layoutCompositeBar();
 
 		// only update our cached panel info after extensions are done registering
 		if (this.extensionsRegistered) {
@@ -479,13 +477,13 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 
 		const container = assertIsDefined(this.getContainer());
 		container.style.backgroundColor = this.getColor(this.backgroundColor) || '';
-		const borderColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder) || '';
+		const borderColor = this.getColor(contrastBorder) || '';
 		container.style.borderLeftColor = borderColor;
 		container.style.borderRightColor = borderColor;
 
 		const title = this.getTitleArea();
 		if (title) {
-			title.style.borderTopColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder) || '';
+			title.style.borderTopColor = this.getColor(contrastBorder) || '';
 		}
 	}
 
@@ -592,19 +590,22 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		};
 	}
 
-	override layout(width: number, height: number): void {
+	override onTitleAreaUpdate(compositeId: string): void {
+		super.onTitleAreaUpdate(compositeId);
+
+		// If title actions change, relayout the composite bar
+		this.layoutCompositeBar();
+	}
+
+	override layout(width: number, height: number, top: number, left: number): void {
 		if (!this.layoutService.isVisible(this.partId)) {
 			return;
 		}
 
-		if (this.layoutService.getPanelPosition() === Position.RIGHT) {
-			this.contentDimension = new Dimension(width - 1, height); // Take into account the 1px border when layouting
-		} else {
-			this.contentDimension = new Dimension(width, height);
-		}
+		this.contentDimension = new Dimension(width, height);
 
 		// Layout contents
-		super.layout(this.contentDimension.width, this.contentDimension.height);
+		super.layout(this.contentDimension.width, this.contentDimension.height, top, left);
 
 		// Layout composite bar
 		this.layoutCompositeBar();
@@ -617,7 +618,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		if (this.contentDimension && this.dimension) {
 			let availableWidth = this.contentDimension.width - 40; // take padding into account
 			if (this.toolBar) {
-				availableWidth = Math.max(PanelPart.MIN_COMPOSITE_BAR_WIDTH, availableWidth - this.getToolbarWidth()); // adjust height for global actions showing
+				availableWidth = Math.max(BasePanelPart.MIN_COMPOSITE_BAR_WIDTH, availableWidth - this.getToolbarWidth()); // adjust height for global actions showing
 			}
 
 			this.compositeBar.layout(new Dimension(availableWidth, this.dimension.height));
@@ -670,7 +671,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		return false;
 	}
 
-	private getToolbarWidth(): number {
+	protected getToolbarWidth(): number {
 		const activePanel = this.getActivePaneComposite();
 		if (!activePanel || !this.toolBar) {
 			return 0;
@@ -840,6 +841,7 @@ export class PanelPart extends BasePanelPart {
 			ViewContainerLocation.Panel,
 			ActivePanelContext.bindTo(contextKeyService),
 			PanelFocusContext.bindTo(contextKeyService),
+			undefined,
 			notificationService,
 			storageService,
 			telemetryService,
@@ -858,6 +860,37 @@ export class PanelPart extends BasePanelPart {
 		this._register(this.globalActions.onDidChange(() => this.updateGlobalToolbarActions()));
 	}
 
+	override updateStyles(): void {
+		super.updateStyles();
+
+		const container = assertIsDefined(this.getContainer());
+		const borderColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder) || '';
+		container.style.borderLeftColor = borderColor;
+		container.style.borderRightColor = borderColor;
+
+		const title = this.getTitleArea();
+		if (title) {
+			title.style.borderTopColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder) || '';
+		}
+	}
+
+	protected getActivityHoverOptions(): IActivityHoverOptions {
+		return {
+			position: () => this.layoutService.getPanelPosition() === Position.BOTTOM && !this.layoutService.isPanelMaximized() ? HoverPosition.ABOVE : HoverPosition.BELOW,
+		};
+	}
+
+	protected fillExtraContextMenuActions(actions: IAction[]): void {
+		actions.push(...[
+			new Separator(),
+			...PositionPanelActionConfigs
+				// show the contextual menu item if it is not in that position
+				.filter(({ when }) => this.contextKeyService.contextMatchesRules(when))
+				.map(({ id, label }) => this.instantiationService.createInstance(SetPanelPositionAction, id, label)),
+			this.instantiationService.createInstance(TogglePanelAction, TogglePanelAction.ID, localize('hidePanel', "Hide Panel"))
+		]);
+	}
+
 	override createTitleArea(parent: HTMLElement): HTMLElement {
 		const element = super.createTitleArea(parent);
 		const globalTitleActionsContainer = element.appendChild($('.global-actions'));
@@ -874,6 +907,22 @@ export class PanelPart extends BasePanelPart {
 		this.updateGlobalToolbarActions();
 
 		return element;
+	}
+
+	override getToolbarWidth(): number {
+		return super.getToolbarWidth() + (this.globalToolBar?.getItemsWidth() ?? 0);
+	}
+
+	override layout(width: number, height: number, top: number, left: number): void {
+		let dimensions: Dimension;
+		if (this.layoutService.getPanelPosition() === Position.RIGHT) {
+			dimensions = new Dimension(width - 1, height); // Take into account the 1px border when layouting
+		} else {
+			dimensions = new Dimension(width, height);
+		}
+
+		// Layout contents
+		super.layout(dimensions.width, dimensions.height, top, left);
 	}
 
 	private updateGlobalToolbarActions(): void {

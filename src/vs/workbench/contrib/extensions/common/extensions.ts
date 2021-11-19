@@ -45,6 +45,7 @@ export interface IExtension {
 	readonly identifier: IExtensionIdentifier;
 	readonly publisher: string;
 	readonly publisherDisplayName: string;
+	readonly publisherDomain?: { link: string, verified: boolean };
 	readonly version: string;
 	readonly latestVersion: string;
 	readonly description: string;

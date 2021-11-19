@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { equals } from 'vs/base/common/objects';
 import { EventType, EventHelper, addDisposableListener, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
-import { Separator } from 'vs/base/common/actions';
+import { Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -60,6 +60,7 @@ import { AuthInfo } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { whenEditorClosed } from 'vs/workbench/browser/editor';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 
 export class NativeWindow extends Disposable {
 
@@ -109,7 +110,8 @@ export class NativeWindow extends Disposable {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService
 	) {
 		super();
 
@@ -153,11 +155,7 @@ export class NativeWindow extends Disposable {
 			try {
 				await this.commandService.executeCommand(request.id, ...args);
 
-				type CommandExecutedClassifcation = {
-					id: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-					from: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-				};
-				this.telemetryService.publicLog2<{ id: String, from: String }, CommandExecutedClassifcation>('commandExecuted', { id: request.id, from: request.from });
+				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: request.id, from: request.from });
 			} catch (error) {
 				this.notificationService.error(error);
 			}
@@ -185,6 +183,16 @@ export class NativeWindow extends Disposable {
 
 		// Message support
 		ipcRenderer.on('vscode:showInfoMessage', (event: unknown, message: string) => this.notificationService.info(message));
+
+		// Shell Environment Issue Notifications
+		ipcRenderer.on('vscode:showResolveShellEnvError', (event: unknown, message: string) => this.notificationService.prompt(
+			Severity.Error,
+			message,
+			[{
+				label: localize('learnMore', "Learn More"),
+				run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667')
+			}]
+		));
 
 		// Fullscreen Events
 		ipcRenderer.on('vscode:enterFullScreen', async () => setFullscreen(true));
@@ -438,8 +446,9 @@ export class NativeWindow extends Disposable {
 		// Handle open calls
 		this.setupOpenHandlers();
 
-		// Notify main side when window ready
+		// Notify some services about lifecycle phases
 		this.lifecycleService.when(LifecyclePhase.Ready).then(() => this.nativeHostService.notifyReady());
+		this.lifecycleService.when(LifecyclePhase.Restored).then(() => this.sharedProcessService.notifyRestored());
 
 		// Integrity warning
 		this.integrityService.isPure().then(({ isPure }) => this.titleService.updateProperties({ isPure }));
@@ -520,11 +529,8 @@ export class NativeWindow extends Disposable {
 				}
 
 				if (!options?.openExternal) {
-
-					// Assume `uri` this is a workspace uri, let's see if we can handle it
-					await this.fileService.activateProvider(uri.scheme);
-
-					if (this.fileService.canHandleResource(uri)) {
+					const canHandleResource = await this.fileService.canHandleResource(uri);
+					if (canHandleResource) {
 						return {
 							resolved: URI.from({
 								scheme: this.productService.urlProtocol,

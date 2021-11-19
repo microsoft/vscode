@@ -201,7 +201,7 @@ export class VariablesView extends ViewPane {
 
 	private onMouseDblClick(e: ITreeMouseEvent<IExpression | IScope>): void {
 		const session = this.debugService.getViewModel().focusedSession;
-		if (session && e.element instanceof Variable && session.capabilities.supportsSetVariable) {
+		if (session && e.element instanceof Variable && session.capabilities.supportsSetVariable && !e.element.presentationHint?.attributes?.includes('readOnly')) {
 			this.debugService.getViewModel().setSelectedExpression(e.element, false);
 		}
 	}
@@ -317,7 +317,7 @@ class ScopesRenderer implements ITreeRenderer<IScope, FuzzyScore, IScopeTemplate
 
 	renderTemplate(container: HTMLElement): IScopeTemplateData {
 		const name = dom.append(container, $('.scope'));
-		const label = new HighlightedLabel(name, false);
+		const label = new HighlightedLabel(name);
 
 		return { name, label };
 	}

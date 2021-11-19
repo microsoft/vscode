@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
@@ -26,10 +26,19 @@ import { setupInstantiationService } from 'vs/workbench/contrib/notebook/test/te
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Mimes } from 'vs/base/common/mime';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 
 suite('NotebookFileWorkingCopyModel', function () {
 
-	const instantiationService = setupInstantiationService();
+	let disposables: DisposableStore;
+	let instantiationService: TestInstantiationService;
+
+	suiteSetup(() => {
+		disposables = new DisposableStore();
+		instantiationService = setupInstantiationService(disposables);
+	});
+
+	suiteTeardown(() => disposables.dispose());
 
 	test('no transient output is send to serializer', function () {
 

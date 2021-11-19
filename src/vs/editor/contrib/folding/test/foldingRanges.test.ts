@@ -34,6 +34,7 @@ suite('FoldingRanges', () => {
 			assert.strictEqual(actual.getEndLineNumber(i), nRegions * 2 - i, 'end' + i);
 			assert.strictEqual(actual.getParentIndex(i), i - 1, 'parent' + i);
 		}
+		model.dispose();
 
 	});
 
@@ -100,5 +101,6 @@ suite('FoldingRanges', () => {
 		for (let i = 0; i < nRegions; i++) {
 			assert.strictEqual(actual.isCollapsed(i), i % 3 === 0, 'line' + i);
 		}
+		model.dispose();
 	});
 });

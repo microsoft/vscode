@@ -9,7 +9,8 @@ import { IdleValue } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
-import { KeyCode, KeyMod, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { SimpleKeybinding } from 'vs/base/common/keybindings';
 import { DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -42,6 +43,9 @@ import { CommitCharacterController } from './suggestCommitCharacters';
 import { State, SuggestModel } from './suggestModel';
 import { OvertypingCapturer } from './suggestOvertypingCapturer';
 import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { basename, extname } from 'vs/base/common/resources';
+import { hash } from 'vs/base/common/hash';
 
 // sticky suggest widget which doesn't disappear on focus out and such
 let _sticky = false;
@@ -121,6 +125,7 @@ export class SuggestController implements IEditorContribution {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		this.editor = editor;
 		this.model = _instantiationService.createInstance(SuggestModel, this.editor,);
@@ -167,7 +172,6 @@ export class SuggestController implements IEditorContribution {
 				if (
 					this.editor.getOption(EditorOption.acceptSuggestionOnEnter) === 'smart'
 					&& this.model.state === State.Auto
-					&& !item.completion.command
 					&& !item.completion.additionalTextEdits
 					&& !(item.completion.insertTextRules! & CompletionItemInsertTextRule.InsertAsSnippet)
 					&& endColumn - startColumn === item.completion.insertText.length
@@ -192,8 +196,8 @@ export class SuggestController implements IEditorContribution {
 			this._toDispose.add(widget.onDetailsKeyDown(e => {
 				// cmd + c on macOS, ctrl + c on Win / Linux
 				if (
-					e.toKeybinding().equals(new SimpleKeybinding(true, false, false, false, KeyCode.KEY_C)) ||
-					(platform.isMacintosh && e.toKeybinding().equals(new SimpleKeybinding(false, false, false, true, KeyCode.KEY_C)))
+					e.toKeybinding().equals(new SimpleKeybinding(true, false, false, false, KeyCode.KeyC)) ||
+					(platform.isMacintosh && e.toKeybinding().equals(new SimpleKeybinding(false, false, false, true, KeyCode.KeyC)))
 				) {
 					e.stopPropagation();
 					return;
@@ -427,8 +431,34 @@ export class SuggestController implements IEditorContribution {
 
 		// clear only now - after all tasks are done
 		Promise.all(tasks).finally(() => {
+			this._reportSuggestionAcceptedTelemetry(model, event);
+
 			this.model.clear();
 			cts.dispose();
+		});
+	}
+
+	private _telemetryGate: number = 0;
+	private _reportSuggestionAcceptedTelemetry(model: ITextModel, acceptedSuggestion: ISelectedSuggestion) {
+		if (this._telemetryGate++ % 100 !== 0) {
+			return;
+		}
+
+		type AcceptedSuggestion = { providerId: string; fileExtension: string; languageId: string; basenameHash: string; };
+		type AcceptedSuggestionClassification = {
+			providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; };
+			basenameHash: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; };
+			fileExtension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; };
+			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; };
+		};
+		// _debugDisplayName looks like `vscode.css-language-features(/-:)`, where the last bit is the trigger chars
+		// normalize it to just the extension ID and lowercase
+		const providerId = (acceptedSuggestion.item.provider._debugDisplayName ?? 'unknown').split('(', 1)[0].toLowerCase();
+		this._telemetryService.publicLog2<AcceptedSuggestion, AcceptedSuggestionClassification>('suggest.acceptedSuggestion', {
+			providerId,
+			basenameHash: hash(basename(model.uri)).toString(16),
+			languageId: model.getLanguageId(),
+			fileExtension: extname(model.uri),
 		});
 	}
 
@@ -457,10 +487,10 @@ export class SuggestController implements IEditorContribution {
 		}
 	}
 
-	triggerSuggest(onlyFrom?: Set<CompletionItemProvider>): void {
+	triggerSuggest(onlyFrom?: Set<CompletionItemProvider>, auto?: boolean): void {
 		if (this.editor.hasModel()) {
-			this.model.trigger({ auto: false, shy: false }, false, onlyFrom);
-			this.editor.revealLine(this.editor.getPosition().lineNumber, ScrollType.Smooth);
+			this.model.trigger({ auto: auto ?? false, shy: false }, false, onlyFrom);
+			this.editor.revealPosition(this.editor.getPosition(), ScrollType.Smooth);
 			this.editor.focus();
 		}
 	}
@@ -529,7 +559,7 @@ export class SuggestController implements IEditorContribution {
 		});
 
 		this.model.trigger({ auto: false, shy: true });
-		this.editor.revealLine(positionNow.lineNumber, ScrollType.Smooth);
+		this.editor.revealPosition(positionNow, ScrollType.Smooth);
 		this.editor.focus();
 	}
 
@@ -655,21 +685,29 @@ export class TriggerSuggestAction extends EditorAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.Space,
-				secondary: [KeyMod.CtrlCmd | KeyCode.KEY_I],
-				mac: { primary: KeyMod.WinCtrl | KeyCode.Space, secondary: [KeyMod.Alt | KeyCode.Escape, KeyMod.CtrlCmd | KeyCode.KEY_I] },
+				secondary: [KeyMod.CtrlCmd | KeyCode.KeyI],
+				mac: { primary: KeyMod.WinCtrl | KeyCode.Space, secondary: [KeyMod.Alt | KeyCode.Escape, KeyMod.CtrlCmd | KeyCode.KeyI] },
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	run(_accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 		const controller = SuggestController.get(editor);
 
 		if (!controller) {
 			return;
 		}
 
-		controller.triggerSuggest();
+		type TriggerArgs = { auto: boolean };
+		let auto: boolean | undefined;
+		if (args && typeof args === 'object') {
+			if ((<TriggerArgs>args).auto === true) {
+				auto = true;
+			}
+		}
+
+		controller.triggerSuggest(undefined, auto);
 	}
 }
 
@@ -776,7 +814,7 @@ registerEditorCommand(new SuggestCommand({
 		kbExpr: EditorContextKeys.textInputFocus,
 		primary: KeyCode.DownArrow,
 		secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow],
-		mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KEY_N] }
+		mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KeyN] }
 	}
 }));
 
@@ -807,7 +845,7 @@ registerEditorCommand(new SuggestCommand({
 		kbExpr: EditorContextKeys.textInputFocus,
 		primary: KeyCode.UpArrow,
 		secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow],
-		mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KEY_P] }
+		mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KeyP] }
 	}
 }));
 
@@ -837,8 +875,8 @@ registerEditorCommand(new SuggestCommand({
 		weight: weight,
 		kbExpr: EditorContextKeys.textInputFocus,
 		primary: KeyMod.CtrlCmd | KeyCode.Space,
-		secondary: [KeyMod.CtrlCmd | KeyCode.KEY_I],
-		mac: { primary: KeyMod.WinCtrl | KeyCode.Space, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_I] }
+		secondary: [KeyMod.CtrlCmd | KeyCode.KeyI],
+		mac: { primary: KeyMod.WinCtrl | KeyCode.Space, secondary: [KeyMod.CtrlCmd | KeyCode.KeyI] }
 	},
 	menuOpts: [{
 		menuId: suggestWidgetStatusbarMenu,
@@ -861,7 +899,7 @@ registerEditorCommand(new SuggestCommand({
 	handler: x => x.toggleExplainMode(),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib,
-		primary: KeyMod.CtrlCmd | KeyCode.US_SLASH,
+		primary: KeyMod.CtrlCmd | KeyCode.Slash,
 	}
 }));
 

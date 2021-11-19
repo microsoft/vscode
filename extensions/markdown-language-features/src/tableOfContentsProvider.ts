@@ -60,6 +60,10 @@ export class TableOfContentsProvider {
 		const existingSlugEntries = new Map<string, { count: number }>();
 
 		for (const heading of tokens.filter(token => token.type === 'heading_open')) {
+			if (!heading.map) {
+				continue;
+			}
+
 			const lineNumber = heading.map[0];
 			const line = document.lineAt(lineNumber);
 

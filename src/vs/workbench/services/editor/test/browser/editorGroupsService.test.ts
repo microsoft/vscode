@@ -31,7 +31,7 @@ suite('EditorGroupsService', () => {
 		disposables.clear();
 	});
 
-	async function createPart(instantiationService = workbenchInstantiationService()): Promise<[TestEditorPart, ITestInstantiationService]> {
+	async function createPart(instantiationService = workbenchInstantiationService(undefined, disposables)): Promise<[TestEditorPart, ITestInstantiationService]> {
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);
 
@@ -39,7 +39,7 @@ suite('EditorGroupsService', () => {
 	}
 
 	test('groups basics', async function () {
-		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) });
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
 		const [part] = await createPart(instantiationService);
 
 		let activeGroupChangeCounter = 0;
@@ -194,7 +194,7 @@ suite('EditorGroupsService', () => {
 	});
 
 	test('sideGroup', async () => {
-		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) });
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
 		const [part] = await createPart(instantiationService);
 
 		const rootGroup = part.activeGroup;
@@ -490,7 +490,8 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group.activeEditor, inputInactive);
 
 		await group.openEditor(input);
-		await group.closeEditor(inputInactive);
+		const closed = await group.closeEditor(inputInactive);
+		assert.strictEqual(closed, true);
 
 		assert.strictEqual(activeEditorChangeCounter, 3);
 		assert.strictEqual(editorCloseCounter, 1);
@@ -553,12 +554,14 @@ suite('EditorGroupsService', () => {
 		await group.openEditor(input);
 
 		accessor.fileDialogService.setConfirmResult(ConfirmResult.CANCEL);
-		await group.closeEditor(input);
+		let closed = await group.closeEditor(input);
+		assert.strictEqual(closed, false);
 
 		assert.ok(!input.gotDisposed);
 
 		accessor.fileDialogService.setConfirmResult(ConfirmResult.DONT_SAVE);
-		await group.closeEditor(input);
+		closed = await group.closeEditor(input);
+		assert.strictEqual(closed, true);
 
 		assert.ok(input.gotDisposed);
 	});
@@ -576,11 +579,13 @@ suite('EditorGroupsService', () => {
 		await group.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]);
 		await rightGroup.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]);
 
-		await rightGroup.closeEditor(input);
+		let closed = await rightGroup.closeEditor(input);
+		assert.strictEqual(closed, true);
 
 		assert.ok(!input.gotDisposed);
 
-		await group.closeEditor(input);
+		closed = await group.closeEditor(input);
+		assert.strictEqual(closed, true);
 
 		assert.ok(input.gotDisposed);
 	});
@@ -1552,7 +1557,7 @@ suite('EditorGroupsService', () => {
 	});
 
 	test('locked groups - auto locking via setting', async () => {
-		const instantiationService = workbenchInstantiationService();
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const configurationService = new TestConfigurationService();
 		await configurationService.setUserConfiguration('workbench', { 'editor': { 'autoLockGroups': { 'testEditorInputForEditorGroupService': true } } });
 		instantiationService.stub(IConfigurationService, configurationService);

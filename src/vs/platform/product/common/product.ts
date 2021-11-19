@@ -10,6 +10,9 @@ import { IProductConfiguration } from 'vs/base/common/product';
 import { dirname, joinPath } from 'vs/base/common/resources';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 
+/**
+ * @deprecated You MUST use `IProductService` if possible.
+ */
 let product: IProductConfiguration;
 
 // Native sandbox environment
@@ -54,7 +57,7 @@ else {
 	// Running out of sources
 	if (Object.keys(product).length === 0) {
 		Object.assign(product, {
-			version: '1.61.0-dev',
+			version: '1.63.0-dev',
 			nameShort: 'Code - OSS Dev',
 			nameLong: 'Code - OSS Dev',
 			applicationName: 'code-oss',
@@ -66,8 +69,6 @@ else {
 			extensionAllowedProposedApi: [
 				'ms-vscode.vscode-js-profile-flame',
 				'ms-vscode.vscode-js-profile-table',
-				'ms-vscode.remotehub',
-				'ms-vscode.remotehub-insiders',
 				'GitHub.remotehub',
 				'GitHub.remotehub-insiders'
 			],
@@ -75,4 +76,7 @@ else {
 	}
 }
 
+/**
+ * @deprecated You MUST use `IProductService` if possible.
+ */
 export default product;

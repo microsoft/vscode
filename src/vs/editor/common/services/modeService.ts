@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { IMode, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
+import { ILanguageIdCodec } from 'vs/editor/common/modes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IModeService = createDecorator<IModeService>('modeService');
@@ -22,14 +22,16 @@ export interface ILanguageExtensionPoint {
 }
 
 export interface ILanguageSelection {
-	readonly languageIdentifier: LanguageIdentifier;
-	readonly onDidChange: Event<LanguageIdentifier>;
+	readonly languageId: string;
+	readonly onDidChange: Event<string>;
 }
 
 export interface IModeService {
 	readonly _serviceBrand: undefined;
 
-	onDidCreateMode: Event<IMode>;
+	readonly languageIdCodec: ILanguageIdCodec;
+
+	onDidEncounterLanguage: Event<string>;
 	onLanguagesMaybeChanged: Event<void>;
 
 	// --- reading
@@ -38,13 +40,13 @@ export interface IModeService {
 	getRegisteredLanguageNames(): string[];
 	getExtensions(alias: string): string[];
 	getFilenames(alias: string): string[];
-	getMimeForMode(modeId: string): string | null;
-	getLanguageName(modeId: string): string | null;
+	getMimeForMode(languageId: string): string | null;
+	getLanguageName(languageId: string): string | null;
 	getModeIdForLanguageName(alias: string): string | null;
 	getModeIdByFilepathOrFirstLine(resource: URI, firstLine?: string): string | null;
 	getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string): string | null;
-	getLanguageIdentifier(modeId: string | LanguageId): LanguageIdentifier | null;
-	getConfigurationFiles(modeId: string): URI[];
+	validateLanguageId(languageId: string): string | null;
+	getConfigurationFiles(languageId: string): URI[];
 
 	// --- instantiation
 	create(commaSeparatedMimetypesOrCommaSeparatedIds: string | undefined): ILanguageSelection;
