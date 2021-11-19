@@ -14,7 +14,7 @@ export function getCustomDataSource(toDispose: Disposable[]) {
 
 	toDispose.push(extensions.onDidChange(_ => {
 		const newPathsInExtensions = getCustomDataPathsFromAllExtensions();
-		if (newPathsInExtensions.length !== pathsInExtensions.length || !newPathsInExtensions.every((val, idx) => val === pathsInExtensions[idx])) {
+		if (pathsInExtensions.size !== newPathsInExtensions.size || ![...pathsInExtensions].every(path => newPathsInExtensions.has(path))) {
 			pathsInExtensions = newPathsInExtensions;
 			onChange.fire();
 		}
@@ -28,14 +28,14 @@ export function getCustomDataSource(toDispose: Disposable[]) {
 
 	toDispose.push(workspace.onDidChangeTextDocument(e => {
 		const path = e.document.uri.toString();
-		if (pathsInExtensions.indexOf(path) || pathsInWorkspace.indexOf(path)) {
+		if (pathsInExtensions.has(path) || pathsInWorkspace.has(path)) {
 			onChange.fire();
 		}
 	}));
 
 	return {
 		get uris() {
-			return pathsInWorkspace.concat(pathsInExtensions);
+			return [...pathsInWorkspace].concat([...pathsInExtensions]);
 		},
 		get onDidChange() {
 			return onChange.event;
@@ -44,10 +44,10 @@ export function getCustomDataSource(toDispose: Disposable[]) {
 }
 
 
-function getCustomDataPathsInAllWorkspaces(): string[] {
+function getCustomDataPathsInAllWorkspaces(): Set<string> {
 	const workspaceFolders = workspace.workspaceFolders;
 
-	const dataPaths: string[] = [];
+	const dataPaths = new Set<string>();
 
 	if (!workspaceFolders) {
 		return dataPaths;
@@ -60,10 +60,10 @@ function getCustomDataPathsInAllWorkspaces(): string[] {
 					const uri = Uri.parse(path);
 					if (uri.scheme === 'file') {
 						// only resolve file paths relative to extension
-						dataPaths.push(resolvePath(rootFolder, path).toString());
+						dataPaths.add(resolvePath(rootFolder, path).toString());
 					} else {
 						// others schemes
-						dataPaths.push(path);
+						dataPaths.add(path);
 					}
 				}
 			}
@@ -88,8 +88,8 @@ function getCustomDataPathsInAllWorkspaces(): string[] {
 	return dataPaths;
 }
 
-function getCustomDataPathsFromAllExtensions(): string[] {
-	const dataPaths: string[] = [];
+function getCustomDataPathsFromAllExtensions(): Set<string> {
+	const dataPaths = new Set<string>();
 	for (const extension of extensions.all) {
 		const customData = extension.packageJSON?.contributes?.html?.customData;
 		if (Array.isArray(customData)) {
@@ -97,10 +97,10 @@ function getCustomDataPathsFromAllExtensions(): string[] {
 				const uri = Uri.parse(rp);
 				if (uri.scheme === 'file') {
 					// only resolve file paths relative to extension
-					dataPaths.push(joinPath(extension.extensionUri, rp).toString());
+					dataPaths.add(joinPath(extension.extensionUri, rp).toString());
 				} else {
 					// others schemes
-					dataPaths.push(rp);
+					dataPaths.add(rp);
 				}
 
 			}

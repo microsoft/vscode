@@ -21,18 +21,19 @@ export namespace FsReadDirRequest {
 export function serveFileSystemRequests(client: CommonLanguageClient, runtime: Runtime, subscriptions: { dispose(): any }[]) {
 	subscriptions.push(client.onRequest(FsContentRequest.type, (param: { uri: string; encoding?: string; }) => {
 		const uri = Uri.parse(param.uri);
-		if (uri.scheme === 'file' && runtime.fs) {
-			return runtime.fs.getContent(param.uri);
-		}
-
-		return workspace.fs.readFile(uri).then(buffer => {
-			return new runtime.TextDecoder(param.encoding).decode(buffer);
-		}, () => {
-			// this path also considers TextDocumentContentProvider
+		if (uri.scheme === 'file') {
+			if (runtime.fs) {
+				return runtime.fs.getContent(param.uri);
+			} else {
+				return workspace.fs.readFile(uri).then(buffer => {
+					return new runtime.TextDecoder(param.encoding).decode(buffer);
+				});
+			}
+		} else {
 			return workspace.openTextDocument(uri).then(doc => {
 				return doc.getText();
 			});
-		});
+		}
 	}));
 	subscriptions.push(client.onRequest(FsReadDirRequest.type, (uriString: string) => {
 		const uri = Uri.parse(uriString);
