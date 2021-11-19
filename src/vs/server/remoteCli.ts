@@ -71,6 +71,7 @@ const isSupportedForPipe = (optionId: keyof RemoteParsedArgs) => {
 		case 'show-versions':
 		case 'category':
 		case 'verbose':
+		case 'remote':
 			return true;
 		default:
 			return false;
@@ -80,7 +81,7 @@ const isSupportedForPipe = (optionId: keyof RemoteParsedArgs) => {
 const cliPipe = process.env['VSCODE_IPC_HOOK_CLI'] as string;
 const cliCommand = process.env['VSCODE_CLIENT_COMMAND'] as string;
 const cliCommandCwd = process.env['VSCODE_CLIENT_COMMAND_CWD'] as string;
-const remoteAuthority = process.env['VSCODE_CLI_AUTHORITY'] as string;
+const cliRemoteAuthority = process.env['VSCODE_CLI_AUTHORITY'] as string;
 const cliStdInFilePath = process.env['VSCODE_STDIN_FILE_PATH'] as string;
 
 
@@ -115,7 +116,7 @@ export function main(desc: ProductDescription, args: string[]): void {
 	};
 
 	const parsedArgs = parseArgs(args, options, errorReporter);
-	const mapFileUri = remoteAuthority ? mapFileToRemoteUri : (uri: string) => uri;
+	const mapFileUri = cliRemoteAuthority ? mapFileToRemoteUri : (uri: string) => uri;
 
 	const verbose = !!parsedArgs['verbose'];
 
@@ -134,20 +135,26 @@ export function main(desc: ProductDescription, args: string[]): void {
 		}
 	}
 
+	let remote: string | null | undefined = parsedArgs.remote;
+	if (remote === 'local' || remote === 'false' || remote === '') {
+		remote = null;
+	}
 
-	let folderURIs = (parsedArgs['folder-uri'] || []).map(mapFileUri);
+	const folderURIs = (parsedArgs['folder-uri'] || []).map(mapFileUri);
 	parsedArgs['folder-uri'] = folderURIs;
 
-	let fileURIs = (parsedArgs['file-uri'] || []).map(mapFileUri);
+	const fileURIs = (parsedArgs['file-uri'] || []).map(mapFileUri);
 	parsedArgs['file-uri'] = fileURIs;
 
-	let inputPaths = parsedArgs['_'];
+	const inputPaths = parsedArgs['_'];
 	let hasReadStdinArg = false;
 	for (let input of inputPaths) {
 		if (input === '-') {
 			hasReadStdinArg = true;
 		} else {
-			translatePath(input, mapFileUri, folderURIs, fileURIs);
+			if (remote !== undefined) {
+				translatePath(input, mapFileUri, folderURIs, fileURIs);
+			}
 		}
 	}
 
@@ -189,10 +196,6 @@ export function main(desc: ProductDescription, args: string[]): void {
 		return;
 	}
 
-	if (remoteAuthority) {
-		parsedArgs['remote'] = remoteAuthority;
-	}
-
 	if (cliCommand) {
 		if (parsedArgs['install-extension'] !== undefined || parsedArgs['uninstall-extension'] !== undefined || parsedArgs['list-extensions']) {
 			const cmdLine: string[] = [];
@@ -225,6 +228,9 @@ export function main(desc: ProductDescription, args: string[]): void {
 				newCommandline.push(`--${key}=${val.toString()}`);
 			}
 		}
+		if (remote !== null) {
+			newCommandline.push(`--remote=${remote || cliRemoteAuthority}`);
+		}
 
 		const ext = extname(cliCommand);
 		if (ext === '.bat' || ext === '.cmd') {
@@ -247,10 +253,6 @@ export function main(desc: ProductDescription, args: string[]): void {
 			_cp.spawn(cliCommand, newCommandline, { cwd: cliCwd, env, stdio: ['inherit'] });
 		}
 	} else {
-		if (args.length === 0) {
-			console.log(buildHelpMessage(desc.productName, desc.executableName, desc.version, options, true));
-			return;
-		}
 		if (parsedArgs.status) {
 			sendToPipe({
 				type: 'status'
@@ -273,11 +275,6 @@ export function main(desc: ProductDescription, args: string[]): void {
 			return;
 		}
 
-		if (!fileURIs.length && !folderURIs.length) {
-			console.log('At least one file or folder must be provided.');
-			return;
-		}
-
 		let waitMarkerFilePath: string | undefined = undefined;
 		if (parsedArgs['wait']) {
 			if (!fileURIs.length) {
@@ -296,7 +293,8 @@ export function main(desc: ProductDescription, args: string[]): void {
 			gotoLineMode: parsedArgs.goto,
 			forceReuseWindow: parsedArgs['reuse-window'],
 			forceNewWindow: parsedArgs['new-window'],
-			waitMarkerFilePath
+			waitMarkerFilePath,
+			remoteAuthority: remote
 		}, verbose);
 
 		if (waitMarkerFilePath) {
@@ -411,7 +409,7 @@ function translatePath(input: string, mapFileUri: (input: string) => string, fol
 }
 
 function mapFileToRemoteUri(uri: string): string {
-	return uri.replace(/^file:\/\//, 'vscode-remote://' + remoteAuthority);
+	return uri.replace(/^file:\/\//, 'vscode-remote://' + cliRemoteAuthority);
 }
 
 let [, , productName, version, commit, executableName, ...remainingArgs] = process.argv;
