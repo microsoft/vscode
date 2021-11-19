@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.getSettingsSearchBuildId = exports.shouldSetupSettingsSearch = void 0;
 const path = require("path");
 const os = require("os");
 const cp = require("child_process");
@@ -21,7 +22,7 @@ function generateVSCodeConfigurationTask() {
         if (!buildDir) {
             return reject(new Error('$AGENT_BUILDDIRECTORY not set'));
         }
-        if (!(process.env.BUILD_SOURCEBRANCH && (/\/main$/.test(process.env.BUILD_SOURCEBRANCH) || process.env.BUILD_SOURCEBRANCH.indexOf('/release/') >= 0))) {
+        if (!shouldSetupSettingsSearch()) {
             console.log(`Only runs on main and release branches, not ${process.env.BUILD_SOURCEBRANCH}`);
             return resolve(undefined);
         }
@@ -60,6 +61,11 @@ function generateVSCodeConfigurationTask() {
         });
     });
 }
+function shouldSetupSettingsSearch() {
+    const branch = process.env.BUILD_SOURCEBRANCH;
+    return !!(branch && (/\/main$/.test(branch) || branch.indexOf('/release/') >= 0));
+}
+exports.shouldSetupSettingsSearch = shouldSetupSettingsSearch;
 function getSettingsSearchBuildId(packageJson) {
     try {
         const branch = process.env.BUILD_SOURCEBRANCH;
@@ -76,6 +82,7 @@ function getSettingsSearchBuildId(packageJson) {
         throw new Error('Could not determine build number: ' + e.toString());
     }
 }
+exports.getSettingsSearchBuildId = getSettingsSearchBuildId;
 async function main() {
     const configPath = await generateVSCodeConfigurationTask();
     if (!configPath) {
@@ -93,4 +100,6 @@ async function main() {
         prefix: `${settingsSearchBuildId}/${commit}/`
     }));
 }
-main();
+if (require.main === module) {
+    main();
+}

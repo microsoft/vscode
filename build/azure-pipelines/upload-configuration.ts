@@ -25,7 +25,7 @@ function generateVSCodeConfigurationTask(): Promise<string | undefined> {
 			return reject(new Error('$AGENT_BUILDDIRECTORY not set'));
 		}
 
-		if (!(process.env.BUILD_SOURCEBRANCH && (/\/main$/.test(process.env.BUILD_SOURCEBRANCH) || process.env.BUILD_SOURCEBRANCH.indexOf('/release/') >= 0))) {
+		if (!shouldSetupSettingsSearch()) {
 			console.log(`Only runs on main and release branches, not ${process.env.BUILD_SOURCEBRANCH}`);
 			return resolve(undefined);
 		}
@@ -74,7 +74,12 @@ function generateVSCodeConfigurationTask(): Promise<string | undefined> {
 	});
 }
 
-function getSettingsSearchBuildId(packageJson: { version: string }) {
+export function shouldSetupSettingsSearch(): boolean {
+	const branch = process.env.BUILD_SOURCEBRANCH;
+	return !!(branch && (/\/main$/.test(branch) || branch.indexOf('/release/') >= 0));
+}
+
+export function getSettingsSearchBuildId(packageJson: { version: string }) {
 	try {
 		const branch = process.env.BUILD_SOURCEBRANCH!;
 		const branchId = branch.indexOf('/release/') >= 0 ? 0 :
@@ -114,4 +119,6 @@ async function main() {
 		}));
 }
 
-main();
+if (require.main === module) {
+	main();
+}
