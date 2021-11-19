@@ -659,14 +659,16 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		templateData.outputContainer.domNode.appendChild(templateData.cellOutputCollapsedContainer);
 
 		const elementDisposables = templateData.elementDisposables;
+		const cellEditorOptions = elementDisposables.add(new CellEditorOptions(this.notebookEditor, this.notebookEditor.notebookOptions, this.configurationService, element.language));
+
 		elementDisposables.add(templateData.instantiationService.createInstance(CodeCell, this.notebookEditor, element, templateData, [
 			templateData.focusIndicator,
 			templateData.betweenCellToolbar,
-			templateData.statusBar
+			templateData.statusBar,
+			cellEditorOptions
 		]));
 		this.renderedEditors.set(element, templateData.editor);
 
-		const cellEditorOptions = elementDisposables.add(new CellEditorOptions(this.notebookEditor, this.notebookEditor.notebookOptions, this.configurationService, element.language));
 		elementDisposables.add(cellEditorOptions.onDidChange(() => templateData.editor.updateOptions(cellEditorOptions.getUpdatedValue(element.internalMetadata))));
 		templateData.editor.updateOptions(cellEditorOptions.getUpdatedValue(element.internalMetadata));
 		cellEditorOptions.setLineNumbers(element.lineNumbers);
@@ -681,10 +683,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			if (e.metadataChanged || e.internalMetadataChanged) {
 				this.updateForInternalMetadata(element, templateData);
 				this.updateForLayout(element, templateData);
-			}
-
-			if (e.cellLineNumberChanged) {
-				cellEditorOptions.setLineNumbers(element.lineNumbers);
 			}
 		}));
 

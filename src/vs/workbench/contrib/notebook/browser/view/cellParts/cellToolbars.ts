@@ -18,7 +18,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { DeleteCellAction } from 'vs/workbench/contrib/notebook/browser/controller/editActions';
-import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellViewModelStateChangeEvent, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellActionView';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
 
@@ -76,6 +76,11 @@ export class BetweenCellToolbar extends CellPart {
 	updateLayoutNow(element: ICellViewModel) {
 		const bottomToolbarOffset = element.layoutInfo.bottomToolbarOffset;
 		this._bottomCellToolbarContainer.style.transform = `translateY(${bottomToolbarOffset}px)`;
+	}
+
+
+	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
+		// nothing to update
 	}
 }
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellViewModelStateChangeEvent, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 export abstract class CellPart extends Disposable {
 	constructor() {
@@ -20,4 +20,6 @@ export abstract class CellPart extends Disposable {
 	 * Update DOM based on layout info change of cell
 	 */
 	abstract updateLayoutNow(element: ICellViewModel): void;
+
+	abstract updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void;
 }

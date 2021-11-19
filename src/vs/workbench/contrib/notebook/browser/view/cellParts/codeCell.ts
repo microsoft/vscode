@@ -50,6 +50,13 @@ export class CodeCell extends Disposable {
 
 		const editorHeight = this.calculateInitEditorHeight();
 		this.initializeEditor(editorHeight);
+
+		this._register(this.viewCell.onDidChangeState(e => {
+			this.cellParts.forEach(cellPart => {
+				cellPart.updateState(this.viewCell, e);
+			});
+		}));
+
 		this.registerEditorOptionsListener();
 		this.registerViewCellStateChange();
 		this.registerFocusModeTracker();
