@@ -70,7 +70,7 @@ import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { registerZIndex, ZIndex } from 'vs/platform/layout/browser/zIndexRegistry';
 import { INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { notebookDebug } from 'vs/workbench/contrib/notebook/browser/notebookLogger';
-import { ListTopCellToolbar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/topCellToolbar';
+import { ListTopCellToolbar } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookTopCellToolbar';
 
 const $ = DOM.$;
 
