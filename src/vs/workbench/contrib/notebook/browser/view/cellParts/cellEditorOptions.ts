@@ -86,7 +86,7 @@ export class CellEditorOptions extends CellPart {
 		this._value = this._computeEditorOptions();
 	}
 
-	prepareRender(): void {
+	prepareLayout(): void {
 		// nothing to read
 	}
 	updateLayoutNow(element: ICellViewModel): void {

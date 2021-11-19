@@ -106,8 +106,8 @@ export class CodeCell extends Disposable {
 		}
 
 		this._register(this.viewCell.onLayoutInfoRead(() => {
-			this._outputContainerRenderer.prepareRender();
-			this.cellParts.forEach(cellPart => cellPart.prepareRender());
+			this._outputContainerRenderer.prepareLayout();
+			this.cellParts.forEach(cellPart => cellPart.prepareLayout());
 		}));
 
 		this.updateForCollapseState();

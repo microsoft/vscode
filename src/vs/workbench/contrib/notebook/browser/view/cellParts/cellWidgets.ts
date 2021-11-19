@@ -93,7 +93,7 @@ export class CellEditorStatusBar extends CellPart {
 		}));
 	}
 
-	prepareRender(): void {
+	prepareLayout(): void {
 		// nothing to read
 	}
 

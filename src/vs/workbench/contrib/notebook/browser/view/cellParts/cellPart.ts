@@ -12,14 +12,17 @@ export abstract class CellPart extends Disposable {
 	}
 
 	/**
-	 * Read DOM
+	 * Perform DOM read operations to prepare for the list/cell layout update.
 	 */
-	abstract prepareRender(): void;
+	abstract prepareLayout(): void;
 
 	/**
-	 * Update DOM based on layout info change of cell
+	 * Update DOM per cell layout info change
 	 */
 	abstract updateLayoutNow(element: ICellViewModel): void;
 
+	/**
+	 * Update per cell state change
+	 */
 	abstract updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void;
 }

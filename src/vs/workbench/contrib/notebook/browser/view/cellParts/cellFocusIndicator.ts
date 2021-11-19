@@ -21,7 +21,7 @@ export class CellFocusIndicator extends CellPart {
 		super();
 	}
 
-	prepareRender(): void {
+	prepareLayout(): void {
 		// nothing to read
 	}
 

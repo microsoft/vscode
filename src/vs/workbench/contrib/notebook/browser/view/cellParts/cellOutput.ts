@@ -593,7 +593,7 @@ export class CellOutputContainer extends CellPart {
 		});
 	}
 
-	prepareRender() {
+	prepareLayout() {
 		this._outputEntries.forEach(entry => {
 			const index = this.viewCell.outputsViewModels.indexOf(entry.model);
 			if (index >= 0) {

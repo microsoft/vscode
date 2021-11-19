@@ -69,7 +69,7 @@ export class BetweenCellToolbar extends CellPart {
 		this._betweenCellToolbar.context = context;
 	}
 
-	prepareRender(): void {
+	prepareLayout(): void {
 		// nothing to read
 	}
 
