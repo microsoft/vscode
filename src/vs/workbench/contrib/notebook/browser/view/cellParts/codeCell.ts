@@ -24,6 +24,7 @@ import { CellOutputContainer } from 'vs/workbench/contrib/notebook/browser/view/
 import { ClickTargetType } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellWidgets';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
+import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
 
 
 export class CodeCell extends Disposable {
@@ -38,6 +39,7 @@ export class CodeCell extends Disposable {
 		private readonly notebookEditor: IActiveNotebookEditorDelegate,
 		private readonly viewCell: CodeCellViewModel,
 		private readonly templateData: CodeCellRenderTemplate,
+		private readonly cellParts: CellPart[],
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotebookCellStatusBarService readonly notebookCellStatusBarService: INotebookCellStatusBarService,
 		@IKeybindingService readonly keybindingService: IKeybindingService,
@@ -66,6 +68,7 @@ export class CodeCell extends Disposable {
 
 		this._register(this.viewCell.onLayoutInfoRead(() => {
 			this._outputContainerRenderer.prepareRender();
+			this.cellParts.forEach(cellPart => cellPart.prepareRender());
 		}));
 
 		this.updateForCollapseState();
