@@ -16,7 +16,6 @@ import * as packageJson from '../../package.json';
 
 const root = path.dirname(path.dirname(__dirname));
 const commit = util.getVersion(root);
-const credential = new ClientSecretCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, process.env['AZURE_CLIENT_SECRET']!);
 
 function generateVSCodeConfigurationTask(): Promise<string | undefined> {
 	return new Promise((resolve, reject) => {
@@ -109,6 +108,8 @@ async function main() {
 	if (!settingsSearchBuildId) {
 		throw new Error('Failed to compute build number');
 	}
+
+	const credential = new ClientSecretCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, process.env['AZURE_CLIENT_SECRET']!);
 
 	return vfs.src(configPath)
 		.pipe(azure.upload({

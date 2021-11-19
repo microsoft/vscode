@@ -15,7 +15,6 @@ const azure = require('gulp-azure-storage');
 const packageJson = require("../../package.json");
 const root = path.dirname(path.dirname(__dirname));
 const commit = util.getVersion(root);
-const credential = new identity_1.ClientSecretCredential(process.env['AZURE_TENANT_ID'], process.env['AZURE_CLIENT_ID'], process.env['AZURE_CLIENT_SECRET']);
 function generateVSCodeConfigurationTask() {
     return new Promise((resolve, reject) => {
         const buildDir = process.env['AGENT_BUILDDIRECTORY'];
@@ -92,6 +91,7 @@ async function main() {
     if (!settingsSearchBuildId) {
         throw new Error('Failed to compute build number');
     }
+    const credential = new identity_1.ClientSecretCredential(process.env['AZURE_TENANT_ID'], process.env['AZURE_CLIENT_ID'], process.env['AZURE_CLIENT_SECRET']);
     return vfs.src(configPath)
         .pipe(azure.upload({
         account: process.env.AZURE_STORAGE_ACCOUNT,
