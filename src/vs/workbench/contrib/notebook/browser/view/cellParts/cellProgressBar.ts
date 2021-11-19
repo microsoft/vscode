@@ -5,7 +5,6 @@
 
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookCellExecutionState, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
@@ -34,18 +33,16 @@ export class CellProgressBar extends Disposable {
 		}
 	}
 
-	updateForCellState(e: CellViewModelStateChangeEvent, element: CodeCellViewModel): void {
-		if (e.inputCollapsedChanged) {
-			if (element.isInputCollapsed) {
-				this._progressBar.hide();
-				if (element.internalMetadata.runState === NotebookCellExecutionState.Executing) {
-					showProgressBar(this._collapsedProgressBar);
-				}
-			} else {
-				this._collapsedProgressBar.hide();
-				if (element.internalMetadata.runState === NotebookCellExecutionState.Executing) {
-					showProgressBar(this._progressBar);
-				}
+	updateForCellState(element: CodeCellViewModel): void {
+		if (element.isInputCollapsed) {
+			this._progressBar.hide();
+			if (element.internalMetadata.runState === NotebookCellExecutionState.Executing) {
+				showProgressBar(this._collapsedProgressBar);
+			}
+		} else {
+			this._collapsedProgressBar.hide();
+			if (element.internalMetadata.runState === NotebookCellExecutionState.Executing) {
+				showProgressBar(this._progressBar);
 			}
 		}
 	}
