@@ -56,6 +56,8 @@ export class CodeCell extends Disposable {
 		this.registerEditorLayoutListeners();
 		this.registerDecorations();
 		this.registerMouseListener();
+		this.registerHover();
+		this.registerOutputFocus();
 
 		// Render Outputs
 		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData, { limit: 500 });
@@ -75,6 +77,33 @@ export class CodeCell extends Disposable {
 
 		this.updateForOutputs();
 		this._register(viewCell.onDidChangeOutputs(_e => this.updateForOutputs()));
+	}
+
+	private registerHover() {
+		const updateForHover = () => {
+			this.templateData.container.classList.toggle('cell-output-hover', this.viewCell.outputIsHovered);
+		};
+
+		updateForHover();
+		this._register(this.viewCell.onDidChangeState(e => {
+			if (e.outputIsHoveredChanged) {
+				updateForHover();
+			}
+		}));
+	}
+
+	private registerOutputFocus() {
+		const updateFocus = () => {
+			this.templateData.container.classList.toggle('cell-output-focus', this.viewCell.outputIsFocused);
+		};
+
+		updateFocus();
+
+		this._register(this.viewCell.onDidChangeState(e => {
+			if (e.outputIsFocusedChanged) {
+				updateFocus();
+			}
+		}));
 	}
 
 	private calculateInitEditorHeight() {

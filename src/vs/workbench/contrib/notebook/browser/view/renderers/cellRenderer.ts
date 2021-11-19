@@ -616,14 +616,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		}
 	}
 
-	private updateForHover(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
-		templateData.container.classList.toggle('cell-output-hover', element.outputIsHovered);
-	}
-
-	private updateForFocus(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
-		templateData.container.classList.toggle('cell-output-focus', element.outputIsFocused);
-	}
-
 	private updateForLayout(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
 		templateData.elementDisposables.add(DOM.scheduleAtNextAnimationFrame(() => {
 			const bottomToolbarDimensions = this.notebookEditor.notebookOptions.computeBottomToolbarDimensions(this.notebookEditor.textModel?.viewType);
@@ -685,20 +677,10 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		}));
 
 		this.updateForInternalMetadata(element, templateData);
-		this.updateForHover(element, templateData);
-		this.updateForFocus(element, templateData);
 		elementDisposables.add(element.onDidChangeState((e) => {
 			if (e.metadataChanged || e.internalMetadataChanged) {
 				this.updateForInternalMetadata(element, templateData);
 				this.updateForLayout(element, templateData);
-			}
-
-			if (e.outputIsHoveredChanged) {
-				this.updateForHover(element, templateData);
-			}
-
-			if (e.outputIsFocusedChanged) {
-				this.updateForFocus(element, templateData);
 			}
 
 			if (e.cellLineNumberChanged) {
