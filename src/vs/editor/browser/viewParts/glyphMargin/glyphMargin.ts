@@ -166,7 +166,7 @@ export class GlyphMarginOverlay extends DedupOverlay {
 		const lineHeight = this._lineHeight.toString();
 		const left = this._glyphMarginLeft.toString();
 		const width = this._glyphMarginWidth.toString();
-		const common = (content: string = '') => `" style="left:${left}px;width:${width}px;height:${lineHeight}px;">${content}</div>`;
+		const common = '" style="left:' + left + 'px;width:' + width + 'px' + ';height:' + lineHeight + 'px;"></div>';
 
 		const output: string[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
@@ -176,8 +176,11 @@ export class GlyphMarginOverlay extends DedupOverlay {
 			if (classNames.length === 0) {
 				output[lineIndex] = '';
 			} else {
-				// Map codicons inside parent div
-				output[lineIndex] = `<div class="cgmr${common(classNames.map(className => `<div class="cgmr codicon ${className}${common()}`).join(''))}</div>`;
+				output[lineIndex] = (
+					'<div class="cgmr codicon '
+					+ classNames.join(' ')
+					+ common
+				);
 			}
 		}
 
