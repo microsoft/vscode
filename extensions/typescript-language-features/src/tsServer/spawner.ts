@@ -260,17 +260,11 @@ export class TypeScriptServerSpawner {
 			args.push('--npmLocation', `"${configuration.npmLocation}"`);
 		}
 
-		if (apiVersion.gte(API.v260)) {
-			args.push('--locale', TypeScriptServerSpawner.getTsLocale(configuration));
-		}
+		args.push('--locale', TypeScriptServerSpawner.getTsLocale(configuration));
 
-		if (apiVersion.gte(API.v291)) {
-			args.push('--noGetErrOnBackgroundUpdate');
-		}
+		args.push('--noGetErrOnBackgroundUpdate');
 
-		if (apiVersion.gte(API.v345)) {
-			args.push('--validateDefaultNpmLocation');
-		}
+		args.push('--validateDefaultNpmLocation');
 
 		return { args, tsServerLogFile, tsServerTraceDirectory };
 	}
