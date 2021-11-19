@@ -18,6 +18,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import type { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { ICellOutputViewModel, ICellViewModel, IGenericCellViewModel, INotebookCellOutputLayoutInfo, INotebookEditorCreationOptions, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFocusIndicator } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellFocusIndicator';
 import { CellProgressBar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellProgressBar';
 import { BetweenCellToolbar, CellTitleToolbarPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellToolbars';
 import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellWidgets';
@@ -101,8 +102,7 @@ export interface BaseCellRenderTemplate {
 	decorationContainer: HTMLElement;
 	betweenCellToolbar: BetweenCellToolbar;
 	titleToolbar: CellTitleToolbarPart;
-	focusIndicatorLeft: FastDomNode<HTMLElement>;
-	focusIndicatorRight: FastDomNode<HTMLElement>;
+	focusIndicator: CellFocusIndicator;
 	readonly templateDisposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
 	currentRenderedCell?: ICellViewModel;
@@ -113,7 +113,6 @@ export interface BaseCellRenderTemplate {
 export interface MarkdownCellRenderTemplate extends BaseCellRenderTemplate {
 	editorContainer: HTMLElement;
 	foldingIndicator: HTMLElement;
-	focusIndicatorBottom: HTMLElement;
 	currentEditor?: ICodeEditor;
 }
 
@@ -131,8 +130,6 @@ export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
 	focusSinkElement: HTMLElement;
 	editor: ICodeEditor;
 	progressBar: CellProgressBar;
-	focusIndicatorRight: FastDomNode<HTMLElement>;
-	focusIndicatorBottom: FastDomNode<HTMLElement>;
 	dragHandle: FastDomNode<HTMLElement>;
 }
 
