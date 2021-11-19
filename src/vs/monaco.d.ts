@@ -3299,7 +3299,7 @@ declare namespace monaco.editor {
 		 * Controls the behavior of editor guides.
 		*/
 		guides?: IGuidesOptions;
-		unicodeSpoofingProtection?: IUnicodeHighlightOptions;
+		unicodeHighlight?: IUnicodeHighlightOptions;
 	}
 
 	export interface IDiffEditorBaseOptions {
@@ -3863,12 +3863,15 @@ declare namespace monaco.editor {
 		readonly scrollByPage: boolean;
 	}
 
+	/**
+	 * Configuration options for unicode highlighting.
+	 */
 	export interface IUnicodeHighlightOptions {
 		nonBasicASCII?: boolean;
 		invisibleCharacters?: boolean;
 		ambiguousCharacters?: boolean;
 		includeComments?: boolean;
-		excludedCharacters?: string[];
+		allowedCharacters?: string[];
 	}
 
 	export interface IInlineSuggestOptions {
@@ -4362,7 +4365,7 @@ declare namespace monaco.editor {
 		suggestSelection: IEditorOption<EditorOption.suggestSelection, 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix'>;
 		tabCompletion: IEditorOption<EditorOption.tabCompletion, 'on' | 'off' | 'onlySnippets'>;
 		tabIndex: IEditorOption<EditorOption.tabIndex, number>;
-		unicodeSpoofingProtection: IEditorOption<EditorOption.unicodeHighlighting, Readonly<IUnicodeHighlightOptions>>;
+		unicodeHighlight: IEditorOption<EditorOption.unicodeHighlighting, Readonly<IUnicodeHighlightOptions>>;
 		unusualLineTerminators: IEditorOption<EditorOption.unusualLineTerminators, 'auto' | 'off' | 'prompt'>;
 		useShadowDOM: IEditorOption<EditorOption.useShadowDOM, boolean>;
 		useTabStops: IEditorOption<EditorOption.useTabStops, boolean>;

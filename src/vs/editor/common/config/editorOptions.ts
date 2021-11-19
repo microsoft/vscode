@@ -641,7 +641,7 @@ export interface IEditorOptions {
 	*/
 	guides?: IGuidesOptions;
 
-	unicodeSpoofingProtection?: IUnicodeHighlightOptions;
+	unicodeHighlight?: IUnicodeHighlightOptions;
 }
 
 /**
@@ -3263,12 +3263,15 @@ class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, InternalE
 
 //#region UnicodeHighlight
 
+/**
+ * Configuration options for unicode highlighting.
+ */
 export interface IUnicodeHighlightOptions {
 	nonBasicASCII?: boolean;
 	invisibleCharacters?: boolean;
 	ambiguousCharacters?: boolean;
 	includeComments?: boolean;
-	excludedCharacters?: string[];
+	allowedCharacters?: string[];
 }
 
 /**
@@ -3280,7 +3283,7 @@ export type InternalUnicodeHighlightOptions = Readonly<IUnicodeHighlightOptions>
  * @internal
  */
 export const unicodeHighlightConfigKeys = {
-	excludedCharacters: 'editor.unicodeHighlight.excludedCharacters',
+	allowedCharacters: 'editor.unicodeHighlight.excludedCharacters',
 	invisibleCharacters: 'editor.unicodeHighlight.invisibleCharacters',
 	nonBasicASCII: 'editor.unicodeHighlight.nonBasicASCII',
 	ambiguousCharacters: 'editor.unicodeHighlight.ambiguousCharacters',
@@ -3294,7 +3297,7 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 			invisibleCharacters: true,
 			ambiguousCharacters: false,
 			includeComments: false,
-			excludedCharacters: [],
+			allowedCharacters: [],
 		};
 
 		super(
@@ -3304,13 +3307,13 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 					restricted: true,
 					type: 'boolean',
 					default: defaults.nonBasicASCII,
-					description: nls.localize('unicodeHighlight.nonBasicASCII', "Controls whether all non-basic ASCII characters are highlighted. Only characters between U+20 and U+7E, tab, line-feed and carriage-return are considered basic ASCII.")
+					description: nls.localize('unicodeHighlight.nonBasicASCII', "Controls whether all non-basic ASCII characters are highlighted. Only characters between U+0020 and U+007E, tab, line-feed and carriage-return are considered basic ASCII.")
 				},
 				[unicodeHighlightConfigKeys.invisibleCharacters]: {
 					restricted: true,
 					type: 'boolean',
 					default: defaults.invisibleCharacters,
-					description: nls.localize('unicodeHighlight.invisibleCharacters', "Controls whether characters are highlighted that just reserve space or have no width at all.")
+					description: nls.localize('unicodeHighlight.invisibleCharacters', "Controls whether characters that just reserve space or have no width at all are highlighted.")
 				},
 				[unicodeHighlightConfigKeys.ambiguousCharacters]: {
 					restricted: true,
@@ -3324,11 +3327,11 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 					default: defaults.includeComments,
 					description: nls.localize('unicodeHighlight.includeComments', "Controls whether characters in comments should also be subject to unicode highlighting.")
 				},
-				[unicodeHighlightConfigKeys.excludedCharacters]: {
+				[unicodeHighlightConfigKeys.allowedCharacters]: {
 					restricted: true,
 					type: 'array',
-					default: defaults.excludedCharacters,
-					description: nls.localize('unicodeHighlight.excludedCharacters', "Defines a list of characters that are excluded from being highlighted.")
+					default: defaults.allowedCharacters,
+					description: nls.localize('unicodeHighlight.allowedCharacters', "Defines a list of allowed characters that are not being highlighted.")
 				},
 			}
 		);
@@ -3344,35 +3347,24 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 			invisibleCharacters: booleanOrUndefined(input.invisibleCharacters),
 			ambiguousCharacters: booleanOrUndefined(input.ambiguousCharacters),
 			includeComments: booleanOrUndefined(input.includeComments),
-			excludedCharacters: validateArray(input.excludedCharacters, validateString),
+			allowedCharacters: validateStringArray(input.allowedCharacters),
 		};
 	}
 }
 
-function validateString(value: any): string | typeof invalid {
-	if (typeof value === 'string') {
-		return value;
-	}
-	return invalid;
-}
-
-const invalid = Symbol('invalid');
-
-function validateArray<T>(value: any, validateItem: (item: any) => T | typeof invalid): T[] {
+function validateStringArray(value: any): string[] {
 	if (!Array.isArray(value)) {
 		return [];
 	}
-	const result = new Array<T>();
+	const result = new Array();
 
 	for (const item of value) {
-		const validatedItem = validateItem(item);
-		if (validatedItem !== invalid) {
-			result.push(validatedItem);
+		if (typeof item === 'string') {
+			result.push(item);
 		}
 	}
 	return result;
 }
-
 
 //#endregion
 
@@ -4939,7 +4931,7 @@ export const EditorOptions = {
 		EditorOption.tabIndex, 'tabIndex',
 		0, -1, Constants.MAX_SAFE_SMALL_INTEGER
 	)),
-	unicodeSpoofingProtection: register(new UnicodeHighlight()),
+	unicodeHighlight: register(new UnicodeHighlight()),
 	unusualLineTerminators: register(new EditorStringEnumOption(
 		EditorOption.unusualLineTerminators, 'unusualLineTerminators',
 		'prompt' as 'auto' | 'off' | 'prompt',

@@ -82,7 +82,7 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 		super.dispose();
 	}
 
-	public canFindUnicodeCharacters(uri: URI): boolean {
+	public canComputeUnicodeHighlights(uri: URI): boolean {
 		return canSyncModel(this._modelService, uri);
 	}
 
@@ -477,7 +477,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 
 	public computedUnicodeHighlights(uri: URI, options: UnicodeHighlighterOptions, range?: IRange): Promise<IRange[]> {
 		return this._withSyncedResources([uri]).then(proxy => {
-			return proxy.computedUnicodeHighlights(uri.toString(), options, range);
+			return proxy.computeUnicodeHighlights(uri.toString(), options, range);
 		});
 	}
 

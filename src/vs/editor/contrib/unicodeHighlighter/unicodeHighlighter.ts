@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { CharCode } from 'vs/base/common/charCode';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./unicodeHighlighter';
@@ -14,7 +15,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDecoration, IModelDeltaDecoration, ITextModel, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { UnicodeHighlighterOptions, UnicodeHighlighterReason, UnicodeTextModelHighlighter } from 'vs/editor/common/modes/unicodeTextModelHighlighter';
+import { UnicodeHighlighterOptions, UnicodeHighlighterReason, UnicodeHighlighterReasonKind, UnicodeTextModelHighlighter } from 'vs/editor/common/modes/unicodeTextModelHighlighter';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { HoverAnchor, HoverAnchorType, IEditorHover, IEditorHoverParticipant, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
@@ -94,10 +95,10 @@ export class UnicodeHighlighter extends Disposable implements IEditorContributio
 			ambiguousCharacters: options.ambiguousCharacters,
 			invisibleCharacters: options.invisibleCharacters,
 			includeComments: options.includeComments,
-			excludedCharacters: options.excludedCharacters,
+			excludedCharacters: options.allowedCharacters,
 		};
 
-		if (this._editorWorkerService.canFindUnicodeCharacters(this._editor.getModel().uri)) {
+		if (this._editorWorkerService.canComputeUnicodeHighlights(this._editor.getModel().uri)) {
 			this._highlighter = new DocumentUnicodeHighlighter(this._editor, highlightOptions, this._editorWorkerService);
 		} else {
 			this._highlighter = new ViewportUnicodeHighlighter(this._editor, highlightOptions);
@@ -134,7 +135,7 @@ function resolveOptions(_trusted: boolean, options: Readonly<IUnicodeHighlightOp
 		ambiguousCharacters: options.ambiguousCharacters ?? false,
 		invisibleCharacters: options.invisibleCharacters ?? false,
 		includeComments: options.includeComments ?? true,
-		excludedCharacters: options.excludedCharacters ?? [],
+		allowedCharacters: options.allowedCharacters ?? [],
 	};
 }
 
@@ -159,13 +160,13 @@ class DocumentUnicodeHighlighter extends Disposable {
 	}
 
 	public override dispose() {
-		this._decorationIds = new Set(this._model.deltaDecorations([...this._decorationIds], []));
+		this._decorationIds = new Set(this._model.deltaDecorations(Array.from(this._decorationIds), []));
 		super.dispose();
 	}
 
 	private _update(): void {
 		if (!this._model.mightContainNonBasicASCII()) {
-			this._decorationIds = new Set(this._editor.deltaDecorations([...this._decorationIds], []));
+			this._decorationIds = new Set(this._editor.deltaDecorations(Array.from(this._decorationIds), []));
 			return;
 		}
 
@@ -182,7 +183,7 @@ class DocumentUnicodeHighlighter extends Disposable {
 					decorations.push({ range: range, options: this._options.includeComments ? DECORATION : DECORATION_HIDE_IN_COMMENTS });
 				}
 				this._decorationIds = new Set(this._editor.deltaDecorations(
-					[...this._decorationIds],
+					Array.from(this._decorationIds),
 					decorations
 				));
 			});
@@ -231,13 +232,13 @@ class ViewportUnicodeHighlighter extends Disposable {
 	}
 
 	public override dispose() {
-		this._decorationIds = new Set(this._model.deltaDecorations([...this._decorationIds], []));
+		this._decorationIds = new Set(this._model.deltaDecorations(Array.from(this._decorationIds), []));
 		super.dispose();
 	}
 
 	private _update(): void {
 		if (!this._model.mightContainNonBasicASCII()) {
-			this._decorationIds = new Set(this._editor.deltaDecorations([...this._decorationIds], []));
+			this._decorationIds = new Set(this._editor.deltaDecorations(Array.from(this._decorationIds), []));
 			return;
 		}
 
@@ -249,7 +250,7 @@ class ViewportUnicodeHighlighter extends Disposable {
 				decorations.push({ range, options: this._options.includeComments ? DECORATION : DECORATION_HIDE_IN_COMMENTS });
 			}
 		}
-		this._decorationIds = new Set(this._editor.deltaDecorations([...this._decorationIds], decorations));
+		this._decorationIds = new Set(this._editor.deltaDecorations(Array.from(this._decorationIds), decorations));
 	}
 
 	public getDecorationInfo(decorationId: string): UnicodeHighlighterDecorationInfo | null {
@@ -312,23 +313,23 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 			const codePoint = char.codePointAt(0)!;
 
 			function formatCodePoint(codePoint: number) {
-				return `\`U+${codePoint.toString(16)}\` "${`${escapedMarkdownInlineCode(String.fromCodePoint(codePoint))}`}"`;
+				return `\`U+${codePoint.toString(16).padStart(4, '0')}\` "${`${renderCodePointAsInlineCode(codePoint)}`}"`;
 			}
 
 			const codePointStr = formatCodePoint(codePoint);
 
 			let reason: string;
 			switch (highlightInfo.reason.kind) {
-				case 'ambiguous':
+				case UnicodeHighlighterReasonKind.Ambiguous:
 					reason = nls.localize(
 						'unicodeHighlight.characterIsAmbiguous',
-						'The character {0} could be confused with the more common character {1}.',
+						'The character {0} could be confused with the character {1}, which is more common in source code.',
 						codePointStr,
 						formatCodePoint(highlightInfo.reason.confusableWith.codePointAt(0)!)
 					);
 					break;
 
-				case 'invisible':
+				case UnicodeHighlighterReasonKind.Invisible:
 					reason = nls.localize(
 						'unicodeHighlight.characterIsInvisible',
 						'The character {0} is invisible.',
@@ -336,7 +337,7 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 					);
 					break;
 
-				case 'nonBasicAscii':
+				case UnicodeHighlighterReasonKind.NonBasicAscii:
 					reason = nls.localize(
 						'unicodeHighlight.characterIsNonBasicAscii',
 						'The character {0} is not a basic ASCII character.',
@@ -366,16 +367,11 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 	}
 }
 
-function escapedMarkdownInlineCode(code: string): string {
-	if (code.indexOf('`') === -1) {
-		return `\`${code}\``;
-	} else {
-		// This is madness. Backticks cannot be escaped in markdown inline code blocks.
-		// Instead, the backtick to start/end an inline code block needs to be repeated so
-		// that the code does not contain a sequence of backticks that is equally long or longer.
-		const delimiter = '`'.repeat(code.length + 1);
-		return `${delimiter} ${code} ${delimiter}`;
+function renderCodePointAsInlineCode(codePoint: number): string {
+	if (codePoint === CharCode.BackTick) {
+		return '`` ` ``';
 	}
+	return '`' + String.fromCodePoint(codePoint) + '`';
 }
 
 function computeReason(char: string, options: UnicodeHighlighterOptions): UnicodeHighlighterReason | null {
@@ -444,7 +440,7 @@ export class ShowExcludeOptions extends EditorAction {
 			{
 				label: nls.localize('unicodeHighlight.excludeCharFromBeingHighlighted', 'Exclude {0} from being highlighted', `U+${codePoint.toString(16)} "${char}"`),
 				run: async () => {
-					const existingValue = configurationService.getValue(unicodeHighlightConfigKeys.excludedCharacters);
+					const existingValue = configurationService.getValue(unicodeHighlightConfigKeys.allowedCharacters);
 					let value: string[];
 					if (Array.isArray(existingValue)) {
 						value = [...existingValue as string[]];
@@ -453,12 +449,12 @@ export class ShowExcludeOptions extends EditorAction {
 					}
 
 					value.push(char);
-					await configurationService.updateValue(unicodeHighlightConfigKeys.excludedCharacters, value, ConfigurationTarget.USER);
+					await configurationService.updateValue(unicodeHighlightConfigKeys.allowedCharacters, value, ConfigurationTarget.USER);
 				}
 			},
 		];
 
-		if (reason === 'ambiguous') {
+		if (reason === UnicodeHighlighterReasonKind.Ambiguous) {
 			options.push({
 				label: nls.localize('unicodeHighlight.disableHighlightingOfAmbiguousCharacters', 'Disable highlighting of ambiguous characters'),
 				run: async () => {
@@ -466,7 +462,7 @@ export class ShowExcludeOptions extends EditorAction {
 				}
 			});
 		}
-		else if (reason === 'invisible') {
+		else if (reason === UnicodeHighlighterReasonKind.Invisible) {
 			options.push({
 				label: nls.localize('unicodeHighlight.disableHighlightingOfInvisibleCharacters', 'Disable highlighting of invisible characters'),
 				run: async () => {
@@ -474,7 +470,7 @@ export class ShowExcludeOptions extends EditorAction {
 				}
 			});
 		}
-		else if (reason === 'nonBasicAscii') {
+		else if (reason === UnicodeHighlighterReasonKind.NonBasicAscii) {
 			options.push({
 				label: nls.localize('unicodeHighlight.disableHighlightingOfNonBasicAsciiCharacters', 'Disable highlighting of non basic ASCII characters'),
 				run: async () => {

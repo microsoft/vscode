@@ -123,12 +123,11 @@ export class ViewModelDecorations implements IDisposable {
 			let decorationOptions = modelDecoration.options;
 
 			if (decorationOptions.hideInCommentTokens) {
-				let allTokensComments = true;
-				walkTokens(this.model, modelDecoration.range, tokenType => {
-					if (tokenType !== StandardTokenType.Comment) {
-						allTokensComments = false;
-					}
-				});
+				let allTokensComments = testTokensInRange(
+					this.model,
+					modelDecoration.range,
+					(tokenType) => tokenType === StandardTokenType.Comment
+				);
 
 				if (allTokensComments) {
 					continue;
@@ -179,8 +178,10 @@ export class ViewModelDecorations implements IDisposable {
 
 /**
  * Calls the callback for every token that intersects the range.
+ * If the callback returns `false`, iteration stops and `false` is returned.
+ * Otherwise, `true` is returned.
  */
-function walkTokens(model: ITextModel, range: Range, callback: (tokenType: StandardTokenType) => void) {
+function testTokensInRange(model: ITextModel, range: Range, callback: (tokenType: StandardTokenType) => boolean): boolean {
 	for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
 		const lineTokens = model.getLineTokens(lineNumber);
 		const isFirstLine = lineNumber === range.startLineNumber;
@@ -195,8 +196,12 @@ function walkTokens(model: ITextModel, range: Range, callback: (tokenType: Stand
 				}
 			}
 
-			callback(lineTokens.getStandardTokenType(tokenIdx));
+			const callbackResult = callback(lineTokens.getStandardTokenType(tokenIdx));
+			if (!callbackResult) {
+				return false;
+			}
 			tokenIdx++;
 		}
 	}
+	return true;
 }

@@ -372,7 +372,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 		delete this._models[strURL];
 	}
 
-	public async computedUnicodeHighlights(url: string, options: UnicodeHighlighterOptions, range?: IRange): Promise<IRange[]> {
+	public async computeUnicodeHighlights(url: string, options: UnicodeHighlighterOptions, range?: IRange): Promise<IRange[]> {
 		const model = this._getModel(url);
 		if (!model) {
 			return [];

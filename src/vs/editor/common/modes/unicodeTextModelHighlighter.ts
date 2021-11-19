@@ -64,25 +64,29 @@ export class UnicodeTextModelHighlighter {
 			case SimpleHighlightReason.None:
 				return null;
 			case SimpleHighlightReason.Invisible:
-				return { kind: 'invisible' };
+				return { kind: UnicodeHighlighterReasonKind.Invisible };
 
 			case SimpleHighlightReason.Ambiguous:
 				const primaryConfusable = strings.AmbiguousCharacters.getPrimaryConfusable(char.codePointAt(0)!)!;
-				return { kind: 'ambiguous', confusableWith: String.fromCodePoint(primaryConfusable) };
+				return { kind: UnicodeHighlighterReasonKind.Ambiguous, confusableWith: String.fromCodePoint(primaryConfusable) };
 
 			case SimpleHighlightReason.NonBasicASCII:
-				return { kind: 'nonBasicAscii' };
+				return { kind: UnicodeHighlighterReasonKind.NonBasicAscii };
 		}
 	}
 }
 
+export const enum UnicodeHighlighterReasonKind {
+	Ambiguous, Invisible, NonBasicAscii
+}
+
 export type UnicodeHighlighterReason = {
-	kind: 'ambiguous';
+	kind: UnicodeHighlighterReasonKind.Ambiguous;
 	confusableWith: string;
 } | {
-	kind: 'invisible';
+	kind: UnicodeHighlighterReasonKind.Invisible;
 } | {
-	kind: 'nonBasicAscii'
+	kind: UnicodeHighlighterReasonKind.NonBasicAscii
 };
 
 class CodePointHighlighter {
@@ -120,7 +124,7 @@ class CodePointHighlighter {
 	}
 }
 
-enum SimpleHighlightReason {
+const enum SimpleHighlightReason {
 	None,
 	NonBasicASCII,
 	Invisible,
