@@ -7,6 +7,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { CharCode } from 'vs/base/common/charCode';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { InvisibleCharacters } from 'vs/base/common/strings';
 import 'vs/css!./unicodeHighlighter';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
@@ -313,7 +314,12 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 			const codePoint = char.codePointAt(0)!;
 
 			function formatCodePoint(codePoint: number) {
-				return `\`U+${codePoint.toString(16).padStart(4, '0')}\` "${`${renderCodePointAsInlineCode(codePoint)}`}"`;
+				let value = `\`U+${codePoint.toString(16).padStart(4, '0')}\``;
+				if (!InvisibleCharacters.isInvisibleCharacter(codePoint)) {
+					// Don't render any control characters or any invisible characters, as they cannot be seen anyways.
+					value += ` "${`${renderCodePointAsInlineCode(codePoint)}`}"`;
+				}
+				return value;
 			}
 
 			const codePointStr = formatCodePoint(codePoint);
