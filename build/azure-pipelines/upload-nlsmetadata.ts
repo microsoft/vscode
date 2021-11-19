@@ -12,10 +12,12 @@ import * as vfs from 'vinyl-fs';
 import * as util from '../lib/util';
 import * as merge from 'gulp-merge-json';
 import * as gzip from 'gulp-gzip';
+import { ClientSecretCredential } from '@azure/identity';
 const azure = require('gulp-azure-storage');
 
 const root = path.dirname(path.dirname(__dirname));
 const commit = util.getVersion(root);
+const credential = new ClientSecretCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, process.env['AZURE_CLIENT_SECRET']!);
 
 interface NlsMetadata {
 	keys: { [module: string]: string },
@@ -94,7 +96,7 @@ function main() {
 		}))
 		.pipe(azure.upload({
 			account: process.env.AZURE_STORAGE_ACCOUNT,
-			key: process.env.AZURE_STORAGE_ACCESS_KEY,
+			credential,
 			container: 'nlsmetadata',
 			prefix: commit + '/',
 			contentSettings: {

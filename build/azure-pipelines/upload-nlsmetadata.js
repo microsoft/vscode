@@ -10,9 +10,11 @@ const vfs = require("vinyl-fs");
 const util = require("../lib/util");
 const merge = require("gulp-merge-json");
 const gzip = require("gulp-gzip");
+const identity_1 = require("@azure/identity");
 const azure = require('gulp-azure-storage');
 const root = path.dirname(path.dirname(__dirname));
 const commit = util.getVersion(root);
+const credential = new identity_1.ClientSecretCredential(process.env['AZURE_TENANT_ID'], process.env['AZURE_CLIENT_ID'], process.env['AZURE_CLIENT_SECRET']);
 function main() {
     return es.merge(vfs.src('out-vscode-web-min/nls.metadata.json', { base: 'out-vscode-web-min' }), vfs.src('.build/extensions/**/nls.metadata.json', { base: '.build/extensions' }), vfs.src('.build/extensions/**/nls.metadata.header.json', { base: '.build/extensions' }), vfs.src('.build/extensions/**/package.nls.json', { base: '.build/extensions' }))
         .pipe(merge({
@@ -76,7 +78,7 @@ function main() {
     }))
         .pipe(azure.upload({
         account: process.env.AZURE_STORAGE_ACCOUNT,
-        key: process.env.AZURE_STORAGE_ACCESS_KEY,
+        credential,
         container: 'nlsmetadata',
         prefix: commit + '/',
         contentSettings: {

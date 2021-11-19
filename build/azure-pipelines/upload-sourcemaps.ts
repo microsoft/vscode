@@ -12,10 +12,12 @@ import * as vfs from 'vinyl-fs';
 import * as util from '../lib/util';
 // @ts-ignore
 import * as deps from '../lib/dependencies';
+import { ClientSecretCredential } from '@azure/identity';
 const azure = require('gulp-azure-storage');
 
 const root = path.dirname(path.dirname(__dirname));
 const commit = util.getVersion(root);
+const credential = new ClientSecretCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, process.env['AZURE_CLIENT_SECRET']!);
 
 // optionally allow to pass in explicit base/maps to upload
 const [, , base, maps] = process.argv;
@@ -58,7 +60,7 @@ function main() {
 		}))
 		.pipe(azure.upload({
 			account: process.env.AZURE_STORAGE_ACCOUNT,
-			key: process.env.AZURE_STORAGE_ACCESS_KEY,
+			credential,
 			container: 'sourcemaps',
 			prefix: commit + '/'
 		}));
