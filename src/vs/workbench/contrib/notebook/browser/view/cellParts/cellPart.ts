@@ -19,5 +19,5 @@ export abstract class CellPart extends Disposable {
 	/**
 	 * Update DOM based on layout info change of cell
 	 */
-	abstract updateLayout(element: ICellViewModel): void;
+	abstract updateLayoutNow(element: ICellViewModel): void;
 }

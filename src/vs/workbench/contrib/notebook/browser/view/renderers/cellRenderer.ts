@@ -241,9 +241,9 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 	}
 
 	private updateForLayout(element: MarkupCellViewModel, templateData: MarkdownCellRenderTemplate): void {
-		templateData.focusIndicator.updateLayout(element);
+		templateData.focusIndicator.updateLayoutNow(element);
 		templateData.container.classList.toggle('cell-statusbar-hidden', this.notebookEditor.notebookOptions.computeEditorStatusbarHeight(element.internalMetadata) === 0);
-		templateData.betweenCellToolbar.updateLayout(element);
+		templateData.betweenCellToolbar.updateLayoutNow(element);
 	}
 
 	disposeTemplate(templateData: MarkdownCellRenderTemplate): void {
@@ -635,7 +635,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	private updateForLayout(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
 		templateData.elementDisposables.add(DOM.scheduleAtNextAnimationFrame(() => {
 			const bottomToolbarDimensions = this.notebookEditor.notebookOptions.computeBottomToolbarDimensions(this.notebookEditor.textModel?.viewType);
-			templateData.focusIndicator.updateLayout(element);
+			templateData.focusIndicator.updateLayoutNow(element);
 			templateData.outputContainer.setTop(element.layoutInfo.outputContainerOffset);
 			templateData.outputShowMoreContainer.setTop(element.layoutInfo.outputShowMoreContainerOffset);
 			templateData.dragHandle.setHeight(element.layoutInfo.totalHeight - bottomToolbarDimensions.bottomToolbarGap);
@@ -643,11 +643,11 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			templateData.container.classList.toggle('cell-statusbar-hidden', this.notebookEditor.notebookOptions.computeEditorStatusbarHeight(element.internalMetadata) === 0);
 
 			this.updateForTitleMenu(templateData);
-			templateData.betweenCellToolbar.updateLayout(element);
+			templateData.betweenCellToolbar.updateLayoutNow(element);
 		}));
 	}
 
-	protected updateForTitleMenu(templateData: CodeCellRenderTemplate): void {
+	private updateForTitleMenu(templateData: CodeCellRenderTemplate): void {
 		const layoutInfo = this.notebookEditor.notebookOptions.getLayoutConfiguration();
 		if (templateData.titleToolbar.hasActions) {
 			templateData.focusIndicator.left.domNode.style.transform = `translateY(${layoutInfo.editorToolbarHeight + layoutInfo.cellTopMargin}px)`;

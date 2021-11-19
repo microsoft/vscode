@@ -25,7 +25,7 @@ export class CellFocusIndicator extends CellPart {
 		// nothing to read
 	}
 
-	updateLayout(element: ICellViewModel): void {
+	updateLayoutNow(element: ICellViewModel): void {
 		if (element.cellKind === CellKind.Markup) {
 			// markdown cell
 			const indicatorPostion = this.notebookEditor.notebookOptions.computeIndicatorPosition(element.layoutInfo.totalHeight, this.notebookEditor.textModel?.viewType);

@@ -73,7 +73,7 @@ export class BetweenCellToolbar extends CellPart {
 		// nothing to read
 	}
 
-	updateLayout(element: ICellViewModel) {
+	updateLayoutNow(element: ICellViewModel) {
 		const bottomToolbarOffset = element.layoutInfo.bottomToolbarOffset;
 		this._bottomCellToolbarContainer.style.transform = `translateY(${bottomToolbarOffset}px)`;
 	}
