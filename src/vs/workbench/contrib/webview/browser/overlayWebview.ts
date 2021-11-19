@@ -137,7 +137,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		}
 	}
 
-	public layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension) {
+	public layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension, animated = true) {
 		if (!this._container || !this._container.parentElement) {
 			return;
 		}
@@ -152,6 +152,16 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		this._container.style.left = `${frameRect.left - containerRect.left - parentBorderLeft}px`;
 		this._container.style.width = `${dimension ? dimension.width : frameRect.width}px`;
 		this._container.style.height = `${dimension ? dimension.height : frameRect.height}px`;
+
+		// Temporary fix for https://github.com/microsoft/vscode/issues/110450
+		// There is an animated that lasts about 200ms, update the webview positioning to match.
+		if (animated) {
+			for (let i = 20; i <= 240; i+= 20) {
+				setTimeout(() => {
+					this.layoutWebviewOverElement(element, dimension, /*animated*/ false);
+				}, i);
+			}
+		}
 	}
 
 	private show() {
