@@ -105,6 +105,7 @@ steps:
 
   - script: |
       set -e
+      AZURE_STORAGE_ACCOUNT="ticino" \
       AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
         node build/azure-pipelines/upload-sourcemaps
     displayName: Upload sourcemaps
