@@ -319,7 +319,7 @@ export class WebClientServer {
 					webEndpointUrl: this.createRequestUrl(req, parsedUrl, '/static').toString(),
 					webEndpointUrlTemplate: this.createRequestUrl(req, parsedUrl, '/static').toString(),
 
-					updateUrl: this.createRequestUrl(req, parsedUrl, '/update/check').toString(),
+					updateUrl: './update/check'
 				},
 				folderUri: (workspacePath && isFolder) ? transformer.transformOutgoing(URI.file(workspacePath)) : undefined,
 				workspaceUri: (workspacePath && !isFolder) ? transformer.transformOutgoing(URI.file(workspacePath)) : undefined,
