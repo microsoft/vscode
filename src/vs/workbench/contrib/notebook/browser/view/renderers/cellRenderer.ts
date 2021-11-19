@@ -598,7 +598,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		const internalMetadata = element.internalMetadata;
 		this.updateExecutionOrder(internalMetadata, templateData);
-		templateData.progressBar.updateForInternalMetadata(element, internalMetadata);
 	}
 
 	private updateForKernel(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
@@ -680,6 +679,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		}));
 
 		this.updateForInternalMetadata(element, templateData);
+		templateData.progressBar.updateForInternalMetadata(element, element.internalMetadata);
+
 		elementDisposables.add(element.onDidChangeState((e) => {
 			if (e.metadataChanged || e.internalMetadataChanged) {
 				this.updateForInternalMetadata(element, templateData);
