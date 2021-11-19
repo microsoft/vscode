@@ -13,8 +13,12 @@ import { FileAccess } from 'vs/base/common/network';
 import { AuthType } from 'vs/base/common/auth';
 
 export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
+	//#region @coder
 	'auth': { type: 'string' },
 	'port': { type: 'string' },
+	'ignore-last-opened': { type: 'boolean' },
+	//#endregion
+
 	'pick-port': { type: 'string' },
 	'connectionToken': { type: 'string' },
 	'connection-secret': { type: 'string', description: nls.localize('connection-secret', "Path to file that contains the connection token. This will require that all incoming connections know the secret.") },
@@ -61,7 +65,11 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 };
 
 export interface ServerParsedArgs {
+	//#region
 	auth?: AuthType;
+	'ignore-last-opened'?: boolean;
+	//#endregion
+
 	port?: string;
 	'pick-port'?: string;
 	connectionToken?: string;
@@ -124,15 +132,20 @@ export const IServerEnvironmentService = refineServiceDecorator<IEnvironmentServ
 
 export interface IServerEnvironmentService extends INativeEnvironmentService {
 	readonly args: ServerParsedArgs;
+
+	//#region @coder
 	readonly serviceWorkerFileName: string;
 	readonly serviceWorkerPath: string;
 	readonly proxyUri: string;
 	readonly auth: AuthType;
+	readonly ignoreLastOpened: boolean;
+	//#endregion
 }
 
 export class ServerEnvironmentService extends NativeEnvironmentService implements IServerEnvironmentService {
 	override get args(): ServerParsedArgs { return super.args as ServerParsedArgs; }
 
+	//#region @coder
 	public get auth(): AuthType {
 		return this.args['auth'] || AuthType.None;
 	}
@@ -149,4 +162,10 @@ export class ServerEnvironmentService extends NativeEnvironmentService implement
 	public get proxyUri(): string {
 		return '/proxy/{port}';
 	}
+
+	public get ignoreLastOpened(): boolean {
+		return !!this.args['ignore-last-opened'];
+	}
+
+	//#endregion
 }

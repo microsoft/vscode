@@ -222,6 +222,8 @@ class BrowserMain extends Disposable {
 
 		/**
 		 * Added to persist recent workspaces in the browser.
+		 * These behaviors may disabled with the `--ignore-last-opened` argument.
+		 *
 		 * @author coder
 		 * @example User specified a directory at startup.
 		 * ```sh
@@ -245,9 +247,12 @@ class BrowserMain extends Disposable {
 		serviceCollection.set(IWorkspacesService, browserWorkspacesService);
 		const workspace = configurationService.getWorkspace();
 
-		logService.debug('Workspace Folders:', workspace.folders);
+		logService.debug('Workspace configuration', {
+			workspaceFolders: workspace.folders,
+			ignoreLastOpened: environmentService.ignoreLastOpened,
+		});
 
-		if (workspace.folders.length === 0) {
+		if (workspace.folders.length === 0 && !environmentService.ignoreLastOpened) {
 			logService.debug('Workspace is empty. Checking for recent folders...');
 
 			const recentlyOpened = await browserWorkspacesService.getRecentlyOpened();

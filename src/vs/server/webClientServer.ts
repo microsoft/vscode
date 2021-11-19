@@ -330,6 +330,7 @@ export class WebClientServer {
 					enableSmokeTestDriver: this._environmentService.driverHandle === 'web' ? true : undefined,
 					logLevel: this._logService.getLevel(),
 				},
+				ignoreLastOpened: this._environmentService.ignoreLastOpened,
 				settingsSyncOptions: !this._environmentService.isBuilt && this._environmentService.args['enable-sync'] ? { enabled: true } : undefined,
 			})))
 			.replace(/{{CLIENT_BACKGROUND_COLOR}}/g, () => backgroundColor)

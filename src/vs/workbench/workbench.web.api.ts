@@ -337,6 +337,16 @@ interface ISettingsSyncOptions {
 }
 
 interface IWorkbenchConstructionOptions {
+	//#region @coder
+
+	/**
+	 * Ignore the last opened folder in the browser.
+	 * @see `BrowserMain#initServices`
+	 */
+	readonly ignoreLastOpened?: boolean
+
+	//#endregion
+
 
 	//#region Connection related configuration
 

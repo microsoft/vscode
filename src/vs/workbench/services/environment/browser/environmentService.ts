@@ -249,6 +249,13 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	@memoize
 	get disableWorkspaceTrust(): boolean { return true; }
 
+	//#region @coder
+	get ignoreLastOpened(): boolean {
+		return !!this.options.ignoreLastOpened;
+	}
+
+	//#endregion
+
 	private payload: Map<string, string> | undefined;
 
 	constructor(
