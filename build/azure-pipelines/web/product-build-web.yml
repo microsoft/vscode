@@ -8,7 +8,7 @@ steps:
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
-      SecretsFilter: "github-distro-mixin-password,web-storage-account,web-storage-key,ticino-storage-key"
+      SecretsFilter: "github-distro-mixin-password,web-storage-key,ticino-storage-key"
 
   - task: DownloadPipelineArtifact@2
     inputs:
@@ -101,7 +101,7 @@ steps:
 
   - script: |
       set -e
-      AZURE_STORAGE_ACCOUNT="$(web-storage-account)" \
+      AZURE_STORAGE_ACCOUNT="vscodeweb" \
       AZURE_STORAGE_ACCESS_KEY="$(web-storage-key)" \
         node build/azure-pipelines/upload-cdn.js
     displayName: Upload to CDN
