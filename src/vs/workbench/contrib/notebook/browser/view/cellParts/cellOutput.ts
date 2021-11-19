@@ -35,6 +35,7 @@ import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKe
 import { OutputInnerContainerTopPadding } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
 
 interface IMimeTypeRenderer extends IQuickPickItem {
 	index: number;
@@ -556,7 +557,7 @@ class OutputEntryViewHandler {
 	}
 }
 
-export class CellOutputContainer extends Disposable {
+export class CellOutputContainer extends CellPart {
 	private _outputEntries: OutputEntryViewHandler[] = [];
 
 	get renderedOutputEntries() {
@@ -578,17 +579,21 @@ export class CellOutputContainer extends Disposable {
 		}));
 
 		this._register(viewCell.onDidChangeLayout(() => {
-			this._outputEntries.forEach(entry => {
-				const index = viewCell.outputsViewModels.indexOf(entry.model);
-				if (index >= 0) {
-					const top = this.viewCell.getOutputOffsetInContainer(index);
-					entry.element.updateDOMTop(top);
-				}
-			});
+			this.updateLayout();
 		}));
 	}
 
-	probeHeight() {
+	updateLayout() {
+		this._outputEntries.forEach(entry => {
+			const index = this.viewCell.outputsViewModels.indexOf(entry.model);
+			if (index >= 0) {
+				const top = this.viewCell.getOutputOffsetInContainer(index);
+				entry.element.updateDOMTop(top);
+			}
+		});
+	}
+
+	prepareRender() {
 		this._outputEntries.forEach(entry => {
 			const index = this.viewCell.outputsViewModels.indexOf(entry.model);
 			if (index >= 0) {

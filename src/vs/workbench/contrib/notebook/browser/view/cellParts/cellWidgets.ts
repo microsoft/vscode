@@ -21,6 +21,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { CodeCellLayoutInfo, MarkdownCellLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
 import { CellStatusbarAlignment, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const $ = DOM.$;
@@ -36,7 +37,7 @@ export const enum ClickTargetType {
 	ContributedCommandItem = 2
 }
 
-export class CellEditorStatusBar extends Disposable {
+export class CellEditorStatusBar extends CellPart {
 	readonly statusBarContainer: HTMLElement;
 
 	private readonly leftItemsContainer: HTMLElement;
@@ -92,7 +93,11 @@ export class CellEditorStatusBar extends Disposable {
 		}));
 	}
 
-	private layout(): void {
+	prepareRender(): void {
+		// nothing to read
+	}
+
+	updateLayout(): void {
 		if (!this.currentContext) {
 			return;
 		}
@@ -124,10 +129,10 @@ export class CellEditorStatusBar extends Disposable {
 			return;
 		}
 
-		this.itemsDisposable.add(this.currentContext.cell.onDidChangeLayout(() => this.layout()));
+		this.itemsDisposable.add(this.currentContext.cell.onDidChangeLayout(() => this.updateLayout()));
 		this.itemsDisposable.add(this.currentContext.cell.onDidChangeCellStatusBarItems(() => this.updateRenderedItems()));
 		this.itemsDisposable.add(this.currentContext.notebookEditor.onDidChangeActiveCell(() => this.updateActiveCell()));
-		this.layout();
+		this.updateLayout();
 		this.updateActiveCell();
 		this.updateRenderedItems();
 	}

@@ -65,7 +65,7 @@ export class CodeCell extends Disposable {
 		}
 
 		this._register(this.viewCell.onLayoutInfoRead(() => {
-			this._outputContainerRenderer.probeHeight();
+			this._outputContainerRenderer.prepareRender();
 		}));
 
 		this.updateForCollapseState();
