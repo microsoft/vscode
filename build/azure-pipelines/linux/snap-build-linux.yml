@@ -18,6 +18,7 @@ steps:
       # Make sure we get latest packages
       sudo apt-get update
       sudo apt-get upgrade -y
+      sudo apt-get install -y curl apt-transport-https ca-certificates
 
       # Yarn
       curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add -
