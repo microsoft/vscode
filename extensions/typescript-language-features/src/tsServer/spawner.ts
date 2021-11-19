@@ -256,7 +256,7 @@ export class TypeScriptServerSpawner {
 			}
 		}
 
-		if (configuration.npmLocation) {
+		if (configuration.npmLocation && !isWeb()) {
 			args.push('--npmLocation', `"${configuration.npmLocation}"`);
 		}
 
