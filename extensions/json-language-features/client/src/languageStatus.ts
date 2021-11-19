@@ -15,7 +15,7 @@ export function createLanguageStatusItem(documentSelector: string[], statusReque
 	statusItem.name = localize('statusItem.name', "JSON Validation Status");
 	statusItem.severity = LanguageStatusSeverity.Information;
 
-	const showSchemasCommand = commands.registerCommand('json.showSchemasCommand', arg => {
+	const showSchemasCommand = commands.registerCommand('_json.showAssociatedSchemaList', arg => {
 		const items = arg.schemas.sort().map((a: string) => ({ label: a }));
 		const quickPick = window.createQuickPick<QuickPickItem>();
 		quickPick.title = localize('schemaPicker.title', 'Associated JSON Schemas');
@@ -56,7 +56,7 @@ export function createLanguageStatusItem(documentSelector: string[], statusReque
 				} else {
 					statusItem.text = localize('status.multipleSchema', 'Validated with multiple JSON schemas');
 					statusItem.command = {
-						command: 'json.showSchemasCommand',
+						command: '_json.showAssociatedSchemaList',
 						title: localize('status.openSchemasLink', 'Show Schemas'),
 						arguments: [{ schemas }]
 					};
