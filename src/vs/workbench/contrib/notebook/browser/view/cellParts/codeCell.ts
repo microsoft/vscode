@@ -58,6 +58,7 @@ export class CodeCell extends Disposable {
 		this.registerMouseListener();
 		this.registerHover();
 		this.registerOutputFocus();
+		this.registerProgressBar();
 
 		// Render Outputs
 		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData, { limit: 500 });
@@ -77,6 +78,14 @@ export class CodeCell extends Disposable {
 
 		this.updateForOutputs();
 		this._register(viewCell.onDidChangeOutputs(_e => this.updateForOutputs()));
+	}
+
+	private registerProgressBar() {
+		this._register(this.viewCell.onDidChangeState(e => {
+			if (e.inputCollapsedChanged) {
+				this.templateData.progressBar.updateForCellState(this.viewCell);
+			}
+		}));
 	}
 
 	private registerHover() {
