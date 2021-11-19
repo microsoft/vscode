@@ -665,6 +665,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			templateData.focusIndicator,
 			templateData.betweenCellToolbar,
 			templateData.statusBar,
+			templateData.progressBar,
 			cellEditorOptions
 		]));
 		this.renderedEditors.set(element, templateData.editor);

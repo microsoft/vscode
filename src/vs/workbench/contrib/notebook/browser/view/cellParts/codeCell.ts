@@ -65,10 +65,6 @@ export class CodeCell extends Disposable {
 				this.updateForOutputHover();
 			}
 
-			if (e.inputCollapsedChanged) {
-				this.templateData.progressBar.updateForCellState(this.viewCell);
-			}
-
 			if (e.outputIsFocusedChanged) {
 				this.updateForOutputFocus();
 			}
