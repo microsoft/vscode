@@ -591,14 +591,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		return combinedDisposable(dragHandleListener, collapsedPartListener, clickHandler);
 	}
 
-	private updateForOutputs(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
-		if (element.outputsViewModels.length) {
-			DOM.show(templateData.focusSinkElement);
-		} else {
-			DOM.hide(templateData.focusSinkElement);
-		}
-	}
-
 	private updateForInternalMetadata(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
 		if (!this.notebookEditor.hasModel()) {
 			return;
@@ -716,9 +708,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 			templateData.progressBar.updateForCellState(e, element);
 		}));
-
-		this.updateForOutputs(element, templateData);
-		elementDisposables.add(element.onDidChangeOutputs(_e => this.updateForOutputs(element, templateData)));
 
 		this.updateForKernel(element, templateData);
 

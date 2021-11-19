@@ -72,6 +72,9 @@ export class CodeCell extends Disposable {
 		}));
 
 		this.updateForCollapseState();
+
+		this.updateForOutputs();
+		this._register(viewCell.onDidChangeOutputs(_e => this.updateForOutputs()));
 	}
 
 	private calculateInitEditorHeight() {
@@ -122,6 +125,14 @@ export class CodeCell extends Disposable {
 				focusEditorIfNeeded();
 			}
 		});
+	}
+
+	private updateForOutputs(): void {
+		if (this.viewCell.outputsViewModels.length) {
+			DOM.show(this.templateData.focusSinkElement);
+		} else {
+			DOM.hide(this.templateData.focusSinkElement);
+		}
 	}
 
 	private registerEditorOptionsListener() {
