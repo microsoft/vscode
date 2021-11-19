@@ -683,7 +683,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		elementDisposables.add(element.onDidChangeState((e) => {
 			if (e.metadataChanged || e.internalMetadataChanged) {
 				this.updateForInternalMetadata(element, templateData);
-				this.updateForLayout(element, templateData);
 			}
 		}));
 
