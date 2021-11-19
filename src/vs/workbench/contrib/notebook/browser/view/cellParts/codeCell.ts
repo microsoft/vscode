@@ -50,12 +50,47 @@ export class CodeCell extends Disposable {
 
 		const editorHeight = this.calculateInitEditorHeight();
 		this.initializeEditor(editorHeight);
-		this.registerEditorOptionsListener();
-		this.registerViewCellStateChange();
-		this.registerFocusModeTracker();
-		this.registerEditorLayoutListeners();
+
+		this.registerViewCellLayoutChange();
+		this.registerCellEditorEventListeners();
 		this.registerDecorations();
 		this.registerMouseListener();
+
+		this._register(this.viewCell.onDidChangeState(e => {
+			this.cellParts.forEach(cellPart => {
+				cellPart.updateState(this.viewCell, e);
+			});
+
+			if (e.outputIsHoveredChanged) {
+				this.updateForOutputHover();
+			}
+
+			if (e.outputIsFocusedChanged) {
+				this.updateForOutputFocus();
+			}
+
+			if (e.metadataChanged || e.internalMetadataChanged) {
+				this.updateEditorOptions();
+			}
+
+			if (e.inputCollapsedChanged || e.outputCollapsedChanged) {
+				this.viewCell.pauseLayout();
+				const updated = this.updateForCollapseState();
+				this.viewCell.resumeLayout();
+				if (updated) {
+					this.relayoutCell();
+				}
+			}
+
+			if (e.focusModeChanged) {
+				this.updateEditorForFocusModeChange();
+			}
+		}));
+
+		this.updateEditorOptions();
+		this.updateEditorForFocusModeChange();
+		this.updateForOutputHover();
+		this.updateForOutputFocus();
 
 		// Render Outputs
 		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData, { limit: 500 });
@@ -67,11 +102,22 @@ export class CodeCell extends Disposable {
 		}
 
 		this._register(this.viewCell.onLayoutInfoRead(() => {
-			this._outputContainerRenderer.prepareRender();
-			this.cellParts.forEach(cellPart => cellPart.prepareRender());
+			this._outputContainerRenderer.prepareLayout();
+			this.cellParts.forEach(cellPart => cellPart.prepareLayout());
 		}));
 
 		this.updateForCollapseState();
+
+		this.updateForOutputs();
+		this._register(viewCell.onDidChangeOutputs(_e => this.updateForOutputs()));
+	}
+
+	private updateForOutputHover() {
+		this.templateData.container.classList.toggle('cell-output-hover', this.viewCell.outputIsHovered);
+	}
+
+	private updateForOutputFocus() {
+		this.templateData.container.classList.toggle('cell-output-focus', this.viewCell.outputIsFocused);
 	}
 
 	private calculateInitEditorHeight() {
@@ -124,41 +170,29 @@ export class CodeCell extends Disposable {
 		});
 	}
 
-	private registerEditorOptionsListener() {
-		const updateEditorOptions = () => {
-			const editor = this.templateData.editor;
-			if (!editor) {
-				return;
-			}
-
-			const isReadonly = this.notebookEditor.isReadOnly;
-			const padding = this.notebookEditor.notebookOptions.computeEditorPadding(this.viewCell.internalMetadata);
-			const options = editor.getOptions();
-			if (options.get(EditorOption.readOnly) !== isReadonly || options.get(EditorOption.padding) !== padding) {
-				editor.updateOptions({ readOnly: this.notebookEditor.isReadOnly, padding: this.notebookEditor.notebookOptions.computeEditorPadding(this.viewCell.internalMetadata) });
-			}
-		};
-
-		updateEditorOptions();
-		this._register(this.viewCell.onDidChangeState((e) => {
-			if (e.metadataChanged || e.internalMetadataChanged) {
-				updateEditorOptions();
-			}
-		}));
+	private updateForOutputs(): void {
+		if (this.viewCell.outputsViewModels.length) {
+			DOM.show(this.templateData.focusSinkElement);
+		} else {
+			DOM.hide(this.templateData.focusSinkElement);
+		}
 	}
 
-	private registerViewCellStateChange() {
-		this._register(this.viewCell.onDidChangeState((e) => {
-			if (e.inputCollapsedChanged || e.outputCollapsedChanged) {
-				this.viewCell.pauseLayout();
-				const updated = this.updateForCollapseState();
-				this.viewCell.resumeLayout();
-				if (updated) {
-					this.relayoutCell();
-				}
-			}
-		}));
+	private updateEditorOptions() {
+		const editor = this.templateData.editor;
+		if (!editor) {
+			return;
+		}
 
+		const isReadonly = this.notebookEditor.isReadOnly;
+		const padding = this.notebookEditor.notebookOptions.computeEditorPadding(this.viewCell.internalMetadata);
+		const options = editor.getOptions();
+		if (options.get(EditorOption.readOnly) !== isReadonly || options.get(EditorOption.padding) !== padding) {
+			editor.updateOptions({ readOnly: this.notebookEditor.isReadOnly, padding: this.notebookEditor.notebookOptions.computeEditorPadding(this.viewCell.internalMetadata) });
+		}
+	}
+
+	private registerViewCellLayoutChange() {
 		this._register(this.viewCell.onDidChangeLayout((e) => {
 			if (e.outerWidth !== undefined) {
 				const layoutInfo = this.templateData.editor.getLayoutInfo();
@@ -173,7 +207,7 @@ export class CodeCell extends Disposable {
 		}));
 	}
 
-	private registerEditorLayoutListeners() {
+	private registerCellEditorEventListeners() {
 		this._register(this.templateData.editor.onDidContentSizeChange((e) => {
 			if (e.contentHeightChanged) {
 				if (this.viewCell.layoutInfo.editorHeight !== e.contentHeight) {
@@ -192,6 +226,28 @@ export class CodeCell extends Disposable {
 
 			if (primarySelection) {
 				this.notebookEditor.revealLineInViewAsync(this.viewCell, primarySelection.positionLineNumber);
+			}
+		}));
+
+		// Focus Mode
+		const updateFocusModeForEditorEvent = () => {
+			this.viewCell.focusMode =
+				(this.templateData.editor.hasWidgetFocus() || (document.activeElement && this.templateData.statusBar.statusBarContainer.contains(document.activeElement)))
+					? CellFocusMode.Editor
+					: CellFocusMode.Container;
+		};
+
+		this._register(this.templateData.editor.onDidFocusEditorWidget(() => {
+			updateFocusModeForEditorEvent();
+		}));
+		this._register(this.templateData.editor.onDidBlurEditorWidget(() => {
+			// this is for a special case:
+			// users click the status bar empty space, which we will then focus the editor
+			// so we don't want to update the focus state too eagerly, it will be updated with onDidFocusEditorWidget
+			if (
+				this.notebookEditor.hasEditorFocus() &&
+				!(document.activeElement && this.templateData.statusBar.statusBarContainer.contains(document.activeElement))) {
+				updateFocusModeForEditorEvent();
 			}
 		}));
 	}
@@ -252,43 +308,12 @@ export class CodeCell extends Disposable {
 		}));
 	}
 
-	private registerFocusModeTracker() {
-		const updateEditorForFocusModeChange = () => {
-			if (this.viewCell.focusMode === CellFocusMode.Editor && this.notebookEditor.getActiveCell() === this.viewCell) {
-				this.templateData.editor?.focus();
-			}
+	private updateEditorForFocusModeChange() {
+		if (this.viewCell.focusMode === CellFocusMode.Editor && this.notebookEditor.getActiveCell() === this.viewCell) {
+			this.templateData.editor?.focus();
+		}
 
-			this.templateData.container.classList.toggle('cell-editor-focus', this.viewCell.focusMode === CellFocusMode.Editor);
-		};
-		this._register(this.viewCell.onDidChangeState((e) => {
-			if (e.focusModeChanged) {
-				updateEditorForFocusModeChange();
-			}
-		}));
-
-		updateEditorForFocusModeChange();
-
-		// Focus Mode
-		const updateFocusModeForEditorEvent = () => {
-			this.viewCell.focusMode =
-				(this.templateData.editor.hasWidgetFocus() || (document.activeElement && this.templateData.statusBar.statusBarContainer.contains(document.activeElement)))
-					? CellFocusMode.Editor
-					: CellFocusMode.Container;
-		};
-
-		this._register(this.templateData.editor.onDidFocusEditorWidget(() => {
-			updateFocusModeForEditorEvent();
-		}));
-		this._register(this.templateData.editor.onDidBlurEditorWidget(() => {
-			// this is for a special case:
-			// users click the status bar empty space, which we will then focus the editor
-			// so we don't want to update the focus state too eagerly, it will be updated with onDidFocusEditorWidget
-			if (
-				this.notebookEditor.hasEditorFocus() &&
-				!(document.activeElement && this.templateData.statusBar.statusBarContainer.contains(document.activeElement))) {
-				updateFocusModeForEditorEvent();
-			}
-		}));
+		this.templateData.container.classList.toggle('cell-editor-focus', this.viewCell.focusMode === CellFocusMode.Editor);
 	}
 
 	private updateForCollapseState(): boolean {

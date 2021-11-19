@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { deepClone } from 'vs/base/common/objects';
 import { IEditorOptions, LineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { localize } from 'vs/nls';
@@ -16,13 +16,13 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ActiveEditorContext } from 'vs/workbench/common/editor';
 import { INotebookCellToolbarActionContext, INotebookCommandContext, NotebookMultiCellAction, NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { ICellViewModel, INotebookEditorDelegate, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellViewModelStateChangeEvent, ICellViewModel, INotebookEditorDelegate, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
+import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
 import { NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 
-export class CellEditorOptions extends Disposable {
-
+export class CellEditorOptions extends CellPart {
 	private static fixedEditorOptions: IEditorOptions = {
 		scrollBeyondLastLine: false,
 		scrollbar: {
@@ -84,6 +84,19 @@ export class CellEditorOptions extends Disposable {
 		}
 
 		this._value = this._computeEditorOptions();
+	}
+
+	prepareLayout(): void {
+		// nothing to read
+	}
+	updateLayoutNow(element: ICellViewModel): void {
+		// nothing to update
+	}
+
+	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent) {
+		if (e.cellLineNumberChanged) {
+			this.setLineNumbers(element.lineNumbers);
+		}
 	}
 
 	private _recomputeOptions(): void {

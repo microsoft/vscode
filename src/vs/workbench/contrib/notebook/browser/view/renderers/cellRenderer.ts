@@ -591,14 +591,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		return combinedDisposable(dragHandleListener, collapsedPartListener, clickHandler);
 	}
 
-	private updateForOutputs(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
-		if (element.outputsViewModels.length) {
-			DOM.show(templateData.focusSinkElement);
-		} else {
-			DOM.hide(templateData.focusSinkElement);
-		}
-	}
-
 	private updateForInternalMetadata(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
 		if (!this.notebookEditor.hasModel()) {
 			return;
@@ -622,14 +614,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		} else {
 			templateData.executionOrderLabel.innerText = '';
 		}
-	}
-
-	private updateForHover(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
-		templateData.container.classList.toggle('cell-output-hover', element.outputIsHovered);
-	}
-
-	private updateForFocus(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
-		templateData.container.classList.toggle('cell-output-focus', element.outputIsFocused);
 	}
 
 	private updateForLayout(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
@@ -675,17 +659,20 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		templateData.outputContainer.domNode.appendChild(templateData.cellOutputCollapsedContainer);
 
 		const elementDisposables = templateData.elementDisposables;
+		const cellEditorOptions = elementDisposables.add(new CellEditorOptions(this.notebookEditor, this.notebookEditor.notebookOptions, this.configurationService, element.language));
+
 		elementDisposables.add(templateData.instantiationService.createInstance(CodeCell, this.notebookEditor, element, templateData, [
 			templateData.focusIndicator,
 			templateData.betweenCellToolbar,
-			templateData.statusBar
+			templateData.statusBar,
+			templateData.progressBar,
+			cellEditorOptions
 		]));
 		this.renderedEditors.set(element, templateData.editor);
 
-		const cellEditorOptions = new CellEditorOptions(this.notebookEditor, this.notebookEditor.notebookOptions, this.configurationService, element.language);
-		elementDisposables.add(cellEditorOptions);
 		elementDisposables.add(cellEditorOptions.onDidChange(() => templateData.editor.updateOptions(cellEditorOptions.getUpdatedValue(element.internalMetadata))));
 		templateData.editor.updateOptions(cellEditorOptions.getUpdatedValue(element.internalMetadata));
+		cellEditorOptions.setLineNumbers(element.lineNumbers);
 
 		this.updateForLayout(element, templateData);
 		elementDisposables.add(element.onDidChangeLayout(() => {
@@ -693,32 +680,12 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		}));
 
 		this.updateForInternalMetadata(element, templateData);
-		this.updateForHover(element, templateData);
-		this.updateForFocus(element, templateData);
-		cellEditorOptions.setLineNumbers(element.lineNumbers);
 		elementDisposables.add(element.onDidChangeState((e) => {
 			if (e.metadataChanged || e.internalMetadataChanged) {
 				this.updateForInternalMetadata(element, templateData);
 				this.updateForLayout(element, templateData);
 			}
-
-			if (e.outputIsHoveredChanged) {
-				this.updateForHover(element, templateData);
-			}
-
-			if (e.outputIsFocusedChanged) {
-				this.updateForFocus(element, templateData);
-			}
-
-			if (e.cellLineNumberChanged) {
-				cellEditorOptions.setLineNumbers(element.lineNumbers);
-			}
-
-			templateData.progressBar.updateForCellState(e, element);
 		}));
-
-		this.updateForOutputs(element, templateData);
-		elementDisposables.add(element.onDidChangeOutputs(_e => this.updateForOutputs(element, templateData)));
 
 		this.updateForKernel(element, templateData);
 

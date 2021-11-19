@@ -5,7 +5,7 @@
 
 // import * as DOM from 'vs/base/browser/dom';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellViewModelStateChangeEvent, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -21,7 +21,7 @@ export class CellFocusIndicator extends CellPart {
 		super();
 	}
 
-	prepareRender(): void {
+	prepareLayout(): void {
 		// nothing to read
 	}
 
@@ -41,5 +41,9 @@ export class CellFocusIndicator extends CellPart {
 			this.right.setHeight(cell.layoutInfo.indicatorHeight);
 			this.bottom.domNode.style.transform = `translateY(${cell.layoutInfo.totalHeight - bottomToolbarDimensions.bottomToolbarGap - layoutInfo.cellBottomMargin}px)`;
 		}
+	}
+
+	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
+		// nothing to update
 	}
 }

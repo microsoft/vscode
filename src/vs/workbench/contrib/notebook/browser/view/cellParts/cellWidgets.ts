@@ -20,7 +20,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellViewModelStateChangeEvent, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
 import { CellStatusbarAlignment, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
@@ -93,7 +93,7 @@ export class CellEditorStatusBar extends CellPart {
 		}));
 	}
 
-	prepareRender(): void {
+	prepareLayout(): void {
 		// nothing to read
 	}
 
@@ -110,6 +110,11 @@ export class CellEditorStatusBar extends CellPart {
 		const maxItemWidth = this.getMaxItemWidth();
 		this.leftItems.forEach(item => item.maxWidth = maxItemWidth);
 		this.rightItems.forEach(item => item.maxWidth = maxItemWidth);
+	}
+
+
+	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
+		// nothing to update
 	}
 
 	private getMaxItemWidth() {

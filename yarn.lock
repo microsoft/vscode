@@ -847,10 +847,10 @@
   dependencies:
     nan "2.14.2"
 
-"@vscode/sudo-prompt@^9.3.0":
-  version "9.3.0"
-  resolved "https://registry.yarnpkg.com/@vscode/sudo-prompt/-/sudo-prompt-9.3.0.tgz#5c63b195986d1d6a142856146e51c6b46a3319b2"
-  integrity sha512-/c/A4/fEBhKXiEW2+Cv8qid6uWA6Igg9iaHrlMoNyoHynziYLYFCaF8lGcmvQ20wEi5l7xyx4YxG2h5nVKazeg==
+"@vscode/sudo-prompt@9.3.1":
+  version "9.3.1"
+  resolved "https://registry.yarnpkg.com/@vscode/sudo-prompt/-/sudo-prompt-9.3.1.tgz#c562334bc6647733649fd42afc96c0eea8de3b65"
+  integrity sha512-9ORTwwS74VaTn38tNbQhsA5U44zkJfcb0BdTSyyG6frP4e8KMtHuTXYmwefe5dpL8XB1aGSIVTaLjD3BbWb5iA==
 
 "@vscode/vscode-languagedetection@1.0.21":
   version "1.0.21"
