@@ -551,6 +551,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 		const localWithRemote = !this._initData.remote.isRemote && !!this._initData.remote.authority;
 		const host: IExtensionActivationHost = {
+			logService: this._logService,
 			folders: folders.map(folder => folder.uri),
 			forceUsingSearch: localWithRemote,
 			exists: (uri) => this._hostUtils.exists(uri.fsPath),
