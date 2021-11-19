@@ -125,7 +125,10 @@ const serverWithWebEntryPoints = [
 	...vscodeWebEntryPoints
 ];
 
-function getNodeVersion() {
+function getNodeVersion () {
+	// NOTE@coder: Always use the current version to avoid native module errors.
+	return process.versions.node;
+
 	const yarnrc = fs.readFileSync(path.join(REPO_ROOT, 'remote', '.yarnrc'), 'utf8');
 	const target = /^target "(.*)"$/m.exec(yarnrc)[1];
 	return target;
@@ -358,7 +361,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 	const minifyTask = task.define(`minify-vscode-${type}`, task.series(
 		optimizeTask,
 		util.rimraf(`out-vscode-${type}-min`),
-		common.minifyTask(`out-vscode-${type}`, `https://ticino.blob.core.windows.net/sourcemaps/${commit}/core`)
+		common.minifyTask(`out-vscode-${type}`, '')
 	));
 	gulp.task(minifyTask);
 

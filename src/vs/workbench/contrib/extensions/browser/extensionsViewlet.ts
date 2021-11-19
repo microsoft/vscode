@@ -59,6 +59,8 @@ import { installLocalInRemoteIcon } from 'vs/workbench/contrib/extensions/browse
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { memoize } from 'vs/base/common/decorators';
 
 const SearchMarketplaceExtensionsContext = new RawContextKey<boolean>('searchMarketplaceExtensions', false);
 const SearchIntalledExtensionsContext = new RawContextKey<boolean>('searchInstalledExtensions', false);
@@ -73,6 +75,7 @@ const SearchUnsupportedWorkspaceExtensionsContext = new RawContextKey<boolean>('
 const RecommendedExtensionsContext = new RawContextKey<boolean>('recommendedExtensions', false);
 
 export class ExtensionsViewletViewsContribution implements IWorkbenchContribution {
+	static EXTENSION_RECOMMENDATION_KEY = 'EXTENSION_RECOMMENDATION_KEY';
 
 	private readonly container: ViewContainer;
 
@@ -80,10 +83,13 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IProductService private readonly _productService: IProductService,
 	) {
 		this.container = viewDescriptorService.getViewContainerById(VIEWLET_ID)!;
 		this.registerViews();
+
+		this.contextKeyService.createKey(ExtensionsViewletViewsContribution.EXTENSION_RECOMMENDATION_KEY, !!this._productService.extensionsGallery?.recommendationsUrl);
 	}
 
 	private registerViews(): void {
@@ -226,16 +232,22 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			canToggleVisibility: false
 		});
 
+
 		/*
-		 * Default recommended extensions view
-		 * When user has installed extensions, this is shown along with the views for enabled & disabled extensions
-		 * When user has no installed extensions, this is shown along with the view for popular extensions
-		 */
+		* Default recommended extensions view
+		* When user has installed extensions, this is shown along with the views for enabled & disabled extensions
+		* When user has no installed extensions, this is shown along with the view for popular extensions
+		*/
 		viewDescriptors.push({
 			id: 'extensions.recommendedList',
 			name: localize('recommendedExtensions', "Recommended"),
 			ctorDescriptor: new SyncDescriptor(DefaultRecommendedExtensionsView, [{}]),
-			when: ContextKeyExpr.and(DefaultViewsContext, ContextKeyExpr.not('config.extensions.showRecommendationsOnlyOnDemand')),
+			when: ContextKeyExpr.and(
+				DefaultViewsContext,
+				ContextKeyExpr.not('config.extensions.showRecommendationsOnlyOnDemand'),
+				/** @coder Open VSX doesn't yet support `recommendationsUrl`, so we hide the pane. */
+				ContextKeyExpr.has(ExtensionsViewletViewsContribution.EXTENSION_RECOMMENDATION_KEY)				
+			),
 			weight: 40,
 			order: 3,
 			canToggleVisibility: true
@@ -479,7 +491,9 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		@IExtensionService extensionService: IExtensionService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@ICommandService private readonly commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService,
+		@IProductService private readonly _productService: IProductService,
+
 	) {
 		super(VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
 
@@ -499,7 +513,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		this.recommendedExtensionsContextKey = RecommendedExtensionsContext.bindTo(contextKeyService);
 		this._register(this.paneCompositeService.onDidPaneCompositeOpen(e => { if (e.viewContainerLocation === ViewContainerLocation.Sidebar) { this.onViewletOpen(e.composite); } }, this));
 		this.searchViewletState = this.getMemento(StorageScope.WORKSPACE, StorageTarget.USER);
-
+		
 		if (extensionManagementServerService.webExtensionManagementServer) {
 			this._register(extensionsWorkbenchService.onChange(() => {
 				// show installed web extensions view only when it is not visible
@@ -510,6 +524,17 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 			}));
 		}
 	}
+
+		/** @coder Added to clarify source of marketplace extensions. */
+		@memoize
+		get marketplaceHostname(): string {
+			if (this._productService.extensionsGallery?.serviceUrl) {
+				return new URL(this._productService.extensionsGallery?.serviceUrl).hostname;
+			}
+	
+			return 'Marketplace';
+		}
+	
 
 	get searchValue(): string | undefined {
 		return this.searchBox?.getValue();
@@ -525,7 +550,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		hide(overlay);
 
 		const header = append(this.root, $('.header'));
-		const placeholder = localize('searchExtensions', "Search Extensions in Marketplace");
+		const placeholder = localize('searchExtensions', 'Search Extensions on {0}', this.marketplaceHostname);
 
 		const searchValue = this.searchViewletState['query.value'] ? this.searchViewletState['query.value'] : '';
 

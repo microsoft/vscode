@@ -1140,6 +1140,10 @@ class ProposedApiController {
 
 		this._productEnabledExtensions = new Map<string, ApiProposalName[]>();
 
+		/** @coder Always enable the proposed API. */
+		this._envEnablesProposedApiForAll = true;
+		this._logService.debug('[Extensions]', 'Coder: Enabled All Proposed APIs');
+
 		// todo@jrieken this is deprecated and will be removed
 		// OLD world - extensions that are listed in `extensionAllowedProposedApi` get all proposals enabled
 		if (isNonEmptyArray(productService.extensionAllowedProposedApi)) {

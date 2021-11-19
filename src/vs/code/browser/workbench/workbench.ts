@@ -37,6 +37,16 @@ function doCreateUri(path: string, queryValues: Map<string, string>): URI {
 	return URI.parse(window.location.href).with({ path, query });
 }
 
+/**
+ * Encode a path for opening via the folder or workspace query parameter. This
+ * preserves slashes so it can be edited by hand more easily.
+ *
+ * @author coder
+ */
+export const encodePath = (path: string): string => {
+	return path.split('/').map((p) => encodeURIComponent(p)).join('/');
+};
+
 interface ICredential {
 	service: string;
 	account: string;
@@ -319,13 +329,27 @@ class WorkspaceProvider implements IWorkspaceProvider {
 		}
 
 		// Folder
+		/**
+		 * Modified to print as a human-readable string for file paths.
+		 * @author coder
+		 */
 		else if (isFolderToOpen(workspace)) {
-			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_FOLDER}=${encodeURIComponent(workspace.folderUri.toString())}`;
+			const target = workspace.folderUri.scheme === Schemas.vscodeRemote
+				? encodePath(workspace.folderUri.path)
+				: encodeURIComponent(workspace.folderUri.toString());
+			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_FOLDER}=${target}`;
 		}
 
 		// Workspace
+		/**
+		 * Modified to print as a human-readable string for file paths.
+		 * @author coder
+		 */
 		else if (isWorkspaceToOpen(workspace)) {
-			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_WORKSPACE}=${encodeURIComponent(workspace.workspaceUri.toString())}`;
+			const target = workspace.workspaceUri.scheme === Schemas.vscodeRemote
+				? encodePath(workspace.workspaceUri.path)
+				: encodeURIComponent(workspace.workspaceUri.toString());
+			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_WORKSPACE}=${target}`;
 		}
 
 		// Append payload if any
@@ -423,18 +447,42 @@ class WindowIndicator implements IWindowIndicator {
 	let payload = Object.create(null);
 	let logLevel: string | undefined = undefined;
 
+	/**
+	 * If the value begins with a slash assume it is a file path and convert it to
+	 * use the vscode-remote scheme.
+	 *
+	 * @author coder
+	 */
+	const toRemote = (value: string): string => {
+		if (value.startsWith("/")) {
+			return "vscode-remote://" + value;
+		}
+		return value
+	}
+
 	const query = new URL(document.location.href).searchParams;
 	query.forEach((value, key) => {
 		switch (key) {
-
 			// Folder
 			case WorkspaceProvider.QUERY_PARAM_FOLDER:
+				/**
+				 * Handle URIs that we previously left unencoded and de-schemed.
+				 *
+				 * @author coder
+				 */
+				value = toRemote(value);
 				workspace = { folderUri: URI.parse(value) };
 				foundWorkspace = true;
 				break;
 
 			// Workspace
 			case WorkspaceProvider.QUERY_PARAM_WORKSPACE:
+				/**
+				 * Handle URIs that we previously left unencoded and de-schemed.
+				 *
+				 * @author coder
+				 */
+				value = toRemote(value);
 				workspace = { workspaceUri: URI.parse(value) };
 				foundWorkspace = true;
 				break;
@@ -482,14 +530,15 @@ class WindowIndicator implements IWindowIndicator {
 		title: localize('home', "Home")
 	};
 
+
 	// Welcome Banner
-	const welcomeBanner: IWelcomeBanner = {
-		message: localize('welcomeBannerMessage', "{0} Web. Browser based playground for testing.", product.nameShort),
-		actions: [{
-			href: 'https://github.com/microsoft/vscode',
-			label: localize('learnMore', "Learn More")
-		}]
-	};
+	const welcomeBanner: undefined | IWelcomeBanner = undefined;
+	// 	message: localize('welcomeBannerMessage', "{0} Web. Browser based playground for testing.", product.nameShort),
+	// 	actions: [{
+	// 		href: 'https://github.com/microsoft/vscode',
+	// 		label: localize('learnMore', "Learn More")
+	// 	}]
+	// };
 
 	// Window indicator (unless connected to a remote)
 	let windowIndicator: WindowIndicator | undefined = undefined;

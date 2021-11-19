@@ -9,6 +9,7 @@ import { env } from 'vs/base/common/process';
 import { IProductConfiguration } from 'vs/base/common/product';
 import { dirname, joinPath } from 'vs/base/common/resources';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
+import { parseExtensionsGalleryEnv } from 'vs/platform/product/common/marketplace';
 
 /**
  * @deprecated You MUST use `IProductService` if possible.
@@ -75,6 +76,23 @@ else {
 		});
 	}
 }
+
+if (typeof env['EXTENSIONS_GALLERY'] !== 'undefined') {
+	console.log(`Custom marketplace env found. Parsing...`);
+
+	try {
+		Object.assign(product, {
+			extensionsGallery: parseExtensionsGalleryEnv(env['EXTENSIONS_GALLERY'])
+		});
+	} catch (error) {
+		console.error(error);
+		console.info('Check that your env var is valid JSON and conforms to `IProductConfiguration[\'extensionsGallery\']`>');
+	}
+
+	console.log(`Custom marketplace enabled.`);
+	console.log(JSON.stringify(product.extensionsGallery, null, 2));
+}
+
 
 /**
  * @deprecated You MUST use `IProductService` if possible.

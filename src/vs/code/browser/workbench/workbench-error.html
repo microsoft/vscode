@@ -1,0 +1,57 @@
+<!-- Copyright (C) Coder Technologies. All rights reserved. -->
+<!DOCTYPE html>
+<html style="--vs-theme-background-color: {{CLIENT_BACKGROUND_COLOR}}; --vs-theme-foreground-color: {{CLIENT_FOREGROUND_COLOR}}">
+	<head>
+		<meta charset="utf-8" />
+
+		<!-- Disable pinch zooming -->
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+
+		<!-- Workbench Icon/Manifest/CSS -->
+		<link rel="icon" href="data:;base64,iVBORw0KGgo=">
+		<link rel="manifest" href="./manifest.json" crossorigin="use-credentials">
+
+		<meta name="theme-color" content="{{CLIENT_BACKGROUND_COLOR}}">
+
+		<style>
+			* {
+				box-sizing: border-box;
+			}
+
+			body {
+				margin: 0;
+				height: 100vh;
+				font-size: 16px;
+			}
+			main {
+				display: grid;
+				justify-content: center;
+				align-content: space-between;
+				grid-template-rows: 1fr 4fr 1fr;
+				grid-gap: 8px;
+				padding: 8px;
+				font-family: monospace;
+				height: 100%;
+			}
+
+			footer {
+				place-self: end center;
+				font-size: .75rem;
+			}
+		</style>
+	</head>
+
+	<body style="background-color: var(--vs-theme-background-color); color: var(--vs-theme-foreground-color)" aria-label="">
+
+		<main>
+			<header>
+				<h1>{{ERROR_HEADER}}</h1>
+			</header>
+			<section>
+				<h2>⚠️ Error {{ERROR_CODE}}</h2>
+				{{ERROR_MESSAGE}}
+			</section>
+			<footer>{{ERROR_FOOTER}}</footer>
+		</main>
+	</body>
+</html>

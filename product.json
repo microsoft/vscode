@@ -1,14 +1,14 @@
 {
-	"nameShort": "Code - OSS",
-	"nameLong": "Code - OSS",
-	"applicationName": "code-oss",
-	"dataFolderName": ".vscode-oss",
-	"win32MutexName": "vscodeoss",
-	"licenseName": "MIT",
-	"licenseUrl": "https://github.com/microsoft/vscode/blob/main/LICENSE.txt",
+	"nameShort": "Code Server",
+	"nameLong": "Code Server",
+	"applicationName": "code-server",
+	"dataFolderName": ".code-server",
+	"win32MutexName": "codeserver",
 	"serverGreeting": [],
-	"win32DirName": "Microsoft Code OSS",
-	"win32NameVersion": "Microsoft Code OSS",
+	"licenseName": "MIT",
+	"licenseUrl": "https://github.com/cdr/code-server/blob/main/LICENSE.txt",
+	"win32DirName": "Code Server OSS",
+	"win32NameVersion": "Code Server OSS",
 	"win32RegValueName": "CodeOSS",
 	"win32AppId": "{{E34003BB-9E10-4501-8C11-BE3FAA83F23F}",
 	"win32x64AppId": "{{D77B7E06-80BA-4137-BCF4-654B95CCEBC5}",
@@ -16,19 +16,20 @@
 	"win32UserAppId": "{{C6065F05-9603-4FC4-8101-B9781A25D88E}",
 	"win32x64UserAppId": "{{CC6B787D-37A0-49E8-AE24-8559A032BE0C}",
 	"win32arm64UserAppId": "{{3AEBF0C8-F733-4AD4-BADE-FDB816D53D7B}",
-	"win32AppUserModelId": "Microsoft.CodeOSS",
-	"win32ShellNameShort": "C&ode - OSS",
-	"darwinBundleIdentifier": "com.visualstudio.code.oss",
-	"linuxIconName": "com.visualstudio.code.oss",
+	"win32AppUserModelId": "Coder.CodeServer",
+	"win32ShellNameShort": "C&ode Server",
+	"darwinBundleIdentifier": "com.coder.code.server",
+	"linuxIconName": "com.coder.code.server",
 	"licenseFileName": "LICENSE.txt",
-	"reportIssueUrl": "https://github.com/microsoft/vscode/issues/new",
+	"reportIssueUrl": "https://github.com/cdr/code-server/issues/new",
 	"urlProtocol": "code-oss",
 	"webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-webview.net/insider/dc1a6699060423b8c4d2ced736ad70195378fddf/out/vs/workbench/contrib/webview/browser/pre/",
 	"extensionAllowedProposedApi": [
 		"ms-vscode.vscode-js-profile-flame",
 		"ms-vscode.vscode-js-profile-table",
 		"GitHub.remotehub",
-		"GitHub.remotehub-insiders"
+		"GitHub.remotehub-insiders",
+		"coder.vscode-link"
 	],
 	"builtInExtensions": [
 		{
@@ -91,5 +92,23 @@
 				"publisherDisplayName": "Microsoft"
 			}
 		}
+	],
+	"//": "https://github.com/VSCodium/vscodium/pull/155/files",
+	"documentationUrl": "https://go.microsoft.com/fwlink/?LinkID=533484#vscode",
+	"keyboardShortcutsUrlMac": "https://go.microsoft.com/fwlink/?linkid=832143",
+	"keyboardShortcutsUrlLinux": "https://go.microsoft.com/fwlink/?linkid=832144",
+	"keyboardShortcutsUrlWin": "https://go.microsoft.com/fwlink/?linkid=832145",
+	"introductoryVideosUrl": "https://go.microsoft.com/fwlink/?linkid=832146",
+	"tipsAndTricksUrl": "https://go.microsoft.com/fwlink/?linkid=852118",
+	"newsletterSignupUrl": "https://www.research.net/r/vsc-newsletter",
+	"extensionsGallery": {
+		"serviceUrl": "https://open-vsx.org/vscode/gallery",
+		"itemUrl": "https://open-vsx.org/vscode/item",
+		"resourceUrlTemplate": "https://open-vsx.org/vscode/asset/{publisher}/{name}/{version}/Microsoft.VisualStudio.Code.WebResources/{path}",
+		"controlUrl": "",
+		"recommendationsUrl": ""
+	},
+	"linkProtectionTrustedDomains": [
+		"https://open-vsx.org"
 	]
 }

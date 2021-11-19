@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStringDictionary } from 'vs/base/common/collections';
+import { AuthType } from 'vs/base/common/auth';
 
 export interface IBuiltInExtension {
 	readonly name: string;
@@ -31,6 +32,21 @@ export type ExtensionVirtualWorkspaceSupport = {
 };
 
 export interface IProductConfiguration {
+	//#region Code Server Additions
+	
+	readonly codeServerVersion?: string;
+	readonly auth?: AuthType;
+
+	readonly logoutEndpointUrl: string;
+	readonly proxyEndpointUrlTemplate?: string;
+	readonly serviceWorker?: {
+		readonly url: string;
+		readonly scope: string;
+	}
+	readonly icons: Array<{ src: string; type: string; sizes: string }>;
+	
+	//#regionend
+
 	readonly version: string;
 	readonly date?: string;
 	readonly quality?: string;

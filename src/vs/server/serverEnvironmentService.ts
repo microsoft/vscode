@@ -8,8 +8,12 @@ import { NativeEnvironmentService } from 'vs/platform/environment/node/environme
 import { OPTIONS, OptionDescriptions } from 'vs/platform/environment/node/argv';
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { memoize } from 'vs/base/common/decorators';
+import { FileAccess } from 'vs/base/common/network';
+import { AuthType } from 'vs/base/common/auth';
 
 export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
+	'auth': { type: 'string' },
 	'port': { type: 'string' },
 	'pick-port': { type: 'string' },
 	'connectionToken': { type: 'string' },
@@ -53,11 +57,11 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	'github-auth': { type: 'string' },
 	'log': { type: 'string' },
 	'logsPath': { type: 'string' },
-
 	_: OPTIONS['_']
 };
 
 export interface ServerParsedArgs {
+	auth?: AuthType;
 	port?: string;
 	'pick-port'?: string;
 	connectionToken?: string;
@@ -113,7 +117,6 @@ export interface ServerParsedArgs {
 	'github-auth'?: string;
 	'log'?: string;
 	'logsPath'?: string;
-
 	_: string[];
 }
 
@@ -121,8 +124,29 @@ export const IServerEnvironmentService = refineServiceDecorator<IEnvironmentServ
 
 export interface IServerEnvironmentService extends INativeEnvironmentService {
 	readonly args: ServerParsedArgs;
+	readonly serviceWorkerFileName: string;
+	readonly serviceWorkerPath: string;
+	readonly proxyUri: string;
+	readonly auth: AuthType;
 }
 
 export class ServerEnvironmentService extends NativeEnvironmentService implements IServerEnvironmentService {
 	override get args(): ServerParsedArgs { return super.args as ServerParsedArgs; }
+
+	public get auth(): AuthType {
+		return this.args['auth'] || AuthType.None;
+	}
+
+	public get serviceWorkerFileName(): string {
+		return 'service-worker.js';
+	}
+
+	@memoize
+	public get serviceWorkerPath(): string {
+		return FileAccess.asFileUri(`vs/code/browser/workbench/${this.serviceWorkerFileName}`, require).fsPath;
+	}
+
+	public get proxyUri(): string {
+		return '/proxy/{port}';
+	}
 }

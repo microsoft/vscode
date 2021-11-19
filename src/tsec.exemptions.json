@@ -10,6 +10,7 @@
 		"vs/workbench/services/keybinding/test/electron-browser/keyboardMapperTestUtils.ts"
 	],
 	"ban-trustedtypes-createpolicy": [
+		"vs/workbench/browser/client.ts",
 		"vs/base/browser/dom.ts",
 		"vs/base/browser/markdownRenderer.ts",
 		"vs/base/worker/defaultWorkerFactory.ts",

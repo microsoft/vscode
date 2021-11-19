@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { memoize } from 'vs/base/common/decorators';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 
@@ -127,6 +128,19 @@ class RemoteAuthoritiesImpl {
 		this._connectionTokens[authority] = connectionToken;
 	}
 
+	@memoize
+	/** @coder Added this to work against a relative path. */
+	get remoteResourcePath(): string {
+		if (platform.isWeb) {
+			const remoteResourceUri = URI.parse(window.location.toString());
+
+			// Web may be hosted from a nested path, so we must prepend it.
+			return URI.joinPath(remoteResourceUri, Schemas.vscodeRemoteResource).path;
+		}
+
+		return `/${Schemas.vscodeRemoteResource}`;
+	}
+
 	rewrite(uri: URI): URI {
 		if (this._delegate) {
 			return this._delegate(uri);
@@ -142,10 +156,11 @@ class RemoteAuthoritiesImpl {
 		if (typeof connectionToken === 'string') {
 			query += `&tkn=${encodeURIComponent(connectionToken)}`;
 		}
+
 		return URI.from({
 			scheme: platform.isWeb ? this._preferredWebSchema : Schemas.vscodeRemoteResource,
 			authority: `${host}:${port}`,
-			path: `/vscode-remote-resource`,
+			path: this.remoteResourcePath,
 			query
 		});
 	}

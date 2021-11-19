@@ -2610,6 +2610,11 @@ convert-source-map@^1.0.0, convert-source-map@^1.5.0, convert-source-map@^1.7.0:
   dependencies:
     safe-buffer "~5.1.1"
 
+cookie@^0.4.1:
+  version "0.4.1"
+  resolved "https://registry.yarnpkg.com/cookie/-/cookie-0.4.1.tgz#afd713fe26ebd21ba95ceb61f9a8116e50a537d1"
+  integrity sha512-ZwrFkGJxUR3EIoXtO+yVE69Eb7KlixbaeAWfBQB9vVsNn/o+Yw69gBWSSDK825hQNdN+wF8zELf3dFNl/kxkUA==
+
 copy-concurrently@^1.0.0:
   version "1.0.5"
   resolved "https://registry.yarnpkg.com/copy-concurrently/-/copy-concurrently-1.0.5.tgz#92297398cae34937fcafd6ec8139c18051f0b5e0"
@@ -4267,6 +4272,11 @@ form-data@~2.3.2:
     asynckit "^0.4.0"
     combined-stream "^1.0.6"
     mime-types "^2.1.12"
+
+forwarded-parse@^2.1.2:
+  version "2.1.2"
+  resolved "https://registry.yarnpkg.com/forwarded-parse/-/forwarded-parse-2.1.2.tgz#08511eddaaa2ddfd56ba11138eee7df117a09325"
+  integrity sha512-alTFZZQDKMporBH77856pXgzhEzaUVmLCDk+egLgIgHst3Tpndzz8MnKe+GzRJRfvVdn69HhpW7cmXzvtLvJAw==
 
 fragment-cache@^0.2.1:
   version "0.2.1"
