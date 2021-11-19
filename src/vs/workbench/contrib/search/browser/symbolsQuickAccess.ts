@@ -228,7 +228,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 
 		// Resolve actual symbol to open for providers that can resolve
 		let symbolToOpen = symbol;
-		if (typeof provider.resolveWorkspaceSymbol === 'function' && !symbol.location.range) {
+		if (typeof provider.resolveWorkspaceSymbol === 'function') {
 			symbolToOpen = await provider.resolveWorkspaceSymbol(symbol, token) || symbol;
 
 			if (token.isCancellationRequested) {
