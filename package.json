@@ -61,7 +61,7 @@
     "@microsoft/applicationinsights-web": "^2.6.4",
     "@parcel/watcher": "2.0.2",
     "@vscode/sqlite3": "4.0.12",
-    "@vscode/sudo-prompt": "^9.3.0",
+    "@vscode/sudo-prompt": "9.3.1",
     "@vscode/vscode-languagedetection": "1.0.21",
     "applicationinsights": "1.0.8",
     "graceful-fs": "4.2.8",
