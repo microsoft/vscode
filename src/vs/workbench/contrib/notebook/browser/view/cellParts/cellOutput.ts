@@ -579,11 +579,11 @@ export class CellOutputContainer extends CellPart {
 		}));
 
 		this._register(viewCell.onDidChangeLayout(() => {
-			this.updateLayout();
+			this.updateLayout(viewCell);
 		}));
 	}
 
-	updateLayout() {
+	updateLayout(viewCell: CodeCellViewModel) {
 		this._outputEntries.forEach(entry => {
 			const index = this.viewCell.outputsViewModels.indexOf(entry.model);
 			if (index >= 0) {

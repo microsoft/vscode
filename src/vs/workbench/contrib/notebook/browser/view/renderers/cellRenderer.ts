@@ -249,7 +249,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		templateData.focusIndicatorRight.setHeight(indicatorPostion.verticalIndicatorHeight);
 
 		templateData.container.classList.toggle('cell-statusbar-hidden', this.notebookEditor.notebookOptions.computeEditorStatusbarHeight(element.internalMetadata) === 0);
-		templateData.betweenCellToolbar.updateForLayout(element);
+		templateData.betweenCellToolbar.updateLayout(element);
 	}
 
 	disposeTemplate(templateData: MarkdownCellRenderTemplate): void {
@@ -654,7 +654,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			templateData.container.classList.toggle('cell-statusbar-hidden', this.notebookEditor.notebookOptions.computeEditorStatusbarHeight(element.internalMetadata) === 0);
 
 			this.updateForTitleMenu(templateData);
-			templateData.betweenCellToolbar.updateForLayout(element);
+			templateData.betweenCellToolbar.updateLayout(element);
 		}));
 	}
 
