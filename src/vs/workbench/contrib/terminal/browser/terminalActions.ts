@@ -970,11 +970,13 @@ export function registerTerminalActions() {
 			const labelService = accessor.get(ILabelService);
 			const remoteAgentService = accessor.get(IRemoteAgentService);
 			const notificationService = accessor.get(INotificationService);
-			const backend = accessor.get(ITerminalInstanceService).getBackend();
 			const terminalGroupService = accessor.get(ITerminalGroupService);
 
+			const remoteAuthority = remoteAgentService.getConnection()?.remoteAuthority ?? undefined;
+			const backend = accessor.get(ITerminalInstanceService).getBackend(remoteAuthority);
+
 			if (!backend) {
-				throw new Error(`No backend registered for remote authority '${remoteAgentService.getConnection()?.remoteAuthority ?? undefined}'`);
+				throw new Error(`No backend registered for remote authority '${remoteAuthority}'`);
 			}
 
 			const terms = await backend.listProcesses();
