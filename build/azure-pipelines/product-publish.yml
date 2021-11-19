@@ -8,7 +8,7 @@ steps:
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
-      SecretsFilter: "github-distro-mixin-password,ticino-storage-key"
+      SecretsFilter: "github-distro-mixin-password"
 
   - pwsh: |
       . build/azure-pipelines/win32/exec.ps1
