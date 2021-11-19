@@ -85,49 +85,57 @@ export class WebClientServer {
 		private readonly _productService: IProductService
 	) { }
 
-	/**
-	 * @coder Patched to handle an arbitrary path depth, such as in Coder Enterprise.
-	 */
 	async handle(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
 		try {
 			const pathname = parsedUrl.pathname!;
-			const parsedPath = path.parse(pathname);
-			const pathPrefix = getPathPrefix(pathname);
 
-			if (['manifest.json', 'webmanifest.json'].includes(parsedPath.base)) {
+			/**
+			 * Add a custom manifest.
+			 *
+			 * @author coder
+			 */
+			if (pathname === '/manifest.json' || pathname === '/webmanifest.json') {
 				return this._handleManifest(req, res, parsedUrl);
 			}
-
-			if (['favicon.ico', 'code-192.png', 'code-512.png'].includes(parsedPath.base)) {
+			if (pathname === '/favicon.ico' || pathname === '/manifest.json' || pathname === '/code-192.png' || pathname === '/code-512.png') {
 				// always serve icons/manifest, even without a token
-				return serveFile(this._logService, req, res, join(APP_ROOT, 'resources', 'server', parsedPath.base));
+				return serveFile(this._logService, req, res, join(APP_ROOT, 'resources', 'server', pathname.substr(1)));
 			}
-
-			if (parsedPath.base === this._environmentService.serviceWorkerFileName) {
-				return serveFile(this._logService, req, res, this._environmentService.serviceWorkerPath, {
-					'Service-Worker-Allowed': pathPrefix,
-				});
+			/**
+			 * Add an endpoint for self-hosting webviews.  This must be unique per
+			 * webview as the code relies on unique service workers.  In our case we
+			 * use /webview/{{uuid}}.
+			 *
+			 * @author coder
+			 */
+			if (/^\/webview\//.test(pathname)) {
+				// always serve webview requests, even without a token
+				return this._handleWebview(req, res, parsedUrl);
 			}
-
-			if (parsedPath.dir.includes('/static/') && parsedPath.ext) {
-				parsedUrl.pathname = pathname.substring(pathname.indexOf('/static/'));
+			if (/^\/static\//.test(pathname)) {
 				// always serve static requests, even without a token
 				return this._handleStatic(req, res, parsedUrl);
 			}
-
-			if (parsedPath.base === 'callback') {
+			/**
+			 * Move the service worker to the root.  This makes the scope the root
+			 * (otherwise we would need to include Service-Worker-Allowed).
+			 *
+			 * @author coder
+			 */
+			if (pathname === '/' + this._environmentService.serviceWorkerFileName) {
+				return serveFile(this._logService, req, res, this._environmentService.serviceWorkerPath);
+			}
+			if (pathname === '/') {
+				// the token handling is done inside the handler
+				return this._handleRoot(req, res, parsedUrl);
+			}
+			if (pathname === '/callback') {
 				// callback support
 				return this._handleCallback(req, res, parsedUrl);
 			}
-
-			if (parsedPath.base === 'fetch-callback') {
+			if (pathname === '/fetch-callback') {
 				// callback fetch support
 				return this._handleFetchCallback(req, res, parsedUrl);
-			}
-
-			if (pathname.endsWith('/')) {
-				// the token handling is done inside the handler
-				return this._handleRoot(req, res, parsedUrl);
 			}
 
 			const message = `"${parsedUrl.pathname}" not found.`;
@@ -241,6 +249,28 @@ export class WebClientServer {
 	}
 
 	/**
+	 * Handle HTTP requests for /webview/*
+	 *
+	 * A unique path is required for every webview service worker.
+	 */
+	private async _handleWebview(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
+		const headers: Record<string, string> = Object.create(null);
+
+		// support paths that are uri-encoded (e.g. spaces => %20)
+		const normalizedPathname = decodeURIComponent(parsedUrl.pathname!);
+
+		// Strip `/webview/{uuid}` from the path.
+		const relativeFilePath = normalize(normalizedPathname.split('/').splice(3).join('/'));
+
+		const filePath = join(APP_ROOT, 'out/vs/workbench/contrib/webview/browser/pre', relativeFilePath);
+		if (!isEqualOrParent(filePath, APP_ROOT, !isLinux)) {
+			return this.serveError(req, res, 400, `Bad request.`, parsedUrl);
+		}
+
+		return serveFile(this._logService, req, res, filePath, headers);
+	}
+
+	/**
 	 * Handle HTTP requests for /
 	 */
 	private async _handleRoot(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
@@ -318,6 +348,7 @@ export class WebClientServer {
 					logoutEndpointUrl: this.createRequestUrl(req, parsedUrl, '/logout').toString(),
 					webEndpointUrl: this.createRequestUrl(req, parsedUrl, '/static').toString(),
 					webEndpointUrlTemplate: this.createRequestUrl(req, parsedUrl, '/static').toString(),
+					webviewContentExternalBaseUrlTemplate: './webview/{{uuid}}/',
 
 					updateUrl: './update/check'
 				},
@@ -343,7 +374,7 @@ export class WebClientServer {
 			// the sha is the same as in src/vs/workbench/services/extensions/worker/httpWebWorkerExtensionHostIframe.html
 			`script-src 'self' 'unsafe-eval' ${this._getScriptCspHashes(data).join(' ')} 'sha256-cb2sg39EJV8ABaSNFfWu/ou8o1xVXYK7jp90oZ9vpcg=';`,
 			'child-src \'self\';',
-			`frame-src 'self' https://*.vscode-webview.net ${this._productService.webEndpointUrl || ''} data:;`,
+			`frame-src 'self' ${this._productService.webEndpointUrl || ''} data:;`,
 			'worker-src \'self\' data:;',
 			'style-src \'self\' \'unsafe-inline\';',
 			'connect-src \'self\' ws: wss: https:;',

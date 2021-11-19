@@ -102,13 +102,15 @@ class BrowserMain extends Disposable {
 		// Startup
 		const instantiationService = workbench.startup();
 
-		/** @coder Initialize our own client-side additions. */
+		/**
+		 * Initialize our own client-side additions.
+		 *
+		 * @author Coder
+		 */
 		if (!this.configuration.productConfiguration) {
 			throw new Error('`productConfiguration` not present in workbench config');
 		}
-
 		const codeServerClientAdditions = this._register(instantiationService.createInstance(CodeServerClientAdditions, this.configuration.productConfiguration));
-
 		await codeServerClientAdditions.startup();
 
 		// Window
