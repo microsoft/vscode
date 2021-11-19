@@ -70,6 +70,7 @@ const isSupportedForPipe = (optionId: keyof RemoteParsedArgs) => {
 		case 'force':
 		case 'show-versions':
 		case 'category':
+		case 'verbose':
 			return true;
 		default:
 			return false;
@@ -116,6 +117,8 @@ export function main(desc: ProductDescription, args: string[]): void {
 	const parsedArgs = parseArgs(args, options, errorReporter);
 	const mapFileUri = remoteAuthority ? mapFileToRemoteUri : (uri: string) => uri;
 
+	const verbose = !!parsedArgs['verbose'];
+
 	if (parsedArgs.help) {
 		console.log(buildHelpMessage(desc.productName, desc.executableName, desc.version, options, true));
 		return;
@@ -126,7 +129,7 @@ export function main(desc: ProductDescription, args: string[]): void {
 	}
 	if (cliPipe) {
 		if (parsedArgs['openExternal']) {
-			openInBrowser(parsedArgs['_']);
+			openInBrowser(parsedArgs['_'], verbose);
 			return;
 		}
 	}
@@ -155,7 +158,7 @@ export function main(desc: ProductDescription, args: string[]): void {
 			let stdinFilePath = cliStdInFilePath;
 			if (!stdinFilePath) {
 				stdinFilePath = getStdinFilePath();
-				readFromStdin(stdinFilePath, !!parsedArgs.verbose); // throws error if file can not be written
+				readFromStdin(stdinFilePath, verbose); // throws error if file can not be written
 			}
 
 			// Make sure to open tmp file
@@ -226,7 +229,7 @@ export function main(desc: ProductDescription, args: string[]): void {
 		const ext = extname(cliCommand);
 		if (ext === '.bat' || ext === '.cmd') {
 			const processCwd = cliCommandCwd || cwd();
-			if (parsedArgs['verbose']) {
+			if (verbose) {
 				console.log(`Invoking: cmd.exe /C ${cliCommand} ${newCommandline.join(' ')} in ${processCwd}`);
 			}
 			_cp.spawn('cmd.exe', ['/C', cliCommand, ...newCommandline], {
@@ -238,8 +241,8 @@ export function main(desc: ProductDescription, args: string[]): void {
 			const env = { ...process.env, ELECTRON_RUN_AS_NODE: '1' };
 			newCommandline.unshift('--ms-enable-electron-run-as-node');
 			newCommandline.unshift('resources/app/out/cli.js');
-			if (parsedArgs['verbose']) {
-				console.log(`Invoking: ${cliCommand} ${newCommandline.join(' ')} in ${cliCwd}`);
+			if (verbose) {
+				console.log(`Invoking: cd "${cliCwd}" && ELECTRON_RUN_AS_NODE=1 "${cliCommand}" "${newCommandline.join('" "')}"`);
 			}
 			_cp.spawn(cliCommand, newCommandline, { cwd: cliCwd, env, stdio: ['inherit'] });
 		}
@@ -251,7 +254,7 @@ export function main(desc: ProductDescription, args: string[]): void {
 		if (parsedArgs.status) {
 			sendToPipe({
 				type: 'status'
-			}).then((res: string) => {
+			}, verbose).then((res: string) => {
 				console.log(res);
 			});
 			return;
@@ -264,7 +267,7 @@ export function main(desc: ProductDescription, args: string[]): void {
 				install: asExtensionIdOrVSIX(parsedArgs['install-extension']),
 				uninstall: asExtensionIdOrVSIX(parsedArgs['uninstall-extension']),
 				force: parsedArgs['force']
-			}).then((res: string) => {
+			}, verbose).then((res: string) => {
 				console.log(res);
 			});
 			return;
@@ -281,7 +284,7 @@ export function main(desc: ProductDescription, args: string[]): void {
 				console.log('At least one file must be provided to wait for.');
 				return;
 			}
-			waitMarkerFilePath = createWaitMarkerFile(parsedArgs.verbose);
+			waitMarkerFilePath = createWaitMarkerFile(verbose);
 		}
 
 		sendToPipe({
@@ -294,7 +297,7 @@ export function main(desc: ProductDescription, args: string[]): void {
 			forceReuseWindow: parsedArgs['reuse-window'],
 			forceNewWindow: parsedArgs['new-window'],
 			waitMarkerFilePath
-		});
+		}, verbose);
 
 		if (waitMarkerFilePath) {
 			waitForFileDeleted(waitMarkerFilePath);
@@ -308,7 +311,7 @@ async function waitForFileDeleted(path: string) {
 	}
 }
 
-function openInBrowser(args: string[]) {
+function openInBrowser(args: string[], verbose: boolean) {
 	let uris: string[] = [];
 	for (let location of args) {
 		try {
@@ -325,11 +328,14 @@ function openInBrowser(args: string[]) {
 		sendToPipe({
 			type: 'openExternal',
 			uris
-		});
+		}, verbose);
 	}
 }
 
-function sendToPipe(args: PipeCommand): Promise<any> {
+function sendToPipe(args: PipeCommand, verbose: boolean): Promise<any> {
+	if (verbose) {
+		console.log(JSON.stringify(args, null, '  '));
+	}
 	return new Promise<string>(resolve => {
 		const message = JSON.stringify(args);
 		if (!cliPipe) {
