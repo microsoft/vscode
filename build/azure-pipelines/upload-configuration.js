@@ -60,10 +60,6 @@ function generateVSCodeConfigurationTask() {
         });
     });
 }
-function shouldSetupSettingsSearch() {
-    const branch = process.env.BUILD_SOURCEBRANCH;
-    return !!();
-}
 function getSettingsSearchBuildId(packageJson) {
     try {
         const branch = process.env.BUILD_SOURCEBRANCH;

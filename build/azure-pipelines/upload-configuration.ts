@@ -74,11 +74,6 @@ function generateVSCodeConfigurationTask(): Promise<string | undefined> {
 	});
 }
 
-function shouldSetupSettingsSearch(): boolean {
-	const branch = process.env.BUILD_SOURCEBRANCH;
-	return !!();
-}
-
 function getSettingsSearchBuildId(packageJson: { version: string }) {
 	try {
 		const branch = process.env.BUILD_SOURCEBRANCH!;
