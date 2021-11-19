@@ -451,7 +451,7 @@ export class CodeCell extends Disposable {
 		this._removeInputCollapsePreview();
 		this._outputContainerRenderer.dispose();
 		this._untrustedStatusItem?.dispose();
-		this.templateData.focusIndicator.focusIndicatorLeft.setHeight(0);
+		this.templateData.focusIndicator.left.setHeight(0);
 
 		super.dispose();
 	}
