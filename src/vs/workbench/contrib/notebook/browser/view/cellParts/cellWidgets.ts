@@ -20,7 +20,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { CodeCellLayoutInfo, ICellViewModel, MarkdownCellLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
 import { CellStatusbarAlignment, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
@@ -98,8 +98,7 @@ export class CellEditorStatusBar extends CellPart {
 	}
 
 	updateLayout(element: ICellViewModel): void {
-		// TODO@roblou maybe more props should be in common layoutInfo?
-		const layoutInfo = element.layoutInfo as CodeCellLayoutInfo | MarkdownCellLayoutInfo;
+		const layoutInfo = element.layoutInfo;
 		const width = layoutInfo.editorWidth;
 		if (!width) {
 			return;
