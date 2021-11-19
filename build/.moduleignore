@@ -51,7 +51,9 @@ spdlog/test/**
 spdlog/*.yml
 !spdlog/build/Release/*.node
 
-jschardet/dist/**
+jschardet/index.js
+jschardet/src/**
+jschardet/dist/jschardet.js
 
 windows-foreground-love/binding.gyp
 windows-foreground-love/build/**
