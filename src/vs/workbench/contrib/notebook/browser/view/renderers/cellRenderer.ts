@@ -10,7 +10,6 @@ import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/lis
 import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshalling';
 import * as platform from 'vs/base/common/platform';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -30,7 +29,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { INotebookCellToolbarActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { CodeCellLayoutInfo, EXPAND_CELL_OUTPUT_COMMAND_ID, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellContextKeys';
 import { CellDecorations } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellDecorations';
@@ -227,17 +225,10 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			this.updateForLayout(element, templateData);
 		}));
 
-		const markdownCell = templateData.instantiationService.createInstance(StatefulMarkdownCell, this.notebookEditor, element, templateData, this.renderedEditors);
-		elementDisposables.add(markdownCell);
-
-		const toolbarContext = <INotebookCellToolbarActionContext>{
-			ui: true,
-			cell: element,
-			notebookEditor: this.notebookEditor,
-			$mid: MarshalledId.NotebookCellActionContext
-		};
-		templateData.betweenCellToolbar.updateContext(toolbarContext);
-		templateData.statusBar.updateContext(toolbarContext);
+		elementDisposables.add(templateData.instantiationService.createInstance(StatefulMarkdownCell, this.notebookEditor, element, templateData, [
+			templateData.betweenCellToolbar,
+			templateData.statusBar
+		], this.renderedEditors));
 	}
 
 	private updateForLayout(element: MarkupCellViewModel, templateData: MarkdownCellRenderTemplate): void {

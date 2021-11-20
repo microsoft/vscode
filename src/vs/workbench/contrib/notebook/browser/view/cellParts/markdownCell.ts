@@ -27,6 +27,7 @@ import { MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browse
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
 
 
 export class StatefulMarkdownCell extends Disposable {
@@ -47,6 +48,7 @@ export class StatefulMarkdownCell extends Disposable {
 		private readonly notebookEditor: IActiveNotebookEditorDelegate,
 		private readonly viewCell: MarkupCellViewModel,
 		private readonly templateData: MarkdownCellRenderTemplate,
+		private readonly cellParts: CellPart[],
 		private readonly renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@INotebookCellStatusBarService readonly notebookCellStatusBarService: INotebookCellStatusBarService,
@@ -67,6 +69,10 @@ export class StatefulMarkdownCell extends Disposable {
 		this.registerListeners();
 
 		// update for init state
+		this.cellParts.forEach(cellPart => {
+			cellPart.renderCell(this.viewCell, this.templateData);
+		});
+
 		this.updateForHover();
 		this.updateForFocusModeChange();
 		this.foldingState = viewCell.foldingState;
@@ -98,6 +104,12 @@ export class StatefulMarkdownCell extends Disposable {
 	}
 
 	private registerListeners() {
+		this._register(this.viewCell.onDidChangeState(e => {
+			this.cellParts.forEach(cellPart => {
+				cellPart.updateState(this.viewCell, e);
+			});
+		}));
+
 		this._register(this.viewCell.model.onDidChangeMetadata(() => {
 			this.viewUpdate();
 		}));
