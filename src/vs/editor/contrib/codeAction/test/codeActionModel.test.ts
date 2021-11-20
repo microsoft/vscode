@@ -30,7 +30,7 @@ const testProvider = {
 suite('CodeActionModel', () => {
 
 	const languageId = 'foo-lang';
-	let uri = URI.parse('untitled:path');
+	const uri = URI.parse('untitled:path');
 	let model: TextModel;
 	let markerService: MarkerService;
 	let editor: ICodeEditor;
@@ -173,7 +173,7 @@ suite('CodeActionModel', () => {
 				model.dispose();
 				assert.strictEqual(triggerCount, 1);
 				done();
-			}, 50);
+			}, 0);
 		}, 5 /*delay*/));
 
 		markerService.changeOne('fake', uri, [{
