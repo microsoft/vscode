@@ -651,6 +651,22 @@ export class TypeOperations {
 			if (!pair.shouldAutoClose(scopedLineTokens, beforeColumn - scopedLineTokens.firstCharOffset)) {
 				return null;
 			}
+
+			// Typing for example a quote could either start a new string, in which case auto-closing is desirable
+			// or it could end a previously started string, in which case auto-closing is not desirable
+			//
+			// In certain cases, it is really not possible to look at the previous token to determine
+			// what would happen. That's why we do something really unusual, we pretend to type a different
+			// character and ask the tokenizer what the outcome of doing that is: after typing a neutral
+			// character, are we in a string (i.e. the quote would most likely end a string) or not?
+			//
+			const neutralCharacter = pair.findNeutralCharacter();
+			if (neutralCharacter) {
+				const tokenType = model.getTokenTypeIfInsertingCharacter(lineNumber, beforeColumn, neutralCharacter);
+				if (!pair.isOK(tokenType)) {
+					return null;
+				}
+			}
 		}
 
 		if (isContainedPairPresent) {

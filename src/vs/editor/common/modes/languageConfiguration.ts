@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CharCode } from 'vs/base/common/charCode';
 import { StandardTokenType } from 'vs/editor/common/modes';
 import { ScopedLineTokens } from 'vs/editor/common/modes/supports';
 
@@ -273,6 +274,8 @@ export class StandardAutoClosingPairConditional {
 	readonly open: string;
 	readonly close: string;
 	private readonly _standardTokenMask: number;
+	private _neutralCharacter: string | null = null;
+	private _neutralCharacterSearched: boolean = false;
 
 	constructor(source: IAutoClosingPairConditional) {
 		this.open = source.open;
@@ -312,6 +315,35 @@ export class StandardAutoClosingPairConditional {
 		const tokenIndex = context.findTokenIndexAtOffset(column - 2);
 		const standardTokenType = context.getStandardTokenType(tokenIndex);
 		return this.isOK(standardTokenType);
+	}
+
+	private _findNeutralCharacterInRange(fromCharCode: number, toCharCode: number): string | null {
+		for (let charCode = fromCharCode; charCode <= toCharCode; charCode++) {
+			const character = String.fromCharCode(charCode);
+			if (!this.open.includes(character) && !this.close.includes(character)) {
+				return character;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Find a character in the range [0-9a-zA-Z] that does not appear in the open or close
+	 */
+	public findNeutralCharacter(): string | null {
+		if (!this._neutralCharacterSearched) {
+			this._neutralCharacterSearched = true;
+			if (!this._neutralCharacter) {
+				this._neutralCharacter = this._findNeutralCharacterInRange(CharCode.Digit0, CharCode.Digit9);
+			}
+			if (!this._neutralCharacter) {
+				this._neutralCharacter = this._findNeutralCharacterInRange(CharCode.a, CharCode.z);
+			}
+			if (!this._neutralCharacter) {
+				this._neutralCharacter = this._findNeutralCharacterInRange(CharCode.A, CharCode.Z);
+			}
+		}
+		return this._neutralCharacter;
 	}
 }
 

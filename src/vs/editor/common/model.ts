@@ -13,7 +13,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelInjectedTextChangedEvent, ModelRawContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
-import { FormattingOptions } from 'vs/editor/common/modes';
+import { FormattingOptions, StandardTokenType } from 'vs/editor/common/modes';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { MultilineTokens, MultilineTokens2 } from 'vs/editor/common/model/tokensStore';
 import { TextChange } from 'vs/editor/common/model/textChange';
@@ -943,6 +943,13 @@ export interface ITextModel {
 	 * @internal
 	 */
 	getLanguageIdAtPosition(lineNumber: number, column: number): string;
+
+	/**
+	 * Returns the standard token type for a character if the character were to be inserted at
+	 * the given position. If the result cannot be accurate, it returns null.
+	 * @internal
+	 */
+	getTokenTypeIfInsertingCharacter(lineNumber: number, column: number, character: string): StandardTokenType;
 
 	/**
 	 * Get the word under or besides `position`.
