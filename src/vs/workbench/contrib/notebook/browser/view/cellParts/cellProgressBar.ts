@@ -24,6 +24,10 @@ export class CellProgressBar extends CellPart {
 		this._collapsedProgressBar.hide();
 	}
 
+	renderCell(element: ICellViewModel): void {
+		this.updateForInternalMetadata(element, element.internalMetadata);
+	}
+
 	prepareLayout(): void {
 		// nothing to read
 	}

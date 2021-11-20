@@ -87,6 +87,10 @@ export class CodeCell extends Disposable {
 			}
 		}));
 
+		this.cellParts.forEach(cellPart => {
+			cellPart.renderCell(this.viewCell, this.templateData);
+		});
+
 		this.updateEditorOptions();
 		this.updateEditorForFocusModeChange();
 		this.updateForOutputHover();
