@@ -51,7 +51,7 @@ suite('CodeActionModel', () => {
 		markerService.dispose();
 	});
 
-	test('Orcale -> marker added', done => {
+	test('Oracle -> marker added', done => {
 		const reg = modes.CodeActionProviderRegistry.register(languageId, testProvider);
 		disposables.add(reg);
 
@@ -81,7 +81,7 @@ suite('CodeActionModel', () => {
 
 	});
 
-	test('Orcale -> position changed', () => {
+	test('Oracle -> position changed', () => {
 		const reg = modes.CodeActionProviderRegistry.register(languageId, testProvider);
 		disposables.add(reg);
 
@@ -155,7 +155,7 @@ suite('CodeActionModel', () => {
 		});
 	});
 
-	test('Orcale -> should only auto trigger once for cursor and marker update right after each other', done => {
+	test('Oracle -> should only auto trigger once for cursor and marker update right after each other', done => {
 		const reg = modes.CodeActionProviderRegistry.register(languageId, testProvider);
 		disposables.add(reg);
 
