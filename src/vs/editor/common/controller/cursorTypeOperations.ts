@@ -20,6 +20,7 @@ import { EnterAction, IndentAction, StandardAutoClosingPairConditional } from 'v
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
+import { createScopedLineTokens } from 'vs/editor/common/modes/supports';
 
 export class TypeOperations {
 
@@ -563,7 +564,9 @@ export class TypeOperations {
 
 	private static _getAutoClosingPairClose(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string, chIsAlreadyTyped: boolean): string | null {
 		const chIsQuote = isQuote(ch);
-		const autoCloseConfig = chIsQuote ? config.autoClosingQuotes : config.autoClosingBrackets;
+		const autoCloseConfig = (chIsQuote ? config.autoClosingQuotes : config.autoClosingBrackets);
+		const shouldAutoCloseBefore = (chIsQuote ? config.shouldAutoCloseBefore.quote : config.shouldAutoCloseBefore.bracket);
+
 		if (autoCloseConfig === 'never') {
 			return null;
 		}
@@ -606,8 +609,6 @@ export class TypeOperations {
 		const containedPairClose = containedPair ? containedPair.close : '';
 		let isContainedPairPresent = true;
 
-		const shouldAutoCloseBefore = chIsQuote ? config.shouldAutoCloseBefore.quote : config.shouldAutoCloseBefore.bracket;
-
 		for (const position of positions) {
 			const { lineNumber, beforeColumn, afterColumn } = position;
 			const lineText = model.getLineContent(lineNumber);
@@ -628,11 +629,6 @@ export class TypeOperations {
 				}
 			}
 
-			if (!model.isCheapToTokenize(lineNumber)) {
-				// Do not force tokenization
-				return null;
-			}
-
 			// Do not auto-close ' or " after a word character
 			if (pair.open.length === 1 && (ch === '\'' || ch === '"') && autoCloseConfig !== 'always') {
 				const wordSeparators = getMapForWordSeparators(config.wordSeparators);
@@ -644,17 +640,15 @@ export class TypeOperations {
 				}
 			}
 
-			model.forceTokenization(lineNumber);
-			const lineTokens = model.getLineTokens(lineNumber);
-
-			let shouldAutoClosePair = false;
-			try {
-				shouldAutoClosePair = LanguageConfigurationRegistry.shouldAutoClosePair(pair, lineTokens, beforeColumn);
-			} catch (e) {
-				onUnexpectedError(e);
+			if (!model.isCheapToTokenize(lineNumber)) {
+				// Do not force tokenization
+				return null;
 			}
 
-			if (!shouldAutoClosePair) {
+			model.forceTokenization(lineNumber);
+			const lineTokens = model.getLineTokens(lineNumber);
+			const scopedLineTokens = createScopedLineTokens(lineTokens, beforeColumn - 1);
+			if (!pair.shouldAutoClose(scopedLineTokens, beforeColumn - scopedLineTokens.firstCharOffset)) {
 				return null;
 			}
 		}

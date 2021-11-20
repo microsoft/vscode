@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { StandardTokenType } from 'vs/editor/common/modes';
+import { ScopedLineTokens } from 'vs/editor/common/modes/supports';
 
 /**
  * Describes how comments for a language work.
@@ -268,7 +269,6 @@ export interface CompleteEnterAction {
  * @internal
  */
 export class StandardAutoClosingPairConditional {
-	_standardAutoClosingPairConditionalBrand: void = undefined;
 
 	readonly open: string;
 	readonly close: string;
@@ -301,6 +301,17 @@ export class StandardAutoClosingPairConditional {
 
 	public isOK(standardToken: StandardTokenType): boolean {
 		return (this._standardTokenMask & <number>standardToken) === 0;
+	}
+
+	public shouldAutoClose(context: ScopedLineTokens, column: number): boolean {
+		// Always complete on empty line
+		if (context.getTokenCount() === 0) {
+			return true;
+		}
+
+		const tokenIndex = context.findTokenIndexAtOffset(column - 2);
+		const standardTokenType = context.getStandardTokenType(tokenIndex);
+		return this.isOK(standardTokenType);
 	}
 }
 
