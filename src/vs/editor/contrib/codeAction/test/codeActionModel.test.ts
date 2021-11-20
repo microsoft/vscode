@@ -169,9 +169,8 @@ suite('CodeActionModel', () => {
 
 	test('Oracle -> should only auto trigger once for cursor and marker update right after each other', async () => {
 		let done: () => void;
-		const donePromise = new Promise<void>(resolve => {
-			done = resolve;
-		});
+		const donePromise = new Promise<void>(resolve => { done = resolve; });
+
 		await runWithFakedTimers({ useFakeTimers: true }, () => {
 			const reg = modes.CodeActionProviderRegistry.register(languageId, testProvider);
 			disposables.add(reg);
