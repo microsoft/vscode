@@ -4801,10 +4801,10 @@ gulp-atom-electron@1.32.0:
     vinyl "^2.2.0"
     vinyl-fs "^3.0.3"
 
-gulp-azure-storage@^0.12.0:
-  version "0.12.0"
-  resolved "https://registry.yarnpkg.com/gulp-azure-storage/-/gulp-azure-storage-0.12.0.tgz#b32fb497aeb56fc48374210ec8da98f9ecf5a048"
-  integrity sha512-BAUrv3vdIaeABD+okwXb1hJ9o6pZnXrSrc7awTAnRiPxDXdX9uAT1pmEXMeUpG74UC0DKdwPlHnVZOa03SlZrw==
+gulp-azure-storage@^0.12.1:
+  version "0.12.1"
+  resolved "https://registry.yarnpkg.com/gulp-azure-storage/-/gulp-azure-storage-0.12.1.tgz#be2be1268af7dea6fdf56045b3eb3f090335de4a"
+  integrity sha512-n/hx8bbGsqrcizruqDTX6zy2FUdkTDGAz04IdopNxNTZivZmizf8u9WLYJreUE6/qCnSJnyjS1HP82+mLk7rjg==
   dependencies:
     "@azure/storage-blob" "^12.8.0"
     delayed-stream "0.0.6"
