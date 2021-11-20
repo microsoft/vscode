@@ -30,8 +30,8 @@ function src(base: string, maps = `${base}/**/*.map`) {
 		}));
 }
 
-function main() {
-	const sources = [];
+function main(): Promise<void> {
+	const sources: any[] = [];
 
 	// vscode client maps (default)
 	if (!base) {
@@ -53,17 +53,25 @@ function main() {
 		sources.push(src(base, maps));
 	}
 
-	return es.merge(...sources)
-		.pipe(es.through(function (data: Vinyl) {
-			console.log('Uploading Sourcemap', data.relative); // debug
-			this.emit('data', data);
-		}))
-		.pipe(azure.upload({
-			account: process.env.AZURE_STORAGE_ACCOUNT,
-			credential,
-			container: 'sourcemaps',
-			prefix: commit + '/'
-		}));
+	return new Promise((c, e) => {
+		es.merge(...sources)
+			.pipe(es.through(function (data: Vinyl) {
+				console.log('Uploading Sourcemap', data.relative); // debug
+				this.emit('data', data);
+			}))
+			.pipe(azure.upload({
+				account: process.env.AZURE_STORAGE_ACCOUNT,
+				credential,
+				container: 'sourcemaps',
+				prefix: commit + '/'
+			}))
+			.on('end', () => c())
+			.on('error', (err: any) => e(err));
+	});
 }
 
-main();
+main().catch(err => {
+	console.error(err);
+	process.exit(1);
+});
+

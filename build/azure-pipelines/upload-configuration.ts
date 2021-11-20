@@ -96,7 +96,7 @@ export function getSettingsSearchBuildId(packageJson: { version: string }) {
 	}
 }
 
-async function main() {
+async function main(): Promise<void> {
 	const configPath = await generateVSCodeConfigurationTask();
 
 	if (!configPath) {
@@ -111,15 +111,22 @@ async function main() {
 
 	const credential = new ClientSecretCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, process.env['AZURE_CLIENT_SECRET']!);
 
-	return vfs.src(configPath)
-		.pipe(azure.upload({
-			account: process.env.AZURE_STORAGE_ACCOUNT,
-			credential,
-			container: 'configuration',
-			prefix: `${settingsSearchBuildId}/${commit}/`
-		}));
+	return new Promise((c, e) => {
+		vfs.src(configPath)
+			.pipe(azure.upload({
+				account: process.env.AZURE_STORAGE_ACCOUNT,
+				credential,
+				container: 'configuration',
+				prefix: `${settingsSearchBuildId}/${commit}/`
+			}))
+			.on('end', () => c())
+			.on('error', (err: any) => e(err));
+	});
 }
 
 if (require.main === module) {
-	main();
+	main().catch(err => {
+		console.error(err);
+		process.exit(1);
+	});
 }

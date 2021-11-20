@@ -92,14 +92,21 @@ async function main() {
         throw new Error('Failed to compute build number');
     }
     const credential = new identity_1.ClientSecretCredential(process.env['AZURE_TENANT_ID'], process.env['AZURE_CLIENT_ID'], process.env['AZURE_CLIENT_SECRET']);
-    return vfs.src(configPath)
-        .pipe(azure.upload({
-        account: process.env.AZURE_STORAGE_ACCOUNT,
-        credential,
-        container: 'configuration',
-        prefix: `${settingsSearchBuildId}/${commit}/`
-    }));
+    return new Promise((c, e) => {
+        vfs.src(configPath)
+            .pipe(azure.upload({
+            account: process.env.AZURE_STORAGE_ACCOUNT,
+            credential,
+            container: 'configuration',
+            prefix: `${settingsSearchBuildId}/${commit}/`
+        }))
+            .on('end', () => c())
+            .on('error', (err) => e(err));
+    });
 }
 if (require.main === module) {
-    main();
+    main().catch(err => {
+        console.error(err);
+        process.exit(1);
+    });
 }

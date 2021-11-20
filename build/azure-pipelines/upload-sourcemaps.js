@@ -42,16 +42,23 @@ function main() {
     else {
         sources.push(src(base, maps));
     }
-    return es.merge(...sources)
-        .pipe(es.through(function (data) {
-        console.log('Uploading Sourcemap', data.relative); // debug
-        this.emit('data', data);
-    }))
-        .pipe(azure.upload({
-        account: process.env.AZURE_STORAGE_ACCOUNT,
-        credential,
-        container: 'sourcemaps',
-        prefix: commit + '/'
-    }));
+    return new Promise((c, e) => {
+        es.merge(...sources)
+            .pipe(es.through(function (data) {
+            console.log('Uploading Sourcemap', data.relative); // debug
+            this.emit('data', data);
+        }))
+            .pipe(azure.upload({
+            account: process.env.AZURE_STORAGE_ACCOUNT,
+            credential,
+            container: 'sourcemaps',
+            prefix: commit + '/'
+        }))
+            .on('end', () => c())
+            .on('error', (err) => e(err));
+    });
 }
-main();
+main().catch(err => {
+    console.error(err);
+    process.exit(1);
+});
