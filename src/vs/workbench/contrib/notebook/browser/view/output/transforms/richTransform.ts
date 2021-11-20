@@ -75,7 +75,7 @@ class StreamRendererContrib extends Disposable implements IOutputRendererContrib
 		const text = getStringValue(item);
 		const contentNode = DOM.$('span.output-stream');
 		const lineLimit = this.configurationService.getValue<number>(NotebookSetting.textOutputLineLimit) ?? 30;
-		truncatedArrayOfString(notebookUri, output.cellViewModel, Math.max(lineLimit, 6), contentNode, [text], disposables, linkDetector, this.openerService, this.themeService);
+		truncatedArrayOfString(notebookUri, output.cellViewModel, output.model.outputId, Math.max(lineLimit, 6), contentNode, [text], disposables, linkDetector, this.openerService, this.themeService);
 		container.appendChild(contentNode);
 
 		return { type: RenderOutputType.Mainframe, disposable: disposables };
@@ -179,7 +179,7 @@ class PlainTextRendererContrib extends Disposable implements IOutputRendererCont
 		const str = getStringValue(item);
 		const contentNode = DOM.$('.output-plaintext');
 		const lineLimit = this.configurationService.getValue<number>(NotebookSetting.textOutputLineLimit) ?? 30;
-		truncatedArrayOfString(notebookUri, output.cellViewModel, Math.max(lineLimit, 6), contentNode, [str], disposables, linkDetector, this.openerService, this.themeService);
+		truncatedArrayOfString(notebookUri, output.cellViewModel, output.model.outputId, Math.max(lineLimit, 6), contentNode, [str], disposables, linkDetector, this.openerService, this.themeService);
 		container.appendChild(contentNode);
 
 		return { type: RenderOutputType.Mainframe, supportAppend: true, disposable: disposables };

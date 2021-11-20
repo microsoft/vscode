@@ -322,8 +322,8 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		const ptyService = instantiationService.createInstance(
 			PtyHostService,
 			{
-				GraceTime: ProtocolConstants.ReconnectionGraceTime,
-				ShortGraceTime: ProtocolConstants.ReconnectionShortGraceTime,
+				graceTime: ProtocolConstants.ReconnectionGraceTime,
+				shortGraceTime: ProtocolConstants.ReconnectionShortGraceTime,
 				scrollback: configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
 			}
 		);

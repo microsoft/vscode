@@ -27,7 +27,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
+import { IOpenerService, matchesScheme, matchesSomeScheme } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
@@ -292,6 +292,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 
 					#container > div.preview.dragging {
 						background-color: var(--theme-background);
+						opacity: 0.5 !important;
 					}
 
 					.monaco-workbench.vs-dark .notebookOverlay .cell.markdown .latex img,
@@ -613,6 +614,16 @@ var requirejs = (function() {
 				case 'clicked-data-url':
 					{
 						this._onDidClickDataLink(data);
+						break;
+					}
+				case 'clicked-link':
+					{
+						if (matchesSomeScheme(data.href, Schemas.http, Schemas.https, Schemas.mailto)) {
+							this.openerService.open(data.href, { fromUserGesture: true });
+						} else if (!/^[\w\-]+:/.test(data.href)) {
+							const path = URI.joinPath(dirname(this.documentUri), data.href);
+							this.openerService.open(path, { fromUserGesture: true });
+						}
 						break;
 					}
 				case 'customKernelMessage':

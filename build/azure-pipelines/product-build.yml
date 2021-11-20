@@ -152,212 +152,209 @@ stages:
           - template: product-compile.yml
 
   - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true)) }}:
-    - stage: Windows
-      dependsOn:
-        - Compile
-      pool:
-        vmImage: VS2017-Win2016
-      jobs:
+      - stage: Windows
+        dependsOn:
+          - Compile
+        pool:
+          vmImage: VS2017-Win2016
+        jobs:
+          - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
+              - job: Windows
+                timeoutInMinutes: 90
+                variables:
+                  VSCODE_ARCH: x64
+                steps:
+                  - template: win32/product-build-win32.yml
 
-        - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
-          - job: Windows
-            timeoutInMinutes: 90
-            variables:
-              VSCODE_ARCH: x64
-            steps:
-              - template: win32/product-build-win32.yml
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_32BIT, true)) }}:
+              - job: Windows32
+                timeoutInMinutes: 90
+                variables:
+                  VSCODE_ARCH: ia32
+                steps:
+                  - template: win32/product-build-win32.yml
 
-        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_32BIT, true)) }}:
-          - job: Windows32
-            timeoutInMinutes: 90
-            variables:
-              VSCODE_ARCH: ia32
-            steps:
-              - template: win32/product-build-win32.yml
-
-        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
-          - job: WindowsARM64
-            timeoutInMinutes: 90
-            variables:
-              VSCODE_ARCH: arm64
-            steps:
-              - template: win32/product-build-win32.yml
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
+              - job: WindowsARM64
+                timeoutInMinutes: 90
+                variables:
+                  VSCODE_ARCH: arm64
+                steps:
+                  - template: win32/product-build-win32.yml
 
   - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_LINUX'], true)) }}:
-    - stage: Linux
-      dependsOn:
-        - Compile
-      pool:
-        vmImage: "Ubuntu-18.04"
-      jobs:
-
-        - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
-          - job: Linux
-            container: vscode-x64
-            variables:
-              VSCODE_ARCH: x64
-              NPM_ARCH: x64
-              DISPLAY: ":10"
-            steps:
-              - template: linux/product-build-linux.yml
-
-        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX, true), ne(variables['VSCODE_PUBLISH'], 'false')) }}:
-          - job: LinuxSnap
-            dependsOn:
-              - Linux
-            container: snapcraft
-            variables:
-              VSCODE_ARCH: x64
-            steps:
-              - template: linux/snap-build-linux.yml
-
-        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
-          - job: LinuxArmhf
-            container: vscode-armhf
-            variables:
-              VSCODE_ARCH: armhf
-              NPM_ARCH: armv7l
-            steps:
-              - template: linux/product-build-linux.yml
-
-        # TODO@joaomoreno: We don't ship ARM snaps for now
-        - ${{ if and(false, eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
-          - job: LinuxSnapArmhf
-            dependsOn:
-              - LinuxArmhf
-            container: snapcraft
-            variables:
-              VSCODE_ARCH: armhf
-            steps:
-              - template: linux/snap-build-linux.yml
-
-        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:
-          - job: LinuxArm64
-            container: vscode-arm64
-            variables:
-              VSCODE_ARCH: arm64
-              NPM_ARCH: arm64
-            steps:
-              - template: linux/product-build-linux.yml
-
-        # TODO@joaomoreno: We don't ship ARM snaps for now
-        - ${{ if and(false, eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:
-          - job: LinuxSnapArm64
-            dependsOn:
-              - LinuxArm64
-            container: snapcraft
-            variables:
-              VSCODE_ARCH: arm64
-            steps:
-              - template: linux/snap-build-linux.yml
-
-        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ALPINE, true)) }}:
-          - job: LinuxAlpine
-            variables:
-              VSCODE_ARCH: x64
-            steps:
-              - template: linux/product-build-alpine.yml
-
-        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ALPINE_ARM64, true)) }}:
-          - job: LinuxAlpineArm64
-            variables:
-              VSCODE_ARCH: arm64
-            steps:
-              - template: linux/product-build-alpine.yml
-
-        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WEB, true)) }}:
-          - job: LinuxWeb
-            variables:
-              VSCODE_ARCH: x64
-            steps:
-              - template: web/product-build-web.yml
-
-  - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_MACOS'], true)) }}:
-    - stage: macOS
-      dependsOn:
-        - Compile
-      pool:
-        vmImage: macOS-latest
-      jobs:
-
-        - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
-          - job: macOS
-            timeoutInMinutes: 90
-            variables:
-              VSCODE_ARCH: x64
-            steps:
-              - template: darwin/product-build-darwin.yml
-          - ${{ if ne(variables['VSCODE_PUBLISH'], 'false') }}:
-            - job: macOSSign
-              dependsOn:
-                - macOS
-              timeoutInMinutes: 90
-              variables:
-                VSCODE_ARCH: x64
-              steps:
-                - template: darwin/product-build-darwin-sign.yml
-
-        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}:
-          - job: macOSARM64
-            timeoutInMinutes: 90
-            variables:
-              VSCODE_ARCH: arm64
-            steps:
-              - template: darwin/product-build-darwin.yml
-          - ${{ if ne(variables['VSCODE_PUBLISH'], 'false') }}:
-            - job: macOSARM64Sign
-              dependsOn:
-                - macOSARM64
-              timeoutInMinutes: 90
-              variables:
-                VSCODE_ARCH: arm64
-              steps:
-                - template: darwin/product-build-darwin-sign.yml
-
-        - ${{ if eq(variables['VSCODE_BUILD_MACOS_UNIVERSAL'], true) }}:
-          - job: macOSUniversal
-            dependsOn:
-              - macOS
-              - macOSARM64
-            timeoutInMinutes: 90
-            variables:
-              VSCODE_ARCH: universal
-            steps:
-              - template: darwin/product-build-darwin.yml
-          - ${{ if ne(variables['VSCODE_PUBLISH'], 'false') }}:
-            - job: macOSUniversalSign
-              dependsOn:
-                - macOSUniversal
-              timeoutInMinutes: 90
-              variables:
-                VSCODE_ARCH: universal
-              steps:
-                - template: darwin/product-build-darwin-sign.yml
-
-  - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), ne(variables['VSCODE_PUBLISH'], 'false')) }}:
-    - stage: Publish
-      dependsOn:
-        - Compile
-      pool:
-        vmImage: "Ubuntu-18.04"
-      variables:
-        - name: BUILDS_API_URL
-          value: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
-      jobs:
-        - job: PublishBuild
-          timeoutInMinutes: 180
-          displayName: Publish Build
-          steps:
-            - template: product-publish.yml
-
-    - ${{ if or(eq(parameters.VSCODE_RELEASE, true), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))) }}:
-      - stage: Release
+      - stage: Linux
         dependsOn:
-          - Publish
+          - Compile
         pool:
           vmImage: "Ubuntu-18.04"
         jobs:
-          - job: ReleaseBuild
-            displayName: Release Build
+          - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
+              - job: Linux
+                container: vscode-x64
+                variables:
+                  VSCODE_ARCH: x64
+                  NPM_ARCH: x64
+                  DISPLAY: ":10"
+                steps:
+                  - template: linux/product-build-linux.yml
+
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX, true), ne(variables['VSCODE_PUBLISH'], 'false')) }}:
+              - job: LinuxSnap
+                dependsOn:
+                  - Linux
+                container: snapcraft
+                variables:
+                  VSCODE_ARCH: x64
+                steps:
+                  - template: linux/snap-build-linux.yml
+
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
+              - job: LinuxArmhf
+                container: vscode-armhf
+                variables:
+                  VSCODE_ARCH: armhf
+                  NPM_ARCH: armv7l
+                steps:
+                  - template: linux/product-build-linux.yml
+
+          # TODO@joaomoreno: We don't ship ARM snaps for now
+          - ${{ if and(false, eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
+              - job: LinuxSnapArmhf
+                dependsOn:
+                  - LinuxArmhf
+                container: snapcraft
+                variables:
+                  VSCODE_ARCH: armhf
+                steps:
+                  - template: linux/snap-build-linux.yml
+
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:
+              - job: LinuxArm64
+                container: vscode-arm64
+                variables:
+                  VSCODE_ARCH: arm64
+                  NPM_ARCH: arm64
+                steps:
+                  - template: linux/product-build-linux.yml
+
+          # TODO@joaomoreno: We don't ship ARM snaps for now
+          - ${{ if and(false, eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:
+              - job: LinuxSnapArm64
+                dependsOn:
+                  - LinuxArm64
+                container: snapcraft
+                variables:
+                  VSCODE_ARCH: arm64
+                steps:
+                  - template: linux/snap-build-linux.yml
+
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ALPINE, true)) }}:
+              - job: LinuxAlpine
+                variables:
+                  VSCODE_ARCH: x64
+                steps:
+                  - template: linux/product-build-alpine.yml
+
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ALPINE_ARM64, true)) }}:
+              - job: LinuxAlpineArm64
+                variables:
+                  VSCODE_ARCH: arm64
+                steps:
+                  - template: linux/product-build-alpine.yml
+
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WEB, true)) }}:
+              - job: LinuxWeb
+                variables:
+                  VSCODE_ARCH: x64
+                steps:
+                  - template: web/product-build-web.yml
+
+  - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_MACOS'], true)) }}:
+      - stage: macOS
+        dependsOn:
+          - Compile
+        pool:
+          vmImage: macOS-latest
+        jobs:
+          - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
+              - job: macOS
+                timeoutInMinutes: 90
+                variables:
+                  VSCODE_ARCH: x64
+                steps:
+                  - template: darwin/product-build-darwin.yml
+              - ${{ if ne(variables['VSCODE_PUBLISH'], 'false') }}:
+                  - job: macOSSign
+                    dependsOn:
+                      - macOS
+                    timeoutInMinutes: 90
+                    variables:
+                      VSCODE_ARCH: x64
+                    steps:
+                      - template: darwin/product-build-darwin-sign.yml
+
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}:
+              - job: macOSARM64
+                timeoutInMinutes: 90
+                variables:
+                  VSCODE_ARCH: arm64
+                steps:
+                  - template: darwin/product-build-darwin.yml
+              - ${{ if ne(variables['VSCODE_PUBLISH'], 'false') }}:
+                  - job: macOSARM64Sign
+                    dependsOn:
+                      - macOSARM64
+                    timeoutInMinutes: 90
+                    variables:
+                      VSCODE_ARCH: arm64
+                    steps:
+                      - template: darwin/product-build-darwin-sign.yml
+
+          - ${{ if eq(variables['VSCODE_BUILD_MACOS_UNIVERSAL'], true) }}:
+              - job: macOSUniversal
+                dependsOn:
+                  - macOS
+                  - macOSARM64
+                timeoutInMinutes: 90
+                variables:
+                  VSCODE_ARCH: universal
+                steps:
+                  - template: darwin/product-build-darwin.yml
+              - ${{ if ne(variables['VSCODE_PUBLISH'], 'false') }}:
+                  - job: macOSUniversalSign
+                    dependsOn:
+                      - macOSUniversal
+                    timeoutInMinutes: 90
+                    variables:
+                      VSCODE_ARCH: universal
+                    steps:
+                      - template: darwin/product-build-darwin-sign.yml
+
+  - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), ne(variables['VSCODE_PUBLISH'], 'false')) }}:
+      - stage: Publish
+        dependsOn:
+          - Compile
+        pool:
+          vmImage: "Ubuntu-18.04"
+        variables:
+          - name: BUILDS_API_URL
+            value: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
+        jobs:
+          - job: PublishBuild
+            timeoutInMinutes: 180
+            displayName: Publish Build
             steps:
-              - template: product-release.yml
+              - template: product-publish.yml
+
+      - ${{ if or(eq(parameters.VSCODE_RELEASE, true), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))) }}:
+          - stage: Release
+            dependsOn:
+              - Publish
+            pool:
+              vmImage: "Ubuntu-18.04"
+            jobs:
+              - job: ReleaseBuild
+                displayName: Release Build
+                steps:
+                  - template: product-release.yml

@@ -33,7 +33,7 @@ export interface IGrammar {
 	/**
 	 * Tokenize `lineText` using previous line state `prevState`.
 	 */
-	tokenizeLine(lineText: string, prevState: StackElement | null): ITokenizeLineResult;
+	tokenizeLine(lineText: string, prevState: StackElement | null, timeLimit?: number): ITokenizeLineResult;
 	/**
 	 * Tokenize `lineText` using previous line state `prevState`.
 	 * The result contains the tokens in binary format, resolved with the following information:
@@ -44,7 +44,7 @@ export interface IGrammar {
 	 *  - background color
 	 * e.g. for getting the languageId: `(metadata & MetadataConsts.LANGUAGEID_MASK) >>> MetadataConsts.LANGUAGEID_OFFSET`
 	 */
-	tokenizeLine2(lineText: string, prevState: StackElement | null): ITokenizeLineResult2;
+	tokenizeLine2(lineText: string, prevState: StackElement | null, timeLimit?: number): ITokenizeLineResult2;
 }
 export interface ITokenizeLineResult {
 	readonly tokens: IToken[];
@@ -52,6 +52,10 @@ export interface ITokenizeLineResult {
 	 * The `prevState` to be passed on to the next line tokenization.
 	 */
 	readonly ruleStack: StackElement;
+	/**
+	 * Did tokenization stop early due to reaching the time limit.
+	 */
+	readonly stoppedEarly: boolean;
 }
 /**
  * Helpers to manage the "collapsed" metadata of an entire StackElement stack.
@@ -97,6 +101,10 @@ export interface ITokenizeLineResult2 {
 	 * The `prevState` to be passed on to the next line tokenization.
 	 */
 	readonly ruleStack: StackElement;
+	/**
+	 * Did tokenization stop early due to reaching the time limit.
+	 */
+	readonly stoppedEarly: boolean;
 }
 export interface IToken {
 	startIndex: number;

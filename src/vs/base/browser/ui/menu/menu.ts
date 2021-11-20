@@ -59,6 +59,10 @@ export interface IMenuStyles {
 	selectionBackgroundColor?: Color;
 	selectionBorderColor?: Color;
 	separatorColor?: Color;
+	scrollbarShadow?: Color;
+	scrollbarSliderBackground?: Color;
+	scrollbarSliderHoverBackground?: Color;
+	scrollbarSliderActiveBackground?: Color;
 }
 
 interface ISubMenuData {
@@ -98,8 +102,6 @@ export class Menu extends ActionBar {
 		this.actionsList.tabIndex = 0;
 
 		this.menuDisposables = this._register(new DisposableStore());
-
-		this.initializeStyleSheet(container);
 
 		this._register(Gesture.addTarget(menuElement));
 
@@ -262,22 +264,24 @@ export class Menu extends ActionBar {
 		});
 	}
 
-	private initializeStyleSheet(container: HTMLElement): void {
-		if (isInShadowDOM(container)) {
-			this.styleSheet = createStyleSheet(container);
-			this.styleSheet.textContent = MENU_WIDGET_CSS;
-		} else {
-			if (!Menu.globalStyleSheet) {
-				Menu.globalStyleSheet = createStyleSheet();
-				Menu.globalStyleSheet.textContent = MENU_WIDGET_CSS;
+	private initializeOrUpdateStyleSheet(container: HTMLElement, style: IMenuStyles): void {
+		if (!this.styleSheet) {
+			if (isInShadowDOM(container)) {
+				this.styleSheet = createStyleSheet(container);
+			} else {
+				if (!Menu.globalStyleSheet) {
+					Menu.globalStyleSheet = createStyleSheet();
+				}
+				this.styleSheet = Menu.globalStyleSheet;
 			}
-
-			this.styleSheet = Menu.globalStyleSheet;
 		}
+		this.styleSheet.textContent = getMenuWidgetCSS(style);
 	}
 
 	style(style: IMenuStyles): void {
 		const container = this.getContainer();
+
+		this.initializeOrUpdateStyleSheet(container, style);
 
 		const fgColor = style.foregroundColor ? `${style.foregroundColor}` : '';
 		const bgColor = style.backgroundColor ? `${style.backgroundColor}` : '';
@@ -1016,7 +1020,8 @@ export function cleanMnemonic(label: string): string {
 	return label.replace(regex, mnemonicInText ? '$2$3' : '').trim();
 }
 
-let MENU_WIDGET_CSS: string = /* css */`
+function getMenuWidgetCSS(style: IMenuStyles): string {
+	let result = /* css */`
 .monaco-menu {
 	font-size: 13px;
 
@@ -1339,7 +1344,6 @@ ${formatRule(Codicon.menuSubmenu)}
 	left: 3px;
 	height: 3px;
 	width: 100%;
-	box-shadow: #DDD 0 6px 6px -6px inset;
 }
 .monaco-scrollable-element > .shadow.left {
 	display: block;
@@ -1347,7 +1351,6 @@ ${formatRule(Codicon.menuSubmenu)}
 	left: 0;
 	height: 100%;
 	width: 3px;
-	box-shadow: #DDD 6px 0 6px -6px inset;
 }
 .monaco-scrollable-element > .shadow.top-left-corner {
 	display: block;
@@ -1356,60 +1359,52 @@ ${formatRule(Codicon.menuSubmenu)}
 	height: 3px;
 	width: 3px;
 }
-.monaco-scrollable-element > .shadow.top.left {
-	box-shadow: #DDD 6px 6px 6px -6px inset;
-}
-
-/* ---------- Default Style ---------- */
-
-:host-context(.vs) .monaco-scrollable-element > .scrollbar > .slider {
-	background: rgba(100, 100, 100, .4);
-}
-:host-context(.vs-dark) .monaco-scrollable-element > .scrollbar > .slider {
-	background: rgba(121, 121, 121, .4);
-}
-:host-context(.hc-black) .monaco-scrollable-element > .scrollbar > .slider {
-	background: rgba(111, 195, 223, .6);
-}
-
-.monaco-scrollable-element > .scrollbar > .slider:hover {
-	background: rgba(100, 100, 100, .7);
-}
-:host-context(.hc-black) .monaco-scrollable-element > .scrollbar > .slider:hover {
-	background: rgba(111, 195, 223, .8);
-}
-
-.monaco-scrollable-element > .scrollbar > .slider.active {
-	background: rgba(0, 0, 0, .6);
-}
-:host-context(.vs-dark) .monaco-scrollable-element > .scrollbar > .slider.active {
-	background: rgba(191, 191, 191, .4);
-}
-:host-context(.hc-black) .monaco-scrollable-element > .scrollbar > .slider.active {
-	background: rgba(111, 195, 223, 1);
-}
-
-:host-context(.vs-dark) .monaco-scrollable-element .shadow.top {
-	box-shadow: none;
-}
-
-:host-context(.vs-dark) .monaco-scrollable-element .shadow.left {
-	box-shadow: #000 6px 0 6px -6px inset;
-}
-
-:host-context(.vs-dark) .monaco-scrollable-element .shadow.top.left {
-	box-shadow: #000 6px 6px 6px -6px inset;
-}
-
-:host-context(.hc-black) .monaco-scrollable-element .shadow.top {
-	box-shadow: none;
-}
-
-:host-context(.hc-black) .monaco-scrollable-element .shadow.left {
-	box-shadow: none;
-}
-
-:host-context(.hc-black) .monaco-scrollable-element .shadow.top.left {
-	box-shadow: none;
-}
 `;
+
+	// Scrollbars
+	const scrollbarShadowColor = style.scrollbarShadow;
+	if (scrollbarShadowColor) {
+		result += `
+			.monaco-scrollable-element > .shadow.top {
+				box-shadow: ${scrollbarShadowColor} 0 6px 6px -6px inset;
+			}
+
+			.monaco-scrollable-element > .shadow.left {
+				box-shadow: ${scrollbarShadowColor} 6px 0 6px -6px inset;
+			}
+
+			.monaco-scrollable-element > .shadow.top.left {
+				box-shadow: ${scrollbarShadowColor} 6px 6px 6px -6px inset;
+			}
+		`;
+	}
+
+	const scrollbarSliderBackgroundColor = style.scrollbarSliderBackground;
+	if (scrollbarSliderBackgroundColor) {
+		result += `
+			.monaco-scrollable-element > .scrollbar > .slider {
+				background: ${scrollbarSliderBackgroundColor};
+			}
+		`;
+	}
+
+	const scrollbarSliderHoverBackgroundColor = style.scrollbarSliderHoverBackground;
+	if (scrollbarSliderHoverBackgroundColor) {
+		result += `
+			.monaco-scrollable-element > .scrollbar > .slider:hover {
+				background: ${scrollbarSliderHoverBackgroundColor};
+			}
+		`;
+	}
+
+	const scrollbarSliderActiveBackgroundColor = style.scrollbarSliderActiveBackground;
+	if (scrollbarSliderActiveBackgroundColor) {
+		result += `
+			.monaco-scrollable-element > .scrollbar > .slider.active {
+				background: ${scrollbarSliderActiveBackgroundColor};
+			}
+		`;
+	}
+
+	return result;
+}

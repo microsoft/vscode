@@ -28,9 +28,9 @@ export class CellContextKeyManager extends Disposable {
 	private readonly elementDisposables = this._register(new DisposableStore());
 
 	constructor(
-		private readonly contextKeyService: IContextKeyService,
 		private readonly notebookEditor: INotebookEditorDelegate,
-		private element: ICellViewModel
+		private element: ICellViewModel,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 

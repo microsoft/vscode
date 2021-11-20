@@ -12,6 +12,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { MarshalledId } from 'vs/base/common/marshalling';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { IDimension, isThemeColor } from 'vs/editor/common/editorCommon';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -20,7 +21,9 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { CodeCellLayoutInfo, MarkdownCellLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellViewModelStateChangeEvent, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
+import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { CellStatusbarAlignment, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const $ = DOM.$;
@@ -36,7 +39,7 @@ export const enum ClickTargetType {
 	ContributedCommandItem = 2
 }
 
-export class CellEditorStatusBar extends Disposable {
+export class CellEditorStatusBar extends CellPart {
 	readonly statusBarContainer: HTMLElement;
 
 	private readonly leftItemsContainer: HTMLElement;
@@ -52,6 +55,7 @@ export class CellEditorStatusBar extends Disposable {
 	readonly onDidClick: Event<IClickTarget> = this._onDidClick.event;
 
 	constructor(
+		private readonly _notebookEditor: INotebookEditorDelegate,
 		container: HTMLElement,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
@@ -66,7 +70,7 @@ export class CellEditorStatusBar extends Disposable {
 
 		this.itemsDisposable = this._register(new DisposableStore());
 
-		this._register(this._themeService.onDidColorThemeChange(() => this.currentContext && this.update(this.currentContext)));
+		this._register(this._themeService.onDidColorThemeChange(() => this.currentContext && this.updateContext(this.currentContext)));
 
 		this._register(DOM.addDisposableListener(this.statusBarContainer, DOM.EventType.CLICK, e => {
 			if (e.target === leftItemsContainer || e.target === rightItemsContainer || e.target === this.statusBarContainer) {
@@ -92,13 +96,23 @@ export class CellEditorStatusBar extends Disposable {
 		}));
 	}
 
-	private layout(): void {
-		if (!this.currentContext) {
-			return;
-		}
 
-		// TODO@roblou maybe more props should be in common layoutInfo?
-		const layoutInfo = this.currentContext.cell.layoutInfo as CodeCellLayoutInfo | MarkdownCellLayoutInfo;
+	renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
+		this.updateContext(<INotebookCellActionContext>{
+			ui: true,
+			cell: element,
+			cellTemplate: templateData,
+			notebookEditor: this._notebookEditor,
+			$mid: MarshalledId.NotebookCellActionContext
+		});
+	}
+
+	prepareLayout(): void {
+		// nothing to read
+	}
+
+	updateLayoutNow(element: ICellViewModel): void {
+		const layoutInfo = element.layoutInfo;
 		const width = layoutInfo.editorWidth;
 		if (!width) {
 			return;
@@ -112,11 +126,16 @@ export class CellEditorStatusBar extends Disposable {
 		this.rightItems.forEach(item => item.maxWidth = maxItemWidth);
 	}
 
+
+	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
+		// nothing to update
+	}
+
 	private getMaxItemWidth() {
 		return this.width / 2;
 	}
 
-	update(context: INotebookCellActionContext) {
+	updateContext(context: INotebookCellActionContext) {
 		this.currentContext = context;
 		this.itemsDisposable.clear();
 
@@ -124,10 +143,14 @@ export class CellEditorStatusBar extends Disposable {
 			return;
 		}
 
-		this.itemsDisposable.add(this.currentContext.cell.onDidChangeLayout(() => this.layout()));
+		this.itemsDisposable.add(this.currentContext.cell.onDidChangeLayout(() => {
+			if (this.currentContext) {
+				this.updateLayoutNow(this.currentContext.cell);
+			}
+		}));
 		this.itemsDisposable.add(this.currentContext.cell.onDidChangeCellStatusBarItems(() => this.updateRenderedItems()));
 		this.itemsDisposable.add(this.currentContext.notebookEditor.onDidChangeActiveCell(() => this.updateActiveCell()));
-		this.layout();
+		this.updateLayoutNow(this.currentContext.cell);
 		this.updateActiveCell();
 		this.updateRenderedItems();
 	}

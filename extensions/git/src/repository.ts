@@ -1944,8 +1944,8 @@ export class Repository implements Disposable {
 					} else {
 						actionButton = {
 							command: 'git.publish',
-							title: localize('scm button publish title', "$(cloud-upload) Publish Changes"),
-							tooltip: localize('scm button publish tooltip', "Publish Changes"),
+							title: localize('scm button publish title', "$(cloud-upload) Publish Branch"),
+							tooltip: localize('scm button publish tooltip', "Publish Branch"),
 							arguments: [this._sourceControl],
 						};
 					}

@@ -23,12 +23,6 @@ async function createSpdLogLogger(name: string, logfilePath: string, filesize: n
 	return null;
 }
 
-export function createRotatingLogger(name: string, filename: string, filesize: number, filecount: number): Promise<spdlog.Logger> {
-	const _spdlog: typeof spdlog = require.__$__nodeRequire('spdlog');
-	_spdlog.setFlushOn(LogLevel.Trace);
-	return _spdlog.createRotatingLogger(name, filename, filesize, filecount);
-}
-
 interface ILog {
 	level: LogLevel;
 	message: string;
