@@ -502,53 +502,63 @@ export class TypeOperations {
 		return !isBeforeStartingBrace && isBeforeClosingBrace;
 	}
 
+	/**
+	 * Determine if typing `ch` at all `positions` in the `model` results in an
+	 * auto closing open sequence being typed.
+	 *
+	 * Auto closing open sequences can consist of multiple characters, which
+	 * can lead to ambiguities. In such a case, the longest auto-closing open
+	 * sequence is returned.
+	 */
 	private static _findAutoClosingPairOpen(config: CursorConfiguration, model: ITextModel, positions: Position[], ch: string): StandardAutoClosingPairConditional | null {
-		const autoClosingPairCandidates = config.autoClosingPairs.autoClosingPairsOpenByEnd.get(ch);
-		if (!autoClosingPairCandidates) {
+		const candidates = config.autoClosingPairs.autoClosingPairsOpenByEnd.get(ch);
+		if (!candidates) {
 			return null;
 		}
 
 		// Determine which auto-closing pair it is
-		let autoClosingPair: StandardAutoClosingPairConditional | null = null;
-		for (const autoClosingPairCandidate of autoClosingPairCandidates) {
-			if (autoClosingPair === null || autoClosingPairCandidate.open.length > autoClosingPair.open.length) {
+		let result: StandardAutoClosingPairConditional | null = null;
+		for (const candidate of candidates) {
+			if (result === null || candidate.open.length > result.open.length) {
 				let candidateIsMatch = true;
 				for (const position of positions) {
-					const relevantText = model.getValueInRange(new Range(position.lineNumber, position.column - autoClosingPairCandidate.open.length + 1, position.lineNumber, position.column));
-					if (relevantText + ch !== autoClosingPairCandidate.open) {
+					const relevantText = model.getValueInRange(new Range(position.lineNumber, position.column - candidate.open.length + 1, position.lineNumber, position.column));
+					if (relevantText + ch !== candidate.open) {
 						candidateIsMatch = false;
 						break;
 					}
 				}
 
 				if (candidateIsMatch) {
-					autoClosingPair = autoClosingPairCandidate;
+					result = candidate;
 				}
 			}
 		}
-		return autoClosingPair;
+		return result;
 	}
 
-	private static _findSubAutoClosingPairClose(config: CursorConfiguration, autoClosingPair: StandardAutoClosingPairConditional): string {
-		if (autoClosingPair.open.length <= 1) {
-			return '';
+	/**
+	 * Find another auto-closing pair that is contained by the one passed in.
+	 *
+	 * e.g. when having [(,)] and [(*,*)] as auto-closing pairs
+	 * this method will find [(,)] as a containment pair for [(*,*)]
+	 */
+	private static _findContainedAutoClosingPair(config: CursorConfiguration, pair: StandardAutoClosingPairConditional): StandardAutoClosingPairConditional | null {
+		if (pair.open.length <= 1) {
+			return null;
 		}
-		const lastChar = autoClosingPair.close.charAt(autoClosingPair.close.length - 1);
+		const lastChar = pair.close.charAt(pair.close.length - 1);
 		// get candidates with the same last character as close
-		const subPairCandidates = config.autoClosingPairs.autoClosingPairsCloseByEnd.get(lastChar) || [];
-		let subPairMatch: StandardAutoClosingPairConditional | null = null;
-		for (const x of subPairCandidates) {
-			if (x.open !== autoClosingPair.open && autoClosingPair.open.includes(x.open) && autoClosingPair.close.endsWith(x.close)) {
-				if (!subPairMatch || x.open.length > subPairMatch.open.length) {
-					subPairMatch = x;
+		const candidates = config.autoClosingPairs.autoClosingPairsCloseByEnd.get(lastChar) || [];
+		let result: StandardAutoClosingPairConditional | null = null;
+		for (const candidate of candidates) {
+			if (candidate.open !== pair.open && pair.open.includes(candidate.open) && pair.close.endsWith(candidate.close)) {
+				if (!result || candidate.open.length > result.open.length) {
+					result = candidate;
 				}
 			}
 		}
-		if (subPairMatch) {
-			return subPairMatch.close;
-		} else {
-			return '';
-		}
+		return result;
 	}
 
 	private static _getAutoClosingPairClose(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string, insertOpenCharacter: boolean): string | null {
@@ -558,18 +568,24 @@ export class TypeOperations {
 			return null;
 		}
 
-		const autoClosingPair = this._findAutoClosingPairOpen(config, model, selections.map(s => s.getPosition()), ch);
-		if (!autoClosingPair) {
+		// Find the longest auto-closing open pair in case of multiple ending in `ch`
+		// e.g. when having [f","] and [","], it picks [f","] if the character before is f
+		const pair = this._findAutoClosingPairOpen(config, model, selections.map(s => s.getPosition()), ch);
+		if (!pair) {
 			return null;
 		}
 
-		const subAutoClosingPairClose = this._findSubAutoClosingPairClose(config, autoClosingPair);
-		let isSubAutoClosingPairPresent = true;
+		// Sometimes, it is possible to have two auto-closing pairs that have a containment relationship
+		// e.g. when having [(,)] and [(*,*)]
+		// - when typing (, the resulting state is (|)
+		// - when typing *, the desired resulting state is (*|*), not (*|*))
+		const containedPair = this._findContainedAutoClosingPair(config, pair);
+		const containedPairClose = containedPair ? containedPair.close : '';
+		let isContainedPairPresent = true;
 
 		const shouldAutoCloseBefore = chIsQuote ? config.shouldAutoCloseBefore.quote : config.shouldAutoCloseBefore.bracket;
 
-		for (let i = 0, len = selections.length; i < len; i++) {
-			const selection = selections[i];
+		for (const selection of selections) {
 			if (!selection.isEmpty()) {
 				return null;
 			}
@@ -578,13 +594,13 @@ export class TypeOperations {
 			const lineText = model.getLineContent(position.lineNumber);
 			const lineAfter = lineText.substring(position.column - 1);
 
-			if (!lineAfter.startsWith(subAutoClosingPairClose)) {
-				isSubAutoClosingPairPresent = false;
+			if (!lineAfter.startsWith(containedPairClose)) {
+				isContainedPairPresent = false;
 			}
 
 			// Only consider auto closing the pair if an allowed character follows or if another autoclosed pair closing brace follows
-			if (lineText.length > position.column - 1) {
-				const characterAfter = lineText.charAt(position.column - 1);
+			if (lineAfter.length > 0) {
+				const characterAfter = lineAfter.charAt(0);
 				const isBeforeCloseBrace = TypeOperations._isBeforeClosingBrace(config, lineAfter);
 
 				if (!isBeforeCloseBrace && !shouldAutoCloseBefore(characterAfter)) {
@@ -598,7 +614,7 @@ export class TypeOperations {
 			}
 
 			// Do not auto-close ' or " after a word character
-			if (autoClosingPair.open.length === 1 && (ch === '\'' || ch === '"') && autoCloseConfig !== 'always') {
+			if (pair.open.length === 1 && (ch === '\'' || ch === '"') && autoCloseConfig !== 'always') {
 				const wordSeparators = getMapForWordSeparators(config.wordSeparators);
 				if (insertOpenCharacter && position.column > 1 && wordSeparators.get(lineText.charCodeAt(position.column - 2)) === WordCharacterClass.Regular) {
 					return null;
@@ -613,7 +629,7 @@ export class TypeOperations {
 
 			let shouldAutoClosePair = false;
 			try {
-				shouldAutoClosePair = LanguageConfigurationRegistry.shouldAutoClosePair(autoClosingPair, lineTokens, insertOpenCharacter ? position.column : position.column - 1);
+				shouldAutoClosePair = LanguageConfigurationRegistry.shouldAutoClosePair(pair, lineTokens, insertOpenCharacter ? position.column : position.column - 1);
 			} catch (e) {
 				onUnexpectedError(e);
 			}
@@ -623,10 +639,10 @@ export class TypeOperations {
 			}
 		}
 
-		if (isSubAutoClosingPairPresent) {
-			return autoClosingPair.close.substring(0, autoClosingPair.close.length - subAutoClosingPairClose.length);
+		if (isContainedPairPresent) {
+			return pair.close.substring(0, pair.close.length - containedPairClose.length);
 		} else {
-			return autoClosingPair.close;
+			return pair.close;
 		}
 	}
 
