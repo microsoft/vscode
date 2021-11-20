@@ -421,8 +421,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'window.titleSeparator': {
 				'type': 'string',
-				// allow-any-unicode-next-line
-				'default': isMacintosh ? ' — ' : ' - ',
+				'default': isMacintosh ? ' \u2014 ' : ' - ',
 				'markdownDescription': localize("window.titleSeparator", "Separator used by `window.title`.")
 			},
 			'window.menuBarVisibility': {

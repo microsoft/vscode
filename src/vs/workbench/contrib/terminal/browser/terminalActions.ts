@@ -50,8 +50,7 @@ import { ITerminalQuickPickItem } from 'vs/workbench/contrib/terminal/browser/te
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { getIconId, getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 
-// allow-any-unicode-next-line
-export const switchTerminalActionViewItemSeparator = '─────────';
+export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
 
 async function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance, folders?: IWorkspaceFolder[], commandService?: ICommandService): Promise<string | URI | undefined> {
@@ -988,8 +987,7 @@ export function registerTerminalActions() {
 				const cwdLabel = labelService.getUriLabel(URI.file(term.cwd));
 				return {
 					label: term.title,
-					// allow-any-unicode-next-line
-					detail: term.workspaceName ? `${term.workspaceName} ⸱ ${cwdLabel}` : cwdLabel,
+					detail: term.workspaceName ? `${term.workspaceName} \u2E31 ${cwdLabel}` : cwdLabel,
 					description: term.pid ? String(term.pid) : '',
 					term
 				};
