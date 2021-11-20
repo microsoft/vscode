@@ -104,7 +104,7 @@ suite('ParameterHintsModel', () => {
 						assert.strictEqual(context.activeSignatureHelp, undefined);
 
 						// Retrigger
-						setTimeout(() => editor.trigger('keyboard', Handler.Type, { text: triggerChar }), 50);
+						setTimeout(() => editor.trigger('keyboard', Handler.Type, { text: triggerChar }), 0);
 					} else {
 						assert.strictEqual(invokeCount, 2);
 						assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
