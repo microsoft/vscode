@@ -151,7 +151,7 @@ export class PrefixSumComputer {
 	}
 
 	public getIndexOf(sum: number): PrefixSumIndexOfResult {
-		sum = Math.floor(sum); //@perf
+		sum = Math.floor(sum);
 
 		// Compute all sums (to get a fully valid prefixSum)
 		this.getTotalSum();
