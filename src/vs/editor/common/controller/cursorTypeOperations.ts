@@ -561,16 +561,39 @@ export class TypeOperations {
 		return result;
 	}
 
-	private static _getAutoClosingPairClose(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string, insertOpenCharacter: boolean): string | null {
+	private static _getAutoClosingPairClose(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string, chIsAlreadyTyped: boolean): string | null {
 		const chIsQuote = isQuote(ch);
 		const autoCloseConfig = chIsQuote ? config.autoClosingQuotes : config.autoClosingBrackets;
 		if (autoCloseConfig === 'never') {
 			return null;
 		}
 
+		for (const selection of selections) {
+			if (!selection.isEmpty()) {
+				return null;
+			}
+		}
+
+		// This method is called both when typing (regularly) and when composition ends
+		// This means that we need to work with a text buffer where sometimes `ch` is not
+		// there (it is being typed right now) or with a text buffer where `ch` has already been typed
+		//
+		// In order to avoid adding checks for `chIsAlreadyTyped` in all places, we will work
+		// with two conceptual positions, the position before `ch` and the position after `ch`
+		//
+		const positions: { lineNumber: number; beforeColumn: number; afterColumn: number; }[] = selections.map((s) => {
+			const position = s.getPosition();
+			if (chIsAlreadyTyped) {
+				return { lineNumber: position.lineNumber, beforeColumn: position.column - ch.length, afterColumn: position.column };
+			} else {
+				return { lineNumber: position.lineNumber, beforeColumn: position.column, afterColumn: position.column };
+			}
+		});
+
+
 		// Find the longest auto-closing open pair in case of multiple ending in `ch`
 		// e.g. when having [f","] and [","], it picks [f","] if the character before is f
-		const pair = this._findAutoClosingPairOpen(config, model, selections.map(s => s.getPosition()), ch);
+		const pair = this._findAutoClosingPairOpen(config, model, positions.map(p => new Position(p.lineNumber, p.beforeColumn)), ch);
 		if (!pair) {
 			return null;
 		}
@@ -585,14 +608,11 @@ export class TypeOperations {
 
 		const shouldAutoCloseBefore = chIsQuote ? config.shouldAutoCloseBefore.quote : config.shouldAutoCloseBefore.bracket;
 
-		for (const selection of selections) {
-			if (!selection.isEmpty()) {
-				return null;
-			}
-
-			const position = selection.getPosition();
-			const lineText = model.getLineContent(position.lineNumber);
-			const lineAfter = lineText.substring(position.column - 1);
+		for (const position of positions) {
+			const { lineNumber, beforeColumn, afterColumn } = position;
+			const lineText = model.getLineContent(lineNumber);
+			const lineBefore = lineText.substring(0, beforeColumn - 1);
+			const lineAfter = lineText.substring(afterColumn - 1);
 
 			if (!lineAfter.startsWith(containedPairClose)) {
 				isContainedPairPresent = false;
@@ -608,7 +628,7 @@ export class TypeOperations {
 				}
 			}
 
-			if (!model.isCheapToTokenize(position.lineNumber)) {
+			if (!model.isCheapToTokenize(lineNumber)) {
 				// Do not force tokenization
 				return null;
 			}
@@ -616,20 +636,20 @@ export class TypeOperations {
 			// Do not auto-close ' or " after a word character
 			if (pair.open.length === 1 && (ch === '\'' || ch === '"') && autoCloseConfig !== 'always') {
 				const wordSeparators = getMapForWordSeparators(config.wordSeparators);
-				if (insertOpenCharacter && position.column > 1 && wordSeparators.get(lineText.charCodeAt(position.column - 2)) === WordCharacterClass.Regular) {
-					return null;
-				}
-				if (!insertOpenCharacter && position.column > 2 && wordSeparators.get(lineText.charCodeAt(position.column - 3)) === WordCharacterClass.Regular) {
-					return null;
+				if (lineBefore.length > 0) {
+					const characterBefore = lineBefore.charCodeAt(lineBefore.length - 1);
+					if (wordSeparators.get(characterBefore) === WordCharacterClass.Regular) {
+						return null;
+					}
 				}
 			}
 
-			model.forceTokenization(position.lineNumber);
-			const lineTokens = model.getLineTokens(position.lineNumber);
+			model.forceTokenization(lineNumber);
+			const lineTokens = model.getLineTokens(lineNumber);
 
 			let shouldAutoClosePair = false;
 			try {
-				shouldAutoClosePair = LanguageConfigurationRegistry.shouldAutoClosePair(pair, lineTokens, insertOpenCharacter ? position.column : position.column - 1);
+				shouldAutoClosePair = LanguageConfigurationRegistry.shouldAutoClosePair(pair, lineTokens, beforeColumn);
 			} catch (e) {
 				onUnexpectedError(e);
 			}
@@ -646,11 +666,11 @@ export class TypeOperations {
 		}
 	}
 
-	private static _runAutoClosingOpenCharType(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string, insertOpenCharacter: boolean, autoClosingPairClose: string): EditOperationResult {
+	private static _runAutoClosingOpenCharType(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string, chIsAlreadyTyped: boolean, autoClosingPairClose: string): EditOperationResult {
 		let commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
-			commands[i] = new TypeWithAutoClosingCommand(selection, ch, insertOpenCharacter, autoClosingPairClose);
+			commands[i] = new TypeWithAutoClosingCommand(selection, ch, !chIsAlreadyTyped, autoClosingPairClose);
 		}
 		return new EditOperationResult(EditOperationType.TypingOther, commands, {
 			shouldPushStackElementBefore: true,
@@ -825,9 +845,9 @@ export class TypeOperations {
 			});
 		}
 
-		const autoClosingPairClose = this._getAutoClosingPairClose(config, model, selections, ch, false);
+		const autoClosingPairClose = this._getAutoClosingPairClose(config, model, selections, ch, true);
 		if (autoClosingPairClose !== null) {
-			return this._runAutoClosingOpenCharType(prevEditOperationType, config, model, selections, ch, false, autoClosingPairClose);
+			return this._runAutoClosingOpenCharType(prevEditOperationType, config, model, selections, ch, true, autoClosingPairClose);
 		}
 
 		return null;
@@ -869,9 +889,9 @@ export class TypeOperations {
 		}
 
 		if (!isDoingComposition) {
-			const autoClosingPairClose = this._getAutoClosingPairClose(config, model, selections, ch, true);
+			const autoClosingPairClose = this._getAutoClosingPairClose(config, model, selections, ch, false);
 			if (autoClosingPairClose) {
-				return this._runAutoClosingOpenCharType(prevEditOperationType, config, model, selections, ch, true, autoClosingPairClose);
+				return this._runAutoClosingOpenCharType(prevEditOperationType, config, model, selections, ch, false, autoClosingPairClose);
 			}
 		}
 
