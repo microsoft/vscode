@@ -169,7 +169,7 @@ interface SessionRequest {
 }
 
 interface SessionRequestInfo {
-	[scopesJSON: string]: SessionRequest;
+	[scopesList: string]: SessionRequest;
 }
 
 CommandsRegistry.registerCommand('workbench.getCodeExchangeProxyEndpoints', function (accessor, _) {
@@ -613,10 +613,12 @@ export class AuthenticationService extends Disposable implements IAuthentication
 
 		if (provider) {
 			const providerRequests = this._signInRequestItems.get(providerId);
-			const scopesJSON = JSON.stringify(scopes);
+
+			// OAuth2 spec prohibits space in a scope, so use that to join them.
+			const scopesList = scopes.join(' ');
 			const extensionHasExistingRequest = providerRequests
-				&& providerRequests[scopesJSON]
-				&& providerRequests[scopesJSON].requestingExtensionIds.includes(extensionId);
+				&& providerRequests[scopesList]
+				&& providerRequests[scopesList].requestingExtensionIds.includes(extensionId);
 
 			if (extensionHasExistingRequest) {
 				return;
@@ -655,16 +657,16 @@ export class AuthenticationService extends Disposable implements IAuthentication
 
 
 			if (providerRequests) {
-				const existingRequest = providerRequests[scopesJSON] || { disposables: [], requestingExtensionIds: [] };
+				const existingRequest = providerRequests[scopesList] || { disposables: [], requestingExtensionIds: [] };
 
-				providerRequests[scopesJSON] = {
+				providerRequests[scopesList] = {
 					disposables: [...existingRequest.disposables, menuItem, signInCommand],
 					requestingExtensionIds: [...existingRequest.requestingExtensionIds, extensionId]
 				};
 				this._signInRequestItems.set(providerId, providerRequests);
 			} else {
 				this._signInRequestItems.set(providerId, {
-					[scopesJSON]: {
+					[scopesList]: {
 						disposables: [menuItem, signInCommand],
 						requestingExtensionIds: [extensionId]
 					}
