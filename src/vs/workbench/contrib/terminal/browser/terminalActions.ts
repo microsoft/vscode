@@ -2181,7 +2181,7 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 				},
 			});
 		}
-		async run(accessor: ServicesAccessor, eventOrOptionsOrProfile: MouseEvent | ICreateTerminalOptions | ITerminalProfile | { profileName: string } | undefined, profile?: ITerminalProfile) {
+		async run(accessor: ServicesAccessor, eventOrOptionsOrProfile: MouseEvent | ICreateTerminalOptions | ITerminalProfile | { profileName: string } | undefined, profile?: ITerminalProfile): Promise<string | URI | undefined> {
 			const terminalService = accessor.get(ITerminalService);
 			const terminalProfileService = accessor.get(ITerminalProfileService);
 
@@ -2246,6 +2246,7 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 					await terminalGroupService.showPanel(true);
 				}
 			}
+			return cwd;
 		}
 	});
 }
