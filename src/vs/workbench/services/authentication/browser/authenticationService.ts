@@ -163,6 +163,9 @@ export function readAllowedExtensions(storageService: IStorageService, providerI
 	return trustedExtensions;
 }
 
+// OAuth2 spec prohibits space in a scope, so use that to join them.
+const SCOPESLIST_SEPARATOR = ' ';
+
 interface SessionRequest {
 	disposables: IDisposable[];
 	requestingExtensionIds: string[];
@@ -347,7 +350,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 
 		Object.keys(existingRequestsForProvider).forEach(requestedScopes => {
-			if (addedSessions.some(session => session.scopes.slice().join('') === requestedScopes)) {
+			if (addedSessions.some(session => session.scopes.slice().join(SCOPESLIST_SEPARATOR) === requestedScopes)) {
 				const sessionRequest = existingRequestsForProvider[requestedScopes];
 				sessionRequest?.disposables.forEach(item => item.dispose());
 
@@ -614,8 +617,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		if (provider) {
 			const providerRequests = this._signInRequestItems.get(providerId);
 
-			// OAuth2 spec prohibits space in a scope, so use that to join them.
-			const scopesList = scopes.join(' ');
+			const scopesList = scopes.join(SCOPESLIST_SEPARATOR);
 			const extensionHasExistingRequest = providerRequests
 				&& providerRequests[scopesList]
 				&& providerRequests[scopesList].requestingExtensionIds.includes(extensionId);
