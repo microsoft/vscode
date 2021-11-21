@@ -163,13 +163,13 @@ export function readAllowedExtensions(storageService: IStorageService, providerI
 	return trustedExtensions;
 }
 
-export interface SessionRequest {
+interface SessionRequest {
 	disposables: IDisposable[];
 	requestingExtensionIds: string[];
 }
 
-export interface SessionRequestInfo {
-	[scopes: string]: SessionRequest;
+interface SessionRequestInfo {
+	[scopesJSON: string]: SessionRequest;
 }
 
 CommandsRegistry.registerCommand('workbench.getCodeExchangeProxyEndpoints', function (accessor, _) {
@@ -613,19 +613,21 @@ export class AuthenticationService extends Disposable implements IAuthentication
 
 		if (provider) {
 			const providerRequests = this._signInRequestItems.get(providerId);
-			const scopesList = scopes.join('');
+			const scopesJSON = JSON.stringify(scopes);
 			const extensionHasExistingRequest = providerRequests
-				&& providerRequests[scopesList]
-				&& providerRequests[scopesList].requestingExtensionIds.includes(extensionId);
+				&& providerRequests[scopesJSON]
+				&& providerRequests[scopesJSON].requestingExtensionIds.includes(extensionId);
 
 			if (extensionHasExistingRequest) {
 				return;
 			}
 
+			// Construct a commandId that won't clash with others generated here, nor likely with an extension's command
+			const commandId = `${providerId}:${extensionId}:signIn${Object.keys(providerRequests || []).length}`;
 			const menuItem = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
 				group: '2_signInRequests',
 				command: {
-					id: `${extensionId}signIn`,
+					id: commandId,
 					title: nls.localize({
 						key: 'signInRequest',
 						comment: [`The placeholder {0} will be replaced with an authentication provider's label. {1} will be replaced with an extension name. (1) is to indicate that this menu item contributes to a badge count.`]
@@ -637,7 +639,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			});
 
 			const signInCommand = CommandsRegistry.registerCommand({
-				id: `${extensionId}signIn`,
+				id: commandId,
 				handler: async (accessor) => {
 					const authenticationService = accessor.get(IAuthenticationService);
 					const storageService = accessor.get(IStorageService);
@@ -653,16 +655,16 @@ export class AuthenticationService extends Disposable implements IAuthentication
 
 
 			if (providerRequests) {
-				const existingRequest = providerRequests[scopesList] || { disposables: [], requestingExtensionIds: [] };
+				const existingRequest = providerRequests[scopesJSON] || { disposables: [], requestingExtensionIds: [] };
 
-				providerRequests[scopesList] = {
+				providerRequests[scopesJSON] = {
 					disposables: [...existingRequest.disposables, menuItem, signInCommand],
 					requestingExtensionIds: [...existingRequest.requestingExtensionIds, extensionId]
 				};
 				this._signInRequestItems.set(providerId, providerRequests);
 			} else {
 				this._signInRequestItems.set(providerId, {
-					[scopesList]: {
+					[scopesJSON]: {
 						disposables: [menuItem, signInCommand],
 						requestingExtensionIds: [extensionId]
 					}
