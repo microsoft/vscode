@@ -621,13 +621,33 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._onLinksReady.fire(this);
 		});
 
-		// TODO: This should be an optional addon
-		this._xtermTypeAheadAddon = this._register(this._instantiationService.createInstance(TypeAheadAddon, this._processManager, this._configHelper));
-		xterm.raw.loadAddon(this._xtermTypeAheadAddon);
+		this._loadTypeAheadAddon(xterm);
+
+		this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TerminalSettingId.LocalEchoEnabled)) {
+				this._loadTypeAheadAddon(xterm);
+			}
+		});
+
 		this._pathService.userHome().then(userHome => {
 			this._userHome = userHome.fsPath;
 		});
 		return xterm;
+	}
+
+	private _loadTypeAheadAddon(xterm: XtermTerminal): void {
+		const enabled = this._configHelper.config.localEchoEnabled;
+		const isRemote = !!this.remoteAuthority;
+		if (enabled === 'off' || enabled === 'auto' && !isRemote) {
+			return this._xtermTypeAheadAddon?.dispose();
+		}
+		if (this._xtermTypeAheadAddon) {
+			return;
+		}
+		if (enabled === 'on' || (enabled === 'auto' && isRemote)) {
+			this._xtermTypeAheadAddon = this._register(this._instantiationService.createInstance(TypeAheadAddon, this._processManager, this._configHelper));
+			xterm.raw.loadAddon(this._xtermTypeAheadAddon);
+		}
 	}
 
 	detachFromElement(): void {
