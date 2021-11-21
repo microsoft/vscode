@@ -137,6 +137,7 @@ export class TerminalViewPane extends ViewPane {
 					if (this._terminalsInitialized) {
 						if (!hadTerminals) {
 							this._terminalService.createTerminal({ location: TerminalLocation.Panel });
+							this._terminalGroupService.showPanel(true);
 						}
 					} else {
 						this._terminalsInitialized = true;
@@ -149,7 +150,6 @@ export class TerminalViewPane extends ViewPane {
 				if (hadTerminals) {
 					this._terminalGroupService.activeGroup?.setVisible(visible);
 				}
-				this._terminalGroupService.showPanel(true);
 			} else {
 				this._terminalGroupService.activeGroup?.setVisible(false);
 			}
