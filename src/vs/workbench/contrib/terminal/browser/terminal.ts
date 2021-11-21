@@ -771,7 +771,7 @@ export interface ITerminalInstance {
 	 * to take user input. If no title is provided, will reset based to the value indicated
 	 * user's configration.
 	 */
-	rename(title?: string | 'prompt'): Promise<void>;
+	rename(title?: string | 'triggerQuickpick'): Promise<void>;
 
 	/**
 	 * Triggers a quick pick to change the icon of this terminal.

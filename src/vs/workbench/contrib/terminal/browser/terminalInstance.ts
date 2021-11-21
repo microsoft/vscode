@@ -1763,8 +1763,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this._linkManager.registerExternalLinkProvider(this, provider);
 	}
 
-	async rename(title?: string | 'prompt') {
-		if (title === 'prompt') {
+	async rename(title?: string | 'triggerQuickpick') {
+		if (title === 'triggerQuickpick') {
 			title = await this._quickInputService.input({
 				value: this.title,
 				prompt: nls.localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),

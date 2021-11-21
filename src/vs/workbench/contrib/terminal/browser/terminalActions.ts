@@ -837,7 +837,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor, resource: unknown) {
-			doWithInstance(accessor, resource)?.rename('prompt');
+			doWithInstance(accessor, resource)?.rename('triggerQuickpick');
 		}
 	});
 
@@ -852,7 +852,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			return accessor.get(ITerminalGroupService).activeInstance?.rename('prompt');
+			return accessor.get(ITerminalGroupService).activeInstance?.rename('triggerQuickpick');
 		}
 	});
 	registerAction2(class extends Action2 {
