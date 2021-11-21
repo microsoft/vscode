@@ -268,10 +268,6 @@ export class WalkThroughPart extends EditorPane {
 	}
 
 	override setInput(input: WalkThroughInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		if (this.input instanceof WalkThroughInput) {
-			this.saveTextEditorViewState(this.input);
-		}
-
 		const store = new DisposableStore();
 		this.contentDisposables.push(store);
 
