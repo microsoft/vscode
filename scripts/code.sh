@@ -71,7 +71,7 @@ function code-wsl()
 	fi
 }
 
-if [ "$IN_WSL" == "true" ]; then
+if [ "$IN_WSL" == "true" ] && [ -z "$DISPLAY" ]; then
 	code-wsl "$@"
 elif [ -f /mnt/wslg/versions.txt ]; then
 	code --disable-gpu "$@"
