@@ -19,6 +19,7 @@ import { mark } from 'vs/base/common/performance';
 import { ICredentialsProvider } from 'vs/workbench/services/credentials/common/credentials';
 import { TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { DeferredPromise } from 'vs/base/common/async';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
@@ -624,8 +625,7 @@ interface IWorkbench {
  * @param options for setting up the workbench
  */
 let created = false;
-let workbenchPromiseResolve: Function;
-const workbenchPromise = new Promise<IWorkbench>(resolve => workbenchPromiseResolve = resolve);
+const workbenchPromise = new DeferredPromise<IWorkbench>();
 function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): IDisposable {
 
 	// Mark start of workbench
@@ -661,14 +661,14 @@ function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions)
 	let instantiatedWorkbench: IWorkbench | undefined = undefined;
 	main(domElement, options).then(workbench => {
 		instantiatedWorkbench = workbench;
-		workbenchPromiseResolve(workbench);
+		workbenchPromise.complete(workbench);
 	});
 
 	return toDisposable(() => {
 		if (instantiatedWorkbench) {
 			instantiatedWorkbench.shutdown();
 		} else {
-			workbenchPromise.then(instantiatedWorkbench => instantiatedWorkbench.shutdown());
+			workbenchPromise.p.then(instantiatedWorkbench => instantiatedWorkbench.shutdown());
 		}
 	});
 }
@@ -686,7 +686,7 @@ namespace commands {
 	* @return A promise that resolves to the returned value of the given command.
 	*/
 	export async function executeCommand(command: string, ...args: any[]): Promise<unknown> {
-		const workbench = await workbenchPromise;
+		const workbench = await workbenchPromise.p;
 
 		return workbench.commands.executeCommand(command, ...args);
 	}
@@ -706,7 +706,7 @@ namespace env {
 	 * @returns A promise that resolves to tuples of source and marks.
 	 */
 	export async function retrievePerformanceMarks(): Promise<[string, readonly IPerformanceMark[]][]> {
-		const workbench = await workbenchPromise;
+		const workbench = await workbenchPromise.p;
 
 		return workbench.env.retrievePerformanceMarks();
 	}
@@ -716,7 +716,7 @@ namespace env {
 	 * experience via protocol handler.
 	 */
 	export async function getUriScheme(): Promise<string> {
-		const workbench = await workbenchPromise;
+		const workbench = await workbenchPromise.p;
 
 		return workbench.env.uriScheme;
 	}
@@ -726,7 +726,7 @@ namespace env {
 	 * workbench.
 	 */
 	export async function openUri(target: URI): Promise<boolean> {
-		const workbench = await workbenchPromise;
+		const workbench = await workbenchPromise.p;
 
 		return workbench.env.openUri(target);
 	}

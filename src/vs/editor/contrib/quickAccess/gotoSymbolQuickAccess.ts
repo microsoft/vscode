@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { IMatch } from 'vs/base/common/filters';
@@ -101,22 +102,21 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 			return true;
 		}
 
-		let symbolProviderRegistryPromiseResolve: (res: boolean) => void;
-		const symbolProviderRegistryPromise = new Promise<boolean>(resolve => symbolProviderRegistryPromiseResolve = resolve);
+		const symbolProviderRegistryPromise = new DeferredPromise<boolean>();
 
 		// Resolve promise when registry knows model
 		const symbolProviderListener = disposables.add(DocumentSymbolProviderRegistry.onDidChange(() => {
 			if (DocumentSymbolProviderRegistry.has(model)) {
 				symbolProviderListener.dispose();
 
-				symbolProviderRegistryPromiseResolve(true);
+				symbolProviderRegistryPromise.complete(true);
 			}
 		}));
 
 		// Resolve promise when we get disposed too
-		disposables.add(toDisposable(() => symbolProviderRegistryPromiseResolve(false)));
+		disposables.add(toDisposable(() => symbolProviderRegistryPromise.complete(false)));
 
-		return symbolProviderRegistryPromise;
+		return symbolProviderRegistryPromise.p;
 	}
 
 	private doProvideWithEditorSymbols(context: IQuickAccessTextEditorContext, model: ITextModel, picker: IQuickPick<IGotoSymbolQuickPickItem>, token: CancellationToken): IDisposable {
