@@ -616,7 +616,6 @@ export class AuthenticationService extends Disposable implements IAuthentication
 
 		if (provider) {
 			const providerRequests = this._signInRequestItems.get(providerId);
-
 			const scopesList = scopes.join(SCOPESLIST_SEPARATOR);
 			const extensionHasExistingRequest = providerRequests
 				&& providerRequests[scopesList]
