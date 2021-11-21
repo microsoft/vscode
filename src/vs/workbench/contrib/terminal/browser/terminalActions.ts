@@ -836,7 +836,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor, resource: unknown) {
-			doWithInstance(accessor, resource)?.rename();
+			doWithInstance(accessor, resource)?.rename('triggerQuickpick');
 		}
 	});
 
@@ -851,7 +851,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			return accessor.get(ITerminalGroupService).activeInstance?.rename();
+			return accessor.get(ITerminalGroupService).activeInstance?.rename('triggerQuickpick');
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -2132,8 +2132,8 @@ function focusNext(accessor: ServicesAccessor): void {
 export function validateTerminalName(name: string): { content: string, severity: Severity } | null {
 	if (!name || name.trim().length === 0) {
 		return {
-			content: localize('emptyTerminalNameError', "A name must be provided."),
-			severity: Severity.Error
+			content: localize('emptyTerminalNameInfo', "Providing no name will reset it to the default value"),
+			severity: Severity.Info
 		};
 	}
 
