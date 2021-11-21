@@ -67,6 +67,15 @@ export function setup(opts: ParsedArgs) {
 			await terminal.assertSingleTab({ name });
 		});
 
+		it('should reset the tab name to the default value when no name is provided', async () => {
+			await terminal.runCommand(TerminalCommandId.Show);
+			const defaultName = await terminal.getSingleTabName();
+			const name = 'my terminal name';
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.Rename, name);
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.Rename, undefined);
+			await terminal.assertSingleTab({ name: defaultName });
+		});
+
 		it('should rename the tab in the tabs list', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
 			await terminal.runCommand(TerminalCommandId.Split);

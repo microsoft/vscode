@@ -64,10 +64,13 @@ export class Terminal {
 	}
 
 	async runCommandWithValue(commandId: TerminalCommandIdWithValue, value?: string, altKey?: boolean): Promise<void> {
-		const shouldKeepOpen = !!value || commandId === TerminalCommandIdWithValue.SelectDefaultProfile || commandId === TerminalCommandIdWithValue.NewWithProfile;
+		const shouldKeepOpen = !!value || commandId === TerminalCommandIdWithValue.SelectDefaultProfile || commandId === TerminalCommandIdWithValue.NewWithProfile || commandId === TerminalCommandIdWithValue.Rename;
 		await this.quickaccess.runCommand(commandId, shouldKeepOpen);
 		if (value) {
 			await this.code.waitForSetValue(QuickInput.QUICK_INPUT_INPUT, value);
+		} else if (commandId === TerminalCommandIdWithValue.Rename) {
+			// Reset
+			await this.code.dispatchKeybinding('Backspace');
 		}
 		await this.code.dispatchKeybinding(altKey ? 'Alt+Enter' : 'enter');
 		await this.quickinput.waitForQuickInputClosed();
@@ -106,6 +109,10 @@ export class Terminal {
 				}
 			}
 		}
+	}
+
+	async getSingleTabName(): Promise<string> {
+		return await (await this.code.waitForElement(Selector.SingleTab, singleTab => !!singleTab && singleTab?.textContent.length > 1)).textContent;
 	}
 
 	private async assertTabExpected(selector?: string, listIndex?: number, nameRegex?: RegExp, icon?: string, color?: string): Promise<void> {
