@@ -137,7 +137,6 @@ export class TerminalViewPane extends ViewPane {
 					if (this._terminalsInitialized) {
 						if (!hadTerminals) {
 							this._terminalService.createTerminal({ location: TerminalLocation.Panel });
-							this._terminalGroupService.showPanel(true);
 						}
 					} else {
 						this._terminalsInitialized = true;
@@ -145,6 +144,11 @@ export class TerminalViewPane extends ViewPane {
 					}
 				} else {
 					this._onDidChangeViewWelcomeState.fire();
+				}
+				if (!this._terminalService.activeInstance?.shellLaunchConfig.extHostTerminalId) {
+					// showPanel is already called with !preserveFocus
+					// when extension host terminals are created
+					this._terminalGroupService.showPanel(true);
 				}
 
 				if (hadTerminals) {
