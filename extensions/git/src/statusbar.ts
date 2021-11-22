@@ -74,8 +74,8 @@ class SyncStatusBar {
 		repository.onDidRunGitStatus(this.onDidRunGitStatus, this, this.disposables);
 		repository.onDidChangeOperations(this.onDidChangeOperations, this, this.disposables);
 
-		// anyEvent(remoteSourceProviderRegistry.onDidAddRemoteSourceProvider, remoteSourceProviderRegistry.onDidRemoveRemoteSourceProvider)
-		// 	(this.onDidChangeRemoteSourceProviders, this, this.disposables);
+		anyEvent(GitBaseApi.getAPI().onDidAddRemoteSourceProvider, GitBaseApi.getAPI().onDidRemoveRemoteSourceProvider)
+			(this.onDidChangeRemoteSourceProviders, this, this.disposables);
 
 		const onEnablementChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.enableStatusBarSync'));
 		onEnablementChange(this.updateEnablement, this, this.disposables);
@@ -105,13 +105,13 @@ class SyncStatusBar {
 		};
 	}
 
-	// private onDidChangeRemoteSourceProviders(): void {
-	// 	this.state = {
-	// 		...this.state,
-	// 		remoteSourceProviders: GitBaseApi.getAPI().getRemoteProviders()
-	// 			.filter(p => !!p.publishRepository)
-	// 	};
-	// }
+	private onDidChangeRemoteSourceProviders(): void {
+		this.state = {
+			...this.state,
+			remoteSourceProviders: GitBaseApi.getAPI().getRemoteProviders()
+				.filter(p => !!p.publishRepository)
+		};
+	}
 
 	get command(): Command | undefined {
 		if (!this.state.enabled) {

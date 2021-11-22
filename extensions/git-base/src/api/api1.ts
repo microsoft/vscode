@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, commands } from 'vscode';
+import { Disposable, commands, Event } from 'vscode';
 import { Model } from '../model';
 import { pickRemoteSource } from '../remoteSource';
 import { GitBaseExtensionImpl } from './extension';
@@ -12,6 +12,14 @@ import { API, PickRemoteSourceOptions, PickRemoteSourceResult, RemoteSourceProvi
 export class ApiImpl implements API {
 
 	constructor(private _model: Model) { }
+
+	get onDidAddRemoteSourceProvider(): Event<RemoteSourceProvider> {
+		return this._model.onDidAddRemoteSourceProvider;
+	}
+
+	get onDidRemoveRemoteSourceProvider(): Event<RemoteSourceProvider>{
+		return this._model.onDidRemoveRemoteSourceProvider;
+	}
 
 	pickRemoteSource(options: PickRemoteSourceOptions): Promise<PickRemoteSourceResult | string | undefined> {
 		return pickRemoteSource(this._model, options as any);
