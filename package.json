@@ -67,7 +67,7 @@
     "graceful-fs": "4.2.8",
     "http-proxy-agent": "^2.1.0",
     "https-proxy-agent": "^2.2.3",
-    "iconv-lite-umd": "0.6.8",
+    "iconv-lite-umd": "0.6.10",
     "jschardet": "3.0.0",
     "keytar": "7.2.0",
     "minimist": "^1.2.5",
