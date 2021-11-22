@@ -22,6 +22,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Handler, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -1527,7 +1528,13 @@ export namespace CoreNavigationCommands {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
 					primary: KeyMod.CtrlCmd | KeyCode.KeyL
-				}
+				},
+				menuOpts: [{
+					menuId: MenuId.CommandPalette,
+					group: '',
+					title: nls.localize('expandLineSelection', "Expand Line Selection"),
+					order: 1
+				}]
 			});
 		}
 
