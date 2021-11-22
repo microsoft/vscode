@@ -32,6 +32,7 @@ import 'vs/editor/contrib/hover/hover';
 import 'vs/editor/contrib/indentation/indentation';
 import 'vs/editor/contrib/inlayHints/inlayHintsController';
 import 'vs/editor/contrib/inPlaceReplace/inPlaceReplace';
+import 'vs/editor/contrib/lineSelection/lineSelection';
 import 'vs/editor/contrib/linesOperations/linesOperations';
 import 'vs/editor/contrib/linkedEditing/linkedEditing';
 import 'vs/editor/contrib/links/links';
