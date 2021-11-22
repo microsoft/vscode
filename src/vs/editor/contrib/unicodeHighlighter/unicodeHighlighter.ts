@@ -25,7 +25,7 @@ import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { minimapFindMatch, overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
+import { minimapFindMatch, minimapUnicodeHighlight, overviewRulerFindMatchForeground, overviewRulerUnicodeHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 
@@ -390,11 +390,11 @@ const DECORATION_HIDE_IN_COMMENTS = ModelDecorationOptions.register({
 	className: 'unicode-highlight',
 	showIfCollapsed: true,
 	overviewRuler: {
-		color: themeColorFromId(overviewRulerFindMatchForeground),
+		color: themeColorFromId(overviewRulerUnicodeHighlightForeground),
 		position: OverviewRulerLane.Center
 	},
 	minimap: {
-		color: themeColorFromId(minimapFindMatch),
+		color: themeColorFromId(minimapUnicodeHighlight),
 		position: MinimapPosition.Inline
 	},
 	hideInCommentTokens: true
