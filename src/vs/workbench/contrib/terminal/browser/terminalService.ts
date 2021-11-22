@@ -504,7 +504,15 @@ export class TerminalService implements ITerminalService {
 			this._shutdownWindowCount = await this._nativeDelegate?.getWindowCount();
 			const shouldReviveProcesses = this._shouldReviveProcesses(reason);
 			if (shouldReviveProcesses) {
-				await this._primaryBackend?.persistTerminalState();
+				// Attempt to persist the terminal state but only allow 2000ms as we can't block
+				// shutdown. This can happen when in a remote workspace but the other side has been
+				// suspended and is in the process of reconnecting, the message will be put in a
+				// queue in this case for when the connection is back up and running. Aborting the
+				// process is preferable in this case.
+				await Promise.race([
+					this._primaryBackend?.persistTerminalState(),
+					timeout(2000)
+				]);
 			}
 
 			// Persist terminal _processes_
