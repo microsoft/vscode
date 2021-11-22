@@ -436,7 +436,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 
 	private static readonly DEFAULT_ARIA_LABEL = localize('quickInputBox.ariaLabel', "Type to narrow down results.");
 
-	private _value = '';
+	private _value: string | undefined;
 	private _ariaLabel: string | undefined;
 	private _placeholder: string | undefined;
 	private readonly onDidChangeValueEmitter = this._register(new Emitter<string>());
@@ -445,6 +445,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private readonly onDidCustomEmitter = this._register(new Emitter<void>());
 	private _items: Array<T | IQuickPickSeparator> = [];
 	private itemsUpdated = false;
+	private inputValueChanged = false;
 	private _canSelectMany = false;
 	private _canAcceptInBackground = false;
 	private _matchOnDescription = false;
@@ -483,19 +484,25 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	}
 
 	get value() {
-		return this._value;
+		return this._value ?? '';
 	}
 
 	set value(value: string) {
 		if (this._value !== value) {
+			if (typeof this._value !== 'undefined') {
+				// If this is not the first time we get value
+				// set, record this as input value change so
+				// that we fire the right events from the input
+				// box listener.
+				this.inputValueChanged = true;
+			} else if (value === '') {
+				// this is actually our default value, so treat
+				// this as a no-op
+				return;
+			}
 			this._value = value || '';
 			this.update();
-			// TODO: Remove this duplicate code and have the updating of the input box handle this.
-			const didFilter = this.ui.list.filter(this.filterValue(this.ui.inputBox.value));
-			if (didFilter) {
-				this.trySelectFirst();
-			}
-			this.onDidChangeValueEmitter.fire(this._value);
+
 		}
 	}
 
@@ -740,8 +747,11 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			this.visibleDisposables.add(
 				this.ui.inputBox.onDidChange(value => {
 					if (value === this.value) {
-						return;
+						if (!this.inputValueChanged) { // even though the value is the same, we had an explicit `value` change
+							return;
+						}
 					}
+					this.inputValueChanged = false;
 					this._value = value;
 					const didFilter = this.ui.list.filter(this.filterValue(this.ui.inputBox.value));
 					if (didFilter) {
