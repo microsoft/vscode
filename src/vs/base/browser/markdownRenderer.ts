@@ -71,19 +71,22 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	const _href = function (href: string, isDomUri: boolean): string {
 		const data = markdown.uris && markdown.uris[href];
-		if (!data) {
-			return href; // no uri exists
-		}
 		let uri = URI.revive(data);
 		if (isDomUri) {
 			if (href.startsWith(Schemas.data + ':')) {
 				return href;
+			}
+			if (!uri) {
+				uri = URI.parse(href);
 			}
 			// this URI will end up as "src"-attribute of a dom node
 			// and because of that special rewriting needs to be done
 			// so that the URI uses a protocol that's understood by
 			// browsers (like http or https)
 			return FileAccess.asBrowserUri(uri).toString(true);
+		}
+		if (!uri) {
+			return href;
 		}
 		if (URI.parse(href).toString() === uri.toString()) {
 			return href; // no transformation performed
@@ -100,19 +103,12 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	const withInnerHTML = new Promise<void>(c => signalInnerHTML = c);
 
 	const renderer = new marked.Renderer();
+
 	renderer.image = (href: string, title: string, text: string) => {
 		let dimensions: string[] = [];
 		let attributes: string[] = [];
 		if (href) {
 			({ href, dimensions } = parseHrefAndDimensions(href));
-			href = _href(href, true);
-			try {
-				const hrefAsUri = URI.parse(href);
-				if (options.baseUrl && hrefAsUri.scheme === Schemas.file) { // absolute or relative local path, or file: uri
-					href = resolvePath(options.baseUrl, href).toString();
-				}
-			} catch (err) { }
-
 			attributes.push(`src="${href}"`);
 		}
 		if (text) {
@@ -250,7 +246,26 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		renderedMarkdown = elements.map(e => typeof e === 'string' ? e : e.outerHTML).join('');
 	}
 
-	element.innerHTML = sanitizeRenderedMarkdown(markdown, renderedMarkdown) as unknown as string;
+	const htmlParser = new DOMParser();
+	const markdownHtmlDoc = htmlParser.parseFromString(sanitizeRenderedMarkdown(markdown, renderedMarkdown) as unknown as string, 'text/html');
+
+	markdownHtmlDoc.body.querySelectorAll('img')
+		.forEach(img => {
+			if (img.src) {
+				let href = _href(img.src, true);
+
+				try {
+					const hrefAsUri = URI.parse(href);
+					if (options.baseUrl && hrefAsUri.scheme === Schemas.file) { // absolute or relative local path, or file: uri
+						href = resolvePath(options.baseUrl, href).toString();
+					}
+				} catch (err) { }
+
+				img.src = href;
+			}
+		});
+
+	element.innerHTML = sanitizeRenderedMarkdown(markdown, markdownHtmlDoc.body.innerHTML) as unknown as string;
 
 	// signal that async code blocks can be now be inserted
 	signalInnerHTML!();

@@ -7,9 +7,12 @@
   "publisher": "vscode",
   "license": "MIT",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
-  "enableProposedApi": true,
   "enabledApiProposals": [
-    "languageStatus"
+    "inlayHints",
+    "languageStatus",
+    "quickPickSeparators",
+    "resolvers",
+    "workspaceTrust"
   ],
   "capabilities": {
     "virtualWorkspaces": {
@@ -1113,16 +1116,16 @@
           "markdownDescription": "%typescript.workspaceSymbols.scope%",
           "scope": "window"
         },
-        "javascript.suggest.includeCompletionsWithClassMemberSnippets": {
+        "javascript.suggest.classMemberSnippets.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "%configuration.suggest.includeCompletionsWithClassMemberSnippets%",
+          "description": "%configuration.suggest.classMemberSnippets.enabled%",
           "scope": "resource"
         },
-        "typescript.suggest.includeCompletionsWithClassMemberSnippets": {
+        "typescript.suggest.classMemberSnippets.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "%configuration.suggest.includeCompletionsWithClassMemberSnippets%",
+          "description": "%configuration.suggest.classMemberSnippets.enabled%",
           "scope": "resource"
         }
       }

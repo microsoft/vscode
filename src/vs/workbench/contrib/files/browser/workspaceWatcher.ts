@@ -90,7 +90,7 @@ export class WorkspaceWatcher extends Disposable {
 		else if (msg.indexOf('EUNKNOWN') >= 0) {
 			this.notificationService.prompt(
 				Severity.Warning,
-				localize('eshutdownError', "File changes watcher stopped unexpectedly. Please reload the window to enable the watcher again."),
+				localize('eshutdownError', "File changes watcher stopped unexpectedly. A reload of the window may enable the watcher again unless the workspace cannot be watched for file changes."),
 				[{
 					label: localize('reload', "Reload"),
 					run: () => this.hostService.reload()

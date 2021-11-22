@@ -129,14 +129,8 @@ const newCommands: ApiCommand[] = [
 	new ApiCommand(
 		'vscode.executeWorkspaceSymbolProvider', '_executeWorkspaceSymbolProvider', 'Execute all workspace symbol providers.',
 		[ApiCommandArgument.String.with('query', 'Search string')],
-		new ApiCommandResult<[search.IWorkspaceSymbolProvider, search.IWorkspaceSymbol[]][], types.SymbolInformation[]>('A promise that resolves to an array of SymbolInformation-instances.', value => {
-			const result: types.SymbolInformation[] = [];
-			if (Array.isArray(value)) {
-				for (let tuple of value) {
-					result.push(...tuple[1].map(typeConverters.WorkspaceSymbol.to));
-				}
-			}
-			return result;
+		new ApiCommandResult<search.IWorkspaceSymbol[], types.SymbolInformation[]>('A promise that resolves to an array of SymbolInformation-instances.', value => {
+			return value.map(typeConverters.WorkspaceSymbol.to);
 		})
 	),
 	// --- call hierarchy

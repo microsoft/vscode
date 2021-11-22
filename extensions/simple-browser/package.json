@@ -2,7 +2,9 @@
   "name": "simple-browser",
   "displayName": "%displayName%",
   "description": "%description%",
-  "enableProposedApi": true,
+  "enabledApiProposals": [
+    "externalUriOpener"
+  ],
   "version": "1.0.0",
   "icon": "media/icon.png",
   "publisher": "vscode",

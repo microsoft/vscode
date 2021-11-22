@@ -122,6 +122,28 @@ flakySuite('Recursive Watcher (parcel)', () => {
 				}
 			});
 		});
+
+		// Unwind from the event call stack: we have seen crashes in Parcel
+		// when e.g. calling `unsubscribe` directly from the stack of a file
+		// change event
+		// Refs: https://github.com/microsoft/vscode/issues/137430
+		await timeout(1);
+	}
+
+	function awaitMessage(service: TestParcelWatcherService, type: 'trace' | 'warn' | 'error' | 'info' | 'debug'): Promise<void> {
+		if (loggingEnabled) {
+			console.log(`Awaiting message of type ${type}`);
+		}
+
+		// Await the message
+		return new Promise<void>(resolve => {
+			const disposable = service.onDidLogMessage(msg => {
+				if (msg.type === type) {
+					disposable.dispose();
+					resolve();
+				}
+			});
+		});
 	}
 
 	test('basics', async function () {
@@ -379,8 +401,6 @@ flakySuite('Recursive Watcher (parcel)', () => {
 		changeFuture = awaitEvent(service, newTextFilePath, FileChangeType.ADDED);
 		await Promises.writeFile(newTextFilePath, 'Hello World');
 		await changeFuture;
-
-		return service.stop();
 	});
 
 	test('subsequent watch updates watchers (excludes)', async function () {
@@ -392,8 +412,6 @@ flakySuite('Recursive Watcher (parcel)', () => {
 		let changeFuture: Promise<unknown> = awaitEvent(service, newTextFilePath, FileChangeType.ADDED);
 		await Promises.writeFile(newTextFilePath, 'Hello World');
 		await changeFuture;
-
-		return service.stop();
 	});
 
 	(isWindows /* windows: cannot create file symbolic link without elevated context */ ? test.skip : test)('symlink support (root)', async function () {
@@ -447,22 +465,19 @@ flakySuite('Recursive Watcher (parcel)', () => {
 
 		await service.watch([{ path: watchedPath, excludes: [] }]);
 
-		// Delete watched path
-		let changeFuture: Promise<unknown> = awaitEvent(service, watchedPath, FileChangeType.DELETED);
+		// Delete watched path and await
+		const warnFuture = awaitMessage(service, 'warn');
 		await Promises.rm(watchedPath, RimRafMode.UNLINK);
-		await changeFuture;
+		await warnFuture;
 
 		// Restore watched path
-		changeFuture = awaitEvent(service, watchedPath, FileChangeType.ADDED);
 		await Promises.mkdir(watchedPath);
-		await changeFuture;
-
-		await timeout(20); // restart is delayed
+		await timeout(1500); // restart is delayed
 		await service.whenReady();
 
 		// Verify events come in again
 		const newFilePath = join(watchedPath, 'newFile.txt');
-		changeFuture = awaitEvent(service, newFilePath, FileChangeType.ADDED);
+		const changeFuture = awaitEvent(service, newFilePath, FileChangeType.ADDED);
 		await Promises.writeFile(newFilePath, 'Hello World');
 		await changeFuture;
 	});

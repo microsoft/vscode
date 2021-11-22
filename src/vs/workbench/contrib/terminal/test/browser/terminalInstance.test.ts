@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { strictEqual } from 'assert';
+import { deepStrictEqual, strictEqual } from 'assert';
 import { isWindows } from 'vs/base/common/platform';
-import { TerminalLabelComputer } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
+import { TerminalLabelComputer, parseExitResult } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { IWorkspaceContextService, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -15,6 +15,7 @@ import { fixPath, getUri } from 'vs/workbench/contrib/search/test/browser/queryB
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ProcessState } from 'vs/workbench/contrib/terminal/common/terminal';
 import { basename } from 'vs/base/common/path';
 
 function createInstance(partial?: Partial<ITerminalInstance>): Pick<ITerminalInstance, 'shellLaunchConfig' | 'userHome' | 'cwd' | 'initialCwd' | 'processName' | 'sequence' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'> {
@@ -40,7 +41,113 @@ const ROOT_2 = fixPath(root2);
 const emptyRoot = '/foo';
 const ROOT_EMPTY = fixPath(emptyRoot);
 suite('Workbench - TerminalInstance', () => {
-	suite('refreshLabel', () => {
+	suite('parseExitResult', () => {
+		test('should return no message for exit code = undefined', () => {
+			deepStrictEqual(
+				parseExitResult(undefined, {}, ProcessState.KilledDuringLaunch, undefined),
+				{ code: undefined, message: undefined }
+			);
+			deepStrictEqual(
+				parseExitResult(undefined, {}, ProcessState.KilledByUser, undefined),
+				{ code: undefined, message: undefined }
+			);
+			deepStrictEqual(
+				parseExitResult(undefined, {}, ProcessState.KilledByProcess, undefined),
+				{ code: undefined, message: undefined }
+			);
+		});
+		test('should return no message for exit code = 0', () => {
+			deepStrictEqual(
+				parseExitResult(0, {}, ProcessState.KilledDuringLaunch, undefined),
+				{ code: 0, message: undefined }
+			);
+			deepStrictEqual(
+				parseExitResult(0, {}, ProcessState.KilledByUser, undefined),
+				{ code: 0, message: undefined }
+			);
+			deepStrictEqual(
+				parseExitResult(0, {}, ProcessState.KilledDuringLaunch, undefined),
+				{ code: 0, message: undefined }
+			);
+		});
+		test('should return friendly message when executable is specified for non-zero exit codes', () => {
+			deepStrictEqual(
+				parseExitResult(1, { executable: 'foo' }, ProcessState.KilledDuringLaunch, undefined),
+				{ code: 1, message: 'The terminal process "foo" failed to launch (exit code: 1).' }
+			);
+			deepStrictEqual(
+				parseExitResult(1, { executable: 'foo' }, ProcessState.KilledByUser, undefined),
+				{ code: 1, message: 'The terminal process "foo" terminated with exit code: 1.' }
+			);
+			deepStrictEqual(
+				parseExitResult(1, { executable: 'foo' }, ProcessState.KilledByProcess, undefined),
+				{ code: 1, message: 'The terminal process "foo" terminated with exit code: 1.' }
+			);
+		});
+		test('should return friendly message when executable and args are specified for non-zero exit codes', () => {
+			deepStrictEqual(
+				parseExitResult(1, { executable: 'foo', args: ['bar', 'baz'] }, ProcessState.KilledDuringLaunch, undefined),
+				{ code: 1, message: `The terminal process "foo 'bar', 'baz'" failed to launch (exit code: 1).` }
+			);
+			deepStrictEqual(
+				parseExitResult(1, { executable: 'foo', args: ['bar', 'baz'] }, ProcessState.KilledByUser, undefined),
+				{ code: 1, message: `The terminal process "foo 'bar', 'baz'" terminated with exit code: 1.` }
+			);
+			deepStrictEqual(
+				parseExitResult(1, { executable: 'foo', args: ['bar', 'baz'] }, ProcessState.KilledByProcess, undefined),
+				{ code: 1, message: `The terminal process "foo 'bar', 'baz'" terminated with exit code: 1.` }
+			);
+		});
+		test('should return friendly message when executable and arguments are omitted for non-zero exit codes', () => {
+			deepStrictEqual(
+				parseExitResult(1, {}, ProcessState.KilledDuringLaunch, undefined),
+				{ code: 1, message: `The terminal process failed to launch (exit code: 1).` }
+			);
+			deepStrictEqual(
+				parseExitResult(1, {}, ProcessState.KilledByUser, undefined),
+				{ code: 1, message: `The terminal process terminated with exit code: 1.` }
+			);
+			deepStrictEqual(
+				parseExitResult(1, {}, ProcessState.KilledByProcess, undefined),
+				{ code: 1, message: `The terminal process terminated with exit code: 1.` }
+			);
+		});
+		test('should ignore pty host-related errors', () => {
+			deepStrictEqual(
+				parseExitResult({ message: 'Could not find pty with id 16' }, {}, ProcessState.KilledDuringLaunch, undefined),
+				{ code: undefined, message: undefined }
+			);
+		});
+		test('should format conpty failure code 5', () => {
+			deepStrictEqual(
+				parseExitResult({ code: 5, message: 'A native exception occurred during launch (Cannot create process, error code: 5)' }, { executable: 'foo' }, ProcessState.KilledDuringLaunch, undefined),
+				{ code: 5, message: `The terminal process failed to launch: Access was denied to the path containing your executable "foo". Manage and change your permissions to get this to work.` }
+			);
+		});
+		test('should format conpty failure code 267', () => {
+			deepStrictEqual(
+				parseExitResult({ code: 267, message: 'A native exception occurred during launch (Cannot create process, error code: 267)' }, {}, ProcessState.KilledDuringLaunch, '/foo'),
+				{ code: 267, message: `The terminal process failed to launch: Invalid starting directory "/foo", review your terminal.integrated.cwd setting.` }
+			);
+		});
+		test('should format conpty failure code 1260', () => {
+			deepStrictEqual(
+				parseExitResult({ code: 1260, message: 'A native exception occurred during launch (Cannot create process, error code: 1260)' }, { executable: 'foo' }, ProcessState.KilledDuringLaunch, undefined),
+				{ code: 1260, message: `The terminal process failed to launch: Windows cannot open this program because it has been prevented by a software restriction policy. For more information, open Event Viewer or contact your system Administrator.` }
+			);
+		});
+		test('should format generic failures', () => {
+			deepStrictEqual(
+				parseExitResult({ code: 123, message: 'A native exception occurred during launch (Cannot create process, error code: 123)' }, {}, ProcessState.KilledDuringLaunch, undefined),
+				{ code: 123, message: `The terminal process failed to launch: A native exception occurred during launch (Cannot create process, error code: 123).` }
+			);
+			deepStrictEqual(
+				parseExitResult({ code: 123, message: 'foo' }, {}, ProcessState.KilledDuringLaunch, undefined),
+				{ code: 123, message: `The terminal process failed to launch: foo.` }
+			);
+		});
+	});
+	suite('TerminalLabelComputer', () => {
 		let configurationService: TestConfigurationService;
 		let terminalLabelComputer: TerminalLabelComputer;
 		let instantiationService: TestInstantiationService;

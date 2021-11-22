@@ -241,6 +241,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': false,
 				'description': localize('perEditorGroup', "Controls if the limit of maximum opened editors should apply per editor group or across all editor groups.")
 			},
+			'workbench.editor.experimentalDisableClearInputOnSetInput': {
+				'type': 'boolean',
+				'default': false,
+				'description': localize('experimentalDisableClearInputOnSetInput', "Experimental setting: do not change unless instructed.")
+			},
 			'workbench.commandPalette.history': {
 				'type': 'number',
 				'description': localize('commandHistory', "Controls the number of recently used commands to keep in history for the command palette. Set to 0 to disable command history."),
@@ -367,6 +372,13 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('auxiliaryBarEnabled', "Controls whether the side panel opposite the side bar is enabled."),
 				'included': product.quality !== 'stable'
 			},
+			'workbench.experimental.panel.alignment': {
+				'type': 'string',
+				'enum': ['left', 'center', 'right', 'justified'],
+				'default': 'center',
+				'description': localize('panelAlignment', "Controls the alignment of the panel (terminal, debug console, output, problems) and whether or not it spans beneath the side bar and side panel."),
+				'included': product.quality !== 'stable'
+			},
 		}
 	});
 
@@ -414,8 +426,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'window.titleSeparator': {
 				'type': 'string',
-				// allow-any-unicode-next-line
-				'default': isMacintosh ? ' — ' : ' - ',
+				'default': isMacintosh ? ' \u2014 ' : ' - ',
 				'markdownDescription': localize("window.titleSeparator", "Separator used by `window.title`.")
 			},
 			'window.menuBarVisibility': {

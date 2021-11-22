@@ -96,9 +96,15 @@ async function webviewPreloads(ctx: PreloadContext) {
 						postNotebookMessage<webviewMessages.IScrollToRevealMessage>('scroll-to-reveal', { scrollTop });
 						return;
 					}
+				} else {
+					const href = node.getAttribute('href');
+					if (href) {
+						postNotebookMessage<webviewMessages.IClickedLinkMessage>('clicked-link', { href });
+					}
 				}
 
 				event.preventDefault();
+				event.stopPropagation();
 				return;
 			}
 		}

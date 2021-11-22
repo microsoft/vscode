@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
+import * as errors from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -169,7 +170,9 @@ export interface ExtensionActivationReason {
 
 type ActivationIdAndReason = { id: ExtensionIdentifier, reason: ExtensionActivationReason };
 
-export class ExtensionsActivator {
+export class ExtensionsActivator implements IDisposable {
+
+	private _isDisposed: boolean;
 
 	private readonly _registry: ExtensionDescriptionRegistry;
 	private readonly _resolvedExtensionsSet: Set<string>;
@@ -189,6 +192,7 @@ export class ExtensionsActivator {
 		host: IExtensionsActivatorHost,
 		@ILogService private readonly _logService: ILogService
 	) {
+		this._isDisposed = false;
 		this._registry = registry;
 		this._resolvedExtensionsSet = new Set<string>();
 		resolvedExtensions.forEach((extensionId) => this._resolvedExtensionsSet.add(ExtensionIdentifier.toKey(extensionId)));
@@ -198,6 +202,10 @@ export class ExtensionsActivator {
 		this._activatingExtensions = new Map<string, Promise<void>>();
 		this._activatedExtensions = new Map<string, ActivatedExtension>();
 		this._alreadyActivatedEvents = Object.create(null);
+	}
+
+	public dispose(): void {
+		this._isDisposed = true;
 	}
 
 	public isActivated(extensionId: ExtensionIdentifier): boolean {
@@ -404,6 +412,12 @@ export class ExtensionsActivator {
 			}
 			if (err && err.stack) {
 				error.stack = err.stack;
+			}
+
+			if (this._isDisposed && errors.isPromiseCanceledError(err)) {
+				// It is expected for ongoing activations to fail if the extension host is going down
+				// So simply ignore and don't log canceled errors in this case
+				return new FailedExtension(err);
 			}
 
 			this._host.onExtensionActivationError(

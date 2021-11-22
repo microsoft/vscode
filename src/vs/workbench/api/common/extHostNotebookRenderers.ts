@@ -32,7 +32,7 @@ export class ExtHostNotebookRenderers implements ExtHostNotebookRenderersShape {
 
 		// In the stable API, the editor is given as an empty object, and this map
 		// is used to maintain references. This can be removed after editor finalization.
-		const notebookEditorVisible = isProposedApiEnabled(manifest);
+		const notebookEditorVisible = isProposedApiEnabled(manifest, 'notebookEditor');
 		const notebookEditorAliases = new WeakMap<{}, vscode.NotebookEditor>();
 
 		const messaging: vscode.NotebookRendererMessaging = {

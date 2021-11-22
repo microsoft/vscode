@@ -70,6 +70,10 @@
 	z-index: 31;
 }
 
+.monaco-workbench .simple-find-part-wrapper {
+	z-index: 32 !important;
+}
+
 .xterm .xterm-screen {
 	cursor: text;
 }
@@ -388,6 +392,7 @@
 	pointer-events: none;
 	opacity: 0; /* hidden initially */
 	transition: left 70ms ease-out, right 70ms ease-out, top 70ms ease-out, bottom 70ms ease-out, opacity 150ms ease-out;
+	z-index: 33;
 }
 .monaco-workbench .pane-body.integrated-terminal .terminal-group > .monaco-split-view2.horizontal .terminal-drop-overlay.drop-before {
 	right: 50%;

@@ -24,7 +24,7 @@ import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguag
 import { SearchData, SearchParams, TextModelSearch } from 'vs/editor/common/model/textModelSearch';
 import { TextModelTokenization } from 'vs/editor/common/model/textModelTokens';
 import { getWordAtText } from 'vs/editor/common/model/wordHelper';
-import { FormattingOptions } from 'vs/editor/common/modes';
+import { FormattingOptions, StandardTokenType } from 'vs/editor/common/modes';
 import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
@@ -2124,6 +2124,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		const position = this.validatePosition(new Position(lineNumber, column));
 		const lineTokens = this.getLineTokens(position.lineNumber);
 		return lineTokens.getLanguageId(lineTokens.findTokenIndexAtOffset(position.column - 1));
+	}
+
+	public getTokenTypeIfInsertingCharacter(lineNumber: number, column: number, character: string): StandardTokenType {
+		const position = this.validatePosition(new Position(lineNumber, column));
+		return this._tokenization.getTokenTypeIfInsertingCharacter(position, character);
 	}
 
 	private getLanguageConfiguration(languageId: string): ResolvedLanguageConfiguration {

@@ -3,29 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import minimist = require('minimist');
 import * as path from 'path';
 import { Application, ApplicationOptions } from '../../../../automation';
+import { afterSuite } from '../../utils';
 
-export function setup() {
+export function setup(opts: minimist.ParsedArgs) {
 
 	describe('Launch', () => {
 
 		let app: Application;
 
-		after(async function () {
-			if (app) {
-				await app.stop();
-			}
-		});
-
-		afterEach(async function () {
-			if (app) {
-				if (this.currentTest!.state === 'failed') {
-					const name = this.currentTest!.fullTitle().replace(/[^a-z0-9\-]/ig, '_');
-					await app.captureScreenshot(name);
-				}
-			}
-		});
+		afterSuite(opts, () => app);
 
 		it(`verifies that application launches when user data directory has non-ascii characters`, async function () {
 			const defaultOptions = this.defaultOptions as ApplicationOptions;
@@ -33,6 +22,5 @@ export function setup() {
 			app = new Application(options);
 			await app.start();
 		});
-
 	});
 }

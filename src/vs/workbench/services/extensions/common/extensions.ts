@@ -134,19 +134,16 @@ export interface IExtensionHost {
 	dispose(): void;
 }
 
-export function isProposedApiEnabled(extension: IExtensionDescription, proposal?: ApiProposalName): boolean {
-	if (!proposal) {
-		return Boolean(extension.enableProposedApi);
-	}
+export function isProposedApiEnabled(extension: IExtensionDescription, proposal: ApiProposalName): boolean {
 	if (extension.enabledApiProposals?.includes(proposal)) {
 		return true;
 	}
 	return Boolean(extension.enableProposedApi);
 }
 
-export function checkProposedApiEnabled(extension: IExtensionDescription, proposal?: ApiProposalName): void {
+export function checkProposedApiEnabled(extension: IExtensionDescription, proposal: ApiProposalName): void {
 	if (!isProposedApiEnabled(extension, proposal)) {
-		throw new Error(`[${extension.identifier.value}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
+		throw new Error(`Extension '${extension.identifier.value}' CANNOT use API proposal: ${proposal}.\nIts package.json#enabledApiProposals-property declares: ${extension.enabledApiProposals?.join(', ') ?? '[]'} but NOT ${proposal}.\n The missing proposal MUST be added and you must start in extension development mode or use the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
 	}
 }
 

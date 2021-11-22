@@ -498,7 +498,7 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 	}
 
 	private _handleRemoteInfoExtensionPoint(extension: IExtensionPointUser<HelpInformation>, helpInformation: HelpInformation[]) {
-		if (!isProposedApiEnabled(extension.description)) {
+		if (!isProposedApiEnabled(extension.description, 'contribRemoteHelp')) {
 			return;
 		}
 

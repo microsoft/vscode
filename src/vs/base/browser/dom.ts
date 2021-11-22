@@ -908,7 +908,7 @@ export const EventHelper = {
 export interface IFocusTracker extends Disposable {
 	onDidFocus: Event<void>;
 	onDidBlur: Event<void>;
-	refreshState?(): void;
+	refreshState(): void;
 }
 
 export function saveParentsScrollTop(node: Element): number[] {
@@ -978,6 +978,8 @@ class FocusTracker extends Disposable implements IFocusTracker {
 
 		this._register(addDisposableListener(element, EventType.FOCUS, onFocus, true));
 		this._register(addDisposableListener(element, EventType.BLUR, onBlur, true));
+		this._register(addDisposableListener(element, EventType.FOCUS_IN, () => this._refreshStateHandler()));
+		this._register(addDisposableListener(element, EventType.FOCUS_OUT, () => this._refreshStateHandler()));
 	}
 
 	refreshState() {

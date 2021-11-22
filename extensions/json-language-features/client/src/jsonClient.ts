@@ -6,6 +6,8 @@ import * as nls from 'vscode-nls';
 
 const localize = nls.loadMessageBundle();
 
+export type JSONLanguageStatus = { schemas: string[] };
+
 import {
 	workspace, window, languages, commands, ExtensionContext, extensions, Uri,
 	Diagnostic, StatusBarAlignment, TextEditor, TextDocument, FormattingOptions, CancellationToken,
@@ -18,7 +20,7 @@ import {
 } from 'vscode-languageclient';
 
 import { hash } from './utils/hash';
-import { RequestService, joinPath } from './requests';
+import { createLanguageStatusItem } from './languageStatus';
 
 namespace VSCodeContentRequest {
 	export const type: RequestType<string, string, any> = new RequestType('vscode/content');
@@ -31,6 +33,11 @@ namespace SchemaContentChangeNotification {
 namespace ForceValidateRequest {
 	export const type: RequestType<string, Diagnostic[], any> = new RequestType('json/validate');
 }
+
+namespace LanguageStatusRequest {
+	export const type: RequestType<string, JSONLanguageStatus, any> = new RequestType('json/languageStatus');
+}
+
 
 export interface ISchemaAssociations {
 	[pattern: string]: string[];
@@ -88,9 +95,15 @@ export interface TelemetryReporter {
 export type LanguageClientConstructor = (name: string, description: string, clientOptions: LanguageClientOptions) => CommonLanguageClient;
 
 export interface Runtime {
-	http: RequestService;
+	schemaRequests: SchemaRequestService;
 	telemetry?: TelemetryReporter
 }
+
+export interface SchemaRequestService {
+	getContent(uri: string): Promise<string>;
+}
+
+export const languageServerDescription = localize('jsonserver.name', 'JSON Language Server');
 
 export function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime) {
 
@@ -190,7 +203,7 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 	};
 
 	// Create the language client and start the client.
-	const client = newLanguageClient('json', localize('jsonserver.name', 'JSON Language Server'), clientOptions);
+	const client = newLanguageClient('json', languageServerDescription, clientOptions);
 	client.registerProposedFeatures();
 
 	const disposable = client.start();
@@ -220,7 +233,7 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 					 */
 					runtime.telemetry.sendTelemetryEvent('json.schema', { schemaURL: uriPath });
 				}
-				return runtime.http.getContent(uriPath).catch(e => {
+				return runtime.schemaRequests.getContent(uriPath).catch(e => {
 					return Promise.reject(new ResponseError(4, e.toString()));
 				});
 			} else {
@@ -314,6 +327,8 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 			}
 		});
 
+		toDispose.push(createLanguageStatusItem(documentSelector, (uri: string) => client.sendRequest(LanguageStatusRequest.type, uri)));
+
 		function updateFormatterRegistration() {
 			const formatEnabled = workspace.getConfiguration().get(SettingIds.enableFormatter);
 			if (!formatEnabled && rangeFormatting) {
@@ -376,7 +391,7 @@ function getSchemaAssociations(_context: ExtensionContext): ISchemaAssociation[]
 					if (Array.isArray(fileMatch) && typeof url === 'string') {
 						let uri: string = url;
 						if (uri[0] === '.' && uri[1] === '/') {
-							uri = joinPath(extension.extensionUri, uri).toString();
+							uri = Uri.joinPath(extension.extensionUri, uri).toString();
 						}
 						fileMatch = fileMatch.map(fm => {
 							if (fm[0] === '%') {
@@ -497,7 +512,7 @@ function getSchemaId(schema: JSONSchemaSettings, folderUri?: Uri): string | unde
 			url = schema.schema.id || `vscode://schemas/custom/${encodeURIComponent(hash(schema.schema).toString(16))}`;
 		}
 	} else if (folderUri && (url[0] === '.' || url[0] === '/')) {
-		url = joinPath(folderUri, url).toString();
+		url = Uri.joinPath(folderUri, url).toString();
 	}
 	return url;
 }

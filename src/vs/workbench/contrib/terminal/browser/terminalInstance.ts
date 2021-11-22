@@ -23,11 +23,11 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessManager, ProcessState, TERMINAL_VIEW_ID, INavigationMode, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, ITerminalProfileResolverService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessManager, ProcessState, TERMINAL_VIEW_ID, INavigationMode, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, ITerminalProfileResolverService, TerminalCommandId, ITerminalBackend } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ITerminalInstanceService, ITerminalInstance, ITerminalExternalLinkProvider, IRequestAddInstanceToGroupEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, ITerminalExternalLinkProvider, IRequestAddInstanceToGroupEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import type { Terminal as XTermTerminal, ITerminalAddon } from 'xterm';
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/xterm/navigationModeAddon';
@@ -38,7 +38,7 @@ import { TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTy
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType, TerminalSettingId, TitleEventSource, TerminalIcon, TerminalLocation, ProcessPropertyType, ProcessCapability, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType, TerminalSettingId, TitleEventSource, TerminalIcon, TerminalLocation, ProcessPropertyType, ProcessCapability, IProcessPropertyMap, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { AutoOpenBarrier, Promises } from 'vs/base/common/async';
@@ -64,6 +64,7 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/lineDataEventAddon';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
+import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 
 const enum Constants {
 	/**
@@ -80,6 +81,19 @@ const enum Constants {
 }
 
 let xtermConstructor: Promise<typeof XTermTerminal> | undefined;
+function getXtermConstructor(): Promise<typeof XTermTerminal> {
+	if (xtermConstructor) {
+		return xtermConstructor;
+	}
+	xtermConstructor = Promises.withAsyncBody<typeof XTermTerminal>(async (resolve) => {
+		const Terminal = (await import('xterm')).Terminal;
+		// Localize strings
+		Terminal.strings.promptLabel = nls.localize('terminal.integrated.a11yPromptLabel', 'Terminal input');
+		Terminal.strings.tooMuchOutput = nls.localize('terminal.integrated.a11yTooMuchOutput', 'Too much output to announce, navigate to rows manually to read');
+		resolve(Terminal);
+	});
+	return xtermConstructor;
+}
 
 interface ICanvasDimensions {
 	width: number;
@@ -282,7 +296,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		private readonly _configHelper: TerminalConfigHelper,
 		private _shellLaunchConfig: IShellLaunchConfig,
 		resource: URI | undefined,
-		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@IPathService private readonly _pathService: IPathService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -537,25 +550,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get persistentProcessId(): number | undefined { return this._processManager.persistentProcessId; }
 	get shouldPersist(): boolean { return this._processManager.shouldPersist; }
 
-	private async _getXtermConstructor(): Promise<typeof XTermTerminal> {
-		if (xtermConstructor) {
-			return xtermConstructor;
-		}
-		xtermConstructor = Promises.withAsyncBody<typeof XTermTerminal>(async (resolve) => {
-			const Terminal = await this._terminalInstanceService.getXtermConstructor();
-			// Localize strings
-			Terminal.strings.promptLabel = nls.localize('terminal.integrated.a11yPromptLabel', 'Terminal input');
-			Terminal.strings.tooMuchOutput = nls.localize('terminal.integrated.a11yTooMuchOutput', 'Too much output to announce, navigate to rows manually to read');
-			resolve(Terminal);
-		});
-		return xtermConstructor;
-	}
-
 	/**
 	 * Create xterm.js instance and attach data listeners.
 	 */
 	protected async _createXterm(): Promise<XtermTerminal> {
-		const Terminal = await this._getXtermConstructor();
+		const Terminal = await getXtermConstructor();
 		if (this._isDisposed) {
 			throw new Error('Terminal disposed of during xterm.js creation');
 		}
@@ -622,13 +621,33 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._onLinksReady.fire(this);
 		});
 
-		// TODO: This should be an optional addon
-		this._xtermTypeAheadAddon = this._register(this._instantiationService.createInstance(TypeAheadAddon, this._processManager, this._configHelper));
-		xterm.raw.loadAddon(this._xtermTypeAheadAddon);
+		this._loadTypeAheadAddon(xterm);
+
+		this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TerminalSettingId.LocalEchoEnabled)) {
+				this._loadTypeAheadAddon(xterm);
+			}
+		});
+
 		this._pathService.userHome().then(userHome => {
 			this._userHome = userHome.fsPath;
 		});
 		return xterm;
+	}
+
+	private _loadTypeAheadAddon(xterm: XtermTerminal): void {
+		const enabled = this._configHelper.config.localEchoEnabled;
+		const isRemote = !!this.remoteAuthority;
+		if (enabled === 'off' || enabled === 'auto' && !isRemote) {
+			return this._xtermTypeAheadAddon?.dispose();
+		}
+		if (this._xtermTypeAheadAddon) {
+			return;
+		}
+		if (enabled === 'on' || (enabled === 'auto' && isRemote)) {
+			this._xtermTypeAheadAddon = this._register(this._instantiationService.createInstance(TypeAheadAddon, this._processManager, this._configHelper));
+			xterm.raw.loadAddon(this._xtermTypeAheadAddon);
+		}
 	}
 
 	detachFromElement(): void {
@@ -832,9 +851,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const dndController = this._instantiationService.createInstance(TerminalInstanceDragAndDropController, container);
 		dndController.onDropTerminal(e => this._onRequestAddInstanceToGroup.fire(e));
 		dndController.onDropFile(async path => {
-			const preparedPath = await this._terminalInstanceService.preparePathForTerminalAsync(path, this.shellLaunchConfig.executable, this.title, this.shellType, this._processManager.remoteAuthority);
-			this.sendText(preparedPath, false);
 			this.focus();
+			await this.sendPath(path, false);
 		});
 		this._dndObserver = new DragAndDropObserver(container, dndController);
 	}
@@ -916,7 +934,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async detachFromProcess(): Promise<void> {
+		// Detach the process and dispose the instance, without the instance dispose the terminal
+		// won't go away
 		await this._processManager.detachFromProcess();
+		this.dispose();
 	}
 
 	focus(force?: boolean): void {
@@ -966,6 +987,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Send it to the process
 		await this._processManager.write(text);
 		this._onDidInputData.fire(this);
+	}
+
+	async sendPath(originalPath: string, addNewLine: boolean): Promise<void> {
+		const preparedPath = await preparePathForShell(originalPath, this.shellLaunchConfig.executable, this.title, this.shellType, this._processManager.backend);
+		return this.sendText(preparedPath, addNewLine);
 	}
 
 	setVisible(visible: boolean): void {
@@ -1163,64 +1189,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		await this._flushXtermData();
 		this._logService.debug(`Terminal process exit (instanceId: ${this.instanceId}) with code ${this._exitCode}`);
 
-		let exitCodeMessage: string | undefined;
-
-		// Create exit code message
-		switch (typeof exitCodeOrError) {
-			case 'number':
-				// Only show the error if the exit code is non-zero
-				this._exitCode = exitCodeOrError;
-				if (this._exitCode === 0) {
-					break;
-				}
-
-				let commandLine: string | undefined = undefined;
-				if (this._shellLaunchConfig.executable) {
-					commandLine = this._shellLaunchConfig.executable;
-					if (typeof this._shellLaunchConfig.args === 'string') {
-						commandLine += ` ${this._shellLaunchConfig.args}`;
-					} else if (this._shellLaunchConfig.args && this._shellLaunchConfig.args.length) {
-						commandLine += this._shellLaunchConfig.args.map(a => ` '${a}'`).join();
-					}
-				}
-
-				if (this._processManager.processState === ProcessState.KilledDuringLaunch) {
-					if (commandLine) {
-						exitCodeMessage = nls.localize('launchFailed.exitCodeAndCommandLine', "The terminal process \"{0}\" failed to launch (exit code: {1}).", commandLine, this._exitCode);
-						break;
-					}
-					exitCodeMessage = nls.localize('launchFailed.exitCodeOnly', "The terminal process failed to launch (exit code: {0}).", this._exitCode);
-					break;
-				}
-				if (commandLine) {
-					exitCodeMessage = nls.localize('terminated.exitCodeAndCommandLine', "The terminal process \"{0}\" terminated with exit code: {1}.", commandLine, this._exitCode);
-					break;
-				}
-				exitCodeMessage = nls.localize('terminated.exitCodeOnly', "The terminal process terminated with exit code: {0}.", this._exitCode);
-				break;
-			case 'object':
-				if (exitCodeOrError.message.toString().includes('Could not find pty with id')) {
-					break;
-				}
-				this._exitCode = exitCodeOrError.code;
-				const conptyError = exitCodeOrError.message.match(/.*error code:\s*(\d+).*$/);
-				if (conptyError) {
-					const errorCode = conptyError.length > 1 ? parseInt(conptyError[1]) : undefined;
-					switch (errorCode) {
-						case 5:
-							exitCodeOrError.message = `Access was denied to the path containing your executable ${this.shellLaunchConfig.executable}. Manage and change your permissions to get this to work.`;
-							break;
-						case 267:
-							exitCodeOrError.message = `Invalid starting directory ${this.initialCwd}, review your terminal.integrated.cwd setting`;
-							break;
-						case 1260:
-							exitCodeOrError.message = `Windows cannot open this program because it has been prevented by a software restriction policy. For more information, open Event Viewer or contact your system Administrator`;
-							break;
-					}
-				}
-				exitCodeMessage = nls.localize('launchFailed.errorMessage', "The terminal process failed to launch: {0}.", exitCodeOrError.message);
-				break;
-		}
+		const parsedExitResult = parseExitResult(exitCodeOrError, this.shellLaunchConfig, this._processManager.processState, this._initialCwd);
+		this._exitCode = parsedExitResult?.code;
+		const exitMessage = parsedExitResult?.message;
 
 		this._logService.debug(`Terminal process exit (instanceId: ${this.instanceId}) state ${this._processManager.processState}`);
 
@@ -1228,8 +1199,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// user (via the `workbench.action.terminal.kill` command).
 		if (this._shellLaunchConfig.waitOnExit && this._processManager.processState !== ProcessState.KilledByUser) {
 			this._xtermReadyPromise.then(xterm => {
-				if (exitCodeMessage) {
-					xterm.raw.writeln(exitCodeMessage);
+				if (exitMessage) {
+					xterm.raw.writeln(exitMessage);
 				}
 				if (typeof this._shellLaunchConfig.waitOnExit === 'string') {
 					xterm.raw.write(formatMessageForTerminal(this._shellLaunchConfig.waitOnExit));
@@ -1242,19 +1213,19 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			});
 		} else {
 			this.dispose();
-			if (exitCodeMessage) {
+			if (exitMessage) {
 				const failedDuringLaunch = this._processManager.processState === ProcessState.KilledDuringLaunch;
 				if (failedDuringLaunch || this._configHelper.config.showExitAlert) {
 					// Always show launch failures
 					this._notificationService.notify({
-						message: exitCodeMessage,
+						message: exitMessage,
 						severity: Severity.Error,
 						actions: { primary: [this._instantiationService.createInstance(TerminalLaunchHelpAction)] }
 					});
 				} else {
 					// Log to help surface the error in case users report issues with showExitAlert
 					// disabled
-					this._logService.warn(exitCodeMessage);
+					this._logService.warn(exitMessage);
 				}
 			}
 		}
@@ -1515,10 +1486,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	refreshTabLabels(title: string | undefined, eventSource: TitleEventSource): void {
+		const reset = !title;
 		title = this._updateTitleProperties(title, eventSource);
 		const titleChanged = title !== this._title;
 		this._title = title;
-		this._labelComputer?.refreshLabel();
+		this._labelComputer?.refreshLabel(reset);
 		this._setAriaLabel(this.xterm?.raw, this._instanceId, this._title);
 
 		if (this._titleReadyComplete) {
@@ -1811,16 +1783,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this._linkManager.registerExternalLinkProvider(this, provider);
 	}
 
-	async rename(title?: string) {
-		if (!title) {
+	async rename(title?: string | 'triggerQuickpick') {
+		if (title === 'triggerQuickpick') {
 			title = await this._quickInputService.input({
 				value: this.title,
 				prompt: nls.localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),
 			});
 		}
-		if (title) {
-			this.refreshTabLabels(title, TitleEventSource.Api);
-		}
+		this.refreshTabLabels(title, TitleEventSource.Api);
 	}
 
 	async changeIcon() {
@@ -2088,17 +2058,18 @@ export class TerminalLabelComputer extends Disposable {
 		super();
 	}
 
-	refreshLabel(): void {
-		this._title = this.computeLabel(this._configHelper.config.tabs.title, TerminalLabelType.Title);
+	refreshLabel(reset?: boolean): void {
+		this._title = this.computeLabel(this._configHelper.config.tabs.title, TerminalLabelType.Title, reset);
 		this._description = this.computeLabel(this._configHelper.config.tabs.description, TerminalLabelType.Description);
-		if (this._title !== this._instance.title || this._description !== this._instance.description) {
+		if (this._title !== this._instance.title || this._description !== this._instance.description || reset) {
 			this._onDidChangeLabel.fire({ title: this._title, description: this._description });
 		}
 	}
 
 	computeLabel(
 		labelTemplate: string,
-		labelType: TerminalLabelType
+		labelType: TerminalLabelType,
+		reset?: boolean
 	) {
 		const templateProperties: ITerminalLabelTemplateProperties = {
 			cwd: this._instance.cwd || this._instance.initialCwd || '',
@@ -2117,7 +2088,7 @@ export class TerminalLabelComputer extends Disposable {
 		if (!labelTemplate) {
 			return labelType === TerminalLabelType.Title ? (this._instance.processName || '') : '';
 		}
-		if (this._instance.staticTitle && labelType === TerminalLabelType.Title) {
+		if (!reset && this._instance.staticTitle && labelType === TerminalLabelType.Title) {
 			return this._instance.staticTitle.replace(/[\n\r\t]/g, '') || templateProperties.process?.replace(/[\n\r\t]/g, '') || '';
 		}
 		const detection = this._instance.capabilities.includes(ProcessCapability.CwdDetection);
@@ -2150,4 +2121,146 @@ export class TerminalLabelComputer extends Disposable {
 		}
 		return true;
 	}
+}
+
+export function parseExitResult(
+	exitCodeOrError: ITerminalLaunchError | number | undefined,
+	shellLaunchConfig: IShellLaunchConfig,
+	processState: ProcessState,
+	initialCwd: string | undefined
+): { code: number | undefined, message: string | undefined } | undefined {
+	// Only return a message if the exit code is non-zero
+	if (exitCodeOrError === undefined || exitCodeOrError === 0) {
+		return { code: exitCodeOrError, message: undefined };
+	}
+
+	const code = typeof exitCodeOrError === 'number' ? exitCodeOrError : exitCodeOrError.code;
+
+	// Create exit code message
+	let message: string | undefined = undefined;
+	switch (typeof exitCodeOrError) {
+		case 'number':
+			let commandLine: string | undefined = undefined;
+			if (shellLaunchConfig.executable) {
+				commandLine = shellLaunchConfig.executable;
+				if (typeof shellLaunchConfig.args === 'string') {
+					commandLine += ` ${shellLaunchConfig.args}`;
+				} else if (shellLaunchConfig.args && shellLaunchConfig.args.length) {
+					commandLine += shellLaunchConfig.args.map(a => ` '${a}'`).join();
+				}
+			}
+
+			if (processState === ProcessState.KilledDuringLaunch) {
+				if (commandLine) {
+					message = nls.localize('launchFailed.exitCodeAndCommandLine', "The terminal process \"{0}\" failed to launch (exit code: {1}).", commandLine, code);
+				} else {
+					message = nls.localize('launchFailed.exitCodeOnly', "The terminal process failed to launch (exit code: {0}).", code);
+				}
+			} else {
+				if (commandLine) {
+					message = nls.localize('terminated.exitCodeAndCommandLine', "The terminal process \"{0}\" terminated with exit code: {1}.", commandLine, code);
+				} else {
+					message = nls.localize('terminated.exitCodeOnly', "The terminal process terminated with exit code: {0}.", code);
+				}
+			}
+			break;
+		case 'object':
+			// Ignore internal errors
+			if (exitCodeOrError.message.toString().includes('Could not find pty with id')) {
+				break;
+			}
+			// Convert conpty code-based failures into human friendly messages
+			let innerMessage = exitCodeOrError.message;
+			const conptyError = exitCodeOrError.message.match(/.*error code:\s*(\d+).*$/);
+			if (conptyError) {
+				const errorCode = conptyError.length > 1 ? parseInt(conptyError[1]) : undefined;
+				switch (errorCode) {
+					case 5:
+						innerMessage = `Access was denied to the path containing your executable "${shellLaunchConfig.executable}". Manage and change your permissions to get this to work`;
+						break;
+					case 267:
+						innerMessage = `Invalid starting directory "${initialCwd}", review your terminal.integrated.cwd setting`;
+						break;
+					case 1260:
+						innerMessage = `Windows cannot open this program because it has been prevented by a software restriction policy. For more information, open Event Viewer or contact your system Administrator`;
+						break;
+				}
+			}
+			message = nls.localize('launchFailed.errorMessage', "The terminal process failed to launch: {0}.", innerMessage);
+			break;
+	}
+
+	return { code, message };
+}
+
+/**
+ * Takes a path and returns the properly escaped path to send to a given shell. On Windows, this
+ * included trying to prepare the path for WSL if needed.
+ *
+ * @param originalPath The path to be escaped and formatted.
+ * @param executable The executable off the shellLaunchConfig.
+ * @param title The terminal's title.
+ * @param shellType The type of shell the path is being sent to.
+ * @param backend The backend for the terminal.
+ * @returns An escaped version of the path to be execuded in the terminal.
+ */
+async function preparePathForShell(originalPath: string, executable: string | undefined, title: string, shellType: TerminalShellType, backend: ITerminalBackend | undefined): Promise<string> {
+	return new Promise<string>(c => {
+		if (!executable) {
+			c(originalPath);
+			return;
+		}
+
+		const hasSpace = originalPath.indexOf(' ') !== -1;
+		const hasParens = originalPath.indexOf('(') !== -1 || originalPath.indexOf(')') !== -1;
+
+		const pathBasename = path.basename(executable, '.exe');
+		const isPowerShell = pathBasename === 'pwsh' ||
+			title === 'pwsh' ||
+			pathBasename === 'powershell' ||
+			title === 'powershell';
+
+		if (isPowerShell && (hasSpace || originalPath.indexOf('\'') !== -1)) {
+			c(`& '${originalPath.replace(/'/g, '\'\'')}'`);
+			return;
+		}
+
+		if (hasParens && isPowerShell) {
+			c(`& '${originalPath}'`);
+			return;
+		}
+
+		// TODO: This should use the process manager's OS, not the local OS
+		if (isWindows) {
+			// 17063 is the build number where wsl path was introduced.
+			// Update Windows uriPath to be executed in WSL.
+			if (shellType !== undefined) {
+				if (shellType === WindowsShellType.GitBash) {
+					c(originalPath.replace(/\\/g, '/'));
+				}
+				else if (shellType === WindowsShellType.Wsl) {
+					c(backend?.getWslPath(originalPath) || originalPath);
+				}
+
+				else if (hasSpace) {
+					c('"' + originalPath + '"');
+				} else {
+					c(originalPath);
+				}
+			} else {
+				const lowerExecutable = executable.toLowerCase();
+				if (lowerExecutable.indexOf('wsl') !== -1 || (lowerExecutable.indexOf('bash.exe') !== -1 && lowerExecutable.toLowerCase().indexOf('git') === -1)) {
+					c(backend?.getWslPath(originalPath) || originalPath);
+				} else if (hasSpace) {
+					c('"' + originalPath + '"');
+				} else {
+					c(originalPath);
+				}
+			}
+
+			return;
+		}
+
+		c(escapeNonWindowsPath(originalPath));
+	});
 }

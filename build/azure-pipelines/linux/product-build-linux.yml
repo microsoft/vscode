@@ -3,16 +3,12 @@ steps:
     inputs:
       versionSpec: "14.x"
 
-  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
-    inputs:
-      versionSpec: "1.x"
-
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
-      SecretsFilter: "github-distro-mixin-password,builds-docdb-key-readwrite,vscode-storage-key,ESRP-PKI,esrp-aad-username,esrp-aad-password"
+      SecretsFilter: "github-distro-mixin-password,ESRP-PKI,esrp-aad-username,esrp-aad-password"
 
   - task: DownloadPipelineArtifact@2
     inputs:
@@ -42,23 +38,23 @@ steps:
       git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
     displayName: Merge distro
 
-  - script: |
-      mkdir -p .build
-      node build/azure-pipelines/common/computeNodeModulesCacheKey.js $VSCODE_ARCH $ENABLE_TERRAPIN > .build/yarnlockhash
-    displayName: Prepare yarn cache flags
+  # - script: |
+  #     mkdir -p .build
+  #     node build/azure-pipelines/common/computeNodeModulesCacheKey.js $VSCODE_ARCH $ENABLE_TERRAPIN > .build/yarnlockhash
+  #   displayName: Prepare yarn cache flags
 
-  - task: Cache@2
-    inputs:
-      key: "nodeModules | $(Agent.OS) | .build/yarnlockhash"
-      path: .build/node_modules_cache
-      cacheHitVar: NODE_MODULES_RESTORED
-    displayName: Restore node_modules cache
+  # - task: Cache@2
+  #   inputs:
+  #     key: "nodeModules | $(Agent.OS) | .build/yarnlockhash"
+  #     path: .build/node_modules_cache
+  #     cacheHitVar: NODE_MODULES_RESTORED
+  #   displayName: Restore node_modules cache
 
-  - script: |
-      set -e
-      tar -xzf .build/node_modules_cache/cache.tgz
-    condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
-    displayName: Extract node_modules cache
+  # - script: |
+  #     set -e
+  #     tar -xzf .build/node_modules_cache/cache.tgz
+  #   condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
+  #   displayName: Extract node_modules cache
 
   - script: |
       set -e
@@ -114,13 +110,13 @@ steps:
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-  - script: |
-      set -e
-      node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
-      mkdir -p .build/node_modules_cache
-      tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-    displayName: Create node_modules archive
+  # - script: |
+  #     set -e
+  #     node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
+  #     mkdir -p .build/node_modules_cache
+  #     tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
+  #   condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+  #   displayName: Create node_modules archive
 
   - script: |
       set -e
@@ -212,7 +208,7 @@ steps:
       set -e
       APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
       yarn smoketest-no-compile --build "$APP_PATH" --electronArgs="--disable-dev-shm-usage --use-gl=swiftshader" --screenshots $(Build.SourcesDirectory)/.build/logs/smoke-tests
-    timeoutInMinutes: 5
+    timeoutInMinutes: 10
     displayName: Run smoke tests (Electron)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
@@ -221,7 +217,7 @@ steps:
       APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)" \
       yarn smoketest-no-compile --build "$APP_PATH" --remote --electronArgs="--disable-dev-shm-usage --use-gl=swiftshader" --screenshots $(Build.SourcesDirectory)/.build/logs/smoke-tests-remote
-    timeoutInMinutes: 5
+    timeoutInMinutes: 10
     displayName: Run smoke tests (Remote)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
@@ -229,7 +225,7 @@ steps:
       set -e
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-linux-$(VSCODE_ARCH)" \
       yarn smoketest-no-compile --web --headless --electronArgs="--disable-dev-shm-usage --use-gl=swiftshader"
-    timeoutInMinutes: 5
+    timeoutInMinutes: 10
     displayName: Run smoke tests (Browser)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
@@ -293,9 +289,6 @@ steps:
 
   - script: |
       set -e
-      AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
-      AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
-      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
       VSCODE_ARCH="$(VSCODE_ARCH)" \
       ./build/azure-pipelines/linux/prepare-publish.sh
     displayName: Prepare for Publish

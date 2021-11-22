@@ -59,6 +59,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	userHome: string | undefined;
 	isDisconnected: boolean = false;
 	environmentVariableInfo: IEnvironmentVariableInfo | undefined;
+	backend: ITerminalBackend | undefined;
 
 	private _isDisposed: boolean = false;
 	private _process: ITerminalChildProcess | null = null;
@@ -167,6 +168,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 	async detachFromProcess(): Promise<void> {
 		await this._process?.detach?.();
+		this._process = null;
 	}
 
 	async createProcess(
@@ -192,11 +194,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			} else {
 				this.remoteAuthority = this._workbenchEnvironmentService.remoteAuthority;
 			}
-
 			const backend = this._terminalInstanceService.getBackend(this.remoteAuthority);
 			if (!backend) {
 				throw new Error(`No terminal backend registered for remote authority '${this.remoteAuthority}'`);
 			}
+			this.backend = backend;
 
 			// Create variable resolver
 			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();

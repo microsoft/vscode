@@ -9,7 +9,14 @@
     "vscode": "^1.5.0"
   },
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
-  "enableProposedApi": true,
+  "enabledApiProposals": [
+    "diffCommand",
+    "contribViewsWelcome",
+    "scmActionButton",
+    "scmSelectedProvider",
+    "scmValidation",
+    "timeline"
+  ],
   "categories": [
     "Other"
   ],
@@ -23,7 +30,6 @@
     "compile": "gulp compile-extension:git",
     "watch": "gulp watch-extension:git",
     "update-emoji": "node ./build/update-emoji.js",
-    "update-grammar": "node ./build/update-grammars.js",
     "test": "node ../../node_modules/mocha/bin/mocha"
   },
   "capabilities": {
@@ -75,7 +81,8 @@
         "command": "git.openChange",
         "title": "%command.openChange%",
         "category": "Git",
-        "icon": "$(compare-changes)"
+        "icon": "$(compare-changes)",
+        "enablement": "scmActiveResourceHasChanges"
       },
       {
         "command": "git.openAllChanges",
@@ -2290,78 +2297,6 @@
         }
       }
     ],
-    "languages": [
-      {
-        "id": "git-commit",
-        "aliases": [
-          "Git Commit Message",
-          "git-commit"
-        ],
-        "filenames": [
-          "COMMIT_EDITMSG",
-          "MERGE_MSG"
-        ],
-        "configuration": "./languages/git-commit.language-configuration.json"
-      },
-      {
-        "id": "git-rebase",
-        "aliases": [
-          "Git Rebase Message",
-          "git-rebase"
-        ],
-        "filenames": [
-          "git-rebase-todo"
-        ],
-        "configuration": "./languages/git-rebase.language-configuration.json"
-      },
-      {
-        "id": "diff",
-        "aliases": [
-          "Diff",
-          "diff"
-        ],
-        "extensions": [
-          ".diff",
-          ".patch",
-          ".rej"
-        ],
-        "configuration": "./languages/diff.language-configuration.json"
-      },
-      {
-        "id": "ignore",
-        "aliases": [
-          "Ignore",
-          "ignore"
-        ],
-        "extensions": [
-          ".gitignore_global",
-          ".gitignore"
-        ],
-        "configuration": "./languages/ignore.language-configuration.json"
-      }
-    ],
-    "grammars": [
-      {
-        "language": "git-commit",
-        "scopeName": "text.git-commit",
-        "path": "./syntaxes/git-commit.tmLanguage.json"
-      },
-      {
-        "language": "git-rebase",
-        "scopeName": "text.git-rebase",
-        "path": "./syntaxes/git-rebase.tmLanguage.json"
-      },
-      {
-        "language": "diff",
-        "scopeName": "source.diff",
-        "path": "./syntaxes/diff.tmLanguage.json"
-      },
-      {
-        "language": "ignore",
-        "scopeName": "source.ignore",
-        "path": "./syntaxes/ignore.tmLanguage.json"
-      }
-    ],
     "configurationDefaults": {
       "[git-commit]": {
         "editor.rulers": [
@@ -2431,7 +2366,7 @@
   "dependencies": {
     "byline": "^5.0.0",
     "file-type": "^7.2.0",
-    "iconv-lite-umd": "0.6.8",
+    "iconv-lite-umd": "0.6.10",
     "jschardet": "3.0.0",
     "vscode-extension-telemetry": "0.4.3",
     "vscode-nls": "^4.0.0",

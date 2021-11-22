@@ -166,8 +166,7 @@ export class GitTimelineProvider implements TimelineProvider {
 			if (showAuthor) {
 				item.description = c.authorName;
 			}
-			// allow-any-unicode-next-line
-			item.detail = `${c.authorName} (${c.authorEmail}) — ${c.hash.substr(0, 8)}\n${dateFormatter.format(date)}\n\n${message}`;
+			item.detail = `${c.authorName} (${c.authorEmail}) \u2014 ${c.hash.substr(0, 8)}\n${dateFormatter.format(date)}\n\n${message}`;
 
 			const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
 			if (cmd) {
@@ -192,8 +191,7 @@ export class GitTimelineProvider implements TimelineProvider {
 				// TODO@eamodio: Replace with a better icon -- reflecting its status maybe?
 				item.iconPath = new ThemeIcon('git-commit');
 				item.description = '';
-				// allow-any-unicode-next-line
-				item.detail = localize('git.timeline.detail', '{0}  — {1}\n{2}\n\n{3}', you, localize('git.index', 'Index'), dateFormatter.format(date), Resource.getStatusText(index.type));
+				item.detail = localize('git.timeline.detail', '{0}  \u2014 {1}\n{2}\n\n{3}', you, localize('git.index', 'Index'), dateFormatter.format(date), Resource.getStatusText(index.type));
 
 				const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
 				if (cmd) {
@@ -215,8 +213,7 @@ export class GitTimelineProvider implements TimelineProvider {
 				// TODO@eamodio: Replace with a better icon -- reflecting its status maybe?
 				item.iconPath = new ThemeIcon('git-commit');
 				item.description = '';
-				// allow-any-unicode-next-line
-				item.detail = localize('git.timeline.detail', '{0}  — {1}\n{2}\n\n{3}', you, localize('git.workingTree', 'Working Tree'), dateFormatter.format(date), Resource.getStatusText(working.type));
+				item.detail = localize('git.timeline.detail', '{0}  \u2014 {1}\n{2}\n\n{3}', you, localize('git.workingTree', 'Working Tree'), dateFormatter.format(date), Resource.getStatusText(working.type));
 
 				const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
 				if (cmd) {

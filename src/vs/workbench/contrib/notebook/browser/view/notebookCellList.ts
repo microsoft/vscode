@@ -924,6 +924,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		super.domFocus();
 	}
 
+	focusContainer() {
+		super.domFocus();
+	}
+
 	getViewScrollTop() {
 		return this.view.getScrollTop();
 	}

@@ -183,6 +183,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		@IConfigurationService protected readonly _configurationService: IConfigurationService,
 		@IExtensionManifestPropertiesService protected readonly _extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IWebExtensionsScannerService protected readonly _webExtensionsScannerService: IWebExtensionsScannerService,
+		@ILogService protected readonly _logService: ILogService,
 	) {
 		super();
 
@@ -495,6 +496,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			const workspace = await this._contextService.getCompleteWorkspace();
 			const forceUsingSearch = !!this._environmentService.remoteAuthority;
 			const host: IWorkspaceContainsActivationHost = {
+				logService: this._logService,
 				folders: workspace.folders.map(folder => folder.uri),
 				forceUsingSearch: forceUsingSearch,
 				exists: (uri) => this._fileService.exists(uri),
