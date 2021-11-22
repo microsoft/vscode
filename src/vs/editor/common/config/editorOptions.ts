@@ -3279,7 +3279,7 @@ export type InternalUnicodeHighlightOptions = Required<Readonly<IUnicodeHighligh
  * @internal
  */
 export const unicodeHighlightConfigKeys = {
-	allowedCharacters: 'editor.unicodeHighlight.excludedCharacters',
+	allowedCharacters: 'editor.unicodeHighlight.allowedCharacters',
 	invisibleCharacters: 'editor.unicodeHighlight.invisibleCharacters',
 	nonBasicASCII: 'editor.unicodeHighlight.nonBasicASCII',
 	ambiguousCharacters: 'editor.unicodeHighlight.ambiguousCharacters',
@@ -3329,9 +3329,9 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 				},
 				[unicodeHighlightConfigKeys.allowedCharacters]: {
 					restricted: true,
-					type: 'array',
+					type: 'string',
 					default: defaults.allowedCharacters,
-					description: nls.localize('unicodeHighlight.allowedCharacters', "Defines a list of allowed characters that are not being highlighted.")
+					description: nls.localize('unicodeHighlight.allowedCharacters', "Defines allowed characters that are not being highlighted.")
 				},
 			}
 		);
