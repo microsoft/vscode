@@ -39,7 +39,7 @@ export interface MessageBoxOptions {
 	 * work with message boxes that do not have a parent window, since those message
 	 * boxes run synchronously due to platform limitations.
 	 */
-	signal?: { readonly aborted: boolean; onabort: Function | null }; // Inlined to prevent lib.dom.ts dependency
+	signal?: AbortSignal;
 	/**
 	 * Title of the message box, some platforms will not show it.
 	 */

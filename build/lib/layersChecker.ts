@@ -65,7 +65,8 @@ const CORE_TYPES = [
 	'BigUint64Array',
 	'BigInt64Array',
 	'btoa',
-	'atob'
+	'atob',
+	'AbortSignal'
 ];
 
 // Types that are defined in a common layer but are known to be only
@@ -106,8 +107,8 @@ const RULES = [
 	// Common: vs/platform/environment/common/*
 	{
 		target: '**/vs/platform/environment/common/*.ts',
-		disallowedTypes: [/* Ignore native types that are defined from here */],
 		allowedTypes: CORE_TYPES,
+		disallowedTypes: [/* Ignore native types that are defined from here */],
 		disallowedDefinitions: [
 			'lib.dom.d.ts', // no DOM
 			'@types/node'	// no node.js
@@ -117,8 +118,8 @@ const RULES = [
 	// Common: vs/platform/windows/common/windows.ts
 	{
 		target: '**/vs/platform/windows/common/windows.ts',
-		disallowedTypes: [/* Ignore native types that are defined from here */],
 		allowedTypes: CORE_TYPES,
+		disallowedTypes: [/* Ignore native types that are defined from here */],
 		disallowedDefinitions: [
 			'lib.dom.d.ts', // no DOM
 			'@types/node'	// no node.js
@@ -128,8 +129,8 @@ const RULES = [
 	// Common: vs/platform/native/common/native.ts
 	{
 		target: '**/vs/platform/native/common/native.ts',
-		disallowedTypes: [/* Ignore native types that are defined from here */],
 		allowedTypes: CORE_TYPES,
+		disallowedTypes: [/* Ignore native types that are defined from here */],
 		disallowedDefinitions: [
 			'lib.dom.d.ts', // no DOM
 			'@types/node'	// no node.js
