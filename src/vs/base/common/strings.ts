@@ -1086,6 +1086,10 @@ export class AmbiguousCharacters {
 	public static getPrimaryConfusable(codePoint: number): number | undefined {
 		return AmbiguousCharacters.getConfusablesForCurrentLocale().get(codePoint);
 	}
+
+	public static getPrimaryConfusableCodePoints(): ReadonlySet<number> {
+		return new Set(AmbiguousCharacters.getConfusablesForCurrentLocale().keys());
+	}
 }
 
 export class InvisibleCharacters {
@@ -1104,5 +1108,9 @@ export class InvisibleCharacters {
 
 	public static isInvisibleCharacter(codePoint: number): boolean {
 		return InvisibleCharacters.getData().has(codePoint);
+	}
+
+	public static get codePoints(): ReadonlySet<number> {
+		return InvisibleCharacters.getData();
 	}
 }

@@ -450,14 +450,14 @@ export class ShowExcludeOptions extends EditorAction {
 				label: nls.localize('unicodeHighlight.excludeCharFromBeingHighlighted', 'Exclude {0} from being highlighted', `U+${codePoint.toString(16)} "${char}"`),
 				run: async () => {
 					const existingValue = configurationService.getValue(unicodeHighlightConfigKeys.allowedCharacters);
-					let value: string[];
-					if (Array.isArray(existingValue)) {
-						value = [...existingValue as string[]];
+					let value: string;
+					if (typeof existingValue === 'string') {
+						value = existingValue;
 					} else {
-						value = [];
+						value = '';
 					}
 
-					value.push(char);
+					value += char;
 					await configurationService.updateValue(unicodeHighlightConfigKeys.allowedCharacters, value, ConfigurationTarget.USER);
 				}
 			},

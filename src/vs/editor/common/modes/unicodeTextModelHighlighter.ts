@@ -8,16 +8,20 @@ import { Searcher } from 'vs/editor/common/model/textModelSearch';
 import * as strings from 'vs/base/common/strings';
 
 export class UnicodeTextModelHighlighter {
-	public static NON_BASIC_ASCII_REGEX = '[^\\t\\n\\r\\x20-\\x7E]';
-
 	public static computeUnicodeHighlights(model: IUnicodeCharacterSearcherTarget, options: UnicodeHighlighterOptions, range?: IRange): Range[] {
 		const startLine = range ? range.startLineNumber : 1;
 		const endLine = range ? range.endLineNumber : model.getLineCount();
 
 		const codePointHighlighter = new CodePointHighlighter(options);
 
-		// Only check for non-basic ASCII characters
-		const regex = new RegExp(UnicodeTextModelHighlighter.NON_BASIC_ASCII_REGEX, 'g');
+		const candidates = codePointHighlighter.getCandidateCodePoints();
+		let regex: RegExp;
+		if (candidates === 'allNonBasicAscii') {
+			regex = new RegExp('[^\\t\\n\\r\\x20-\\x7E]', 'g');
+		} else {
+			regex = new RegExp(`${buildRegExpCharClassExpr(Array.from(candidates))}`, 'g');
+		}
+
 		const searcher = new Searcher(null, regex);
 		const result: Range[] = [];
 		let m: RegExpExecArray | null;
@@ -49,6 +53,12 @@ export class UnicodeTextModelHighlighter {
 					const str = lineContent.substring(startIndex, endIndex);
 					if (codePointHighlighter.shouldHighlightNonBasicASCII(str) !== SimpleHighlightReason.None) {
 						result.push(new Range(lineNumber, startIndex + 1, lineNumber, endIndex + 1));
+
+						const maxResultLength = 1000;
+						if (result.length > maxResultLength) {
+							// TODO@hediet a message should be shown in this case
+							break;
+						}
 					}
 				}
 			} while (m);
@@ -76,6 +86,13 @@ export class UnicodeTextModelHighlighter {
 	}
 }
 
+function buildRegExpCharClassExpr(codePoints: number[], flags?: string): string {
+	const src = `[${strings.escapeRegExpCharacters(
+		codePoints.map((i) => String.fromCodePoint(i)).join('')
+	)}]`;
+	return src;
+}
+
 export const enum UnicodeHighlighterReasonKind {
 	Ambiguous, Invisible, NonBasicAscii
 }
@@ -93,6 +110,32 @@ class CodePointHighlighter {
 	private readonly allowedCodePoints: Set<number>;
 	constructor(private readonly options: UnicodeHighlighterOptions) {
 		this.allowedCodePoints = new Set(options.allowedCodePoints);
+	}
+
+	public getCandidateCodePoints(): Set<number> | 'allNonBasicAscii' {
+		if (this.options.nonBasicASCII) {
+			return 'allNonBasicAscii';
+		}
+
+		const set = new Set<number>();
+
+		if (this.options.invisibleCharacters) {
+			for (const cp of strings.InvisibleCharacters.codePoints) {
+				set.add(cp);
+			}
+		}
+
+		if (this.options.ambiguousCharacters) {
+			for (const cp of strings.AmbiguousCharacters.getPrimaryConfusableCodePoints()) {
+				set.add(cp);
+			}
+		}
+
+		for (const cp of this.allowedCodePoints) {
+			set.delete(cp);
+		}
+
+		return set;
 	}
 
 	public shouldHighlightNonBasicASCII(character: string): SimpleHighlightReason {
