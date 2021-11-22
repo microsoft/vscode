@@ -287,6 +287,7 @@ export class NotebookEditorToolbar extends Disposable {
 
 		this._notebookLeftToolbar.setActions([], []);
 
+		this._primaryActions.forEach(action => action.renderLabel = true);
 		this._notebookLeftToolbar.setActions(primaryActions, secondaryActions);
 		this._notebookRightToolbar.setActions(primaryRightActions, []);
 		this._secondaryActions = secondaryActions;
