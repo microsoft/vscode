@@ -15,7 +15,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { MultilineTokensBuilder, countEOL } from 'vs/editor/common/model/tokensStore';
-import * as platform from 'vs/base/common/platform';
+import { runWhenIdle, IdleDeadline } from 'vs/base/common/async';
 
 const enum Constants {
 	CHEAP_TOKENIZATION_LENGTH_LIMIT = 2048
@@ -255,19 +255,26 @@ export class TextModelTokenization extends Disposable {
 		this._beginBackgroundTokenization();
 	}
 
+	private _isScheduled = false;
 	private _beginBackgroundTokenization(): void {
-		if (this._textModel.isAttachedToEditor() && this._hasLinesToTokenize()) {
-			platform.setImmediate(() => {
-				if (this._isDisposed) {
-					// disposed in the meantime
-					return;
-				}
-				this._revalidateTokensNow();
-			});
+		if (this._isScheduled || !this._textModel.isAttachedToEditor() || !this._hasLinesToTokenize()) {
+			return;
 		}
+
+		this._isScheduled = true;
+		runWhenIdle((deadline) => {
+			this._isScheduled = false;
+
+			if (this._isDisposed) {
+				// disposed in the meantime
+				return;
+			}
+
+			this._revalidateTokensNow(deadline);
+		});
 	}
 
-	private _revalidateTokensNow(): void {
+	private _revalidateTokensNow(deadline: IdleDeadline): void {
 		const textModelLastLineNumber = this._textModel.getLineCount();
 
 		const MAX_ALLOWED_TIME = 1;
@@ -275,7 +282,7 @@ export class TextModelTokenization extends Disposable {
 		const sw = StopWatch.create(false);
 		let tokenizedLineNumber = -1;
 
-		while (this._hasLinesToTokenize()) {
+		do {
 			if (sw.elapsed() > MAX_ALLOWED_TIME) {
 				// Stop if MAX_ALLOWED_TIME is reached
 				break;
@@ -286,7 +293,7 @@ export class TextModelTokenization extends Disposable {
 			if (tokenizedLineNumber >= textModelLastLineNumber) {
 				break;
 			}
-		}
+		} while (this._hasLinesToTokenize() && deadline.timeRemaining() > 0);
 
 		this._beginBackgroundTokenization();
 		this._textModel.setTokens(builder.tokens, !this._hasLinesToTokenize());
