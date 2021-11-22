@@ -6,6 +6,7 @@
   "license": "MIT",
   "enabledApiProposals": [
     "authSession",
+    "contribViewsRemote",
     "customEditorMove",
     "diffCommand",
     "documentFiltersExclusive",
