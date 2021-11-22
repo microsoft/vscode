@@ -89,6 +89,11 @@ export class NativeHostService extends Disposable implements IHostService {
 	}
 
 	private doOpenEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void> {
+		const remoteAuthority = this.environmentService.remoteAuthority;
+		if (!!remoteAuthority && options?.remoteAuthority === undefined) {
+			// set the remoteAuthority of the window the request came from
+			options = options ? { ...options, remoteAuthority } : { remoteAuthority };
+		}
 		return this.nativeHostService.openWindow(options);
 	}
 

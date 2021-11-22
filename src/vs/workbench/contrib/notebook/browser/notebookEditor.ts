@@ -175,8 +175,6 @@ export class NotebookEditor extends EditorPane {
 
 		this.inputListener.value = input.onDidChangeCapabilities(() => this.onDidChangeInputCapabilities(input));
 
-		this._saveEditorViewState(this.input);
-
 		this._widgetDisposableStore.clear();
 
 		// there currently is a widget which we still own so

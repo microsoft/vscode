@@ -173,8 +173,8 @@ if (isWindows) {
 		primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 	});
 }
-// Delete word right: alt+d
-registerSendSequenceKeybinding('\u000d', {
+// Delete word right: alt+d [27, 100]
+registerSendSequenceKeybinding('\u001bd', {
 	primary: KeyMod.CtrlCmd | KeyCode.Delete,
 	mac: { primary: KeyMod.Alt | KeyCode.Delete }
 });

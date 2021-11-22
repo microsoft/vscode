@@ -447,6 +447,17 @@ const terminalConfiguration: IConfigurationNode = {
 			minimum: -1,
 			default: 30,
 		},
+		[TerminalSettingId.LocalEchoEnabled]: {
+			description: localize('terminal.integrated.localEchoEnabled', "When local echo should be enabled. This will override `terminal.integrated.localEchoLatencyThreshold`"),
+			type: 'string',
+			enum: ['on', 'off', 'auto'],
+			enumDescriptions: [
+				localize('terminal.integrated.localEchoEnabled.on', "Always enabled"),
+				localize('terminal.integrated.localEchoEnabled.off', "Always disabled"),
+				localize('terminal.integrated.localEchoEnabled.auto', "Enabled only for remote workspaces")
+			],
+			default: 'auto'
+		},
 		[TerminalSettingId.LocalEchoExcludePrograms]: {
 			description: localize('terminal.integrated.localEchoExcludePrograms', "Experimental: local echo will be disabled when any of these program names are found in the terminal title."),
 			type: 'array',

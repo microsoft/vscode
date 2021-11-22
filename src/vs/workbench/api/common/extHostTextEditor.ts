@@ -226,7 +226,7 @@ export class ExtHostTextEditorOptions {
 			// reflect the new tabSize value immediately
 			this._tabSize = tabSize;
 		}
-		this._warnOnError(this._proxy.$trySetOptions(this._id, {
+		this._warnOnError('setTabSize', this._proxy.$trySetOptions(this._id, {
 			tabSize: tabSize
 		}));
 	}
@@ -250,7 +250,7 @@ export class ExtHostTextEditorOptions {
 			// reflect the new insertSpaces value immediately
 			this._insertSpaces = insertSpaces;
 		}
-		this._warnOnError(this._proxy.$trySetOptions(this._id, {
+		this._warnOnError('setInsertSpaces', this._proxy.$trySetOptions(this._id, {
 			insertSpaces: insertSpaces
 		}));
 	}
@@ -263,7 +263,7 @@ export class ExtHostTextEditorOptions {
 			return;
 		}
 		this._cursorStyle = value;
-		this._warnOnError(this._proxy.$trySetOptions(this._id, {
+		this._warnOnError('setCursorStyle', this._proxy.$trySetOptions(this._id, {
 			cursorStyle: value
 		}));
 	}
@@ -276,7 +276,7 @@ export class ExtHostTextEditorOptions {
 			return;
 		}
 		this._lineNumbers = value;
-		this._warnOnError(this._proxy.$trySetOptions(this._id, {
+		this._warnOnError('setLineNumbers', this._proxy.$trySetOptions(this._id, {
 			lineNumbers: TypeConverters.TextEditorLineNumbersStyle.from(value)
 		}));
 	}
@@ -341,12 +341,15 @@ export class ExtHostTextEditorOptions {
 		}
 
 		if (hasUpdate) {
-			this._warnOnError(this._proxy.$trySetOptions(this._id, bulkConfigurationUpdate));
+			this._warnOnError('setOptions', this._proxy.$trySetOptions(this._id, bulkConfigurationUpdate));
 		}
 	}
 
-	private _warnOnError(promise: Promise<any>): void {
-		promise.catch(err => this._logService.warn(err));
+	private _warnOnError(action: string, promise: Promise<any>): void {
+		promise.catch(err => {
+			this._logService.warn(`ExtHostTextEditorOptions '${action}' failed:'`);
+			this._logService.warn(err);
+		});
 	}
 }
 

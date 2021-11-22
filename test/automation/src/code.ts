@@ -225,14 +225,13 @@ async function poll<T>(
 		if (trial > retryCount) {
 			console.error('** Timeout!');
 			console.error(lastError);
-
+			console.error(`Timeout: ${timeoutMessage} after ${(retryCount * retryInterval) / 1000} seconds.`);
 			throw new Error(`Timeout: ${timeoutMessage} after ${(retryCount * retryInterval) / 1000} seconds.`);
 		}
 
 		let result;
 		try {
 			result = await fn();
-
 			if (acceptFn(result)) {
 				return result;
 			} else {
@@ -250,7 +249,7 @@ async function poll<T>(
 export class Code {
 
 	private _activeWindowId: number | undefined = undefined;
-	private driver: IDriver;
+	driver: IDriver;
 
 	constructor(
 		private client: IDisposable,

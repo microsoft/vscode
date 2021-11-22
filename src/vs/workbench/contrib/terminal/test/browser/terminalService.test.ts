@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual, fail } from 'assert';
-import { IShellLaunchConfig, ITerminalProfile, TerminalLocation } from 'vs/platform/terminal/common/terminal';
+import { fail } from 'assert';
+import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { TerminalService } from 'vs/workbench/contrib/terminal/browser/terminalService';
-import { URI } from 'vs/base/common/uri';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
@@ -23,15 +22,9 @@ import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogSer
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { TestRemoteAgentService } from 'vs/workbench/services/remote/test/common/testServices';
 
-class TestTerminalService extends TerminalService {
-	convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig {
-		return this._convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile, cwd);
-	}
-}
-
 suite('Workbench - TerminalService', () => {
 	let instantiationService: TestInstantiationService;
-	let terminalService: TestTerminalService;
+	let terminalService: TerminalService;
 	let configurationService: TestConfigurationService;
 	let dialogService: TestDialogService;
 
@@ -58,95 +51,8 @@ suite('Workbench - TerminalService', () => {
 		instantiationService.stub(IRemoteAgentService, 'getConnection', null);
 		instantiationService.stub(IDialogService, dialogService);
 
-		terminalService = instantiationService.createInstance(TestTerminalService);
+		terminalService = instantiationService.createInstance(TerminalService);
 		instantiationService.stub(ITerminalService, terminalService);
-	});
-
-	suite('convertProfileToShellLaunchConfig', () => {
-		test('should return an empty shell launch config when undefined is provided', () => {
-			deepStrictEqual(terminalService.convertProfileToShellLaunchConfig(), {});
-			deepStrictEqual(terminalService.convertProfileToShellLaunchConfig(undefined), {});
-		});
-		test('should return the same shell launch config when provided', () => {
-			deepStrictEqual(
-				terminalService.convertProfileToShellLaunchConfig({}),
-				{}
-			);
-			deepStrictEqual(
-				terminalService.convertProfileToShellLaunchConfig({ executable: '/foo' }),
-				{ executable: '/foo' }
-			);
-			deepStrictEqual(
-				terminalService.convertProfileToShellLaunchConfig({ executable: '/foo', cwd: '/bar', args: ['a', 'b'] }),
-				{ executable: '/foo', cwd: '/bar', args: ['a', 'b'] }
-			);
-			deepStrictEqual(
-				terminalService.convertProfileToShellLaunchConfig({ executable: '/foo' }, '/bar'),
-				{ executable: '/foo', cwd: '/bar' }
-			);
-			deepStrictEqual(
-				terminalService.convertProfileToShellLaunchConfig({ executable: '/foo', cwd: '/bar' }, '/baz'),
-				{ executable: '/foo', cwd: '/baz' }
-			);
-		});
-		test('should convert a provided profile to a shell launch config', () => {
-			deepStrictEqual(
-				terminalService.convertProfileToShellLaunchConfig({
-					profileName: 'abc',
-					path: '/foo',
-					isDefault: true
-				}),
-				{
-					args: undefined,
-					color: undefined,
-					cwd: undefined,
-					env: undefined,
-					executable: '/foo',
-					icon: undefined,
-					name: undefined
-				}
-			);
-			const icon = URI.file('/icon');
-			deepStrictEqual(
-				terminalService.convertProfileToShellLaunchConfig({
-					profileName: 'abc',
-					path: '/foo',
-					isDefault: true,
-					args: ['a', 'b'],
-					color: 'color',
-					env: { test: 'TEST' },
-					icon
-				} as ITerminalProfile, '/bar'),
-				{
-					args: ['a', 'b'],
-					color: 'color',
-					cwd: '/bar',
-					env: { test: 'TEST' },
-					executable: '/foo',
-					icon,
-					name: undefined
-				}
-			);
-		});
-		test('should respect overrideName in profile', () => {
-			deepStrictEqual(
-				terminalService.convertProfileToShellLaunchConfig({
-					profileName: 'abc',
-					path: '/foo',
-					isDefault: true,
-					overrideName: true
-				}),
-				{
-					args: undefined,
-					color: undefined,
-					cwd: undefined,
-					env: undefined,
-					executable: '/foo',
-					icon: undefined,
-					name: 'abc'
-				}
-			);
-		});
 	});
 
 	suite('safeDisposeTerminal', () => {

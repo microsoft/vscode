@@ -51,8 +51,6 @@ spdlog/test/**
 spdlog/*.yml
 !spdlog/build/Release/*.node
 
-jschardet/dist/**
-
 windows-foreground-love/binding.gyp
 windows-foreground-love/build/**
 windows-foreground-love/src/**
@@ -132,7 +130,9 @@ node-addon-api/**/*
 **/*.ts
 !typescript/**/*.d.ts
 
-jschardet/dist/**
+jschardet/index.js
+jschardet/src/**
+jschardet/dist/jschardet.js
 
 es6-promise/lib/**
 

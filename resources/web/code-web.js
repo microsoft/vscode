@@ -37,7 +37,7 @@ const ALLOWED_CORS_ORIGINS = [
 	'http://127.0.0.1:8080',
 ];
 
-const WEB_PLAYGROUND_VERSION = '0.0.12';
+const WEB_PLAYGROUND_VERSION = '0.0.13';
 
 const args = minimist(process.argv, {
 	boolean: [

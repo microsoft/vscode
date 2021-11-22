@@ -492,7 +492,8 @@ import { assertNoRpc } from '../utils';
 			// 	const terminal = window.createTerminal({ name: 'foo', pty });
 			// });
 
-			test('should respect dimension overrides', async () => {
+			// TODO: Fix test, flaky in CI (local and remote) https://github.com/microsoft/vscode/issues/137155
+			test.skip('should respect dimension overrides', async () => {
 				const writeEmitter = new EventEmitter<string>();
 				const overrideDimensionsEmitter = new EventEmitter<TerminalDimensions>();
 				const pty: Pseudoterminal = {

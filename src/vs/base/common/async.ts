@@ -9,6 +9,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { extUri as defaultExtUri, IExtUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { setTimeout0 } from 'vs/base/common/platform';
 
 export function isThenable<T>(obj: unknown): obj is Promise<T> {
 	return !!obj && typeof (obj as unknown as Promise<T>).then === 'function';
@@ -968,6 +969,7 @@ export interface IdleDeadline {
 	readonly didTimeout: boolean;
 	timeRemaining(): number;
 }
+
 /**
  * Execute the callback the next time the browser is idle
  */
@@ -979,8 +981,11 @@ declare function cancelIdleCallback(handle: number): void;
 (function () {
 	if (typeof requestIdleCallback !== 'function' || typeof cancelIdleCallback !== 'function') {
 		runWhenIdle = (runner) => {
-			const handle = setTimeout(() => {
-				const end = Date.now() + 15; // one frame at 64fps
+			setTimeout0(() => {
+				if (disposed) {
+					return;
+				}
+				const end = Date.now() + 3; // yield often
 				runner(Object.freeze({
 					didTimeout: true,
 					timeRemaining() {
@@ -995,7 +1000,6 @@ declare function cancelIdleCallback(handle: number): void;
 						return;
 					}
 					disposed = true;
-					clearTimeout(handle);
 				}
 			};
 		};

@@ -101,13 +101,13 @@ flakySuite('Recursive Watcher (parcel)', () => {
 		}
 	}
 
-	function awaitEvent(service: TestParcelWatcherService, path: string, type: FileChangeType, failOnEventReason?: string): Promise<void> {
+	async function awaitEvent(service: TestParcelWatcherService, path: string, type: FileChangeType, failOnEventReason?: string): Promise<void> {
 		if (loggingEnabled) {
 			console.log(`Awaiting change type '${toMsg(type)}' on file '${path}'`);
 		}
 
 		// Await the event
-		return new Promise<void>((resolve, reject) => {
+		await new Promise<void>((resolve, reject) => {
 			const disposable = service.onDidChangeFile(events => {
 				for (const event of events) {
 					if (event.path === path && event.type === type) {
@@ -122,6 +122,12 @@ flakySuite('Recursive Watcher (parcel)', () => {
 				}
 			});
 		});
+
+		// Unwind from the event call stack: we have seen crashes in Parcel
+		// when e.g. calling `unsubscribe` directly from the stack of a file
+		// change event
+		// Refs: https://github.com/microsoft/vscode/issues/137430
+		await timeout(1);
 	}
 
 	function awaitMessage(service: TestParcelWatcherService, type: 'trace' | 'warn' | 'error' | 'info' | 'debug'): Promise<void> {
@@ -395,8 +401,6 @@ flakySuite('Recursive Watcher (parcel)', () => {
 		changeFuture = awaitEvent(service, newTextFilePath, FileChangeType.ADDED);
 		await Promises.writeFile(newTextFilePath, 'Hello World');
 		await changeFuture;
-
-		return service.stop();
 	});
 
 	test('subsequent watch updates watchers (excludes)', async function () {
@@ -408,8 +412,6 @@ flakySuite('Recursive Watcher (parcel)', () => {
 		let changeFuture: Promise<unknown> = awaitEvent(service, newTextFilePath, FileChangeType.ADDED);
 		await Promises.writeFile(newTextFilePath, 'Hello World');
 		await changeFuture;
-
-		return service.stop();
 	});
 
 	(isWindows /* windows: cannot create file symbolic link without elevated context */ ? test.skip : test)('symlink support (root)', async function () {
