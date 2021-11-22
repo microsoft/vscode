@@ -90,21 +90,21 @@ export type UnicodeHighlighterReason = {
 };
 
 class CodePointHighlighter {
-	private readonly excludedCharacters: Set<string>;
+	private readonly allowedCodePoints: Set<number>;
 	constructor(private readonly options: UnicodeHighlighterOptions) {
-		this.excludedCharacters = new Set(options.excludedCharacters);
+		this.allowedCodePoints = new Set(options.allowedCodePoints);
 	}
 
 	public shouldHighlightNonBasicASCII(character: string): SimpleHighlightReason {
-		if (this.excludedCharacters.has(character)) {
+		const codePoint = character.codePointAt(0)!;
+
+		if (this.allowedCodePoints.has(codePoint)) {
 			return SimpleHighlightReason.None;
 		}
 
 		if (this.options.nonBasicASCII) {
 			return SimpleHighlightReason.NonBasicASCII;
 		}
-
-		const codePoint = character.codePointAt(0)!;
 
 		if (this.options.invisibleCharacters) {
 			const isAllowedInvisibleCharacter = character === ' ' || character === '\n' || character === '\t';
@@ -141,5 +141,5 @@ export interface UnicodeHighlighterOptions {
 	ambiguousCharacters: boolean;
 	invisibleCharacters: boolean;
 	includeComments: boolean;
-	excludedCharacters: string[];
+	allowedCodePoints: number[];
 }

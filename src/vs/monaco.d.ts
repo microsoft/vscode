@@ -3863,15 +3863,20 @@ declare namespace monaco.editor {
 		readonly scrollByPage: boolean;
 	}
 
+	export type DeriveFromWorkspaceTrust = 'deriveFromWorkspaceTrust';
+
 	/**
 	 * Configuration options for unicode highlighting.
 	 */
 	export interface IUnicodeHighlightOptions {
-		nonBasicASCII?: boolean;
-		invisibleCharacters?: boolean;
-		ambiguousCharacters?: boolean;
-		includeComments?: boolean;
-		allowedCharacters?: string[];
+		nonBasicASCII?: boolean | DeriveFromWorkspaceTrust;
+		invisibleCharacters?: boolean | DeriveFromWorkspaceTrust;
+		ambiguousCharacters?: boolean | DeriveFromWorkspaceTrust;
+		includeComments?: boolean | DeriveFromWorkspaceTrust;
+		/**
+		 * A list of allowed code points in a single string.
+		*/
+		allowedCharacters?: string;
 	}
 
 	export interface IInlineSuggestOptions {
@@ -4365,7 +4370,7 @@ declare namespace monaco.editor {
 		suggestSelection: IEditorOption<EditorOption.suggestSelection, 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix'>;
 		tabCompletion: IEditorOption<EditorOption.tabCompletion, 'on' | 'off' | 'onlySnippets'>;
 		tabIndex: IEditorOption<EditorOption.tabIndex, number>;
-		unicodeHighlight: IEditorOption<EditorOption.unicodeHighlighting, Readonly<IUnicodeHighlightOptions>>;
+		unicodeHighlight: IEditorOption<EditorOption.unicodeHighlighting, Required<Readonly<IUnicodeHighlightOptions>>>;
 		unusualLineTerminators: IEditorOption<EditorOption.unusualLineTerminators, 'auto' | 'off' | 'prompt'>;
 		useShadowDOM: IEditorOption<EditorOption.useShadowDOM, boolean>;
 		useTabStops: IEditorOption<EditorOption.useTabStops, boolean>;

@@ -11,7 +11,7 @@ import { InvisibleCharacters } from 'vs/base/common/strings';
 import 'vs/css!./unicodeHighlighter';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditorOption, InternalUnicodeHighlightOptions, IUnicodeHighlightOptions, unicodeHighlightConfigKeys } from 'vs/editor/common/config/editorOptions';
+import { DeriveFromWorkspaceTrust, deriveFromWorkspaceTrust, EditorOption, InternalUnicodeHighlightOptions, unicodeHighlightConfigKeys } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDecoration, IModelDeltaDecoration, ITextModel, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
@@ -96,7 +96,7 @@ export class UnicodeHighlighter extends Disposable implements IEditorContributio
 			ambiguousCharacters: options.ambiguousCharacters,
 			invisibleCharacters: options.invisibleCharacters,
 			includeComments: options.includeComments,
-			excludedCharacters: options.allowedCharacters,
+			allowedCodePoints: Array.from(options.allowedCharacters).map(c => c.codePointAt(0)!),
 		};
 
 		if (this._editorWorkerService.canComputeUnicodeHighlights(this._editor.getModel().uri)) {
@@ -118,24 +118,27 @@ export interface UnicodeHighlighterDecorationInfo {
 	reason: UnicodeHighlighterReason;
 }
 
-function resolveOptions(_trusted: boolean, options: Readonly<IUnicodeHighlightOptions>): Required<Readonly<IUnicodeHighlightOptions>> {
+type RemoveDeriveFromWorkspaceTrust<T> = T extends DeriveFromWorkspaceTrust ? never : T;
+
+function resolveOptions(_trusted: boolean, options: InternalUnicodeHighlightOptions): { [TKey in keyof InternalUnicodeHighlightOptions]: RemoveDeriveFromWorkspaceTrust<InternalUnicodeHighlightOptions[TKey]> } {
 	/*
 	// TODO@hediet enable some settings by default (depending on trust).
 	// For now, make it opt in, so there is some time to test it without breaking anyone.
 
 	return {
-		nonBasicASCII: options.nonBasicASCII ?? (trusted ? false : true),
-		ambiguousCharacters: options.ambiguousCharacters ?? (trusted ? false : true),
-		invisibleCharacters: options.invisibleCharacters ?? (trusted ? true : true),
-		excludeComments: options.excludeComments ?? (trusted ? true : false),
+		nonBasicASCII: options.nonBasicASCII !== deriveFromWorkspaceTrust ? options.nonBasicASCII : (trusted ? false : true),
+		ambiguousCharacters: options.ambiguousCharacters !== deriveFromWorkspaceTrust ? options.ambiguousCharacters : (trusted ? false : true),
+		invisibleCharacters: options.invisibleCharacters !== deriveFromWorkspaceTrust ? options.invisibleCharacters : (trusted ? true : true),
+		includeComments: options.includeComments !== deriveFromWorkspaceTrust ? options.includeComments : (trusted ? true : false),
+		allowedCharacters: options.allowedCharacters ?? [],
 	};
 	*/
 
 	return {
-		nonBasicASCII: options.nonBasicASCII ?? false,
-		ambiguousCharacters: options.ambiguousCharacters ?? false,
-		invisibleCharacters: options.invisibleCharacters ?? false,
-		includeComments: options.includeComments ?? true,
+		nonBasicASCII: options.nonBasicASCII !== deriveFromWorkspaceTrust ? options.nonBasicASCII : false,
+		ambiguousCharacters: options.ambiguousCharacters !== deriveFromWorkspaceTrust ? options.ambiguousCharacters : false,
+		invisibleCharacters: options.invisibleCharacters !== deriveFromWorkspaceTrust ? options.invisibleCharacters : false,
+		includeComments: options.includeComments !== deriveFromWorkspaceTrust ? options.includeComments : true,
 		allowedCharacters: options.allowedCharacters ?? [],
 	};
 }
