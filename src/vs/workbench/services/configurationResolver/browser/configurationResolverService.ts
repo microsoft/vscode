@@ -24,7 +24,7 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 export abstract class BaseConfigurationResolverService extends AbstractVariableResolverService {
 
 	static readonly INPUT_OR_COMMAND_VARIABLES_PATTERN = /\${((input|command):(.*?))}/g;
-	static readonly USER_DEFINED_PARAMETERS = /\${((params):(.*?))}/g;
+	static readonly USER_DEFINED_VARIABLES_PATTERN = /\${((params):(.*?))}/g;
 
 	constructor(
 		context: {
