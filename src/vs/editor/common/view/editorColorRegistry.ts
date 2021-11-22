@@ -45,6 +45,7 @@ export const editorUnnecessaryCodeOpacity = registerColor('editorUnnecessaryCode
 
 export const ghostTextBorder = registerColor('editorGhostText.border', { dark: null, light: null, hc: Color.fromHex('#fff').transparent(0.8) }, nls.localize('editorGhostTextBorder', 'Border color of ghost text in the editor.'));
 export const ghostTextForeground = registerColor('editorGhostText.foreground', { dark: Color.fromHex('#ffffff56'), light: Color.fromHex('#0007'), hc: null }, nls.localize('editorGhostTextForeground', 'Foreground color of the ghost text in the editor.'));
+export const ghostTextBackground = registerColor('editorGhostText.background', { dark: null, light: null, hc: null }, nls.localize('editorGhostTextBackground', 'Background color of the ghost text in the editor.'));
 
 const rulerRangeDefault = new Color(new RGBA(0, 122, 204, 0.6));
 export const overviewRulerRangeHighlight = registerColor('editorOverviewRuler.rangeHighlightForeground', { dark: rulerRangeDefault, light: rulerRangeDefault, hc: rulerRangeDefault }, nls.localize('overviewRulerRangeHighlight', 'Overview ruler marker color for range highlights. The color must not be opaque so as not to hide underlying decorations.'), true);
@@ -74,6 +75,8 @@ export const editorBracketPairGuideActiveBackground3 = registerColor('editorBrac
 export const editorBracketPairGuideActiveBackground4 = registerColor('editorBracketPairGuide.activeBackground4', { dark: '#00000000', light: '#00000000', hc: '#00000000' }, nls.localize('editorBracketPairGuide.activeBackground4', 'Background color of active bracket pair guides (4). Requires enabling bracket pair guides.'));
 export const editorBracketPairGuideActiveBackground5 = registerColor('editorBracketPairGuide.activeBackground5', { dark: '#00000000', light: '#00000000', hc: '#00000000' }, nls.localize('editorBracketPairGuide.activeBackground5', 'Background color of active bracket pair guides (5). Requires enabling bracket pair guides.'));
 export const editorBracketPairGuideActiveBackground6 = registerColor('editorBracketPairGuide.activeBackground6', { dark: '#00000000', light: '#00000000', hc: '#00000000' }, nls.localize('editorBracketPairGuide.activeBackground6', 'Background color of active bracket pair guides (6). Requires enabling bracket pair guides.'));
+
+export const editorUnicodeHighlightBorder = registerColor('editorUnicodeHighlight.border', { dark: '#ff0000', light: '#ff0000', hc: '#ff0000' }, nls.localize('editorUnicodeHighlight.border', 'Border color used to highlight unicode characters.'));
 
 
 // contains all color rules that used to defined in editor/browser/widget/editor.css

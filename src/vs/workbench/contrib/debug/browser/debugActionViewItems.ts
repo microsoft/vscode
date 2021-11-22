@@ -27,7 +27,7 @@ const $ = dom.$;
 
 export class StartDebugActionViewItem extends BaseActionViewItem {
 
-	private static readonly SEPARATOR = '─────────';
+	private static readonly SEPARATOR = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 
 	private container!: HTMLElement;
 	private start!: HTMLElement;

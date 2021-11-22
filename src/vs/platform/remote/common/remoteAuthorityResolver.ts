@@ -19,11 +19,14 @@ export interface ResolvedAuthority {
 export interface ResolvedOptions {
 	readonly extensionHostEnv?: { [key: string]: string | null };
 	readonly isTrusted?: boolean;
+	readonly authenticationSession?: { id: string, providerId: string };
 }
 
 export interface TunnelDescription {
 	remoteAddress: { port: number, host: string };
 	localAddress: { port: number, host: string } | string;
+	privacy?: string;
+	protocol?: string;
 }
 export interface TunnelInformation {
 	environmentTunnels?: TunnelDescription[];

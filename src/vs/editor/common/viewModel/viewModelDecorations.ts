@@ -8,9 +8,10 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IModelDecoration, ITextModel, PositionAffinity } from 'vs/editor/common/model';
-import { IViewModelLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
+import { IViewModelLines } from 'vs/editor/common/viewModel/viewModelLines';
 import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
+import { StandardTokenType } from 'vs/editor/common/modes';
 
 export interface IDecorationsViewportData {
 	/**
@@ -28,7 +29,7 @@ export class ViewModelDecorations implements IDisposable {
 	private readonly editorId: number;
 	private readonly model: ITextModel;
 	private readonly configuration: editorCommon.IConfiguration;
-	private readonly _linesCollection: IViewModelLinesCollection;
+	private readonly _linesCollection: IViewModelLines;
 	private readonly _coordinatesConverter: ICoordinatesConverter;
 
 	private _decorationsCache: { [decorationId: string]: ViewModelDecoration; };
@@ -36,7 +37,7 @@ export class ViewModelDecorations implements IDisposable {
 	private _cachedModelDecorationsResolver: IDecorationsViewportData | null;
 	private _cachedModelDecorationsResolverViewRange: Range | null;
 
-	constructor(editorId: number, model: ITextModel, configuration: editorCommon.IConfiguration, linesCollection: IViewModelLinesCollection, coordinatesConverter: ICoordinatesConverter) {
+	constructor(editorId: number, model: ITextModel, configuration: editorCommon.IConfiguration, linesCollection: IViewModelLines, coordinatesConverter: ICoordinatesConverter) {
 		this.editorId = editorId;
 		this.model = model;
 		this.configuration = configuration;
@@ -107,6 +108,7 @@ export class ViewModelDecorations implements IDisposable {
 
 	private _getDecorationsViewportData(viewportRange: Range): IDecorationsViewportData {
 		const modelDecorations = this._linesCollection.getDecorationsInRange(viewportRange, this.editorId, filterValidationDecorations(this.configuration.options));
+
 		const startLineNumber = viewportRange.startLineNumber;
 		const endLineNumber = viewportRange.endLineNumber;
 
@@ -119,6 +121,18 @@ export class ViewModelDecorations implements IDisposable {
 		for (let i = 0, len = modelDecorations.length; i < len; i++) {
 			let modelDecoration = modelDecorations[i];
 			let decorationOptions = modelDecoration.options;
+
+			if (decorationOptions.hideInCommentTokens) {
+				let allTokensComments = testTokensInRange(
+					this.model,
+					modelDecoration.range,
+					(tokenType) => tokenType === StandardTokenType.Comment
+				);
+
+				if (allTokensComments) {
+					continue;
+				}
+			}
 
 			let viewModelDecoration = this._getOrCreateViewModelDecoration(modelDecoration);
 			let viewRange = viewModelDecoration.range;
@@ -160,4 +174,34 @@ export class ViewModelDecorations implements IDisposable {
 			inlineDecorations: inlineDecorations
 		};
 	}
+}
+
+/**
+ * Calls the callback for every token that intersects the range.
+ * If the callback returns `false`, iteration stops and `false` is returned.
+ * Otherwise, `true` is returned.
+ */
+function testTokensInRange(model: ITextModel, range: Range, callback: (tokenType: StandardTokenType) => boolean): boolean {
+	for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
+		const lineTokens = model.getLineTokens(lineNumber);
+		const isFirstLine = lineNumber === range.startLineNumber;
+		const isEndLine = lineNumber === range.endLineNumber;
+
+		let tokenIdx = isFirstLine ? lineTokens.findTokenIndexAtOffset(range.startColumn - 1) : 0;
+		while (tokenIdx < lineTokens.getCount()) {
+			if (isEndLine) {
+				const startOffset = lineTokens.getStartOffset(tokenIdx);
+				if (startOffset > range.endColumn - 1) {
+					break;
+				}
+			}
+
+			const callbackResult = callback(lineTokens.getStandardTokenType(tokenIdx));
+			if (!callbackResult) {
+				return false;
+			}
+			tokenIdx++;
+		}
+	}
+	return true;
 }

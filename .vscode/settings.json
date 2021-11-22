@@ -42,9 +42,7 @@
 		}
 	],
 	"eslint.options": {
-		"rulePaths": [
-			"./build/lib/eslint"
-		]
+		"rulePaths": ["./build/lib/eslint"]
 	},
 	"typescript.tsdk": "node_modules/typescript/lib",
 	"npm.exclude": "**/extensions/**",
@@ -54,15 +52,11 @@
 	"typescript.preferences.quoteStyle": "single",
 	"json.schemas": [
 		{
-			"fileMatch": [
-				"cgmanifest.json"
-			],
+			"fileMatch": ["cgmanifest.json"],
 			"url": "./.vscode/cgmanifest.schema.json"
 		},
 		{
-			"fileMatch": [
-				"cglicenses.json"
-			],
+			"fileMatch": ["cglicenses.json"],
 			"url": "./.vscode/cglicenses.schema.json"
 		}
 	],
@@ -73,16 +67,26 @@
 	"gulp.autoDetect": "off",
 	"files.insertFinalNewline": true,
 	"[plaintext]": {
-		"files.insertFinalNewline": false,
+		"files.insertFinalNewline": false
 	},
 	"[typescript]": {
 		"editor.defaultFormatter": "vscode.typescript-language-features",
-		"editor.formatOnSave": true,
+		"editor.formatOnSave": true
 	},
 	"[javascript]": {
 		"editor.defaultFormatter": "vscode.typescript-language-features",
-		"editor.formatOnSave": true,
+		"editor.formatOnSave": true
 	},
 	"typescript.tsc.autoDetect": "off",
 	"testing.autoRun.mode": "rerun",
+	"conventionalCommits.scopes": [
+		"tree",
+		"scm",
+		"grid",
+		"splitview",
+		"table",
+		"list",
+		"git",
+		"sash"
+	]
 }

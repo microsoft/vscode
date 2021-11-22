@@ -618,10 +618,22 @@ export interface IThemeDecorationRenderOptions {
 
 	overviewRulerColor?: string | ThemeColor;
 
+	/**
+	 * @deprecated
+	 */
 	before?: IContentDecorationRenderOptions;
+	/**
+	 * @deprecated
+	 */
 	after?: IContentDecorationRenderOptions;
 
+	/**
+	 * @deprecated
+	 */
 	beforeInjectedText?: IContentDecorationRenderOptions & { affectsLetterSpacing?: boolean };
+	/**
+	 * @deprecated
+	 */
 	afterInjectedText?: IContentDecorationRenderOptions & { affectsLetterSpacing?: boolean };
 }
 
@@ -667,7 +679,13 @@ export interface IDecorationRenderOptions extends IThemeDecorationRenderOptions 
  * @internal
  */
 export interface IThemeDecorationInstanceRenderOptions {
+	/**
+	 * @deprecated
+	 */
 	before?: IContentDecorationRenderOptions;
+	/**
+	 * @deprecated
+	 */
 	after?: IContentDecorationRenderOptions;
 }
 

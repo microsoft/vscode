@@ -1776,7 +1776,7 @@ export enum TaskPanelKind {
 @es5ClassCompat
 export class TaskGroup implements vscode.TaskGroup {
 
-	isDefault?: boolean;
+	isDefault: boolean | undefined;
 	private _id: string;
 
 	public static Clean: TaskGroup = new TaskGroup('clean', 'Clean');
@@ -2295,6 +2295,30 @@ export enum TreeItemCollapsibleState {
 	Collapsed = 1,
 	Expanded = 2
 }
+
+@es5ClassCompat
+export class TreeDataTransferItem {
+	async asString(): Promise<string> {
+		return JSON.stringify(this._value);
+	}
+
+	constructor(private readonly _value: any) { }
+}
+
+@es5ClassCompat
+export class TreeDataTransfer<T extends TreeDataTransferItem = TreeDataTransferItem> {
+	private readonly _items: Map<string, T> = new Map();
+	get(mimeType: string): T | undefined {
+		return this._items.get(mimeType);
+	}
+	set(mimeType: string, value: T): void {
+		this._items.set(mimeType, value);
+	}
+	forEach(callbackfn: (value: T, key: string) => void): void {
+		this._items.forEach(callbackfn);
+	}
+}
+
 
 @es5ClassCompat
 export class ThemeIcon {
@@ -2902,6 +2926,11 @@ export class QuickInputButtons {
 	static readonly Back: vscode.QuickInputButton = { iconPath: new ThemeIcon('arrow-left') };
 
 	private constructor() { }
+}
+
+export enum QuickPickItemKind {
+	Default = 1,
+	Separator = 2,
 }
 
 export enum ExtensionKind {

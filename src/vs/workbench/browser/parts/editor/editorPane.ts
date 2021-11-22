@@ -122,7 +122,8 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	 * resources associated with the input should be freed.
 	 *
 	 * This method can be called based on different contexts, e.g. when opening
-	 * a different editor control or when closing all editors in a group.
+	 * a different input or different editor control or when closing all editors
+	 * in a group.
 	 *
 	 * To monitor the lifecycle of editor inputs, you should not rely on this
 	 * method, rather refer to the listeners on `IEditorGroup` via `IEditorGroupService`.

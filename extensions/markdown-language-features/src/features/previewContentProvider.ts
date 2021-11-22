@@ -81,7 +81,7 @@ export class MarkdownContentProvider {
 		const nonce = getNonce();
 		const csp = this.getCsp(resourceProvider, sourceUri, nonce);
 
-		const body = await this.engine.render(markdownDocument, resourceProvider);
+		const body = await this.markdownBody(markdownDocument, resourceProvider);
 		const html = `<!DOCTYPE html>
 			<html style="${escapeAttribute(this.getSettingsOverrideStyles(config))}">
 			<head>
@@ -97,13 +97,24 @@ export class MarkdownContentProvider {
 			</head>
 			<body class="vscode-body ${config.scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${config.wordWrap ? 'wordWrap' : ''} ${config.markEditorSelection ? 'showEditorSelection' : ''}">
 				${body.html}
-				<div class="code-line" data-line="${markdownDocument.lineCount}"></div>
 				${this.getScripts(resourceProvider, nonce)}
 			</body>
 			</html>`;
 		return {
 			html,
 			containingImages: body.containingImages,
+		};
+	}
+
+	public async markdownBody(
+		markdownDocument: vscode.TextDocument,
+		resourceProvider: WebviewResourceProvider,
+	): Promise<MarkdownContentProviderOutput> {
+		const rendered = await this.engine.render(markdownDocument, resourceProvider);
+		const html = `<div class="markdown-body">${rendered.html}<div class="code-line" data-line="${markdownDocument.lineCount}"></div></div>`;
+		return {
+			html,
+			containingImages: rendered.containingImages
 		};
 	}
 

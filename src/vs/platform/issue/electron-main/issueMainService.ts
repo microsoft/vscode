@@ -212,7 +212,7 @@ export class IssueMainService implements ICommonIssueService {
 					title: localize('issueReporter', "Issue Reporter"),
 					zoomLevel: data.zoomLevel,
 					alwaysOnTop: false
-				});
+				}, 'issue-reporter');
 
 				// Store into config object URL
 				issueReporterWindowConfigUrl.update({
@@ -267,7 +267,7 @@ export class IssueMainService implements ICommonIssueService {
 					title: localize('processExplorer', "Process Explorer"),
 					zoomLevel: data.zoomLevel,
 					alwaysOnTop: true
-				});
+				}, 'process-explorer');
 
 				// Store into config object URL
 				processExplorerWindowConfigUrl.update({
@@ -301,7 +301,7 @@ export class IssueMainService implements ICommonIssueService {
 		this.processExplorerWindow?.focus();
 	}
 
-	private createBrowserWindow<T>(position: IWindowState, ipcObjectUrl: IIPCObjectUrl<T>, options: IBrowserWindowOptions): BrowserWindow {
+	private createBrowserWindow<T>(position: IWindowState, ipcObjectUrl: IIPCObjectUrl<T>, options: IBrowserWindowOptions, windowKind: string): BrowserWindow {
 		const window = new BrowserWindow({
 			fullscreen: false,
 			skipTaskbar: true,
@@ -316,7 +316,7 @@ export class IssueMainService implements ICommonIssueService {
 			backgroundColor: options.backgroundColor || IssueMainService.DEFAULT_BACKGROUND_COLOR,
 			webPreferences: {
 				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
-				additionalArguments: [`--vscode-window-config=${ipcObjectUrl.resource.toString()}`],
+				additionalArguments: [`--vscode-window-config=${ipcObjectUrl.resource.toString()}`, `--vscode-window-kind=${windowKind}`],
 				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
 				enableWebSQL: false,
 				spellcheck: false,

@@ -122,7 +122,7 @@ export class SettingsEditor2 extends EditorPane {
 			return false;
 		}
 		return type === SettingValueType.Enum ||
-			type === SettingValueType.StringOrEnumArray ||
+			type === SettingValueType.Array ||
 			type === SettingValueType.BooleanObject ||
 			type === SettingValueType.Object ||
 			type === SettingValueType.Complex ||
@@ -1181,7 +1181,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		const query = this.searchWidget.getValue().trim();
 		this.delayedFilterLogging.cancel();
-		await this.triggerSearch(query.replace(/›/g, ' '));
+		await this.triggerSearch(query.replace(/\u203A/g, ' '));
 
 		if (query && this.searchResultModel) {
 			this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(query, this.searchResultModel!.getUniqueResults()));

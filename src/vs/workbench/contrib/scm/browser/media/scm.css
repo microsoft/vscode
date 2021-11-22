@@ -132,10 +132,6 @@
 	margin-right: 3px;
 }
 
-.scm-view .monaco-list-row .resource > .name.strike-through > .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-name-container > .label-name {
-	text-decoration: line-through;
-}
-
 .scm-view .monaco-list-row .resource > .decoration-icon {
 	width: 16px;
 	height: 100%;
@@ -170,6 +166,13 @@
 	display: block;
 }
 
+.scm-view .monaco-list .monaco-list-row.force-no-hover,
+.scm-view .monaco-list .monaco-list-row:hover.force-no-hover,
+.scm-view .monaco-list .monaco-list-row.focused.force-no-hover,
+.scm-view .monaco-list .monaco-list-row.selected.force-no-hover {
+	background: transparent !important;
+}
+
 .scm-view.show-actions .scm-provider > .actions,
 .scm-view.show-actions > .monaco-list .monaco-list-row .resource-group > .actions,
 .scm-view.show-actions > .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions {
@@ -195,14 +198,15 @@
 }
 
 .scm-view .button-container {
-	margin-left: 8px;
+	padding-left: 11px;
 	height: 100%;
 	display: flex;
 	align-items: center;
 }
 
-.scm-view .button-container .codicon {
-	margin: 0 0.4em;
+.scm-view .button-container .codicon.codicon-cloud-upload,
+.scm-view .button-container .codicon.codicon-sync {
+	margin: 0 0.4em 0 0;
 }
 
 .scm-view .button-container .codicon.codicon-arrow-up,

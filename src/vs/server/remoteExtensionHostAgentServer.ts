@@ -33,7 +33,7 @@ import { ConfigurationService } from 'vs/platform/configuration/common/configura
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestService } from 'vs/platform/request/node/requestService';
-import { ITelemetryAppender, NullAppender } from 'vs/platform/telemetry/common/telemetryUtils';
+import { ITelemetryAppender, NullAppender, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionGalleryService, IExtensionManagementCLIService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionGalleryServiceWithNoStorageService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -77,6 +77,8 @@ import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
 import { IPtyService, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
 import { IRemoteTelemetryService, RemoteNullTelemetryService, RemoteTelemetryService } from 'vs/server/remoteTelemetryService';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 
 const SHUTDOWN_TIMEOUT = 5 * 60 * 1000;
 
@@ -278,10 +280,15 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 
 		const configurationService = new ConfigurationService(this._environmentService.machineSettingsResource, fileService);
 		services.set(IConfigurationService, configurationService);
+
+		// URI Identity
+		services.set(IUriIdentityService, new UriIdentityService(fileService));
+
+		// Request
 		services.set(IRequestService, new SyncDescriptor(RequestService));
 
 		let appInsightsAppender: ITelemetryAppender = NullAppender;
-		if (!this._environmentService.args['disable-telemetry'] && this._productService.enableTelemetry) {
+		if (supportsTelemetry(this._productService, this._environmentService)) {
 			if (this._productService.aiConfig && this._productService.aiConfig.asimovKey) {
 				appInsightsAppender = new AppInsightsAppender(eventPrefix, null, this._productService.aiConfig.asimovKey);
 				this._register(toDisposable(() => appInsightsAppender!.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
@@ -315,8 +322,8 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		const ptyService = instantiationService.createInstance(
 			PtyHostService,
 			{
-				GraceTime: ProtocolConstants.ReconnectionGraceTime,
-				ShortGraceTime: ProtocolConstants.ReconnectionShortGraceTime,
+				graceTime: ProtocolConstants.ReconnectionGraceTime,
+				shortGraceTime: ProtocolConstants.ReconnectionShortGraceTime,
 				scrollback: configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
 			}
 		);
@@ -906,9 +913,13 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 }
 
 function parseConnectionToken(args: ServerParsedArgs): { connectionToken: string; connectionTokenIsMandatory: boolean; } {
+	if (args['connectionToken']) {
+		console.warn(`The argument '--connectionToken' is deprecated, please use '--connection-token' instead`);
+	}
+
 	if (args['connection-secret']) {
-		if (args['connectionToken']) {
-			console.warn(`Please do not use the argument connectionToken at the same time as connection-secret.`);
+		if (args['connection-token']) {
+			console.warn(`Please do not use the argument '--connection-token' at the same time as '--connection-secret'.`);
 			process.exit(1);
 		}
 		let rawConnectionToken = fs.readFileSync(args['connection-secret']).toString();
@@ -919,7 +930,7 @@ function parseConnectionToken(args: ServerParsedArgs): { connectionToken: string
 		}
 		return { connectionToken: rawConnectionToken, connectionTokenIsMandatory: true };
 	} else {
-		return { connectionToken: args['connectionToken'] || generateUuid(), connectionTokenIsMandatory: false };
+		return { connectionToken: args['connection-token'] || args['connectionToken'] || generateUuid(), connectionTokenIsMandatory: false };
 	}
 }
 
@@ -1036,7 +1047,7 @@ const getOrCreateSpdLogService: (environmentService: IServerEnvironmentService) 
 	let _logService: ILogService | null;
 	return function getLogService(environmentService: IServerEnvironmentService): ILogService {
 		if (!_logService) {
-			_logService = new LogService(new SpdLogLogger(RemoteExtensionLogFileName, join(environmentService.logsPath, `${RemoteExtensionLogFileName}.log`), true, getLogLevel(environmentService)));
+			_logService = new LogService(new SpdLogLogger(RemoteExtensionLogFileName, join(environmentService.logsPath, `${RemoteExtensionLogFileName}.log`), true, false, getLogLevel(environmentService)));
 		}
 		return _logService;
 	};

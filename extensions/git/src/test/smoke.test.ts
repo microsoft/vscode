@@ -56,7 +56,9 @@ suite('git smoke test', function () {
 		git = ext!.exports.getAPI(1);
 
 		if (git.repositories.length === 0) {
-			await eventToPromise(git.onDidOpenRepository);
+			const onDidOpenRepository = eventToPromise(git.onDidOpenRepository);
+			await commands.executeCommand('git.openRepository', cwd);
+			await onDidOpenRepository;
 		}
 
 		assert.strictEqual(git.repositories.length, 1);

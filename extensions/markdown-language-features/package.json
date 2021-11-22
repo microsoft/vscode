@@ -5,7 +5,6 @@
   "version": "1.0.0",
   "icon": "icon.png",
   "publisher": "vscode",
-  "enableProposedApi": true,
   "license": "MIT",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "engines": {
@@ -99,7 +98,7 @@
       "editor/title": [
         {
           "command": "markdown.showPreviewToSide",
-          "when": "editorLangId == markdown && !notebookEditorFocused",
+          "when": "editorLangId == markdown && !notebookEditorFocused && !hasCustomMarkdownPreview",
           "alt": "markdown.showPreview",
           "group": "navigation"
         },
@@ -331,7 +330,7 @@
     "customEditors": [
       {
         "viewType": "vscode.markdown.preview.editor",
-        "displayName": "Markdown Preview (Experimental)",
+        "displayName": "Markdown Preview",
         "priority": "option",
         "selector": [
           {
@@ -356,7 +355,8 @@
     "highlight.js": "^10.4.1",
     "markdown-it": "^12.2.0",
     "markdown-it-front-matter": "^0.2.1",
-    "vscode-extension-telemetry": "0.4.2",
+    "morphdom": "^2.6.1",
+    "vscode-extension-telemetry": "0.4.3",
     "vscode-nls": "^5.0.0"
   },
   "devDependencies": {

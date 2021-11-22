@@ -20,6 +20,7 @@ import { ConfigurationTarget } from 'vs/platform/configuration/common/configurat
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
+import { ILogService } from 'vs/platform/log/common/log';
 
 const ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE = 'tasks.run.allowAutomatic';
 
@@ -27,22 +28,30 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 	constructor(
 		@ITaskService private readonly taskService: ITaskService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService) {
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@ILogService private readonly logService: ILogService) {
 		super();
 		this.tryRunTasks();
 	}
 
 	private async tryRunTasks() {
+		this.logService.trace('RunAutomaticTasks: Trying to run tasks.');
 		// Wait until we have task system info (the extension host and workspace folders are available).
 		if (!this.taskService.hasTaskSystemInfo) {
+			this.logService.trace('RunAutomaticTasks: Awaiting task system info.');
 			await Event.toPromise(Event.once(this.taskService.onDidChangeTaskSystemInfo));
 		}
+
+		this.logService.trace('RunAutomaticTasks: Checking if automatic tasks should run.');
 		const isFolderAutomaticAllowed = this.storageService.getBoolean(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, StorageScope.WORKSPACE, undefined);
+		await this.workspaceTrustManagementService.workspaceTrustInitialized;
 		const isWorkspaceTrusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
 		// Only run if allowed. Prompting for permission occurs when a user first tries to run a task.
 		if (isFolderAutomaticAllowed && isWorkspaceTrusted) {
 			this.taskService.getWorkspaceTasks(TaskRunSource.FolderOpen).then(workspaceTaskResult => {
 				let { tasks } = RunAutomaticTasks.findAutoTasks(this.taskService, workspaceTaskResult);
+				this.logService.trace(`RunAutomaticTasks: Found ${tasks.length} automatic tasks tasks`);
+
 				if (tasks.length > 0) {
 					RunAutomaticTasks.runTasks(this.taskService, tasks);
 				}

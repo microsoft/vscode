@@ -11,10 +11,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { CodeLens, Command } from 'vs/editor/common/modes';
-import { editorCodeLensForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { CodeLensItem } from 'vs/editor/contrib/codelens/codelens';
-import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 class CodeLensViewZone implements IViewZone {
 
@@ -353,16 +350,3 @@ export class CodeLensWidget {
 		return this._data;
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-	const codeLensForeground = theme.getColor(editorCodeLensForeground);
-	if (codeLensForeground) {
-		collector.addRule(`.monaco-editor .codelens-decoration { color: ${codeLensForeground}; }`);
-		collector.addRule(`.monaco-editor .codelens-decoration .codicon { color: ${codeLensForeground}; }`);
-	}
-	const activeLinkForeground = theme.getColor(editorActiveLinkForeground);
-	if (activeLinkForeground) {
-		collector.addRule(`.monaco-editor .codelens-decoration > a:hover { color: ${activeLinkForeground} !important; }`);
-		collector.addRule(`.monaco-editor .codelens-decoration > a:hover .codicon { color: ${activeLinkForeground} !important; }`);
-	}
-});

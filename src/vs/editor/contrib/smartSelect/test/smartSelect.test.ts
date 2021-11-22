@@ -55,9 +55,9 @@ suite('SmartSelect', () => {
 	let mode: MockJSMode;
 
 	setup(() => {
-		const [instantiationService, _disposables] = createModelServices();
+		disposables = new DisposableStore();
+		const instantiationService = createModelServices(disposables);
 		modelService = instantiationService.invokeFunction((accessor) => accessor.get(IModelService));
-		disposables = _disposables;
 		mode = disposables.add(new MockJSMode());
 	});
 
@@ -335,7 +335,7 @@ suite('SmartSelect', () => {
 		);
 	});
 
-	test('Smart select: only add line ranges if they’re contained by the next range #73850', async function () {
+	test('Smart select: only add line ranges if they\'re contained by the next range #73850', async function () {
 
 		const reg = SelectionRangeRegistry.register('*', {
 			provideSelectionRanges() {

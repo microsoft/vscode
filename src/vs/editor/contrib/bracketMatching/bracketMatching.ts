@@ -181,7 +181,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 			const position = selection.getStartPosition();
 
 			// find matching brackets if position is on a bracket
-			const brackets = model.matchBracket(position);
+			const brackets = model.bracketPairs.matchBracket(position);
 			let newCursorPosition: Position | null = null;
 			if (brackets) {
 				if (brackets[0].containsPosition(position)) {
@@ -191,12 +191,12 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 				}
 			} else {
 				// find the enclosing brackets if the position isn't on a matching bracket
-				const enclosingBrackets = model.findEnclosingBrackets(position);
+				const enclosingBrackets = model.bracketPairs.findEnclosingBrackets(position);
 				if (enclosingBrackets) {
 					newCursorPosition = enclosingBrackets[0].getStartPosition();
 				} else {
 					// no enclosing brackets, try the very first next bracket
-					const nextBracket = model.findNextBracket(position);
+					const nextBracket = model.bracketPairs.findNextBracket(position);
 					if (nextBracket && nextBracket.range) {
 						newCursorPosition = nextBracket.range.getStartPosition();
 					}
@@ -223,14 +223,14 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 
 		this._editor.getSelections().forEach(selection => {
 			const position = selection.getStartPosition();
-			let brackets = model.matchBracket(position);
+			let brackets = model.bracketPairs.matchBracket(position);
 
 			if (!brackets) {
-				brackets = model.findEnclosingBrackets(position);
+				brackets = model.bracketPairs.findEnclosingBrackets(position);
 				if (!brackets) {
-					const nextBracket = model.findNextBracket(position);
+					const nextBracket = model.bracketPairs.findNextBracket(position);
 					if (nextBracket && nextBracket.range) {
-						brackets = model.matchBracket(nextBracket.range.getStartPosition());
+						brackets = model.bracketPairs.matchBracket(nextBracket.range.getStartPosition());
 					}
 				}
 			}
@@ -348,10 +348,10 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 			if (previousIndex < previousLen && previousData[previousIndex].position.equals(position)) {
 				newData[newDataLen++] = previousData[previousIndex];
 			} else {
-				let brackets = model.matchBracket(position);
+				let brackets = model.bracketPairs.matchBracket(position);
 				let options = BracketMatchingController._DECORATION_OPTIONS_WITH_OVERVIEW_RULER;
 				if (!brackets && this._matchBrackets === 'always') {
-					brackets = model.findEnclosingBrackets(position, 20 /* give at most 20ms to compute */);
+					brackets = model.bracketPairs.findEnclosingBrackets(position, 20 /* give at most 20ms to compute */);
 					options = BracketMatchingController._DECORATION_OPTIONS_WITHOUT_OVERVIEW_RULER;
 				}
 				newData[newDataLen++] = new BracketsData(position, brackets, options);

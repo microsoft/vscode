@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as net from 'net';
-import { findFreePortFaster } from 'vs/base/node/ports';
+import { BROWSER_RESTRICTED_PORTS, findFreePortFaster } from 'vs/base/node/ports';
 import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
 
@@ -18,8 +18,18 @@ import { AbstractTunnelService, isAllInterfaces, ISharedTunnelsService as IShare
 import { ISignService } from 'vs/platform/sign/common/sign';
 
 async function createRemoteTunnel(options: IConnectionOptions, defaultTunnelHost: string, tunnelRemoteHost: string, tunnelRemotePort: number, tunnelLocalPort?: number): Promise<RemoteTunnel> {
-	const tunnel = new NodeRemoteTunnel(options, defaultTunnelHost, tunnelRemoteHost, tunnelRemotePort, tunnelLocalPort);
-	return tunnel.waitForReady();
+	let readyTunnel: NodeRemoteTunnel | undefined;
+	for (let attempts = 3; attempts; attempts--) {
+		if (readyTunnel) {
+			readyTunnel.dispose();
+		}
+		const tunnel = new NodeRemoteTunnel(options, defaultTunnelHost, tunnelRemoteHost, tunnelRemotePort, tunnelLocalPort);
+		readyTunnel = await tunnel.waitForReady();
+		if ((tunnelLocalPort && BROWSER_RESTRICTED_PORTS[tunnelLocalPort]) || !BROWSER_RESTRICTED_PORTS[readyTunnel.tunnelLocalPort]) {
+			break;
+		}
+	}
+	return readyTunnel!;
 }
 
 class NodeRemoteTunnel extends Disposable implements RemoteTunnel {

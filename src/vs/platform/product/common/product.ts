@@ -57,7 +57,7 @@ else {
 	// Running out of sources
 	if (Object.keys(product).length === 0) {
 		Object.assign(product, {
-			version: '1.62.0-dev',
+			version: '1.63.0-dev',
 			nameShort: 'Code - OSS Dev',
 			nameLong: 'Code - OSS Dev',
 			applicationName: 'code-oss',
@@ -69,8 +69,6 @@ else {
 			extensionAllowedProposedApi: [
 				'ms-vscode.vscode-js-profile-flame',
 				'ms-vscode.vscode-js-profile-table',
-				'ms-vscode.remotehub',
-				'ms-vscode.remotehub-insiders',
 				'GitHub.remotehub',
 				'GitHub.remotehub-insiders'
 			],

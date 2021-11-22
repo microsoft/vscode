@@ -152,6 +152,12 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	 * Otherwise, the presentation format defaults to `singleline`.
 	 */
 	editPresentation?: EditPresentationTypes;
+
+	/**
+	 * When specified, gives an order number for the setting
+	 * within the settings editor. Otherwise, the setting is placed at the end.
+	 */
+	order?: number;
 }
 
 export interface IConfigurationExtensionInfo {
@@ -211,6 +217,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		this.excludedConfigurationProperties = {};
 
 		contributionRegistry.registerSchema(resourceLanguageSettingsSchemaId, this.resourceLanguageSettingsSchema);
+		this.registerOverridePropertyPatternKey();
 	}
 
 	public registerConfiguration(configuration: IConfigurationNode, validate: boolean = true): void {
@@ -251,7 +258,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 			for (const key in defaultConfiguration) {
 				properties.push(key);
 
-				if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
+				if (OVERRIDE_PROPERTY_REGEX.test(key)) {
 					this.defaultValues[key] = { ...(this.defaultValues[key] || {}), ...defaultConfiguration[key] };
 					const property: IConfigurationPropertySchema = {
 						type: 'object',
@@ -259,7 +266,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 						description: nls.localize('defaultLanguageConfiguration.description', "Configure settings to be overridden for {0} language.", key),
 						$ref: resourceLanguageSettingsSchemaId
 					};
-					overrideIdentifiers.push(overrideIdentifierFromKey(key));
+					overrideIdentifiers.push(...overrideIdentifiersFromKey(key));
 					this.configurationProperties[key] = property;
 					this.defaultLanguageConfigurationOverridesNode.properties![key] = property;
 				} else {
@@ -284,7 +291,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 			for (const key in defaultConfiguration) {
 				properties.push(key);
 				delete this.defaultValues[key];
-				if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
+				if (OVERRIDE_PROPERTY_REGEX.test(key)) {
 					delete this.configurationProperties[key];
 					delete this.defaultLanguageConfigurationOverridesNode.properties![key];
 				} else {
@@ -364,7 +371,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 				this.updatePropertyDefaultValue(key, property);
 
 				// update scope
-				if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
+				if (OVERRIDE_PROPERTY_REGEX.test(key)) {
 					property.scope = undefined; // No scope for overridable properties `[${identifier}]`
 				} else {
 					property.scope = types.isUndefinedOrNull(property.scope) ? scope : property.scope;
@@ -493,6 +500,22 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		this._onDidSchemaChange.fire();
 	}
 
+	private registerOverridePropertyPatternKey(): void {
+		const resourceLanguagePropertiesSchema: IJSONSchema = {
+			type: 'object',
+			description: nls.localize('overrideSettings.defaultDescription', "Configure editor settings to be overridden for a language."),
+			errorMessage: nls.localize('overrideSettings.errorMessage', "This setting does not support per-language configuration."),
+			$ref: resourceLanguageSettingsSchemaId,
+		};
+		allSettings.patternProperties[OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
+		applicationSettings.patternProperties[OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
+		machineSettings.patternProperties[OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
+		machineOverridableSettings.patternProperties[OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
+		windowSettings.patternProperties[OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
+		resourceSettings.patternProperties[OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
+		this._onDidSchemaChange.fire();
+	}
+
 	private updatePropertyDefaultValue(key: string, property: IConfigurationPropertySchema): void {
 		let defaultValue = this.defaultValues[key];
 		if (types.isUndefined(defaultValue)) {
@@ -505,11 +528,28 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 }
 
-const OVERRIDE_PROPERTY = '\\[.*\\]$';
-export const OVERRIDE_PROPERTY_PATTERN = new RegExp(OVERRIDE_PROPERTY);
+const OVERRIDE_IDENTIFIER_PATTERN = `\\[([^\\]]+)\\]`;
+const OVERRIDE_IDENTIFIER_REGEX = new RegExp(OVERRIDE_IDENTIFIER_PATTERN, 'g');
+export const OVERRIDE_PROPERTY_PATTERN = `^(${OVERRIDE_IDENTIFIER_PATTERN})+$`;
+export const OVERRIDE_PROPERTY_REGEX = new RegExp(OVERRIDE_PROPERTY_PATTERN);
 
-export function overrideIdentifierFromKey(key: string): string {
-	return key.substring(1, key.length - 1);
+export function overrideIdentifiersFromKey(key: string): string[] {
+	const identifiers: string[] = [];
+	if (OVERRIDE_PROPERTY_REGEX.test(key)) {
+		let matches = OVERRIDE_IDENTIFIER_REGEX.exec(key);
+		while (matches?.length) {
+			const identifier = matches[1].trim();
+			if (identifier) {
+				identifiers.push(identifier);
+			}
+			matches = OVERRIDE_IDENTIFIER_REGEX.exec(key);
+		}
+	}
+	return distinct(identifiers);
+}
+
+export function keyFromOverrideIdentifiers(overrideIdentifiers: string[]): string {
+	return overrideIdentifiers.reduce((result, overrideIdentifier) => `${result}[${overrideIdentifier}]`, '');
 }
 
 export function getDefaultValue(type: string | string[] | undefined): any {
@@ -531,7 +571,6 @@ export function getDefaultValue(type: string | string[] | undefined): any {
 	}
 }
 
-
 const configurationRegistry = new ConfigurationRegistry();
 Registry.add(Extensions.Configuration, configurationRegistry);
 
@@ -539,7 +578,7 @@ export function validateProperty(property: string): string | null {
 	if (!property.trim()) {
 		return nls.localize('config.property.empty', "Cannot register an empty property");
 	}
-	if (OVERRIDE_PROPERTY_PATTERN.test(property)) {
+	if (OVERRIDE_PROPERTY_REGEX.test(property)) {
 		return nls.localize('config.property.languageDefault', "Cannot register '{0}'. This matches property pattern '\\\\[.*\\\\]$' for describing language specific editor settings. Use 'configurationDefaults' contribution.", property);
 	}
 	if (configurationRegistry.getConfigurationProperties()[property] !== undefined) {

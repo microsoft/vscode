@@ -14,7 +14,7 @@
 }
 
 .monaco-workbench .hover-language-status:not(:last-child) {
-	border-bottom: 1px solid var(--code-notifications-border);
+	border-bottom: 1px solid var(--vscode-notifications-border);
 }
 
 .monaco-workbench .hover-language-status > .severity {
@@ -25,11 +25,11 @@
 }
 
 .monaco-workbench .hover-language-status > .severity.sev3 {
-	color: var(--code-language-status-color3)
+	color: var(--vscode-notificationsErrorIcon-foreground)
 }
 
 .monaco-workbench .hover-language-status > .severity.sev2 {
-	color: var(--code-language-status-color2)
+	color: var(--vscode-notificationsInfoIcon-foreground)
 }
 
 .monaco-workbench .hover-language-status > .severity.show {
@@ -44,6 +44,7 @@
 }
 
 .monaco-workbench .hover-language-status > .element > .left > .detail:not(:empty)::before {
+	/* allow-any-unicode-next-line */
 	content: '–';
 	padding: 0 4px;
 	opacity: 0.6;

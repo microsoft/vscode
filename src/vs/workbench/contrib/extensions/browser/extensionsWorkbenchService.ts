@@ -702,24 +702,22 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	queryGallery(token: CancellationToken): Promise<IPager<IExtension>>;
 	queryGallery(options: IQueryOptions, token: CancellationToken): Promise<IPager<IExtension>>;
-	queryGallery(arg1: any, arg2?: any): Promise<IPager<IExtension>> {
+	async queryGallery(arg1: any, arg2?: any): Promise<IPager<IExtension>> {
 		const options: IQueryOptions = CancellationToken.isCancellationToken(arg1) ? {} : arg1;
 		const token: CancellationToken = CancellationToken.isCancellationToken(arg1) ? arg1 : arg2;
 		options.text = options.text ? this.resolveQueryText(options.text) : options.text;
-		return this.extensionManagementService.getExtensionsReport()
-			.then(report => {
-				const maliciousSet = getMaliciousExtensionsSet(report);
-
-				return this.galleryService.query(options, token)
-					.then(result => mapPager(result, gallery => this.fromGallery(gallery, maliciousSet)))
-					.then(undefined, err => {
-						if (/No extension gallery service configured/.test(err.message)) {
-							return Promise.resolve(singlePagePager([]));
-						}
-
-						return Promise.reject<IPager<IExtension>>(err);
-					});
-			});
+		
+		const report = await this.extensionManagementService.getExtensionsReport();
+		const maliciousSet = getMaliciousExtensionsSet(report);
+		try {
+			const result = await this.galleryService.query(options, token);
+			return mapPager(result, gallery => this.fromGallery(gallery, maliciousSet));
+		} catch (error) {
+			if (/No extension gallery service configured/.test(error.message)) {
+				return Promise.resolve(singlePagePager([]));
+			}
+			throw error;
+		}
 	}
 
 	private resolveQueryText(text: string): string {

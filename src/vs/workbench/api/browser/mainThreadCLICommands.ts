@@ -31,8 +31,11 @@ CommandsRegistry.registerCommand('_remoteCLI.openExternal', function (accessor: 
 	return openerService.open(isString(uri) ? uri : URI.revive(uri), { openExternal: true, allowTunneling: true });
 });
 
-CommandsRegistry.registerCommand('_remoteCLI.windowOpen', function (accessor: ServicesAccessor, toOpen: IWindowOpenable[], options?: IOpenWindowOptions) {
+CommandsRegistry.registerCommand('_remoteCLI.windowOpen', function (accessor: ServicesAccessor, toOpen: IWindowOpenable[], options: IOpenWindowOptions) {
 	const commandService = accessor.get(ICommandService);
+	if (!toOpen.length) {
+		return commandService.executeCommand('_files.newWindow', options);
+	}
 	return commandService.executeCommand('_files.windowOpen', toOpen, options);
 });
 

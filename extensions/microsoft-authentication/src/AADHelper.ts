@@ -45,6 +45,7 @@ interface ITokenClaims {
 	tid: string;
 	email?: string;
 	unique_name?: string;
+	exp?: number;
 	preferred_username?: string;
 	oid?: string;
 	altsecid?: string;
@@ -99,6 +100,7 @@ class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.
 export class AzureActiveDirectoryService {
 	private _tokens: IToken[] = [];
 	private _refreshTimeouts: Map<string, NodeJS.Timeout> = new Map<string, NodeJS.Timeout>();
+	private _refreshingPromise: Promise<any> | undefined;
 	private _uriHandler: UriEventHandler;
 	private _disposable: vscode.Disposable;
 
@@ -181,6 +183,7 @@ export class AzureActiveDirectoryService {
 			};
 		});
 
+		Logger.trace('storing data into keychain...');
 		await this._keychain.setToken(JSON.stringify(serializedData));
 	}
 
@@ -239,6 +242,7 @@ export class AzureActiveDirectoryService {
 		}
 
 		if (added.length || removed.length) {
+			Logger.info(`Sending change event with ${added.length} added and ${removed.length} removed`);
 			onDidChangeSessions.fire({ added: added, removed: removed, changed: [] });
 		}
 	}
@@ -310,6 +314,14 @@ export class AzureActiveDirectoryService {
 
 	async getSessions(scopes?: string[]): Promise<vscode.AuthenticationSession[]> {
 		Logger.info(`Getting sessions for ${scopes?.join(',') ?? 'all scopes'}...`);
+		if (this._refreshingPromise) {
+			Logger.info('Refreshing in progress. Waiting for completion before continuing.');
+			try {
+				await this._refreshingPromise;
+			} catch (e) {
+				// this will get logged in the refresh function.
+			}
+		}
 		if (!scopes) {
 			const sessions = await this.sessions;
 			Logger.info(`Got ${sessions.length} sessions for all scopes...`);
@@ -371,7 +383,7 @@ export class AzureActiveDirectoryService {
 					throw codeRes.err;
 				}
 				token = await this.exchangeCodeForToken(codeRes.code, codeVerifier, scope);
-				this.setToken(token, scope);
+				await this.setToken(token, scope);
 				Logger.info(`Login successful for scopes: ${scope}`);
 				res.writeHead(302, { Location: '/' });
 				const session = await this.convertToSession(token);
@@ -482,7 +494,7 @@ export class AzureActiveDirectoryService {
 					}
 
 					const token = await this.exchangeCodeForToken(code, verifier, scope);
-					this.setToken(token, scope);
+					await this.setToken(token, scope);
 
 					const session = await this.convertToSession(token);
 					resolve(session);
@@ -500,6 +512,7 @@ export class AzureActiveDirectoryService {
 	}
 
 	private async setToken(token: IToken, scope: string): Promise<void> {
+		Logger.info(`Setting token for scopes: ${scope}`);
 		const existingTokenIndex = this._tokens.findIndex(t => t.sessionId === token.sessionId);
 		if (existingTokenIndex > -1) {
 			this._tokens.splice(existingTokenIndex, 1, token);
@@ -513,6 +526,7 @@ export class AzureActiveDirectoryService {
 			this._refreshTimeouts.set(token.sessionId, setTimeout(async () => {
 				try {
 					const refreshedToken = await this.refreshToken(token.refreshToken, scope, token.sessionId);
+					Logger.info('Triggering change session event...');
 					onDidChangeSessions.fire({ added: [], removed: [], changed: [this.convertToSessionSync(refreshedToken)] });
 				} catch (e) {
 					if (e.message === REFRESH_NETWORK_FAILURE) {
@@ -525,10 +539,11 @@ export class AzureActiveDirectoryService {
 						onDidChangeSessions.fire({ added: [], removed: [this.convertToSessionSync(token)], changed: [] });
 					}
 				}
-			}, 1000 * (token.expiresIn - 30)));
+				// For details on why this is set to 2/3... see https://github.com/microsoft/vscode/issues/133201#issuecomment-966668197
+			}, 1000 * (token.expiresIn * 2 / 3)));
 		}
 
-		this.storeTokenData();
+		await this.storeTokenData();
 	}
 
 	private getTokenFromResponse(json: ITokenResponse, scope: string, existingId?: string): IToken {
@@ -600,6 +615,16 @@ export class AzureActiveDirectoryService {
 	}
 
 	private async refreshToken(refreshToken: string, scope: string, sessionId: string): Promise<IToken> {
+		this._refreshingPromise = this.doRefreshToken(refreshToken, scope, sessionId);
+		try {
+			const result = await this._refreshingPromise;
+			return result;
+		} finally {
+			this._refreshingPromise = undefined;
+		}
+	}
+
+	private async doRefreshToken(refreshToken: string, scope: string, sessionId: string): Promise<IToken> {
 		Logger.info(`Refreshing token for scopes: ${scope}`);
 		const postData = querystring.stringify({
 			refresh_token: refreshToken,
@@ -630,7 +655,7 @@ export class AzureActiveDirectoryService {
 			if (result.ok) {
 				const json = await result.json();
 				const token = this.getTokenFromResponse(json, scope, sessionId);
-				this.setToken(token, scope);
+				await this.setToken(token, scope);
 				Logger.info(`Token refresh success for scopes: ${token.scope}`);
 				return token;
 			} else {
@@ -710,7 +735,7 @@ export class AzureActiveDirectoryService {
 		if (this._tokens.length === 0) {
 			await this._keychain.deleteToken();
 		} else {
-			this.storeTokenData();
+			await this.storeTokenData();
 		}
 
 		return session;

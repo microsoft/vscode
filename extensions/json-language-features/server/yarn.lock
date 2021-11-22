@@ -22,10 +22,10 @@ request-light@^0.5.4:
   resolved "https://registry.yarnpkg.com/request-light/-/request-light-0.5.4.tgz#497a98c6d8ae49536417a5e2d7f383b934f3e38c"
   integrity sha512-t3566CMweOFlUk7Y1DJMu5OrtpoZEb6aSTsLQVT3wtrIEJ5NhcY9G/Oqxvjllzl4a15zXfFlcr9q40LbLVQJqw==
 
-vscode-json-languageservice@^4.1.9:
-  version "4.1.9"
-  resolved "https://registry.yarnpkg.com/vscode-json-languageservice/-/vscode-json-languageservice-4.1.9.tgz#fb48edc69e37167c3cafd447c3fa898052d87b61"
-  integrity sha512-kxNHitUy2fCxmP6vAp0SRLrUSuecUYzzxlC+85cC3jJlFHWmvtCJOzikC+kcUnIdls9fQSB8n0yHs8Sl6taxJw==
+vscode-json-languageservice@^4.2.0-next.1:
+  version "4.2.0-next.1"
+  resolved "https://registry.yarnpkg.com/vscode-json-languageservice/-/vscode-json-languageservice-4.2.0-next.1.tgz#31a8c3be04c87d5aa593c11b98d84258b173a22f"
+  integrity sha512-aQvkkuZpeSPv86QLzyMdKTCgvXR+qSO39nSgj/XGaOcuHmTt7vMZB7ymYGGkQ4cAaQdHs/2G6a479LQybIGSbg==
   dependencies:
     jsonc-parser "^3.0.0"
     vscode-languageserver-textdocument "^1.0.1"

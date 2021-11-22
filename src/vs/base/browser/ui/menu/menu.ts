@@ -15,7 +15,7 @@ import { AnchorAlignment, layout, LayoutAnchorPosition } from 'vs/base/browser/u
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { EmptySubmenuAction, IAction, IActionRunner, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { Codicon, registerCodicon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { stripIcons } from 'vs/base/common/iconLabels';
@@ -30,8 +30,7 @@ import * as nls from 'vs/nls';
 export const MENU_MNEMONIC_REGEX = /\(&([^\s&])\)|(^|[^&])&([^\s&])/;
 export const MENU_ESCAPED_MNEMONIC_REGEX = /(&amp;)?(&amp;)([^\s&])/g;
 
-const menuSelectionIcon = registerCodicon('menu-selection', Codicon.check);
-const menuSubmenuIcon = registerCodicon('menu-submenu', Codicon.chevronRight);
+
 
 export enum Direction {
 	Right,
@@ -60,6 +59,10 @@ export interface IMenuStyles {
 	selectionBackgroundColor?: Color;
 	selectionBorderColor?: Color;
 	separatorColor?: Color;
+	scrollbarShadow?: Color;
+	scrollbarSliderBackground?: Color;
+	scrollbarSliderHoverBackground?: Color;
+	scrollbarSliderActiveBackground?: Color;
 }
 
 interface ISubMenuData {
@@ -99,8 +102,6 @@ export class Menu extends ActionBar {
 		this.actionsList.tabIndex = 0;
 
 		this.menuDisposables = this._register(new DisposableStore());
-
-		this.initializeStyleSheet(container);
 
 		this._register(Gesture.addTarget(menuElement));
 
@@ -263,22 +264,24 @@ export class Menu extends ActionBar {
 		});
 	}
 
-	private initializeStyleSheet(container: HTMLElement): void {
-		if (isInShadowDOM(container)) {
-			this.styleSheet = createStyleSheet(container);
-			this.styleSheet.textContent = MENU_WIDGET_CSS;
-		} else {
-			if (!Menu.globalStyleSheet) {
-				Menu.globalStyleSheet = createStyleSheet();
-				Menu.globalStyleSheet.textContent = MENU_WIDGET_CSS;
+	private initializeOrUpdateStyleSheet(container: HTMLElement, style: IMenuStyles): void {
+		if (!this.styleSheet) {
+			if (isInShadowDOM(container)) {
+				this.styleSheet = createStyleSheet(container);
+			} else {
+				if (!Menu.globalStyleSheet) {
+					Menu.globalStyleSheet = createStyleSheet();
+				}
+				this.styleSheet = Menu.globalStyleSheet;
 			}
-
-			this.styleSheet = Menu.globalStyleSheet;
 		}
+		this.styleSheet.textContent = getMenuWidgetCSS(style);
 	}
 
 	style(style: IMenuStyles): void {
 		const container = this.getContainer();
+
+		this.initializeOrUpdateStyleSheet(container, style);
 
 		const fgColor = style.foregroundColor ? `${style.foregroundColor}` : '';
 		const bgColor = style.backgroundColor ? `${style.backgroundColor}` : '';
@@ -345,7 +348,7 @@ export class Menu extends ActionBar {
 	}
 
 	protected override updateFocus(fromRight?: boolean): void {
-		super.updateFocus(fromRight, true);
+		super.updateFocus(fromRight, true, true);
 
 		if (typeof this.focusedItem !== 'undefined') {
 			// Workaround for #80047 caused by an issue in chromium
@@ -520,7 +523,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 			}
 		}
 
-		this.check = append(this.item, $('span.menu-item-check' + menuSelectionIcon.cssSelector));
+		this.check = append(this.item, $('span.menu-item-check' + Codicon.menuSelection.cssSelector));
 		this.check.setAttribute('role', 'none');
 
 		this.label = append(this.item, $('span.action-label'));
@@ -771,7 +774,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			this.item.tabIndex = 0;
 			this.item.setAttribute('aria-haspopup', 'true');
 			this.updateAriaExpanded('false');
-			this.submenuIndicator = append(this.item, $('span.submenu-indicator' + menuSubmenuIcon.cssSelector));
+			this.submenuIndicator = append(this.item, $('span.submenu-indicator' + Codicon.menuSubmenu.cssSelector));
 			this.submenuIndicator.setAttribute('aria-hidden', 'true');
 		}
 
@@ -1017,14 +1020,15 @@ export function cleanMnemonic(label: string): string {
 	return label.replace(regex, mnemonicInText ? '$2$3' : '').trim();
 }
 
-let MENU_WIDGET_CSS: string = /* css */`
+function getMenuWidgetCSS(style: IMenuStyles): string {
+	let result = /* css */`
 .monaco-menu {
 	font-size: 13px;
 
 }
 
-${formatRule(menuSelectionIcon)}
-${formatRule(menuSubmenuIcon)}
+${formatRule(Codicon.menuSelection)}
+${formatRule(Codicon.menuSubmenu)}
 
 .monaco-menu .monaco-action-bar {
 	text-align: right;
@@ -1340,7 +1344,6 @@ ${formatRule(menuSubmenuIcon)}
 	left: 3px;
 	height: 3px;
 	width: 100%;
-	box-shadow: #DDD 0 6px 6px -6px inset;
 }
 .monaco-scrollable-element > .shadow.left {
 	display: block;
@@ -1348,7 +1351,6 @@ ${formatRule(menuSubmenuIcon)}
 	left: 0;
 	height: 100%;
 	width: 3px;
-	box-shadow: #DDD 6px 0 6px -6px inset;
 }
 .monaco-scrollable-element > .shadow.top-left-corner {
 	display: block;
@@ -1357,60 +1359,52 @@ ${formatRule(menuSubmenuIcon)}
 	height: 3px;
 	width: 3px;
 }
-.monaco-scrollable-element > .shadow.top.left {
-	box-shadow: #DDD 6px 6px 6px -6px inset;
-}
-
-/* ---------- Default Style ---------- */
-
-:host-context(.vs) .monaco-scrollable-element > .scrollbar > .slider {
-	background: rgba(100, 100, 100, .4);
-}
-:host-context(.vs-dark) .monaco-scrollable-element > .scrollbar > .slider {
-	background: rgba(121, 121, 121, .4);
-}
-:host-context(.hc-black) .monaco-scrollable-element > .scrollbar > .slider {
-	background: rgba(111, 195, 223, .6);
-}
-
-.monaco-scrollable-element > .scrollbar > .slider:hover {
-	background: rgba(100, 100, 100, .7);
-}
-:host-context(.hc-black) .monaco-scrollable-element > .scrollbar > .slider:hover {
-	background: rgba(111, 195, 223, .8);
-}
-
-.monaco-scrollable-element > .scrollbar > .slider.active {
-	background: rgba(0, 0, 0, .6);
-}
-:host-context(.vs-dark) .monaco-scrollable-element > .scrollbar > .slider.active {
-	background: rgba(191, 191, 191, .4);
-}
-:host-context(.hc-black) .monaco-scrollable-element > .scrollbar > .slider.active {
-	background: rgba(111, 195, 223, 1);
-}
-
-:host-context(.vs-dark) .monaco-scrollable-element .shadow.top {
-	box-shadow: none;
-}
-
-:host-context(.vs-dark) .monaco-scrollable-element .shadow.left {
-	box-shadow: #000 6px 0 6px -6px inset;
-}
-
-:host-context(.vs-dark) .monaco-scrollable-element .shadow.top.left {
-	box-shadow: #000 6px 6px 6px -6px inset;
-}
-
-:host-context(.hc-black) .monaco-scrollable-element .shadow.top {
-	box-shadow: none;
-}
-
-:host-context(.hc-black) .monaco-scrollable-element .shadow.left {
-	box-shadow: none;
-}
-
-:host-context(.hc-black) .monaco-scrollable-element .shadow.top.left {
-	box-shadow: none;
-}
 `;
+
+	// Scrollbars
+	const scrollbarShadowColor = style.scrollbarShadow;
+	if (scrollbarShadowColor) {
+		result += `
+			.monaco-scrollable-element > .shadow.top {
+				box-shadow: ${scrollbarShadowColor} 0 6px 6px -6px inset;
+			}
+
+			.monaco-scrollable-element > .shadow.left {
+				box-shadow: ${scrollbarShadowColor} 6px 0 6px -6px inset;
+			}
+
+			.monaco-scrollable-element > .shadow.top.left {
+				box-shadow: ${scrollbarShadowColor} 6px 6px 6px -6px inset;
+			}
+		`;
+	}
+
+	const scrollbarSliderBackgroundColor = style.scrollbarSliderBackground;
+	if (scrollbarSliderBackgroundColor) {
+		result += `
+			.monaco-scrollable-element > .scrollbar > .slider {
+				background: ${scrollbarSliderBackgroundColor};
+			}
+		`;
+	}
+
+	const scrollbarSliderHoverBackgroundColor = style.scrollbarSliderHoverBackground;
+	if (scrollbarSliderHoverBackgroundColor) {
+		result += `
+			.monaco-scrollable-element > .scrollbar > .slider:hover {
+				background: ${scrollbarSliderHoverBackgroundColor};
+			}
+		`;
+	}
+
+	const scrollbarSliderActiveBackgroundColor = style.scrollbarSliderActiveBackground;
+	if (scrollbarSliderActiveBackgroundColor) {
+		result += `
+			.monaco-scrollable-element > .scrollbar > .slider.active {
+				background: ${scrollbarSliderActiveBackgroundColor};
+			}
+		`;
+	}
+
+	return result;
+}

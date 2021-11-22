@@ -53,7 +53,7 @@ args['extensions-dir'] = args['extensions-dir'] || join(REMOTE_DATA_FOLDER, 'ext
  * invoked by vs/server/main.js
  */
 export function spawnCli() {
-	runCli(args, REMOTE_DATA_FOLDER);
+	runCli(args, REMOTE_DATA_FOLDER, serverOptions);
 }
 
 /**

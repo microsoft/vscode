@@ -1722,6 +1722,46 @@ suite('viewLineRenderer.renderLine 2', () => {
 		assert.deepStrictEqual(actual.html, expected);
 	});
 
+	test('issue #136622: Inline decorations are not rendering on non-ASCII lines when renderControlCharacters is on', () => {
+
+		let actual = renderViewLine(new RenderLineInput(
+			true,
+			true,
+			'some text £',
+			false,
+			false,
+			false,
+			0,
+			createViewLineTokens([createPart(11, 3)]),
+			[
+				new LineDecoration(5, 5, 'inlineDec1', InlineDecorationType.After),
+				new LineDecoration(6, 6, 'inlineDec2', InlineDecorationType.Before),
+			],
+			4,
+			0,
+			10,
+			10,
+			10,
+			10000,
+			'none',
+			true,
+			false,
+			null
+		));
+
+		let expected = [
+			'<span>',
+			'<span class="mtk3">some</span>',
+			'<span class="mtk3 inlineDec1"></span>',
+			'<span class="mtk3">\u00a0</span>',
+			'<span class="mtk3 inlineDec2"></span>',
+			'<span class="mtk3">text\u00a0£</span>',
+			'</span>'
+		].join('');
+
+		assert.deepStrictEqual(actual.html, expected);
+	});
+
 	test('issue #22832: Consider fullwidth characters when rendering tabs', () => {
 
 		let actual = renderViewLine(new RenderLineInput(
@@ -2108,6 +2148,38 @@ suite('viewLineRenderer.renderLine 2', () => {
 		const expected = [
 			'<span>',
 			'<span class="mtk3">[\u2421]\u00a0[\u2400]</span>',
+			'</span>'
+		].join('');
+
+		assert.deepStrictEqual(actual.html, expected);
+	});
+
+	test('issue #116939: Important control characters aren\'t rendered', () => {
+		const actual = renderViewLine(new RenderLineInput(
+			false,
+			false,
+			`transferBalance(5678,${String.fromCharCode(0x202E)}6776,4321${String.fromCharCode(0x202C)},"USD");`,
+			false,
+			false,
+			false,
+			0,
+			createViewLineTokens([createPart(42, 3)]),
+			[],
+			4,
+			0,
+			10,
+			10,
+			10,
+			10000,
+			'none',
+			true,
+			false,
+			null
+		));
+
+		const expected = [
+			'<span>',
+			'<span class="mtk3">transferBalance(5678,</span><span class="mtkcontrol">[U+202E]</span><span class="mtk3">6776,4321</span><span class="mtkcontrol">[U+202C]</span><span class="mtk3">,"USD");</span>',
 			'</span>'
 		].join('');
 

@@ -35,7 +35,7 @@ import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { splitName } from 'vs/base/common/labels';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { isMacintosh, locale } from 'vs/base/common/platform';
-import { Throttler } from 'vs/base/common/async';
+import { Delayer, Throttler } from 'vs/base/common/async';
 import { GettingStartedInput } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
 import { GroupDirection, GroupsOrder, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
@@ -522,14 +522,24 @@ export class GettingStartedPage extends EditorPane {
 			StorageTarget.USER);
 	}
 
+	private currentMediaComponent: string | undefined = undefined;
 	private async buildMediaComponent(stepId: string) {
 		if (!this.currentWalkthrough) {
 			throw Error('no walkthrough selected');
 		}
 		const stepToExpand = assertIsDefined(this.currentWalkthrough.steps.find(step => step.id === stepId));
 
+		if (this.currentMediaComponent === stepId) { return; }
+		this.currentMediaComponent = stepId;
+
 		this.stepDisposables.clear();
-		clearNode(this.stepMediaComponent);
+
+		this.stepDisposables.add({
+			dispose: () => {
+				clearNode(this.stepMediaComponent);
+				this.currentMediaComponent = undefined;
+			}
+		});
 
 		if (stepToExpand.media.type === 'image') {
 
@@ -621,6 +631,15 @@ export class GettingStartedPage extends EditorPane {
 				}
 			};
 
+			if (serializedContextKeyExprs) {
+				const contextKeyExprs = coalesce(serializedContextKeyExprs.map(expr => ContextKeyExpr.deserialize(expr)));
+				const watchingKeys = new Set(flatten(contextKeyExprs.map(expr => expr.keys())));
+
+				this.stepDisposables.add(this.contextService.onDidChangeContext(e => {
+					if (e.affectsSome(watchingKeys)) { postTrueKeysMessage(); }
+				}));
+			}
+
 			let isDisposed = false;
 			this.stepDisposables.add(toDisposable(() => { isDisposed = true; }));
 
@@ -639,32 +658,29 @@ export class GettingStartedPage extends EditorPane {
 				}
 			}));
 
-			if (serializedContextKeyExprs) {
-				const contextKeyExprs = coalesce(serializedContextKeyExprs.map(expr => ContextKeyExpr.deserialize(expr)));
-				const watchingKeys = new Set(flatten(contextKeyExprs.map(expr => expr.keys())));
+			const layoutDelayer = new Delayer(50);
 
-				this.stepDisposables.add(this.contextService.onDidChangeContext(e => {
-					if (e.affectsSome(watchingKeys)) { postTrueKeysMessage(); }
-				}));
-
-				this.layoutMarkdown = () => { webview.postMessage({ layout: true }); };
-				this.stepDisposables.add({ dispose: () => this.layoutMarkdown = undefined });
-				this.layoutMarkdown();
-
-				postTrueKeysMessage();
-
-				webview.onMessage(e => {
-					const message: string = e.message as string;
-					if (message.startsWith('command$')) {
-						this.openerService.open(message.replace('$', ':'), { allowCommands: true });
-					} else if (message.startsWith('setTheme$')) {
-						this.configurationService.updateValue(ThemeSettings.COLOR_THEME, message.slice('setTheme:'.length), ConfigurationTarget.USER);
-					} else {
-						console.error('Unexpected message', message);
-					}
+			this.layoutMarkdown = () => {
+				layoutDelayer.trigger(() => {
+					webview.postMessage({ layoutMeNow: true });
 				});
-			}
+			};
 
+			this.stepDisposables.add(layoutDelayer);
+			this.stepDisposables.add({ dispose: () => this.layoutMarkdown = undefined });
+
+			postTrueKeysMessage();
+
+			this.stepDisposables.add(webview.onMessage(e => {
+				const message: string = e.message as string;
+				if (message.startsWith('command:')) {
+					this.openerService.open(message, { allowCommands: true });
+				} else if (message.startsWith('setTheme:')) {
+					this.configurationService.updateValue(ThemeSettings.COLOR_THEME, message.slice('setTheme:'.length), ConfigurationTarget.USER);
+				} else {
+					console.error('Unexpected message', message);
+				}
+			}));
 		}
 	}
 
@@ -808,13 +824,26 @@ export class GettingStartedPage extends EditorPane {
 						margin-block-end: 0.25em;
 						margin-block-start: 0.25em;
 					}
+					vertically-centered {
+						padding-top: 5px;
+						padding-bottom: 5px;
+					}
 					html {
 						height: 100%;
+						padding-right: 32px;
+					}
+					h1 {
+						font-size: 19.5px;
+					}
+					h2 {
+						font-size: 18.5px;
 					}
 				</style>
 			</head>
 			<body>
-				${uriTranformedContent}
+				<vertically-centered>
+					${uriTranformedContent}
+				</vertically-centered>
 			</body>
 			<script nonce="${nonce}">
 				const vscode = acquireVsCodeApi();
@@ -824,10 +853,31 @@ export class GettingStartedPage extends EditorPane {
 					});
 				});
 
-				window.addEventListener('message', event => {
+				let ongoingLayout = undefined;
+				const doLayout = () => {
 					document.querySelectorAll('vertically-centered').forEach(element => {
-						element.style.marginTop = Math.max((document.body.scrollHeight - element.scrollHeight) * 2/5, 10) + 'px';
-					})
+						element.style.marginTop = Math.max((document.body.clientHeight - element.scrollHeight) * 3/10, 0) + 'px';
+					});
+					ongoingLayout = undefined;
+				};
+
+				const layout = () => {
+					if (ongoingLayout) {
+						clearTimeout(ongoingLayout);
+					}
+					ongoingLayout = setTimeout(doLayout, 0);
+				};
+
+				layout();
+
+				document.querySelectorAll('img').forEach(element => {
+					element.onload = layout;
+				})
+
+				window.addEventListener('message', event => {
+					if (event.data.layoutMeNow) {
+						layout();
+					}
 					if (event.data.enabledContextKeys) {
 						document.querySelectorAll('.checked').forEach(element => element.classList.remove('checked'))
 						for (const key of event.data.enabledContextKeys) {
@@ -1398,7 +1448,7 @@ export class GettingStartedPage extends EditorPane {
 							'data-step-id': step.id,
 							'aria-expanded': 'false',
 							'aria-checked': '' + step.done,
-							'role': 'listitem',
+							'role': 'button',
 						},
 						codicon,
 						stepDescription);

@@ -20,8 +20,8 @@ import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { MinimapTokensColorTracker } from 'vs/editor/common/viewModel/minimapTokensColorTracker';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
-import { IViewModelLinesCollection, IdentityLinesCollection, SplitLinesCollection, ILineBreaksComputerFactory } from 'vs/editor/common/viewModel/splitLinesCollection';
-import { ICoordinatesConverter, InjectedText, ILineBreaksComputer, IViewModel, MinimapLinesRenderingData, ViewLineData, ViewLineRenderingData, ViewModelDecoration, OverviewRulerDecorationsGroup } from 'vs/editor/common/viewModel/viewModel';
+import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from 'vs/editor/common/viewModel/viewModelLines';
+import { ICoordinatesConverter, IViewModel, MinimapLinesRenderingData, ViewLineData, ViewLineRenderingData, ViewModelDecoration, OverviewRulerDecorationsGroup } from 'vs/editor/common/viewModel/viewModel';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as platform from 'vs/base/common/platform';
@@ -33,6 +33,8 @@ import { IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayo
 import { ViewModelEventDispatcher, OutgoingViewModelEvent, FocusChangedEvent, ScrollChangedEvent, ViewZonesChangedEvent, ViewModelEventsCollector, ReadOnlyEditAttemptEvent } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { ArrayQueue } from 'vs/base/common/arrays';
+import { ILineBreaksComputerFactory, ILineBreaksComputer, InjectedText } from 'vs/editor/common/viewModel/modelLineProjectionData';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -50,7 +52,7 @@ export class ViewModel extends Disposable implements IViewModel {
 	private _viewportStartLine: number;
 	private _viewportStartLineTrackedRange: string | null;
 	private _viewportStartLineDelta: number;
-	private readonly _lines: IViewModelLinesCollection;
+	private readonly _lines: IViewModelLines;
 	public readonly coordinatesConverter: ICoordinatesConverter;
 	public readonly viewLayout: ViewLayout;
 	private readonly _cursor: CursorsController;
@@ -81,7 +83,7 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		if (USE_IDENTITY_LINES_COLLECTION && this.model.isTooLargeForTokenization()) {
 
-			this._lines = new IdentityLinesCollection(this.model);
+			this._lines = new ViewModelLinesFromModelAsIs(this.model);
 
 		} else {
 			const options = this._configuration.options;
@@ -90,7 +92,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			const wrappingInfo = options.get(EditorOption.wrappingInfo);
 			const wrappingIndent = options.get(EditorOption.wrappingIndent);
 
-			this._lines = new SplitLinesCollection(
+			this._lines = new ViewModelLinesFromProjectedModel(
 				this._editorId,
 				this.model,
 				domLineBreaksComputerFactory,
@@ -296,10 +298,9 @@ export class ViewModel extends Disposable implements IViewModel {
 					}
 				}
 				const lineBreaks = lineBreaksComputer.finalize();
-				let lineBreaksOffset = 0;
+				const lineBreakQueue = new ArrayQueue(lineBreaks);
 
 				for (const change of changes) {
-
 					switch (change.changeType) {
 						case textModelEvents.RawContentChangedType.Flush: {
 							this._lines.onModelFlushed();
@@ -319,9 +320,7 @@ export class ViewModel extends Disposable implements IViewModel {
 							break;
 						}
 						case textModelEvents.RawContentChangedType.LinesInserted: {
-							const insertedLineBreaks = lineBreaks.slice(lineBreaksOffset, lineBreaksOffset + change.detail.length);
-							lineBreaksOffset += change.detail.length;
-
+							const insertedLineBreaks = lineBreakQueue.takeCount(change.detail.length);
 							const linesInsertedEvent = this._lines.onModelLinesInserted(versionId, change.fromLineNumber, change.toLineNumber, insertedLineBreaks);
 							if (linesInsertedEvent !== null) {
 								eventsCollector.emitViewEvent(linesInsertedEvent);
@@ -331,10 +330,9 @@ export class ViewModel extends Disposable implements IViewModel {
 							break;
 						}
 						case textModelEvents.RawContentChangedType.LineChanged: {
-							const changedLineBreakData = lineBreaks[lineBreaksOffset];
-							lineBreaksOffset++;
-
-							const [lineMappingChanged, linesChangedEvent, linesInsertedEvent, linesDeletedEvent] = this._lines.onModelLineChanged(versionId, change.lineNumber, changedLineBreakData);
+							const changedLineBreakData = lineBreakQueue.dequeue()!;
+							const [lineMappingChanged, linesChangedEvent, linesInsertedEvent, linesDeletedEvent] =
+								this._lines.onModelLineChanged(versionId, change.lineNumber, changedLineBreakData);
 							hadModelLineChangeThatChangedLineMapping = lineMappingChanged;
 							if (linesChangedEvent) {
 								eventsCollector.emitViewEvent(linesChangedEvent);

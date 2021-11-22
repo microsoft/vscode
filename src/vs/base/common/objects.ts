@@ -229,9 +229,9 @@ export function getCaseInsensitive(target: obj, key: string): any {
 
 export function filter(obj: obj, predicate: (key: string, value: any) => boolean): obj {
 	const result = Object.create(null);
-	for (const key of Object.keys(obj)) {
-		if (predicate(key, obj[key])) {
-			result[key] = obj[key];
+	for (const [key, value] of Object.entries(obj)) {
+		if (predicate(key, value)) {
+			result[key] = value;
 		}
 	}
 	return result;

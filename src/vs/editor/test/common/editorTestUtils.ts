@@ -70,7 +70,8 @@ function resolveOptions(_options: IRelaxedTextModelCreationOptions): ITextModelC
 }
 
 export function createTextModel(text: string | ITextBufferFactory, _options: IRelaxedTextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS, languageId: string | null = null, uri: URI | null = null): TextModel {
-	const [instantiationService, disposables] = createModelServices();
+	const disposables = new DisposableStore();
+	const instantiationService = createModelServices(disposables);
 	const model = createTextModel2(instantiationService, text, _options, languageId, uri);
 	model.registerDisposable(disposables);
 	return model;
@@ -81,7 +82,7 @@ export function createTextModel2(instantiationService: IInstantiationService, te
 	return instantiationService.createInstance(TestTextModel, text, options, languageId, uri);
 }
 
-export function createModelServices(services: ServiceCollection = new ServiceCollection()): [TestInstantiationService, DisposableStore] {
+export function createModelServices(disposables: DisposableStore, services: ServiceCollection = new ServiceCollection()): TestInstantiationService {
 	const serviceIdentifiers: ServiceIdentifier<any>[] = [];
 	const define = <T>(id: ServiceIdentifier<T>, ctor: new (...args: any[]) => T) => {
 		if (!services.has(id)) {
@@ -102,7 +103,6 @@ export function createModelServices(services: ServiceCollection = new ServiceCol
 	define(IModelService, ModelServiceImpl);
 
 	const instantiationService = new TestInstantiationService(services);
-	const disposables = new DisposableStore();
 	disposables.add(toDisposable(() => {
 		for (const id of serviceIdentifiers) {
 			const instanceOrDescriptor = services.get(id);
@@ -111,5 +111,5 @@ export function createModelServices(services: ServiceCollection = new ServiceCol
 			}
 		}
 	}));
-	return [instantiationService, disposables];
+	return instantiationService;
 }

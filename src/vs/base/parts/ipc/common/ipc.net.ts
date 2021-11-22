@@ -7,7 +7,6 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import * as process from 'vs/base/common/process';
 import { IIPCLogger, IMessagePassingProtocol, IPCClient } from 'vs/base/parts/ipc/common/ipc';
 
 export const enum SocketCloseEventType {
@@ -484,7 +483,7 @@ export class BufferedEmitter<T> {
 				// it is important to deliver these messages after this call, but before
 				// other messages have a chance to be received (to guarantee in order delivery)
 				// that's why we're using here nextTick and not other types of timeouts
-				process.nextTick(() => this._deliverMessages());
+				queueMicrotask(() => this._deliverMessages());
 			},
 			onLastListenerRemove: () => {
 				this._hasListeners = false;

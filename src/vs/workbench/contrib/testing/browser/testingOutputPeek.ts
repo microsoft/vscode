@@ -886,6 +886,7 @@ class ScrollableMarkdownMessage extends Disposable {
 
 		const rendered = this._register(markdown.render(message, {}));
 		rendered.element.style.height = '100%';
+		rendered.element.style.userSelect = 'text';
 		container.appendChild(rendered.element);
 
 		this.scrollable = this._register(new DomScrollableElement(rendered.element, {

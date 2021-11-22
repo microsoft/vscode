@@ -72,8 +72,7 @@ import { ExtensionManagementService } from 'vs/workbench/services/extensionManag
 import { ILoggerService } from 'vs/platform/log/common/log';
 import { FileLoggerService } from 'vs/platform/log/common/fileLog';
 import { UserDataSyncMachinesService, IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
-import { IUserDataSyncStoreService, IUserDataSyncService, IUserDataSyncLogService, IUserDataAutoSyncService, IUserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
+import { IUserDataSyncStoreService, IUserDataSyncService, IUserDataAutoSyncService, IUserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSyncBackupStoreService';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
@@ -94,7 +93,6 @@ registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementServi
 registerSingleton(IAccessibilityService, AccessibilityService, true);
 registerSingleton(IContextMenuService, ContextMenuService);
 registerSingleton(ILoggerService, FileLoggerService);
-registerSingleton(IUserDataSyncLogService, UserDataSyncLogService);
 registerSingleton(IUserDataSyncStoreService, UserDataSyncStoreService);
 registerSingleton(IUserDataSyncMachinesService, UserDataSyncMachinesService);
 registerSingleton(IUserDataSyncBackupStoreService, UserDataSyncBackupStoreService);
@@ -117,6 +115,9 @@ import 'vs/workbench/contrib/output/common/outputChannelModelService';
 
 // Explorer
 import 'vs/workbench/contrib/files/browser/files.web.contribution';
+
+// Performance
+import 'vs/workbench/contrib/performance/browser/performance.web.contribution';
 
 // Preferences
 import 'vs/workbench/contrib/preferences/browser/keyboardLayoutPicker';
@@ -146,5 +147,8 @@ import 'vs/workbench/contrib/tags/browser/workspaceTagsService';
 
 // Issues
 import 'vs/workbench/contrib/issue/browser/issue.web.contribution';
+
+// Splash
+import 'vs/workbench/contrib/splash/browser/splash.contribution';
 
 //#endregion

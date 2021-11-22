@@ -3,16 +3,12 @@ steps:
     inputs:
       versionSpec: "14.x"
 
-  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
-    inputs:
-      versionSpec: "1.x"
-
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
-      SecretsFilter: 'github-distro-mixin-password'
+      SecretsFilter: "github-distro-mixin-password"
 
   - task: DownloadPipelineArtifact@2
     inputs:
@@ -51,23 +47,23 @@ steps:
       git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
     displayName: Merge distro
 
-  - script: |
-      mkdir -p .build
-      node build/azure-pipelines/common/computeNodeModulesCacheKey.js "alpine" $ENABLE_TERRAPIN > .build/yarnlockhash
-    displayName: Prepare yarn cache flags
+  # - script: |
+  #     mkdir -p .build
+  #     node build/azure-pipelines/common/computeNodeModulesCacheKey.js "alpine" $ENABLE_TERRAPIN > .build/yarnlockhash
+  #   displayName: Prepare yarn cache flags
 
-  - task: Cache@2
-    inputs:
-      key: 'nodeModules | $(Agent.OS) | .build/yarnlockhash'
-      path: .build/node_modules_cache
-      cacheHitVar: NODE_MODULES_RESTORED
-    displayName: Restore node_modules cache
+  # - task: Cache@2
+  #   inputs:
+  #     key: "nodeModules | $(Agent.OS) | .build/yarnlockhash"
+  #     path: .build/node_modules_cache
+  #     cacheHitVar: NODE_MODULES_RESTORED
+  #   displayName: Restore node_modules cache
 
-  - script: |
-      set -e
-      tar -xzf .build/node_modules_cache/cache.tgz
-    condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
-    displayName: Extract node_modules cache
+  # - script: |
+  #     set -e
+  #     tar -xzf .build/node_modules_cache/cache.tgz
+  #   condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
+  #   displayName: Extract node_modules cache
 
   - script: |
       set -e
@@ -93,13 +89,13 @@ steps:
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-  - script: |
-      set -e
-      node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
-      mkdir -p .build/node_modules_cache
-      tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-    displayName: Create node_modules archive
+  # - script: |
+  #     set -e
+  #     node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
+  #     mkdir -p .build/node_modules_cache
+  #     tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
+  #   condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+  #   displayName: Create node_modules archive
 
   - script: |
       set -e
@@ -107,7 +103,7 @@ steps:
     displayName: Mix in quality
 
   - script: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-    displayName: 'Register Docker QEMU'
+    displayName: "Register Docker QEMU"
     condition: eq(variables['VSCODE_ARCH'], 'arm64')
 
   - script: |

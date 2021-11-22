@@ -6,13 +6,13 @@
 import * as parcelWatcher from '@parcel/watcher';
 import { existsSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { DeferredPromise, RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { parse, ParsedPattern } from 'vs/base/common/glob';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { normalizeNFC } from 'vs/base/common/normalization';
 import { dirname, isAbsolute, join, normalize, sep } from 'vs/base/common/path';
@@ -22,9 +22,9 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { realcaseSync, realpathSync } from 'vs/base/node/extpath';
 import { watchFolder } from 'vs/base/node/watcher';
 import { FileChangeType } from 'vs/platform/files/common/files';
-import { IDiskFileChange, ILogMessage, normalizeFileChanges, IWatchRequest, IWatcherService } from 'vs/platform/files/common/watcher';
+import { IDiskFileChange, ILogMessage, coalesceEvents, IWatchRequest, IWatcherService } from 'vs/platform/files/common/watcher';
 
-export interface IWatcher extends IDisposable {
+export interface IWatcher {
 
 	/**
 	 * Signals when the watcher is ready to watch.
@@ -48,8 +48,8 @@ export interface IWatcher extends IDisposable {
 	readonly token: CancellationToken;
 
 	/**
-	 * Stops and disposes the watcher. Same as `dispose` but allows to await
-	 * the watcher getting unsubscribed.
+	 * Stops and disposes the watcher. This operation is async to await
+	 * unsubscribe call in Parcel.
 	 */
 	stop(): Promise<void>;
 }
@@ -244,24 +244,20 @@ export class ParcelWatcherService extends Disposable implements IWatcherService 
 	private startPolling(request: IWatchRequest, pollingInterval: number, restarts = 0): void {
 		const cts = new CancellationTokenSource();
 
-		let parcelWatcherPromiseResolve: () => void;
-		const instance = new Promise<void>(resolve => parcelWatcherPromiseResolve = resolve);
+		const instance = new DeferredPromise<void>();
 
 		const snapshotFile = join(tmpdir(), `vscode-watcher-snapshot-${generateUuid()}`);
 
 		// Remember as watcher instance
 		const watcher: IWatcher = {
 			request,
-			ready: instance,
+			ready: instance.p,
 			restarts,
 			token: cts.token,
 			stop: async () => {
 				cts.dispose(true);
 				pollingWatcher.dispose();
 				unlinkSync(snapshotFile);
-			},
-			dispose: () => {
-				watcher.stop();
 			}
 		};
 		this.watchers.set(request.path, watcher);
@@ -302,7 +298,7 @@ export class ParcelWatcherService extends Disposable implements IWatcherService 
 
 			// Signal we are ready now when the first snapshot was written
 			if (counter === 1) {
-				parcelWatcherPromiseResolve();
+				instance.complete();
 			}
 
 			if (cts.token.isCancellationRequested) {
@@ -318,23 +314,19 @@ export class ParcelWatcherService extends Disposable implements IWatcherService 
 	private startWatching(request: IWatchRequest, restarts = 0): void {
 		const cts = new CancellationTokenSource();
 
-		let parcelWatcherPromiseResolve: (watcher: parcelWatcher.AsyncSubscription | undefined) => void;
-		const instance = new Promise<parcelWatcher.AsyncSubscription | undefined>(resolve => parcelWatcherPromiseResolve = resolve);
+		const instance = new DeferredPromise<parcelWatcher.AsyncSubscription | undefined>();
 
 		// Remember as watcher instance
 		const watcher: IWatcher = {
 			request,
-			ready: instance,
+			ready: instance.p,
 			restarts,
 			token: cts.token,
 			stop: async () => {
 				cts.dispose(true);
 
-				const watcherInstance = await instance;
+				const watcherInstance = await instance.p;
 				await watcherInstance?.unsubscribe();
-			},
-			dispose: () => {
-				watcher.stop();
 			}
 		};
 		this.watchers.set(request.path, watcher);
@@ -367,11 +359,11 @@ export class ParcelWatcherService extends Disposable implements IWatcherService 
 		}).then(parcelWatcher => {
 			this.debug(`Started watching: '${realPath}' with backend '${ParcelWatcherService.PARCEL_WATCHER_BACKEND}' and native excludes '${ignore?.join(', ')}'`);
 
-			parcelWatcherPromiseResolve(parcelWatcher);
+			instance.complete(parcelWatcher);
 		}).catch(error => {
 			this.onUnexpectedError(error, watcher);
 
-			parcelWatcherPromiseResolve(undefined);
+			instance.complete(undefined);
 		});
 	}
 
@@ -383,14 +375,19 @@ export class ParcelWatcherService extends Disposable implements IWatcherService 
 		// Check for excludes
 		const rawEvents = this.handleExcludes(parcelEvents, excludes);
 
-		// Normalize and detect root path deletes
+		// Normalize events: handle NFC normalization and symlinks
 		const { events: normalizedEvents, rootDeleted } = this.normalizeEvents(rawEvents, watcher.request, realPathDiffers, realPathLength);
 
-		// Broadcast to clients coalesced
-		const coalescedEvents = normalizeFileChanges(normalizedEvents);
-		this.emitEvents(coalescedEvents);
+		// Coalesce events: merge events of same kind
+		const coalescedEvents = coalesceEvents(normalizedEvents);
 
-		// Handle root path delete if confirmed from coalseced events
+		// Filter events: check for specific events we want to exclude
+		const filteredEvents = this.filterEvents(coalescedEvents, watcher.request, rootDeleted);
+
+		// Broadcast to clients
+		this.emitEvents(filteredEvents);
+
+		// Handle root path delete if confirmed from coalesced events
 		if (rootDeleted && coalescedEvents.some(event => event.path === watcher.request.path && event.type === FileChangeType.DELETED)) {
 			this.onWatchedPathDeleted(watcher);
 		}
@@ -491,6 +488,25 @@ export class ParcelWatcherService extends Disposable implements IWatcherService 
 		return { events, rootDeleted };
 	}
 
+	private filterEvents(events: IDiskFileChange[], request: IWatchRequest, rootDeleted: boolean): IDiskFileChange[] {
+		if (!rootDeleted) {
+			return events;
+		}
+
+		return events.filter(event => {
+			if (event.path === request.path && event.type === FileChangeType.DELETED) {
+				// Explicitly exclude changes to root if we have any
+				// to avoid VS Code closing all opened editors which
+				// can happen e.g. in case of network connectivity
+				// issues
+				// (https://github.com/microsoft/vscode/issues/136673)
+				return false;
+			}
+
+			return true;
+		});
+	}
+
 	private onWatchedPathDeleted(watcher: IWatcher): void {
 		this.warn('Watcher shutdown because watched path got deleted', watcher);
 
@@ -507,9 +523,6 @@ export class ParcelWatcherService extends Disposable implements IWatcherService 
 
 					// Stop watching that parent folder
 					disposable.dispose();
-
-					// Send a manual event given we know the root got added again
-					this.emitEvents([{ path: watcher.request.path, type: FileChangeType.ADDED }]);
 
 					// Restart the file watching
 					this.restartWatching(watcher);

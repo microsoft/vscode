@@ -584,12 +584,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		return isEngineValid(engine, this.productService.version, this.productService.date);
 	}
 
-	query(token: CancellationToken): Promise<IPager<IGalleryExtension>>;
-	query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>>;
-	async query(arg1: any, arg2?: any): Promise<IPager<IGalleryExtension>> {
-		const options: IQueryOptions = CancellationToken.isCancellationToken(arg1) ? {} : arg1;
-		const token: CancellationToken = CancellationToken.isCancellationToken(arg1) ? arg1 : arg2;
-
+	async query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>> {
 		if (!this.isEnabled()) {
 			throw new Error('No extension gallery service configured.');
 		}

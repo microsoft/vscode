@@ -84,8 +84,6 @@ import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyn
 import { UserDataSyncStoreManagementService, UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataAutoSyncService } from 'vs/platform/userDataSync/electron-sandbox/userDataAutoSyncService';
 import { ActiveWindowManager } from 'vs/platform/windows/node/windowTracker';
-import { IExtensionHostStarter, ipcExtensionHostStarterChannelName } from 'vs/platform/extensions/common/extensionHostStarter';
-import { ExtensionHostStarter } from 'vs/platform/extensions/node/extensionHostStarter';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/node/signService';
 import { ISharedTunnelsService } from 'vs/platform/remote/common/tunnel';
@@ -95,6 +93,9 @@ import { SharedProcessTunnelService } from 'vs/platform/remote/node/sharedProces
 import { ipcSharedProcessWorkerChannelName, ISharedProcessWorkerConfiguration, ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
 import { SharedProcessWorkerService } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorkerService';
 import { IUserConfigurationFileService, UserConfigurationFileServiceId } from 'vs/platform/configuration/common/userConfigurationFileService';
+import { AssignmentService } from 'vs/platform/assignment/common/assignmentService';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 
 class SharedProcessMain extends Disposable {
 
@@ -194,7 +195,7 @@ class SharedProcessMain extends Disposable {
 		services.set(ILogService, logService);
 
 		// Worker
-		this.sharedProcessWorkerService = new SharedProcessWorkerService(logService);
+		this.sharedProcessWorkerService = new SharedProcessWorkerService(logService, productService, environmentService);
 		services.set(ISharedProcessWorkerService, this.sharedProcessWorkerService);
 
 		// Files
@@ -222,6 +223,9 @@ class SharedProcessMain extends Disposable {
 		// User Configuration File
 		services.set(IUserConfigurationFileService, ProxyChannel.toService<IUserConfigurationFileService>(mainProcessService.getChannel(UserConfigurationFileServiceId)));
 
+		// URI Identity
+		services.set(IUriIdentityService, new UriIdentityService(fileService));
+
 		// Request
 		services.set(IRequestService, new SyncDescriptor(RequestService));
 
@@ -240,6 +244,9 @@ class SharedProcessMain extends Disposable {
 		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
 		services.set(IExtensionRecommendationNotificationService, new ExtensionRecommendationNotificationServiceChannelClient(this.server.getChannel('extensionRecommendationNotification', activeWindowRouter)));
 
+		// Assignment Service (Experiment service w/out scorecards)
+		const assignmentService = new AssignmentService(this.configuration.machineId, configurationService, productService);
+
 		// Telemetry
 		let telemetryService: ITelemetryService;
 		const appenders: ITelemetryAppender[] = [];
@@ -250,7 +257,16 @@ class SharedProcessMain extends Disposable {
 
 			// Application Insights
 			if (productService.aiConfig && productService.aiConfig.asimovKey) {
-				const appInsightsAppender = new AppInsightsAppender('monacoworkbench', null, productService.aiConfig.asimovKey);
+				const testCollector = await assignmentService.getTreatment<boolean>('telemetryMigration') ?? false;
+				const insiders = productService.quality !== 'stable';
+				// Insiders send to both collector and vortex if assigned.
+				// Stable only send to one
+				if (insiders && testCollector) {
+					const collectorAppender = new AppInsightsAppender('monacoworkbench', null, productService.aiConfig.asimovKey, testCollector, true);
+					this._register(toDisposable(() => collectorAppender.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
+					appenders.push(collectorAppender);
+				}
+				const appInsightsAppender = new AppInsightsAppender('monacoworkbench', null, productService.aiConfig.asimovKey, insiders ? false : testCollector, testCollector && insiders);
 				this._register(toDisposable(() => appInsightsAppender.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
 				appenders.push(appInsightsAppender);
 			}
@@ -319,9 +335,6 @@ class SharedProcessMain extends Disposable {
 		// Terminal
 		services.set(ILocalPtyService, this._register(ptyHostService));
 
-		// Extension Host
-		services.set(IExtensionHostStarter, this._register(new ExtensionHostStarter(logService)));
-
 		// Signing
 		services.set(ISignService, new SyncDescriptor(SignService));
 
@@ -379,10 +392,6 @@ class SharedProcessMain extends Disposable {
 		const localPtyService = accessor.get(ILocalPtyService);
 		const localPtyChannel = ProxyChannel.fromService(localPtyService);
 		this.server.registerChannel(TerminalIpcChannels.LocalPty, localPtyChannel);
-
-		// Extension Host
-		const extensionHostStarterChannel = ProxyChannel.fromService(accessor.get(IExtensionHostStarter));
-		this.server.registerChannel(ipcExtensionHostStarterChannelName, extensionHostStarterChannel);
 
 		// Tunnel
 		const sharedProcessTunnelChannel = ProxyChannel.fromService(accessor.get(ISharedProcessTunnelService));

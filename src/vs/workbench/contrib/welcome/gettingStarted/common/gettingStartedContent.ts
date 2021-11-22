@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { OpenGettingStarted } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 
 const setupIcon = registerIcon('getting-started-setup', Codicon.zap, localize('getting-started-setup-icon', "Icon used for the setup category of welcome page"));
@@ -144,7 +144,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 	{
 		id: 'topLevelShowWalkthroughs',
 		title: localize('gettingStarted.topLevelShowWalkthroughs.title', "Open a Walkthrough..."),
-		description: localize('gettingStarted.topLevelShowWalkthroughs.description', ""),
+		description: localize('gettingStarted.topLevelShowWalkthroughs.description', "View a walkthrough on the editor or an extension"),
 		icon: Codicon.checklist,
 		when: 'allWalkthroughsHidden',
 		content: {
@@ -483,7 +483,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		description: '',
 		icon: setupIcon,
 		isFeatured: false,
-		when: `config.${OpenGettingStarted} && userHasOpenedNotebook`,
+		when: `config.${NotebookSetting.openGettingStarted} && userHasOpenedNotebook`,
 		content: {
 			type: 'steps',
 			steps: [

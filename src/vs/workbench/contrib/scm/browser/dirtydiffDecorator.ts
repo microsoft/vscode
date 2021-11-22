@@ -50,6 +50,8 @@ import { EncodingMode, ITextFileEditorModel, IResolvedTextFileEditorModel, IText
 import { gotoNextLocation, gotoPreviousLocation } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { TextCompareEditorActiveContext } from 'vs/workbench/common/editor';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 
 class DiffActionRunner extends ActionRunner {
 
@@ -363,7 +365,7 @@ export class ShowPreviousChangeAction extends EditorAction {
 			id: 'editor.action.dirtydiff.previous',
 			label: nls.localize('show previous change', "Show Previous Change"),
 			alias: 'Show Previous Change',
-			precondition: undefined,
+			precondition: TextCompareEditorActiveContext.toNegated(),
 			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F3, weight: KeybindingWeight.EditorContrib }
 		});
 	}
@@ -397,7 +399,7 @@ export class ShowNextChangeAction extends EditorAction {
 			id: 'editor.action.dirtydiff.next',
 			label: nls.localize('show next change', "Show Next Change"),
 			alias: 'Show Next Change',
-			precondition: undefined,
+			precondition: TextCompareEditorActiveContext.toNegated(),
 			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Alt | KeyCode.F3, weight: KeybindingWeight.EditorContrib }
 		});
 	}
@@ -443,14 +445,14 @@ MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
 	order: 2
 });
 
-export class MoveToPreviousChangeAction extends EditorAction {
+export class GotoPreviousChangeAction extends EditorAction {
 
 	constructor() {
 		super({
 			id: 'workbench.action.editor.previousChange',
-			label: nls.localize('move to previous change', "Move to Previous Change"),
-			alias: 'Move to Previous Change',
-			precondition: undefined,
+			label: nls.localize('move to previous change', "Go to Previous Change"),
+			alias: 'Go to Previous Change',
+			precondition: TextCompareEditorActiveContext.toNegated(),
 			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F5, weight: KeybindingWeight.EditorContrib }
 		});
 	}
@@ -483,16 +485,16 @@ export class MoveToPreviousChangeAction extends EditorAction {
 		outerEditor.revealPositionInCenter(position);
 	}
 }
-registerEditorAction(MoveToPreviousChangeAction);
+registerEditorAction(GotoPreviousChangeAction);
 
-export class MoveToNextChangeAction extends EditorAction {
+export class GotoNextChangeAction extends EditorAction {
 
 	constructor() {
 		super({
 			id: 'workbench.action.editor.nextChange',
-			label: nls.localize('move to next change', "Move to Next Change"),
-			alias: 'Move to Next Change',
-			precondition: undefined,
+			label: nls.localize('move to next change', "Go to Next Change"),
+			alias: 'Go to Next Change',
+			precondition: TextCompareEditorActiveContext.toNegated(),
 			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Alt | KeyCode.F5, weight: KeybindingWeight.EditorContrib }
 		});
 	}
@@ -525,7 +527,7 @@ export class MoveToNextChangeAction extends EditorAction {
 		outerEditor.revealPositionInCenter(position);
 	}
 }
-registerEditorAction(MoveToNextChangeAction);
+registerEditorAction(GotoNextChangeAction);
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'closeDirtyDiff',
@@ -1086,12 +1088,19 @@ export class DirtyDiffModel extends Disposable {
 		textFileModel: IResolvedTextFileEditorModel,
 		@ISCMService private readonly scmService: ISCMService,
 		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
-		@ITextModelService private readonly textModelResolverService: ITextModelService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@IProgressService private readonly progressService: IProgressService,
 	) {
 		super();
 		this._model = textFileModel;
 
 		this._register(textFileModel.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
+		this._register(
+			Event.filter(configurationService.onDidChangeConfiguration,
+				e => e.affectsConfiguration('scm.diffDecorationsIgnoreTrimWhitespace') || e.affectsConfiguration('diffEditor.ignoreTrimWhitespace')
+			)(this.triggerDiff, this)
+		);
 		this._register(scmService.onDidAddRepository(this.onDidAddRepository, this));
 		scmService.repositories.forEach(r => this.onDidAddRepository(r));
 
@@ -1153,16 +1162,23 @@ export class DirtyDiffModel extends Disposable {
 	}
 
 	private diff(): Promise<IChange[] | null> {
-		return this.getOriginalURIPromise().then(originalURI => {
-			if (this._disposed || this._model.isDisposed() || !originalURI) {
-				return Promise.resolve([]); // disposed
-			}
+		return this.progressService.withProgress({ location: ProgressLocation.Scm }, async () => {
+			return this.getOriginalURIPromise().then(originalURI => {
+				if (this._disposed || this._model.isDisposed() || !originalURI) {
+					return Promise.resolve([]); // disposed
+				}
 
-			if (!this.editorWorkerService.canComputeDirtyDiff(originalURI, this._model.resource)) {
-				return Promise.resolve([]); // Files too large
-			}
+				if (!this.editorWorkerService.canComputeDirtyDiff(originalURI, this._model.resource)) {
+					return Promise.resolve([]); // Files too large
+				}
 
-			return this.editorWorkerService.computeDirtyDiff(originalURI, this._model.resource, false);
+				const ignoreTrimWhitespaceSetting = this.configurationService.getValue<'true' | 'false' | 'inherit'>('scm.diffDecorationsIgnoreTrimWhitespace');
+				const ignoreTrimWhitespace = ignoreTrimWhitespaceSetting === 'inherit'
+					? this.configurationService.getValue<boolean>('diffEditor.ignoreTrimWhitespace')
+					: ignoreTrimWhitespaceSetting !== 'false';
+
+				return this.editorWorkerService.computeDirtyDiff(originalURI, this._model.resource, ignoreTrimWhitespace);
+			});
 		});
 	}
 

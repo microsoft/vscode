@@ -434,7 +434,7 @@ class TypeLabelController<T> implements IDisposable {
 			.filter(() => this.automaticKeyboardNavigation || this.triggered)
 			.map(event => new StandardKeyboardEvent(event))
 			.filter(e => this.delegate.mightProducePrintableCharacter(e))
-			.forEach(e => { e.stopPropagation(); e.preventDefault(); })
+			.forEach(e => e.preventDefault())
 			.map(event => event.browserEvent.key)
 			.event;
 
@@ -854,6 +854,7 @@ export class DefaultStyleController implements IStyleController {
 			content.push(`
 				.monaco-drag-image,
 				.monaco-list${suffix}:focus .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }
+				.monaco-workbench.context-menu-visible .monaco-list${suffix}.last-focused .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }
 			`);
 		}
 
@@ -895,6 +896,16 @@ export class DefaultStyleController implements IStyleController {
 				.monaco-table:hover > .monaco-split-view2 .monaco-sash.vertical::before {
 					border-color: ${styles.tableColumnsBorder};
 			}`);
+		}
+
+		if (styles.tableOddRowsBackgroundColor) {
+			content.push(`
+				.monaco-table .monaco-list-row[data-parity=odd]:not(.focused):not(.selected):not(:hover) .monaco-table-tr,
+				.monaco-table .monaco-list:not(:focus) .monaco-list-row[data-parity=odd].focused:not(.selected):not(:hover) .monaco-table-tr,
+				.monaco-table .monaco-list:not(.focused) .monaco-list-row[data-parity=odd].focused:not(.selected):not(:hover) .monaco-table-tr {
+					background-color: ${styles.tableOddRowsBackgroundColor};
+				}
+			`);
 		}
 
 		this.styleElement.textContent = content.join('\n');
@@ -959,6 +970,7 @@ export interface IListStyles {
 	listMatchesShadow?: Color;
 	treeIndentGuidesStroke?: Color;
 	tableColumnsBorder?: Color;
+	tableOddRowsBackgroundColor?: Color;
 }
 
 const defaultStyles: IListStyles = {
@@ -973,7 +985,8 @@ const defaultStyles: IListStyles = {
 	listHoverBackground: Color.fromHex('#2A2D2E'),
 	listDropBackground: Color.fromHex('#383B3D'),
 	treeIndentGuidesStroke: Color.fromHex('#a9a9a9'),
-	tableColumnsBorder: Color.fromHex('#cccccc').transparent(0.2)
+	tableColumnsBorder: Color.fromHex('#cccccc').transparent(0.2),
+	tableOddRowsBackgroundColor: Color.fromHex('#cccccc').transparent(0.04)
 };
 
 const DefaultOptions: IListOptions<any> = {
@@ -1193,6 +1206,21 @@ class ListViewDragAndDrop<T> implements IListViewDragAndDrop<T> {
 	}
 }
 
+/**
+ * The {@link List} is a virtual scrolling widget, built on top of the {@link ListView}
+ * widget.
+ *
+ * Features:
+ * - Customizable keyboard and mouse support
+ * - Element traits: focus, selection, achor
+ * - Accessibility support
+ * - Touch support
+ * - Performant template-based rendering
+ * - Horizontal scrolling
+ * - Variable element height support
+ * - Dynamic element height support
+ * - Drag-and-drop support
+ */
 export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 
 	private focus = new Trait<T>('focused');

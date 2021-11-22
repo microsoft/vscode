@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { distinct } from 'vs/base/common/arrays';
 import { ScopedLineTokens, ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
 import { BracketsUtils, RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
 
@@ -36,12 +37,7 @@ export class BracketElectricCharacterSupport {
 			}
 		}
 
-		// Filter duplicate entries
-		result = result.filter((item, pos, array) => {
-			return array.indexOf(item) === pos;
-		});
-
-		return result;
+		return distinct(result);
 	}
 
 	public onElectricCharacter(character: string, context: ScopedLineTokens, column: number): IElectricAction | null {

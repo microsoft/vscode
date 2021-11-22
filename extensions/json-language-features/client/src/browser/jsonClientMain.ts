@@ -5,9 +5,8 @@
 
 import { ExtensionContext, Uri } from 'vscode';
 import { LanguageClientOptions } from 'vscode-languageclient';
-import { startClient, LanguageClientConstructor } from '../jsonClient';
+import { startClient, LanguageClientConstructor, SchemaRequestService } from '../jsonClient';
 import { LanguageClient } from 'vscode-languageclient/browser';
-import { RequestService } from '../requests';
 
 declare const Worker: {
 	new(stringUrl: string): any;
@@ -24,7 +23,7 @@ export function activate(context: ExtensionContext) {
 			return new LanguageClient(id, name, clientOptions, worker);
 		};
 
-		const http: RequestService = {
+		const schemaRequests: SchemaRequestService = {
 			getContent(uri: string) {
 				return fetch(uri, { mode: 'cors' })
 					.then(function (response: any) {
@@ -32,7 +31,8 @@ export function activate(context: ExtensionContext) {
 					});
 			}
 		};
-		startClient(context, newLanguageClient, { http });
+
+		startClient(context, newLanguageClient, { schemaRequests });
 
 	} catch (e) {
 		console.log(e);

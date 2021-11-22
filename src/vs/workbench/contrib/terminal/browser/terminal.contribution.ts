@@ -17,12 +17,12 @@ import { getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
 import { Extensions as ViewContainerExtensions, IViewContainersRegistry, ViewContainerLocation, IViewsRegistry } from 'vs/workbench/common/views';
 import { registerTerminalActions, terminalSendSequenceCommand } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { TERMINAL_VIEW_ID, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TERMINAL_VIEW_ID, TerminalCommandId, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { registerColors } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { setupTerminalCommands } from 'vs/workbench/contrib/terminal/browser/terminalCommands';
 import { TerminalService } from 'vs/workbench/contrib/terminal/browser/terminalService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IRemoteTerminalService, ITerminalEditorService, ITerminalGroupService, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalEditorService, ITerminalGroupService, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
@@ -30,7 +30,6 @@ import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/brows
 import { registerTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminalConfiguration';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { terminalViewIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
-import { RemoteTerminalService } from 'vs/workbench/contrib/terminal/browser/remoteTerminalService';
 import { WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { isIOS, isWindows } from 'vs/base/common/platform';
 import { setupTerminalMenus } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
@@ -45,13 +44,18 @@ import { TerminalEditorService } from 'vs/workbench/contrib/terminal/browser/ter
 import { TerminalInputSerializer } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
 import { TerminalGroupService } from 'vs/workbench/contrib/terminal/browser/terminalGroupService';
 import { TerminalContextKeys, TerminalContextKeyStrings } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { TerminalProfileService } from 'vs/workbench/contrib/terminal/browser/terminalProfileService';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { RemoteTerminalBackendContribution } from 'vs/workbench/contrib/terminal/browser/remoteTerminalBackend';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { TerminalMainContribution } from 'vs/workbench/contrib/terminal/browser/terminalMainContribution';
 
 // Register services
 registerSingleton(ITerminalService, TerminalService, true);
 registerSingleton(ITerminalEditorService, TerminalEditorService, true);
 registerSingleton(ITerminalGroupService, TerminalGroupService, true);
-registerSingleton(IRemoteTerminalService, RemoteTerminalService);
 registerSingleton(ITerminalInstanceService, TerminalInstanceService, true);
+registerSingleton(ITerminalProfileService, TerminalProfileService, true);
 
 // Register quick accesses
 const quickAccessRegistry = (Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess));
@@ -67,6 +71,11 @@ const quickAccessNavigateNextInTerminalPickerId = 'workbench.action.quickOpenNav
 CommandsRegistry.registerCommand({ id: quickAccessNavigateNextInTerminalPickerId, handler: getQuickNavigateHandler(quickAccessNavigateNextInTerminalPickerId, true) });
 const quickAccessNavigatePreviousInTerminalPickerId = 'workbench.action.quickOpenNavigatePreviousInTerminalPicker';
 CommandsRegistry.registerCommand({ id: quickAccessNavigatePreviousInTerminalPickerId, handler: getQuickNavigateHandler(quickAccessNavigatePreviousInTerminalPickerId, false) });
+
+// Register workbench contributions
+const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+workbenchRegistry.registerWorkbenchContribution(TerminalMainContribution, LifecyclePhase.Starting);
+workbenchRegistry.registerWorkbenchContribution(RemoteTerminalBackendContribution, LifecyclePhase.Starting);
 
 // Register configurations
 registerTerminalPlatformConfiguration();
@@ -164,8 +173,8 @@ if (isWindows) {
 		primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 	});
 }
-// Delete word right: alt+d
-registerSendSequenceKeybinding('\u000d', {
+// Delete word right: alt+d [27, 100]
+registerSendSequenceKeybinding('\u001bd', {
 	primary: KeyMod.CtrlCmd | KeyCode.Delete,
 	mac: { primary: KeyMod.Alt | KeyCode.Delete }
 });

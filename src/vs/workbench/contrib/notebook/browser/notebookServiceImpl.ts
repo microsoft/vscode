@@ -30,7 +30,7 @@ import { INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/no
 import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditorInput';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellUri, DisplayOrderKey, INotebookContributionData, INotebookExclusiveDocumentFilter, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, MimeTypeDisplayOrder, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, NotebookData, NotebookEditorPriority, NotebookRendererMatch, NotebookTextDiffEditorPreview, NOTEBOOK_DISPLAY_ORDER, RENDERER_NOT_AVAILABLE, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellUri, NotebookSetting, INotebookContributionData, INotebookExclusiveDocumentFilter, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, MimeTypeDisplayOrder, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, NotebookData, NotebookEditorPriority, NotebookRendererMatch, NOTEBOOK_DISPLAY_ORDER, RENDERER_EQUIVALENT_EXTENSIONS, RENDERER_NOT_AVAILABLE, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { updateEditorTopPadding } from 'vs/workbench/contrib/notebook/common/notebookOptions';
@@ -161,7 +161,7 @@ export class NotebookProviderInfoStore extends Disposable {
 				priority: notebookProviderInfo.exclusive ? RegisteredEditorPriority.exclusive : notebookProviderInfo.priority,
 			};
 			const notebookEditorOptions = {
-				canHandleDiff: () => !!this._configurationService.getValue(NotebookTextDiffEditorPreview) && !this._accessibilityService.isScreenReaderOptimized(),
+				canHandleDiff: () => !!this._configurationService.getValue(NotebookSetting.textDiffEditorPreview) && !this._accessibilityService.isScreenReaderOptimized(),
 				canSupportResource: (resource: URI) => resource.scheme === Schemas.untitled || resource.scheme === Schemas.vscodeNotebookCell || this._fileService.hasProvider(resource)
 			};
 			const notebookEditorInputFactory: EditorInputFactoryFunction = ({ resource, options }) => {
@@ -174,7 +174,7 @@ export class NotebookProviderInfoStore extends Disposable {
 					cellOptions = { resource, options };
 				}
 
-				const notebookOptions: INotebookEditorOptions = { ...options, cellOptions };
+				const notebookOptions = { ...options, cellOptions } as INotebookEditorOptions;
 				return { editor: NotebookEditorInput.create(this._instantiationService, notebookUri, notebookProviderInfo.id), options: notebookOptions };
 			};
 			const notebookUntitledEditorFactory: UntitledEditorInputFactoryFunction = async ({ resource, options }) => {
@@ -314,11 +314,13 @@ export class NotebookOutputRendererInfoStore {
 		const enum ReuseOrder {
 			PreviouslySelected = 1 << 8,
 			SameExtensionAsNotebook = 2 << 8,
-			OtherRenderer = 3 << 8,
-			BuiltIn = 4 << 8,
+			BuiltIn = 3 << 8,
+			OtherRenderer = 4 << 8,
 		}
 
 		const preferred = notebookProviderInfo && this.preferredMimetype.getValue()[notebookProviderInfo.id]?.[mimeType];
+		const notebookExtId = notebookProviderInfo?.extension?.value;
+		const notebookId = notebookProviderInfo?.id;
 		const renderers: { ordered: IOrderedMimeType, score: number }[] = Array.from(this.contributedRenderers.values())
 			.map(renderer => {
 				const ownScore = kernelProvides === undefined
@@ -329,9 +331,10 @@ export class NotebookOutputRendererInfoStore {
 					return undefined;
 				}
 
+				const rendererExtId = renderer.extensionId.value;
 				const reuseScore = preferred === renderer.id
 					? ReuseOrder.PreviouslySelected
-					: renderer.extensionId.value === notebookProviderInfo?.extension?.value
+					: rendererExtId === notebookExtId || RENDERER_EQUIVALENT_EXTENSIONS.get(rendererExtId)?.has(notebookId!)
 						? ReuseOrder.SameExtensionAsNotebook
 						: renderer.isBuiltin ? ReuseOrder.BuiltIn : ReuseOrder.OtherRenderer;
 				return {
@@ -456,7 +459,7 @@ export class NotebookService extends Disposable implements INotebookService {
 
 		const updateOrder = () => {
 			this._displayOrder = new MimeTypeDisplayOrder(
-				this._configurationService.getValue<string[]>(DisplayOrderKey) || [],
+				this._configurationService.getValue<string[]>(NotebookSetting.displayOrder) || [],
 				this._accessibilityService.isScreenReaderOptimized()
 					? ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER
 					: NOTEBOOK_DISPLAY_ORDER,
@@ -466,7 +469,7 @@ export class NotebookService extends Disposable implements INotebookService {
 		updateOrder();
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectedKeys.indexOf(DisplayOrderKey) >= 0) {
+			if (e.affectedKeys.indexOf(NotebookSetting.displayOrder) >= 0) {
 				updateOrder();
 			}
 		}));
@@ -624,7 +627,7 @@ export class NotebookService extends Disposable implements INotebookService {
 	}
 
 	saveMimeDisplayOrder(target: ConfigurationTarget) {
-		this._configurationService.updateValue(DisplayOrderKey, this._displayOrder.toArray(), target);
+		this._configurationService.updateValue(NotebookSetting.displayOrder, this._displayOrder.toArray(), target);
 	}
 
 	getRenderers(): INotebookRendererInfo[] {

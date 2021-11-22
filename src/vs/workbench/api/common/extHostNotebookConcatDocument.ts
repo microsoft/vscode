@@ -42,8 +42,8 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 		this._disposables.add(extHostDocuments.onDidChangeDocument(e => {
 			const cellIdx = this._cellUris.get(e.document.uri);
 			if (cellIdx !== undefined) {
-				this._cellLengths.changeValue(cellIdx, this._cells[cellIdx].document.getText().length + 1);
-				this._cellLines.changeValue(cellIdx, this._cells[cellIdx].document.lineCount);
+				this._cellLengths.setValue(cellIdx, this._cells[cellIdx].document.getText().length + 1);
+				this._cellLines.setValue(cellIdx, this._cells[cellIdx].document.lineCount);
 				this._versionId += 1;
 				this._onDidChange.fire(undefined);
 			}

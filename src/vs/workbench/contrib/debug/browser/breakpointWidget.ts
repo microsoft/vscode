@@ -49,7 +49,7 @@ const DECORATION_KEY = 'breakpointwidgetdecoration';
 
 function isCurlyBracketOpen(input: IActiveCodeEditor): boolean {
 	const model = input.getModel();
-	const prevBracket = model.findPrevBracket(input.getPosition());
+	const prevBracket = model.bracketPairs.findPrevBracket(input.getPosition());
 	if (prevBracket && prevBracket.isOpen) {
 		return true;
 	}

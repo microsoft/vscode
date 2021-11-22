@@ -323,7 +323,6 @@ export const IExtensionGalleryService = createDecorator<IExtensionGalleryService
 export interface IExtensionGalleryService {
 	readonly _serviceBrand: undefined;
 	isEnabled(): boolean;
-	query(token: CancellationToken): Promise<IPager<IGalleryExtension>>;
 	query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>>;
 	getExtensions(identifiers: ReadonlyArray<IExtensionIdentifier | IExtensionIdentifierWithVersion>, token: CancellationToken): Promise<IGalleryExtension[]>;
 	download(extension: IGalleryExtension, location: URI, operation: InstallOperation): Promise<void>;

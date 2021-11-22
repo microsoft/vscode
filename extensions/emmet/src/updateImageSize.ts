@@ -23,7 +23,7 @@ export function updateImageSize(): Promise<boolean> | undefined {
 	}
 	const editor = window.activeTextEditor;
 
-	const allUpdatesPromise = editor.selections.reverse().map(selection => {
+	const allUpdatesPromise = Array.from(editor.selections).reverse().map(selection => {
 		const position = selection.isReversed ? selection.active : selection.anchor;
 		if (!isStyleSheet(editor.document.languageId)) {
 			return updateImageSizeHTML(editor, position);
@@ -58,8 +58,8 @@ function updateImageSizeHTML(editor: TextEditor, position: Position): Promise<Te
 	return locateFile(path.dirname(editor.document.fileName), src)
 		.then(getImageSize)
 		.then((size: any) => {
-			// since this action is asynchronous, we have to ensure that editor wasn’t
-			// changed and user didn’t moved caret outside <img> node
+			// since this action is asynchronous, we have to ensure that editor wasn't
+			// changed and user didn't moved caret outside <img> node
 			const img = getImageHTMLNode(editor, position);
 			if (img && getImageSrcHTML(img) === src) {
 				return updateHTMLTag(editor, img, size.width, size.height);
@@ -109,8 +109,8 @@ function updateImageSizeCSS(editor: TextEditor, position: Position, fetchNode: (
 	return locateFile(path.dirname(editor.document.fileName), src)
 		.then(getImageSize)
 		.then((size: any): TextEdit[] => {
-			// since this action is asynchronous, we have to ensure that editor wasn’t
-			// changed and user didn’t moved caret outside <img> node
+			// since this action is asynchronous, we have to ensure that editor wasn't
+			// changed and user didn't moved caret outside <img> node
 			const prop = fetchNode(editor, position);
 			if (prop && getImageSrcCSS(editor, prop, position) === src) {
 				return updateCSSNode(editor, prop, size.width, size.height);
@@ -259,7 +259,7 @@ function getAttribute(node: HtmlNode, attrName: string): Attribute | undefined {
 
 /**
  * Returns quote character, used for value of given attribute. May return empty
- * string if attribute wasn’t quoted
+ * string if attribute wasn't quoted
 
  */
 function getAttributeQuote(editor: TextEditor, attr: Attribute): string {
@@ -290,7 +290,7 @@ function findUrlToken(editor: TextEditor, node: Property, pos: Position): CssTok
 }
 
 /**
- * Returns a string that is used to delimit properties in current node’s rule
+ * Returns a string that is used to delimit properties in current node's rule
  */
 function getPropertyDelimitor(editor: TextEditor, node: Property): string {
 	let anchor;

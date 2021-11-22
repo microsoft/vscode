@@ -62,7 +62,16 @@ export class ListService implements IListService {
 		return this._lastFocusedWidget;
 	}
 
-	constructor(@IThemeService private readonly _themeService: IThemeService) {
+	constructor(@IThemeService private readonly _themeService: IThemeService) { }
+
+	private setLastFocusedList(widget: WorkbenchListWidget | undefined): void {
+		if (widget === this._lastFocusedWidget) {
+			return;
+		}
+
+		this._lastFocusedWidget?.getHTMLElement().classList.remove('last-focused');
+		this._lastFocusedWidget = widget;
+		this._lastFocusedWidget?.getHTMLElement().classList.add('last-focused');
 	}
 
 	register(widget: WorkbenchListWidget, extraContextKeys?: (IContextKey<boolean>)[]): IDisposable {
@@ -83,16 +92,16 @@ export class ListService implements IListService {
 
 		// Check for currently being focused
 		if (widget.getHTMLElement() === document.activeElement) {
-			this._lastFocusedWidget = widget;
+			this.setLastFocusedList(widget);
 		}
 
 		return combinedDisposable(
-			widget.onDidFocus(() => this._lastFocusedWidget = widget),
+			widget.onDidFocus(() => this.setLastFocusedList(widget)),
 			toDisposable(() => this.lists.splice(this.lists.indexOf(registeredList), 1)),
 			widget.onDidDispose(() => {
 				this.lists = this.lists.filter(l => l !== registeredList);
 				if (this._lastFocusedWidget === widget) {
-					this._lastFocusedWidget = undefined;
+					this.setLastFocusedList(undefined);
 				}
 			})
 		);
@@ -110,6 +119,10 @@ export const WorkbenchListHasSelectionOrFocus = new RawContextKey<boolean>('list
 export const WorkbenchListDoubleSelection = new RawContextKey<boolean>('listDoubleSelection', false);
 export const WorkbenchListMultiSelection = new RawContextKey<boolean>('listMultiSelection', false);
 export const WorkbenchListSelectionNavigation = new RawContextKey<boolean>('listSelectionNavigation', false);
+export const WorkbenchTreeElementCanCollapse = new RawContextKey<boolean>('treeElementCanCollapse', false);
+export const WorkbenchTreeElementHasParent = new RawContextKey<boolean>('treeElementHasParent', false);
+export const WorkbenchTreeElementCanExpand = new RawContextKey<boolean>('treeElementCanExpand', false);
+export const WorkbenchTreeElementHasChild = new RawContextKey<boolean>('treeElementHasChild', false);
 export const WorkbenchListAutomaticKeyboardNavigationKey = 'listAutomaticKeyboardNavigation';
 
 function createScopedContextKeyService(contextKeyService: IContextKeyService, widget: ListWidget): IContextKeyService {
@@ -471,7 +484,6 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 	private horizontalScrolling: boolean | undefined;
 	private _styler: IDisposable | undefined;
 	private _useAltAsMultipleSelectionModifier: boolean;
-	private readonly disposables: DisposableStore;
 	private navigator: TableResourceNavigator<TRow>;
 	get onDidOpen(): Event<IOpenEvent<TRow | undefined>> { return this.navigator.onDidOpen; }
 
@@ -500,7 +512,6 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 			}
 		);
 
-		this.disposables = new DisposableStore();
 		this.disposables.add(workbenchListOptionsDisposable);
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
@@ -1087,6 +1098,10 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 	private hasSelectionOrFocus: IContextKey<boolean>;
 	private hasDoubleSelection: IContextKey<boolean>;
 	private hasMultiSelection: IContextKey<boolean>;
+	private treeElementCanCollapse: IContextKey<boolean>;
+	private treeElementHasParent: IContextKey<boolean>;
+	private treeElementCanExpand: IContextKey<boolean>;
+	private treeElementHasChild: IContextKey<boolean>;
 	private _useAltAsMultipleSelectionModifier: boolean;
 	private disposables: IDisposable[] = [];
 	private styler: IDisposable | undefined;
@@ -1117,6 +1132,11 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 		this.hasDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
 		this.hasMultiSelection = WorkbenchListMultiSelection.bindTo(this.contextKeyService);
 
+		this.treeElementCanCollapse = WorkbenchTreeElementCanCollapse.bindTo(this.contextKeyService);
+		this.treeElementHasParent = WorkbenchTreeElementHasParent.bindTo(this.contextKeyService);
+		this.treeElementCanExpand = WorkbenchTreeElementCanExpand.bindTo(this.contextKeyService);
+		this.treeElementHasChild = WorkbenchTreeElementHasChild.bindTo(this.contextKeyService);
+
 		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 
 		const interestingContextKeys = new Set();
@@ -1131,6 +1151,20 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 		};
 
 		this.updateStyleOverrides(overrideStyles);
+
+		const updateCollapseContextKeys = () => {
+			const focus = tree.getFocus()[0];
+
+			if (!focus) {
+				return;
+			}
+
+			const node = tree.getNode(focus);
+			this.treeElementCanCollapse.set(node.collapsible && !node.collapsed);
+			this.treeElementHasParent.set(!!tree.getParentElement(focus));
+			this.treeElementCanExpand.set(node.collapsible && node.collapsed);
+			this.treeElementHasChild.set(!!tree.getFirstElementChild(focus));
+		};
 
 		this.disposables.push(
 			this.contextKeyService,
@@ -1150,7 +1184,10 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 				const focus = tree.getFocus();
 
 				this.hasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
+				updateCollapseContextKeys();
 			}),
+			tree.onDidChangeCollapseState(updateCollapseContextKeys),
+			tree.onDidChangeModel(updateCollapseContextKeys),
 			configurationService.onDidChangeConfiguration(e => {
 				let newOptions: IAbstractTreeOptionsUpdate = {};
 				if (e.affectsConfiguration(multiSelectModifierSettingKey)) {

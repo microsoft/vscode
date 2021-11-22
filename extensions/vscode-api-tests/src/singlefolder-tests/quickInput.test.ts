@@ -11,9 +11,19 @@ interface QuickPickExpected {
 	events: string[];
 	activeItems: string[][];
 	selectionItems: string[][];
+	values: string[];
 	acceptedItems: {
 		active: string[][];
 		selection: string[][];
+		dispose: boolean[];
+	};
+}
+
+interface InputBoxExpected {
+	events: string[];
+	values: string[];
+	accepted: {
+		values: string[];
 		dispose: boolean[];
 	};
 }
@@ -35,6 +45,7 @@ suite('vscode API - quick input', function () {
 			events: ['active', 'active', 'selection', 'accept', 'hide'],
 			activeItems: [['eins'], ['zwei']],
 			selectionItems: [['zwei']],
+			values: [],
 			acceptedItems: {
 				active: [['zwei']],
 				selection: [['zwei']],
@@ -61,6 +72,7 @@ suite('vscode API - quick input', function () {
 			events: ['active', 'selection', 'accept', 'hide'],
 			activeItems: [['zwei']],
 			selectionItems: [['zwei']],
+			values: [],
 			acceptedItems: {
 				active: [['zwei']],
 				selection: [['zwei']],
@@ -87,6 +99,7 @@ suite('vscode API - quick input', function () {
 			events: ['active', 'selection', 'active', 'selection', 'accept', 'hide'],
 			activeItems: [['eins'], ['zwei']],
 			selectionItems: [['eins'], ['eins', 'zwei']],
+			values: [],
 			acceptedItems: {
 				active: [['zwei']],
 				selection: [['eins', 'zwei']],
@@ -117,6 +130,7 @@ suite('vscode API - quick input', function () {
 			events: ['active', 'selection', 'accept', 'selection', 'accept', 'hide'],
 			activeItems: [['eins']],
 			selectionItems: [['zwei'], ['drei']],
+			values: [],
 			acceptedItems: {
 				active: [['eins'], ['eins']],
 				selection: [['zwei'], ['drei']],
@@ -142,6 +156,7 @@ suite('vscode API - quick input', function () {
 			events: ['active', 'selection', 'accept', 'active', 'selection', 'active', 'selection', 'accept', 'hide'],
 			activeItems: [['eins'], [], ['drei']],
 			selectionItems: [['eins'], [], ['drei']],
+			values: [],
 			acceptedItems: {
 				active: [['eins'], ['drei']],
 				selection: [['eins'], ['drei']],
@@ -157,6 +172,40 @@ suite('vscode API - quick input', function () {
 				quickPick.items = ['drei', 'vier'].map(label => ({ label }));
 				await timeout(async () => {
 					await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+				}, 0);
+			}, 0);
+		})()
+			.catch(err => done(err));
+	});
+
+	// NOTE: This test is currently accepting the wrong behavior of #135971
+	// so that we can test the fix for #137279.
+	test('createQuickPick, onDidChangeValue gets triggered', function (_done) {
+		let done = (err?: any) => {
+			done = () => { };
+			_done(err);
+		};
+
+		const quickPick = createQuickPick({
+			events: ['active', 'active', 'active', 'active', 'value', 'active', 'active', 'value', 'hide'],
+			activeItems: [['eins'], ['zwei'], [], ['zwei'], [], ['eins']],
+			selectionItems: [],
+			values: ['zwei', ''],
+			acceptedItems: {
+				active: [],
+				selection: [],
+				dispose: []
+			},
+		}, (err?: any) => done(err));
+		quickPick.items = ['eins', 'zwei'].map(label => ({ label }));
+		quickPick.show();
+
+		(async () => {
+			quickPick.value = 'zwei';
+			await timeout(async () => {
+				quickPick.value = '';
+				await timeout(async () => {
+					quickPick.hide();
 				}, 0);
 			}, 0);
 		})()
@@ -248,6 +297,34 @@ suite('vscode API - quick input', function () {
 		quickPick.hide();
 		await waitForHide(quickPick);
 	});
+
+	test('createInputBox, onDidChangeValue gets triggered', function (_done) {
+		let done = (err?: any) => {
+			done = () => { };
+			_done(err);
+		};
+
+		const quickPick = createInputBox({
+			events: ['value', 'accept', 'hide'],
+			values: ['zwei'],
+			accepted: {
+				values: ['zwei'],
+				dispose: [true]
+			},
+		}, (err?: any) => done(err));
+		quickPick.show();
+
+		(async () => {
+			quickPick.value = 'zwei';
+			await timeout(async () => {
+				await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+				await timeout(async () => {
+					quickPick.hide();
+				}, 0);
+			}, 0);
+		})()
+			.catch(err => done(err));
+	});
 });
 
 function createQuickPick(expected: QuickPickExpected, done: (err?: any) => void, record = false) {
@@ -316,7 +393,76 @@ function createQuickPick(expected: QuickPickExpected, done: (err?: any) => void,
 		}
 	});
 
+	quickPick.onDidChangeValue(value => {
+		if (record) {
+			console.log('value');
+			return;
+		}
+
+		try {
+			eventIndex++;
+			assert.strictEqual('value', expected.events.shift(), `onDidChangeValue (event ${eventIndex})`);
+			const expectedValue = expected.values.shift();
+			assert.deepStrictEqual(value, expectedValue, `onDidChangeValue event value (event ${eventIndex})`);
+		} catch (err) {
+			done(err);
+		}
+	});
+
 	return quickPick;
+}
+
+function createInputBox(expected: InputBoxExpected, done: (err?: any) => void, record = false) {
+	const inputBox = window.createInputBox();
+	let eventIndex = -1;
+	inputBox.onDidAccept(() => {
+		if (record) {
+			console.log('accept');
+			return;
+		}
+		try {
+			eventIndex++;
+			assert.strictEqual('accept', expected.events.shift(), `onDidAccept (event ${eventIndex})`);
+			const expectedValue = expected.accepted.values.shift();
+			assert.deepStrictEqual(inputBox.value, expectedValue, `onDidAccept event value (event ${eventIndex})`);
+			if (expected.accepted.dispose.shift()) {
+				inputBox.dispose();
+			}
+		} catch (err) {
+			done(err);
+		}
+	});
+	inputBox.onDidHide(() => {
+		if (record) {
+			console.log('hide');
+			done();
+			return;
+		}
+		try {
+			assert.strictEqual('hide', expected.events.shift());
+			done();
+		} catch (err) {
+			done(err);
+		}
+	});
+
+	inputBox.onDidChangeValue(value => {
+		if (record) {
+			console.log('value');
+			return;
+		}
+
+		try {
+			eventIndex++;
+			assert.strictEqual('value', expected.events.shift(), `onDidChangeValue (event ${eventIndex})`);
+			const expectedValue = expected.values.shift();
+			assert.deepStrictEqual(value, expectedValue, `onDidChangeValue event value (event ${eventIndex})`);
+		} catch (err) {
+			done(err);
+		}
+	});
+
+	return inputBox;
 }
 
 async function timeout<T>(run: () => Promise<T> | T, ms: number): Promise<T> {

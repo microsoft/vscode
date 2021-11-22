@@ -25,9 +25,9 @@ import * as nls from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { activeContrastBorder, editorForeground, editorWidgetBackground, editorWidgetBorder, focusBorder, listFocusHighlightForeground, listHighlightForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, registerColor, textCodeBlockBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, editorForeground, editorWidgetBackground, editorWidgetBorder, listFocusHighlightForeground, listHighlightForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
-import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { CompletionModel } from './completionModel';
 import { ResizableHTMLElement } from './resizable';
 import { CompletionItem, Context as SuggestContext } from './suggest';
@@ -45,6 +45,7 @@ export const editorSuggestWidgetSelectedIconForeground = registerColor('editorSu
 export const editorSuggestWidgetSelectedBackground = registerColor('editorSuggestWidget.selectedBackground', { dark: quickInputListFocusBackground, light: quickInputListFocusBackground, hc: quickInputListFocusBackground }, nls.localize('editorSuggestWidgetSelectedBackground', 'Background color of the selected entry in the suggest widget.'));
 export const editorSuggestWidgetHighlightForeground = registerColor('editorSuggestWidget.highlightForeground', { dark: listHighlightForeground, light: listHighlightForeground, hc: listHighlightForeground }, nls.localize('editorSuggestWidgetHighlightForeground', 'Color of the match highlights in the suggest widget.'));
 export const editorSuggestWidgetHighlightFocusForeground = registerColor('editorSuggestWidget.focusHighlightForeground', { dark: listFocusHighlightForeground, light: listFocusHighlightForeground, hc: listFocusHighlightForeground }, nls.localize('editorSuggestWidgetFocusHighlightForeground', 'Color of the match highlights in the suggest widget when an item is focused.'));
+export const editorSuggestWidgetStatusForeground = registerColor('editorSuggestWidgetStatus.foreground', { dark: transparent(editorSuggestWidgetForeground, .5), light: transparent(editorSuggestWidgetForeground, .5), hc: transparent(editorSuggestWidgetForeground, .5) }, nls.localize('editorSuggestWidgetStatusForeground', 'Foreground color of the suggest widget status.'));
 
 const enum State {
 	Hidden,
@@ -139,9 +140,6 @@ export class SuggestWidget implements IDisposable {
 
 	private readonly _onDetailsKeydown = new Emitter<IKeyboardEvent>();
 	readonly onDetailsKeyDown: Event<IKeyboardEvent> = this._onDetailsKeydown.event;
-
-	private _detailsFocusBorderColor?: string;
-	private _detailsBorderColor?: string;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -336,24 +334,6 @@ export class SuggestWidget implements IDisposable {
 	}
 
 	private _onThemeChange(theme: IColorTheme) {
-		const backgroundColor = theme.getColor(editorSuggestWidgetBackground);
-		if (backgroundColor) {
-			this.element.domNode.style.backgroundColor = backgroundColor.toString();
-			this._messageElement.style.backgroundColor = backgroundColor.toString();
-			this._details.widget.domNode.style.backgroundColor = backgroundColor.toString();
-		}
-		const borderColor = theme.getColor(editorSuggestWidgetBorder);
-		if (borderColor) {
-			this.element.domNode.style.borderColor = borderColor.toString();
-			this._messageElement.style.borderColor = borderColor.toString();
-			this._status.element.style.borderTopColor = borderColor.toString();
-			this._details.widget.domNode.style.borderColor = borderColor.toString();
-			this._detailsBorderColor = borderColor.toString();
-		}
-		const focusBorderColor = theme.getColor(focusBorder);
-		if (focusBorderColor) {
-			this._detailsFocusBorderColor = focusBorderColor.toString();
-		}
 		this._details.widget.borderWidth = theme.type === 'hc' ? 2 : 1;
 	}
 
@@ -547,9 +527,7 @@ export class SuggestWidget implements IDisposable {
 
 		this._layout(this.element.size);
 		// Reset focus border
-		if (this._detailsBorderColor) {
-			this._details.widget.domNode.style.borderColor = this._detailsBorderColor;
-		}
+		this._details.widget.domNode.classList.remove('focused');
 	}
 
 	selectNextPage(): boolean {
@@ -655,14 +633,11 @@ export class SuggestWidget implements IDisposable {
 	toggleDetailsFocus(): void {
 		if (this._state === State.Details) {
 			this._setState(State.Open);
-			if (this._detailsBorderColor) {
-				this._details.widget.domNode.style.borderColor = this._detailsBorderColor;
-			}
+			this._details.widget.domNode.classList.remove('focused');
+
 		} else if (this._state === State.Open && this._isDetailsVisible()) {
 			this._setState(State.Details);
-			if (this._detailsFocusBorderColor) {
-				this._details.widget.domNode.style.borderColor = this._detailsFocusBorderColor;
-			}
+			this._details.widget.domNode.classList.add('focused');
 		}
 	}
 
@@ -850,7 +825,7 @@ export class SuggestWidget implements IDisposable {
 
 	private _positionDetails(): void {
 		if (this._isDetailsVisible()) {
-			this._details.placeAtAnchor(this.element.domNode);
+			this._details.placeAtAnchor(this.element.domNode, this._contentWidget.getPosition()?.preference[0] === ContentWidgetPositionPreference.BELOW);
 		}
 	}
 
@@ -982,45 +957,3 @@ export class SuggestContentWidget implements IContentWidget {
 		this._position = position;
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-	const matchHighlight = theme.getColor(editorSuggestWidgetHighlightForeground);
-	if (matchHighlight) {
-		collector.addRule(`.monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-highlighted-label .highlight { color: ${matchHighlight}; }`);
-	}
-
-	const matchHighlightFocus = theme.getColor(editorSuggestWidgetHighlightFocusForeground);
-	if (matchHighlight) {
-		collector.addRule(`.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused .monaco-highlighted-label .highlight { color: ${matchHighlightFocus}; }`);
-	}
-
-	const foreground = theme.getColor(editorSuggestWidgetForeground);
-	if (foreground) {
-		collector.addRule(`.monaco-editor .suggest-widget, .monaco-editor .suggest-details { color: ${foreground}; }`);
-	}
-
-	const selectedForeground = theme.getColor(editorSuggestWidgetSelectedForeground);
-	if (selectedForeground) {
-		collector.addRule(`.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused { color: ${selectedForeground}; }`);
-	}
-
-	const selectedIconForeground = theme.getColor(editorSuggestWidgetSelectedIconForeground);
-	if (selectedIconForeground) {
-		collector.addRule(`.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused .codicon { color: ${selectedIconForeground}; }`);
-	}
-
-	const link = theme.getColor(textLinkForeground);
-	if (link) {
-		collector.addRule(`.monaco-editor .suggest-details a { color: ${link}; }`);
-	}
-
-	const linkHover = theme.getColor(textLinkActiveForeground);
-	if (linkHover) {
-		collector.addRule(`.monaco-editor .suggest-details a:hover { color: ${linkHover}; }`);
-	}
-
-	const codeBackground = theme.getColor(textCodeBlockBackground);
-	if (codeBackground) {
-		collector.addRule(`.monaco-editor .suggest-details code { background-color: ${codeBackground}; }`);
-	}
-});

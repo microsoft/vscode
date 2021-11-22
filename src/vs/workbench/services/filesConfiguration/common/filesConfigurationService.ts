@@ -169,7 +169,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 			return AutoSaveMode.ON_WINDOW_CHANGE;
 		}
 
-		if (this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0) {
+		if (typeof this.configuredAutoSaveDelay === 'number' && this.configuredAutoSaveDelay >= 0) {
 			return this.configuredAutoSaveDelay <= 1000 ? AutoSaveMode.AFTER_SHORT_DELAY : AutoSaveMode.AFTER_LONG_DELAY;
 		}
 
@@ -178,7 +178,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 	getAutoSaveConfiguration(): IAutoSaveConfiguration {
 		return {
-			autoSaveDelay: this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0 ? this.configuredAutoSaveDelay : undefined,
+			autoSaveDelay: typeof this.configuredAutoSaveDelay === 'number' && this.configuredAutoSaveDelay >= 0 ? this.configuredAutoSaveDelay : undefined,
 			autoSaveFocusChange: !!this.configuredAutoSaveOnFocusChange,
 			autoSaveApplicationChange: !!this.configuredAutoSaveOnWindowChange
 		};

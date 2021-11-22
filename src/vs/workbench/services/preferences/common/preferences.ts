@@ -28,7 +28,7 @@ export enum SettingValueType {
 	Integer = 'integer',
 	Number = 'number',
 	Boolean = 'boolean',
-	StringOrEnumArray = 'string-or-enum-array',
+	Array = 'array',
 	Exclude = 'exclude',
 	Complex = 'complex',
 	NullableInteger = 'nullable-integer',
@@ -42,8 +42,8 @@ export interface ISettingsGroup {
 	range: IRange;
 	title: string;
 	titleRange: IRange;
-	order: number;
 	sections: ISettingsSection[];
+	order?: number;
 	extensionInfo?: IConfigurationExtensionInfo;
 }
 
@@ -69,6 +69,7 @@ export interface ISetting {
 
 	scope?: ConfigurationScope;
 	type?: string | string[];
+	order?: number;
 	arrayItemType?: string;
 	objectProperties?: IJSONSchemaMap,
 	objectPatternProperties?: IJSONSchemaMap,

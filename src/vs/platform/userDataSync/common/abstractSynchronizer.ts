@@ -12,7 +12,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { parse, ParseError } from 'vs/base/common/json';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { extUri, extUriIgnorePathCase, IExtUri } from 'vs/base/common/resources';
+import { IExtUri } from 'vs/base/common/resources';
 import { uppercaseFirstLetter } from 'vs/base/common/strings';
 import { isString } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -20,10 +20,12 @@ import { IHeaders } from 'vs/base/parts/request/common/request';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileChangesEvent, FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileContent, IFileService } from 'vs/platform/files/common/files';
+import { FileChangesEvent, FileOperationError, FileOperationResult, IFileContent, IFileService } from 'vs/platform/files/common/files';
+import { ILogService } from 'vs/platform/log/common/log';
 import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { Change, getLastSyncResourceUri, IRemoteUserData, IResourcePreview as IBaseResourcePreview, ISyncData, ISyncResourceHandle, ISyncResourcePreview as IBaseSyncResourcePreview, IUserData, IUserDataInitializer, IUserDataManifest, IUserDataSyncBackupStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncResourceEnablementService, IUserDataSyncStoreService, IUserDataSyncUtilService, MergeState, PREVIEW_DIR_NAME, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_CONFIGURATION_SCOPE, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 
 type SyncSourceClassification = {
@@ -126,10 +128,11 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 		@ITelemetryService protected readonly telemetryService: ITelemetryService,
 		@IUserDataSyncLogService protected readonly logService: IUserDataSyncLogService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		this.syncResourceLogLabel = uppercaseFirstLetter(this.resource);
-		this.extUri = this.fileService.hasCapability(environmentService.userDataSyncHome, FileSystemProviderCapabilities.PathCaseSensitive) ? extUri : extUriIgnorePathCase;
+		this.extUri = uriIdentityService.extUri;
 		this.syncFolder = this.extUri.joinPath(environmentService.userDataSyncHome, resource);
 		this.syncPreviewFolder = this.extUri.joinPath(this.syncFolder, PREVIEW_DIR_NAME);
 		this.lastSyncResource = getLastSyncResourceUri(resource, environmentService, this.extUri);
@@ -742,8 +745,9 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(resource, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncResourceEnablementService, telemetryService, logService, configurationService);
+		super(resource, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncResourceEnablementService, telemetryService, logService, configurationService, uriIdentityService);
 		this._register(this.fileService.watch(this.extUri.dirname(file)));
 		this._register(this.fileService.onDidFilesChange(e => this.onFileChanges(e)));
 	}
@@ -803,8 +807,9 @@ export abstract class AbstractJsonFileSynchroniser extends AbstractFileSynchroni
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IUserDataSyncUtilService protected readonly userDataSyncUtilService: IUserDataSyncUtilService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(file, resource, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncResourceEnablementService, telemetryService, logService, configurationService);
+		super(file, resource, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncResourceEnablementService, telemetryService, logService, configurationService, uriIdentityService);
 	}
 
 	protected hasErrors(content: string): boolean {
@@ -831,11 +836,12 @@ export abstract class AbstractInitializer implements IUserDataInitializer {
 	constructor(
 		readonly resource: SyncResource,
 		@IEnvironmentService protected readonly environmentService: IEnvironmentService,
-		@IUserDataSyncLogService protected readonly logService: IUserDataSyncLogService,
+		@ILogService protected readonly logService: ILogService,
 		@IFileService protected readonly fileService: IFileService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		this.extUri = this.fileService.hasCapability(environmentService.userDataSyncHome, FileSystemProviderCapabilities.PathCaseSensitive) ? extUri : extUriIgnorePathCase;
-		this.lastSyncResource = getLastSyncResourceUri(this.resource, environmentService, extUri);
+		this.extUri = uriIdentityService.extUri;
+		this.lastSyncResource = getLastSyncResourceUri(this.resource, environmentService, this.extUri);
 	}
 
 	async initialize({ ref, content }: IUserData): Promise<void> {
@@ -846,12 +852,6 @@ export abstract class AbstractInitializer implements IUserDataInitializer {
 
 		const syncData = this.parseSyncData(content);
 		if (!syncData) {
-			return;
-		}
-
-		const isPreviouslySynced = await this.fileService.exists(this.lastSyncResource);
-		if (isPreviouslySynced) {
-			this.logService.info('Remote content does not exist.', this.resource);
 			return;
 		}
 
