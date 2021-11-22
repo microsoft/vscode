@@ -19,7 +19,7 @@ The catch here is while rendering a cell/row, if we happen to perform any DOM re
 
 The worflow of rendering a code cell with a text output is like below and all operations are synchronous
 
-![render in the core](https://user-images.githubusercontent.com/876920/142256110-a1c5800f-be46-4bd2-bbff-077c1c73e1fd.png)
+![render in the core](https://user-images.githubusercontent.com/876920/142806570-a477d315-40f3-4e0c-8079-f2867d5f3e88.png)
 
 When the notebook document contains markdown cells or rich outputs, the workflow is a bit more complex and become asynchornously partially due to the fact the markdown and rich outputs are rendered in a separate webview/iframe. While the list view renders the cell/row, it will send requests to the webview for output rendering, the rendering result (like dimensions of the output elements) won't come back in current frame. Once we receive the output rendering results from the webview (say next frame), we would ask the list view to adjust the position/dimension of the cell and ones below.
 

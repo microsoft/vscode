@@ -770,8 +770,9 @@ configurationRegistry.registerConfiguration({
 		},
 		[NotebookSetting.globalToolbarShowLabel]: {
 			description: nls.localize('notebook.globalToolbarShowLabel', "Control whether the actions on the notebook toolbar should render label or not."),
-			type: 'boolean',
-			default: true,
+			type: 'string',
+			enum: ['always', 'never', 'dynamic'],
+			default: 'always',
 			tags: ['notebookLayout']
 		},
 		[NotebookSetting.textOutputLineLimit]: {

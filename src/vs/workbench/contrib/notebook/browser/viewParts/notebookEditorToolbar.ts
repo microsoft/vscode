@@ -29,8 +29,19 @@ import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/co
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 
 interface IActionModel {
-	action: IAction; size: number; visible: boolean;
+	action: IAction;
+	size: number;
+	visible: boolean;
+	renderLabel: boolean;
 }
+
+enum RenderLabel {
+	Always = 0,
+	Never = 1,
+	Dynamic = 2
+}
+
+type RenderLabelWithFallback = true | false | 'always' | 'never' | 'dynamic';
 
 const TOGGLE_MORE_ACTION_WIDTH = 21;
 const ACTION_PADDING = 8;
@@ -46,7 +57,7 @@ export class NotebookEditorToolbar extends Disposable {
 	private _secondaryActions: IAction[];
 	private _notebookRightToolbar!: ToolBar;
 	private _useGlobalToolbar: boolean = false;
-	private _renderLabel: boolean = true;
+	private _renderLabel: RenderLabel = RenderLabel.Always;
 
 	private readonly _onDidChangeState = this._register(new Emitter<void>());
 	onDidChangeState: Event<void> = this._onDidChangeState.event;
@@ -114,7 +125,7 @@ export class NotebookEditorToolbar extends Disposable {
 		this._register(this._notebookGlobalActionsMenu);
 
 		this._useGlobalToolbar = this.notebookOptions.getLayoutConfiguration().globalToolbar;
-		this._renderLabel = this.configurationService.getValue<boolean>(NotebookSetting.globalToolbarShowLabel);
+		this._renderLabel = this._convertConfiguration(this.configurationService.getValue<RenderLabelWithFallback>(NotebookSetting.globalToolbarShowLabel));
 
 		const context = {
 			ui: true,
@@ -127,8 +138,13 @@ export class NotebookEditorToolbar extends Disposable {
 				return this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this.notebookEditor);
 			}
 
-			if (this._renderLabel) {
-				return action instanceof MenuItemAction ? this.instantiationService.createInstance(ActionViewWithLabel, action) : undefined;
+			if (this._renderLabel !== RenderLabel.Never) {
+				const a = this._primaryActions.find(a => a.action.id === action.id);
+				if (a && a.renderLabel) {
+					return action instanceof MenuItemAction ? this.instantiationService.createInstance(ActionViewWithLabel, action) : undefined;
+				} else {
+					return action instanceof MenuItemAction ? this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined) : undefined;
+				}
 			} else {
 				return action instanceof MenuItemAction ? this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined) : undefined;
 			}
@@ -185,7 +201,7 @@ export class NotebookEditorToolbar extends Disposable {
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(NotebookSetting.globalToolbarShowLabel)) {
-				this._renderLabel = this.configurationService.getValue<boolean>(NotebookSetting.globalToolbarShowLabel);
+				this._renderLabel = this._convertConfiguration(this.configurationService.getValue<RenderLabelWithFallback>(NotebookSetting.globalToolbarShowLabel));
 				const oldElement = this._notebookLeftToolbar.getElement();
 				oldElement.parentElement?.removeChild(oldElement);
 				this._notebookLeftToolbar.dispose();
@@ -214,6 +230,21 @@ export class NotebookEditorToolbar extends Disposable {
 		}
 	}
 
+	private _convertConfiguration(value: RenderLabelWithFallback): RenderLabel {
+		switch (value) {
+			case true:
+				return RenderLabel.Always;
+			case false:
+				return RenderLabel.Never;
+			case 'always':
+				return RenderLabel.Always;
+			case 'never':
+				return RenderLabel.Never;
+			case 'dynamic':
+				return RenderLabel.Dynamic;
+		}
+	}
+
 	private _showNotebookActionsinEditorToolbar() {
 		// when there is no view model, just ignore.
 		if (!this.notebookEditor.hasModel()) {
@@ -223,46 +254,50 @@ export class NotebookEditorToolbar extends Disposable {
 		if (!this._useGlobalToolbar) {
 			this.domNode.style.display = 'none';
 		} else {
-			const groups = this._notebookGlobalActionsMenu.getActions({ shouldForwardArgs: true, renderShortTitle: true });
-			this.domNode.style.display = 'flex';
-			const primaryLeftGroups = groups.filter(group => /^navigation/.test(group[0]));
-			let primaryActions: IAction[] = [];
-			primaryLeftGroups.sort((a, b) => {
-				if (a[0] === 'navigation') {
-					return 1;
-				}
-
-				if (b[0] === 'navigation') {
-					return -1;
-				}
-
-				return 0;
-			}).forEach((group, index) => {
-				primaryActions.push(...group[1]);
-				if (index < primaryLeftGroups.length - 1) {
-					primaryActions.push(new Separator());
-				}
-			});
-			const primaryRightGroup = groups.find(group => /^status/.test(group[0]));
-			const primaryRightActions = primaryRightGroup ? primaryRightGroup[1] : [];
-			const secondaryActions = groups.filter(group => !/^navigation/.test(group[0]) && !/^status/.test(group[0])).reduce((prev: (MenuItemAction | SubmenuItemAction)[], curr) => { prev.push(...curr[1]); return prev; }, []);
-
-			this._notebookLeftToolbar.setActions([], []);
-
-			this._notebookLeftToolbar.setActions(primaryActions, secondaryActions);
-			this._notebookRightToolbar.setActions(primaryRightActions, []);
-			this._secondaryActions = secondaryActions;
-			// flush to make sure it can be updated later
-			this._primaryActions = [];
-
-			if (this._dimension && this._dimension.width >= 0 && this._dimension.height >= 0) {
-				this._cacheItemSizes(this._notebookLeftToolbar);
-			}
-
-			this._computeSizes();
+			this._setNotebookActions();
 		}
 
 		this._onDidChangeState.fire();
+	}
+
+	private _setNotebookActions() {
+		const groups = this._notebookGlobalActionsMenu.getActions({ shouldForwardArgs: true, renderShortTitle: true });
+		this.domNode.style.display = 'flex';
+		const primaryLeftGroups = groups.filter(group => /^navigation/.test(group[0]));
+		let primaryActions: IAction[] = [];
+		primaryLeftGroups.sort((a, b) => {
+			if (a[0] === 'navigation') {
+				return 1;
+			}
+
+			if (b[0] === 'navigation') {
+				return -1;
+			}
+
+			return 0;
+		}).forEach((group, index) => {
+			primaryActions.push(...group[1]);
+			if (index < primaryLeftGroups.length - 1) {
+				primaryActions.push(new Separator());
+			}
+		});
+		const primaryRightGroup = groups.find(group => /^status/.test(group[0]));
+		const primaryRightActions = primaryRightGroup ? primaryRightGroup[1] : [];
+		const secondaryActions = groups.filter(group => !/^navigation/.test(group[0]) && !/^status/.test(group[0])).reduce((prev: (MenuItemAction | SubmenuItemAction)[], curr) => { prev.push(...curr[1]); return prev; }, []);
+
+		this._notebookLeftToolbar.setActions([], []);
+
+		this._notebookLeftToolbar.setActions(primaryActions, secondaryActions);
+		this._notebookRightToolbar.setActions(primaryRightActions, []);
+		this._secondaryActions = secondaryActions;
+		// flush to make sure it can be updated later
+		this._primaryActions = [];
+
+		if (this._dimension && this._dimension.width >= 0 && this._dimension.height >= 0) {
+			this._cacheItemSizes(this._notebookLeftToolbar);
+		}
+
+		this._computeSizes();
 	}
 
 	private _cacheItemSizes(toolbar: ToolBar) {
@@ -273,7 +308,8 @@ export class NotebookEditorToolbar extends Disposable {
 			actions.push({
 				action: action,
 				size: toolbar.getItemWidth(i),
-				visible: true
+				visible: true,
+				renderLabel: true
 			});
 		}
 
@@ -305,37 +341,131 @@ export class NotebookEditorToolbar extends Disposable {
 			const kernelWidth = (rightToolbar.getItemsLength() ? rightToolbar.getItemWidth(0) : 0) + ACTION_PADDING;
 
 			if (this._canBeVisible(this._dimension.width - kernelWidth - ACTION_PADDING /** left margin */)) {
-				this._primaryActions.forEach(action => action.visible = true);
+				this._primaryActions.forEach(action => {
+					action.visible = true;
+					action.renderLabel = true;
+				});
 				toolbar.setActions(this._primaryActions.filter(action => action.action.id !== ToggleMenuAction.ID).map(model => model.action), this._secondaryActions);
 				return;
 			}
 
 			const leftToolbarContainerMaxWidth = this._dimension.width - kernelWidth - (TOGGLE_MORE_ACTION_WIDTH + ACTION_PADDING) /** ... */ - ACTION_PADDING /** toolbar left margin */;
-			const lastItemInLeft = this._primaryActions[this._primaryActions.length - 1];
-			const hasToggleMoreAction = lastItemInLeft.action.id === ToggleMenuAction.ID;
-
-			let size = 0;
-			let actions: IActionModel[] = [];
-
-			for (let i = 0; i < this._primaryActions.length - (hasToggleMoreAction ? 1 : 0); i++) {
-				const actionModel = this._primaryActions[i];
-
-				const itemSize = actionModel.size;
-				if (size + itemSize <= leftToolbarContainerMaxWidth) {
-					size += ACTION_PADDING + itemSize;
-					actions.push(actionModel);
-				} else {
-					break;
-				}
+			if (this._renderLabel === RenderLabel.Dynamic) {
+				this._calculateDynamicLabel(leftToolbarContainerMaxWidth);
+			} else {
+				this._calcuateFixedLabel(leftToolbarContainerMaxWidth);
 			}
-
-			actions.forEach(action => action.visible = true);
-			this._primaryActions.slice(actions.length).forEach(action => action.visible = false);
-
-			toolbar.setActions(
-				actions.filter(action => (action.visible && action.action.id !== ToggleMenuAction.ID)).map(action => action.action),
-				[...this._primaryActions.slice(actions.length).filter(action => !action.visible && action.action.id !== ToggleMenuAction.ID).map(action => action.action), ...this._secondaryActions]);
 		}
+	}
+
+	private _calcuateFixedLabel(leftToolbarContainerMaxWidth: number) {
+		const lastItemInLeft = this._primaryActions[this._primaryActions.length - 1];
+		const hasToggleMoreAction = lastItemInLeft.action.id === ToggleMenuAction.ID;
+
+		let size = 0;
+		let actions: IActionModel[] = [];
+
+		for (let i = 0; i < this._primaryActions.length - (hasToggleMoreAction ? 1 : 0); i++) {
+			const actionModel = this._primaryActions[i];
+
+			const itemSize = actionModel.size;
+			if (size + itemSize <= leftToolbarContainerMaxWidth) {
+				size += ACTION_PADDING + itemSize;
+				actions.push(actionModel);
+			} else {
+				break;
+			}
+		}
+
+		actions.forEach(action => action.visible = true);
+		this._primaryActions.slice(actions.length).forEach(action => action.visible = false);
+
+		this._notebookLeftToolbar.setActions(
+			actions.filter(action => (action.visible && action.action.id !== ToggleMenuAction.ID)).map(action => action.action),
+			[...this._primaryActions.slice(actions.length).filter(action => !action.visible && action.action.id !== ToggleMenuAction.ID).map(action => action.action), ...this._secondaryActions]);
+	}
+
+	private _calculateDynamicLabel(leftToolbarContainerMaxWidth: number) {
+		const lastItemInLeft = this._primaryActions[this._primaryActions.length - 1];
+		const hasToggleMoreAction = lastItemInLeft.action.id === ToggleMenuAction.ID;
+		const actions = this._primaryActions.slice(0, this._primaryActions.length - (hasToggleMoreAction ? 1 : 0));
+
+		if (actions.length === 0) {
+			this._notebookLeftToolbar.setActions(this._primaryActions.filter(action => (action.visible && action.action.id !== ToggleMenuAction.ID)).map(action => action.action), this._secondaryActions);
+			return;
+		}
+
+		let totalWidthWithLabels = actions.map(action => action.size).reduce((a, b) => a + b, 0) + (actions.length - 1) * ACTION_PADDING;
+		if (totalWidthWithLabels <= leftToolbarContainerMaxWidth) {
+			this._primaryActions.forEach(action => {
+				action.visible = true;
+				action.renderLabel = true;
+			});
+			this._notebookLeftToolbar.setActions(this._primaryActions.filter(action => (action.visible && action.action.id !== ToggleMenuAction.ID)).map(action => action.action), this._secondaryActions);
+			return;
+		}
+
+		// too narrow, we need to hide some labels
+
+		if ((actions.length * 21 + (actions.length - 1) * ACTION_PADDING) > leftToolbarContainerMaxWidth) {
+			this._calcuateWithAlllabelsHidden(actions, leftToolbarContainerMaxWidth);
+			return;
+		}
+
+		const sums = [];
+		let sum = 0;
+		let lastActionWithLabel = -1;
+		for (let i = 0; i < actions.length; i++) {
+			sum += actions[i].size;
+			sums.push(sum);
+
+			if (actions[i].action instanceof Separator) {
+				// find group separator
+				const remainingItems = actions.slice(i + 1);
+				const newTotalSum = sum + (remainingItems.length === 0 ? 0 : (remainingItems.length * 21 + (remainingItems.length - 1) * ACTION_PADDING));
+				if (newTotalSum <= leftToolbarContainerMaxWidth) {
+					lastActionWithLabel = i;
+				}
+			} else {
+				continue;
+			}
+		}
+
+		if (lastActionWithLabel < 0) {
+			this._calcuateWithAlllabelsHidden(actions, leftToolbarContainerMaxWidth);
+			return;
+		}
+
+		const visibleActions = actions.slice(0, lastActionWithLabel + 1);
+		visibleActions.forEach(action => { action.visible = true; action.renderLabel = true; });
+		this._primaryActions.slice(visibleActions.length).forEach(action => { action.visible = true; action.renderLabel = false; });
+		this._notebookLeftToolbar.setActions(this._primaryActions.filter(action => (action.visible && action.action.id !== ToggleMenuAction.ID)).map(action => action.action), this._secondaryActions);
+	}
+
+	private _calcuateWithAlllabelsHidden(actions: IActionModel[], leftToolbarContainerMaxWidth: number) {
+		// all actions hidden labels
+		this._primaryActions.forEach(action => { action.renderLabel = false; });
+		let size = 0;
+		let renderActions: IActionModel[] = [];
+
+		for (let i = 0; i < actions.length; i++) {
+			const actionModel = actions[i];
+
+			const itemSize = 21;
+			if (size + itemSize <= leftToolbarContainerMaxWidth) {
+				size += ACTION_PADDING + itemSize;
+				renderActions.push(actionModel);
+			} else {
+				break;
+			}
+		}
+
+		actions.forEach(action => action.visible = true);
+		this._primaryActions.slice(actions.length).forEach(action => action.visible = false);
+
+		this._notebookLeftToolbar.setActions(
+			actions.filter(action => (action.visible && action.action.id !== ToggleMenuAction.ID)).map(action => action.action),
+			[...this._primaryActions.slice(actions.length).filter(action => !action.visible && action.action.id !== ToggleMenuAction.ID).map(action => action.action), ...this._secondaryActions]);
 	}
 
 	layout(dimension: DOM.Dimension) {
