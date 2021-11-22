@@ -9,6 +9,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { extUri as defaultExtUri, IExtUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { setTimeout0 } from 'vs/base/common/platform';
 
 export function isThenable<T>(obj: unknown): obj is Promise<T> {
 	return !!obj && typeof (obj as unknown as Promise<T>).then === 'function';
@@ -970,44 +971,6 @@ export interface IdleDeadline {
 }
 
 /**
- * See https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#:~:text=than%204%2C%20then-,set%20timeout%20to%204,-.
- *
- * Works similarly to `setTimeout(0)` but doesn't suffer from the 4ms artificial delay
- * that browsers set when the nesting level is > 5.
- */
-const scheduleAsyncWork = (() => {
-	if (typeof globalThis.postMessage === 'function' && !globalThis.importScripts) {
-		interface IQueueElement {
-			id: number;
-			callback: () => void;
-		}
-		let pending: IQueueElement[] = [];
-		globalThis.addEventListener('message', (e: MessageEvent) => {
-			if (e.data && e.data.vscodeScheduleAsyncWork) {
-				for (let i = 0, len = pending.length; i < len; i++) {
-					const candidate = pending[i];
-					if (candidate.id === e.data.vscodeScheduleAsyncWork) {
-						pending.splice(i, 1);
-						candidate.callback();
-						return;
-					}
-				}
-			}
-		});
-		let lastId = 0;
-		return (callback: () => void) => {
-			const myId = ++lastId;
-			pending.push({
-				id: myId,
-				callback: callback
-			});
-			globalThis.postMessage({ vscodeScheduleAsyncWork: myId }, '*');
-		};
-	}
-	return (callback: () => void) => setTimeout(callback);
-})();
-
-/**
  * Execute the callback the next time the browser is idle
  */
 export let runWhenIdle: (callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable;
@@ -1018,7 +981,7 @@ declare function cancelIdleCallback(handle: number): void;
 (function () {
 	if (typeof requestIdleCallback !== 'function' || typeof cancelIdleCallback !== 'function') {
 		runWhenIdle = (runner) => {
-			scheduleAsyncWork(() => {
+			setTimeout0(() => {
 				if (disposed) {
 					return;
 				}

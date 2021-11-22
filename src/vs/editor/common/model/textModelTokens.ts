@@ -15,7 +15,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { MultilineTokensBuilder, countEOL } from 'vs/editor/common/model/tokensStore';
-import { runWhenIdle } from 'vs/base/common/async';
+import { runWhenIdle, IdleDeadline } from 'vs/base/common/async';
 
 const enum Constants {
 	CHEAP_TOKENIZATION_LENGTH_LIMIT = 2048
