@@ -81,7 +81,8 @@
         "command": "git.openChange",
         "title": "%command.openChange%",
         "category": "Git",
-        "icon": "$(compare-changes)"
+        "icon": "$(compare-changes)",
+        "enablement": "scmActiveResourceHasChanges"
       },
       {
         "command": "git.openAllChanges",
