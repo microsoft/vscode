@@ -754,7 +754,7 @@ export interface ITerminalInstance {
 
 	addDisposable(disposable: IDisposable): void;
 
-	toggleEscapeSequenceLogging(): void;
+	toggleEscapeSequenceLogging(): Promise<boolean>;
 
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
