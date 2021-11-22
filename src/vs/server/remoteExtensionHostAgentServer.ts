@@ -322,8 +322,8 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		const ptyService = instantiationService.createInstance(
 			PtyHostService,
 			{
-				GraceTime: ProtocolConstants.ReconnectionGraceTime,
-				ShortGraceTime: ProtocolConstants.ReconnectionShortGraceTime,
+				graceTime: ProtocolConstants.ReconnectionGraceTime,
+				shortGraceTime: ProtocolConstants.ReconnectionShortGraceTime,
 				scrollback: configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
 			}
 		);
@@ -913,9 +913,13 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 }
 
 function parseConnectionToken(args: ServerParsedArgs): { connectionToken: string; connectionTokenIsMandatory: boolean; } {
+	if (args['connectionToken']) {
+		console.warn(`The argument '--connectionToken' is deprecated, please use '--connection-token' instead`);
+	}
+
 	if (args['connection-secret']) {
-		if (args['connectionToken']) {
-			console.warn(`Please do not use the argument connectionToken at the same time as connection-secret.`);
+		if (args['connection-token']) {
+			console.warn(`Please do not use the argument '--connection-token' at the same time as '--connection-secret'.`);
 			process.exit(1);
 		}
 		let rawConnectionToken = fs.readFileSync(args['connection-secret']).toString();
@@ -926,7 +930,7 @@ function parseConnectionToken(args: ServerParsedArgs): { connectionToken: string
 		}
 		return { connectionToken: rawConnectionToken, connectionTokenIsMandatory: true };
 	} else {
-		return { connectionToken: args['connectionToken'] || generateUuid(), connectionTokenIsMandatory: false };
+		return { connectionToken: args['connection-token'] || args['connectionToken'] || generateUuid(), connectionTokenIsMandatory: false };
 	}
 }
 

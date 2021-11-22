@@ -70,6 +70,10 @@
 	z-index: 31;
 }
 
+.monaco-workbench .simple-find-part-wrapper {
+	z-index: 32 !important;
+}
+
 .xterm .xterm-screen {
 	cursor: text;
 }

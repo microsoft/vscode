@@ -57,14 +57,14 @@ export const ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER: readonly string[] = [
 ];
 
 /**
- * A mapping of extension IDs who contain renderers, to extensions who they
+ * A mapping of extension IDs who contain renderers, to notebook ids who they
  * should be treated as the same in the renderer selection logic. This is used
  * to prefer the 1st party Jupyter renderers even though they're in a separate
  * extension, for instance. See #136247.
  */
 export const RENDERER_EQUIVALENT_EXTENSIONS: ReadonlyMap<string, ReadonlySet<string>> = new Map([
-	['ms-toolsai.jupyter', new Set(['vscode.ipynb'])],
-	['ms-toolsai.jupyter-renderers', new Set(['vscode.ipynb'])],
+	['ms-toolsai.jupyter', new Set(['jupyter-notebook', 'interactive'])],
+	['ms-toolsai.jupyter-renderers', new Set(['jupyter-notebook', 'interactive'])],
 ]);
 
 export const BUILTIN_RENDERER_ID = '_builtin';

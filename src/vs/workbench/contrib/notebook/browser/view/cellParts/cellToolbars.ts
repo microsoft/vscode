@@ -8,7 +8,8 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IAction } from 'vs/base/common/actions';
 import { disposableTimeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { MarshalledId } from 'vs/base/common/marshalling';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { createActionViewItem, createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -18,9 +19,10 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { DeleteCellAction } from 'vs/workbench/contrib/notebook/browser/controller/editActions';
-import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellViewModelStateChangeEvent, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellActionView';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
+import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 
 export class BetweenCellToolbar extends CellPart {
 	private _betweenCellToolbar!: ToolBar;
@@ -69,13 +71,28 @@ export class BetweenCellToolbar extends CellPart {
 		this._betweenCellToolbar.context = context;
 	}
 
-	prepareRender(): void {
+	renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
+		this._betweenCellToolbar.context = <INotebookCellActionContext>{
+			ui: true,
+			cell: element,
+			cellTemplate: templateData,
+			notebookEditor: this._notebookEditor,
+			$mid: MarshalledId.NotebookCellActionContext
+		};
+	}
+
+	prepareLayout(): void {
 		// nothing to read
 	}
 
 	updateLayoutNow(element: ICellViewModel) {
 		const bottomToolbarOffset = element.layoutInfo.bottomToolbarOffset;
 		this._bottomCellToolbarContainer.style.transform = `translateY(${bottomToolbarOffset}px)`;
+	}
+
+
+	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
+		// nothing to update
 	}
 }
 
@@ -84,7 +101,7 @@ export interface ICssClassDelegate {
 	toggle: (className: string, force?: boolean) => void;
 }
 
-export class CellTitleToolbarPart extends Disposable {
+export class CellTitleToolbarPart extends CellPart {
 	private _toolbar: ToolBar;
 	private _deleteToolbar: ToolBar;
 	private _titleMenu: IMenu;
@@ -120,7 +137,27 @@ export class CellTitleToolbarPart extends Disposable {
 		this.setupChangeListeners();
 	}
 
-	updateContext(toolbarContext: INotebookCellActionContext) {
+	renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
+		this.updateContext(<INotebookCellActionContext>{
+			ui: true,
+			cell: element,
+			cellTemplate: templateData,
+			notebookEditor: this._notebookEditor,
+			$mid: MarshalledId.NotebookCellActionContext
+		});
+	}
+
+	prepareLayout(): void {
+		// nothing to read
+	}
+	updateLayoutNow(element: ICellViewModel): void {
+		// no op
+	}
+	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
+		// no op
+	}
+
+	private updateContext(toolbarContext: INotebookCellActionContext) {
 		this._toolbar.context = toolbarContext;
 		this._deleteToolbar.context = toolbarContext;
 	}

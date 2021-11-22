@@ -12,6 +12,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { MarshalledId } from 'vs/base/common/marshalling';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { IDimension, isThemeColor } from 'vs/editor/common/editorCommon';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -20,8 +21,9 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellViewModelStateChangeEvent, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
+import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { CellStatusbarAlignment, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const $ = DOM.$;
@@ -53,6 +55,7 @@ export class CellEditorStatusBar extends CellPart {
 	readonly onDidClick: Event<IClickTarget> = this._onDidClick.event;
 
 	constructor(
+		private readonly _notebookEditor: INotebookEditorDelegate,
 		container: HTMLElement,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
@@ -93,7 +96,18 @@ export class CellEditorStatusBar extends CellPart {
 		}));
 	}
 
-	prepareRender(): void {
+
+	renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
+		this.updateContext(<INotebookCellActionContext>{
+			ui: true,
+			cell: element,
+			cellTemplate: templateData,
+			notebookEditor: this._notebookEditor,
+			$mid: MarshalledId.NotebookCellActionContext
+		});
+	}
+
+	prepareLayout(): void {
 		// nothing to read
 	}
 
@@ -110,6 +124,11 @@ export class CellEditorStatusBar extends CellPart {
 		const maxItemWidth = this.getMaxItemWidth();
 		this.leftItems.forEach(item => item.maxWidth = maxItemWidth);
 		this.rightItems.forEach(item => item.maxWidth = maxItemWidth);
+	}
+
+
+	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
+		// nothing to update
 	}
 
 	private getMaxItemWidth() {

@@ -115,7 +115,7 @@ class ProcessHeaderTreeRenderer implements ITreeRenderer<ProcessInformation, voi
 	}
 	renderElement(node: ITreeNode<ProcessInformation, void>, index: number, templateData: IProcessItemTemplateData, height: number | undefined): void {
 		templateData.name.textContent = localize('name', "Process Name");
-		templateData.CPU.textContent = localize('cpu', "CPU %");
+		templateData.CPU.textContent = localize('cpu', "CPU (%)");
 		templateData.PID.textContent = localize('pid', "PID");
 		templateData.memory.textContent = localize('memory', "Memory (MB)");
 

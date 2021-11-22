@@ -248,6 +248,7 @@ export interface ITerminalConfiguration {
 	experimentalLinkProvider: boolean;
 	localEchoLatencyThreshold: number;
 	localEchoExcludePrograms: ReadonlyArray<string>;
+	localEchoEnabled: 'auto' | 'on' | 'off';
 	localEchoStyle: 'bold' | 'dim' | 'italic' | 'underlined' | 'inverted' | string;
 	enablePersistentSessions: boolean;
 	tabs: {

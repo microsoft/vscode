@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellViewModelStateChangeEvent, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 
 export abstract class CellPart extends Disposable {
 	constructor() {
@@ -12,12 +13,22 @@ export abstract class CellPart extends Disposable {
 	}
 
 	/**
-	 * Read DOM
+	 * Update the DOM for the cell `element`
 	 */
-	abstract prepareRender(): void;
+	abstract renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void;
 
 	/**
-	 * Update DOM based on layout info change of cell
+	 * Perform DOM read operations to prepare for the list/cell layout update.
+	 */
+	abstract prepareLayout(): void;
+
+	/**
+	 * Update DOM per cell layout info change
 	 */
 	abstract updateLayoutNow(element: ICellViewModel): void;
+
+	/**
+	 * Update per cell state change
+	 */
+	abstract updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void;
 }

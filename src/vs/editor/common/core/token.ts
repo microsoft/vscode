@@ -13,7 +13,7 @@ export class Token {
 	public readonly language: string;
 
 	constructor(offset: number, type: string, language: string) {
-		this.offset = offset | 0;// @perf
+		this.offset = offset;
 		this.type = type;
 		this.language = language;
 	}

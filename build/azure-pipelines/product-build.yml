@@ -113,10 +113,6 @@ variables:
     value: https://az764295.vo.msecnd.net
   - name: AZURE_DOCUMENTDB_ENDPOINT
     value: https://vscode.documents.azure.com:443/
-  - name: AZURE_STORAGE_ACCOUNT
-    value: ticino
-  - name: AZURE_STORAGE_ACCOUNT_2
-    value: vscode
   - name: MOONCAKE_CDN_URL
     value: https://vscode.cdn.azure.cn
   - name: VSCODE_MIXIN_REPO

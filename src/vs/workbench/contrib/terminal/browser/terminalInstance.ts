@@ -621,13 +621,33 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._onLinksReady.fire(this);
 		});
 
-		// TODO: This should be an optional addon
-		this._xtermTypeAheadAddon = this._register(this._instantiationService.createInstance(TypeAheadAddon, this._processManager, this._configHelper));
-		xterm.raw.loadAddon(this._xtermTypeAheadAddon);
+		this._loadTypeAheadAddon(xterm);
+
+		this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TerminalSettingId.LocalEchoEnabled)) {
+				this._loadTypeAheadAddon(xterm);
+			}
+		});
+
 		this._pathService.userHome().then(userHome => {
 			this._userHome = userHome.fsPath;
 		});
 		return xterm;
+	}
+
+	private _loadTypeAheadAddon(xterm: XtermTerminal): void {
+		const enabled = this._configHelper.config.localEchoEnabled;
+		const isRemote = !!this.remoteAuthority;
+		if (enabled === 'off' || enabled === 'auto' && !isRemote) {
+			return this._xtermTypeAheadAddon?.dispose();
+		}
+		if (this._xtermTypeAheadAddon) {
+			return;
+		}
+		if (enabled === 'on' || (enabled === 'auto' && isRemote)) {
+			this._xtermTypeAheadAddon = this._register(this._instantiationService.createInstance(TypeAheadAddon, this._processManager, this._configHelper));
+			xterm.raw.loadAddon(this._xtermTypeAheadAddon);
+		}
 	}
 
 	detachFromElement(): void {
@@ -1466,10 +1486,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	refreshTabLabels(title: string | undefined, eventSource: TitleEventSource): void {
+		const reset = !title;
 		title = this._updateTitleProperties(title, eventSource);
 		const titleChanged = title !== this._title;
 		this._title = title;
-		this._labelComputer?.refreshLabel();
+		this._labelComputer?.refreshLabel(reset);
 		this._setAriaLabel(this.xterm?.raw, this._instanceId, this._title);
 
 		if (this._titleReadyComplete) {
@@ -1762,16 +1783,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this._linkManager.registerExternalLinkProvider(this, provider);
 	}
 
-	async rename(title?: string) {
-		if (!title) {
+	async rename(title?: string | 'triggerQuickpick') {
+		if (title === 'triggerQuickpick') {
 			title = await this._quickInputService.input({
 				value: this.title,
 				prompt: nls.localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),
 			});
 		}
-		if (title) {
-			this.refreshTabLabels(title, TitleEventSource.Api);
-		}
+		this.refreshTabLabels(title, TitleEventSource.Api);
 	}
 
 	async changeIcon() {
@@ -2039,17 +2058,18 @@ export class TerminalLabelComputer extends Disposable {
 		super();
 	}
 
-	refreshLabel(): void {
-		this._title = this.computeLabel(this._configHelper.config.tabs.title, TerminalLabelType.Title);
+	refreshLabel(reset?: boolean): void {
+		this._title = this.computeLabel(this._configHelper.config.tabs.title, TerminalLabelType.Title, reset);
 		this._description = this.computeLabel(this._configHelper.config.tabs.description, TerminalLabelType.Description);
-		if (this._title !== this._instance.title || this._description !== this._instance.description) {
+		if (this._title !== this._instance.title || this._description !== this._instance.description || reset) {
 			this._onDidChangeLabel.fire({ title: this._title, description: this._description });
 		}
 	}
 
 	computeLabel(
 		labelTemplate: string,
-		labelType: TerminalLabelType
+		labelType: TerminalLabelType,
+		reset?: boolean
 	) {
 		const templateProperties: ITerminalLabelTemplateProperties = {
 			cwd: this._instance.cwd || this._instance.initialCwd || '',
@@ -2068,7 +2088,7 @@ export class TerminalLabelComputer extends Disposable {
 		if (!labelTemplate) {
 			return labelType === TerminalLabelType.Title ? (this._instance.processName || '') : '';
 		}
-		if (this._instance.staticTitle && labelType === TerminalLabelType.Title) {
+		if (!reset && this._instance.staticTitle && labelType === TerminalLabelType.Title) {
 			return this._instance.staticTitle.replace(/[\n\r\t]/g, '') || templateProperties.process?.replace(/[\n\r\t]/g, '') || '';
 		}
 		const detection = this._instance.capabilities.includes(ProcessCapability.CwdDetection);

@@ -14,16 +14,18 @@ import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
+import { IState, ITokenizationSupport, MetadataConsts, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/modes';
 import { IndentAction, IndentationRule } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { withTestCodeEditor, TestCodeEditorCreationOptions, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { IRelaxedTextModelCreationOptions, createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { withTestCodeEditor, TestCodeEditorCreationOptions, ITestCodeEditor, createCodeEditorServices } from 'vs/editor/test/browser/testCodeEditor';
+import { IRelaxedTextModelCreationOptions, createTextModel, createTextModel2 } from 'vs/editor/test/common/editorTestUtils';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { OutgoingViewModelEventKind } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 // --------- utils
 
@@ -4810,7 +4812,7 @@ suite('autoClosingPairs', () => {
 
 		private static readonly _id = 'autoClosingMode';
 
-		constructor() {
+		constructor(modeService: IModeService | null = null) {
 			super(AutoClosingMode._id);
 			this._register(LanguageConfigurationRegistry.register(this.languageId, {
 				autoClosingPairs: [
@@ -4827,6 +4829,129 @@ suite('autoClosingPairs', () => {
 					docComment: { open: '/**', close: ' */' }
 				}
 			}));
+			class BaseState implements IState {
+				constructor(
+					public readonly parent: State | null = null
+				) { }
+				clone(): IState { return this; }
+				equals(other: IState): boolean {
+					if (!(other instanceof BaseState)) {
+						return false;
+					}
+					if (!this.parent && !other.parent) {
+						return true;
+					}
+					if (!this.parent || !other.parent) {
+						return false;
+					}
+					return this.parent.equals(other.parent);
+				}
+			}
+			class StringState implements IState {
+				constructor(
+					public readonly char: string,
+					public readonly parentState: State
+				) { }
+				clone(): IState { return this; }
+				equals(other: IState): boolean { return other instanceof StringState && this.char === other.char && this.parentState.equals(other.parentState); }
+			}
+			class BlockCommentState implements IState {
+				constructor(
+					public readonly parentState: State
+				) { }
+				clone(): IState { return this; }
+				equals(other: IState): boolean { return other instanceof StringState && this.parentState.equals(other.parentState); }
+			}
+			type State = BaseState | StringState | BlockCommentState;
+
+			if (modeService) {
+				const encodedLanguageId = modeService.languageIdCodec.encodeLanguageId(this.languageId);
+				this._register(TokenizationRegistry.register(this.languageId, {
+					getInitialState: () => new BaseState(),
+					tokenize: undefined!,
+					tokenize2: function (line: string, hasEOL: boolean, _state: IState, offsetDelta: number): TokenizationResult2 {
+						let state = <State>_state;
+						const tokens: { length: number; type: StandardTokenType; }[] = [];
+						const generateToken = (length: number, type: StandardTokenType, newState?: State) => {
+							if (tokens.length > 0 && tokens[tokens.length - 1].type === type) {
+								// grow last tokens
+								tokens[tokens.length - 1].length += length;
+							} else {
+								tokens.push({ length, type });
+							}
+							line = line.substring(length);
+							if (newState) {
+								state = newState;
+							}
+						};
+						while (line.length > 0) {
+							advance();
+						}
+						let result = new Uint32Array(tokens.length * 2);
+						let startIndex = 0;
+						for (let i = 0; i < tokens.length; i++) {
+							result[2 * i] = startIndex;
+							result[2 * i + 1] = (
+								(encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET)
+								| (tokens[i].type << MetadataConsts.TOKEN_TYPE_OFFSET)
+							);
+							startIndex += tokens[i].length;
+						}
+						return new TokenizationResult2(result, state);
+
+						function advance(): void {
+							if (state instanceof BaseState) {
+								const m1 = line.match(/^[^'"`{}/]+/g);
+								if (m1) {
+									return generateToken(m1[0].length, StandardTokenType.Other);
+								}
+								if (/^['"`]/.test(line)) {
+									return generateToken(1, StandardTokenType.String, new StringState(line.charAt(0), state));
+								}
+								if (/^{/.test(line)) {
+									return generateToken(1, StandardTokenType.Other, new BaseState(state));
+								}
+								if (/^}/.test(line)) {
+									return generateToken(1, StandardTokenType.Other, state.parent || new BaseState());
+								}
+								if (/^\/\//.test(line)) {
+									return generateToken(line.length, StandardTokenType.Comment, state);
+								}
+								if (/^\/\*/.test(line)) {
+									return generateToken(2, StandardTokenType.Comment, new BlockCommentState(state));
+								}
+								return generateToken(1, StandardTokenType.Other, state);
+							} else if (state instanceof StringState) {
+								const m1 = line.match(/^[^\\'"`\$]+/g);
+								if (m1) {
+									return generateToken(m1[0].length, StandardTokenType.String);
+								}
+								if (/^\\/.test(line)) {
+									return generateToken(2, StandardTokenType.String);
+								}
+								if (line.charAt(0) === state.char) {
+									return generateToken(1, StandardTokenType.String, state.parentState);
+								}
+								if (/^\$\{/.test(line)) {
+									return generateToken(2, StandardTokenType.Other, new BaseState(state));
+								}
+								return generateToken(1, StandardTokenType.Other, state);
+							} else if (state instanceof BlockCommentState) {
+								const m1 = line.match(/^[^*]+/g);
+								if (m1) {
+									return generateToken(m1[0].length, StandardTokenType.String);
+								}
+								if (/^\*\//.test(line)) {
+									return generateToken(2, StandardTokenType.Comment, state.parentState);
+								}
+								return generateToken(1, StandardTokenType.Other, state);
+							} else {
+								throw new Error(`unknown state`);
+							}
+						}
+					}
+				}));
+			}
 		}
 
 		public setAutocloseEnabledSet(chars: string) {
@@ -4869,7 +4994,7 @@ suite('autoClosingPairs', () => {
 		return result;
 	}
 
-	function assertType(editor: ITestCodeEditor, model: TextModel, viewModel: ViewModel, lineNumber: number, column: number, chr: string, expectedInsert: string, message: string): void {
+	function assertType(editor: ITestCodeEditor, model: ITextModel, viewModel: ViewModel, lineNumber: number, column: number, chr: string, expectedInsert: string, message: string): void {
 		let lineContent = model.getLineContent(lineNumber);
 		let expected = lineContent.substr(0, column - 1) + expectedInsert + lineContent.substr(column - 1);
 		moveTo(editor, viewModel, lineNumber, column);
@@ -4888,6 +5013,25 @@ suite('autoClosingPairs', () => {
 			assertType(editor, model, viewModel, 1, 25, '`', '``', `auto closes \` @ (1, 25)`);
 		});
 		mode.dispose();
+	});
+
+	test('issue #132912: quotes should not auto-close if they are closing a string', () => {
+		const disposables = new DisposableStore();
+		const instantiationService = createCodeEditorServices(disposables);
+		const modeService = instantiationService.invokeFunction((accessor) => accessor.get(IModeService));
+		const mode = disposables.add(new AutoClosingMode(modeService));
+		withTestCodeEditor(
+			null,
+			{
+				model: disposables.add(createTextModel2(instantiationService, 'const t2 = `something ${t1}', undefined, mode.languageId))
+			},
+			(editor, viewModel) => {
+				const model = viewModel.model;
+				model.forceTokenization(1);
+				assertType(editor, model, viewModel, 1, 28, '`', '`', `does not auto close \` @ (1, 28)`);
+			}
+		);
+		disposables.dispose();
 	});
 
 	test('open parens: default', () => {

@@ -12,7 +12,8 @@ import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/envi
 export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	'port': { type: 'string' },
 	'pick-port': { type: 'string' },
-	'connectionToken': { type: 'string' },
+	'connectionToken': { type: 'string' }, // deprecated in favor of `--connection-token`
+	'connection-token': { type: 'string', description: nls.localize('connection-token', "A secret that must be included by the web client with all requests.") },
 	'connection-secret': { type: 'string', description: nls.localize('connection-secret', "Path to file that contains the connection token. This will require that all incoming connections know the secret.") },
 	'host': { type: 'string' },
 	'socket-path': { type: 'string' },
@@ -60,7 +61,21 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 export interface ServerParsedArgs {
 	port?: string;
 	'pick-port'?: string;
+	/**
+	 * @deprecated use `connection-token` instead
+	 */
 	connectionToken?: string;
+	/**
+	 * A secret token that must be provided by the web client with all requests.
+	 * Use only `[0-9A-Za-z\-]`.
+	 *
+	 * By default, a UUID will be generated every time the server starts up.
+	 *
+	 * If the server is running on a multi-user system, then consider
+	 * using `--connection-secret` which has the advantage that the token cannot
+	 * be seen by other users using `ps` or similar commands.
+	 */
+	'connection-token'?: string;
 	/**
 	 * A path to a filename which will be read on startup.
 	 * Consider placing this file in a folder readable only by the same user (a `chmod 0700` directory).
