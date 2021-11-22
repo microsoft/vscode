@@ -16,7 +16,8 @@ import { normalize, sep } from 'path';
 
 import * as ts from 'typescript';
 import { getSemanticTokens, getSemanticTokenLegend } from './javascriptSemanticTokens';
-import { statSync } from 'fs';
+import { RequestService } from '../requests';
+import { NodeRequestService } from '../node/nodeFs';
 
 const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
 
@@ -32,13 +33,13 @@ function deschemeURI(uri: string) {
 	// Both \ and / must be escaped in regular expressions
 	newPath = newPath.replace(new RegExp('\\' + sep, 'g'), '/');
 
-	if (process.platform !== 'win32') { return newPath; }
+	if (process.platform !== 'win32') return newPath;
 
 	// Windows URIs come in like '/c%3A/Users/orta/dev/...', we need to switch it to 'c:/Users/orta/dev/...'
 	return newPath.slice(1).replace('%3A', ':');
 }
 
-function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
+function getLanguageServiceHost(scriptKind: ts.ScriptKind, fs: NodeRequestService) {
 	const compilerOptions: ts.CompilerOptions = { allowNonTsExtensions: true, allowJs: true, lib: ['lib.es6.d.ts'], target: ts.ScriptTarget.Latest, moduleResolution: ts.ModuleResolutionKind.Classic, experimentalDecorators: false };
 
 	let currentTextDocument = TextDocument.create('init', 'javascript', 1, '');
@@ -64,15 +65,15 @@ function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
 					return '1';
 				}
 				// Unsure how this could occur, but better to not raise with statSync
-				if (!ts.sys.fileExists(fileName)) { return '1'; }
+				if (currentWorkspace && !ts.sys.fileExists(fileName)) { return '1'; }
 				// Use mtime from the fs
-				return String(statSync(fileName).mtimeMs);
+				return String(fs.statSync(fileName).mtime);
 			},
 			getScriptSnapshot: (fileName: string) => {
 				let text = '';
 				if (fileName === deschemeURI(currentTextDocument.uri)) {
 					text = currentTextDocument.getText();
-				} else if (ts.sys.fileExists(fileName)) {
+				} else if (currentWorkspace && ts.sys.fileExists(fileName)) {
 					text = ts.sys.readFile(fileName, 'utf8')!;
 				} else {
 					text = libs.loadLibrary(fileName);
@@ -83,16 +84,19 @@ function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
 					getChangeRange: () => undefined
 				};
 			},
+
+			// Realistically the TSServer can only run on file:// workspaces, because it is entirely sync API
+			// and so `currentWorkspace` is only set when there is at least one root folder in a workspace with a file:// uri
 			getCurrentDirectory: () => {
 				const workspace = currentWorkspace && currentWorkspace.folders.find(ws => deschemeURI(currentTextDocument.uri).startsWith(deschemeURI(ws.uri)));
 				return workspace ? deschemeURI(workspace.uri) : '';
 			},
 			getDefaultLibFileName: (_options: ts.CompilerOptions) => 'es6',
-			fileExists: ts.sys.fileExists,
-			readFile: ts.sys.readFile,
-			readDirectory: ts.sys.readDirectory,
-			directoryExists: ts.sys.directoryExists,
-			getDirectories: ts.sys.getDirectories,
+			fileExists: currentWorkspace && ts.sys.fileExists,
+			readFile: currentWorkspace && ts.sys.readFile,
+			readDirectory: currentWorkspace && ts.sys.readDirectory,
+			directoryExists: currentWorkspace && ts.sys.directoryExists,
+			getDirectories: currentWorkspace && ts.sys.getDirectories,
 		};
 
 		return ts.createLanguageService(host);
@@ -100,7 +104,7 @@ function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
 	return {
 		async getLanguageService(jsDocument: TextDocument, workspace: Workspace): Promise<ts.LanguageService> {
 			currentTextDocument = jsDocument;
-			currentWorkspace = workspace;
+			if (workspace.folders.find(f => f.uri.startsWith('file://'))) currentWorkspace = workspace;
 			return jsLanguageService;
 		},
 		getCompilationSettings() {
@@ -113,10 +117,10 @@ function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
 }
 
 
-export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>, languageId: 'javascript' | 'typescript', workspace: Workspace): LanguageMode {
+export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>, languageId: 'javascript' | 'typescript', workspace: Workspace, fs: RequestService): LanguageMode {
 	let jsDocuments = getLanguageModelCache<TextDocument>(10, 60, document => documentRegions.get(document).getEmbeddedDocument(languageId));
 
-	const host = getLanguageServiceHost(languageId === 'javascript' ? ts.ScriptKind.JS : ts.ScriptKind.TS);
+	const host = getLanguageServiceHost(languageId === 'javascript' ? ts.ScriptKind.JS : ts.ScriptKind.TS, fs as NodeRequestService);
 	let globalSettings: Settings = {};
 
 	return {
@@ -146,7 +150,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			const filePath = deschemeURI(jsDocument.uri);
 
 			let offset = jsDocument.offsetAt(position);
-			let completions = jsLanguageService.getCompletionsAtPosition(filePath, offset, { includeExternalModuleExports: false, includeInsertTextCompletions: false, importModuleSpecifierEnding: 'js' });
+			let completions = jsLanguageService.getCompletionsAtPosition(filePath, offset, { includeExternalModuleExports: false, includeInsertTextCompletions: false });
 
 			if (!completions) {
 				return { isIncomplete: false, items: [] };

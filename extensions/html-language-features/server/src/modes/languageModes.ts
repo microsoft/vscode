@@ -112,8 +112,8 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 		modes['css'] = getCSSMode(cssLanguageService, documentRegions, workspace);
 	}
 	if (supportedLanguages['javascript']) {
-		modes['javascript'] = getJavaScriptMode(documentRegions, 'javascript', workspace);
-		modes['typescript'] = getJavaScriptMode(documentRegions, 'typescript', workspace);
+		modes['javascript'] = getJavaScriptMode(documentRegions, 'javascript', workspace, requestService);
+		modes['typescript'] = getJavaScriptMode(documentRegions, 'typescript', workspace, requestService);
 	}
 	return {
 		async updateDataProviders(dataProviders: IHTMLDataProvider[]): Promise<void> {
