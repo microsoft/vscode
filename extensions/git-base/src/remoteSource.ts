@@ -5,7 +5,7 @@
 
 import { QuickPickItem, window, QuickPick } from 'vscode';
 import * as nls from 'vscode-nls';
-import { RemoteSourceProvider, RemoteSource } from './api/git-base';
+import { RemoteSourceProvider, RemoteSource, PickRemoteSourceOptions, PickRemoteSourceResult } from './api/git-base';
 import { Model } from './model';
 import { throttle, debounce } from './decorators';
 
@@ -76,18 +76,6 @@ class RemoteSourceProviderQuickPick {
 		const result = await getQuickPickResult(this.quickpick);
 		return result?.remoteSource;
 	}
-}
-
-export interface PickRemoteSourceOptions {
-	readonly providerLabel?: (provider: RemoteSourceProvider) => string;
-	readonly urlLabel?: string;
-	readonly providerName?: string;
-	readonly branch?: boolean; // then result is PickRemoteSourceResult
-}
-
-export interface PickRemoteSourceResult {
-	readonly url: string;
-	readonly branch?: string;
 }
 
 export async function pickRemoteSource(model: Model, options: PickRemoteSourceOptions & { branch?: false | undefined }): Promise<string | undefined>;

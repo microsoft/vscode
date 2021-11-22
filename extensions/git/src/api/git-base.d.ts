@@ -7,6 +7,8 @@ import { Disposable, Event, ProviderResult, Uri } from 'vscode';
 export { ProviderResult } from 'vscode';
 
 export interface API {
+	pickRemoteSource(options: PickRemoteSourceOptions): Promise<string | PickRemoteSourceResult | undefined>;
+	getRemoteProviders(): RemoteSourceProvider[];
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable;
 }
 
@@ -26,6 +28,18 @@ export interface GitBaseExtension {
 	 * @returns API instance
 	 */
 	getAPI(version: 1): API;
+}
+
+export interface PickRemoteSourceOptions {
+	readonly providerLabel?: (provider: RemoteSourceProvider) => string;
+	readonly urlLabel?: string;
+	readonly providerName?: string;
+	readonly branch?: boolean; // then result is PickRemoteSourceResult
+}
+
+export interface PickRemoteSourceResult {
+	readonly url: string;
+	readonly branch?: string;
 }
 
 export interface RemoteSource {

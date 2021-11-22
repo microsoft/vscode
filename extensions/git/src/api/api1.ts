@@ -5,12 +5,14 @@
 
 import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, RemoteSourceProvider, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions } from './git';
+import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions } from './git';
 import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands } from 'vscode';
 import { mapEvent } from '../util';
 import { toGitUri } from '../uri';
-import { pickRemoteSource, PickRemoteSourceOptions } from '../remoteSource';
+import { pickRemoteSource } from '../remoteSource';
 import { GitExtensionImpl } from './extension';
+import { GitBaseApi } from '../git-base';
+import { PickRemoteSourceOptions, RemoteSourceProvider } from './git-base';
 
 class ApiInputBox implements InputBox {
 	set value(value: string) { this._inputBox.value = value; }
@@ -283,7 +285,7 @@ export class ApiImpl implements API {
 	}
 
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable {
-		return this._model.registerRemoteSourceProvider(provider);
+		return GitBaseApi.getAPI().registerRemoteSourceProvider(provider);
 	}
 
 	registerCredentialsProvider(provider: CredentialsProvider): Disposable {
@@ -370,11 +372,11 @@ export function registerAPICommands(extension: GitExtensionImpl): Disposable {
 	}));
 
 	disposables.push(commands.registerCommand('git.api.getRemoteSources', (opts?: PickRemoteSourceOptions) => {
-		if (!extension.model) {
+		if (!GitBaseApi.isEnabled()) {
 			return;
 		}
 
-		return pickRemoteSource(extension.model, opts as any);
+		return pickRemoteSource(opts as any);
 	}));
 
 	return Disposable.from(...disposables);

@@ -7,8 +7,9 @@ import { Disposable, Command, EventEmitter, Event, workspace, Uri } from 'vscode
 import { Repository, Operation } from './repository';
 import { anyEvent, dispose, filterEvent } from './util';
 import * as nls from 'vscode-nls';
-import { Branch, RemoteSourceProvider } from './api/git';
-import { IRemoteSourceProviderRegistry } from './remoteProvider';
+import { Branch } from './api/git';
+import { GitBaseApi } from './git-base';
+import { RemoteSourceProvider } from './api/git-base';
 
 const localize = nls.loadMessageBundle();
 
@@ -60,21 +61,21 @@ class SyncStatusBar {
 		this._onDidChange.fire();
 	}
 
-	constructor(private repository: Repository, private remoteSourceProviderRegistry: IRemoteSourceProviderRegistry) {
+	constructor(private repository: Repository) {
 		this._state = {
 			enabled: true,
 			isSyncRunning: false,
 			hasRemotes: false,
 			HEAD: undefined,
-			remoteSourceProviders: this.remoteSourceProviderRegistry.getRemoteProviders()
+			remoteSourceProviders: GitBaseApi.getAPI().getRemoteProviders()
 				.filter(p => !!p.publishRepository)
 		};
 
 		repository.onDidRunGitStatus(this.onDidRunGitStatus, this, this.disposables);
 		repository.onDidChangeOperations(this.onDidChangeOperations, this, this.disposables);
 
-		anyEvent(remoteSourceProviderRegistry.onDidAddRemoteSourceProvider, remoteSourceProviderRegistry.onDidRemoveRemoteSourceProvider)
-			(this.onDidChangeRemoteSourceProviders, this, this.disposables);
+		// anyEvent(remoteSourceProviderRegistry.onDidAddRemoteSourceProvider, remoteSourceProviderRegistry.onDidRemoveRemoteSourceProvider)
+		// 	(this.onDidChangeRemoteSourceProviders, this, this.disposables);
 
 		const onEnablementChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.enableStatusBarSync'));
 		onEnablementChange(this.updateEnablement, this, this.disposables);
@@ -104,13 +105,13 @@ class SyncStatusBar {
 		};
 	}
 
-	private onDidChangeRemoteSourceProviders(): void {
-		this.state = {
-			...this.state,
-			remoteSourceProviders: this.remoteSourceProviderRegistry.getRemoteProviders()
-				.filter(p => !!p.publishRepository)
-		};
-	}
+	// private onDidChangeRemoteSourceProviders(): void {
+	// 	this.state = {
+	// 		...this.state,
+	// 		remoteSourceProviders: GitBaseApi.getAPI().getRemoteProviders()
+	// 			.filter(p => !!p.publishRepository)
+	// 	};
+	// }
 
 	get command(): Command | undefined {
 		if (!this.state.enabled) {
@@ -188,8 +189,8 @@ export class StatusBarCommands {
 	private checkoutStatusBar: CheckoutStatusBar;
 	private disposables: Disposable[] = [];
 
-	constructor(repository: Repository, remoteSourceProviderRegistry: IRemoteSourceProviderRegistry) {
-		this.syncStatusBar = new SyncStatusBar(repository, remoteSourceProviderRegistry);
+	constructor(repository: Repository) {
+		this.syncStatusBar = new SyncStatusBar(repository);
 		this.checkoutStatusBar = new CheckoutStatusBar(repository);
 		this.onDidChange = anyEvent(this.syncStatusBar.onDidChange, this.checkoutStatusBar.onDidChange);
 	}

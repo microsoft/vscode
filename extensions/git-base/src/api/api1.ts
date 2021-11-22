@@ -5,13 +5,21 @@
 
 import { Disposable, commands } from 'vscode';
 import { Model } from '../model';
-import { pickRemoteSource, PickRemoteSourceOptions } from '../remoteSource';
+import { pickRemoteSource } from '../remoteSource';
 import { GitBaseExtensionImpl } from './extension';
-import { API, RemoteSourceProvider } from './git-base';
+import { API, PickRemoteSourceOptions, PickRemoteSourceResult, RemoteSourceProvider } from './git-base';
 
 export class ApiImpl implements API {
 
 	constructor(private _model: Model) { }
+
+	pickRemoteSource(options: PickRemoteSourceOptions): Promise<PickRemoteSourceResult | string | undefined> {
+		return pickRemoteSource(this._model, options as any);
+	}
+
+	getRemoteProviders(): RemoteSourceProvider[] {
+		return this._model.getRemoteProviders();
+	}
 
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable {
 		return this._model.registerRemoteSourceProvider(provider);

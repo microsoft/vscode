@@ -8,7 +8,7 @@ import * as path from 'path';
 import { Command, commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider } from 'vscode';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
-import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourceProvider } from './api/git';
+import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions } from './api/git';
 import { Git, Stash } from './git';
 import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
@@ -19,6 +19,8 @@ import { Log, LogLevel } from './log';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { pickRemoteSource } from './remoteSource';
+import { GitBaseApi } from './git-base';
+import { RemoteSourceProvider } from './api/git-base';
 
 const localize = nls.loadMessageBundle();
 
@@ -392,7 +394,7 @@ export class CommandCenter {
 
 	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean } = {}): Promise<void> {
 		if (!url || typeof url !== 'string') {
-			url = await pickRemoteSource(this.model, {
+			url = await pickRemoteSource({
 				providerLabel: provider => localize('clonefrom', "Clone from {0}", provider.name),
 				urlLabel: localize('repourl', "Clone from URL")
 			});
@@ -2215,7 +2217,7 @@ export class CommandCenter {
 
 	@command('git.addRemote', { repository: true })
 	async addRemote(repository: Repository): Promise<string | undefined> {
-		const url = await pickRemoteSource(this.model, {
+		const url = await pickRemoteSource({
 			providerLabel: provider => localize('addfrom', "Add remote from {0}", provider.name),
 			urlLabel: localize('addFrom', "Add remote from URL")
 		});
@@ -2360,7 +2362,7 @@ export class CommandCenter {
 		const remotes = repository.remotes;
 
 		if (remotes.length === 0) {
-			const providers = this.model.getRemoteProviders().filter(p => !!p.publishRepository);
+			const providers = GitBaseApi.getAPI().getRemoteProviders().filter(p => !!p.publishRepository);
 
 			if (providers.length === 0) {
 				window.showWarningMessage(localize('no remotes to publish', "Your repository has no remotes configured to publish to."));
@@ -2384,7 +2386,8 @@ export class CommandCenter {
 				provider = choice.provider;
 			}
 
-			await provider.publishRepository!(new ApiRepository(repository));
+			const apiRepository = new ApiRepository(repository);
+			await provider.publishRepository!(apiRepository.rootUri);
 			this.model.firePublishEvent(repository, branchName);
 
 			return;
