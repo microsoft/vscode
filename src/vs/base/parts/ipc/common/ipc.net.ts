@@ -368,7 +368,7 @@ class ProtocolWriter {
 
 	private _writeSoon(header: VSBuffer, data: VSBuffer): void {
 		if (this._bufferAdd(header, data)) {
-			queueMicrotask(() => {
+			setTimeout(() => {
 				this._writeNow();
 			});
 		}
