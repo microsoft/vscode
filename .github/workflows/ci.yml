@@ -133,6 +133,11 @@ jobs:
           path: ${{ steps.yarnCacheDirPath.outputs.dir }}
           key: ${{ runner.os }}-yarnCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
           restore-keys: ${{ runner.os }}-yarnCacheDir-
+      - name: Compile build tools
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        run: |
+          yarn --cwd build
+          yarn --cwd build compile
       - name: Execute yarn
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
