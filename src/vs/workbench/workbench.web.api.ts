@@ -365,13 +365,6 @@ interface IWorkbenchConstructionOptions {
 	readonly webWorkerExtensionHostIframeSrc?: string;
 
 	/**
-	 * [TEMPORARY]: This will be removed soon.
-	 * Use an unique origin for the web worker extension host.
-	 * Defaults to true.
-	 */
-	readonly __uniqueWebWorkerExtensionHostOrigin?: boolean;
-
-	/**
 	 * A factory for web sockets.
 	 */
 	readonly webSocketFactory?: IWebSocketFactory;
