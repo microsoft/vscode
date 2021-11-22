@@ -24,6 +24,7 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 export abstract class BaseConfigurationResolverService extends AbstractVariableResolverService {
 
 	static readonly INPUT_OR_COMMAND_VARIABLES_PATTERN = /\${((input|command):(.*?))}/g;
+	static readonly USER_DEFINED_PARAMETERS = /\${((params):(.*?))}/g;
 
 	constructor(
 		context: {
@@ -209,6 +210,11 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 						throw new Error(nls.localize('commandVariable.noStringType', "Cannot substitute command variable '{0}' because command did not return a result of type string.", commandId));
 					}
 					break;
+				case 'params':
+					// user should give their variables inside a params. So we check for a params.
+					if (configuration.params) {
+						result = configuration.params?.name ?? '';
+					}
 				default:
 					// Try to resolve it as a contributed variable
 					if (this._contributedVariables.has(variable)) {
@@ -235,6 +241,14 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		if (typeof object === 'string') {
 			let matches;
 			while ((matches = BaseConfigurationResolverService.INPUT_OR_COMMAND_VARIABLES_PATTERN.exec(object)) !== null) {
+				if (matches.length === 4) {
+					const command = matches[1];
+					if (variables.indexOf(command) < 0) {
+						variables.push(command);
+					}
+				}
+			}
+			while ((matches = BaseConfigurationResolverService.USER_DEFINED_PARAMETERS.exec(object)) !== null) {
 				if (matches.length === 4) {
 					const command = matches[1];
 					if (variables.indexOf(command) < 0) {

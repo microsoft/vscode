@@ -632,6 +632,35 @@ suite('Configuration Resolver Service', () => {
 			});
 		});
 	});
+
+	test('user defined variables inside params key', () => {
+		const configuration = {
+			'params': {
+				'git_version': '2.30.0',
+				'node_version': '14.16.1',
+				'python_version': '3.8',
+				'port': '5858',
+			},
+			'node_version': '${params:node_version}',
+			'port': '${params:port}',
+			'virtual_env': 'virtualenv .venv --python=python${params:python_version}'
+		};
+
+		return configurationResolverService!.resolveWithInteractionReplace(workspace, configuration, 'tasks').then(result => {
+			assert.deepStrictEqual({ ...result }, {
+				'params': {
+					'git_version': '2.30.0',
+					'node_version': '14.16.1',
+					'python_version': '3.8',
+					'port': '5858',
+				},
+				'node_version': '14.16.1',
+				'port': '5858',
+				'virtual_env': 'virtualenv .venv --python=python3.8'
+			});
+		});
+	})
+
 });
 
 
