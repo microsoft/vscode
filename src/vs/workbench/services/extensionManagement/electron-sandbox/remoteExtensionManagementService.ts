@@ -76,7 +76,7 @@ export class NativeRemoteExtensionManagementService extends ExtensionManagementC
 
 	private async downloadAndInstall(extension: IGalleryExtension, installOptions: InstallOptions): Promise<ILocalExtension> {
 		this.logService.info(`Downloading the '${extension.identifier.id}' extension locally and install`);
-		const compatible = await this.checkAndGetCompatible(extension);
+		const compatible = await this.checkAndGetCompatible(extension, !!installOptions.installPreReleaseVersion);
 		installOptions = { ...installOptions, donotIncludePackAndDependencies: true };
 		const installed = await this.getInstalled(ExtensionType.User);
 		const workspaceExtensions = await this.getAllWorkspaceDependenciesAndPackedExtensions(compatible, CancellationToken.None);
@@ -90,7 +90,7 @@ export class NativeRemoteExtensionManagementService extends ExtensionManagementC
 	}
 
 	private async downloadCompatibleAndInstall(extension: IGalleryExtension, installed: ILocalExtension[], installOptions: InstallOptions): Promise<ILocalExtension> {
-		const compatible = await this.checkAndGetCompatible(extension);
+		const compatible = await this.checkAndGetCompatible(extension, !!installOptions.installPreReleaseVersion);
 		const location = joinPath(this.environmentService.tmpDir, generateUuid());
 		this.logService.info('Downloaded extension:', compatible.identifier.id, location.path);
 		await this.galleryService.download(compatible, location, installed.filter(i => areSameExtensions(i.identifier, compatible.identifier))[0] ? InstallOperation.Update : InstallOperation.Install);
@@ -99,11 +99,16 @@ export class NativeRemoteExtensionManagementService extends ExtensionManagementC
 		return local;
 	}
 
-	private async checkAndGetCompatible(extension: IGalleryExtension): Promise<IGalleryExtension> {
-		const compatible = await this.galleryService.getCompatibleExtension(extension, await this.getTargetPlatform());
-		if (!compatible) {
-			throw new ExtensionManagementError(localize('notFoundCompatibleDependency', "Can't install '{0}' extension because it is not compatible with the current version of VS Code (version {1}).", extension.identifier.id, this.productService.version), ExtensionManagementErrorCode.Incompatible);
+	private async checkAndGetCompatible(extension: IGalleryExtension, includePreRelease: boolean): Promise<IGalleryExtension> {
+		const compatible = await this.galleryService.getCompatibleExtension(extension, includePreRelease, await this.getTargetPlatform());
+		if (compatible) {
+			if (includePreRelease && !compatible.properties.isPreReleaseVersion && extension.hasPreReleaseVersion) {
+				throw new ExtensionManagementError(localize('notFoundCompatiblePrereleaseDependency', "Can't install pre-release version of '{0}' extension because it is not compatible with the current version of {1} (version {2}).", extension.identifier.id, this.productService.nameLong, this.productService.version), ExtensionManagementErrorCode.Incompatible);
+			}
+		} else {
+			throw new ExtensionManagementError(localize('notFoundCompatibleDependency', "Can't install '{0}' extension because it is not compatible with the current version of {1} (version {2}).", extension.identifier.id, this.productService.nameLong, this.productService.version), ExtensionManagementErrorCode.Incompatible);
 		}
+
 		return compatible;
 	}
 

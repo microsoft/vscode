@@ -219,6 +219,7 @@ suite('ExtensionRecommendationsService Test', () => {
 			async getInstalled() { return []; },
 			async canInstall() { return true; },
 			async getExtensionsReport() { return []; },
+			async getTargetPlatform() { return getTargetPlatform(platform, arch); }
 		});
 		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
 			async whenInstalledExtensionsRegistered() { return true; }

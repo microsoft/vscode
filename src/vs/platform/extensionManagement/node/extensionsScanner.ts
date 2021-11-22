@@ -19,7 +19,8 @@ import * as pfs from 'vs/base/node/pfs';
 import { extract, ExtractError } from 'vs/base/node/zip';
 import { localize } from 'vs/nls';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ExtensionManagementError, ExtensionManagementErrorCode, IGalleryMetadata, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { Metadata } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
+import { ExtensionManagementError, ExtensionManagementErrorCode, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, ExtensionIdentifierWithVersion, getGalleryExtensionId, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
 import { ExtensionType, IExtensionIdentifier, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
@@ -28,9 +29,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { CancellationToken } from 'vscode';
 
-export type IMetadata = Partial<IGalleryMetadata & { isMachineScoped: boolean; isBuiltin: boolean; }>;
-type IStoredMetadata = IMetadata & { installedTimestamp: number | undefined };
-export type ILocalExtensionManifest = IExtensionManifest & { __metadata?: IMetadata };
+export type ILocalExtensionManifest = IExtensionManifest & { __metadata?: Metadata };
 type IRelaxedLocalExtension = Omit<ILocalExtension, 'isBuiltin'> & { isBuiltin: boolean };
 
 export class ExtensionsScanner extends Disposable {
@@ -94,7 +93,7 @@ export class ExtensionsScanner extends Disposable {
 		return this.scanExtensionsInDir(this.extensionsPath, ExtensionType.User);
 	}
 
-	async extractUserExtension(identifierWithVersion: ExtensionIdentifierWithVersion, zipPath: string, metadata: IMetadata | undefined, token: CancellationToken): Promise<ILocalExtension> {
+	async extractUserExtension(identifierWithVersion: ExtensionIdentifierWithVersion, zipPath: string, metadata: Metadata | undefined, token: CancellationToken): Promise<ILocalExtension> {
 		const folderName = identifierWithVersion.key();
 		const tempPath = path.join(this.extensionsPath, `.${generateUuid()}`);
 		const extensionPath = path.join(this.extensionsPath, folderName);
@@ -140,21 +139,21 @@ export class ExtensionsScanner extends Disposable {
 		throw new Error(localize('cannot read', "Cannot read the extension from {0}", this.extensionsPath));
 	}
 
-	async saveMetadataForLocalExtension(local: ILocalExtension, metadata: IMetadata): Promise<ILocalExtension> {
+	async saveMetadataForLocalExtension(local: ILocalExtension, metadata: Metadata): Promise<ILocalExtension> {
 		this.setMetadata(local, metadata);
 		await this.storeMetadata(local, { ...metadata, installedTimestamp: local.installedTimestamp });
 		return local;
 	}
 
-	private async storeMetadata(local: ILocalExtension, storedMetadata: IStoredMetadata): Promise<ILocalExtension> {
+	private async storeMetadata(local: ILocalExtension, metaData: Metadata): Promise<ILocalExtension> {
 		// unset if false
-		storedMetadata.isMachineScoped = storedMetadata.isMachineScoped || undefined;
-		storedMetadata.isBuiltin = storedMetadata.isBuiltin || undefined;
-		storedMetadata.installedTimestamp = storedMetadata.installedTimestamp || undefined;
+		metaData.isMachineScoped = metaData.isMachineScoped || undefined;
+		metaData.isBuiltin = metaData.isBuiltin || undefined;
+		metaData.installedTimestamp = metaData.installedTimestamp || undefined;
 		const manifestPath = path.join(local.location.fsPath, 'package.json');
 		const raw = await pfs.Promises.readFile(manifestPath, 'utf8');
 		const { manifest } = await this.parseManifest(raw);
-		(manifest as ILocalExtensionManifest).__metadata = storedMetadata;
+		(manifest as ILocalExtensionManifest).__metadata = metaData;
 		await pfs.Promises.writeFile(manifestPath, JSON.stringify(manifest, null, '\t'));
 		return local;
 	}
@@ -302,7 +301,6 @@ export class ExtensionsScanner extends Disposable {
 				const local = <ILocalExtension>{ type, identifier, manifest, location: extensionLocation, readmeUrl, changelogUrl, publisherDisplayName: null, publisherId: null, isMachineScoped: false, isBuiltin: type === ExtensionType.System };
 				if (metadata) {
 					this.setMetadata(local, metadata);
-					local.installedTimestamp = metadata.installedTimestamp;
 				}
 				return local;
 			}
@@ -331,12 +329,15 @@ export class ExtensionsScanner extends Disposable {
 		}
 	}
 
-	private setMetadata(local: IRelaxedLocalExtension, metadata: IMetadata): void {
+	private setMetadata(local: IRelaxedLocalExtension, metadata: Metadata): void {
 		local.publisherDisplayName = metadata.publisherDisplayName || null;
 		local.publisherId = metadata.publisherId || null;
 		local.identifier.uuid = metadata.id;
 		local.isMachineScoped = !!metadata.isMachineScoped;
+		local.isPreReleaseVersion = !!metadata.isPreReleaseVersion;
+		local.hadPreReleaseVersion = !!metadata.hadPreReleaseVersion;
 		local.isBuiltin = local.type === ExtensionType.System || !!metadata.isBuiltin;
+		local.installedTimestamp = metadata.installedTimestamp;
 	}
 
 	private async removeUninstalledExtensions(): Promise<void> {
@@ -392,7 +393,7 @@ export class ExtensionsScanner extends Disposable {
 		return this._devSystemExtensionsPath;
 	}
 
-	private async readManifest(extensionPath: string): Promise<{ manifest: IExtensionManifest; metadata: IStoredMetadata | null; }> {
+	private async readManifest(extensionPath: string): Promise<{ manifest: IExtensionManifest; metadata: Metadata | null; }> {
 		const promises = [
 			pfs.Promises.readFile(path.join(extensionPath, 'package.json'), 'utf8')
 				.then(raw => this.parseManifest(raw)),
@@ -408,7 +409,7 @@ export class ExtensionsScanner extends Disposable {
 		};
 	}
 
-	private parseManifest(raw: string): Promise<{ manifest: IExtensionManifest; metadata: IMetadata | null; }> {
+	private parseManifest(raw: string): Promise<{ manifest: IExtensionManifest; metadata: Metadata | null; }> {
 		return new Promise((c, e) => {
 			try {
 				const manifest = JSON.parse(raw);

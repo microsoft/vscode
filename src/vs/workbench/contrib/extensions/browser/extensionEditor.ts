@@ -12,7 +12,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Cache, CacheResult } from 'vs/base/common/cache';
 import { Action, IAction } from 'vs/base/common/actions';
 import { getErrorMessage, isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
-import { dispose, toDisposable, Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, toDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { append, $, finalHandler, join, addDisposableListener, EventType, setParentFlowTo, reset, Dimension } from 'vs/base/browser/dom';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -21,23 +21,23 @@ import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsServi
 import { IExtensionManifest, IKeyBinding, IView, IViewContainer } from 'vs/platform/extensions/common/extensions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
+import { ExtensionsInput, IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, IExtension, ExtensionContainers, ExtensionEditorTab, ExtensionState } from 'vs/workbench/contrib/extensions/common/extensions';
-import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
+import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget, PreReleaseIndicatorWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import {
 	UpdateAction, ReloadAction, EnableDropDownAction, DisableDropDownAction, ExtensionStatusLabelAction, SetFileIconThemeAction, SetColorThemeAction,
 	RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ToggleSyncExtensionAction, SetProductIconThemeAction,
 	ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, UninstallAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction,
-	InstallAnotherVersionAction, ExtensionEditorManageExtensionAction, WebInstallAction
+	InstallAnotherVersionAction, ExtensionEditorManageExtensionAction, WebInstallAction, UsePreReleaseVersionAction, StopUsingPreReleaseVersionAction
 } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Color } from 'vs/base/common/color';
@@ -67,7 +67,6 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { attachKeybindingLabelStyler } from 'vs/platform/theme/common/styler';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { errorIcon, infoIcon, starEmptyIcon, verifiedPublisherIcon as verifiedPublisherThemeIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { MarkdownString } from 'vs/base/common/htmlContent';
@@ -141,6 +140,7 @@ interface IExtensionEditorTemplate {
 	preview: HTMLElement;
 	builtin: HTMLElement;
 	version: HTMLElement;
+	preRelease: HTMLElement;
 	publisher: HTMLElement;
 	publisherDisplayName: HTMLElement;
 	verifiedPublisherIcon: HTMLElement;
@@ -161,10 +161,13 @@ const enum WebviewIndex {
 	Changelog
 }
 
+const CONTEXT_SHOW_PRE_RELEASE_VERSION = new RawContextKey<boolean>('showPreReleaseVersion', false);
+
 export class ExtensionEditor extends EditorPane {
 
 	static readonly ID: string = 'workbench.editor.extension';
 
+	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IContextKeyService>());
 	private template: IExtensionEditorTemplate | undefined;
 
 	private extensionReadme: Cache<string> | null;
@@ -184,6 +187,8 @@ export class ExtensionEditor extends EditorPane {
 	private editorLoadComplete: boolean = false;
 	private dimension: Dimension | undefined;
 
+	private showPreReleaseVersionContextKey: IContextKey<boolean> | undefined;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -201,6 +206,7 @@ export class ExtensionEditor extends EditorPane {
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@IModeService private readonly modeService: IModeService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService, storageService);
 		this.extensionReadme = null;
@@ -208,8 +214,16 @@ export class ExtensionEditor extends EditorPane {
 		this.extensionManifest = null;
 	}
 
+	override get scopedContextKeyService(): IContextKeyService | undefined {
+		return this._scopedContextKeyService.value;
+	}
+
 	createEditor(parent: HTMLElement): void {
 		const root = append(parent, $('.extension-editor'));
+		this._scopedContextKeyService.value = this.contextKeyService.createScoped(root);
+		this._scopedContextKeyService.value.createKey('inExtensionEditor', true);
+		this.showPreReleaseVersionContextKey = CONTEXT_SHOW_PRE_RELEASE_VERSION.bindTo(this._scopedContextKeyService.value);
+
 		root.tabIndex = 0; // this is required for the focus tracker on the editor
 		root.style.outline = 'none';
 		root.setAttribute('role', 'document');
@@ -228,6 +242,7 @@ export class ExtensionEditor extends EditorPane {
 
 		const builtin = append(title, $('span.builtin'));
 		builtin.textContent = localize('builtin', "Built-in");
+		const preRelease = append(title, $('span.pre-release'));
 
 		const subtitle = append(details, $('.subtitle'));
 		const publisher = append(append(subtitle, $('.subtitle-entry')), $('.publisher.clickable', { title: localize('publisher', "Publisher"), tabIndex: 0 }));
@@ -277,6 +292,7 @@ export class ExtensionEditor extends EditorPane {
 			icon,
 			iconContainer,
 			version,
+			preRelease,
 			installCount,
 			name,
 			navbar,
@@ -306,11 +322,29 @@ export class ExtensionEditor extends EditorPane {
 		return disposables;
 	}
 
-	override async setInput(input: ExtensionsInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: ExtensionsInput, options: IExtensionEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
+		this.updatePreReleaseVersionContext();
 		if (this.template) {
-			await this.updateTemplate(input, this.template, !!options?.preserveFocus);
+			await this.updateTemplate(input.extension, this.template, !!options?.preserveFocus);
 		}
+	}
+
+	override setOptions(options: IExtensionEditorOptions | undefined): void {
+		const currentOptions: IExtensionEditorOptions | undefined = this.options;
+		super.setOptions(options);
+		this.updatePreReleaseVersionContext();
+		if (currentOptions?.showPreReleaseVersion !== options?.showPreReleaseVersion) {
+			this.openTab(ExtensionEditorTab.Readme);
+		}
+	}
+
+	private updatePreReleaseVersionContext(): void {
+		let showPreReleaseVersion = (<IExtensionEditorOptions | undefined>this.options)?.showPreReleaseVersion;
+		if (isUndefined(showPreReleaseVersion)) {
+			showPreReleaseVersion = !!(<ExtensionsInput>this.input).extension.gallery?.properties.isPreReleaseVersion;
+		}
+		this.showPreReleaseVersionContextKey?.set(showPreReleaseVersion);
 	}
 
 	async openTab(tab: ExtensionEditorTab): Promise<void> {
@@ -326,10 +360,9 @@ export class ExtensionEditor extends EditorPane {
 		}
 	}
 
-	private async updateTemplate(input: ExtensionsInput, template: IExtensionEditorTemplate, preserveFocus: boolean): Promise<void> {
+	private async updateTemplate(extension: IExtension, template: IExtensionEditorTemplate, preserveFocus: boolean): Promise<void> {
 		this.activeElement = null;
 		this.editorLoadComplete = false;
-		const extension = input.extension;
 
 		if (this.currentIdentifier !== extension.identifier.id) {
 			this.initialScrollProgress.clear();
@@ -338,9 +371,9 @@ export class ExtensionEditor extends EditorPane {
 
 		this.transientDisposables.clear();
 
-		this.extensionReadme = new Cache(() => createCancelablePromise(token => extension.getReadme(token)));
-		this.extensionChangelog = new Cache(() => createCancelablePromise(token => extension.getChangelog(token)));
-		this.extensionManifest = new Cache(() => createCancelablePromise(token => extension.getManifest(token)));
+		this.extensionReadme = new Cache(() => createCancelablePromise(token => extension.getReadme(!!this.showPreReleaseVersionContextKey?.get(), token)));
+		this.extensionChangelog = new Cache(() => createCancelablePromise(token => extension.getChangelog(!!this.showPreReleaseVersionContextKey?.get(), token)));
+		this.extensionManifest = new Cache(() => createCancelablePromise(token => extension.getManifest(!!this.showPreReleaseVersionContextKey?.get(), token)));
 
 		const remoteBadge = this.instantiationService.createInstance(RemoteBadgeWidget, template.iconContainer, true);
 		this.transientDisposables.add(addDisposableListener(template.icon, 'error', () => template.icon.src = extension.iconUrlFallback, { once: true }));
@@ -393,6 +426,7 @@ export class ExtensionEditor extends EditorPane {
 		}
 
 		const widgets = [
+			this.instantiationService.createInstance(PreReleaseIndicatorWidget, template.preRelease),
 			remoteBadge,
 			this.instantiationService.createInstance(InstallCountWidget, template.installCount, false),
 			this.instantiationService.createInstance(RatingsWidget, template.rating, false)
@@ -415,11 +449,15 @@ export class ExtensionEditor extends EditorPane {
 			combinedInstallAction,
 			this.instantiationService.createInstance(InstallingLabelAction),
 			this.instantiationService.createInstance(ActionWithDropDownAction, 'extensions.uninstall', UninstallAction.UninstallLabel, [
-				this.instantiationService.createInstance(UninstallAction),
-				this.instantiationService.createInstance(InstallAnotherVersionAction),
+				[
+					this.instantiationService.createInstance(UninstallAction),
+					this.instantiationService.createInstance(InstallAnotherVersionAction),
+				]
 			]),
+			this.instantiationService.createInstance(UsePreReleaseVersionAction),
+			this.instantiationService.createInstance(StopUsingPreReleaseVersionAction),
 			this.instantiationService.createInstance(ToggleSyncExtensionAction),
-			this.instantiationService.createInstance(ExtensionEditorManageExtensionAction),
+			new ExtensionEditorManageExtensionAction(this.scopedContextKeyService || this.contextKeyService, this.instantiationService),
 		];
 		const extensionStatus = this.instantiationService.createInstance(ExtensionStatusAction);
 		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets, extensionStatus]);

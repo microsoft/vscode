@@ -419,7 +419,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 						}
 					} catch (error) {
 						addToSkipped.push(e);
-						if (error instanceof ExtensionManagementError && error.code === ExtensionManagementErrorCode.Incompatible) {
+						if (error instanceof ExtensionManagementError && (error.code === ExtensionManagementErrorCode.Incompatible || error.code === ExtensionManagementErrorCode.IncompatibleTargetPlatform)) {
 							this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing extension because the compatible extension is not found.`, extension.displayName || extension.identifier.id);
 						} else {
 							this.logService.error(error);
