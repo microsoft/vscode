@@ -103,7 +103,7 @@ export class NativeRemoteExtensionManagementService extends ExtensionManagementC
 		const compatible = await this.galleryService.getCompatibleExtension(extension, includePreRelease, await this.getTargetPlatform());
 		if (compatible) {
 			if (includePreRelease && !compatible.properties.isPreReleaseVersion && extension.hasPreReleaseVersion) {
-				throw new ExtensionManagementError(localize('notFoundCompatiblePrereleaseDependency', "Can't install pre-release version of '{0}' extension because it is not compatible with the current version of {1} (version {2}).", extension.identifier.id, this.productService.nameLong, this.productService.version), ExtensionManagementErrorCode.Incompatible);
+				throw new ExtensionManagementError(localize('notFoundCompatiblePrereleaseDependency', "Can't install pre-release version of '{0}' extension because it is not compatible with the current version of {1} (version {2}).", extension.identifier.id, this.productService.nameLong, this.productService.version), ExtensionManagementErrorCode.IncompatiblePreRelease);
 			}
 		} else {
 			throw new ExtensionManagementError(localize('notFoundCompatibleDependency', "Can't install '{0}' extension because it is not compatible with the current version of {1} (version {2}).", extension.identifier.id, this.productService.nameLong, this.productService.version), ExtensionManagementErrorCode.Incompatible);

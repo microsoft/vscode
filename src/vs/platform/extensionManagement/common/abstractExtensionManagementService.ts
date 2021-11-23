@@ -352,7 +352,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		return allDependenciesAndPacks.filter(e => !installed.some(i => areSameExtensions(i.identifier, e.gallery.identifier)));
 	}
 
-	private async checkAndGetCompatibleVersion(extension: IGalleryExtension, fetchCompatibleVersion: boolean, includePreRelease: boolean): Promise<{ extension: IGalleryExtension, manifest: IExtensionManifest }> {
+	private async checkAndGetCompatibleVersion(extension: IGalleryExtension, fetchCompatibleVersion: boolean, installPreRelease: boolean): Promise<{ extension: IGalleryExtension, manifest: IExtensionManifest }> {
 		if (await this.isMalicious(extension)) {
 			throw new ExtensionManagementError(nls.localize('malicious extension', "Can't install '{0}' extension since it was reported to be problematic.", extension.identifier.id), ExtensionManagementErrorCode.Malicious);
 		}
@@ -362,10 +362,10 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			throw new ExtensionManagementError(nls.localize('incompatible platform', "The '{0}' extension is not available in {1} for {2}.", extension.identifier.id, this.productService.nameLong, TargetPlatformToString(targetPlatform)), ExtensionManagementErrorCode.IncompatibleTargetPlatform);
 		}
 
-		const compatibleExtension = await this.getCompatibleVersion(extension, fetchCompatibleVersion, includePreRelease);
+		const compatibleExtension = await this.getCompatibleVersion(extension, fetchCompatibleVersion, installPreRelease);
 		if (compatibleExtension) {
-			if (includePreRelease && !compatibleExtension.properties.isPreReleaseVersion && extension.hasPreReleaseVersion) {
-				throw new ExtensionManagementError(nls.localize('notFoundCompatiblePrereleaseDependency', "Can't install pre-release version of '{0}' extension because it is not compatible with the current version of {1} (version {2}).", extension.identifier.id, this.productService.nameLong, this.productService.version), ExtensionManagementErrorCode.Incompatible);
+			if (installPreRelease && extension.hasPreReleaseVersion && !compatibleExtension.properties.isPreReleaseVersion) {
+				throw new ExtensionManagementError(nls.localize('notFoundCompatiblePrereleaseDependency', "Can't install pre-release version of '{0}' extension because it is not compatible with the current version of {1} (version {2}).", extension.identifier.id, this.productService.nameLong, this.productService.version), ExtensionManagementErrorCode.IncompatiblePreRelease);
 			}
 		} else {
 			throw new ExtensionManagementError(nls.localize('notFoundCompatibleDependency', "Can't install '{0}' extension because it is not compatible with the current version of {1} (version {2}).", extension.identifier.id, this.productService.nameLong, this.productService.version), ExtensionManagementErrorCode.Incompatible);

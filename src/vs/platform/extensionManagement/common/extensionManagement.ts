@@ -365,6 +365,7 @@ export enum ExtensionManagementErrorCode {
 	Unsupported = 'Unsupported',
 	Malicious = 'Malicious',
 	Incompatible = 'Incompatible',
+	IncompatiblePreRelease = 'IncompatiblePreRelease',
 	IncompatibleTargetPlatform = 'IncompatibleTargetPlatform',
 	Invalid = 'Invalid',
 	Download = 'Download',
