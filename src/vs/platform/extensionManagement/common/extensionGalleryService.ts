@@ -885,7 +885,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		for (const version of galleryExtensions[0].versions) {
 			try {
 				if (result[result.length - 1]?.version !== version.version && await this.isRawExtensionVersionCompatible(version, includePreRelease, allTargetPlatforms, targetPlatform)) {
-					result.push({ version: version.version, date: version.lastUpdated });
+					result.push({ version: version.version, date: version.lastUpdated, isPreReleaseVersion: isPreReleaseVersion(version) });
 				}
 			} catch (error) { /* Ignore error and skip version */ }
 		}

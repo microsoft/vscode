@@ -234,6 +234,7 @@ export interface IGalleryExtensionIdentifier extends IExtensionIdentifier {
 export interface IGalleryExtensionVersion {
 	version: string;
 	date: string;
+	isPreReleaseVersion: boolean;
 }
 
 export interface IGalleryExtension {

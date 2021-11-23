@@ -93,9 +93,9 @@ export interface IExtensionsWorkbenchService {
 	queryGallery(options: IQueryOptions, token: CancellationToken): Promise<IPager<IExtension>>;
 	canInstall(extension: IExtension): Promise<boolean>;
 	install(vsix: URI): Promise<IExtension>;
-	install(extension: IExtension, installOptins?: InstallOptions): Promise<IExtension>;
+	install(extension: IExtension, installOptions?: InstallOptions): Promise<IExtension>;
 	uninstall(extension: IExtension): Promise<void>;
-	installVersion(extension: IExtension, version: string): Promise<IExtension>;
+	installVersion(extension: IExtension, version: string, installOptions?: InstallOptions): Promise<IExtension>;
 	reinstall(extension: IExtension): Promise<IExtension>;
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;
 	open(extension: IExtension, options?: IExtensionEditorOptions): Promise<void>;

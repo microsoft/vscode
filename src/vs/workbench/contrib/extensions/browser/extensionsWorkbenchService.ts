@@ -1080,7 +1080,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}, () => this.extensionManagementService.uninstall(toUninstall).then(() => undefined));
 	}
 
-	async installVersion(extension: IExtension, version: string): Promise<IExtension> {
+	async installVersion(extension: IExtension, version: string, installOptions: InstallOptions = {}): Promise<IExtension> {
 		if (!(extension instanceof Extension)) {
 			return extension;
 		}
@@ -1095,7 +1095,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		return this.installWithProgress(async () => {
-			const installed = await this.installFromGallery(extension, gallery, { installGivenVersion: true });
+			installOptions.installGivenVersion = true;
+			const installed = await this.installFromGallery(extension, gallery, installOptions);
 			if (extension.latestVersion !== version) {
 				this.ignoreAutoUpdate(new ExtensionIdentifierWithVersion(gallery.identifier, version));
 			}
