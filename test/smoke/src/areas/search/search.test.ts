@@ -56,7 +56,7 @@ export function setup(opts: minimist.ParsedArgs) {
 			await app.workbench.search.waitForResultText('12 results in 4 files');
 		});
 
-		it('replaces first search result with a replace term', async function () {
+		it.skip('replaces first search result with a replace term', async function () {
 			const app = this.app as Application;
 
 			await app.workbench.search.searchFor('body');

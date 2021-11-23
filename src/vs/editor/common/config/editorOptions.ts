@@ -640,6 +640,8 @@ export interface IEditorOptions {
 	 * Controls the behavior of editor guides.
 	*/
 	guides?: IGuidesOptions;
+
+	unicodeHighlight?: IUnicodeHighlightOptions;
 }
 
 /**
@@ -3245,6 +3247,120 @@ class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, InternalE
 
 //#endregion
 
+//#region UnicodeHighlight
+
+export type DeriveFromWorkspaceTrust = 'deriveFromWorkspaceTrust';
+
+/**
+ * @internal
+*/
+export const deriveFromWorkspaceTrust: DeriveFromWorkspaceTrust = 'deriveFromWorkspaceTrust';
+
+/**
+ * Configuration options for unicode highlighting.
+ */
+export interface IUnicodeHighlightOptions {
+	nonBasicASCII?: boolean | DeriveFromWorkspaceTrust;
+	invisibleCharacters?: boolean | DeriveFromWorkspaceTrust;
+	ambiguousCharacters?: boolean | DeriveFromWorkspaceTrust;
+	includeComments?: boolean | DeriveFromWorkspaceTrust;
+	/**
+	 * A list of allowed code points in a single string.
+	*/
+	allowedCharacters?: string;
+}
+
+/**
+ * @internal
+ */
+export type InternalUnicodeHighlightOptions = Required<Readonly<IUnicodeHighlightOptions>>;
+
+/**
+ * @internal
+ */
+export const unicodeHighlightConfigKeys = {
+	allowedCharacters: 'editor.unicodeHighlight.allowedCharacters',
+	invisibleCharacters: 'editor.unicodeHighlight.invisibleCharacters',
+	nonBasicASCII: 'editor.unicodeHighlight.nonBasicASCII',
+	ambiguousCharacters: 'editor.unicodeHighlight.ambiguousCharacters',
+	includeComments: 'editor.unicodeHighlight.includeComments',
+};
+
+class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting, InternalUnicodeHighlightOptions> {
+	constructor() {
+		const defaults: InternalUnicodeHighlightOptions = {
+			nonBasicASCII: deriveFromWorkspaceTrust,
+			invisibleCharacters: deriveFromWorkspaceTrust,
+			ambiguousCharacters: deriveFromWorkspaceTrust,
+			includeComments: deriveFromWorkspaceTrust,
+			allowedCharacters: '',
+		};
+
+		super(
+			EditorOption.unicodeHighlighting, 'unicodeHighlight', defaults,
+			{
+				[unicodeHighlightConfigKeys.nonBasicASCII]: {
+					restricted: true,
+					type: ['boolean', 'string'],
+					enum: [true, false, deriveFromWorkspaceTrust],
+					default: defaults.nonBasicASCII,
+					description: nls.localize('unicodeHighlight.nonBasicASCII', "Controls whether all non-basic ASCII characters are highlighted. Only characters between U+0020 and U+007E, tab, line-feed and carriage-return are considered basic ASCII.")
+				},
+				[unicodeHighlightConfigKeys.invisibleCharacters]: {
+					restricted: true,
+					type: ['boolean', 'string'],
+					enum: [true, false, deriveFromWorkspaceTrust],
+					default: defaults.invisibleCharacters,
+					description: nls.localize('unicodeHighlight.invisibleCharacters', "Controls whether characters that just reserve space or have no width at all are highlighted.")
+				},
+				[unicodeHighlightConfigKeys.ambiguousCharacters]: {
+					restricted: true,
+					type: ['boolean', 'string'],
+					enum: [true, false, deriveFromWorkspaceTrust],
+					default: defaults.ambiguousCharacters,
+					description: nls.localize('unicodeHighlight.ambiguousCharacters', "Controls whether characters are highlighted that can be confused with basic ASCII characters, except those that are common in the current user locale.")
+				},
+				[unicodeHighlightConfigKeys.includeComments]: {
+					restricted: true,
+					type: ['boolean', 'string'],
+					enum: [true, false, deriveFromWorkspaceTrust],
+					default: defaults.includeComments,
+					description: nls.localize('unicodeHighlight.includeComments', "Controls whether characters in comments should also be subject to unicode highlighting.")
+				},
+				[unicodeHighlightConfigKeys.allowedCharacters]: {
+					restricted: true,
+					type: 'string',
+					default: defaults.allowedCharacters,
+					description: nls.localize('unicodeHighlight.allowedCharacters', "Defines allowed characters that are not being highlighted.")
+				},
+			}
+		);
+	}
+
+	public validate(_input: any): InternalUnicodeHighlightOptions {
+		if (!_input || typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		const input = _input as IUnicodeHighlightOptions;
+		return {
+			nonBasicASCII: primitiveSet<boolean | DeriveFromWorkspaceTrust>(input.nonBasicASCII, deriveFromWorkspaceTrust, [true, false, deriveFromWorkspaceTrust]),
+			invisibleCharacters: primitiveSet<boolean | DeriveFromWorkspaceTrust>(input.invisibleCharacters, deriveFromWorkspaceTrust, [true, false, deriveFromWorkspaceTrust]),
+			ambiguousCharacters: primitiveSet<boolean | DeriveFromWorkspaceTrust>(input.ambiguousCharacters, deriveFromWorkspaceTrust, [true, false, deriveFromWorkspaceTrust]),
+			includeComments: primitiveSet<boolean | DeriveFromWorkspaceTrust>(input.includeComments, deriveFromWorkspaceTrust, [true, false, deriveFromWorkspaceTrust]),
+			allowedCharacters: string(input.allowedCharacters, ''),
+		};
+	}
+}
+
+function string(value: unknown, defaultValue: string): string {
+	if (typeof value !== 'string') {
+		return defaultValue;
+	}
+	return value;
+}
+
+//#endregion
+
 //#region inlineSuggest
 
 export interface IInlineSuggestOptions {
@@ -4219,6 +4335,7 @@ export const enum EditorOption {
 	suggestSelection,
 	tabCompletion,
 	tabIndex,
+	unicodeHighlighting,
 	unusualLineTerminators,
 	useShadowDOM,
 	useTabStops,
@@ -4807,6 +4924,7 @@ export const EditorOptions = {
 		EditorOption.tabIndex, 'tabIndex',
 		0, -1, Constants.MAX_SAFE_SMALL_INTEGER
 	)),
+	unicodeHighlight: register(new UnicodeHighlight()),
 	unusualLineTerminators: register(new EditorStringEnumOption(
 		EditorOption.unusualLineTerminators, 'unusualLineTerminators',
 		'prompt' as 'auto' | 'off' | 'prompt',

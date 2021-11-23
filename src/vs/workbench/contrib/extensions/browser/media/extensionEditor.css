@@ -82,6 +82,11 @@
 	white-space: nowrap;
 }
 
+.extension-editor > .header > .details > .title > .pre-release {
+	display: flex;
+	margin-left: 4px;
+}
+
 .extension-editor > .header > .details > .title > .builtin {
 	font-size: 10px;
 	font-style: italic;

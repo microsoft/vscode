@@ -2457,7 +2457,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			const bracketsContainingActivePosition =
 				(startLineNumber <= activePosition.lineNumber && activePosition.lineNumber <= endLineNumber)
 					// Does active position intersect with the view port? -> Intersect bracket pairs with activePosition
-					? bracketPairs.filter(bp => bp.range.containsPosition(activePosition))
+					? bracketPairs.filter(bp => Range.strictContainsPosition(bp.range, activePosition))
 					: this._bracketPairColorizer.getBracketPairsInRange(
 						Range.fromPositions(activePosition)
 					);
@@ -3044,6 +3044,8 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly afterContentClassName: string | null;
 	readonly after: ModelDecorationInjectedTextOptions | null;
 	readonly before: ModelDecorationInjectedTextOptions | null;
+	readonly hideInCommentTokens: boolean | null;
+
 
 	private constructor(options: model.IModelDecorationOptions) {
 		this.description = options.description;
@@ -3067,6 +3069,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.afterContentClassName = options.afterContentClassName ? cleanClassName(options.afterContentClassName) : null;
 		this.after = options.after ? ModelDecorationInjectedTextOptions.from(options.after) : null;
 		this.before = options.before ? ModelDecorationInjectedTextOptions.from(options.before) : null;
+		this.hideInCommentTokens = options.hideInCommentTokens ?? false;
 	}
 }
 ModelDecorationOptions.EMPTY = ModelDecorationOptions.register({ description: 'empty' });

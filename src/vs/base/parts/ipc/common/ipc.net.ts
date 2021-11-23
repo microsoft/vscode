@@ -6,7 +6,6 @@
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
 import { IIPCLogger, IMessagePassingProtocol, IPCClient } from 'vs/base/parts/ipc/common/ipc';
 
 export const enum SocketCloseEventType {
@@ -369,7 +368,7 @@ class ProtocolWriter {
 
 	private _writeSoon(header: VSBuffer, data: VSBuffer): void {
 		if (this._bufferAdd(header, data)) {
-			platform.setImmediate(() => {
+			setTimeout(() => {
 				this._writeNow();
 			});
 		}
@@ -482,7 +481,7 @@ export class BufferedEmitter<T> {
 				this._hasListeners = true;
 				// it is important to deliver these messages after this call, but before
 				// other messages have a chance to be received (to guarantee in order delivery)
-				// that's why we're using here nextTick and not other types of timeouts
+				// that's why we're using here queueMicrotask and not other types of timeouts
 				queueMicrotask(() => this._deliverMessages());
 			},
 			onLastListenerRemove: () => {

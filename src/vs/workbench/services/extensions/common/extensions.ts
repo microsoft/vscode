@@ -143,7 +143,7 @@ export function isProposedApiEnabled(extension: IExtensionDescription, proposal:
 
 export function checkProposedApiEnabled(extension: IExtensionDescription, proposal: ApiProposalName): void {
 	if (!isProposedApiEnabled(extension, proposal)) {
-		throw new Error(`Extension '${extension.identifier.value}' CANNOT use API proposal: ${proposal}.\nAccording to its package.json#enabledApiProposals-property it wants: ${extension.enabledApiProposals?.join(', ') ?? '<none>'}.\n You MUST start in extension development mode or use the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
+		throw new Error(`Extension '${extension.identifier.value}' CANNOT use API proposal: ${proposal}.\nIts package.json#enabledApiProposals-property declares: ${extension.enabledApiProposals?.join(', ') ?? '[]'} but NOT ${proposal}.\n The missing proposal MUST be added and you must start in extension development mode or use the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
 	}
 }
 

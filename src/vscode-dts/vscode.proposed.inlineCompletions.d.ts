@@ -48,6 +48,8 @@ declare module 'vscode' {
 	export interface SelectedCompletionInfo {
 		range: Range;
 		text: string;
+		completionKind: CompletionItemKind;
+		isSnippetText: boolean;
 	}
 
 	/**

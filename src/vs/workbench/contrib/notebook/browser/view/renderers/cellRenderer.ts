@@ -34,6 +34,7 @@ import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/vie
 import { CellDecorations } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellDecorations';
 import { CellDragAndDropController } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellDnd';
 import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
+import { CellExecutionPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellExecution';
 import { CellFocusIndicator } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellFocusIndicator';
 import { CellProgressBar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellProgressBar';
 import { BetweenCellToolbar, CellTitleToolbarPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellToolbars';
@@ -45,7 +46,7 @@ import { BaseCellRenderTemplate, CodeCellRenderTemplate, MarkdownCellRenderTempl
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellKind, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const $ = DOM.$;
 
@@ -462,11 +463,11 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			progressBar,
 			statusBar,
 			focusIndicator: new CellFocusIndicator(this.notebookEditor, focusIndicatorTop, focusIndicatorLeft, focusIndicatorRight, focusIndicatorBottom),
+			cellExecution: new CellExecutionPart(this.notebookEditor, executionOrderLabel),
 			titleToolbar,
 			betweenCellToolbar,
 			focusSinkElement,
 			runToolbar,
-			executionOrderLabel,
 			outputContainer,
 			outputShowMoreContainer,
 			editor,
@@ -487,12 +488,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			}
 		}));
 
-		templateDisposables.add(this.notebookEditor.onDidChangeActiveKernel(() => {
-			if (templateData.currentRenderedCell) {
-				this.updateForKernel(templateData.currentRenderedCell as CodeCellViewModel, templateData);
-			}
-		}));
-
+		templateData.cellExecution.setup(templateData);
 		this.commonRenderTemplate(templateData);
 
 		return templateData;
@@ -582,30 +578,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		return combinedDisposable(dragHandleListener, collapsedPartListener, clickHandler);
 	}
 
-	private updateForInternalMetadata(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
-		if (!this.notebookEditor.hasModel()) {
-			return;
-		}
-
-		const internalMetadata = element.internalMetadata;
-		this.updateExecutionOrder(internalMetadata, templateData);
-	}
-
-	private updateForKernel(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
-		this.updateExecutionOrder(element.internalMetadata, templateData);
-	}
-
-	private updateExecutionOrder(internalMetadata: NotebookCellInternalMetadata, templateData: CodeCellRenderTemplate): void {
-		if (this.notebookEditor.activeKernel?.implementsExecutionOrder) {
-			const executionOrderLabel = typeof internalMetadata.executionOrder === 'number' ?
-				`[${internalMetadata.executionOrder}]` :
-				'[ ]';
-			templateData.executionOrderLabel.innerText = executionOrderLabel;
-		} else {
-			templateData.executionOrderLabel.innerText = '';
-		}
-	}
-
 	private updateForLayout(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
 		templateData.elementDisposables.add(DOM.scheduleAtNextAnimationFrame(() => {
 			const bottomToolbarDimensions = this.notebookEditor.notebookOptions.computeBottomToolbarDimensions(this.notebookEditor.textModel?.viewType);
@@ -618,6 +590,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 			this.updateForTitleMenu(templateData);
 			templateData.betweenCellToolbar.updateLayoutNow(element);
+
+			templateData.cellExecution.updateLayoutNow(element);
 		}));
 	}
 
@@ -658,7 +632,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			templateData.progressBar,
 			templateData.titleToolbar,
 			templateData.runToolbar,
-			cellEditorOptions
+			cellEditorOptions,
+			templateData.cellExecution,
 		]));
 
 		this.renderedEditors.set(element, templateData.editor);
@@ -671,16 +646,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		elementDisposables.add(element.onDidChangeLayout(() => {
 			this.updateForLayout(element, templateData);
 		}));
-
-		this.updateForInternalMetadata(element, templateData);
-
-		elementDisposables.add(element.onDidChangeState((e) => {
-			if (e.metadataChanged || e.internalMetadataChanged) {
-				this.updateForInternalMetadata(element, templateData);
-			}
-		}));
-
-		this.updateForKernel(element, templateData);
 
 		templateData.elementDisposables.add(templateData.titleToolbar.onDidUpdateActions(() => {
 			// Don't call directly here - is initially called by updateForLayout in the next frame

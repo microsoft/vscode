@@ -27,7 +27,7 @@
     "watch-extensions": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js watch-extensions watch-extension-media",
     "watch-extensionsd": "deemon yarn watch-extensions",
     "kill-watch-extensionsd": "deemon --kill yarn watch-extensions",
-    "mocha": "mocha test/unit/node/all.js --delay",
+    "mocha": "mocha test/unit/node/all.js --delay --ui=tdd",
     "precommit": "node build/hygiene.js",
     "gulp": "node --max_old_space_size=8192 ./node_modules/gulp/bin/gulp.js",
     "electron": "node build/lib/electron",
@@ -59,7 +59,7 @@
   },
   "dependencies": {
     "@microsoft/applicationinsights-web": "^2.6.4",
-    "@parcel/watcher": "2.0.2",
+    "@parcel/watcher": "2.0.3",
     "@vscode/sqlite3": "4.0.12",
     "@vscode/sudo-prompt": "9.3.1",
     "@vscode/vscode-languagedetection": "1.0.21",

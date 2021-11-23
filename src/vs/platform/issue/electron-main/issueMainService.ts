@@ -250,7 +250,9 @@ export class IssueMainService implements ICommonIssueService {
 			}
 		}
 
-		this.issueReporterWindow?.focus();
+		if (this.issueReporterWindow) {
+			this.focusWindow(this.issueReporterWindow);
+		}
 	}
 
 	async openProcessExplorer(data: ProcessExplorerData): Promise<void> {
@@ -298,7 +300,17 @@ export class IssueMainService implements ICommonIssueService {
 			}
 		}
 
-		this.processExplorerWindow?.focus();
+		if (this.processExplorerWindow) {
+			this.focusWindow(this.processExplorerWindow);
+		}
+	}
+
+	private focusWindow(window: BrowserWindow): void {
+		if (window.isMinimized()) {
+			window.restore();
+		}
+
+		window.focus();
 	}
 
 	private createBrowserWindow<T>(position: IWindowState, ipcObjectUrl: IIPCObjectUrl<T>, options: IBrowserWindowOptions, windowKind: string): BrowserWindow {

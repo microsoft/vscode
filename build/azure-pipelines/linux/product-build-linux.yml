@@ -200,7 +200,7 @@ steps:
       INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME" \
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)" \
       ./resources/server/test/test-remote-integration.sh
-    displayName: Run remote integration tests (Electron)
+    displayName: Run integration tests (Remote)
     timeoutInMinutes: 7
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
