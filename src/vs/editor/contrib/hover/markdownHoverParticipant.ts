@@ -92,34 +92,30 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	}
 
 	public computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): AsyncIterable<MarkdownHover> {
-		return AsyncIterableSource.fromPromise(this._computeAsync(anchor, lineDecorations, token));
-	}
-
-	private async _computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): Promise<MarkdownHover[]> {
-		if (!this._editor.hasModel() || anchor.type !== HoverAnchorType.Range) {
-			return Promise.resolve([]);
-		}
-
-		const model = this._editor.getModel();
-
-		if (!HoverProviderRegistry.has(model)) {
-			return Promise.resolve([]);
-		}
-
-		const hovers = await getHover(model, new Position(
-			anchor.range.startLineNumber,
-			anchor.range.startColumn
-		), token);
-
-		const result: MarkdownHover[] = [];
-		for (const hover of hovers) {
-			if (isEmptyMarkdownString(hover.contents)) {
-				continue;
+		return new AsyncIterableSource(async (writer) => {
+			if (!this._editor.hasModel() || anchor.type !== HoverAnchorType.Range) {
+				return;
 			}
-			const rng = hover.range ? Range.lift(hover.range) : anchor.range;
-			result.push(new MarkdownHover(this, rng, hover.contents));
-		}
-		return result;
+
+			const model = this._editor.getModel();
+
+			if (!HoverProviderRegistry.has(model)) {
+				return;
+			}
+
+			const request = getHover(model, new Position(
+				anchor.range.startLineNumber,
+				anchor.range.startColumn
+			), token);
+
+			for await (const hover of request) {
+				if (isEmptyMarkdownString(hover.contents)) {
+					continue;
+				}
+				const rng = hover.range ? Range.lift(hover.range) : anchor.range;
+				writer.writeOne(new MarkdownHover(this, rng, hover.contents));
+			}
+		});
 	}
 
 	public renderHoverParts(hoverParts: MarkdownHover[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable {

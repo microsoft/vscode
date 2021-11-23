@@ -51,6 +51,7 @@ import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDep
 import { Progress } from 'vs/platform/progress/common/progress';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
+import { AsyncIterableSource } from 'vs/editor/contrib/hover/asyncIterableSource';
 
 suite('ExtHostLanguageFeatures', function () {
 
@@ -374,7 +375,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		getHover(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
+		AsyncIterableSource.toPromise(getHover(model, new EditorPosition(1, 1), CancellationToken.None)).then(value => {
 			assert.strictEqual(value.length, 1);
 			let [entry] = value;
 			assert.deepStrictEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 });
@@ -391,7 +392,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		getHover(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
+		AsyncIterableSource.toPromise(getHover(model, new EditorPosition(1, 1), CancellationToken.None)).then(value => {
 			assert.strictEqual(value.length, 1);
 			let [entry] = value;
 			assert.deepStrictEqual(entry.range, { startLineNumber: 4, startColumn: 1, endLineNumber: 9, endColumn: 8 });
@@ -414,7 +415,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getHover(model, new EditorPosition(1, 1), CancellationToken.None);
+		const value = await AsyncIterableSource.toPromise(getHover(model, new EditorPosition(1, 1), CancellationToken.None));
 		assert.strictEqual(value.length, 2);
 		let [first, second] = (value as modes.Hover[]);
 		assert.strictEqual(first.contents[0].value, 'registered second');
@@ -436,7 +437,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		getHover(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
+		AsyncIterableSource.toPromise(getHover(model, new EditorPosition(1, 1), CancellationToken.None)).then(value => {
 			assert.strictEqual(value.length, 1);
 		});
 	});

@@ -11,24 +11,23 @@ const enum State {
 	DoneError,
 }
 
-export class AsyncIterableSource<T> implements AsyncIterable<T> {
+export interface AsyncIterableWriter<T> {
+	writeOne(value: T): void;
+	writeMany(values: T[]): void;
+}
+
+export class AsyncIterableSource<T> implements AsyncIterable<T>, AsyncIterableWriter<T> {
 
 	public static fromArray<T>(items: T[]): AsyncIterable<T> {
-		const result = new AsyncIterableSource<T>();
-		result.writeMany(items);
-		result.end();
-		return result;
+		return new AsyncIterableSource<T>((writer) => {
+			writer.writeMany(items);
+		});
 	}
 
 	public static fromPromise<T>(promise: Promise<T[]>): AsyncIterable<T> {
-		const result = new AsyncIterableSource<T>();
-		promise.then((items) => {
-			result.writeMany(items);
-			result.end();
-		}, (error) => {
-			result.endError(error);
+		return new AsyncIterableSource<T>(async (writer) => {
+			writer.writeMany(await promise);
 		});
-		return result;
 	}
 
 	public static async toPromise<T>(iterable: AsyncIterable<T>): Promise<T[]> {
@@ -46,11 +45,20 @@ export class AsyncIterableSource<T> implements AsyncIterable<T> {
 	private _error: Error | null;
 	private readonly _onStateChanged: Emitter<void>;
 
-	constructor() {
+	constructor(executor: (writer: AsyncIterableWriter<T>) => void | Promise<void>) {
 		this._state = State.Initial;
 		this._results = [];
 		this._error = null;
 		this._onStateChanged = new Emitter<void>();
+
+		queueMicrotask(async () => {
+			try {
+				await Promise.resolve(executor(this));
+				this.end();
+			} catch(err) {
+				this.endError(err);
+			}
+		});
 	}
 
 	[Symbol.asyncIterator](): AsyncIterator<T, undefined, undefined> {
@@ -78,7 +86,7 @@ export class AsyncIterableSource<T> implements AsyncIterable<T> {
 	 *
 	 * **NOTE** If `end()` or `endError()` have already been called, this method has no effect.
 	 */
-	public writeOne(value: T) {
+	public writeOne(value: T): void {
 		if (this._state !== State.Initial) {
 			return;
 		}
@@ -93,7 +101,7 @@ export class AsyncIterableSource<T> implements AsyncIterable<T> {
 	 *
 	 * **NOTE** If `end()` or `endError()` have already been called, this method has no effect.
 	 */
-	public writeMany(values: T[]) {
+	public writeMany(values: T[]): void {
 		if (this._state !== State.Initial) {
 			return;
 		}
@@ -109,7 +117,7 @@ export class AsyncIterableSource<T> implements AsyncIterable<T> {
 	 * **NOTE** `end()` must be called, otherwise all consumers of this iterable will hang indefinitely, similar to a non-resolved promise.
 	 * **NOTE** If `end()` or `endError()` have already been called, this method has no effect.
 	 */
-	public end(): void {
+	private end(): void {
 		if (this._state !== State.Initial) {
 			return;
 		}
@@ -123,7 +131,7 @@ export class AsyncIterableSource<T> implements AsyncIterable<T> {
 	 *
 	 * **NOTE** If `end()` or `endError()` have already been called, this method has no effect.
 	 */
-	public endError(error: Error) {
+	private endError(error: Error) {
 		if (this._state !== State.Initial) {
 			return;
 		}

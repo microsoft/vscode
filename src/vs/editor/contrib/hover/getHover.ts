@@ -3,31 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { registerModelAndPositionCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { Hover, HoverProviderRegistry } from 'vs/editor/common/modes';
+import { Hover, HoverProvider, HoverProviderRegistry } from 'vs/editor/common/modes';
+import { AsyncIterableSource, AsyncIterableWriter } from 'vs/editor/contrib/hover/asyncIterableSource';
 
-export function getHover(model: ITextModel, position: Position, token: CancellationToken): Promise<Hover[]> {
-
-	const supports = HoverProviderRegistry.ordered(model);
-
-	const promises = supports.map(support => {
-		return Promise.resolve(support.provideHover(model, position, token)).then(hover => {
-			return hover && isValid(hover) ? hover : undefined;
-		}, err => {
-			onUnexpectedExternalError(err);
-			return undefined;
-		});
-	});
-
-	return Promise.all(promises).then(coalesce);
+async function executeProvider(provider: HoverProvider, model: ITextModel, position: Position, token: CancellationToken, writer: AsyncIterableWriter<Hover>): Promise<void> {
+	try {
+		const result = await Promise.resolve(provider.provideHover(model, position, token));
+		if (result && isValid(result)) {
+			writer.writeOne(result);
+		}
+	} catch (err) {
+		onUnexpectedExternalError(err);
+	}
 }
 
-registerModelAndPositionCommand('_executeHoverProvider', (model, position) => getHover(model, position, CancellationToken.None));
+export function getHover(model: ITextModel, position: Position, token: CancellationToken): AsyncIterable<Hover> {
+	return new AsyncIterableSource<Hover>(async (writer) => {
+		const providers = HoverProviderRegistry.ordered(model);
+		const promises = providers.map((provider) => executeProvider(provider, model, position, token, writer));
+		await Promise.all(promises);
+	});
+}
+
+registerModelAndPositionCommand('_executeHoverProvider', (model, position) => AsyncIterableSource.toPromise(getHover(model, position, CancellationToken.None)));
 
 function isValid(result: Hover) {
 	const hasRange = (typeof result.range !== 'undefined');
