@@ -85,7 +85,7 @@ export interface IEditorHoverAction {
 export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
 	suggestHoverAnchor?(mouseEvent: IEditorMouseEvent): HoverAnchor | null;
 	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): T[];
-	computeAsync?(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): Promise<T[]>;
+	computeAsync?(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): AsyncIterable<T>;
 	createLoadingMessage?(anchor: HoverAnchor): T | null;
 	renderHoverParts(hoverParts: T[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable;
 }

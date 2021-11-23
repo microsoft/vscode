@@ -32,6 +32,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
 import { UnicodeHighlighterHoverParticipant } from 'vs/editor/contrib/unicodeHighlighter/unicodeHighlighter';
+import { AsyncIterableSource } from 'vs/editor/contrib/hover/asyncIterableSource';
 
 const $ = dom.$;
 
@@ -130,13 +131,13 @@ class ModesContentComputer implements IHoverComputer<IHoverPart[]> {
 
 		const lineDecorations = ModesContentComputer._getLineDecorations(this._editor, anchor);
 
-		const allResults = await Promise.all(this._participants.map(p => this._computeAsync(p, lineDecorations, anchor, token)));
+		const allResults = await Promise.all(this._participants.map(p => this._computeAsync(p, lineDecorations, anchor, token)).map(AsyncIterableSource.toPromise));
 		return flatten(allResults);
 	}
 
-	private async _computeAsync(participant: IEditorHoverParticipant, lineDecorations: IModelDecoration[], anchor: HoverAnchor, token: CancellationToken): Promise<IHoverPart[]> {
+	private _computeAsync(participant: IEditorHoverParticipant, lineDecorations: IModelDecoration[], anchor: HoverAnchor, token: CancellationToken): AsyncIterable<IHoverPart> {
 		if (!participant.computeAsync) {
-			return [];
+			return AsyncIterableSource.EMPTY;
 		}
 		return participant.computeAsync(anchor, lineDecorations, token);
 	}
