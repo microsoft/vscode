@@ -619,7 +619,7 @@ export class AzureActiveDirectoryService {
 				errorMessage = e.message ?? e;
 			}
 
-			if (!result || !result.ok) {
+			if (!result || result.status > 499) {
 				if (attempts > 3) {
 					Logger.error(`Fetching token failed for scopes (${scopes}): ${result ? await result.text() : errorMessage}`);
 					break;
@@ -627,6 +627,11 @@ export class AzureActiveDirectoryService {
 				// Exponential backoff
 				await new Promise(resolve => setTimeout(resolve, 5 * attempts * attempts * 1000));
 				continue;
+			} else if (!result.ok) {
+				// For 4XX errors, the user may actually have an expired token or have changed
+				// their password recently which is throwing a 4XX. For this, we throw an error
+				// so that the user can be prompted to sign in again.
+				throw new Error(await result.text());
 			}
 
 			return await result.json() as ITokenResponse;
