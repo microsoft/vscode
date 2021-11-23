@@ -287,7 +287,7 @@ export class ExtensionsListView extends ViewPane {
 				groups = await manageExtensionAction.getActionGroups(runningExtensions);
 
 			} else if (e.element) {
-				groups = getContextMenuActions(e.element, false, this.instantiationService);
+				groups = getContextMenuActions(e.element, this.contextKeyService, this.instantiationService);
 				groups.forEach(group => group.forEach(extensionAction => {
 					if (extensionAction instanceof ExtensionAction) {
 						extensionAction.extension = e.element!;

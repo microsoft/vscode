@@ -37,14 +37,16 @@
 	width: 20px;
 }
 
-.extension-bookmark > .recommendation {
+.extension-bookmark > .recommendation,
+.extension-bookmark > .pre-release {
 	border-right: 20px solid transparent;
 	border-top: 20px solid;
 	box-sizing: border-box;
 	position: relative;
 }
 
-.extension-bookmark > .recommendation > .codicon {
+.extension-bookmark > .recommendation > .codicon,
+.extension-bookmark > .pre-release > .codicon {
 	position: absolute;
 	bottom: 9px;
 	left: 1px;

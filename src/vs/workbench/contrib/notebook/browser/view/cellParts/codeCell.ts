@@ -351,7 +351,6 @@ export class CodeCell extends Disposable {
 	private _collapseInput() {
 		// hide the editor and execution label, keep the run button
 		DOM.hide(this.templateData.editorPart);
-		DOM.hide(this.templateData.executionOrderLabel);
 		this.templateData.container.classList.toggle('input-collapsed', true);
 
 		// remove input preview
@@ -378,7 +377,6 @@ export class CodeCell extends Disposable {
 
 	private _showInput() {
 		DOM.show(this.templateData.editorPart);
-		DOM.show(this.templateData.executionOrderLabel);
 		DOM.hide(this.templateData.cellInputCollapsedContainer);
 	}
 

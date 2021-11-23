@@ -16,6 +16,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICellOutputViewModel, ICellViewModel, IGenericCellViewModel, INotebookCellOutputLayoutInfo, INotebookEditorCreationOptions, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellExecutionPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellExecution';
 import { CellFocusIndicator } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellFocusIndicator';
 import { CellProgressBar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellProgressBar';
 import { BetweenCellToolbar, CellTitleToolbarPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellToolbars';
@@ -117,7 +118,6 @@ export interface MarkdownCellRenderTemplate extends BaseCellRenderTemplate {
 
 export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
 	runToolbar: RunToolbar;
-	executionOrderLabel: HTMLElement;
 	outputContainer: FastDomNode<HTMLElement>;
 	cellOutputCollapsedContainer: HTMLElement;
 	outputShowMoreContainer: FastDomNode<HTMLElement>;
@@ -125,6 +125,7 @@ export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
 	editor: ICodeEditor;
 	progressBar: CellProgressBar;
 	dragHandle: FastDomNode<HTMLElement>;
+	cellExecution: CellExecutionPart;
 }
 
 export function isCodeCellRenderTemplate(templateData: BaseCellRenderTemplate): templateData is CodeCellRenderTemplate {

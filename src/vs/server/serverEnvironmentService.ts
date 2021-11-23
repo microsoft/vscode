@@ -55,6 +55,9 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	'log': { type: 'string' },
 	'logsPath': { type: 'string' },
 
+	'help': OPTIONS['help'],
+	'version': OPTIONS['version'],
+
 	_: OPTIONS['_']
 };
 
@@ -128,6 +131,10 @@ export interface ServerParsedArgs {
 	'github-auth'?: string;
 	'log'?: string;
 	'logsPath'?: string;
+
+	// server cli
+	help: boolean;
+	version: boolean;
 
 	_: string[];
 }

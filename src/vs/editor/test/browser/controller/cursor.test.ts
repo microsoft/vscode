@@ -739,47 +739,6 @@ suite('Editor Controller - Cursor', () => {
 		});
 	});
 
-	test('expandLineSelection', () => {
-		runTest((editor, viewModel) => {
-			//              0          1         2
-			//              01234 56789012345678 0
-			// let LINE1 = '    \tMy First Line\t ';
-			moveTo(editor, viewModel, 1, 1);
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, new Selection(1, 1, 2, 1));
-
-			moveTo(editor, viewModel, 1, 2);
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, new Selection(1, 1, 2, 1));
-
-			moveTo(editor, viewModel, 1, 5);
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, new Selection(1, 1, 2, 1));
-
-			moveTo(editor, viewModel, 1, 19);
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, new Selection(1, 1, 2, 1));
-
-			moveTo(editor, viewModel, 1, 20);
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, new Selection(1, 1, 2, 1));
-
-			moveTo(editor, viewModel, 1, 21);
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, new Selection(1, 1, 2, 1));
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, new Selection(1, 1, 3, 1));
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, new Selection(1, 1, 4, 1));
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, new Selection(1, 1, 5, 1));
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, new Selection(1, 1, 5, LINE5.length + 1));
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel, {});
-			assertCursor(viewModel, new Selection(1, 1, 5, LINE5.length + 1));
-		});
-	});
-
 	// --------- eventing
 
 	test('no move doesn\'t trigger event', () => {

@@ -89,15 +89,23 @@
 	align-items: center;
 }
 
-.extension-list-item > .details > .header-container > .header > .activation-status:not(:empty),
 .extension-list-item > .details > .header-container > .header > .install-count:not(:empty) {
 	font-size: 80%;
 	margin: 0 6px;
 }
 
+.extension-list-item > .details > .header-container > .header > .activation-status:not(:empty) {
+	font-size: 80%;
+	margin-left: 2px;
+}
+
+.extension-list-item > .details > .header-container > .header > .activation-status:not(:empty) .codicon {
+	margin-right: 2px;
+}
+
 .extension-list-item > .details > .header-container > .header .codicon {
 	font-size: 120%;
-	margin-right: 2px;
+	margin-right: 3px;
 	-webkit-mask: inherit;
 }
 
@@ -130,9 +138,12 @@
 	color: currentColor;
 }
 
+.extension-list-item > .details > .header-container > .header .pre-release {
+	display: flex;
+}
+
 .extension-list-item > .details > .header-container > .header .sync-ignored {
 	display: flex;
-	margin-left: 6px;
 }
 
 .extension-list-item > .details > .header-container > .header .sync-ignored > .codicon {

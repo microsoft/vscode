@@ -97,6 +97,7 @@ suite('ExtensionsListView Tests', () => {
 			async getInstalled() { return []; },
 			async canInstall() { return true; },
 			async getExtensionsReport() { return []; },
+			async getTargetPlatform() { return getTargetPlatform(platform, arch); }
 		});
 		instantiationService.stub(IRemoteAgentService, RemoteAgentService);
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());

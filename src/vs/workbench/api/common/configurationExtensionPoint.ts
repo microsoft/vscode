@@ -25,6 +25,10 @@ const configurationEntrySchema: IJSONSchema = {
 			description: nls.localize('vscode.extension.contributes.configuration.title', 'A summary of the settings. This label will be used in the settings file as separating comment.'),
 			type: 'string'
 		},
+		order: {
+			description: nls.localize('vscode.extension.contributes.configuration.order', 'When specified, gives the order of this category of settings relative to other categories.'),
+			type: 'integer'
+		},
 		properties: {
 			description: nls.localize('vscode.extension.contributes.configuration.properties', 'Description of the configuration properties.'),
 			type: 'object',
@@ -94,6 +98,10 @@ const configurationEntrySchema: IJSONSchema = {
 								],
 								default: 'singlelineText',
 								description: nls.localize('scope.editPresentation', 'When specified, controls the presentation format of the string setting.')
+							},
+							order: {
+								type: 'integer',
+								description: nls.localize('scope.order', 'When specified, gives the order of this setting relative to other settings within the same category. Settings with an order property will be placed before settings without this property set.')
 							}
 						}
 					}

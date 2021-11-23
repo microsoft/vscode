@@ -181,12 +181,14 @@ class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTe
 			const windowTitle = this.mapPidToWindowTitle.get(element.pid);
 			name = windowTitle !== undefined ? `${name} (${this.mapPidToWindowTitle.get(element.pid)})` : name;
 		}
+		const pid = element.pid.toFixed(0);
 
 		templateData.name.textContent = name;
 		templateData.name.title = element.cmd;
 
 		templateData.CPU.textContent = element.load.toFixed(0);
-		templateData.PID.textContent = element.pid.toFixed(0);
+		templateData.PID.textContent = pid;
+		templateData.PID.parentElement!.id = `pid-${pid}`;
 
 		const memory = this.platform === 'win32' ? element.mem : (this.totalMem * (element.mem / 100));
 		templateData.memory.textContent = (memory / ByteSize.MB).toFixed(0);
@@ -450,7 +452,7 @@ class ProcessExplorer {
 		items.push({
 			label: localize('copy', "Copy"),
 			click: () => {
-				const row = document.getElementById(pid.toString());
+				const row = document.getElementById(`pid-${pid}`);
 				if (row) {
 					this.nativeHostService.writeClipboardText(row.innerText);
 				}

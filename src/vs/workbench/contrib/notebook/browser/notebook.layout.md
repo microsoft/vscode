@@ -8,23 +8,56 @@ The notebook editor is a virtualized list view rendered in two contexts (mainfra
 
 ## Viewport rendering
 
-The rendering of notebook list view is a "guess and validate" process. It will calcuate how many cells/rows it can render within the viewport, have them all rendered, and then ask for their real dimension, and based on the cell/row dimensions it will decide if it needs to render more cells (if there are still some room in the viewport) or remove a few.
+The veiewport rendering of notebook list view is a "guess and validate" process. It will calcuate how many cells/rows it can render within the viewport first, have them all rendered, and then ask for their real dimensions, and based on the cell/row dimensions it will decide if it needs to render more cells (if there are still some room in the viewport) or remove a few.
 
 For short, the process is more or less
 
 * Render cell/row (DOM write)
 * Read dimensions (DOM read)
 
-The catch here is while rendering a cell/row, if we happen to perform any DOM read operation between DOM write, it will trigger forced reflow and block the UI. To prevent this we would batch all DOM read operatiosn and postpone them untill the list view requests them.
+The catch here is if we happen to perform any DOM read operation between DOM write while rendering a cell, it will trigger forced reflow and block the UI. To make it even worse, there are multiple components in a cell and often they are not aware of the existence of each other. When one component is updating its own DOM content, another component might be reading DOM dimensions at the same time. To prevent the unnecessary forced reflow from happening too often, we introduced the concept of `CellPart`. A `CellPart` is an abstract component in a cell and its lifecycle consists of four phases:
 
-The worflow of rendering a code cell with a text output is like below and all operations are synchronous
+* Creation. `CellPart` is usually created on cell template
+* Attach cell. When a cell is being rendered, we would attach the cell with all `CellPart`s by invoking `CellPart#renderCell`.
+* Read DOM dimensions. All DOM read operation should be performed in this phase to prepare for the layout update. `CellPart#prepareLayout` will invoked.
+* Update DOM positions. Once the list view finish reading DOM dimensions of all `CellPart`s, it will ask each `CellPart` to update its internal DOM nodes' positions, by invoking `CellPart#updateLayoutNow`.
+
+When we introduce new UI elements to notebook cell, we would make it a `CellPart` and ensure that we batch the DOM read and write operations in the right phases.
+
+```ts
+export abstract class CellPart extends Disposable {
+	constructor() {
+		super();
+	}
+
+	/**
+	 * Update the DOM for the cell `element`
+	 */
+	abstract renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void;
+
+	/**
+	 * Perform DOM read operations to prepare for the list/cell layout update.
+	 */
+	abstract prepareLayout(): void;
+
+	/**
+	 * Update DOM per cell layout info change
+	 */
+	abstract updateLayoutNow(element: ICellViewModel): void;
+
+	/**
+	 * Update per cell state change
+	 */
+	abstract updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void;
+}
+```
 
 ![render in the core](https://user-images.githubusercontent.com/876920/142806570-a477d315-40f3-4e0c-8079-f2867d5f3e88.png)
 
 When the notebook document contains markdown cells or rich outputs, the workflow is a bit more complex and become asynchornously partially due to the fact the markdown and rich outputs are rendered in a separate webview/iframe. While the list view renders the cell/row, it will send requests to the webview for output rendering, the rendering result (like dimensions of the output elements) won't come back in current frame. Once we receive the output rendering results from the webview (say next frame), we would ask the list view to adjust the position/dimension of the cell and ones below.
 
-![render outputs in the webview/iframe](https://user-images.githubusercontent.com/876920/142276957-f73a155e-70cb-4066-b5cc-5f451c1c91c8.png)
 
+![render outputs in the webview/iframe](https://user-images.githubusercontent.com/876920/142923784-4e7a297c-6ce4-4741-b306-cbfb3277699b.png)
 
 ## Cell rendering
 

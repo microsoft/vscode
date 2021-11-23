@@ -121,7 +121,7 @@ export function main(desc: ProductDescription, args: string[]): void {
 	const verbose = !!parsedArgs['verbose'];
 
 	if (parsedArgs.help) {
-		console.log(buildHelpMessage(desc.productName, desc.executableName, desc.version, options, true));
+		console.log(buildHelpMessage(desc.productName, desc.executableName, desc.version, options));
 		return;
 	}
 	if (parsedArgs.version) {

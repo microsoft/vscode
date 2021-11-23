@@ -16,6 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import { IView, IViewPaneContainer } from 'vs/workbench/common/views';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IExtensionsStatus } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
 
@@ -48,6 +49,7 @@ export interface IExtension {
 	readonly publisherDomain?: { link: string, verified: boolean };
 	readonly version: string;
 	readonly latestVersion: string;
+	readonly hasPreReleaseVersion: boolean;
 	readonly description: string;
 	readonly url?: string;
 	readonly repository?: string;
@@ -65,11 +67,11 @@ export interface IExtension {
 	readonly extensionPack: string[];
 	readonly telemetryData: any;
 	readonly preview: boolean;
-	getManifest(token: CancellationToken): Promise<IExtensionManifest | null>;
-	getReadme(token: CancellationToken): Promise<string>;
+	getManifest(preRelease: boolean, token: CancellationToken): Promise<IExtensionManifest | null>;
 	hasReadme(): boolean;
-	getChangelog(token: CancellationToken): Promise<string>;
+	getReadme(preRelease: boolean, token: CancellationToken): Promise<string>;
 	hasChangelog(): boolean;
+	getChangelog(preRelease: boolean, token: CancellationToken): Promise<string>;
 	readonly server?: IExtensionManagementServer;
 	readonly local?: ILocalExtension;
 	gallery?: IGalleryExtension;
@@ -96,7 +98,7 @@ export interface IExtensionsWorkbenchService {
 	installVersion(extension: IExtension, version: string): Promise<IExtension>;
 	reinstall(extension: IExtension): Promise<IExtension>;
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;
-	open(extension: IExtension, options?: { sideByside?: boolean, preserveFocus?: boolean, pinned?: boolean, tab?: string }): Promise<void>;
+	open(extension: IExtension, options?: IExtensionEditorOptions): Promise<void>;
 	checkForUpdates(): Promise<void>;
 	getExtensionStatus(extension: IExtension): IExtensionsStatus | undefined;
 
