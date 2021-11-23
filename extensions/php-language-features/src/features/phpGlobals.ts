@@ -168,7 +168,7 @@ export const keywords: IEntries = {
 		description: 'This language construct is equivalent to exit().',
 	},
 	echo: {
-		description: 'Outputs all parameters. \r\n\r\necho() is not actually a function (it is a language construct), so you are not required to use parentheses with it. echo() (unlike some other language constructs) does not behave like a function, so it cannot always be used in the context of a function. Additionally, if you want to pass more than one parameter to echo(), the parameters must not be enclosed within parentheses.\r\n\r\necho() also has a shortcut syntax, where you can immediately follow the opening tag with an equals sign. This short syntax only works with the short_open_tag configuration setting enabled.',
+		description: 'Outputs all parameters. \r\n\r\necho is not actually a function (it is a language construct), so you are not required to use parentheses with it. echo (unlike some other language constructs) does not behave like a function, so it cannot always be used in the context of a function. Additionally, if you want to pass more than one parameter to echo, the parameters must not be enclosed within parentheses.\r\n\r\necho also has a shortcut syntax, where you can immediately follow the opening tag with an equals sign. This short syntax only works with the short_open_tag configuration setting enabled.',
 		signature: '( string $arg1 [, string $... ] ): void'
 	},
 	empty: {
