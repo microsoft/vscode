@@ -20,7 +20,7 @@ export interface IXtermCore {
 		height: number;
 	};
 
-	_coreService: {
+	coreService: {
 		triggerDataEvent(data: string, wasUserInput?: boolean): void;
 	};
 
