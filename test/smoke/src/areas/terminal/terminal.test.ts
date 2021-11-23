@@ -12,8 +12,8 @@ import { setup as setupTerminalProfileTests } from './terminal-profiles.test';
 import { setup as setupTerminalTabsTests } from './terminal-tabs.test';
 
 export function setup(opts: minimist.ParsedArgs) {
-	describe.only('Terminal', () => {
-		// TODO: Enable terminal tests for non-web when it moved to playwright
+	describe('Terminal', () => {
+		// TODO: Enable terminal tests for non-web when the desktop driver is moved to playwright
 		if (!opts.web) {
 			return;
 		}
@@ -29,6 +29,9 @@ export function setup(opts: minimist.ParsedArgs) {
 
 			// Always show tabs to make getting terminal groups easier
 			await app.workbench.settingsEditor.addUserSetting('terminal.integrated.tabs.hideCondition', '"never"');
+
+			// Close the settings editor
+			await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');
 		});
 
 		afterEach(async () => {

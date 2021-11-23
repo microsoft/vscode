@@ -11,10 +11,9 @@ const ANY_PROFILE_NAME = '^((?!JavaScript Debug Terminal).)*$';
 
 export function setup(opts: ParsedArgs) {
 	describe('Terminal Profiles', () => {
-		let terminal: Terminal;
-
 		// Acquire automation API
-		before(async function () {
+		let terminal: Terminal;
+		before(function () {
 			const app = this.app as Application;
 			terminal = app.workbench.terminal;
 		});

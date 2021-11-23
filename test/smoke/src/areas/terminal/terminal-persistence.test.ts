@@ -8,10 +8,9 @@ import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue } 
 
 export function setup(opts: ParsedArgs) {
 	describe('Terminal Persistence', () => {
-		let terminal: Terminal;
-
 		// Acquire automation API
-		before(async function () {
+		let terminal: Terminal;
+		before(function () {
 			const app = this.app as Application;
 			terminal = app.workbench.terminal;
 		});
