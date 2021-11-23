@@ -251,7 +251,9 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 				throw new Error('User did not consent to login.');
 			}
 
-			const session = await this.authenticationService.createSession(providerId, scopes, true);
+			const session = sessions?.length && !options.forceNewSession
+				? await this.authenticationService.selectSession(providerId, extensionId, extensionName, scopes, sessions)
+				: await this.authenticationService.createSession(providerId, scopes, true);
 			await this.setTrustedExtensionAndAccountPreference(providerId, session.account.label, extensionId, extensionName, session.id);
 			return session;
 		}
