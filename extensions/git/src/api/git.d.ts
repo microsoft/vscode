@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Uri, Event, Disposable, ProviderResult } from 'vscode';
-import { RemoteSourceProvider } from './git-base';
 export { ProviderResult } from 'vscode';
 
 export interface Git {
@@ -217,6 +216,27 @@ export interface Repository {
 	commit(message: string, opts?: CommitOptions): Promise<void>;
 }
 
+export interface RemoteSource {
+	readonly name: string;
+	readonly description?: string;
+	readonly url: string | string[];
+}
+
+export interface RemoteSourceProvider {
+	readonly name: string;
+	readonly icon?: string; // codicon name
+	readonly supportsQuery?: boolean;
+	getRemoteSources(query?: string): ProviderResult<RemoteSource[]>;
+	getBranches?(url: string): ProviderResult<string[]>;
+	publishRepository?(repository: Repository): Promise<void>;
+}
+
+export interface RemoteSourcePublisher {
+	readonly name: string;
+	readonly icon?: string; // codicon name
+	publishRepository(repository: Repository): Promise<void>;
+}
+
 export interface Credentials {
 	readonly username: string;
 	readonly password: string;
@@ -251,6 +271,7 @@ export interface API {
 	init(root: Uri): Promise<Repository | null>;
 	openRepository(root: Uri): Promise<Repository | null>
 
+	registerRemoteSourcePublisher(publisher: RemoteSourcePublisher): Disposable;
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable;
 	registerCredentialsProvider(provider: CredentialsProvider): Disposable;
 	registerPushErrorHandler(handler: PushErrorHandler): Disposable;

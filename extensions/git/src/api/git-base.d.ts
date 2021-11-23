@@ -61,5 +61,4 @@ export interface RemoteSourceProvider {
 
 	getBranches?(url: string): ProviderResult<string[]>;
 	getRemoteSources(query?: string): ProviderResult<RemoteSource[]>;
-	publishRepository?(folderUri: Uri): Promise<void>;
 }

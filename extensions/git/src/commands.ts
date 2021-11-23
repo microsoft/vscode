@@ -8,7 +8,7 @@ import * as path from 'path';
 import { Command, commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider } from 'vscode';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
-import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions } from './api/git';
+import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher } from './api/git';
 import { Git, Stash } from './git';
 import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
@@ -19,8 +19,6 @@ import { Log, LogLevel } from './log';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { pickRemoteSource } from './remoteSource';
-import { GitBaseApi } from './git-base';
-import { RemoteSourceProvider } from './api/git-base';
 
 const localize = nls.loadMessageBundle();
 
@@ -2362,19 +2360,19 @@ export class CommandCenter {
 		const remotes = repository.remotes;
 
 		if (remotes.length === 0) {
-			const providers = GitBaseApi.getAPI().getRemoteProviders().filter(p => !!p.publishRepository);
+			const publishers = this.model.getRemoteSourcePublishers();
 
-			if (providers.length === 0) {
+			if (publishers.length === 0) {
 				window.showWarningMessage(localize('no remotes to publish', "Your repository has no remotes configured to publish to."));
 				return;
 			}
 
-			let provider: RemoteSourceProvider;
+			let publisher: RemoteSourcePublisher;
 
-			if (providers.length === 1) {
-				provider = providers[0];
+			if (publishers.length === 1) {
+				publisher = publishers[0];
 			} else {
-				const picks = providers
+				const picks = publishers
 					.map(provider => ({ label: (provider.icon ? `$(${provider.icon}) ` : '') + localize('publish to', "Publish to {0}", provider.name), alwaysShow: true, provider }));
 				const placeHolder = localize('pick provider', "Pick a provider to publish the branch '{0}' to:", branchName);
 				const choice = await window.showQuickPick(picks, { placeHolder });
@@ -2383,11 +2381,10 @@ export class CommandCenter {
 					return;
 				}
 
-				provider = choice.provider;
+				publisher = choice.provider;
 			}
 
-			const apiRepository = new ApiRepository(repository);
-			await provider.publishRepository!(apiRepository.rootUri);
+			await publisher.publishRepository!(new ApiRepository(repository));
 			this.model.firePublishEvent(repository, branchName);
 
 			return;

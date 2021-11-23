@@ -5,14 +5,14 @@
 
 import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions } from './git';
+import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher } from './git';
 import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands } from 'vscode';
-import { mapEvent } from '../util';
+import { combinedDisposable, mapEvent } from '../util';
 import { toGitUri } from '../uri';
 import { pickRemoteSource } from '../remoteSource';
 import { GitExtensionImpl } from './extension';
 import { GitBaseApi } from '../git-base';
-import { PickRemoteSourceOptions, RemoteSourceProvider } from './git-base';
+import { PickRemoteSourceOptions } from './git-base';
 
 class ApiInputBox implements InputBox {
 	set value(value: string) { this._inputBox.value = value; }
@@ -285,7 +285,18 @@ export class ApiImpl implements API {
 	}
 
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable {
-		return GitBaseApi.getAPI().registerRemoteSourceProvider(provider);
+		const disposables: Disposable[] = [];
+
+		if (provider.publishRepository) {
+			disposables.push(this._model.registerRemoteSourcePublisher(provider as RemoteSourcePublisher));
+		}
+		disposables.push(GitBaseApi.getAPI().registerRemoteSourceProvider(provider));
+
+		return combinedDisposable(disposables);
+	}
+
+	registerRemoteSourcePublisher(publisher: RemoteSourcePublisher): Disposable {
+		return this._model.registerRemoteSourcePublisher(publisher);
 	}
 
 	registerCredentialsProvider(provider: CredentialsProvider): Disposable {

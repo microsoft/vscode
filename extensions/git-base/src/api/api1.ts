@@ -20,17 +20,17 @@ export class ApiImpl implements API {
 	get onDidRemoveRemoteSourceProvider(): Event<RemoteSourceProvider>{
 		return this._model.onDidRemoveRemoteSourceProvider;
 	}
-
-	pickRemoteSource(options: PickRemoteSourceOptions): Promise<PickRemoteSourceResult | string | undefined> {
-		return pickRemoteSource(this._model, options as any);
-	}
-
+	
 	getRemoteProviders(): RemoteSourceProvider[] {
 		return this._model.getRemoteProviders();
 	}
 
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable {
 		return this._model.registerRemoteSourceProvider(provider);
+	}
+
+	pickRemoteSource(options: PickRemoteSourceOptions): Promise<PickRemoteSourceResult | string | undefined> {
+		return pickRemoteSource(this._model, options as any);
 	}
 }
 
