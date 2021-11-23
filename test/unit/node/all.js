@@ -10,9 +10,8 @@ const assert = require('assert');
 const path = require('path');
 const glob = require('glob');
 const jsdom = require('jsdom-no-contextify');
-const TEST_GLOB = '**/test/**/*.test.js';
+const minimatch = require('minimatch');
 const coverage = require('../coverage');
-
 const optimist = require('optimist')
 	.usage('Run the Code tests. All mocha options apply.')
 	.describe('build', 'Run from out-build').boolean('build')
@@ -21,6 +20,9 @@ const optimist = require('optimist')
 	.describe('browser', 'Run tests in a browser').boolean('browser')
 	.alias('h', 'help').boolean('h')
 	.describe('h', 'Show help');
+
+const TEST_GLOB = '**/test/**/*.test.js';
+const excludeGlob = '**/{browser,electron-sandbox,electron-browser,electron-main,editor/contrib}/**/*.test.js';
 
 const argv = optimist.argv;
 
@@ -112,10 +114,13 @@ function main() {
 	} else {
 		loadFunc = (cb) => {
 			glob(TEST_GLOB, { cwd: src }, function (err, files) {
-				const modulesToLoad = files.map(function (file) {
-					return file.replace(/\.js$/, '');
-				});
-				define(modulesToLoad, function () { cb(null); }, cb);
+				const modules = [];
+				for (let file of files) {
+					if (!minimatch(file, excludeGlob)) {
+						modules.push(file.replace(/\.js$/, ''));
+					}
+				}
+				define(modules, function () { cb(null); }, cb);
 			});
 		};
 	}
