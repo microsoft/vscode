@@ -6,7 +6,6 @@
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
 import { IIPCLogger, IMessagePassingProtocol, IPCClient } from 'vs/base/parts/ipc/common/ipc';
 
 export const enum SocketCloseEventType {
@@ -369,7 +368,7 @@ class ProtocolWriter {
 
 	private _writeSoon(header: VSBuffer, data: VSBuffer): void {
 		if (this._bufferAdd(header, data)) {
-			platform.setImmediate(() => {
+			setTimeout(() => {
 				this._writeNow();
 			});
 		}
