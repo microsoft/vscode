@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent, EditorCloseContext } from 'vs/workbench/common/editor';
+import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -13,6 +13,7 @@ import { IDimension } from 'vs/editor/common/editorCommon';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
+import { IGroupChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
 
@@ -393,68 +394,6 @@ export interface IEditorGroupsService {
 	 * Enforce editor part options temporarily.
 	 */
 	enforcePartOptions(options: IEditorPartOptions): IDisposable;
-}
-
-export const enum GroupChangeKind {
-
-	/* Group Changes */
-	GROUP_ACTIVE,
-	GROUP_INDEX,
-	GROUP_LOCKED,
-
-	/* Editor Changes */
-	EDITOR_OPEN,
-	EDITOR_CLOSE,
-	EDITOR_MOVE,
-	EDITOR_ACTIVE,
-	EDITOR_LABEL,
-	EDITOR_CAPABILITIES,
-	EDITOR_PIN,
-	EDITOR_STICKY,
-	EDITOR_DIRTY,
-	EDITOR_DISPOSE
-}
-
-export interface IGroupChangeEvent {
-
-	/**
-	 * The kind of change that occured in the group.
-	 */
-	kind: GroupChangeKind;
-
-	/**
-	 * Only applies when editors change providing
-	 * access to the editor the event is about.
-	 */
-	editor?: EditorInput;
-
-	/**
-	 * Only applies when an editor opens, closes
-	 * or is moved. Identifies the index of the
-	 * editor in the group.
-	 */
-	editorIndex?: number;
-
-	/**
-	 * For `EDITOR_MOVE` only: Signifies the index the
-	 * editor is moving from. `editorIndex` will contain
-	 * the index the editor is moving to.
-	 */
-	oldEditorIndex?: number;
-
-	/**
-	 * For `EDITOR_CLOSE` only: Signifies
-	 * the context in which the editor is being closed.
-	 * This allows for understanding if a replace or reopen is occuring
-	 */
-	closeContext?: EditorCloseContext;
-
-	/**
-	 * For `EDITOR_CLOSE` only: Signifies
-	 * whether or not the closed editor was sticky.
-	 * This is necessary becasue state is lost after closing.
-	 */
-	closedSticky?: boolean;
 }
 
 export const enum OpenEditorContext {

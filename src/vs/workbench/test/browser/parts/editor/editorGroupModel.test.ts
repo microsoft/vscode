@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditorGroupModel, ISerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
+import { EditorGroupModel, GroupChangeKind, ISerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { EditorExtensions, IEditorFactoryRegistry, IFileEditorInput, IEditorSerializer, CloseDirection, EditorsOrder, IResourceDiffEditorInput, IResourceSideBySideEditorInput, SideBySideEditor, EditorCloseContext, IEditorCloseEvent, IEditorOpenEvent, IEditorMoveEvent } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { TestLifecycleService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
@@ -25,7 +25,6 @@ import { TestContextService, TestStorageService } from 'vs/workbench/test/common
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { isEqual } from 'vs/base/common/resources';
-import { GroupChangeKind } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 suite('EditorGroupModel', () => {
 
@@ -139,7 +138,7 @@ suite('EditorGroupModel', () => {
 						groupEvents.moved.push({ editor: e.editor, index: e.oldEditorIndex, newIndex: e.editorIndex, target: group.id, groupId: group.id });
 					}
 					break;
-				case GroupChangeKind.EDITOR_DISPOSE:
+				case GroupChangeKind.EDITOR_WILL_DISPOSE:
 					groupEvents.disposed.push(e.editor);
 					break;
 			}

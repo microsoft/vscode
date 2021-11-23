@@ -10,7 +10,7 @@ import { IAction, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExe
 import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorGroupsService, IEditorGroup, GroupChangeKind, GroupsOrder, GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Verbosity, EditorResourceAccessor, SideBySideEditor, EditorInputCapabilities, IEditorIdentifier } from 'vs/workbench/common/editor';
@@ -52,6 +52,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { GroupChangeKind } from 'vs/workbench/common/editor/editorGroupModel';
 
 const $ = dom.$;
 

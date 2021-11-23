@@ -12,7 +12,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { coalesce } from 'vs/base/common/arrays';
-import { GroupChangeKind, IGroupChangeEvent } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 const EditorOpenPositioning = {
 	LEFT: 'left',
@@ -70,6 +69,87 @@ export interface IMatchOptions {
 	 */
 	strictEquals?: boolean;
 }
+
+//#region GroupChangeEvent
+
+export const enum GroupChangeKind {
+
+	/* Group Changes */
+	GROUP_ACTIVE,
+	GROUP_INDEX,
+	GROUP_LOCKED,
+
+	/* Editor Changes */
+	EDITOR_OPEN,
+	EDITOR_CLOSE,
+	EDITOR_MOVE,
+	EDITOR_ACTIVE,
+	EDITOR_LABEL,
+	EDITOR_CAPABILITIES,
+	EDITOR_PIN,
+	EDITOR_STICKY,
+	EDITOR_DIRTY,
+	EDITOR_WILL_DISPOSE
+}
+
+export interface IGroupChangeEvent {
+
+	/**
+	 * The kind of change that occured in the group.
+	 */
+	kind: GroupChangeKind;
+
+	/**
+	 * Only applies when editors change providing
+	 * access to the editor the event is about.
+	 */
+	editor?: EditorInput;
+
+	/**
+	 * Only applies when an editor opens, closes
+	 * or is moved. Identifies the index of the
+	 * editor in the group.
+	 */
+	editorIndex?: number;
+
+	/**
+	 * For `EDITOR_MOVE` only: Signifies the index the
+	 * editor is moving from. `editorIndex` will contain
+	 * the index the editor is moving to.
+	 */
+	oldEditorIndex?: number;
+
+	/**
+	 * For `EDITOR_CLOSE` only: Signifies
+	 * the context in which the editor is being closed.
+	 * This allows for understanding if a replace or reopen is occuring
+	 */
+	closeContext?: EditorCloseContext;
+
+	/**
+	 * For `EDITOR_CLOSE` only: Signifies
+	 * whether or not the closed editor was sticky.
+	 * This is necessary becasue state is lost after closing.
+	 */
+	closedSticky?: boolean;
+}
+
+export interface IGroupEditorMoveEvent extends IGroupChangeEvent {
+	kind: GroupChangeKind.EDITOR_MOVE;
+	editor: EditorInput;
+	editorIndex: number;
+	oldEditorIndex: number;
+}
+
+export interface IGroupEditorCloseEvent extends IGroupChangeEvent {
+	kind: GroupChangeKind.EDITOR_CLOSE;
+	editor: EditorInput;
+	editorIndex: number;
+	closeContext: EditorCloseContext;
+	closedSticky: boolean;
+}
+
+//#endregion
 
 export class EditorGroupModel extends Disposable {
 
@@ -313,7 +393,7 @@ export class EditorGroupModel extends Disposable {
 		listeners.add(Event.once(editor.onWillDispose)(() => {
 			if (this.indexOf(editor) >= 0) {
 				this._onDidModelChange.fire({
-					kind: GroupChangeKind.EDITOR_DISPOSE,
+					kind: GroupChangeKind.EDITOR_WILL_DISPOSE,
 					editor
 				});
 			}
