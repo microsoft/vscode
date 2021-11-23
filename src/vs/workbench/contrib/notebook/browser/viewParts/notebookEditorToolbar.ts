@@ -44,6 +44,7 @@ enum RenderLabel {
 
 type RenderLabelWithFallback = true | false | 'always' | 'never' | 'dynamic';
 
+const ICON_ONLY_ACTION_WIDTH = 21;
 const TOGGLE_MORE_ACTION_WIDTH = 21;
 const ACTION_PADDING = 8;
 
@@ -178,7 +179,7 @@ class DynamicLabelStrategy implements IActionLayoutStrategy {
 
 		// too narrow, we need to hide some labels
 
-		if ((actions.length * 21 + (actions.length - 1) * ACTION_PADDING) > leftToolbarContainerMaxWidth) {
+		if ((actions.length * ICON_ONLY_ACTION_WIDTH + (actions.length - 1) * ACTION_PADDING) > leftToolbarContainerMaxWidth) {
 			return this._calcuateWithAlllabelsHidden(actions, leftToolbarContainerMaxWidth);
 		}
 
@@ -192,7 +193,7 @@ class DynamicLabelStrategy implements IActionLayoutStrategy {
 			if (actions[i].action instanceof Separator) {
 				// find group separator
 				const remainingItems = actions.slice(i + 1);
-				const newTotalSum = sum + (remainingItems.length === 0 ? 0 : (remainingItems.length * 21 + (remainingItems.length - 1) * ACTION_PADDING));
+				const newTotalSum = sum + (remainingItems.length === 0 ? 0 : (remainingItems.length * ICON_ONLY_ACTION_WIDTH + (remainingItems.length - 1) * ACTION_PADDING));
 				if (newTotalSum <= leftToolbarContainerMaxWidth) {
 					lastActionWithLabel = i;
 				}
@@ -231,7 +232,7 @@ class DynamicLabelStrategy implements IActionLayoutStrategy {
 				continue;
 			}
 
-			const itemSize = 21;
+			const itemSize = ICON_ONLY_ACTION_WIDTH;
 			if (size + itemSize <= leftToolbarContainerMaxWidth) {
 				size += ACTION_PADDING + itemSize;
 				renderActions.push(actionModel);
