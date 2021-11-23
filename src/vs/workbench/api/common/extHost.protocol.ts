@@ -295,7 +295,7 @@ export interface MainThreadTextEditorsShape extends IDisposable {
 }
 
 export interface MainThreadTreeViewsShape extends IDisposable {
-	$registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean, canSelectMany: boolean, dragAndDropMimeTypes: string[] | undefined}): Promise<void>;
+	$registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean, canSelectMany: boolean, dragAndDropMimeTypes: string[] | undefined }): Promise<void>;
 	$refresh(treeViewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem; }): Promise<void>;
 	$reveal(treeViewId: string, itemInfo: { item: ITreeItem, parentChain: ITreeItem[] } | undefined, options: IRevealOptions): Promise<void>;
 	$setMessage(treeViewId: string, message: string): void;
@@ -2195,6 +2195,17 @@ export interface MainThreadTestingShape {
 	$finishedExtensionTestRun(runId: string): void;
 }
 
+export type IPCHandle = number;
+
+export interface ExtHostIPCShape {
+	$sendMessage(handle: IPCHandle, message: VSBuffer): Promise<void>;
+}
+
+export interface MainThreadIPCShape {
+	$register(extensionId: ExtensionIdentifier): Promise<IPCHandle | undefined>;
+	$sendMessage(handle: IPCHandle, message: VSBuffer): Promise<void>;
+}
+
 // --- proxy identifiers
 
 export const MainContext = {
@@ -2253,7 +2264,8 @@ export const MainContext = {
 	MainThreadTheming: createMainId<MainThreadThemingShape>('MainThreadTheming'),
 	MainThreadTunnelService: createMainId<MainThreadTunnelServiceShape>('MainThreadTunnelService'),
 	MainThreadTimeline: createMainId<MainThreadTimelineShape>('MainThreadTimeline'),
-	MainThreadTesting: createMainId<MainThreadTestingShape>('MainThreadTesting')
+	MainThreadTesting: createMainId<MainThreadTestingShape>('MainThreadTesting'),
+	MainThreadIPC: createMainId<MainThreadIPCShape>('MainThreadIPC'),
 };
 
 export const ExtHostContext = {
@@ -2308,4 +2320,5 @@ export const ExtHostContext = {
 	ExtHostTimeline: createMainId<ExtHostTimelineShape>('ExtHostTimeline'),
 	ExtHostTesting: createMainId<ExtHostTestingShape>('ExtHostTesting'),
 	ExtHostTelemetry: createMainId<ExtHostTelemetryShape>('ExtHostTelemetry'),
+	ExtHostIPC: createMainId<ExtHostIPCShape>('ExtHostIPC'),
 };

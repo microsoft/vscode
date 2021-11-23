@@ -337,6 +337,17 @@ interface ISettingsSyncOptions {
 	enablementHandler?(enablement: boolean): void;
 }
 
+export type Message = Uint8Array;
+
+export interface IMessagePassingProtocol {
+	readonly onDidReceiveMessage: Event<Message>;
+	sendMessage(message: Message): void;
+}
+
+export interface IIPCProvider {
+	getMessagePassingProtocol(extensionId: string): Promise<IMessagePassingProtocol | undefined>;
+}
+
 interface IWorkbenchConstructionOptions {
 
 	//#region Connection related configuration
@@ -521,6 +532,13 @@ interface IWorkbenchConstructionOptions {
 	 * The idea is that the colors match the main colors from the theme defined in the `configurationDefaults`.
 	 */
 	readonly initialColorTheme?: IInitialColorTheme;
+
+	//#endregion
+
+
+	//#region IPC
+
+	readonly ipcProvider?: IIPCProvider;
 
 	//#endregion
 
