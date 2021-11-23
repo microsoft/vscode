@@ -17,17 +17,17 @@ import fetch from 'node-fetch';
 import { Quality, ApplicationOptions, MultiLogger, Logger, ConsoleLogger, FileLogger } from '../../automation';
 
 import { setup as setupDataMigrationTests } from './areas/workbench/data-migration.test';
-import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
-import { setup as setupPreferencesTests } from './areas/preferences/preferences.test';
-import { setup as setupSearchTests } from './areas/search/search.test';
-import { setup as setupNotebookTests } from './areas/notebook/notebook.test';
-import { setup as setupLanguagesTests } from './areas/languages/languages.test';
-import { setup as setupEditorTests } from './areas/editor/editor.test';
-import { setup as setupStatusbarTests } from './areas/statusbar/statusbar.test';
-import { setup as setupExtensionTests } from './areas/extensions/extensions.test';
-import { setup as setupMultirootTests } from './areas/multiroot/multiroot.test';
-import { setup as setupLocalizationTests } from './areas/workbench/localization.test';
-import { setup as setupLaunchTests } from './areas/workbench/launch.test';
+// import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
+// import { setup as setupPreferencesTests } from './areas/preferences/preferences.test';
+// import { setup as setupSearchTests } from './areas/search/search.test';
+// import { setup as setupNotebookTests } from './areas/notebook/notebook.test';
+// import { setup as setupLanguagesTests } from './areas/languages/languages.test';
+// import { setup as setupEditorTests } from './areas/editor/editor.test';
+// import { setup as setupStatusbarTests } from './areas/statusbar/statusbar.test';
+// import { setup as setupExtensionTests } from './areas/extensions/extensions.test';
+// import { setup as setupMultirootTests } from './areas/multiroot/multiroot.test';
+// import { setup as setupLocalizationTests } from './areas/workbench/localization.test';
+// import { setup as setupLaunchTests } from './areas/workbench/launch.test';
 import { setup as setupTerminalProfileTests } from './areas/terminal/terminal-profiles.test';
 import { setup as setupTerminalTabsTests } from './areas/terminal/terminal-tabs.test';
 import { setup as setupTerminalEditorsTests } from './areas/terminal/terminal-editors.test';
@@ -356,19 +356,19 @@ if (!opts.web && opts['build'] && !opts['remote']) {
 }
 
 describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
-	if (!opts.web) { setupDataLossTests(opts); }
-	if (!opts.web) { setupPreferencesTests(opts); }
-	setupSearchTests(opts);
-	setupNotebookTests(opts);
-	setupLanguagesTests(opts);
-	setupEditorTests(opts);
-	setupStatusbarTests(opts);
-	setupExtensionTests(opts);
-	if (!opts.web) { setupMultirootTests(opts); }
-	if (!opts.web) { setupLocalizationTests(opts); }
-	if (!opts.web) { setupLaunchTests(opts); }
+	// if (!opts.web) { setupDataLossTests(opts); }
+	// if (!opts.web) { setupPreferencesTests(opts); }
+	// setupSearchTests(opts);
+	// setupNotebookTests(opts);
+	// setupLanguagesTests(opts);
+	// setupEditorTests(opts);
+	// setupStatusbarTests(opts);
+	// setupExtensionTests(opts);
+	// if (!opts.web) { setupMultirootTests(opts); }
+	// if (!opts.web) { setupLocalizationTests(opts); }
+	// if (!opts.web) { setupLaunchTests(opts); }
 
-	// TODO: Enable terminal tests for non-web
+	// TODO: Enable terminal tests for non-web when it moved to playwright
 	if (opts.web) { setupTerminalProfileTests(opts); }
 	if (opts.web) { setupTerminalTabsTests(opts); }
 	if (opts.web) { setupTerminalEditorsTests(opts); }

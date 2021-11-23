@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ok, strictEqual } from 'assert';
 import { ParsedArgs } from 'minimist';
 import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation/out';
 import { afterSuite, beforeSuite } from '../../utils';
 
 export function setup(opts: ParsedArgs) {
-	describe.only('Terminal Persistence', () => {
+	describe('Terminal Persistence', () => {
 		let terminal: Terminal;
 
 		beforeSuite(opts);
@@ -36,19 +35,20 @@ export function setup(opts: ParsedArgs) {
 					[{ name: '.*' }]
 				]);
 
-				const groups = await terminal.getTerminalGroups();
-				strictEqual(groups.length, 1);
-				strictEqual(groups[0].length, 1);
-				ok(groups[0][0].name!.length > 0);
-				const detachedName = groups[0][0].name!;
-				console.log('detached name', detachedName);
+				// Get the terminal name
+				await terminal.assertTerminalGroups([
+					[{ name: '.*' }]
+				]);
+				const name = (await terminal.getTerminalGroups())[0][0].name!;
 
+				// Detach
 				await terminal.runCommand(TerminalCommandId.DetachSession);
 				await terminal.assertTerminalViewHidden();
 
-				await terminal.runCommandWithValue(TerminalCommandIdWithValue.AttachToSession, detachedName);
+				// Attach
+				await terminal.runCommandWithValue(TerminalCommandIdWithValue.AttachToSession, name);
 				await terminal.assertTerminalGroups([
-					[{ name: detachedName }]
+					[{ name }]
 				]);
 			});
 
@@ -59,23 +59,54 @@ export function setup(opts: ParsedArgs) {
 					[{ name: '.*' }]
 				]);
 
-				const groups = await terminal.getTerminalGroups();
-				strictEqual(groups.length, 1);
-				strictEqual(groups[0].length, 1);
-				ok(groups[0][0].name!.length > 0);
-				const detachedName = groups[0][0].name!;
+				// Get the terminal name
+				await terminal.assertTerminalGroups([
+					[{ name: '.*' }]
+				]);
+				const name = (await terminal.getTerminalGroups())[0][0].name!;
 
+				// Write in terminal
 				await terminal.runCommandInTerminal('echo terminal_test_content');
 				await terminal.waitForTerminalText(buffer => buffer.some(e => e.includes('terminal_test_content')));
 
+				// Detach
 				await terminal.runCommand(TerminalCommandId.DetachSession);
 				await terminal.assertTerminalViewHidden();
 
-				await terminal.runCommandWithValue(TerminalCommandIdWithValue.AttachToSession, detachedName);
+				// Attach
+				await terminal.runCommandWithValue(TerminalCommandIdWithValue.AttachToSession, name);
 				await terminal.assertTerminalGroups([
-					[{ name: detachedName }]
+					[{ name }]
 				]);
 				await terminal.waitForTerminalText(buffer => buffer.some(e => e.includes('terminal_test_content')));
+			});
+
+			// TODO: This is currently flaky because it takes time to send over the new icon to the backend
+			it.skip('should persist terminal icon', async () => {
+				await terminal.runCommand(TerminalCommandId.CreateNew);
+				// TODO: Handle passing in an actual regex, not string
+				await terminal.assertTerminalGroups([
+					[{ name: '.*' }]
+				]);
+
+				// Get the terminal name
+				const name = (await terminal.getTerminalGroups())[0][0].name!;
+
+				// Set the icon
+				await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeIcon, 'symbol-method');
+				await terminal.assertSingleTab({ icon: 'symbol-method' });
+
+				// Detach
+				await terminal.runCommand(TerminalCommandId.DetachSession);
+				await terminal.assertTerminalViewHidden();
+
+				// Attach
+				await terminal.runCommandWithValue(TerminalCommandIdWithValue.AttachToSession, name);
+				await terminal.assertTerminalGroups([
+					[{ name }]
+				]);
+				// TODO: This fails due to a bug
+				await terminal.assertSingleTab({ icon: 'symbol-method' });
 			});
 		});
 	});
