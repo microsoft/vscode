@@ -481,7 +481,7 @@ export class BufferedEmitter<T> {
 				this._hasListeners = true;
 				// it is important to deliver these messages after this call, but before
 				// other messages have a chance to be received (to guarantee in order delivery)
-				// that's why we're using here nextTick and not other types of timeouts
+				// that's why we're using here queueMicrotask and not other types of timeouts
 				queueMicrotask(() => this._deliverMessages());
 			},
 			onLastListenerRemove: () => {
