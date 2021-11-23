@@ -51,7 +51,7 @@ export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 				this.minReservedLineCount = Math.max(this.minReservedLineCount, sum(newGhostText.parts.map(p => p.lines.length - 1)));
 			}
 
-			if (this.minReservedLineCount >= 1 && this.isSuggestionPreviewEnabled()) {
+			if (this.minReservedLineCount >= 1) {
 				this.suggestionInlineCompletionSource.forceRenderingAbove();
 			} else {
 				this.suggestionInlineCompletionSource.stopForceRenderingAbove();
@@ -64,11 +64,9 @@ export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 		}));
 
 		this._register(this.editor.onDidChangeCursorPosition((e) => {
-			if (this.isSuggestionPreviewEnabled()) {
-				this.minReservedLineCount = 0;
-				this.updateCacheSoon.schedule();
-				this.onDidChangeEmitter.fire();
-			}
+			this.minReservedLineCount = 0;
+			this.updateCacheSoon.schedule();
+			this.onDidChangeEmitter.fire();
 		}));
 
 		this._register(toDisposable(() => this.suggestionInlineCompletionSource.stopForceRenderingAbove()));
@@ -123,38 +121,39 @@ export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 	}
 
 	public override get ghostText(): GhostText | undefined {
-		if (!this.isSuggestionPreviewEnabled()) {
+		const isSuggestionPreviewEnabled = this.isSuggestionPreviewEnabled();
+		const augmentedCompletion = minimizeInlineCompletion(this.editor.getModel()!, this.cache.value?.completions[0]?.toLiveInlineCompletion());
+
+		const suggestWidgetState = this.suggestionInlineCompletionSource.state;
+		const suggestInlineCompletion = minimizeInlineCompletion(this.editor.getModel()!, suggestWidgetState?.selectedItemAsInlineCompletion);
+
+		const isAugmentedCompletionValid = augmentedCompletion
+			&& suggestInlineCompletion
+			&& augmentedCompletion.text.startsWith(suggestInlineCompletion.text)
+			&& augmentedCompletion.range.equalsRange(suggestInlineCompletion.range);
+
+		if (!isSuggestionPreviewEnabled && !isAugmentedCompletionValid) {
 			return undefined;
 		}
 
-		const suggestWidgetState = this.suggestionInlineCompletionSource.state;
+		// If the augmented completion is not valid and there is no suggest inline completion, we still show the augmented completion.
+		const finalCompletion = isAugmentedCompletionValid ? augmentedCompletion : (suggestInlineCompletion || augmentedCompletion);
 
-		const originalInlineCompletion = minimizeInlineCompletion(this.editor.getModel()!, suggestWidgetState?.selectedItemAsInlineCompletion);
-		const augmentedCompletion = minimizeInlineCompletion(this.editor.getModel()!, this.cache.value?.completions[0]?.toLiveInlineCompletion());
-
-		const finalCompletion =
-			augmentedCompletion
-				&& originalInlineCompletion
-				&& augmentedCompletion.text.startsWith(originalInlineCompletion.text)
-				&& augmentedCompletion.range.equalsRange(originalInlineCompletion.range)
-				? augmentedCompletion : (originalInlineCompletion || augmentedCompletion);
-
-		const inlineCompletionPreviewLength = originalInlineCompletion ? (finalCompletion?.text.length || 0) - (originalInlineCompletion.text.length) : 0;
-
-		const toGhostText = (completion: NormalizedInlineCompletion | undefined): GhostText | undefined => {
-			const mode = this.editor.getOptions().get(EditorOption.suggest).previewMode;
-			return completion
-				? (
-					inlineCompletionToGhostText(completion, this.editor.getModel(), mode, this.editor.getPosition(), inlineCompletionPreviewLength) ||
-					// Show an invisible ghost text to reserve space
-					new GhostText(completion.range.endLineNumber, [], this.minReservedLineCount)
-				)
-				: undefined;
-		};
-
-		const newGhostText = toGhostText(finalCompletion);
+		const inlineCompletionPreviewLength = isAugmentedCompletionValid ? finalCompletion!.text.length - suggestInlineCompletion.text.length : 0;
+		const newGhostText = this.toGhostText(finalCompletion, inlineCompletionPreviewLength);
 
 		return newGhostText;
+	}
+
+	private toGhostText(completion: NormalizedInlineCompletion | undefined, inlineCompletionPreviewLength: number): GhostText | undefined {
+		const mode = this.editor.getOptions().get(EditorOption.suggest).previewMode;
+		return completion
+			? (
+				inlineCompletionToGhostText(completion, this.editor.getModel(), mode, this.editor.getPosition(), inlineCompletionPreviewLength) ||
+				// Show an invisible ghost text to reserve space
+				new GhostText(completion.range.endLineNumber, [], this.minReservedLineCount)
+			)
+			: undefined;
 	}
 }
 
