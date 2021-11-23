@@ -29,7 +29,8 @@ export class MarkdownHover implements IHoverPart {
 	constructor(
 		public readonly owner: IEditorHoverParticipant<MarkdownHover>,
 		public readonly range: Range,
-		public readonly contents: IMarkdownString[]
+		public readonly contents: IMarkdownString[],
+		public readonly ordinal: number
 	) { }
 
 	public isValidForHoverAnchor(anchor: HoverAnchor): boolean {
@@ -52,7 +53,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	) { }
 
 	public createLoadingMessage(anchor: HoverAnchor): MarkdownHover | null {
-		return new MarkdownHover(this, anchor.range, [new MarkdownString().appendText(nls.localize('modesContentHover.loading', "Loading..."))]);
+		return new MarkdownHover(this, anchor.range, [new MarkdownString().appendText(nls.localize('modesContentHover.loading', "Loading..."))], 2000);
 	}
 
 	public computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): MarkdownHover[] {
@@ -64,6 +65,20 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		const lineNumber = anchor.range.startLineNumber;
 		const maxColumn = model.getLineMaxColumn(lineNumber);
 		const result: MarkdownHover[] = [];
+
+		let index = 1000;
+
+		const lineLength = model.getLineLength(lineNumber);
+		const languageId = model.getLanguageIdAtPosition(anchor.range.startLineNumber, anchor.range.startColumn);
+		const maxTokenizationLineLength = this._configurationService.getValue<number>('editor.maxTokenizationLineLength', {
+			overrideIdentifier: languageId
+		});
+		if (typeof maxTokenizationLineLength === 'number' && lineLength >= maxTokenizationLineLength) {
+			result.push(new MarkdownHover(this, anchor.range, [{
+				value: nls.localize('too many characters', "Tokenization is skipped for long lines for performance reasons. This can be configured via `editor.maxTokenizationLineLength`.")
+			}], index++));
+		}
+
 		for (const d of lineDecorations) {
 			const startColumn = (d.range.startLineNumber === lineNumber) ? d.range.startColumn : 1;
 			const endColumn = (d.range.endLineNumber === lineNumber) ? d.range.endColumn : maxColumn;
@@ -74,18 +89,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			}
 
 			const range = new Range(anchor.range.startLineNumber, startColumn, anchor.range.startLineNumber, endColumn);
-			result.push(new MarkdownHover(this, range, asArray(hoverMessage)));
-		}
-
-		const lineLength = model.getLineLength(lineNumber);
-		const languageId = model.getLanguageIdAtPosition(anchor.range.startLineNumber, anchor.range.startColumn);
-		const maxTokenizationLineLength = this._configurationService.getValue<number>('editor.maxTokenizationLineLength', {
-			overrideIdentifier: languageId
-		});
-		if (typeof maxTokenizationLineLength === 'number' && lineLength >= maxTokenizationLineLength) {
-			result.push(new MarkdownHover(this, anchor.range, [{
-				value: nls.localize('too many characters', "Tokenization is skipped for long lines for performance reasons. This can be configured via `editor.maxTokenizationLineLength`.")
-			}]));
+			result.push(new MarkdownHover(this, range, asArray(hoverMessage), index++));
 		}
 
 		return result;
@@ -104,11 +108,10 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 
 		const position = new Position(anchor.range.startLineNumber, anchor.range.startColumn);
 		return getHover(model, position, token)
-			.map(item => item.hover)
-			.filter(hover => !isEmptyMarkdownString(hover.contents))
-			.map(hover => {
-				const rng = hover.range ? Range.lift(hover.range) : anchor.range;
-				return new MarkdownHover(this, rng, hover.contents);
+			.filter(item => !isEmptyMarkdownString(item.hover.contents))
+			.map(item => {
+				const rng = item.hover.range ? Range.lift(item.hover.range) : anchor.range;
+				return new MarkdownHover(this, rng, item.hover.contents, item.ordinal);
 			});
 	}
 
@@ -125,6 +128,10 @@ export function renderMarkdownHovers(
 	modeService: IModeService,
 	openerService: IOpenerService,
 ): IDisposable {
+
+	// Sort hover parts to keep them stable since they might come in async, out-of-order
+	hoverParts.sort((a, b) => a.ordinal - b.ordinal);
+
 	const disposables = new DisposableStore();
 	for (const hoverPart of hoverParts) {
 		for (const contents of hoverPart.contents) {

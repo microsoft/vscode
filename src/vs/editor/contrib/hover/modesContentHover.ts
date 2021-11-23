@@ -565,8 +565,11 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 
 		const statusBar = disposables.add(new EditorHoverStatusBar(this._keybindingService));
 
-		for (const [participant, participantHoverParts] of hoverParts) {
-			disposables.add(participant.renderHoverParts(participantHoverParts, fragment, statusBar));
+		for (const participant of this._participants) {
+			if (hoverParts.has(participant)) {
+				const participantHoverParts = hoverParts.get(participant)!;
+				disposables.add(participant.renderHoverParts(participantHoverParts, fragment, statusBar));
+			}
 		}
 
 		if (statusBar.hasContent) {
