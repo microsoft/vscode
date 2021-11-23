@@ -1163,9 +1163,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				id: MenuId.ExtensionContext,
 				group: '0_install',
 				order: 0,
-				when: ContextKeyExpr.or(
-					ContextKeyExpr.and(ContextKeyExpr.not('inExtensionEditor'), ContextKeyExpr.has('extensionHasPreReleaseVersion'), ContextKeyExpr.not('galleryExtensionIsPreReleaseVersion')),
-					ContextKeyExpr.and(ContextKeyExpr.has('inExtensionEditor'), ContextKeyExpr.has('extensionHasPreReleaseVersion'), ContextKeyExpr.not('showPreReleaseVersion')))
+				when: ContextKeyExpr.and(ContextKeyExpr.has('inExtensionEditor'), ContextKeyExpr.has('extensionHasPreReleaseVersion'), ContextKeyExpr.not('showPreReleaseVersion'))
 			},
 			run: async (accessor: ServicesAccessor, extensionId: string) => {
 				const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
@@ -1180,9 +1178,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				id: MenuId.ExtensionContext,
 				group: '0_install',
 				order: 1,
-				when: ContextKeyExpr.or(
-					ContextKeyExpr.and(ContextKeyExpr.not('inExtensionEditor'), ContextKeyExpr.has('extensionHasPreReleaseVersion'), ContextKeyExpr.has('galleryExtensionIsPreReleaseVersion'), ContextKeyExpr.equals('extensionStatus', 'installed')),
-					ContextKeyExpr.and(ContextKeyExpr.has('inExtensionEditor'), ContextKeyExpr.has('extensionHasPreReleaseVersion'), ContextKeyExpr.has('showPreReleaseVersion')))
+				when: ContextKeyExpr.and(ContextKeyExpr.has('inExtensionEditor'), ContextKeyExpr.has('extensionHasPreReleaseVersion'), ContextKeyExpr.has('showPreReleaseVersion'))
 			},
 			run: async (accessor: ServicesAccessor, extensionId: string) => {
 				const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);

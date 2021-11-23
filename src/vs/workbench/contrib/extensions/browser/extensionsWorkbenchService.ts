@@ -587,7 +587,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private readonly _onChange: Emitter<IExtension | undefined> = new Emitter<IExtension | undefined>();
 	get onChange(): Event<IExtension | undefined> { return this._onChange.event; }
 
-	readonly includePreRelease = this.productService.quality !== 'stable';
+	readonly preferPreReleases = this.productService.quality !== 'stable';
 
 	private installing: IExtension[] = [];
 
@@ -615,6 +615,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
 		super();
+		const preferPreReleasesValue = configurationService.getValue('_extensions.preferPreReleases');
+		if (!isUndefined(preferPreReleasesValue)) {
+			this.preferPreReleases = !!preferPreReleasesValue;
+		}
 		this.hasOutdatedExtensionsContextKey = HasOutdatedExtensionsContext.bindTo(contextKeyService);
 		if (extensionManagementServerService.localExtensionManagementServer) {
 			this.localExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.localExtensionManagementServer, ext => this.getExtensionState(ext)));
@@ -743,7 +747,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		const options: IQueryOptions = CancellationToken.isCancellationToken(arg1) ? {} : arg1;
 		const token: CancellationToken = CancellationToken.isCancellationToken(arg1) ? arg1 : arg2;
 		options.text = options.text ? this.resolveQueryText(options.text) : options.text;
-		options.includePreRelease = isUndefined(options.includePreRelease) ? this.includePreRelease : options.includePreRelease;
+		options.includePreRelease = isUndefined(options.includePreRelease) ? this.preferPreReleases : options.includePreRelease;
 
 		const report = await this.extensionManagementService.getExtensionsReport();
 		const maliciousSet = getMaliciousExtensionsSet(report);

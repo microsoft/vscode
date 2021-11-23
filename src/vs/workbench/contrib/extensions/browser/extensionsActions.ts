@@ -493,12 +493,12 @@ export class InstallDropdownAction extends ActionWithDropDownAction {
 	) {
 		super(`extensions.installActions`, '', [
 			[
-				instantiationService.createInstance(InstallAndSyncAction, extensionsWorkbenchService.includePreRelease),
-				instantiationService.createInstance(InstallAndSyncAction, !extensionsWorkbenchService.includePreRelease),
+				instantiationService.createInstance(InstallAndSyncAction, extensionsWorkbenchService.preferPreReleases),
+				instantiationService.createInstance(InstallAndSyncAction, !extensionsWorkbenchService.preferPreReleases),
 			],
 			[
-				instantiationService.createInstance(InstallAction, extensionsWorkbenchService.includePreRelease),
-				instantiationService.createInstance(InstallAction, !extensionsWorkbenchService.includePreRelease),
+				instantiationService.createInstance(InstallAction, extensionsWorkbenchService.preferPreReleases),
+				instantiationService.createInstance(InstallAction, !extensionsWorkbenchService.preferPreReleases),
 			]
 		]);
 	}
