@@ -226,6 +226,11 @@ class DynamicLabelStrategy implements IActionLayoutStrategy {
 		for (let i = 0; i < actions.length; i++) {
 			const actionModel = actions[i];
 
+			if (actionModel.action.id === 'notebook.cell.insertMarkdownCellBelow') {
+				renderActions.push(actionModel);
+				continue;
+			}
+
 			const itemSize = 21;
 			if (size + itemSize <= leftToolbarContainerMaxWidth) {
 				size += ACTION_PADDING + itemSize;
@@ -235,11 +240,17 @@ class DynamicLabelStrategy implements IActionLayoutStrategy {
 			}
 		}
 
-		actions.forEach(action => action.visible = true);
-		primaryActions.slice(actions.length).forEach(action => action.visible = false);
+		renderActions.forEach(action => {
+			if (action.action.id === 'notebook.cell.insertMarkdownCellBelow') {
+				action.visible = false;
+			} else {
+				action.visible = true;
+			}
+		});
+		primaryActions.slice(renderActions.length).forEach(action => action.visible = false);
 
 		return {
-			primaryActions: actions.filter(action => (action.visible && action.action.id !== ToggleMenuAction.ID)).map(action => action.action),
+			primaryActions: renderActions.filter(action => (action.visible && action.action.id !== ToggleMenuAction.ID)).map(action => action.action),
 			secondaryActions: [...primaryActions.slice(actions.length).filter(action => !action.visible && action.action.id !== ToggleMenuAction.ID).map(action => action.action), ...secondaryActions]
 		};
 	}
