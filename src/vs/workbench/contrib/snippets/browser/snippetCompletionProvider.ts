@@ -65,11 +65,6 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 
 	async provideCompletionItems(model: ITextModel, position: Position, context: CompletionContext): Promise<CompletionList> {
 
-		if (context.triggerKind === CompletionTriggerKind.TriggerCharacter && context.triggerCharacter?.match(/\s/)) {
-			// no snippets when suggestions have been triggered by space
-			return { suggestions: [] };
-		}
-
 		const sw = new StopWatch(true);
 		const languageId = this._getLanguageIdAtPosition(model, position);
 		const snippets = new Set(await this._snippets.getSnippets(languageId));
@@ -79,9 +74,17 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		const suggestions: SnippetCompletion[] = [];
 		const columnOffset = position.column - 1;
 
+		const triggerCharacterLow = context.triggerCharacter?.toLowerCase() ?? '';
+
 		for (const snippet of snippets) {
 
 			for (let pos = Math.max(0, columnOffset - snippet.prefixLow.length); pos < lineContentLow.length; pos++) {
+
+				if (context.triggerKind === CompletionTriggerKind.TriggerCharacter && !snippet.prefixLow.startsWith(triggerCharacterLow)) {
+					// strict -> when having trigger characters they must prefix-match
+					continue;
+				}
+
 				if (!isPatternInWord(lineContentLow, pos, columnOffset, snippet.prefixLow, 0, snippet.prefixLow.length)) {
 					continue;
 				}
@@ -118,14 +121,16 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		}
 
 
-		const endsInWhitespace = /\s/.test(lineContentLow[position.column - 2]);
-
-		if (endsInWhitespace || !lineContentLow /*empty line*/) {
-			// add remaing snippets when the current prefix ends in whitespace or when line is empty
-			for (let snippet of snippets) {
-				const insert = Range.fromPositions(position);
-				const replace = lineContentLow.indexOf(snippet.prefixLow, columnOffset) === columnOffset ? insert.setEndPosition(position.lineNumber, position.column + snippet.prefixLow.length) : insert;
-				suggestions.push(new SnippetCompletion(snippet, { replace, insert }));
+		// add remaing snippets when the current prefix ends in whitespace or when line is empty
+		// and when not having a trigger character
+		if (!triggerCharacterLow) {
+			const endsInWhitespace = /\s/.test(lineContentLow[position.column - 2]);
+			if (endsInWhitespace || !lineContentLow /*empty line*/) {
+				for (let snippet of snippets) {
+					const insert = Range.fromPositions(position);
+					const replace = lineContentLow.indexOf(snippet.prefixLow, columnOffset) === columnOffset ? insert.setEndPosition(position.lineNumber, position.column + snippet.prefixLow.length) : insert;
+					suggestions.push(new SnippetCompletion(snippet, { replace, insert }));
+				}
 			}
 		}
 
