@@ -306,6 +306,7 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 
 
 		const result: MarkdownHover[] = [];
+		let index = 300;
 		for (const d of lineDecorations) {
 
 			const highlightInfo = unicodeHighlighter.getDecorationInfo(d.id);
@@ -366,7 +367,7 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 				isTrusted: true,
 			}];
 
-			result.push(new MarkdownHover(this, d.range, contents));
+			result.push(new MarkdownHover(this, d.range, contents, index++));
 		}
 		return result;
 	}
