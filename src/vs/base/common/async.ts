@@ -1203,10 +1203,10 @@ export class IntervalCounter {
 
 	private value = 0;
 
-	constructor(private readonly interval: number) { }
+	constructor(private readonly interval: number, private readonly nowFn = () => Date.now()) { }
 
 	increment(): number {
-		const now = Date.now();
+		const now = this.nowFn();
 
 		// We are outside of the range of `interval` and as such
 		// start counting from 0 and remember the time
