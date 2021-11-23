@@ -8,8 +8,6 @@ import { Repository, Operation } from './repository';
 import { anyEvent, dispose, filterEvent } from './util';
 import * as nls from 'vscode-nls';
 import { Branch, RemoteSourcePublisher } from './api/git';
-import { GitBaseApi } from './git-base';
-import { RemoteSourceProvider } from './api/git-base';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 
 const localize = nls.loadMessageBundle();
@@ -46,7 +44,6 @@ interface SyncStatusBarState {
 	readonly isSyncRunning: boolean;
 	readonly hasRemotes: boolean;
 	readonly HEAD: Branch | undefined;
-	readonly remoteSourceProviders: RemoteSourceProvider[];
 	readonly remoteSourcePublishers: RemoteSourcePublisher[];
 }
 
@@ -69,15 +66,11 @@ class SyncStatusBar {
 			isSyncRunning: false,
 			hasRemotes: false,
 			HEAD: undefined,
-			remoteSourceProviders: GitBaseApi.getAPI().getRemoteProviders(),
 			remoteSourcePublishers: remoteSourcePublisherRegistry.getRemoteSourcePublishers()
 		};
 
 		repository.onDidRunGitStatus(this.onDidRunGitStatus, this, this.disposables);
 		repository.onDidChangeOperations(this.onDidChangeOperations, this, this.disposables);
-
-		anyEvent(GitBaseApi.getAPI().onDidAddRemoteSourceProvider, GitBaseApi.getAPI().onDidRemoveRemoteSourceProvider)
-			(this.onDidChangeRemoteSourceProviders, this, this.disposables);
 
 		anyEvent(remoteSourcePublisherRegistry.onDidAddRemoteSourcePublisher, remoteSourcePublisherRegistry.onDidRemoveRemoteSourcePublisher)
 			(this.onDidChangeRemoteSourcePublishers, this, this.disposables);
@@ -107,13 +100,6 @@ class SyncStatusBar {
 			...this.state,
 			hasRemotes: this.repository.remotes.length > 0,
 			HEAD: this.repository.HEAD
-		};
-	}
-
-	private onDidChangeRemoteSourceProviders(): void {
-		this.state = {
-			...this.state,
-			remoteSourceProviders: GitBaseApi.getAPI().getRemoteProviders()
 		};
 	}
 

@@ -13,24 +13,12 @@ export class ApiImpl implements API {
 
 	constructor(private _model: Model) { }
 
-	get onDidAddRemoteSourceProvider(): Event<RemoteSourceProvider> {
-		return this._model.onDidAddRemoteSourceProvider;
-	}
-
-	get onDidRemoveRemoteSourceProvider(): Event<RemoteSourceProvider>{
-		return this._model.onDidRemoveRemoteSourceProvider;
-	}
-	
-	getRemoteProviders(): RemoteSourceProvider[] {
-		return this._model.getRemoteProviders();
+	pickRemoteSource(options: PickRemoteSourceOptions): Promise<PickRemoteSourceResult | string | undefined> {
+		return pickRemoteSource(this._model, options as any);
 	}
 
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable {
 		return this._model.registerRemoteSourceProvider(provider);
-	}
-
-	pickRemoteSource(options: PickRemoteSourceOptions): Promise<PickRemoteSourceResult | string | undefined> {
-		return pickRemoteSource(this._model, options as any);
 	}
 }
 

@@ -7,13 +7,7 @@ import { Disposable, Event, ProviderResult, Uri } from 'vscode';
 export { ProviderResult } from 'vscode';
 
 export interface API {
-
-	readonly onDidAddRemoteSourceProvider: Event<RemoteSourceProvider>;
-	readonly onDidRemoveRemoteSourceProvider: Event<RemoteSourceProvider>;
-
-	getRemoteProviders(): RemoteSourceProvider[];
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable;
-
 	pickRemoteSource(options: PickRemoteSourceOptions): Promise<string | PickRemoteSourceResult | undefined>;
 }
 
