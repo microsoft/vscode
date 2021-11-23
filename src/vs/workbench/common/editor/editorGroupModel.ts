@@ -425,7 +425,6 @@ export class EditorGroupModel extends Disposable {
 
 		// Clean up dispose listeners once the editor gets closed
 		listeners.add(this.onDidModelChange(event => {
-
 			if (event.kind === GroupChangeKind.EDITOR_CLOSE && event.editor?.matches(editor)) {
 				dispose(listeners);
 			}
@@ -433,20 +432,20 @@ export class EditorGroupModel extends Disposable {
 	}
 
 	private replaceEditor(toReplace: EditorInput, replaceWith: EditorInput, replaceIndex: number, openNext = true): void {
-		const event = this.doCloseEditor(toReplace, EditorCloseContext.REPLACE, openNext); // optimization to prevent multiple setActive() in one call
+		const closeResult = this.doCloseEditor(toReplace, EditorCloseContext.REPLACE, openNext); // optimization to prevent multiple setActive() in one call
 
 		// We want to first add the new editor into our model before emitting the close event because
 		// firing the close event can trigger a dispose on the same editor that is now being added.
 		// This can lead into opening a disposed editor which is not what we want.
 		this.splice(replaceIndex, false, replaceWith);
 
-		if (event) {
+		if (closeResult) {
 			this._onDidModelChange.fire({
 				kind: GroupChangeKind.EDITOR_CLOSE,
-				editor: event.editor,
-				editorIndex: event.index,
-				closeContext: event.context,
-				closedSticky: event.sticky
+				editor: closeResult.editor,
+				editorIndex: closeResult.index,
+				closeContext: closeResult.context,
+				closedSticky: closeResult.sticky
 			});
 		}
 	}
@@ -640,7 +639,7 @@ export class EditorGroupModel extends Disposable {
 		// Event
 		this._onDidModelChange.fire({
 			kind: GroupChangeKind.EDITOR_PIN,
-			editor,
+			editor
 		});
 
 		// Close old preview editor if any
