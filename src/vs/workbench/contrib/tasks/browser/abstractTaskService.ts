@@ -776,7 +776,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const types: string[] = [];
 		if (this.isProvideTasksEnabled()) {
 			for (const definition of TaskDefinitionRegistry.all()) {
-				types.push(definition.taskType);
+				if (this.isTaskProviderEnabled(definition.taskType)) {
+					types.push(definition.taskType);
+				}
 			}
 		}
 		return types;
