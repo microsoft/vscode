@@ -21,8 +21,14 @@ const optimist = require('optimist')
 	.alias('h', 'help').boolean('h')
 	.describe('h', 'Show help');
 
+
 const TEST_GLOB = '**/test/**/*.test.js';
 const excludeGlob = '**/{browser,electron-sandbox,electron-browser,electron-main,editor/contrib}/**/*.test.js';
+const excludeModules = [
+	'vs/platform/environment/test/node/nativeModules.test.js',
+	'vs/base/parts/storage/test/node/storage.test.js',
+	'vs/platform/files/test/common/files.test.js' // TODO@bpasero enable once we ship Electron 16
+]
 
 const argv = optimist.argv;
 
@@ -116,7 +122,7 @@ function main() {
 			glob(TEST_GLOB, { cwd: src }, function (err, files) {
 				const modules = [];
 				for (let file of files) {
-					if (!minimatch(file, excludeGlob)) {
+					if (!minimatch(file, excludeGlob) && excludeModules.indexOf(file) === -1) {
 						modules.push(file.replace(/\.js$/, ''));
 					}
 				}
