@@ -1073,17 +1073,17 @@ export class MenuItemExtensionAction extends ExtensionAction {
 	}
 }
 
-export class UsePreReleaseVersionAction extends ExtensionAction {
+export class SwitchToPreReleaseVersionAction extends ExtensionAction {
 
-	static readonly ID = 'workbench.extensions.action.usePreReleaseVersion';
-	static readonly TITLE = { value: localize('use pre-release version', "Use Pre-release Version"), original: 'Use Pre-release Version' };
+	static readonly ID = 'workbench.extensions.action.switchToPreReleaseVersion';
+	static readonly TITLE = { value: localize('switch to pre-release version', "Switch to Pre-release Version"), original: 'Switch to  Pre-release Version' };
 
 	private static readonly Class = `${ExtensionAction.LABEL_ACTION_CLASS} hide-when-disabled`;
 
 	constructor(
 		@ICommandService private readonly commandService: ICommandService,
 	) {
-		super(UsePreReleaseVersionAction.ID, UsePreReleaseVersionAction.TITLE.value, UsePreReleaseVersionAction.Class);
+		super(SwitchToPreReleaseVersionAction.ID, SwitchToPreReleaseVersionAction.TITLE.value, SwitchToPreReleaseVersionAction.Class);
 		this.update();
 	}
 
@@ -1095,21 +1095,21 @@ export class UsePreReleaseVersionAction extends ExtensionAction {
 		if (!this.enabled) {
 			return;
 		}
-		return this.commandService.executeCommand(UsePreReleaseVersionAction.ID, this.extension?.identifier.id);
+		return this.commandService.executeCommand(SwitchToPreReleaseVersionAction.ID, this.extension?.identifier.id);
 	}
 }
 
-export class StopUsingPreReleaseVersionAction extends ExtensionAction {
+export class SwitchToReleasedVersionAction extends ExtensionAction {
 
-	static readonly ID = 'workbench.extensions.action.stopUsingPreReleaseVersion';
-	static readonly TITLE = { value: localize('stop using pre-release version', "Stop Using Pre-release Version"), original: 'Stop Using Pre-release Version' };
+	static readonly ID = 'workbench.extensions.action.switchToReleasedVersion';
+	static readonly TITLE = { value: localize('switch to released version', "Switch to Released Version"), original: 'Switch to Released Version' };
 
 	private static readonly Class = `${ExtensionAction.LABEL_ACTION_CLASS} hide-when-disabled`;
 
 	constructor(
 		@ICommandService private readonly commandService: ICommandService,
 	) {
-		super(StopUsingPreReleaseVersionAction.ID, StopUsingPreReleaseVersionAction.TITLE.value, StopUsingPreReleaseVersionAction.Class);
+		super(SwitchToReleasedVersionAction.ID, SwitchToReleasedVersionAction.TITLE.value, SwitchToReleasedVersionAction.Class);
 		this.update();
 	}
 
@@ -1121,7 +1121,7 @@ export class StopUsingPreReleaseVersionAction extends ExtensionAction {
 		if (!this.enabled) {
 			return;
 		}
-		return this.commandService.executeCommand(StopUsingPreReleaseVersionAction.ID, this.extension?.identifier.id);
+		return this.commandService.executeCommand(SwitchToReleasedVersionAction.ID, this.extension?.identifier.id);
 	}
 }
 
