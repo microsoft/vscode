@@ -79,13 +79,15 @@ export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 
 	private async updateCache() {
 		const state = this.suggestionInlineCompletionSource.state;
-		if (!state || !state.selectedItemAsInlineCompletion) {
+		if (!state || !state.selectedItem) {
 			return;
 		}
 
 		const info: SelectedSuggestionInfo = {
-			text: state.selectedItemAsInlineCompletion.text,
-			range: state.selectedItemAsInlineCompletion.range,
+			text: state.selectedItem.normalizedInlineCompletion.text,
+			range: state.selectedItem.normalizedInlineCompletion.range,
+			isSnippetText: state.selectedItem.isSnippetText,
+			completionKind: state.selectedItem.completionItemKind,
 		};
 
 		const position = this.editor.getPosition();
@@ -125,7 +127,7 @@ export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 		const augmentedCompletion = minimizeInlineCompletion(this.editor.getModel()!, this.cache.value?.completions[0]?.toLiveInlineCompletion());
 
 		const suggestWidgetState = this.suggestionInlineCompletionSource.state;
-		const suggestInlineCompletion = minimizeInlineCompletion(this.editor.getModel()!, suggestWidgetState?.selectedItemAsInlineCompletion);
+		const suggestInlineCompletion = minimizeInlineCompletion(this.editor.getModel()!, suggestWidgetState?.selectedItem?.normalizedInlineCompletion);
 
 		const isAugmentedCompletionValid = augmentedCompletion
 			&& suggestInlineCompletion
