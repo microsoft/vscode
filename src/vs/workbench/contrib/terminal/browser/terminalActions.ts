@@ -50,8 +50,7 @@ import { ITerminalQuickPickItem } from 'vs/workbench/contrib/terminal/browser/te
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { getIconId, getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 
-// allow-any-unicode-next-line
-export const switchTerminalActionViewItemSeparator = '─────────';
+export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
 
 async function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance, folders?: IWorkspaceFolder[], commandService?: ICommandService): Promise<string | URI | undefined> {
@@ -837,7 +836,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor, resource: unknown) {
-			doWithInstance(accessor, resource)?.rename();
+			doWithInstance(accessor, resource)?.rename('triggerQuickpick');
 		}
 	});
 
@@ -852,7 +851,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			return accessor.get(ITerminalGroupService).activeInstance?.rename();
+			return accessor.get(ITerminalGroupService).activeInstance?.rename('triggerQuickpick');
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -988,8 +987,7 @@ export function registerTerminalActions() {
 				const cwdLabel = labelService.getUriLabel(URI.file(term.cwd));
 				return {
 					label: term.title,
-					// allow-any-unicode-next-line
-					detail: term.workspaceName ? `${term.workspaceName} ⸱ ${cwdLabel}` : cwdLabel,
+					detail: term.workspaceName ? `${term.workspaceName} \u2E31 ${cwdLabel}` : cwdLabel,
 					description: term.pid ? String(term.pid) : '',
 					term
 				};
@@ -1158,8 +1156,10 @@ export function registerTerminalActions() {
 				precondition: TerminalContextKeys.processSupported
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.toggleEscapeSequenceLogging();
+		async run(accessor: ServicesAccessor) {
+			const terminalService = accessor.get(ITerminalService);
+			const toggledOn = await terminalService.activeInstance?.toggleEscapeSequenceLogging();
+			terminalService.toggleDevTools(toggledOn);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -2134,8 +2134,8 @@ function focusNext(accessor: ServicesAccessor): void {
 export function validateTerminalName(name: string): { content: string, severity: Severity } | null {
 	if (!name || name.trim().length === 0) {
 		return {
-			content: localize('emptyTerminalNameError', "A name must be provided."),
-			severity: Severity.Error
+			content: localize('emptyTerminalNameInfo', "Providing no name will reset it to the default value"),
+			severity: Severity.Info
 		};
 	}
 

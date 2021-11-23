@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
+import { gracefulify } from 'graceful-fs';
 import * as cp from 'child_process';
 import * as path from 'path';
 import * as os from 'os';
@@ -31,6 +32,12 @@ import { setup as setupTerminalProfileTests } from './areas/terminal/terminal-pr
 import { setup as setupTerminalTabsTests } from './areas/terminal/terminal-tabs.test';
 import { setup as setupTerminalEditorsTests } from './areas/terminal/terminal-editors.test';
 import { setup as setupTerminalPersistenceTests } from './areas/terminal/terminal-persistence.test';
+
+try {
+	gracefulify(fs);
+} catch (error) {
+	console.error(`Error enabling graceful-fs: ${error}`);
+}
 
 const testDataPath = path.join(os.tmpdir(), 'vscsmoke');
 if (fs.existsSync(testDataPath)) {

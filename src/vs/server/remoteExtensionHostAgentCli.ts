@@ -38,6 +38,8 @@ import { DownloadService } from 'vs/platform/download/common/downloadService';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { buildHelpMessage, buildVersionMessage, OptionDescriptions } from 'vs/platform/environment/node/argv';
+import { isWindows } from 'vs/base/common/platform';
 
 class CliMain extends Disposable {
 
@@ -135,7 +137,19 @@ function eventuallyExit(code: number): void {
 	setTimeout(() => process.exit(code), 0);
 }
 
-export async function run(args: ServerParsedArgs, REMOTE_DATA_FOLDER: string): Promise<void> {
+export async function run(args: ServerParsedArgs, REMOTE_DATA_FOLDER: string, optionDescriptions: OptionDescriptions<ServerParsedArgs>): Promise<void> {
+	if (args.help) {
+		const executable = `server${isWindows ? '.bat' : '.sh'}`;
+		console.log(buildHelpMessage(product.nameLong, executable, product.version, optionDescriptions, { noInputFiles: true, noPipe: true }));
+		return;
+	}
+	// Version Info
+	if (args.version) {
+		console.log(buildVersionMessage(product.version, product.commit));
+		return;
+	}
+
+
 	const cliMain = new CliMain(args, REMOTE_DATA_FOLDER);
 	try {
 		await cliMain.run();

@@ -6,7 +6,7 @@
 import * as parcelWatcher from '@parcel/watcher';
 import { existsSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { DeferredPromise, RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
@@ -244,15 +244,14 @@ export class ParcelWatcherService extends Disposable implements IWatcherService 
 	private startPolling(request: IWatchRequest, pollingInterval: number, restarts = 0): void {
 		const cts = new CancellationTokenSource();
 
-		let parcelWatcherPromiseResolve: () => void;
-		const instance = new Promise<void>(resolve => parcelWatcherPromiseResolve = resolve);
+		const instance = new DeferredPromise<void>();
 
 		const snapshotFile = join(tmpdir(), `vscode-watcher-snapshot-${generateUuid()}`);
 
 		// Remember as watcher instance
 		const watcher: IWatcher = {
 			request,
-			ready: instance,
+			ready: instance.p,
 			restarts,
 			token: cts.token,
 			stop: async () => {
@@ -299,7 +298,7 @@ export class ParcelWatcherService extends Disposable implements IWatcherService 
 
 			// Signal we are ready now when the first snapshot was written
 			if (counter === 1) {
-				parcelWatcherPromiseResolve();
+				instance.complete();
 			}
 
 			if (cts.token.isCancellationRequested) {
@@ -315,19 +314,18 @@ export class ParcelWatcherService extends Disposable implements IWatcherService 
 	private startWatching(request: IWatchRequest, restarts = 0): void {
 		const cts = new CancellationTokenSource();
 
-		let parcelWatcherPromiseResolve: (watcher: parcelWatcher.AsyncSubscription | undefined) => void;
-		const instance = new Promise<parcelWatcher.AsyncSubscription | undefined>(resolve => parcelWatcherPromiseResolve = resolve);
+		const instance = new DeferredPromise<parcelWatcher.AsyncSubscription | undefined>();
 
 		// Remember as watcher instance
 		const watcher: IWatcher = {
 			request,
-			ready: instance,
+			ready: instance.p,
 			restarts,
 			token: cts.token,
 			stop: async () => {
 				cts.dispose(true);
 
-				const watcherInstance = await instance;
+				const watcherInstance = await instance.p;
 				await watcherInstance?.unsubscribe();
 			}
 		};
@@ -361,11 +359,11 @@ export class ParcelWatcherService extends Disposable implements IWatcherService 
 		}).then(parcelWatcher => {
 			this.debug(`Started watching: '${realPath}' with backend '${ParcelWatcherService.PARCEL_WATCHER_BACKEND}' and native excludes '${ignore?.join(', ')}'`);
 
-			parcelWatcherPromiseResolve(parcelWatcher);
+			instance.complete(parcelWatcher);
 		}).catch(error => {
 			this.onUnexpectedError(error, watcher);
 
-			parcelWatcherPromiseResolve(undefined);
+			instance.complete(undefined);
 		});
 	}
 

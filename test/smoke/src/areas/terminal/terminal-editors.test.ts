@@ -22,7 +22,8 @@ export function setup(opts: ParsedArgs) {
 			await terminal.runCommand(TerminalCommandId.KillAll);
 		});
 
-		it('should update color of the tab', async () => {
+		// TODO: This was flaky in CI
+		it.skip('should update color of the tab', async () => {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
 			const color = 'Cyan';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeColor, color);

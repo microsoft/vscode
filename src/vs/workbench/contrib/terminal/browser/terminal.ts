@@ -194,12 +194,14 @@ export interface ITerminalService extends ITerminalInstanceHost {
 
 	resolveLocation(location?: ITerminalLocationOptions): TerminalLocation | undefined
 	setNativeDelegate(nativeCalls: ITerminalServiceNativeDelegate): void;
-
+	toggleDevTools(open?: boolean): Promise<void>;
 	handleNewRegisteredBackend(backend: ITerminalBackend): void;
 }
 
 export interface ITerminalServiceNativeDelegate {
 	getWindowCount(): Promise<number>;
+	openDevTools(): Promise<void>;
+	toggleDevTools(): Promise<void>;
 }
 
 /**
@@ -754,7 +756,7 @@ export interface ITerminalInstance {
 
 	addDisposable(disposable: IDisposable): void;
 
-	toggleEscapeSequenceLogging(): void;
+	toggleEscapeSequenceLogging(): Promise<boolean>;
 
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
@@ -768,9 +770,10 @@ export interface ITerminalInstance {
 
 	/**
 	 * Sets the terminal name to the provided title or triggers a quick pick
-	 * to take user input.
+	 * to take user input. If no title is provided, will reset based to the value indicated
+	 * user's configration.
 	 */
-	rename(title?: string): Promise<void>;
+	rename(title?: string | 'triggerQuickpick'): Promise<void>;
 
 	/**
 	 * Triggers a quick pick to change the icon of this terminal.

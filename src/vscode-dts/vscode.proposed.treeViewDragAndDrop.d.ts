@@ -79,6 +79,7 @@ declare module 'vscode' {
 	/**
 	 * Provides support for drag and drop in `TreeView`.
 	 */
+	// TODO@api why disposable?
 	export interface DragAndDropController<T> extends Disposable {
 
 		/**
@@ -96,6 +97,7 @@ declare module 'vscode' {
 		 *
 		 * @param source The source items for the drag and drop operation.
 		 */
+		// TODO@api I think this can be more generic, tho still constraint, e.g have something that works everywhere within VS Code
 		onWillDrop?(source: T[]): Thenable<TreeDataTransfer>;
 
 		/**
@@ -106,6 +108,7 @@ declare module 'vscode' {
 		 * @param source The data transfer items of the source of the drag.
 		 * @param target The target tree element that the drop is occuring on.
 		 */
+		// TODO@api NIT - allow to return `Thenable<void> | void`
 		onDrop(source: TreeDataTransfer, target: T): Thenable<void>;
 	}
 }

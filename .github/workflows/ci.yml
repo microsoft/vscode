@@ -85,7 +85,7 @@ jobs:
         timeout-minutes: 10
         run: .\resources\server\test\test-web-integration.bat --browser firefox
 
-      - name: Run Remote Integration Tests (Electron)
+      - name: Run Integration Tests (Remote)
         timeout-minutes: 10
         run: .\resources\server\test\test-remote-integration.bat
 
@@ -162,7 +162,7 @@ jobs:
         id: browser-integration-tests
         run: DISPLAY=:10 ./resources/server/test/test-web-integration.sh --browser chromium
 
-      - name: Run Remote Integration Tests (Electron)
+      - name: Run Integration Tests (Remote)
         id: electron-remote-integration-tests
         timeout-minutes: 7
         run: DISPLAY=:10 ./resources/server/test/test-remote-integration.sh
@@ -234,7 +234,7 @@ jobs:
       - name: Run Integration Tests (Browser)
         run: DISPLAY=:10 ./resources/server/test/test-web-integration.sh --browser webkit
 
-      - name: Run Remote Integration Tests (Electron)
+      - name: Run Integration Tests (Remote)
         timeout-minutes: 7
         run: DISPLAY=:10 ./resources/server/test/test-remote-integration.sh
 

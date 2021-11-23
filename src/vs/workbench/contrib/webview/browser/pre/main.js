@@ -994,13 +994,18 @@ onDomReady(() => {
 		if (!target) {
 			return;
 		}
+
+		// Reset selection so we start search after current find result
+		const selection = target.contentWindow.getSelection();
+		selection.collapse(selection.anchorNode);
+
 		const didFind = (/** @type {any} */ (target.contentWindow)).find(
 			data.value,
-			false,
+			/* caseSensitive*/ false,
 			/* backwards*/ data.previous,
 			/* wrapAround*/ true,
-			false,
-			/*aSearchInFrames*/ true,
+			/* wholeWord */ false,
+			/* searchInFrames*/ false,
 			false);
 		hostMessaging.postMessage('did-find', didFind);
 	});

@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { CellEditType, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { TestCell, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
+import { TestCell, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 
 suite('Notebook Undo/Redo', () => {
 	test('Basics', async function () {

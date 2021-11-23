@@ -9,7 +9,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { CompletionItemInsertTextRule } from 'vs/editor/common/modes';
+import { CompletionItemInsertTextRule, CompletionItemKind } from 'vs/editor/common/modes';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { SnippetSession } from 'vs/editor/contrib/snippet/snippetSession';
 import { CompletionItem } from 'vs/editor/contrib/suggest/suggest';
@@ -22,14 +22,20 @@ export interface SuggestWidgetState {
 	/**
 	 * Represents the currently selected item in the suggest widget as inline completion, if possible.
 	*/
-	selectedItemAsInlineCompletion: NormalizedInlineCompletion | undefined;
+	selectedItem: SuggestItemInfo | undefined;
+}
+
+export interface SuggestItemInfo {
+	normalizedInlineCompletion: NormalizedInlineCompletion;
+	isSnippetText: boolean;
+	completionItemKind: CompletionItemKind;
 }
 
 export class SuggestWidgetInlineCompletionProvider extends Disposable {
 	private isSuggestWidgetVisible: boolean = false;
 	private isShiftKeyPressed = false;
 	private _isActive = false;
-	private _currentInlineCompletion: NormalizedInlineCompletion | undefined = undefined;
+	private _currentSuggestItemInfo: SuggestItemInfo | undefined = undefined;
 	private readonly onDidChangeEmitter = new Emitter<void>();
 
 	public readonly onDidChange = this.onDidChangeEmitter.event;
@@ -51,7 +57,7 @@ export class SuggestWidgetInlineCompletionProvider extends Disposable {
 		if (!this._isActive) {
 			return undefined;
 		}
-		return { selectedItemAsInlineCompletion: this._currentInlineCompletion };
+		return { selectedItem: this._currentSuggestItemInfo };
 	}
 
 	constructor(
@@ -88,8 +94,8 @@ export class SuggestWidgetInlineCompletionProvider extends Disposable {
 
 					const candidates = suggestItems
 						.map((suggestItem, index) => {
-							const inlineSuggestItem = suggestionToInlineCompletion(suggestController, position, suggestItem, this.isShiftKeyPressed);
-							const normalizedSuggestItem = minimizeInlineCompletion(textModel, inlineSuggestItem);
+							const inlineSuggestItem = suggestionToSuggestItemInfo(suggestController, position, suggestItem, this.isShiftKeyPressed);
+							const normalizedSuggestItem = minimizeInlineCompletion(textModel, inlineSuggestItem?.normalizedInlineCompletion);
 							if (!normalizedSuggestItem) {
 								return undefined;
 							}
@@ -138,10 +144,10 @@ export class SuggestWidgetInlineCompletionProvider extends Disposable {
 	}
 
 	private update(newActive: boolean): void {
-		const newInlineCompletion = this.getInlineCompletion();
+		const newInlineCompletion = this.getSuggestItemInfo();
 		let shouldFire = false;
-		if (!normalizedInlineCompletionsEquals(this._currentInlineCompletion, newInlineCompletion)) {
-			this._currentInlineCompletion = newInlineCompletion;
+		if (!suggestItemInfoEquals(this._currentSuggestItemInfo, newInlineCompletion)) {
+			this._currentSuggestItemInfo = newInlineCompletion;
 			shouldFire = true;
 		}
 		if (this._isActive !== newActive) {
@@ -153,7 +159,7 @@ export class SuggestWidgetInlineCompletionProvider extends Disposable {
 		}
 	}
 
-	private getInlineCompletion(): NormalizedInlineCompletion | undefined {
+	private getSuggestItemInfo(): SuggestItemInfo | undefined {
 		const suggestController = SuggestController.get(this.editor);
 		if (!suggestController) {
 			return undefined;
@@ -167,7 +173,7 @@ export class SuggestWidgetInlineCompletionProvider extends Disposable {
 		}
 
 		// TODO: item.isResolved
-		return suggestionToInlineCompletion(
+		return suggestionToSuggestItemInfo(
 			suggestController,
 			this.editor.getPosition(),
 			focusedItem.item,
@@ -200,17 +206,35 @@ export function rangeStartsWith(rangeToTest: Range, prefix: Range): boolean {
 	);
 }
 
-function suggestionToInlineCompletion(suggestController: SuggestController, position: Position, item: CompletionItem, toggleMode: boolean): NormalizedInlineCompletion | undefined {
+function suggestItemInfoEquals(a: SuggestItemInfo | undefined, b: SuggestItemInfo | undefined): boolean {
+	if (a === b) {
+		return true;
+	}
+	if (!a || !b) {
+		return false;
+	}
+	return a.completionItemKind === b.completionItemKind &&
+		a.isSnippetText === b.isSnippetText &&
+		normalizedInlineCompletionsEquals(a.normalizedInlineCompletion, b.normalizedInlineCompletion);
+}
+
+function suggestionToSuggestItemInfo(suggestController: SuggestController, position: Position, item: CompletionItem, toggleMode: boolean): SuggestItemInfo | undefined {
 	// additionalTextEdits might not be resolved here, this could be problematic.
 	if (Array.isArray(item.completion.additionalTextEdits) && item.completion.additionalTextEdits.length > 0) {
 		// cannot represent additional text edits
 		return {
-			text: '',
-			range: Range.fromPositions(position, position),
+			completionItemKind: item.completion.kind,
+			isSnippetText: false,
+			normalizedInlineCompletion: {
+				// Dummy element, so that space is reserved, but no text is shown
+				range: Range.fromPositions(position, position),
+				text: ''
+			},
 		};
 	}
 
 	let { insertText } = item.completion;
+	let isSnippetText = false;
 	if (item.completion.insertTextRules! & CompletionItemInsertTextRule.InsertAsSnippet) {
 		const snippet = new SnippetParser().parse(insertText);
 		const model = suggestController.editor.getModel()!;
@@ -223,14 +247,19 @@ function suggestionToInlineCompletion(suggestController: SuggestController, posi
 
 		SnippetSession.adjustWhitespace(model, position, snippet, true, true);
 		insertText = snippet.toString();
+		isSnippetText = true;
 	}
 
 	const info = suggestController.getOverwriteInfo(item, toggleMode);
 	return {
-		text: insertText,
-		range: Range.fromPositions(
-			position.delta(0, -info.overwriteBefore),
-			position.delta(0, Math.max(info.overwriteAfter, 0))
-		),
+		isSnippetText,
+		completionItemKind: item.completion.kind,
+		normalizedInlineCompletion: {
+			text: insertText,
+			range: Range.fromPositions(
+				position.delta(0, -info.overwriteBefore),
+				position.delta(0, Math.max(info.overwriteAfter, 0))
+			),
+		}
 	};
 }

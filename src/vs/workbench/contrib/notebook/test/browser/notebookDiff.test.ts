@@ -11,7 +11,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { NotebookDiffEditorEventDispatcher } from 'vs/workbench/contrib/notebook/browser/diff/eventDispatcher';
 import { NotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffEditor';
 import { CellKind, CellSequence } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { withTestNotebookDiffModel } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
+import { withTestNotebookDiffModel } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 
 suite('NotebookCommon', () => {
 	const configurationService = new TestConfigurationService();

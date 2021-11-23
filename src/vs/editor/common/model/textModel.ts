@@ -24,7 +24,7 @@ import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguag
 import { SearchData, SearchParams, TextModelSearch } from 'vs/editor/common/model/textModelSearch';
 import { TextModelTokenization } from 'vs/editor/common/model/textModelTokens';
 import { getWordAtText } from 'vs/editor/common/model/wordHelper';
-import { FormattingOptions } from 'vs/editor/common/modes';
+import { FormattingOptions, StandardTokenType } from 'vs/editor/common/modes';
 import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
@@ -2126,6 +2126,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return lineTokens.getLanguageId(lineTokens.findTokenIndexAtOffset(position.column - 1));
 	}
 
+	public getTokenTypeIfInsertingCharacter(lineNumber: number, column: number, character: string): StandardTokenType {
+		const position = this.validatePosition(new Position(lineNumber, column));
+		return this._tokenization.getTokenTypeIfInsertingCharacter(position, character);
+	}
+
 	private getLanguageConfiguration(languageId: string): ResolvedLanguageConfiguration {
 		return this._languageConfigurationService.getLanguageConfiguration(languageId);
 	}
@@ -2452,7 +2457,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			const bracketsContainingActivePosition =
 				(startLineNumber <= activePosition.lineNumber && activePosition.lineNumber <= endLineNumber)
 					// Does active position intersect with the view port? -> Intersect bracket pairs with activePosition
-					? bracketPairs.filter(bp => bp.range.containsPosition(activePosition))
+					? bracketPairs.filter(bp => Range.strictContainsPosition(bp.range, activePosition))
 					: this._bracketPairColorizer.getBracketPairsInRange(
 						Range.fromPositions(activePosition)
 					);
@@ -3039,6 +3044,8 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly afterContentClassName: string | null;
 	readonly after: ModelDecorationInjectedTextOptions | null;
 	readonly before: ModelDecorationInjectedTextOptions | null;
+	readonly hideInCommentTokens: boolean | null;
+
 
 	private constructor(options: model.IModelDecorationOptions) {
 		this.description = options.description;
@@ -3062,6 +3069,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.afterContentClassName = options.afterContentClassName ? cleanClassName(options.afterContentClassName) : null;
 		this.after = options.after ? ModelDecorationInjectedTextOptions.from(options.after) : null;
 		this.before = options.before ? ModelDecorationInjectedTextOptions.from(options.before) : null;
+		this.hideInCommentTokens = options.hideInCommentTokens ?? false;
 	}
 }
 ModelDecorationOptions.EMPTY = ModelDecorationOptions.register({ description: 'empty' });

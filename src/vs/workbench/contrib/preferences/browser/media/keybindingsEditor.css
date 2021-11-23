@@ -21,13 +21,13 @@
 	position: absolute;
 	top: 0;
 	right: 10px;
-	margin-top: 5px;
+	margin-top: 4px;
 	display: flex;
 }
 
 .keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .recording-badge {
 	margin-right: 8px;
-	padding: 3px;
+	padding: 4px;
 }
 
 .keybindings-editor > .keybindings-header.small > .search-container > .keybindings-search-actions-container > .recording-badge,
@@ -43,12 +43,17 @@
 .keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container .monaco-action-bar .action-item {
 	margin-right: 4px;
 }
+.keybindings-editor .monaco-action-bar .action-item .monaco-custom-checkbox {
+	margin: 0;
+	padding: 2px;
+}
 
 .keybindings-editor .monaco-action-bar .action-item > .codicon {
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	color: inherit;
+	box-sizing: content-box;
 }
 
 .keybindings-editor > .keybindings-header .open-keybindings-container {
