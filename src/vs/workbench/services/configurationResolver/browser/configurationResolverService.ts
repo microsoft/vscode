@@ -248,7 +248,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					}
 				}
 			}
-			while ((matches = BaseConfigurationResolverService.USER_DEFINED_PARAMETERS.exec(object)) !== null) {
+			while ((matches = BaseConfigurationResolverService.USER_DEFINED_VARIABLES_PATTERN.exec(object)) !== null) {
 				if (matches.length === 4) {
 					const command = matches[1];
 					if (variables.indexOf(command) < 0) {
