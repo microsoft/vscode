@@ -105,7 +105,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 				? nls.localize('signOutMessagve', "The account '{0}' has been used by: \n\n{1}\n\n Sign out from these extensions?", accountName, accountUsages.map(usage => usage.extensionName).join('\n'))
 				: nls.localize('signOutMessageSimple', "Sign out of '{0}'?", accountName),
 			[
-				nls.localize('signOut', "Sign out"),
+				nls.localize('signOut', "Sign Out"),
 				nls.localize('cancel', "Cancel")
 			],
 			{
