@@ -24,7 +24,7 @@ async function start() {
 
 	// Do a quick parse to determine if a server or the cli needs to be started
 	const parsedArgs = minimist(process.argv.slice(2), {
-		boolean: ['start-server', 'list-extensions', 'print-ip-address', 'help', 'version'],
+		boolean: ['start-server', 'list-extensions', 'print-ip-address', 'help', 'version', 'accept-server-license-terms'],
 		string: ['install-extension', 'install-builtin-extension', 'uninstall-extension', 'locate-extension', 'socket-path', 'host', 'port', 'pick-port']
 	});
 
@@ -56,6 +56,21 @@ async function start() {
 
 	const http = require('http');
 	const os = require('os');
+
+	if (Array.isArray(product.serverLicense) && product.serverLicense.length) {
+		console.log(product.serverLicense.join('\n'));
+		if (product.serverLicensePrompt && parsedArgs['accept-server-license-terms'] !== true) {
+			try {
+				const accept = await prompt(product.serverLicensePrompt);
+				if (!accept) {
+					process.exit();
+				}
+			} catch (e) {
+				console.log(e);
+				process.exit();
+			}
+		}
+	}
 
 	let firstRequest = true;
 	let firstWebSocket = true;
@@ -217,5 +232,32 @@ function loadCode() {
 		require('../../bootstrap-amd').load('vs/server/remoteExtensionHostAgent', resolve, reject);
 	});
 }
+
+const { stdin, stdout } = process;
+
+/**
+ * @param {string} question
+ * @returns { Promise<boolean> }
+ */
+function prompt(question) {
+	return new Promise((resolve, reject) => {
+		stdin.resume();
+		stdout.write(question);
+
+		stdin.on('data', async data => {
+			const str = data.toString().trim().toLowerCase();
+			if (str === '' || str === 'y' || str === 'yes') {
+				resolve(true);
+			} else if (str === 'n' || str === 'no') {
+				resolve(false);
+			} else {
+				process.stdout.write('\nInvalid Response. Answer either yes (y, yes) or no (n, no)\n');
+				resolve(await prompt(question));
+			}
+			stdin.on('error', err => reject(err));
+		});
+	});
+}
+
 
 start();
