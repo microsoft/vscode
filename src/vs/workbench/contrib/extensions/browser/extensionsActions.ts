@@ -237,11 +237,11 @@ export class ActionWithDropDownAction extends ExtensionAction {
 		actions = actions.length ? actions.slice(0, actions.length - 1) : actions;
 
 		this.action = actions[0];
-		this._menuActions = actions.slice(1);
+		this._menuActions = actions.length > 1 ? actions : [];
 
 		this.enabled = !!this.action;
 		if (this.action) {
-			this.label = this.action.label;
+			this.label = this.getLabel(this.action as ExtensionAction);
 			this.tooltip = this.action.tooltip;
 		}
 
@@ -256,6 +256,10 @@ export class ActionWithDropDownAction extends ExtensionAction {
 	override run(): Promise<void> {
 		const enabledActions = this.extensionActions.filter(a => a.enabled);
 		return enabledActions[0].run();
+	}
+
+	protected getLabel(action: ExtensionAction): string {
+		return action.label;
 	}
 }
 
@@ -360,8 +364,16 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 		this.label = this.getLabel();
 	}
 
-	protected getLabel(): string {
-		return this.installPreReleaseVersion && this.extension?.hasPreReleaseVersion ? localize('install pre-release', "Install Pre-release Version") : localize('install', "Install");
+	getLabel(primary?: boolean): string {
+		/* install pre-release version */
+		if (this.installPreReleaseVersion && this.extension?.hasPreReleaseVersion) {
+			return primary ? localize('install pre-release', "Install Pre-release") : localize('install pre-release version', "Install Pre-release Version");
+		}
+		/* install released version that has a pre release version */
+		if (this.extension?.hasPreReleaseVersion) {
+			return primary ? localize('install', "Install") : localize('install released version', "Install Released Version");
+		}
+		return localize('install', "Install");
 	}
 
 	protected getInstallOptions(): InstallOptions {
@@ -391,8 +403,8 @@ export class InstallAction extends AbstractInstallAction {
 			Event.filter(userDataSyncResourceEnablementService.onDidChangeResourceEnablement, e => e[0] === SyncResource.Extensions))(() => this.update()));
 	}
 
-	protected override getLabel(): string {
-		const baseLabel = super.getLabel();
+	override getLabel(primary?: boolean): string {
+		const baseLabel = super.getLabel(primary);
 
 		const donotSyncLabel = localize('do no sync', "Do not sync");
 		const isMachineScoped = this.getInstallOptions().isMachineScoped;
@@ -477,17 +489,22 @@ export class InstallDropdownAction extends ActionWithDropDownAction {
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super(`extensions.installActions`, '', [
 			[
-				instantiationService.createInstance(InstallAndSyncAction, false),
-				instantiationService.createInstance(InstallAndSyncAction, true),
+				instantiationService.createInstance(InstallAndSyncAction, extensionsWorkbenchService.includePreRelease),
+				instantiationService.createInstance(InstallAndSyncAction, !extensionsWorkbenchService.includePreRelease),
 			],
 			[
-				instantiationService.createInstance(InstallAction, false),
-				instantiationService.createInstance(InstallAction, true),
+				instantiationService.createInstance(InstallAction, extensionsWorkbenchService.includePreRelease),
+				instantiationService.createInstance(InstallAction, !extensionsWorkbenchService.includePreRelease),
 			]
 		]);
+	}
+
+	protected override getLabel(action: AbstractInstallAction): string {
+		return action.getLabel(true);
 	}
 
 }
