@@ -32,7 +32,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IEditorService, SIDE_GROUP, ISaveEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService, GroupsOrder, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { basename, joinPath, isEqual } from 'vs/base/common/resources';
+import { basename, joinPath, isEqual, removeTrailingPathSeparator } from 'vs/base/common/resources';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { UNTITLED_WORKSPACE_NAME } from 'vs/platform/workspaces/common/workspaces';
@@ -84,6 +84,9 @@ export const ResourceSelectedForCompareContext = new RawContextKey<boolean>('res
 
 export const REMOVE_ROOT_FOLDER_COMMAND_ID = 'removeRootFolder';
 export const REMOVE_ROOT_FOLDER_LABEL = nls.localize('removeFolderFromWorkspace', "Remove Folder from Workspace");
+
+export const ADD_PATH_TO_WORKSPACE_ID = "addPathToWorkspace";
+export const ADD_PATH_TO_WORKSPACE_LABEL = nls.localize("addPathToWorkspace", "Add Path to Workspace");
 
 export const PREVIOUS_COMPRESSED_FOLDER = 'previousCompressedFolder';
 export const NEXT_COMPRESSED_FOLDER = 'nextCompressedFolder';
@@ -579,6 +582,16 @@ CommandsRegistry.registerCommand({
 		);
 
 		return workspaceEditingService.removeFolders(resources);
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: ADD_PATH_TO_WORKSPACE_ID,
+	handler: async (accessor, resource: URI | object) => {
+		const folders = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService));
+
+		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
+		await workspaceEditingService.addFolders(folders.map(folder => ({ uri: removeTrailingPathSeparator(folder) })));
 	}
 });
 
