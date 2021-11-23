@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, commands, Event } from 'vscode';
+import { Disposable, commands } from 'vscode';
 import { Model } from '../model';
 import { pickRemoteSource } from '../remoteSource';
 import { GitBaseExtensionImpl } from './extension';
