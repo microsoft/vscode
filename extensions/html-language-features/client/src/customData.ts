@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { workspace, extensions, Uri, EventEmitter, Disposable } from 'vscode';
-import { resolvePath, joinPath } from './requests';
+import { resolvePath, joinPath, uriScheme } from './requests';
+
 
 export function getCustomDataSource(toDispose: Disposable[]) {
 	let pathsInWorkspace = getCustomDataPathsInAllWorkspaces();
@@ -57,8 +58,7 @@ function getCustomDataPathsInAllWorkspaces(): Set<string> {
 		if (Array.isArray(paths)) {
 			for (const path of paths) {
 				if (typeof path === 'string') {
-					const uri = Uri.parse(path);
-					if (uri.scheme === 'file') {
+					if (!uriScheme.test(path)) {
 						// only resolve file paths relative to extension
 						dataPaths.add(resolvePath(rootFolder, path).toString());
 					} else {
@@ -94,12 +94,11 @@ function getCustomDataPathsFromAllExtensions(): Set<string> {
 		const customData = extension.packageJSON?.contributes?.html?.customData;
 		if (Array.isArray(customData)) {
 			for (const rp of customData) {
-				const uri = Uri.parse(rp);
-				if (uri.scheme === 'file') {
-					// only resolve file paths relative to extension
+				if (!uriScheme.test(rp)) {
+					// no schame -> resolve relative to extension
 					dataPaths.add(joinPath(extension.extensionUri, rp).toString());
 				} else {
-					// others schemes
+					// actual schemes
 					dataPaths.add(rp);
 				}
 
