@@ -2384,7 +2384,7 @@ export class CommandCenter {
 				publisher = choice.provider;
 			}
 
-			await publisher.publishRepository!(new ApiRepository(repository));
+			await publisher.publishRepository(new ApiRepository(repository));
 			this.model.firePublishEvent(repository, branchName);
 
 			return;
