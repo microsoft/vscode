@@ -25,10 +25,9 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 			name = metadata.get(DataUri.META_DATA_LABEL);
 		} else {
 			name = cssEscape(basenameOrAuthority(resource).toLowerCase());
+			// Directory
+			classes.push(`${cssEscape(paths.basename(paths.dirname(resource.path)))}-name-dir-icon`);
 		}
-
-		// Directory
-		classes.push(`${paths.basename(paths.dirname(resource.path))}-name-dir-icon`);
 
 		// Folders
 		if (fileKind === FileKind.FOLDER) {
