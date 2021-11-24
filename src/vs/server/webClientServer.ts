@@ -5,7 +5,6 @@
 
 import * as fs from 'fs';
 import * as http from 'http';
-import * as path from 'path';
 import * as url from 'url';
 import * as util from 'util';
 import * as cookie from 'cookie';
@@ -164,15 +163,6 @@ export class WebClientServer {
 			backgroundColor: theme.getColor(editorBackground, true)!.toString(),
 			foregroundColor: theme.getColor(editorForeground, true)!.toString(),
 		};
-	}
-
-	/**
-	 * A convenience method which creates a URL prefixed with a relative path.
-	 */
-	private createRequestUrl(req: http.IncomingMessage, parsedUrl: url.UrlWithParsedQuery, pathname: string): URL {
-		const pathPrefix = getPathPrefix(parsedUrl.pathname!);
-		const remoteAuthority = this.getRemoteAuthority(req);
-		return new URL(path.join('/', pathPrefix, pathname), remoteAuthority);
 	}
 
 	private _iconSizes = [192, 512];
@@ -346,8 +336,8 @@ export class WebClientServer {
 
 					// Endpoints
 					logoutEndpointUrl: './logout',
-					webEndpointUrl: this.createRequestUrl(req, parsedUrl, '/static').toString(),
-					webEndpointUrlTemplate: this.createRequestUrl(req, parsedUrl, '/static').toString(),
+					webEndpointUrl: './static',
+					webEndpointUrlTemplate: './static',
 					webviewContentExternalBaseUrlTemplate: './webview/{{uuid}}/',
 
 					updateUrl: './update/check'
