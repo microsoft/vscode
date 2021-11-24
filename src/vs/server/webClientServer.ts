@@ -314,7 +314,7 @@ export class WebClientServer {
 					},
 
 					// Endpoints
-					logoutEndpointUrl: this.createRequestUrl(req, parsedUrl, '/logout').toString(),
+					logoutEndpointUrl: './logout',
 					webEndpointUrl: this.createRequestUrl(req, parsedUrl, '/static').toString(),
 					webEndpointUrlTemplate: this.createRequestUrl(req, parsedUrl, '/static').toString(),
 
