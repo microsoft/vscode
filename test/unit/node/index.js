@@ -58,10 +58,42 @@ function main() {
 		console.error(e.stack || e);
 	});
 
+	/**
+	 * @param {string} path
+	 * @param {{ isWindows?: boolean, scheme?: string, fallbackAuthority?: string }} config
+	 * @returns {string}
+	 */
+	function fileUriFromPath(path, config) {
+
+		// Since we are building a URI, we normalize any backslash
+		// to slashes and we ensure that the path begins with a '/'.
+		let pathName = path.replace(/\\/g, '/');
+		if (pathName.length > 0 && pathName.charAt(0) !== '/') {
+			pathName = `/${pathName}`;
+		}
+
+		/** @type {string} */
+		let uri;
+
+		// Windows: in order to support UNC paths (which start with '//')
+		// that have their own authority, we do not use the provided authority
+		// but rather preserve it.
+		if (config.isWindows && pathName.startsWith('//')) {
+			uri = encodeURI(`${config.scheme || 'file'}:${pathName}`);
+		}
+
+		// Otherwise we optionally add the provided authority if specified
+		else {
+			uri = encodeURI(`${config.scheme || 'file'}://${config.fallbackAuthority || ''}${pathName}`);
+		}
+
+		return uri.replace(/#/g, '%23');
+	}
+
 	const loaderConfig = {
 		nodeRequire: require,
 		nodeMain: __filename,
-		baseUrl: src,
+		baseUrl: fileUriFromPath(src, { isWindows: process.platform === 'win32' }),
 		catchError: true
 	};
 
