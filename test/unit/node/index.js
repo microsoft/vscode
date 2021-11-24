@@ -31,6 +31,9 @@ const excludeModules = [
 	'vs/base/test/common/event.test.js', // TODO this test uses `document`
 ]
 
+/**
+ * @type {{ build: boolean; run: string; runGlob: string; coverage: boolean; help: boolean; }}
+ */
 const argv = optimist.argv;
 
 if (argv.help) {
@@ -58,13 +61,7 @@ function main() {
 	const loaderConfig = {
 		nodeRequire: require,
 		nodeMain: __filename,
-		baseUrl: path.join(REPO_ROOT, 'src'),
-		paths: {
-			'vs/css': '../test/unit/node/css.mock',
-			'vs': `../${out}/vs`,
-			'lib': `../${out}/lib`,
-			'bootstrap-fork': `../${out}/bootstrap-fork`
-		},
+		baseUrl: src,
 		catchError: true
 	};
 
@@ -81,8 +78,6 @@ function main() {
 
 	loader.config(loaderConfig);
 
-	global.define = loader;
-
 	let didErr = false;
 	const write = process.stderr.write;
 	process.stderr.write = function (...args) {
@@ -90,11 +85,12 @@ function main() {
 		return write.apply(process.stderr, args);
 	};
 
+	/** @type { (callback:(err:any)=>void)=>void } */
 	let loadFunc = null;
 
 	if (argv.runGlob) {
 		loadFunc = (cb) => {
-			const doRun = tests => {
+			const doRun = /** @param {string[]} tests */(tests) => {
 				const modulesToLoad = tests.map(test => {
 					if (path.isAbsolute(test)) {
 						test = path.relative(src, path.resolve(test));
@@ -120,6 +116,7 @@ function main() {
 	} else {
 		loadFunc = (cb) => {
 			glob(TEST_GLOB, { cwd: src }, function (err, files) {
+				/** @type {string[]} */
 				const modules = [];
 				for (let file of files) {
 					if (!minimatch(file, excludeGlob) && excludeModules.indexOf(file) === -1) {
