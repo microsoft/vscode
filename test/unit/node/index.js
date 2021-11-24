@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/*eslint-env mocha*/
-/*global define,run*/
-
 const assert = require('assert');
+const mocha = require('mocha');
 const path = require('path');
 const glob = require('glob');
 const jsdom = require('jsdom-no-contextify');
@@ -17,7 +15,6 @@ const optimist = require('optimist')
 	.describe('build', 'Run from out-build').boolean('build')
 	.describe('run', 'Run a single file').string('run')
 	.describe('coverage', 'Generate a coverage report').boolean('coverage')
-	.describe('browser', 'Run tests in a browser').boolean('browser')
 	.alias('h', 'help').boolean('h')
 	.describe('h', 'Show help');
 
@@ -141,7 +138,7 @@ function main() {
 
 		if (!argv.run && !argv.runGlob) {
 			// set up last test
-			suite('Loader', function () {
+			mocha.suite('Loader', function () {
 				test('should not explode while loading', function () {
 					assert.ok(!didErr, 'should not explode while loading');
 				});
@@ -150,7 +147,7 @@ function main() {
 
 		// report failing test for every unexpected error during any of the tests
 		let unexpectedErrors = [];
-		suite('Errors', function () {
+		mocha.suite('Errors', function () {
 			test('should not have unexpected errors in tests', function () {
 				if (unexpectedErrors.length) {
 					unexpectedErrors.forEach(function (stack) {
@@ -171,13 +168,9 @@ function main() {
 			});
 
 			// fire up mocha
-			run();
+			mocha.run(failures => process.exit(failures ? -1 : 0));
 		});
 	});
 }
 
-if (process.argv.some(function (a) { return /^--browser/.test(a); })) {
-	require('./browser');
-} else {
-	main();
-}
+main();
