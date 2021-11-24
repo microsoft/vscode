@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/editorgroupview';
-import { EditorGroupModel, GroupChangeKind, IEditorOpenOptions, IGroupChangeEvent, ISerializedEditorGroupModel, isSerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
+import { EditorGroupModel, GroupChangeKind, IEditorOpenOptions, IGroupChangeEvent, IGroupEditorCloseEvent, IGroupEditorMoveEvent, IGroupEditorOpenEvent, ISerializedEditorGroupModel, isGroupEditorCloseEvent, isGroupEditorMoveEvent, isGroupEditorOpenEvent, isSerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { GroupIdentifier, CloseDirection, IEditorCloseEvent, ActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, ActiveEditorStickyContext, ActiveEditorPinnedContext, EditorResourceAccessor, EditorInputCapabilities, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, ActiveEditorGroupLockedContext, SideBySideEditor, EditorCloseContext, IEditorWillMoveEvent, IEditorWillOpenEvent } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
@@ -559,18 +559,18 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				this.onDidChangeEditorSticky(e.editor);
 				break;
 			case GroupChangeKind.EDITOR_MOVE:
-				if (e.oldEditorIndex !== undefined && e.editorIndex !== undefined) {
+				if (isGroupEditorMoveEvent(e)) {
 					this.onDidMoveEditor(e.editor, e.oldEditorIndex, e.editorIndex);
 				}
 				break;
 			case GroupChangeKind.EDITOR_OPEN:
-				if (e.editorIndex !== undefined) {
+				if (isGroupEditorOpenEvent(e)) {
 					this.onDidOpenEditor(e.editor, e.editorIndex);
 				}
 				break;
 			case GroupChangeKind.EDITOR_CLOSE:
-				if (e.editorIndex !== undefined && e.closeContext !== undefined && e.closedSticky !== undefined) {
-					this.handleOnDidCloseEditor(e.editor, e.editorIndex, e.closeContext, e.closedSticky);
+				if (isGroupEditorCloseEvent(e)) {
+					this.handleOnDidCloseEditor(e.editor, e.editorIndex, e.context, e.sticky);
 				}
 				break;
 			case GroupChangeKind.EDITOR_WILL_DISPOSE:
@@ -601,7 +601,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	private onDidMoveEditor(editor: EditorInput, oldEditorIndex: number, editorIndex: number): void {
-		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_MOVE, editor, oldEditorIndex, editorIndex });
+		const event: IGroupEditorMoveEvent = { kind: GroupChangeKind.EDITOR_MOVE, editor, oldEditorIndex, editorIndex };
+		this._onDidGroupChange.fire(event);
 	}
 
 	private onDidOpenEditor(editor: EditorInput, editorIndex: number): void {
@@ -619,7 +620,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.updateContainer();
 
 		// Event
-		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_OPEN, editor, editorIndex });
+		const event: IGroupEditorOpenEvent = { kind: GroupChangeKind.EDITOR_OPEN, editor, editorIndex };
+		this._onDidGroupChange.fire(event);
 	}
 
 	private handleOnDidCloseEditor(editor: EditorInput, editorIndex: number, context: EditorCloseContext, sticky: boolean): void {
@@ -659,7 +661,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Event
 		this._onDidCloseEditor.fire({ groupId: this.id, editor, context, index: editorIndex, sticky });
-		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_CLOSE, editor, editorIndex });
+		const event: IGroupEditorCloseEvent = { kind: GroupChangeKind.EDITOR_CLOSE, editor, editorIndex, context, sticky };
+		this._onDidGroupChange.fire(event);
 	}
 
 	private canDispose(editor: EditorInput): boolean {
@@ -1487,7 +1490,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Update model
 		let index: number | undefined = undefined;
 		if (editorToClose) {
-			index = this.model.closeEditor(editorToClose, internalOptions?.context)?.index;
+			index = this.model.closeEditor(editorToClose, internalOptions?.context)?.editorIndex;
 		}
 
 		// Open next active if there are more to show
@@ -1557,7 +1560,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private doCloseInactiveEditor(editor: EditorInput, internalOptions?: IInternalEditorCloseOptions): number | undefined {
 
 		// Update model
-		return this.model.closeEditor(editor, internalOptions?.context)?.index;
+		return this.model.closeEditor(editor, internalOptions?.context)?.editorIndex;
 	}
 
 	private async handleDirtyClosing(editors: EditorInput[]): Promise<boolean /* veto */> {

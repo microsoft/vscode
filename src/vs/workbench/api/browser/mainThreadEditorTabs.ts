@@ -9,6 +9,7 @@ import { ExtHostContext, IExtHostEditorTabsShape, IExtHostContext, MainContext, 
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { EditorResourceAccessor, IUntypedEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { isGroupEditorCloseEvent, isGroupEditorMoveEvent, isGroupEditorOpenEvent } from 'vs/workbench/common/editor/editorGroupModel';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { columnToEditorGroup, EditorGroupColumn, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
@@ -105,7 +106,7 @@ export class MainThreadEditorTabs {
 	}
 
 	private _onDidTabOpen(event: IEditorsChangeEvent): void {
-		if (event.kind !== GroupChangeKind.EDITOR_OPEN || !event.editor || event.editorIndex === undefined) {
+		if (!isGroupEditorOpenEvent(event)) {
 			return;
 		}
 		if (!this._tabModel.has(event.groupId)) {
@@ -124,7 +125,7 @@ export class MainThreadEditorTabs {
 	}
 
 	private _onDidTabClose(event: IEditorsChangeEvent): void {
-		if (event.kind !== GroupChangeKind.EDITOR_CLOSE || event.editorIndex === undefined) {
+		if (!isGroupEditorCloseEvent(event)) {
 			return;
 		}
 		this._tabModel.get(event.groupId)?.splice(event.editorIndex, 1);
@@ -137,7 +138,7 @@ export class MainThreadEditorTabs {
 	}
 
 	private _onDidTabMove(event: IEditorsChangeEvent): void {
-		if (event.kind !== GroupChangeKind.EDITOR_MOVE || event.editorIndex === undefined || event.oldEditorIndex === undefined) {
+		if (!isGroupEditorMoveEvent(event)) {
 			return;
 		}
 		const movedTab = this._tabModel.get(event.groupId)?.splice(event.oldEditorIndex, 1);

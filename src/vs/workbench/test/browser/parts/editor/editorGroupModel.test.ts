@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditorGroupModel, GroupChangeKind, ISerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
+import { EditorGroupModel, GroupChangeKind, ISerializedEditorGroupModel, isGroupEditorCloseEvent, isGroupEditorMoveEvent, isGroupEditorOpenEvent } from 'vs/workbench/common/editor/editorGroupModel';
 import { EditorExtensions, IEditorFactoryRegistry, IFileEditorInput, IEditorSerializer, CloseDirection, EditorsOrder, IResourceDiffEditorInput, IResourceSideBySideEditorInput, SideBySideEditor, EditorCloseContext, IEditorCloseEvent, IEditorOpenEvent, IEditorMoveEvent } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { TestLifecycleService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
@@ -115,13 +115,13 @@ suite('EditorGroupModel', () => {
 			}
 			switch (e.kind) {
 				case GroupChangeKind.EDITOR_OPEN:
-					if (e.editorIndex !== undefined) {
+					if (isGroupEditorOpenEvent(e)) {
 						groupEvents.opened.push({ editor: e.editor, index: e.editorIndex, groupId: group.id });
 					}
 					break;
 				case GroupChangeKind.EDITOR_CLOSE:
-					if (e.editorIndex !== undefined && e.closeContext !== undefined && e.closedSticky !== undefined) {
-						groupEvents.closed.push({ editor: e.editor, index: e.editorIndex, groupId: group.id, context: e.closeContext, sticky: e.closedSticky });
+					if (isGroupEditorCloseEvent(e)) {
+						groupEvents.closed.push({ editor: e.editor, index: e.editorIndex, groupId: group.id, context: e.context, sticky: e.sticky });
 					}
 					break;
 				case GroupChangeKind.EDITOR_ACTIVE:
@@ -134,7 +134,7 @@ suite('EditorGroupModel', () => {
 					group.isSticky(e.editor) ? groupEvents.sticky.push(e.editor) : groupEvents.unsticky.push(e.editor);
 					break;
 				case GroupChangeKind.EDITOR_MOVE:
-					if (e.oldEditorIndex !== undefined && e.editorIndex !== undefined) {
+					if (isGroupEditorMoveEvent(e)) {
 						groupEvents.moved.push({ editor: e.editor, index: e.oldEditorIndex, newIndex: e.editorIndex, target: group.id, groupId: group.id });
 					}
 					break;
@@ -788,7 +788,7 @@ suite('EditorGroupModel', () => {
 		let index = group.indexOf(input1);
 		let event = group.closeEditor(input1, EditorCloseContext.UNPIN);
 		assert.strictEqual(event?.editor, input1);
-		assert.strictEqual(event?.index, index);
+		assert.strictEqual(event?.editorIndex, index);
 		assert.strictEqual(group.count, 0);
 		assert.strictEqual(group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).length, 0);
 		assert.strictEqual(group.activeEditor, null);
