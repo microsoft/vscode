@@ -291,16 +291,15 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			if (await this.restoreColorTheme()) { // checks if theme from settings exists and is set
 				// restore theme
 				if (this.currentColorTheme.id === DEFAULT_COLOR_THEME_ID && !types.isUndefined(prevColorId) && await this.colorThemeRegistry.findThemeById(prevColorId)) {
-					// restore theme
-					this.setColorTheme(prevColorId, 'auto');
+					await this.setColorTheme(prevColorId, 'auto');
 					prevColorId = undefined;
 				} else if (event.added.some(t => t.settingsId === this.currentColorTheme.settingsId)) {
-					this.reloadCurrentColorTheme();
+					await this.reloadCurrentColorTheme();
 				}
 			} else if (event.removed.some(t => t.settingsId === this.currentColorTheme.settingsId)) {
 				// current theme is no longer available
 				prevColorId = this.currentColorTheme.id;
-				this.setColorTheme(DEFAULT_COLOR_THEME_ID, 'auto');
+				await this.setColorTheme(DEFAULT_COLOR_THEME_ID, 'auto');
 			}
 		});
 
@@ -310,15 +309,15 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			if (await this.restoreFileIconTheme()) { // checks if theme from settings exists and is set
 				// restore theme
 				if (this.currentFileIconTheme.id === DEFAULT_FILE_ICON_THEME_ID && !types.isUndefined(prevFileIconId) && this.fileIconThemeRegistry.findThemeById(prevFileIconId)) {
-					this.setFileIconTheme(prevFileIconId, 'auto');
+					await this.setFileIconTheme(prevFileIconId, 'auto');
 					prevFileIconId = undefined;
 				} else if (event.added.some(t => t.settingsId === this.currentFileIconTheme.settingsId)) {
-					this.reloadCurrentFileIconTheme();
+					await this.reloadCurrentFileIconTheme();
 				}
 			} else if (event.removed.some(t => t.settingsId === this.currentFileIconTheme.settingsId)) {
 				// current theme is no longer available
 				prevFileIconId = this.currentFileIconTheme.id;
-				this.setFileIconTheme(DEFAULT_FILE_ICON_THEME_ID, 'auto');
+				await this.setFileIconTheme(DEFAULT_FILE_ICON_THEME_ID, 'auto');
 			}
 
 		});
@@ -329,15 +328,15 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			if (await this.restoreProductIconTheme()) { // checks if theme from settings exists and is set
 				// restore theme
 				if (this.currentProductIconTheme.id === DEFAULT_PRODUCT_ICON_THEME_ID && !types.isUndefined(prevProductIconId) && this.productIconThemeRegistry.findThemeById(prevProductIconId)) {
-					this.setProductIconTheme(prevProductIconId, 'auto');
+					await this.setProductIconTheme(prevProductIconId, 'auto');
 					prevProductIconId = undefined;
 				} else if (event.added.some(t => t.settingsId === this.currentProductIconTheme.settingsId)) {
-					this.reloadCurrentProductIconTheme();
+					await this.reloadCurrentProductIconTheme();
 				}
 			} else if (event.removed.some(t => t.settingsId === this.currentProductIconTheme.settingsId)) {
 				// current theme is no longer available
 				prevProductIconId = this.currentProductIconTheme.id;
-				this.setProductIconTheme(DEFAULT_PRODUCT_ICON_THEME_ID, 'auto');
+				await this.setProductIconTheme(DEFAULT_PRODUCT_ICON_THEME_ID, 'auto');
 			}
 		});
 
@@ -410,7 +409,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 	public async getMarketplaceColorThemes(id: string, version: string): Promise<IWorkbenchColorTheme[]> {
 		const [publisher, name] = id.split('.');
-		const extensionLocation = this.extensionResourceLoaderService.getExtensionGalleryResourceURL({ publisher, name, version}, 'extension');
+		const extensionLocation = this.extensionResourceLoaderService.getExtensionGalleryResourceURL({ publisher, name, version }, 'extension');
 		if (!extensionLocation) {
 			return [];
 		}
@@ -432,36 +431,42 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 	public setColorTheme(themeIdOrTheme: string | undefined | IWorkbenchColorTheme, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchColorTheme | null> {
-		return this.colorThemeSequencer.queue(() => {
+		return this.colorThemeSequencer.queue(async () => {
 			if (!themeIdOrTheme) {
-				return Promise.resolve(null);
+				return null;
 			}
-			if (this.currentColorTheme.isLoaded && (themeIdOrTheme === this.currentColorTheme || themeIdOrTheme === this.currentColorTheme.id)) {
+			const themeId = types.isString(themeIdOrTheme) ? validateThemeId(themeIdOrTheme) : themeIdOrTheme.id;
+			if (this.currentColorTheme.isLoaded && themeId === this.currentColorTheme.id) {
 				if (settingsTarget !== 'preview') {
 					this.currentColorTheme.toStorage(this.storageService);
 				}
 				return this.settings.setColorTheme(this.currentColorTheme, settingsTarget);
 			}
 
-			const themeData = types.isString(themeIdOrTheme) ? this.colorThemeRegistry.findThemeById(validateThemeId(themeIdOrTheme), DEFAULT_COLOR_THEME_ID) : themeIdOrTheme;
-			if (!(themeData instanceof ColorThemeData)) {
-				return Promise.resolve(null);
+			let themeData = this.colorThemeRegistry.findThemeById(themeId);
+			if (!themeData) {
+				if (themeIdOrTheme instanceof ColorThemeData) {
+					themeData = themeIdOrTheme;
+				} else {
+					return null;
+				}
 			}
-			return themeData.ensureLoaded(this.extensionResourceLoaderService).then(_ => {
-				themeData.setCustomizations(this.settings);
+			try {
+				await themeData.ensureLoaded(this.extensionResourceLoaderService);
 				return this.applyTheme(themeData, settingsTarget);
-			}, error => {
-				return Promise.reject(new Error(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.location?.toString(), error.message)));
-			});
+			} catch (error) {
+				throw new Error(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.location?.toString(), error.message));
+			}
 		});
 	}
 
 	private reloadCurrentColorTheme() {
 		return this.colorThemeSequencer.queue(async () => {
 			try {
-				await this.currentColorTheme.reload(this.extensionResourceLoaderService);
-				this.currentColorTheme.setCustomizations(this.settings);
-				await this.applyTheme(this.currentColorTheme, undefined, false);
+				const theme = this.colorThemeRegistry.findThemeBySettingsId(this.currentColorTheme.settingsId) || this.currentColorTheme;
+				await theme.reload(this.extensionResourceLoaderService);
+				theme.setCustomizations(this.settings);
+				await this.applyTheme(theme, undefined, false);
 			} catch (error) {
 				this.logService.info('Unable to reload {0}: {1}', this.currentColorTheme.location?.toString());
 			}
@@ -469,15 +474,20 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 	public async restoreColorTheme(): Promise<boolean> {
-		const settingId = this.settings.colorTheme;
-		const theme = this.colorThemeRegistry.findThemeBySettingsId(settingId);
-		if (theme) {
-			if (settingId !== this.currentColorTheme.settingsId) {
-				await this.setColorTheme(theme.id, undefined);
+		return this.colorThemeSequencer.queue(async () => {
+			const settingId = this.settings.colorTheme;
+			const theme = this.colorThemeRegistry.findThemeBySettingsId(settingId);
+			if (theme) {
+				if (settingId !== this.currentColorTheme.settingsId) {
+					await this.setColorTheme(theme.id, undefined);
+				} else if (theme !== this.currentColorTheme) {
+					theme.setCustomizations(this.settings);
+					await this.applyTheme(theme, undefined, true);
+				}
+				return true;
 			}
-			return true;
-		}
-		return false;
+			return false;
+		});
 	}
 
 	private updateDynamicCSSRules(themeData: IColorTheme) {

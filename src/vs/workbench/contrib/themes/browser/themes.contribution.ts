@@ -40,6 +40,7 @@ export class SelectColorThemeAction extends Action {
 	static readonly LABEL = localize('selectTheme.label', "Color Theme");
 
 	static readonly INSTALL_ADDITIONAL = localize('installColorThemes', "Install Additional Color Themes...");
+	static readonly BROWSE_ADDITIONAL = '$(plus) ' + localize('browseColorThemes', "Browse Additional Color Themes...");
 
 
 	constructor(
@@ -61,11 +62,15 @@ export class SelectColorThemeAction extends Action {
 		return this.themeService.getColorThemes().then(themes => {
 			const currentTheme = this.themeService.getColorTheme();
 
+			const supportsGallery = this.extensionGalleryService.isEnabled();
+			const supportsGalleryPreview = supportsGallery && this.extensionResourceLoaderService.supportsExtensionGalleryResources;
+
 			const picks: QuickPickInput<ThemeItem>[] = [
+				...(supportsGalleryPreview ? configurationEntries(SelectColorThemeAction.BROWSE_ADDITIONAL) : []),
 				...toEntries(themes.filter(t => t.type === ColorScheme.LIGHT), localize('themes.category.light', "light themes")),
 				...toEntries(themes.filter(t => t.type === ColorScheme.DARK), localize('themes.category.dark', "dark themes")),
 				...toEntries(themes.filter(t => t.type === ColorScheme.HIGH_CONTRAST), localize('themes.category.hc', "high contrast themes")),
-				...configurationEntries(SelectColorThemeAction.INSTALL_ADDITIONAL)
+				...(supportsGallery && !supportsGalleryPreview ? configurationEntries(SelectColorThemeAction.INSTALL_ADDITIONAL) : []),
 			];
 
 			let selectThemeTimeout: number | undefined;
@@ -87,80 +92,128 @@ export class SelectColorThemeAction extends Action {
 			};
 
 			return new Promise((s, _) => {
-				let isCompleted = false;
+				const browseInstalledThemes = (activeItemId: string | undefined) => {
+					let isCompleted = false;
 
-				const autoFocusIndex = picks.findIndex(p => isItem(p) && p.id === currentTheme.id);
-				const quickpick = this.quickInputService.createQuickPick<ThemeItem>();
-				quickpick.items = picks;
-				quickpick.sortByLabel = false;
-				quickpick.matchOnDescription = true;
-				quickpick.placeholder = localize('themes.selectTheme', "Select Color Theme (Up/Down Keys to Preview)");
-				quickpick.activeItems = [picks[autoFocusIndex] as ThemeItem];
-				quickpick.canSelectMany = false;
-				quickpick.onDidAccept(async _ => {
-					const themeItem = quickpick.activeItems[0];
-					if (!themeItem || themeItem.theme === undefined) { // 'pick in marketplace' entry
-						openExtensionViewlet(this.paneCompositeService, `category:themes ${quickpick.value}`);
-					} else {
-						let themeToSet = themeItem.theme;
-						if (themeItem.galleryExtension) {
-							const success = await this.installExtension(themeItem.galleryExtension);
-							if (!success) {
-								themeToSet = currentTheme;
+					const autoFocusIndex = picks.findIndex(p => isItem(p) && p.id === activeItemId);
+					const quickpick = this.quickInputService.createQuickPick<ThemeItem>();
+					quickpick.items = picks;
+					quickpick.sortByLabel = false;
+					quickpick.matchOnDescription = true;
+					quickpick.placeholder = localize('themes.selectTheme', "Select Color Theme (Up/Down Keys to Preview)");
+					quickpick.activeItems = [picks[autoFocusIndex] as ThemeItem];
+					quickpick.canSelectMany = false;
+					quickpick.onDidAccept(async _ => {
+						const themeItem = quickpick.activeItems[0];
+						if (!themeItem || themeItem.theme === undefined) { // 'pick in marketplace' entry
+							if (supportsGalleryPreview) {
+								browseMarketplaceThemes(quickpick.value);
+							} else {
+								openExtensionViewlet(this.paneCompositeService, `category:themes ${quickpick.value}`);
+							}
+						} else {
+							let themeToSet = themeItem.theme;
+							selectTheme(themeToSet, true);
+						}
+						isCompleted = true;
+						quickpick.hide();
+						s();
+					});
+					quickpick.onDidTriggerItemButton(e => {
+						if (isItem(e.item)) {
+							const extensionId = e.item.theme?.extensionData?.extensionId;
+							if (extensionId) {
+								openExtensionViewlet(this.paneCompositeService, `@id:${extensionId}`);
+							} else {
+								openExtensionViewlet(this.paneCompositeService, `category:themes ${quickpick.value}`);
 							}
 						}
-						selectTheme(themeToSet, true);
-					}
-					isCompleted = true;
-					quickpick.hide();
-					s();
-				});
-				quickpick.onDidTriggerItemButton(e => {
-					if (isItem(e.item)) {
-						const extensionId = e.item.theme?.extensionData?.extensionId;
-						if (extensionId) {
-							openExtensionViewlet(this.paneCompositeService, `@id:${extensionId}`);
-						} else {
-							openExtensionViewlet(this.paneCompositeService, `category:themes ${quickpick.value}`);
+					});
+
+					quickpick.onDidChangeActive(themes => selectTheme(themes[0]?.theme, false));
+					quickpick.onDidHide(() => {
+						if (!isCompleted) {
+							selectTheme(currentTheme, true);
+							s();
+							isCompleted = true;
 						}
-					}
-				});
+					});
+					quickpick.show();
+				};
 
-				quickpick.onDidChangeActive(themes => selectTheme(themes[0]?.theme, false));
-				quickpick.onDidHide(() => {
-					if (!isCompleted) {
-						selectTheme(currentTheme, true);
-						s();
-						isCompleted = true;
-					}
-				});
-				quickpick.show();
-
-				if (this.extensionGalleryService.isEnabled() && this.extensionResourceLoaderService.supportsExtensionGalleryResources) {
-
+				const browseMarketplaceThemes = (value: string) => {
+					let isCompleted = false;
 					const marketplaceThemes = new MarketplaceThemes(this.extensionGalleryService, this.extensionManagementService, this.themeService, this.logService);
-					marketplaceThemes.onDidChange(() => {
-						const items = picks.concat(...marketplaceThemes.themes);
-						if (marketplaceThemes.isSearching) {
-							items.push({ label: '$(sync~spin) Searching for themes...', id: undefined, alwaysShow: true });
-						}
-						const activeItemId = quickpick.activeItems[0]?.id;
-						const newActiveItem = activeItemId ? items.find(i => isItem(i) && i.id === activeItemId) : undefined;
 
-						quickpick.items = items;
-						if (newActiveItem) {
-							quickpick.activeItems = [newActiveItem as ThemeItem];
+					const mp_quickpick = this.quickInputService.createQuickPick<ThemeItem>();
+					mp_quickpick.items = [];
+					mp_quickpick.sortByLabel = false;
+					mp_quickpick.matchOnDescription = true;
+					mp_quickpick.buttons = [this.quickInputService.backButton]
+					mp_quickpick.title = 'Marketplace Themes';
+					mp_quickpick.placeholder = localize('themes.selectTheme', "Type to Search More. Select to Install. Up/Down Keys to Preview");
+					mp_quickpick.canSelectMany = false;
+					mp_quickpick.onDidChangeValue(() => marketplaceThemes.trigger(mp_quickpick.value));
+					mp_quickpick.onDidAccept(async _ => {
+						let themeItem = mp_quickpick.activeItems[0];
+						if (themeItem?.galleryExtension) {
+							isCompleted = true;
+							mp_quickpick.hide();
+							const success = await this.installExtension(themeItem.galleryExtension);
+							if (success) {
+								selectTheme(themeItem.theme, true);
+							}
+							s();
 						}
 					});
 
-					quickpick.onDidChangeValue(() => marketplaceThemes.trigger(quickpick.value));
-					marketplaceThemes.trigger(quickpick.value);
+					mp_quickpick.onDidTriggerItemButton(e => {
+						if (isItem(e.item)) {
+							const extensionId = e.item.theme?.extensionData?.extensionId;
+							if (extensionId) {
+								openExtensionViewlet(this.paneCompositeService, `@id:${extensionId}`);
+							} else {
+								openExtensionViewlet(this.paneCompositeService, `category:themes ${mp_quickpick.value}`);
+							}
+						}
+					});
+					mp_quickpick.onDidChangeActive(themes => selectTheme(themes[0]?.theme, false));
 
-					quickpick.onDidHide(() => {
+					mp_quickpick.onDidHide(() => {
+						if (!isCompleted) {
+							selectTheme(currentTheme, true);
+							isCompleted = true;
+						}
 						marketplaceThemes.dispose();
 					});
+
+					mp_quickpick.onDidTriggerButton(e => {
+						if (e === this.quickInputService.backButton) {
+							mp_quickpick.hide();
+							browseInstalledThemes(undefined);
+						}
+					});
+
+					marketplaceThemes.onDidChange(() => {
+						let items = marketplaceThemes.themes;
+						if (marketplaceThemes.isSearching) {
+							items = items.concat({ label: '$(sync~spin) Searching for themes...', id: undefined, alwaysShow: true });
+						}
+						const activeItemId = mp_quickpick.activeItems[0]?.id;
+						const newActiveItem = activeItemId ? items.find(i => isItem(i) && i.id === activeItemId) : undefined;
+
+						mp_quickpick.items = items;
+						if (newActiveItem) {
+							mp_quickpick.activeItems = [newActiveItem as ThemeItem];
+						}
+					});
+					marketplaceThemes.trigger(value);
+					mp_quickpick.show();
 				}
+
+				browseInstalledThemes(currentTheme.id);
 			});
+
 		});
 	}
 
@@ -170,8 +223,8 @@ export class SelectColorThemeAction extends Action {
 			await this.progressService.withProgress({
 				location: ProgressLocation.Notification,
 				title: localize('installing extensions', "Installing Extension {0}...", galleryExtension.displayName)
-			}, () => {
-				return this.extensionManagementService.installFromGallery(galleryExtension);
+			}, async () => {
+				await this.extensionManagementService.installFromGallery(galleryExtension);
 			});
 			return true;
 		} catch (e) {
