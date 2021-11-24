@@ -194,12 +194,14 @@ export interface ITerminalService extends ITerminalInstanceHost {
 
 	resolveLocation(location?: ITerminalLocationOptions): TerminalLocation | undefined
 	setNativeDelegate(nativeCalls: ITerminalServiceNativeDelegate): void;
-
+	toggleDevTools(open?: boolean): Promise<void>;
 	handleNewRegisteredBackend(backend: ITerminalBackend): void;
 }
 
 export interface ITerminalServiceNativeDelegate {
 	getWindowCount(): Promise<number>;
+	openDevTools(): Promise<void>;
+	toggleDevTools(): Promise<void>;
 }
 
 /**
@@ -754,7 +756,7 @@ export interface ITerminalInstance {
 
 	addDisposable(disposable: IDisposable): void;
 
-	toggleEscapeSequenceLogging(): void;
+	toggleEscapeSequenceLogging(): Promise<boolean>;
 
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;

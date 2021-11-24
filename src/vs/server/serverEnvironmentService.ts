@@ -57,6 +57,7 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 
 	'help': OPTIONS['help'],
 	'version': OPTIONS['version'],
+	'accept-server-license-terms': { type: 'boolean' },
 
 	_: OPTIONS['_']
 };
@@ -135,6 +136,8 @@ export interface ServerParsedArgs {
 	// server cli
 	help: boolean;
 	version: boolean;
+
+	'accept-server-license-terms': boolean;
 
 	_: string[];
 }

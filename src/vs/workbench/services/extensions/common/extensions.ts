@@ -19,7 +19,6 @@ export const nullExtensionDescription = Object.freeze(<IExtensionDescription>{
 	name: 'Null Extension Description',
 	version: '0.0.0',
 	publisher: 'vscode',
-	enableProposedApi: false,
 	engines: { vscode: '' },
 	extensionLocation: URI.parse('void:location'),
 	isBuiltin: false,
@@ -135,10 +134,10 @@ export interface IExtensionHost {
 }
 
 export function isProposedApiEnabled(extension: IExtensionDescription, proposal: ApiProposalName): boolean {
-	if (extension.enabledApiProposals?.includes(proposal)) {
-		return true;
+	if (!extension.enabledApiProposals) {
+		return false;
 	}
-	return Boolean(extension.enableProposedApi);
+	return extension.enabledApiProposals.includes(proposal);
 }
 
 export function checkProposedApiEnabled(extension: IExtensionDescription, proposal: ApiProposalName): void {

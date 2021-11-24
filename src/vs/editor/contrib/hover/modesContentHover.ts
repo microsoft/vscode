@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { HoverAction, HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
 import { Widget } from 'vs/base/browser/ui/widget';
-import { coalesce, flatten } from 'vs/base/common/arrays';
+import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -32,6 +32,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
 import { UnicodeHighlighterHoverParticipant } from 'vs/editor/contrib/unicodeHighlighter/unicodeHighlighter';
+import { AsyncIterableObject } from 'vs/base/common/async';
 
 const $ = dom.$;
 
@@ -67,7 +68,7 @@ class EditorHoverStatusBar extends Disposable implements IEditorHoverStatusBar {
 	}
 }
 
-class ModesContentComputer implements IHoverComputer<IHoverPart[]> {
+class ModesContentComputer implements IHoverComputer<IHoverPart> {
 
 	private readonly _editor: ICodeEditor;
 	private _result: IHoverPart[];
@@ -121,22 +122,22 @@ class ModesContentComputer implements IHoverComputer<IHoverPart[]> {
 		});
 	}
 
-	public async computeAsync(token: CancellationToken): Promise<IHoverPart[]> {
+	public computeAsync(token: CancellationToken): AsyncIterableObject<IHoverPart> {
 		const anchor = this._anchor;
 
 		if (!this._editor.hasModel() || !anchor) {
-			return Promise.resolve([]);
+			return AsyncIterableObject.EMPTY;
 		}
 
 		const lineDecorations = ModesContentComputer._getLineDecorations(this._editor, anchor);
-
-		const allResults = await Promise.all(this._participants.map(p => this._computeAsync(p, lineDecorations, anchor, token)));
-		return flatten(allResults);
+		return AsyncIterableObject.merge(
+			this._participants.map(participant => this._computeAsync(participant, lineDecorations, anchor, token))
+		);
 	}
 
-	private async _computeAsync(participant: IEditorHoverParticipant, lineDecorations: IModelDecoration[], anchor: HoverAnchor, token: CancellationToken): Promise<IHoverPart[]> {
+	private _computeAsync(participant: IEditorHoverParticipant, lineDecorations: IModelDecoration[], anchor: HoverAnchor, token: CancellationToken): AsyncIterableObject<IHoverPart> {
 		if (!participant.computeAsync) {
-			return [];
+			return AsyncIterableObject.EMPTY;
 		}
 		return participant.computeAsync(anchor, lineDecorations, token);
 	}
@@ -201,9 +202,10 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 	public readonly allowEditorOverflow = true;
 
 	private _messages: IHoverPart[];
+	private _messagesAreComplete: boolean;
 	private _lastAnchor: HoverAnchor | null;
 	private readonly _computer: ModesContentComputer;
-	private readonly _hoverOperation: HoverOperation<IHoverPart[]>;
+	private readonly _hoverOperation: HoverOperation<IHoverPart>;
 	private _highlightDecorations: string[];
 	private _isChangingDecorations: boolean;
 	private _shouldFocus: boolean;
@@ -257,6 +259,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		this._stoleFocus = false;
 
 		this._messages = [];
+		this._messagesAreComplete = false;
 		this._lastAnchor = null;
 		this._computer = new ModesContentComputer(this._editor, this._participants);
 		this._highlightDecorations = [];
@@ -462,7 +465,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 				const filteredMessages = this._messages.filter((m) => m.isValidForHoverAnchor(anchor));
 				if (filteredMessages.length === 0) {
 					this.hide();
-				} else if (filteredMessages.length === this._messages.length) {
+				} else if (filteredMessages.length === this._messages.length && this._messagesAreComplete) {
 					// no change
 					return;
 				} else {
@@ -521,6 +524,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 
 	private _withResult(result: IHoverPart[], complete: boolean): void {
 		this._messages = result;
+		this._messagesAreComplete = complete;
 
 		if (this._lastAnchor && this._messages.length > 0) {
 			this._renderMessages(this._lastAnchor, this._messages);
@@ -561,8 +565,11 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 
 		const statusBar = disposables.add(new EditorHoverStatusBar(this._keybindingService));
 
-		for (const [participant, participantHoverParts] of hoverParts) {
-			disposables.add(participant.renderHoverParts(participantHoverParts, fragment, statusBar));
+		for (const participant of this._participants) {
+			if (hoverParts.has(participant)) {
+				const participantHoverParts = hoverParts.get(participant)!;
+				disposables.add(participant.renderHoverParts(participantHoverParts, fragment, statusBar));
+			}
 		}
 
 		if (statusBar.hasContent) {

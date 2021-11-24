@@ -34,7 +34,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 		this.configuration = new Configuration(new DefaultConfigurationModel(), new ConfigurationModel());
 
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reloadConfiguration(), 50));
-		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidUpdateConfiguration(configurationProperties => this.onDidDefaultConfigurationChange(configurationProperties)));
+		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidUpdateConfiguration(() => this.onDidDefaultConfigurationChange()));
 		this._register(this.userConfiguration.onDidChange(() => this.reloadConfigurationScheduler.schedule()));
 	}
 
@@ -89,9 +89,9 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 		this.trigger(change, previous, ConfigurationTarget.USER);
 	}
 
-	private onDidDefaultConfigurationChange(keys: string[]): void {
+	private onDidDefaultConfigurationChange(): void {
 		const previous = this.configuration.toData();
-		const change = this.configuration.compareAndUpdateDefaultConfiguration(new DefaultConfigurationModel(), keys);
+		const change = this.configuration.compareAndUpdateDefaultConfiguration(new DefaultConfigurationModel());
 		this.trigger(change, previous, ConfigurationTarget.DEFAULT);
 	}
 

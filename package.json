@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.63.0",
-  "distro": "f5a2c7f01629f6d3c0dc65e3fbb3818033206bf2",
+  "distro": "1aa3ab55b3cceca22ca6d647dc0095d562d23c8d",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -11,6 +11,7 @@
   "scripts": {
     "test": "mocha",
     "test-browser": "node test/unit/browser/index.js",
+    "test-node": "mocha test/unit/node/index.js --delay --ui=tdd --exit",
     "preinstall": "node build/npm/preinstall.js",
     "postinstall": "node build/npm/postinstall.js",
     "compile": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile",
@@ -27,7 +28,6 @@
     "watch-extensions": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js watch-extensions watch-extension-media",
     "watch-extensionsd": "deemon yarn watch-extensions",
     "kill-watch-extensionsd": "deemon --kill yarn watch-extensions",
-    "mocha": "mocha test/unit/node/all.js --delay --ui=tdd",
     "precommit": "node build/hygiene.js",
     "gulp": "node --max_old_space_size=8192 ./node_modules/gulp/bin/gulp.js",
     "electron": "node build/lib/electron",
@@ -169,7 +169,6 @@
     "istanbul-lib-report": "^3.0.0",
     "istanbul-lib-source-maps": "^4.0.0",
     "istanbul-reports": "^3.0.0",
-    "jsdom-no-contextify": "^3.1.0",
     "lazy.js": "^0.4.2",
     "merge-options": "^1.0.1",
     "mime": "^1.4.1",

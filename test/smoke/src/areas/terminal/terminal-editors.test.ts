@@ -4,22 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ParsedArgs } from 'minimist';
-import { Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation/out';
-import { afterSuite, beforeSuite } from '../../utils';
+import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation/out';
 
 export function setup(opts: ParsedArgs) {
 	describe('Terminal Editors', () => {
 		let terminal: Terminal;
 
-		beforeSuite(opts);
-		afterSuite(opts);
-
-		before(function () {
-			terminal = this.app.workbench.terminal;
-		});
-
-		afterEach(async () => {
-			await terminal.runCommand(TerminalCommandId.KillAll);
+		// Acquire automation API
+		before(async function () {
+			const app = this.app as Application;
+			terminal = app.workbench.terminal;
 		});
 
 		// TODO: This was flaky in CI
@@ -30,7 +24,8 @@ export function setup(opts: ParsedArgs) {
 			await terminal.assertSingleTab({ color }, true);
 		});
 
-		it('should update icon of the tab', async () => {
+		// TODO: Flaky https://github.com/microsoft/vscode/issues/137808
+		it.skip('should update icon of the tab', async () => {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
 			const icon = 'symbol-method';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeIcon, icon);

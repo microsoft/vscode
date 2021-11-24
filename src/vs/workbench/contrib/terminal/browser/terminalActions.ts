@@ -1156,8 +1156,10 @@ export function registerTerminalActions() {
 				precondition: TerminalContextKeys.processSupported
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.toggleEscapeSequenceLogging();
+		async run(accessor: ServicesAccessor) {
+			const terminalService = accessor.get(ITerminalService);
+			const toggledOn = await terminalService.activeInstance?.toggleEscapeSequenceLogging();
+			terminalService.toggleDevTools(toggledOn);
 		}
 	});
 	registerAction2(class extends Action2 {

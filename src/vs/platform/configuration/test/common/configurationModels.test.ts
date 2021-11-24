@@ -443,6 +443,43 @@ suite('CustomConfigurationModel', () => {
 	});
 });
 
+suite('CustomConfigurationModel', () => {
+
+	test('Default configuration model uses overrides', () => {
+		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+			'id': 'a',
+			'order': 1,
+			'title': 'a',
+			'type': 'object',
+			'properties': {
+				'a': {
+					'description': 'a',
+					'type': 'boolean',
+					'default': false,
+				}
+			}
+		});
+		assert.strictEqual(true, new DefaultConfigurationModel().getValue('a'));
+	});
+
+	test('Default configuration model uses overrides', () => {
+		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+			'id': 'a',
+			'order': 1,
+			'title': 'a',
+			'type': 'object',
+			'properties': {
+				'a': {
+					'description': 'a',
+					'type': 'boolean',
+					'default': false,
+				}
+			}
+		});
+		assert.strictEqual(false, new DefaultConfigurationModel({ a: false }).getValue('a'));
+	});
+});
+
 suite('Configuration', () => {
 
 	test('Test inspect for overrideIdentifiers', () => {
@@ -488,9 +525,9 @@ suite('Configuration', () => {
 			'[markdown]': {
 				'editor.wordWrap': 'off'
 			}
-		}), ['editor.lineNumbers', '[markdown]']);
+		}));
 
-		assert.deepStrictEqual(actual, { keys: ['editor.lineNumbers', '[markdown]'], overrides: [['markdown', ['editor.wordWrap']]] });
+		assert.deepStrictEqual(actual, { keys: ['[markdown]', 'editor.lineNumbers'], overrides: [['markdown', ['editor.wordWrap']]] });
 
 	});
 
@@ -853,7 +890,7 @@ suite('ConfigurationChangeEvent', () => {
 				'[markdown]': {
 					'editor.wordWrap': 'off'
 				}
-			}), ['editor.lineNumbers', '[markdown]']),
+			})),
 			configuration.compareAndUpdateLocalUserConfiguration(toConfigurationModel({
 				'[json]': {
 					'editor.lineNumbers': 'relative'

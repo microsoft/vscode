@@ -84,10 +84,11 @@ export const IExtensionsWorkbenchService = createDecorator<IExtensionsWorkbenchS
 
 export interface IExtensionsWorkbenchService {
 	readonly _serviceBrand: undefined;
-	onChange: Event<IExtension | undefined>;
-	local: IExtension[];
-	installed: IExtension[];
-	outdated: IExtension[];
+	readonly onChange: Event<IExtension | undefined>;
+	readonly preferPreReleases: boolean;
+	readonly local: IExtension[];
+	readonly installed: IExtension[];
+	readonly outdated: IExtension[];
 	queryLocal(server?: IExtensionManagementServer): Promise<IExtension[]>;
 	queryGallery(token: CancellationToken): Promise<IPager<IExtension>>;
 	queryGallery(options: IQueryOptions, token: CancellationToken): Promise<IPager<IExtension>>;

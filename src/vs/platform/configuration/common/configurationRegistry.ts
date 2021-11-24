@@ -56,6 +56,11 @@ export interface IConfigurationRegistry {
 	deregisterDefaultConfigurations(defaultConfigurations: IStringDictionary<any>[]): void;
 
 	/**
+	 * Return the registered configuration defaults overrides
+	 */
+	getConfigurationDefaultsOverrides(): IStringDictionary<any>;
+
+	/**
 	 * Signal that the schema of a configuration setting has changes. It is currently only supported to change enumeration values.
 	 * Property or default value changes are not allowed.
 	 */
@@ -65,13 +70,13 @@ export interface IConfigurationRegistry {
 	 * Event that fires whenver a configuration has been
 	 * registered.
 	 */
-	onDidSchemaChange: Event<void>;
+	readonly onDidSchemaChange: Event<void>;
 
 	/**
 	 * Event that fires whenver a configuration has been
 	 * registered.
 	 */
-	onDidUpdateConfiguration: Event<string[]>;
+	readonly onDidUpdateConfiguration: Event<{ properties: string[], defaultsOverrides?: boolean }>;
 
 	/**
 	 * Returns all configuration nodes contributed to this registry.
@@ -190,7 +195,7 @@ const contributionRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensio
 
 class ConfigurationRegistry implements IConfigurationRegistry {
 
-	private readonly defaultValues: IStringDictionary<any>;
+	private readonly configurationDefaultsOverrides: IStringDictionary<any>;
 	private readonly defaultLanguageConfigurationOverridesNode: IConfigurationNode;
 	private readonly configurationContributors: IConfigurationNode[];
 	private readonly configurationProperties: { [qualifiedKey: string]: IJSONSchema };
@@ -201,11 +206,11 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	private readonly _onDidSchemaChange = new Emitter<void>();
 	readonly onDidSchemaChange: Event<void> = this._onDidSchemaChange.event;
 
-	private readonly _onDidUpdateConfiguration: Emitter<string[]> = new Emitter<string[]>();
-	readonly onDidUpdateConfiguration: Event<string[]> = this._onDidUpdateConfiguration.event;
+	private readonly _onDidUpdateConfiguration = new Emitter<{ properties: string[], defaultsOverrides?: boolean }>();
+	readonly onDidUpdateConfiguration = this._onDidUpdateConfiguration.event;
 
 	constructor() {
-		this.defaultValues = {};
+		this.configurationDefaultsOverrides = {};
 		this.defaultLanguageConfigurationOverridesNode = {
 			id: 'defaultOverrides',
 			title: nls.localize('defaultLanguageConfigurationOverrides.title', "Default Language Configuration Overrides"),
@@ -229,7 +234,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 
 		contributionRegistry.registerSchema(resourceLanguageSettingsSchemaId, this.resourceLanguageSettingsSchema);
 		this._onDidSchemaChange.fire();
-		this._onDidUpdateConfiguration.fire(properties);
+		this._onDidUpdateConfiguration.fire({ properties });
 	}
 
 	public deregisterConfigurations(configurations: IConfigurationNode[]): void {
@@ -237,7 +242,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 
 		contributionRegistry.registerSchema(resourceLanguageSettingsSchemaId, this.resourceLanguageSettingsSchema);
 		this._onDidSchemaChange.fire();
-		this._onDidUpdateConfiguration.fire(properties);
+		this._onDidUpdateConfiguration.fire({ properties });
 	}
 
 	public updateConfigurations({ add, remove }: { add: IConfigurationNode[], remove: IConfigurationNode[] }): void {
@@ -247,7 +252,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 
 		contributionRegistry.registerSchema(resourceLanguageSettingsSchemaId, this.resourceLanguageSettingsSchema);
 		this._onDidSchemaChange.fire();
-		this._onDidUpdateConfiguration.fire(distinct(properties));
+		this._onDidUpdateConfiguration.fire({ properties: distinct(properties) });
 	}
 
 	public registerDefaultConfigurations(defaultConfigurations: IStringDictionary<any>[]): void {
@@ -259,10 +264,10 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 				properties.push(key);
 
 				if (OVERRIDE_PROPERTY_REGEX.test(key)) {
-					this.defaultValues[key] = { ...(this.defaultValues[key] || {}), ...defaultConfiguration[key] };
+					this.configurationDefaultsOverrides[key] = { ...(this.configurationDefaultsOverrides[key] || {}), ...defaultConfiguration[key] };
 					const property: IConfigurationPropertySchema = {
 						type: 'object',
-						default: this.defaultValues[key],
+						default: this.configurationDefaultsOverrides[key],
 						description: nls.localize('defaultLanguageConfiguration.description', "Configure settings to be overridden for {0} language.", key),
 						$ref: resourceLanguageSettingsSchemaId
 					};
@@ -270,7 +275,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 					this.configurationProperties[key] = property;
 					this.defaultLanguageConfigurationOverridesNode.properties![key] = property;
 				} else {
-					this.defaultValues[key] = defaultConfiguration[key];
+					this.configurationDefaultsOverrides[key] = defaultConfiguration[key];
 					const property = this.configurationProperties[key];
 					if (property) {
 						this.updatePropertyDefaultValue(key, property);
@@ -282,7 +287,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 
 		this.registerOverrideIdentifiers(overrideIdentifiers);
 		this._onDidSchemaChange.fire();
-		this._onDidUpdateConfiguration.fire(properties);
+		this._onDidUpdateConfiguration.fire({ properties, defaultsOverrides: true });
 	}
 
 	public deregisterDefaultConfigurations(defaultConfigurations: IStringDictionary<any>[]): void {
@@ -290,7 +295,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		for (const defaultConfiguration of defaultConfigurations) {
 			for (const key in defaultConfiguration) {
 				properties.push(key);
-				delete this.defaultValues[key];
+				delete this.configurationDefaultsOverrides[key];
 				if (OVERRIDE_PROPERTY_REGEX.test(key)) {
 					delete this.configurationProperties[key];
 					delete this.defaultLanguageConfigurationOverridesNode.properties![key];
@@ -306,7 +311,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 
 		this.updateOverridePropertyPatternKey();
 		this._onDidSchemaChange.fire();
-		this._onDidUpdateConfiguration.fire(properties);
+		this._onDidUpdateConfiguration.fire({ properties, defaultsOverrides: true });
 	}
 
 	public notifyConfigurationSchemaUpdated(...configurations: IConfigurationNode[]) {
@@ -417,6 +422,10 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		return this.excludedConfigurationProperties;
 	}
 
+	getConfigurationDefaultsOverrides(): IStringDictionary<any> {
+		return this.configurationDefaultsOverrides;
+	}
+
 	private registerJSONConfiguration(configuration: IConfigurationNode) {
 		const register = (configuration: IConfigurationNode) => {
 			let properties = configuration.properties;
@@ -476,6 +485,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 			case ConfigurationScope.RESOURCE:
 			case ConfigurationScope.LANGUAGE_OVERRIDABLE:
 				delete resourceSettings.properties[key];
+				delete this.resourceLanguageSettingsSchema.properties![key];
 				break;
 		}
 	}
@@ -517,7 +527,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 
 	private updatePropertyDefaultValue(key: string, property: IConfigurationPropertySchema): void {
-		let defaultValue = this.defaultValues[key];
+		let defaultValue = this.configurationDefaultsOverrides[key];
 		if (types.isUndefined(defaultValue)) {
 			defaultValue = property.default;
 		}

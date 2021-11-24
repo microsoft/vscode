@@ -22,7 +22,7 @@ export interface IHoverMessage {
 	value: IMarkdownString;
 }
 
-class MarginComputer implements IHoverComputer<IHoverMessage[]> {
+class MarginComputer implements IHoverComputer<IHoverMessage> {
 
 	private readonly _editor: ICodeEditor;
 	private _lineNumber: number;
@@ -100,7 +100,7 @@ export class ModesGlyphHoverWidget extends Widget implements IOverlayWidget {
 
 	private readonly _markdownRenderer: MarkdownRenderer;
 	private readonly _computer: MarginComputer;
-	private readonly _hoverOperation: HoverOperation<IHoverMessage[]>;
+	private readonly _hoverOperation: HoverOperation<IHoverMessage>;
 	private readonly _renderDisposeables = this._register(new DisposableStore());
 
 	constructor(

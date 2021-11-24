@@ -45,6 +45,11 @@
 	position: relative;
 }
 
+.extension-bookmark > .pre-release {
+	border-top-color: var(--vscode-extensionIcon-preReleaseForeground);
+	color: #ffffff;
+}
+
 .extension-bookmark > .recommendation > .codicon,
 .extension-bookmark > .pre-release > .codicon {
 	position: absolute;
@@ -52,4 +57,9 @@
 	left: 1px;
 	color: inherit;
 	font-size: 80%;
+}
+
+/* codicon colors */
+.codicon .codicon-extensions-pre-release {
+	color: var(--vscode-extensionIcon-preReleaseForeground);
 }

@@ -160,7 +160,10 @@ export class RatingsWidget extends ExtensionWidget {
 
 export class PreReleaseIndicatorWidget extends ExtensionWidget {
 
-	constructor(private container: HTMLElement) {
+	constructor(
+		private readonly container: HTMLElement,
+		private readonly options: { label: boolean, icon: boolean },
+	) {
 		super();
 		container.classList.add('extension-pre-release');
 		this.render();
@@ -177,7 +180,12 @@ export class PreReleaseIndicatorWidget extends ExtensionWidget {
 			return;
 		}
 
-		append(this.container, $('span' + ThemeIcon.asCSSSelector(preReleaseIcon)));
+		if (this.options?.icon) {
+			append(this.container, $('span' + ThemeIcon.asCSSSelector(preReleaseIcon)));
+		}
+		if (this.options?.label) {
+			append(this.container, $('span.pre-releaselabel', undefined, localize('pre-release-label', "Pre-release")));
+		}
 	}
 }
 
@@ -576,8 +584,8 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		}
 		const extensionPreReleaseIcon = this.themeService.getColorTheme().getColor(extensionPreReleaseIconColor);
 		const preReleaseVersionLink = `[${localize('Show prerelease version', "Pre-release version")}](${URI.parse(`command:workbench.extensions.action.showPreReleaseVersion?${encodeURIComponent(JSON.stringify([extension.identifier.id]))}`)})`;
-		const message = localize('has prerelease', "There is a new {0} of this extension available in the Marketplace.", preReleaseVersionLink);
-		return `<span style="color:${extensionPreReleaseIcon ? Color.Format.CSS.formatHex(extensionPreReleaseIcon) : '#ffffff'};">$(${preReleaseIcon.id})</span>&nbsp;${message}.`;
+		const message = localize('has prerelease', "This extension has a {0} available", preReleaseVersionLink);
+		return `<span style="color:${extensionPreReleaseIcon ? Color.Format.CSS.formatHex(extensionPreReleaseIcon) : '#ffffff'};">$(${preReleaseIcon.id})</span>&nbsp;${message}`;
 	}
 
 }
@@ -609,10 +617,4 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`${ThemeIcon.asCSSSelector(verifiedPublisherIcon)} { color: ${extensionVerifiedPublisherIcon}; }`);
 	}
 
-	const extensionPreReleaseIcon = theme.getColor(extensionPreReleaseIconColor);
-	if (extensionPreReleaseIcon) {
-		collector.addRule(`.extension-bookmark .pre-release { border-top-color: ${extensionPreReleaseIcon}; }`);
-		collector.addRule(`.extension-bookmark .pre-release ${ThemeIcon.asCSSSelector(preReleaseIcon)} { color: #ffffff; }`);
-		collector.addRule(`${ThemeIcon.asCSSSelector(preReleaseIcon)} { color: ${extensionPreReleaseIcon}; }`);
-	}
 });

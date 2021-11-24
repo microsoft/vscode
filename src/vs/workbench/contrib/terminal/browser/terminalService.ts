@@ -540,6 +540,13 @@ export class TerminalService implements ITerminalService {
 		this._nativeDelegate = nativeDelegate;
 	}
 
+	async toggleDevTools(open?: boolean): Promise<void> {
+		if (open) {
+			this._nativeDelegate?.openDevTools();
+		} else {
+			this._nativeDelegate?.toggleDevTools();
+		}
+	}
 	private _shouldReviveProcesses(reason: ShutdownReason): boolean {
 		if (!this._configHelper.config.enablePersistentSessions) {
 			return false;
