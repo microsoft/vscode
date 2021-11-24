@@ -60,14 +60,14 @@ export function createDirs(args: ServerParsedArgs) {
  * invoked by vs/server/main.js
  */
 export function spawnCli(args: ServerParsedArgs = parse()): Promise<void> {
-	createDirs(args)
-	return runCli(args, args["user-data-dir"] ||  REMOTE_DATA_FOLDER);
+	createDirs(args);
+	return runCli(args, args['user-data-dir'] || REMOTE_DATA_FOLDER, serverOptions);
 }
 
 /**
  * invoked by vs/server/main.js
  */
 export function createServer(address: string | net.AddressInfo | null, args: ServerParsedArgs = parse()): Promise<IServerAPI> {
-	createDirs(args)
-	return doCreateServer(address, args, args["user-data-dir"] || REMOTE_DATA_FOLDER);
+	createDirs(args);
+	return doCreateServer(address, args, args['user-data-dir'] || REMOTE_DATA_FOLDER);
 }

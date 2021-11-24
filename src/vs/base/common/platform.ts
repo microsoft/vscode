@@ -38,7 +38,6 @@ export interface INodeProcess {
 	platform: string;
 	arch: string;
 	env: IProcessEnvironment;
-	nextTick?: (callback: (...args: any[]) => void) => void;
 	versions?: {
 		electron?: string;
 	};
@@ -186,14 +185,13 @@ export const locale = _locale;
  */
 export const translationsConfigFile = _translationsConfigFile;
 
-interface ISetImmediate {
-	(callback: (...args: unknown[]) => void): void;
-}
-
-export const setImmediate: ISetImmediate = (function defineSetImmediate() {
-	if (globals.setImmediate) {
-		return globals.setImmediate.bind(globals);
-	}
+/**
+ * See https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#:~:text=than%204%2C%20then-,set%20timeout%20to%204,-.
+ *
+ * Works similarly to `setTimeout(0)` but doesn't suffer from the 4ms artificial delay
+ * that browsers set when the nesting level is > 5.
+ */
+export const setTimeout0 = (() => {
 	if (typeof globals.postMessage === 'function' && !globals.importScripts) {
 		interface IQueueElement {
 			id: number;
@@ -201,10 +199,10 @@ export const setImmediate: ISetImmediate = (function defineSetImmediate() {
 		}
 		let pending: IQueueElement[] = [];
 		globals.addEventListener('message', (e: MessageEvent) => {
-			if (e.data && e.data.vscodeSetImmediateId) {
+			if (e.data && e.data.vscodeScheduleAsyncWork) {
 				for (let i = 0, len = pending.length; i < len; i++) {
 					const candidate = pending[i];
-					if (candidate.id === e.data.vscodeSetImmediateId) {
+					if (candidate.id === e.data.vscodeScheduleAsyncWork) {
 						pending.splice(i, 1);
 						candidate.callback();
 						return;
@@ -219,14 +217,10 @@ export const setImmediate: ISetImmediate = (function defineSetImmediate() {
 				id: myId,
 				callback: callback
 			});
-			globals.postMessage({ vscodeSetImmediateId: myId }, '*');
+			globals.postMessage({ vscodeScheduleAsyncWork: myId }, '*');
 		};
 	}
-	if (typeof nodeProcess?.nextTick === 'function') {
-		return nodeProcess.nextTick.bind(nodeProcess);
-	}
-	const _promise = Promise.resolve();
-	return (callback: (...args: unknown[]) => void) => _promise.then(callback);
+	return (callback: () => void) => setTimeout(callback);
 })();
 
 export const enum OperatingSystem {

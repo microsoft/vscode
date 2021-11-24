@@ -31,7 +31,9 @@ export class TerminalNativeContribution extends Disposable implements IWorkbench
 		this._register(nativeHostService.onDidResumeOS(() => this._onOsResume()));
 
 		this._terminalService.setNativeDelegate({
-			getWindowCount: () => nativeHostService.getWindowCount()
+			getWindowCount: () => nativeHostService.getWindowCount(),
+			openDevTools: () => nativeHostService.openDevTools(),
+			toggleDevTools: () => nativeHostService.toggleDevTools()
 		});
 
 		const connection = remoteAgentService.getConnection();

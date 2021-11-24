@@ -105,7 +105,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 				? nls.localize('signOutMessagve', "The account '{0}' has been used by: \n\n{1}\n\n Sign out from these extensions?", accountName, accountUsages.map(usage => usage.extensionName).join('\n'))
 				: nls.localize('signOutMessageSimple', "Sign out of '{0}'?", accountName),
 			[
-				nls.localize('signOut', "Sign out"),
+				nls.localize('signOut', "Sign Out"),
 				nls.localize('cancel', "Cancel")
 			],
 			{
@@ -251,7 +251,9 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 				throw new Error('User did not consent to login.');
 			}
 
-			const session = await this.authenticationService.createSession(providerId, scopes, true);
+			const session = sessions?.length && !options.forceNewSession
+				? await this.authenticationService.selectSession(providerId, extensionId, extensionName, scopes, sessions)
+				: await this.authenticationService.createSession(providerId, scopes, true);
 			await this.setTrustedExtensionAndAccountPreference(providerId, session.account.label, extensionId, extensionName, session.id);
 			return session;
 		}

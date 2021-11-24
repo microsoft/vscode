@@ -331,13 +331,11 @@ export class ViewLine implements IVisibleLine {
 		if (!this._renderedViewLine) {
 			return null;
 		}
-		startColumn = startColumn | 0; // @perf
-		endColumn = endColumn | 0; // @perf
 
 		startColumn = Math.min(this._renderedViewLine.input.lineContent.length + 1, Math.max(1, startColumn));
 		endColumn = Math.min(this._renderedViewLine.input.lineContent.length + 1, Math.max(1, endColumn));
 
-		const stopRenderingLineAfter = this._renderedViewLine.input.stopRenderingLineAfter | 0; // @perf
+		const stopRenderingLineAfter = this._renderedViewLine.input.stopRenderingLineAfter;
 		let outsideRenderedLine = false;
 
 		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter + 1 && endColumn > stopRenderingLineAfter + 1) {

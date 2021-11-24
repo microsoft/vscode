@@ -53,6 +53,7 @@ export interface IEnvironmentService {
 	untitledWorkspacesHome: URI;
 	globalStorageHome: URI;
 	workspaceStorageHome: URI;
+	cacheHome: URI;
 
 	// --- settings sync
 	userDataSyncHome: URI;

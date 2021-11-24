@@ -11,7 +11,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { CellKind, CellUri, diff, MimeTypeDisplayOrder, NotebookWorkingCopyTypeIdentifier } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { cellIndexesToRanges, cellRangesToIndexes, reduceCellRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { setupInstantiationService, TestCell } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
+import { setupInstantiationService, TestCell } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 
 suite('NotebookCommon', () => {
 	let disposables: DisposableStore;

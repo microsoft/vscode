@@ -1181,8 +1181,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		const query = this.searchWidget.getValue().trim();
 		this.delayedFilterLogging.cancel();
-		// allow-any-unicode-next-line
-		await this.triggerSearch(query.replace(/›/g, ' '));
+		await this.triggerSearch(query.replace(/\u203A/g, ' '));
 
 		if (query && this.searchResultModel) {
 			this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(query, this.searchResultModel!.getUniqueResults()));

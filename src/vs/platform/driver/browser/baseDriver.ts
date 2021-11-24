@@ -158,7 +158,7 @@ export abstract class BaseWindowDriver implements IWindowDriver {
 			throw new Error(`Xterm not found: ${selector}`);
 		}
 
-		xterm._core._coreService.triggerDataEvent(text);
+		xterm._core.coreService.triggerDataEvent(text);
 	}
 
 	getLocaleInfo(): Promise<ILocaleInfo> {

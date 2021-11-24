@@ -677,6 +677,8 @@ export interface InlineCompletionContext {
 export interface SelectedSuggestionInfo {
 	range: IRange;
 	text: string;
+	isSnippetText: boolean;
+	completionKind: CompletionItemKind;
 }
 
 export interface InlineCompletion {

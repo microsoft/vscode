@@ -129,6 +129,9 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	get snippetsHome(): URI { return joinPath(this.userRoamingDataHome, 'snippets'); }
 
 	@memoize
+	get cacheHome(): URI { return joinPath(this.userRoamingDataHome, 'caches'); }
+
+	@memoize
 	get globalStorageHome(): URI { return URI.joinPath(this.userRoamingDataHome, 'globalStorage'); }
 
 	@memoize

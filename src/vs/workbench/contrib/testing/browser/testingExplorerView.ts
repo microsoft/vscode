@@ -19,6 +19,7 @@ import * as extpath from 'vs/base/common/extpath';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { fuzzyContains } from 'vs/base/common/strings';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/testing';
@@ -907,7 +908,7 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 			const data = e.label.toLowerCase();
 
 			for (const { include, text } of this.state.globList) {
-				if (data.includes(text)) {
+				if (fuzzyContains(data, text)) {
 					included = include ? FilterResult.Include : FilterResult.Exclude;
 				}
 			}

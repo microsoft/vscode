@@ -318,7 +318,6 @@ export class TerminalTabbedView extends Disposable {
 		if (this._shouldShowTabs()) {
 			this._splitView.resizeView(this._tabTreeIndex, this._getLastListWidth());
 		}
-		this._rerenderTabs();
 	}
 
 	private _updateTheme(theme?: IColorTheme): void {
