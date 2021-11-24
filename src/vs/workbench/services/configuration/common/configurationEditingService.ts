@@ -130,7 +130,7 @@ interface IConfigurationEditOperation extends IConfigurationValue {
 	workspaceStandAloneConfigurationKey?: string;
 }
 
-interface ConfigurationEditingOptions extends IConfigurationEditingOptions {
+export interface ConfigurationEditingOptions extends IConfigurationEditingOptions {
 	ignoreDirtyFile?: boolean;
 }
 
