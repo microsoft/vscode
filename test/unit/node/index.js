@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+//@ts-check
+
 const assert = require('assert');
 const mocha = require('mocha');
 const path = require('path');
 const fs = require('fs');
 const glob = require('glob');
-const jsdom = require('jsdom-no-contextify');
 const minimatch = require('minimatch');
 const coverage = require('../coverage');
 const optimist = require('optimist')
@@ -25,7 +26,9 @@ const excludeGlob = '**/{browser,electron-sandbox,electron-browser,electron-main
 const excludeModules = [
 	'vs/platform/environment/test/node/nativeModules.test.js',
 	'vs/base/parts/storage/test/node/storage.test.js',
-	'vs/platform/files/test/common/files.test.js' // TODO@bpasero enable once we ship Electron 16
+	'vs/platform/files/test/common/files.test.js', // TODO@bpasero enable once we ship Electron 16
+	'vs/workbench/services/dialogs/test/fileDialogService.test.js', // TODO@bpasero move this test to `/browser/`
+	'vs/base/test/common/event.test.js', // TODO this test uses `document`
 ]
 
 const argv = optimist.argv;
@@ -79,20 +82,12 @@ function main() {
 	loader.config(loaderConfig);
 
 	global.define = loader;
-	global.document = jsdom.jsdom('<!doctype html><html><body></body></html>');
-	global.self = global.window = global.document.parentWindow;
-
-	global.Element = global.window.Element;
-	global.HTMLElement = global.window.HTMLElement;
-	global.Node = global.window.Node;
-	global.navigator = global.window.navigator;
-	global.XMLHttpRequest = global.window.XMLHttpRequest;
 
 	let didErr = false;
 	const write = process.stderr.write;
-	process.stderr.write = function (data) {
-		didErr = didErr || !!data;
-		write.apply(process.stderr, arguments);
+	process.stderr.write = function (...args) {
+		didErr = didErr || !!args[0];
+		return write.apply(process.stderr, args);
 	};
 
 	let loadFunc = null;
@@ -107,7 +102,7 @@ function main() {
 
 					return test.replace(/(\.js)|(\.d\.ts)|(\.js\.map)$/, '');
 				});
-				define(modulesToLoad, () => cb(null), cb);
+				loader(modulesToLoad, () => cb(null), cb);
 			};
 
 			glob(argv.runGlob, { cwd: src }, function (err, files) { doRun(files); });
@@ -120,7 +115,7 @@ function main() {
 			return path.relative(src, path.resolve(test)).replace(/(\.js)|(\.js\.map)$/, '').replace(/\\/g, '/');
 		});
 		loadFunc = (cb) => {
-			define(modulesToLoad, () => cb(null), cb);
+			loader(modulesToLoad, () => cb(null), cb);
 		};
 	} else {
 		loadFunc = (cb) => {
@@ -131,7 +126,7 @@ function main() {
 						modules.push(file.replace(/\.js$/, ''));
 					}
 				}
-				define(modules, function () { cb(null); }, cb);
+				loader(modules, function () { cb(null); }, cb);
 			});
 		};
 	}
@@ -176,7 +171,7 @@ function main() {
 			});
 
 			// fire up mocha
-			mocha.run(failures => process.exit(failures ? -1 : 0));
+			mocha.run();
 		});
 	});
 }
