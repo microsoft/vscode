@@ -14,7 +14,7 @@ import { Event, Emitter, MicrotaskEmitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, isEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, isEditorReplacement, GroupChangeKind } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IUntypedEditorReplacement, IEditorService, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorsOptions, PreferredGroup, isPreferredGroup, IEditorsChangeEvent } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
@@ -34,7 +34,6 @@ import { IWorkspaceTrustRequestService, WorkspaceTrustUriResponse } from 'vs/pla
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder';
 import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
-import { GroupChangeKind } from 'vs/workbench/common/editor/editorGroupModel';
 
 export class EditorService extends Disposable implements EditorServiceImpl {
 
