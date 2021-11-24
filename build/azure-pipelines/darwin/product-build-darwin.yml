@@ -181,7 +181,7 @@ steps:
 
   - script: |
       set -e
-      yarn test-node --build --tfs "node.js Unit Tests"
+      yarn test-node --build
     displayName: Run unit tests (node.js)
     timeoutInMinutes: 7
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
