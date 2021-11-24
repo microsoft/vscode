@@ -81,12 +81,15 @@ function initializeGitExtension(): Disposable {
 	if (gitExtension) {
 		initialize();
 	} else {
-		disposables.add(extensions.onDidChange(() => {
+		const disposable = extensions.onDidChange(() => {
 			if (!gitExtension && extensions.getExtension<GitExtension>('vscode.git')) {
 				gitExtension = extensions.getExtension<GitExtension>('vscode.git');
 				initialize();
+
+				dispose(disposable);
 			}
-		}));
+		});
+		disposables.add(disposable);
 	}
 
 	return combinedDisposable(disposables);

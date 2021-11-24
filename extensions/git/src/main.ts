@@ -24,7 +24,6 @@ import * as os from 'os';
 import { GitTimelineProvider } from './timelineProvider';
 import { registerAPICommands } from './api/api1';
 import { TerminalEnvironmentManager } from './terminal';
-import { GitBaseApi } from './git-base';
 
 const deactivateTasks: { (): Promise<any>; }[] = [];
 
@@ -161,8 +160,6 @@ async function warnAboutMissingGit(): Promise<void> {
 export async function _activate(context: ExtensionContext): Promise<GitExtensionImpl> {
 	const disposables: Disposable[] = [];
 	context.subscriptions.push(new Disposable(() => Disposable.from(...disposables).dispose()));
-
-	GitBaseApi.initialize();
 
 	const outputChannel = window.createOutputChannel('Git');
 	commands.registerCommand('git.showOutput', () => outputChannel.show());

@@ -9,7 +9,6 @@ import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForceP
 import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands } from 'vscode';
 import { combinedDisposable, mapEvent } from '../util';
 import { toGitUri } from '../uri';
-import { pickRemoteSource } from '../remoteSource';
 import { GitExtensionImpl } from './extension';
 import { GitBaseApi } from '../git-base';
 import { PickRemoteSourceOptions } from './git-base';
@@ -383,11 +382,7 @@ export function registerAPICommands(extension: GitExtensionImpl): Disposable {
 	}));
 
 	disposables.push(commands.registerCommand('git.api.getRemoteSources', (opts?: PickRemoteSourceOptions) => {
-		if (!GitBaseApi.isEnabled()) {
-			return;
-		}
-
-		return pickRemoteSource(opts as any);
+		return commands.executeCommand('git-base.api.getRemoteSources', opts);
 	}));
 
 	return Disposable.from(...disposables);
