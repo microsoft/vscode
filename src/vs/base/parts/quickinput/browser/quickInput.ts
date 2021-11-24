@@ -490,11 +490,6 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		if (this._value !== value) {
 			this._value = value || '';
 			this.update();
-			// TODO: Remove this duplicate code and have the updating of the input box handle this.
-			const didFilter = this.ui.list.filter(this.filterValue(this.ui.inputBox.value));
-			if (didFilter) {
-				this.trySelectFirst();
-			}
 			this.onDidChangeValueEmitter.fire(this._value);
 		}
 	}
