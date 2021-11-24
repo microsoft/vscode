@@ -72,6 +72,9 @@ jobs:
       - name: Run Unit Tests (Electron)
         run: .\scripts\test.bat
 
+      - name: Run Unit Tests (node.js)
+        run: yarn test-node
+
       - name: Run Unit Tests (Browser)
         run: yarn test-browser --browser chromium
 
@@ -147,6 +150,10 @@ jobs:
         id: electron-unit-tests
         run: DISPLAY=:10 ./scripts/test.sh
 
+      - name: Run Unit Tests (node.js)
+        id: nodejs-unit-tests
+        run: yarn test-node
+
       - name: Run Unit Tests (Browser)
         id: browser-unit-tests
         run: DISPLAY=:10 yarn test-browser --browser chromium
@@ -221,6 +228,9 @@ jobs:
 
       - name: Run Unit Tests (Electron)
         run: DISPLAY=:10 ./scripts/test.sh
+
+      - name: Run Unit Tests (node.js)
+        run: yarn test-node
 
       - name: Run Unit Tests (Browser)
         run: DISPLAY=:10 yarn test-browser --browser chromium
