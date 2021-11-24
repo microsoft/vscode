@@ -28,10 +28,7 @@ import { setup as setupExtensionTests } from './areas/extensions/extensions.test
 import { setup as setupMultirootTests } from './areas/multiroot/multiroot.test';
 import { setup as setupLocalizationTests } from './areas/workbench/localization.test';
 import { setup as setupLaunchTests } from './areas/workbench/launch.test';
-import { setup as setupTerminalProfileTests } from './areas/terminal/terminal-profiles.test';
-import { setup as setupTerminalTabsTests } from './areas/terminal/terminal-tabs.test';
-import { setup as setupTerminalEditorsTests } from './areas/terminal/terminal-editors.test';
-import { setup as setupTerminalPersistenceTests } from './areas/terminal/terminal-persistence.test';
+import { setup as setupTerminalTests } from './areas/terminal/terminal.test';
 
 try {
 	gracefulify(fs);
@@ -362,15 +359,10 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	setupNotebookTests(opts);
 	setupLanguagesTests(opts);
 	setupEditorTests(opts);
+	setupTerminalTests(opts);
 	setupStatusbarTests(opts);
 	setupExtensionTests(opts);
 	if (!opts.web) { setupMultirootTests(opts); }
 	if (!opts.web) { setupLocalizationTests(opts); }
 	if (!opts.web) { setupLaunchTests(opts); }
-
-	// TODO: Enable terminal tests for non-web when it moved to playwright
-	if (opts.web) { setupTerminalProfileTests(opts); }
-	if (opts.web) { setupTerminalTabsTests(opts); }
-	if (opts.web) { setupTerminalEditorsTests(opts); }
-	if (opts.web) { setupTerminalPersistenceTests(opts); }
 });

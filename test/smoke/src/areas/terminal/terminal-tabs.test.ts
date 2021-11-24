@@ -5,22 +5,15 @@
 
 
 import { ParsedArgs } from 'minimist';
-import { Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation/out';
-import { afterSuite, beforeSuite } from '../../utils';
+import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation/out';
 
 export function setup(opts: ParsedArgs) {
 	describe('Terminal Tabs', () => {
+		// Acquire automation API
 		let terminal: Terminal;
-
-		beforeSuite(opts);
-		afterSuite(opts);
-
 		before(function () {
-			terminal = this.app.workbench.terminal;
-		});
-
-		afterEach(async () => {
-			await terminal.runCommand(TerminalCommandId.KillAll);
+			const app = this.app as Application;
+			terminal = app.workbench.terminal;
 		});
 
 		it('clicking the plus button should create a terminal and display the tabs view showing no split decorations', async () => {

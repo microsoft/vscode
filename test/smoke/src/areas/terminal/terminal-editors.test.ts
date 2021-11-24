@@ -4,22 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ParsedArgs } from 'minimist';
-import { Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation/out';
-import { afterSuite, beforeSuite } from '../../utils';
+import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation/out';
 
 export function setup(opts: ParsedArgs) {
 	describe('Terminal Editors', () => {
 		let terminal: Terminal;
 
-		beforeSuite(opts);
-		afterSuite(opts);
-
-		before(function () {
-			terminal = this.app.workbench.terminal;
-		});
-
-		afterEach(async () => {
-			await terminal.runCommand(TerminalCommandId.KillAll);
+		// Acquire automation API
+		before(async function () {
+			const app = this.app as Application;
+			terminal = app.workbench.terminal;
 		});
 
 		// TODO: This was flaky in CI

@@ -5,26 +5,14 @@
 
 import { ParsedArgs } from 'minimist';
 import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation/out';
-import { afterSuite, beforeSuite } from '../../utils';
 
 export function setup(opts: ParsedArgs) {
 	describe('Terminal Persistence', () => {
+		// Acquire automation API
 		let terminal: Terminal;
-
-		beforeSuite(opts);
-		afterSuite(opts);
-
-		before(async function () {
+		before(function () {
 			const app = this.app as Application;
 			terminal = app.workbench.terminal;
-
-			// Always show tabs to make getting terminal groups easier
-			await app.workbench.settingsEditor.addUserSetting('terminal.integrated.tabs.hideCondition', '"never"');
-			await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');
-		});
-
-		afterEach(async () => {
-			await terminal.runCommand(TerminalCommandId.KillAll);
 		});
 
 		describe('detach/attach', () => {
