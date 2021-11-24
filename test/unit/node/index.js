@@ -5,6 +5,8 @@
 
 //@ts-check
 
+process.env.MOCHA_COLORS = '1'; // Force colors (note that this must come before any mocha imports)
+
 const assert = require('assert');
 const mocha = require('mocha');
 const path = require('path');
