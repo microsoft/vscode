@@ -24,7 +24,8 @@ export function setup(opts: ParsedArgs) {
 			await terminal.assertSingleTab({ color }, true);
 		});
 
-		it('should update icon of the tab', async () => {
+		// TODO: Flaky https://github.com/microsoft/vscode/issues/137808
+		it.skip('should update icon of the tab', async () => {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
 			const icon = 'symbol-method';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeIcon, icon);
