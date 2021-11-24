@@ -210,7 +210,7 @@ export class WebClientServer {
 			'background-color': clientTheme.backgroundColor,
 			description: 'Run editors on a remote server.',
 			icons: this._iconSizes.map((size => ({
-				src: this.createRequestUrl(req, parsedUrl, `/static/resources/server/code-${size}.png`).toString(),
+				src: `./static/resources/server/code-${size}.png`,
 				type: 'image/png',
 				sizes: `${size}x${size}`,
 			})))
