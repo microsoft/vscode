@@ -274,7 +274,7 @@ export interface ILocalExtension extends IExtension {
 	publisherDisplayName: string | null;
 	installedTimestamp?: number;
 	isPreReleaseVersion: boolean;
-	hadPreReleaseVersion: boolean;
+	preRelease: boolean;
 }
 
 export const enum SortBy {

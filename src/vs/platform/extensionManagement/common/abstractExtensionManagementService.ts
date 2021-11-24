@@ -22,7 +22,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
-export type Metadata = Partial<IGalleryMetadata & { isMachineScoped: boolean; isBuiltin: boolean; isPreReleaseVersion: boolean, hadPreReleaseVersion: boolean, installedTimestamp: number }>;
+export type Metadata = Partial<IGalleryMetadata & { isMachineScoped: boolean; isBuiltin: boolean; isPreReleaseVersion: boolean, preRelease: boolean, installedTimestamp: number }>;
 
 export interface IInstallExtensionTask {
 	readonly identifier: IExtensionIdentifier;

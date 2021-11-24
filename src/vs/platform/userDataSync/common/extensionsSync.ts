@@ -412,7 +412,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 						}
 
 						if (!installedExtension // Install if the extension does not exist
-							|| installedExtension.hadPreReleaseVersion !== e.preRelease // Install if the extension pre-release preference has changed
+							|| installedExtension.preRelease !== e.preRelease // Install if the extension pre-release preference has changed
 						) {
 							if (await this.extensionManagementService.canInstall(extension)) {
 								this.logService.trace(`${this.syncResourceLogLabel}: Installing extension...`, e.identifier.id, extension.version);
@@ -472,8 +472,8 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	private getLocalExtensions(installedExtensions: ILocalExtension[]): ISyncExtensionWithVersion[] {
 		const disabledExtensions = this.extensionEnablementService.getDisabledExtensions();
 		return installedExtensions
-			.map(({ identifier, isBuiltin, manifest, hadPreReleaseVersion }) => {
-				const syncExntesion: ISyncExtensionWithVersion = { identifier, version: manifest.version, preRelease: hadPreReleaseVersion };
+			.map(({ identifier, isBuiltin, manifest, preRelease }) => {
+				const syncExntesion: ISyncExtensionWithVersion = { identifier, version: manifest.version, preRelease };
 				if (disabledExtensions.some(disabledExtension => areSameExtensions(disabledExtension, identifier))) {
 					syncExntesion.disabled = true;
 				}

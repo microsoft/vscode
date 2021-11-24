@@ -1019,7 +1019,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			(this.getAutoUpdateValue() === true || (e.local && this.extensionEnablementService.isEnabled(e.local)))
 		);
 
-		return Promises.settled(toUpdate.map(e => this.install(e, e.local?.hadPreReleaseVersion ? { installPreReleaseVersion: true } : undefined)));
+		return Promises.settled(toUpdate.map(e => this.install(e, e.local?.preRelease ? { installPreReleaseVersion: true } : undefined)));
 	}
 
 	async canInstall(extension: IExtension): Promise<boolean> {

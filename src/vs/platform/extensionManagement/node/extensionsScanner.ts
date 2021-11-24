@@ -333,7 +333,7 @@ export class ExtensionsScanner extends Disposable {
 		local.identifier.uuid = metadata?.id;
 		local.isMachineScoped = !!metadata?.isMachineScoped;
 		local.isPreReleaseVersion = !!metadata?.isPreReleaseVersion;
-		local.hadPreReleaseVersion = !!metadata?.hadPreReleaseVersion;
+		local.preRelease = !!metadata?.preRelease;
 		local.isBuiltin = local.type === ExtensionType.System || !!metadata?.isBuiltin;
 		local.installedTimestamp = metadata?.installedTimestamp;
 	}
