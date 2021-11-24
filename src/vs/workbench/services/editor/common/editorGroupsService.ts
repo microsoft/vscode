@@ -13,7 +13,7 @@ import { IDimension } from 'vs/editor/common/editorCommon';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
-import { IGroupChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
+import { IGroupChangeEvent, GroupChangeKind as GroupModelChangeKind } from 'vs/workbench/common/editor/editorGroupModel';
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
 
@@ -395,6 +395,8 @@ export interface IEditorGroupsService {
 	 */
 	enforcePartOptions(options: IEditorPartOptions): IDisposable;
 }
+
+export import GroupChangeKind = GroupModelChangeKind;
 
 export const enum OpenEditorContext {
 	NEW_EDITOR = 1,
