@@ -6,19 +6,18 @@
 import { Application, ApplicationOptions, Quality } from '../../../../automation';
 import { join } from 'path';
 import { ParsedArgs } from 'minimist';
-import { afterSuite, timeout } from '../../utils';
+import { afterSuite, startApp, timeout } from '../../utils';
 
-export function setup(opts: ParsedArgs, testDataPath: string) {
+export function setup(args: ParsedArgs, testDataPath: string) {
 
-	describe.only('Data migration (insiders -> insiders)', () => {
+	describe('Data Migration (insiders -> insiders)', () => {
 
 		let app: Application | undefined = undefined;
 
-		afterSuite(opts, () => app);
+		afterSuite(args, () => app);
 
 		it(`verifies opened editors are restored`, async function () {
-			app = new Application(this.defaultOptions);
-			await app.start();
+			app = await startApp(args, this.defaultOptions);
 
 			// Open 3 editors and pin 2 of them
 			await app.workbench.quickaccess.openFile('www');
@@ -36,15 +35,12 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 			await app.workbench.editors.selectTab('app.js');
 			await app.workbench.editors.selectTab('www');
 
-			await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');
-
 			await app.stop();
 			app = undefined;
 		});
 
 		it(`verifies that 'hot exit' works for dirty files`, async function () {
-			app = new Application(this.defaultOptions);
-			await app.start();
+			app = await startApp(args, this.defaultOptions);
 
 			await app.workbench.editors.newUntitledFile();
 
@@ -71,16 +67,16 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 		});
 	});
 
-	describe('Data migration (stable -> insiders)', () => {
+	describe('Data Migration (stable -> insiders)', () => {
 
 		let insidersApp: Application | undefined = undefined;
 		let stableApp: Application | undefined = undefined;
 
-		afterSuite(opts, () => insidersApp, async () => stableApp?.stop());
+		afterSuite(args, () => insidersApp, async () => stableApp?.stop());
 
 		it(`verifies opened editors are restored`, async function () {
-			const stableCodePath = opts['stable-build'];
-			if (!stableCodePath) {
+			const stableCodePath = args['stable-build'];
+			if (!stableCodePath || args.remote) {
 				this.skip();
 			}
 
@@ -129,8 +125,8 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 		});
 
 		it(`verifies that 'hot exit' works for dirty files`, async function () {
-			const stableCodePath = opts['stable-build'];
-			if (!stableCodePath) {
+			const stableCodePath = args['stable-build'];
+			if (!stableCodePath || args.remote) {
 				this.skip();
 			}
 
