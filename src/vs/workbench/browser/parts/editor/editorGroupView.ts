@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/editorgroupview';
 import { EditorGroupModel, GroupChangeKind, IEditorOpenOptions, IGroupChangeEvent, ISerializedEditorGroupModel, isSerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
-import { GroupIdentifier, CloseDirection, IEditorCloseEvent, ActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, ActiveEditorStickyContext, ActiveEditorPinnedContext, EditorResourceAccessor, IEditorMoveEvent, EditorInputCapabilities, IEditorOpenEvent, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, ActiveEditorGroupLockedContext, SideBySideEditor, EditorCloseContext, IEditorWillMoveEvent, IEditorWillOpenEvent } from 'vs/workbench/common/editor';
+import { GroupIdentifier, CloseDirection, IEditorCloseEvent, ActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, ActiveEditorStickyContext, ActiveEditorPinnedContext, EditorResourceAccessor, EditorInputCapabilities, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, ActiveEditorGroupLockedContext, SideBySideEditor, EditorCloseContext, IEditorWillMoveEvent, IEditorWillOpenEvent } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
@@ -526,57 +526,66 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private registerListeners(): void {
 
 		// Model Events
-		this._register(this.model.onDidModelChange(e => {
-			this._onDidModelChange.fire(e);
-			if (e.kind === GroupChangeKind.GROUP_LOCKED) {
-				this.onDidChangeGroupLocked();
-				return;
-			}
-			if (!e.editor) {
-				return;
-			}
-			switch (e.kind) {
-				case GroupChangeKind.EDITOR_PIN:
-					this.onDidChangeEditorPinned(e.editor);
-					break;
-				case GroupChangeKind.EDITOR_STICKY:
-					this.onDidChangeEditorSticky(e.editor);
-					break;
-				case GroupChangeKind.EDITOR_MOVE:
-					if (e.oldEditorIndex !== undefined && e.editorIndex !== undefined) {
-						this.onDidMoveEditor({ editor: e.editor, index: e.oldEditorIndex, newIndex: e.editorIndex, target: this.id, groupId: this.id });
-					}
-					break;
-				case GroupChangeKind.EDITOR_OPEN:
-					if (e.editorIndex !== undefined) {
-						this.onDidOpenEditor({ editor: e.editor, index: e.editorIndex, groupId: this.id });
-					}
-					break;
-				case GroupChangeKind.EDITOR_CLOSE:
-					if (e.editorIndex !== undefined && e.closeContext !== undefined && e.closedSticky !== undefined) {
-						this.handleOnDidCloseEditor({ editor: e.editor, index: e.editorIndex, groupId: this.id, context: e.closeContext, sticky: e.closedSticky });
-					}
-					break;
-				case GroupChangeKind.EDITOR_WILL_DISPOSE:
-					this.onWillDisposeEditor(e.editor);
-					break;
-				case GroupChangeKind.EDITOR_DIRTY:
-					this.onDidChangeEditorDirty(e.editor);
-					break;
-				case GroupChangeKind.EDITOR_LABEL:
-					this.onDidChangeEditorLabel(e.editor);
-					break;
-				case GroupChangeKind.EDITOR_CAPABILITIES:
-					this.onDidChangeEditorCapabilities(e.editor);
-					break;
-			}
-		}));
+		this._register(this.model.onDidModelChange(e => this.onDidGroupModelChange(e)));
 
 		// Option Changes
 		this._register(this.accessor.onDidChangeEditorPartOptions(e => this.onDidChangeEditorPartOptions(e)));
 
 		// Visibility
 		this._register(this.accessor.onDidVisibilityChange(e => this.onDidVisibilityChange(e)));
+	}
+
+	private onDidGroupModelChange(e: IGroupChangeEvent): void {
+
+		// Re-emit to outside
+		this._onDidModelChange.fire(e);
+
+		// Handle within
+
+		if (e.kind === GroupChangeKind.GROUP_LOCKED) {
+			this.onDidChangeGroupLocked();
+			return;
+		}
+
+		if (!e.editor) {
+			return;
+		}
+
+		switch (e.kind) {
+			case GroupChangeKind.EDITOR_PIN:
+				this.onDidChangeEditorPinned(e.editor);
+				break;
+			case GroupChangeKind.EDITOR_STICKY:
+				this.onDidChangeEditorSticky(e.editor);
+				break;
+			case GroupChangeKind.EDITOR_MOVE:
+				if (e.oldEditorIndex !== undefined && e.editorIndex !== undefined) {
+					this.onDidMoveEditor(e.editor, e.oldEditorIndex, e.editorIndex);
+				}
+				break;
+			case GroupChangeKind.EDITOR_OPEN:
+				if (e.editorIndex !== undefined) {
+					this.onDidOpenEditor(e.editor, e.editorIndex);
+				}
+				break;
+			case GroupChangeKind.EDITOR_CLOSE:
+				if (e.editorIndex !== undefined && e.closeContext !== undefined && e.closedSticky !== undefined) {
+					this.handleOnDidCloseEditor(e.editor, e.editorIndex, e.closeContext, e.closedSticky);
+				}
+				break;
+			case GroupChangeKind.EDITOR_WILL_DISPOSE:
+				this.onWillDisposeEditor(e.editor);
+				break;
+			case GroupChangeKind.EDITOR_DIRTY:
+				this.onDidChangeEditorDirty(e.editor);
+				break;
+			case GroupChangeKind.EDITOR_LABEL:
+				this.onDidChangeEditorLabel(e.editor);
+				break;
+			case GroupChangeKind.EDITOR_CAPABILITIES:
+				this.onDidChangeEditorCapabilities(e.editor);
+				break;
+		}
 	}
 
 	private onDidChangeGroupLocked(): void {
@@ -591,11 +600,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_STICKY, editor });
 	}
 
-	private onDidMoveEditor({ editor, index, newIndex }: IEditorMoveEvent): void {
-		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_MOVE, editor, oldEditorIndex: index, editorIndex: newIndex });
+	private onDidMoveEditor(editor: EditorInput, oldEditorIndex: number, editorIndex: number): void {
+		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_MOVE, editor, oldEditorIndex, editorIndex });
 	}
 
-	private onDidOpenEditor({ editor, index }: IEditorOpenEvent): void {
+	private onDidOpenEditor(editor: EditorInput, editorIndex: number): void {
 
 		/* __GDPR__
 			"editorOpened" : {
@@ -610,16 +619,15 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.updateContainer();
 
 		// Event
-		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_OPEN, editor, editorIndex: index });
+		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_OPEN, editor, editorIndex });
 	}
 
-	private handleOnDidCloseEditor(event: IEditorCloseEvent): void {
+	private handleOnDidCloseEditor(editor: EditorInput, editorIndex: number, context: EditorCloseContext, sticky: boolean): void {
 
 		// Before close
-		this._onWillCloseEditor.fire(event);
+		this._onWillCloseEditor.fire({ groupId: this.id, editor, context, index: editorIndex, sticky });
 
 		// Handle event
-		const editor = event.editor;
 		const editorsToClose: EditorInput[] = [editor];
 
 		// Include both sides of side by side editors when being closed
@@ -644,14 +652,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				]
 			}
 		*/
-		this.telemetryService.publicLog('editorClosed', this.toEditorTelemetryDescriptor(event.editor));
+		this.telemetryService.publicLog('editorClosed', this.toEditorTelemetryDescriptor(editor));
 
 		// Update container
 		this.updateContainer();
 
 		// Event
-		this._onDidCloseEditor.fire(event);
-		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_CLOSE, editor, editorIndex: event.index });
+		this._onDidCloseEditor.fire({ groupId: this.id, editor, context, index: editorIndex, sticky });
+		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_CLOSE, editor, editorIndex });
 	}
 
 	private canDispose(editor: EditorInput): boolean {
