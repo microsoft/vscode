@@ -6,6 +6,7 @@
 const assert = require('assert');
 const mocha = require('mocha');
 const path = require('path');
+const fs = require('fs');
 const glob = require('glob');
 const jsdom = require('jsdom-no-contextify');
 const minimatch = require('minimatch');
@@ -38,6 +39,13 @@ const REPO_ROOT = path.join(__dirname, '../../../');
 const out = argv.build ? 'out-build' : 'out';
 const loader = require(`../../../${out}/vs/loader`);
 const src = path.join(REPO_ROOT, out);
+
+const majorRequiredNodeVersion = `v${/^target\s+"([^"]+)"$/m.exec(fs.readFileSync(path.join(REPO_ROOT, 'remote', '.yarnrc'), 'utf8'))[1]}`.substring(0, 3);
+const currentMajorNodeVersion = process.version.substring(0, 3);
+if (majorRequiredNodeVersion !== currentMajorNodeVersion) {
+	console.error(`node.js unit tests require a major node.js version of ${majorRequiredNodeVersion} (your version is: ${currentMajorNodeVersion})`);
+	process.exit(1);
+}
 
 function main() {
 	process.on('uncaughtException', function (e) {
