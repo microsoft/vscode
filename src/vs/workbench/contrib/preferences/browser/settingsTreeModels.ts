@@ -507,8 +507,8 @@ export function settingKeyToDisplayFormat(key: string, groupId = ''): { category
 	const lastDotIdx = key.lastIndexOf('.');
 	let category = '';
 	if (lastDotIdx >= 0) {
-		category = key.substr(0, lastDotIdx);
-		key = key.substr(lastDotIdx + 1);
+		category = key.substring(0, lastDotIdx);
+		key = key.substring(lastDotIdx + 1);
 	}
 
 	groupId = groupId.replace(/\//g, '.');
