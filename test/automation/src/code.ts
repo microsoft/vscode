@@ -290,11 +290,6 @@ export class Code {
 		await this.driver.dispatchKeybinding(windowId, keybinding);
 	}
 
-	async reload(): Promise<void> {
-		const windowId = await this.getActiveWindowId();
-		await this.driver.reloadWindow(windowId);
-	}
-
 	async exit(): Promise<void> {
 		const exitPromise = this.driver.exitApplication();
 
