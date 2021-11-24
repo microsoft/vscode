@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { IEditorFactoryRegistry, GroupIdentifier, EditorsOrder, EditorExtensions, IUntypedEditorInput, SideBySideEditor, EditorCloseContext, IEditorIdentifier } from 'vs/workbench/common/editor';
+import { IEditorFactoryRegistry, GroupIdentifier, EditorsOrder, EditorExtensions, IUntypedEditorInput, SideBySideEditor, EditorCloseContext } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -147,7 +147,8 @@ export interface IGroupEditorCloseEvent extends IGroupChangeEvent {
 	readonly closedSticky: boolean;
 }
 
-interface IEditorCloseResult extends IEditorIdentifier {
+interface IEditorCloseResult {
+	readonly editor: EditorInput;
 	readonly context: EditorCloseContext;
 	readonly index: number;
 	readonly sticky: boolean;
@@ -513,7 +514,7 @@ export class EditorGroupModel extends Disposable {
 		this.splice(index, true);
 
 		// Event
-		return { editor, sticky, index, groupId: this.id, context };
+		return { editor, sticky, index, context };
 	}
 
 	moveEditor(candidate: EditorInput, toIndex: number): EditorInput | undefined {
