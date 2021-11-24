@@ -56,7 +56,7 @@
     "hygiene": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js hygiene",
     "core-ci": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js core-ci",
     "extensions-ci": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js extensions-ci",
-    "refetch-headers": "node build/prefetchHeaders.js"
+    "prefetch-headers": "node build/prefetchHeaders.js"
   },
   "dependencies": {
     "@microsoft/applicationinsights-web": "^2.6.4",
