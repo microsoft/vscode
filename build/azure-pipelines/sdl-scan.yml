@@ -35,7 +35,7 @@ stages:
   - stage: Windows
     condition: eq(variables.SCAN_WINDOWS, 'true')
     pool:
-      vmImage: windows-latest
+      vmImage: windows-2019
     jobs:
       - job: WindowsJob
         timeoutInMinutes: 0
