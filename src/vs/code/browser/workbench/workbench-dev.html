@@ -42,15 +42,15 @@
 	<script src="./static/out/vs/loader.js"></script>
 	<script src="./static/out/vs/webPackagePaths.js"></script>
 	<script>
-		const baseUrl = new URL(window.location.href);
-		baseUrl.search = '';
-		baseUrl.hash = '';
-
+		/**
+		 * Updated to use relative path.
+		 * @author coder
+		 */
 		Object.keys(self.webPackagePaths).map(function (key, index) {
-			self.webPackagePaths[key] = `${baseUrl.href}static/remote/web/node_modules/${key}/${self.webPackagePaths[key]}`;
+			self.webPackagePaths[key] = new URL(`./static/remote/web/node_modules/${key}/${self.webPackagePaths[key]}`, window.location.href).toString();
 		});
 		require.config({
-			baseUrl: `${baseUrl.href}static/out`,
+			baseUrl: new URL('./static/out', window.location.href).toString(),
 			recordStats: true,
 			trustedTypesPolicy: window.trustedTypes?.createPolicy('amdLoader', {
 				createScriptURL(value) {
