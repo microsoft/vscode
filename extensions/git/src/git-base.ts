@@ -19,10 +19,10 @@ export class GitBaseApi {
 
 			gitBaseExtension.onDidChangeEnablement(onDidChangeGitBaseExtensionEnablement);
 			onDidChangeGitBaseExtensionEnablement(gitBaseExtension.enabled);
-		}
 
-		if (!this._gitBaseApi) {
-			throw new Error('vscode.git-base extension is not enabled.');
+			if (!this._gitBaseApi) {
+				throw new Error('vscode.git-base extension is not enabled.');
+			}
 		}
 
 		return this._gitBaseApi;
