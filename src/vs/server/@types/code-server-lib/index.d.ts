@@ -16,9 +16,28 @@ declare global {
 		}
 
 		export interface ServerParsedArgs {
-			auth: AuthType;
+			//#region
+			auth?: AuthType;
+			'ignore-last-opened'?: boolean;
+			//#endregion
+
 			port?: string;
+			'pick-port'?: string;
+			/**
+			 * @deprecated use `connection-token` instead
+			 */
 			connectionToken?: string;
+			/**
+			 * A secret token that must be provided by the web client with all requests.
+			 * Use only `[0-9A-Za-z\-]`.
+			 *
+			 * By default, a UUID will be generated every time the server starts up.
+			 *
+			 * If the server is running on a multi-user system, then consider
+			 * using `--connection-secret` which has the advantage that the token cannot
+			 * be seen by other users using `ps` or similar commands.
+			 */
+			'connection-token'?: string;
 			/**
 			 * A path to a filename which will be read on startup.
 			 * Consider placing this file in a folder readable only by the same user (a `chmod 0700` directory).
@@ -50,7 +69,7 @@ declare global {
 			'list-extensions'?: boolean;
 			'locate-extension'?: string[];
 			'show-versions'?: boolean;
-			category?: string;
+			'category'?: string;
 
 			'force-disable-user-env'?: boolean;
 			'use-host-proxy'?: string;
@@ -69,8 +88,14 @@ declare global {
 			'web-user-data-dir'?: string;
 			'enable-sync'?: boolean;
 			'github-auth'?: string;
-			log?: string;
-			logsPath?: string;
+			'log'?: string;
+			'logsPath'?: string;
+
+			// server cli
+			help: boolean;
+			version: boolean;
+
+			'accept-server-license-terms': boolean;
 
 			_: string[];
 		}
