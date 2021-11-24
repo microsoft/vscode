@@ -823,6 +823,26 @@ export interface IEditorOpenEvent extends IEditorIdentifier {
 
 export type GroupIdentifier = number;
 
+export const enum GroupChangeKind {
+
+	/* Group Changes */
+	GROUP_ACTIVE,
+	GROUP_INDEX,
+	GROUP_LOCKED,
+
+	/* Editor Changes */
+	EDITOR_OPEN,
+	EDITOR_CLOSE,
+	EDITOR_MOVE,
+	EDITOR_ACTIVE,
+	EDITOR_LABEL,
+	EDITOR_CAPABILITIES,
+	EDITOR_PIN,
+	EDITOR_STICKY,
+	EDITOR_DIRTY,
+	EDITOR_WILL_DISPOSE
+}
+
 export interface IWorkbenchEditorConfiguration {
 	workbench?: {
 		editor?: IEditorPartConfiguration,

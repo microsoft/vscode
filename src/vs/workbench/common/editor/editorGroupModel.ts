@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { IEditorFactoryRegistry, GroupIdentifier, EditorsOrder, EditorExtensions, IUntypedEditorInput, SideBySideEditor, EditorCloseContext } from 'vs/workbench/common/editor';
+import { IEditorFactoryRegistry, GroupIdentifier, EditorsOrder, EditorExtensions, IUntypedEditorInput, SideBySideEditor, EditorCloseContext, GroupChangeKind } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -70,26 +70,6 @@ export interface IMatchOptions {
 	readonly strictEquals?: boolean;
 }
 
-export const enum GroupChangeKind {
-
-	/* Group Changes */
-	GROUP_ACTIVE,
-	GROUP_INDEX,
-	GROUP_LOCKED,
-
-	/* Editor Changes */
-	EDITOR_OPEN,
-	EDITOR_CLOSE,
-	EDITOR_MOVE,
-	EDITOR_ACTIVE,
-	EDITOR_LABEL,
-	EDITOR_CAPABILITIES,
-	EDITOR_PIN,
-	EDITOR_STICKY,
-	EDITOR_DIRTY,
-	EDITOR_WILL_DISPOSE
-}
-
 export interface IGroupChangeEvent {
 
 	/**
@@ -109,7 +89,7 @@ export interface IGroupEditorChangeEvent extends IGroupChangeEvent {
 }
 
 export interface IGroupEditorOpenEvent extends IGroupEditorChangeEvent {
-	
+
 	readonly kind: GroupChangeKind.EDITOR_OPEN;
 
 	/**
