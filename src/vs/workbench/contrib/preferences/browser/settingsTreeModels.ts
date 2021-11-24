@@ -151,7 +151,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 
 	get displayCategory(): string {
 		if (!this._displayCategory) {
-			this.initLabel();
+			this.initLabels();
 		}
 
 		return this._displayCategory!;
@@ -159,13 +159,13 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 
 	get displayLabel(): string {
 		if (!this._displayLabel) {
-			this.initLabel();
+			this.initLabels();
 		}
 
 		return this._displayLabel!;
 	}
 
-	private initLabel(): void {
+	private initLabels(): void {
 		const displayKeyFormat = settingKeyToDisplayFormat(this.setting.key, this.parent!.id);
 		this._displayLabel = displayKeyFormat.label;
 		this._displayCategory = displayKeyFormat.category;
@@ -537,9 +537,29 @@ function wordifyKey(key: string): string {
 	return key;
 }
 
+/**
+ * Removes redundant sections of the category label.
+ * A redundant section is a section already reflected in the groupId.
+ *
+ * @param category The category of the specific setting.
+ * @param groupId The author + extension ID.
+ * @returns The new category label to use.
+ */
 function trimCategoryForGroup(category: string, groupId: string): string {
 	const doTrim = (forward: boolean) => {
-		const parts = groupId.split('.');
+		// Remove the Insiders portion if the category doesn't use it.
+		if (!/insiders$/i.test(category)) {
+			groupId = groupId.replace(/-?insiders$/i, '');
+		}
+		const parts = groupId.split('.')
+			.map(part => {
+				// Remove hyphens, but only if that results in a match with the category.
+				if (part.replace(/-/g, '').toLowerCase() === category.toLowerCase()) {
+					return part.replace(/-/g, '');
+				} else {
+					return part;
+				}
+			});
 		while (parts.length) {
 			const reg = new RegExp(`^${parts.join('\\.')}(\\.|$)`, 'i');
 			if (reg.test(category)) {
