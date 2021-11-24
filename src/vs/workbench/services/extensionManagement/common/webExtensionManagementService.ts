@@ -152,7 +152,7 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 			metadata.publisherId = this.extension.publisherId;
 			metadata.installedTimestamp = Date.now();
 			metadata.isPreReleaseVersion = this.extension.properties.isPreReleaseVersion;
-			metadata.hadPreReleaseVersion = this.extension.properties.isPreReleaseVersion || metadata.hadPreReleaseVersion;
+			metadata.hadPreReleaseVersion = this.extension.hasPreReleaseVersion ? this.extension.properties.isPreReleaseVersion : metadata.hadPreReleaseVersion;
 		}
 
 		const scannedExtension = URI.isUri(this.extension) ? await this.webExtensionsScannerService.addExtension(this.extension, metadata)
