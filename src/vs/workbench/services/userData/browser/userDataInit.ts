@@ -395,7 +395,7 @@ class NewExtensionsInitializer implements IUserDataInitializer {
 					storeExtensionStorageState(galleryExtension.publisher, galleryExtension.name, extensionToSync.state, this.storageService);
 				}
 				this.logService.trace(`Installing extension...`, galleryExtension.identifier.id);
-				const local = await this.extensionManagementService.installFromGallery(galleryExtension, { isMachineScoped: false, donotIncludePackAndDependencies: true } /* pass options to prevent install and sync dialog in web */);
+				const local = await this.extensionManagementService.installFromGallery(galleryExtension, { isMachineScoped: false, donotIncludePackAndDependencies: true, installPreReleaseVersion: extensionToSync.preRelease } /* pass options to prevent install and sync dialog in web */);
 				if (!preview.disabledExtensions.some(identifier => areSameExtensions(identifier, galleryExtension.identifier))) {
 					newlyEnabledExtensions.push(local);
 				}

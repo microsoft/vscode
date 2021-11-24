@@ -301,6 +301,7 @@ export namespace UserDataSyncError {
 
 export interface ISyncExtension {
 	identifier: IExtensionIdentifier;
+	preRelease?: boolean;
 	version?: string;
 	disabled?: boolean;
 	installed?: boolean;
