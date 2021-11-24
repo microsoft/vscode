@@ -11,6 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { IFolderQuery, QueryType, IRawFileMatch } from 'vs/workbench/services/search/common/search';
 import { Engine as FileSearchEngine, FileWalker } from 'vs/workbench/services/search/node/fileSearch';
 import { flakySuite, getPathFromAmdModule } from 'vs/base/test/node/testUtils';
+import { readdirSync } from 'fs';
 
 const TEST_FIXTURES = path.normalize(getPathFromAmdModule(require, './fixtures'));
 const EXAMPLES_FIXTURES = URI.file(path.join(TEST_FIXTURES, 'examples'));
@@ -480,6 +481,15 @@ flakySuite('FileSearchEngine', () => {
 			folderQueries: ROOT_FOLDER_QUERY,
 			filePattern: '*.*',
 			includePattern: { '**/üm laut汉语/*': true }
+		});
+
+		console.log('log thing');
+		readdirSync(TEST_FIXTURES).forEach(function (fixtureFolder) {
+			console.log('1: ' + fixtureFolder);
+		});
+
+		readdirSync(`${TEST_FIXTURES}\\üm laut汉语`).forEach(function (fixtureFolder) {
+			console.log('2: ' + fixtureFolder);
 		});
 
 		let count = 0;
