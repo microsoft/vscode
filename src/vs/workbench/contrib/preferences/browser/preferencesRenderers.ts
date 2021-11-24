@@ -78,7 +78,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	updatePreference(key: string, value: any, source: IIndexedSetting): void {
 		const overrideIdentifiers = source.overrideOf ? overrideIdentifiersFromKey(source.overrideOf.key) : null;
 		const resource = this.preferencesModel.uri;
-		this.configurationService.updateValue(key, value, { overrideIdentifiers, resource }, this.preferencesModel.configurationTarget)
+		this.configurationService.updateValue(key, value, { overrideIdentifiers, resource }, this.preferencesModel.configurationTarget, undefined, true)
 			.then(() => this.onSettingUpdated(source));
 	}
 
