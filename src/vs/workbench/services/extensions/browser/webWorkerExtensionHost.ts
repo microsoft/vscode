@@ -295,6 +295,9 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			}
 		);
 
+		const messagePorts = this._environmentService.options?.messagePorts ?? new Map();
+		worker.postMessage(messagePorts as any, [...messagePorts.values()]);
+
 		// await MessagePort and use it to directly communicate
 		// with the worker extension host
 		await barrier.wait();

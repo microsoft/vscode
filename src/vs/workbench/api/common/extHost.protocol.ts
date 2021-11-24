@@ -113,6 +113,7 @@ export interface IInitData {
 	autoStart: boolean;
 	remote: { isRemote: boolean; authority: string | undefined; connectionData: IRemoteConnectionData | null; };
 	uiKind: UIKind;
+	messagePorts?: ReadonlyMap<string, MessagePort>;
 }
 
 export interface IConfigurationInitData extends IConfigurationData {
@@ -2195,17 +2196,6 @@ export interface MainThreadTestingShape {
 	$finishedExtensionTestRun(runId: string): void;
 }
 
-export type IPCHandle = number;
-
-export interface ExtHostIPCShape {
-	$sendMessage(handle: IPCHandle, message: VSBuffer): Promise<void>;
-}
-
-export interface MainThreadIPCShape {
-	$register(extensionId: ExtensionIdentifier): Promise<IPCHandle | undefined>;
-	$sendMessage(handle: IPCHandle, message: VSBuffer): Promise<void>;
-}
-
 // --- proxy identifiers
 
 export const MainContext = {
@@ -2265,7 +2255,6 @@ export const MainContext = {
 	MainThreadTunnelService: createMainId<MainThreadTunnelServiceShape>('MainThreadTunnelService'),
 	MainThreadTimeline: createMainId<MainThreadTimelineShape>('MainThreadTimeline'),
 	MainThreadTesting: createMainId<MainThreadTestingShape>('MainThreadTesting'),
-	MainThreadIPC: createMainId<MainThreadIPCShape>('MainThreadIPC'),
 };
 
 export const ExtHostContext = {
@@ -2320,5 +2309,4 @@ export const ExtHostContext = {
 	ExtHostTimeline: createMainId<ExtHostTimelineShape>('ExtHostTimeline'),
 	ExtHostTesting: createMainId<ExtHostTestingShape>('ExtHostTesting'),
 	ExtHostTelemetry: createMainId<ExtHostTelemetryShape>('ExtHostTelemetry'),
-	ExtHostIPC: createMainId<ExtHostIPCShape>('ExtHostIPC'),
 };

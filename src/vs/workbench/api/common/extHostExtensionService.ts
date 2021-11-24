@@ -447,7 +447,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 					checkProposedApiEnabled(extensionDescription, 'extensionRuntime');
 					return that.extensionRuntime;
 				},
-				get environmentVariableCollection() { return that._extHostTerminalService.getEnvironmentVariableCollection(extensionDescription); }
+				get environmentVariableCollection() { return that._extHostTerminalService.getEnvironmentVariableCollection(extensionDescription); },
+				messagePort: this._initData.messagePorts?.get(ExtensionIdentifier.toKey(extensionDescription.identifier))
 			});
 		});
 	}

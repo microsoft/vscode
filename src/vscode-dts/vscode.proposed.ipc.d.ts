@@ -5,14 +5,7 @@
 
 declare module 'vscode' {
 
-	export type Message = Uint8Array;
-
-	export interface MessagePassingProtocol {
-		readonly onDidReceiveMessage: Event<Message>;
-		sendMessage(message: Message): void;
-	}
-
-	export namespace window {
-		export function getMessagePassingProtocol(): Thenable<MessagePassingProtocol | undefined>;
+	export interface ExtensionContext {
+		readonly messagePort: MessagePort | undefined;
 	}
 }
