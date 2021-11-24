@@ -6,6 +6,7 @@
 
 import { AuthType } from 'vs/base/common/auth';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -181,9 +182,18 @@ export class CodeServerClientAdditions extends Disposable {
 		this.contextKeyService.createKey(CodeServerClientAdditions.AUTH_KEY, auth === AuthType.Password);
 
 		CommandsRegistry.registerCommand(CodeServerClientAdditions.LOGOUT_COMMAND_ID, () => {
-			if (logoutEndpointUrl) {
-				window.location.href = logoutEndpointUrl;
+			if (isFalsyOrWhitespace(logoutEndpointUrl)) {
+				throw new Error('Logout URL not provided in product configuration');
 			}
+
+			/**
+			 * @file 'code-server/src/node/route/logout.ts'
+			 */
+			const logoutUrl = new URL(logoutEndpointUrl!, window.location.href);
+			// Add base param as this session may be stored within a nested path.
+			logoutUrl.searchParams.set('base', window.location.pathname);
+
+			window.location.assign(logoutUrl);
 		});
 
 		for (const menuId of [MenuId.CommandPalette, MenuId.MenubarHomeMenu]) {
