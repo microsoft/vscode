@@ -26,9 +26,7 @@ const excludeGlob = '**/{browser,electron-sandbox,electron-browser,electron-main
 const excludeModules = [
 	'vs/platform/environment/test/node/nativeModules.test.js',
 	'vs/base/parts/storage/test/node/storage.test.js',
-	'vs/platform/files/test/common/files.test.js', // TODO@bpasero enable once we ship Electron 16
-	'vs/workbench/services/dialogs/test/fileDialogService.test.js', // TODO@bpasero move this test to `/browser/`
-	'vs/base/test/common/event.test.js', // TODO this test uses `document`
+	'vs/platform/files/test/common/files.test.js' // TODO@bpasero enable once we ship Electron 16
 ]
 
 /**
