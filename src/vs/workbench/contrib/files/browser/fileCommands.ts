@@ -85,7 +85,7 @@ export const ResourceSelectedForCompareContext = new RawContextKey<boolean>('res
 export const REMOVE_ROOT_FOLDER_COMMAND_ID = 'removeRootFolder';
 export const REMOVE_ROOT_FOLDER_LABEL = nls.localize('removeFolderFromWorkspace', "Remove Folder from Workspace");
 
-export const ADD_PATH_TO_WORKSPACE_ID = "addPathToWorkspace";
+export const ADD_PATH_TO_WORKSPACE_COMMAND_ID = "addPathToWorkspace";
 export const ADD_PATH_TO_WORKSPACE_LABEL = nls.localize("addPathToWorkspace", "Add Path to Workspace");
 
 export const PREVIOUS_COMPRESSED_FOLDER = 'previousCompressedFolder';
@@ -586,7 +586,7 @@ CommandsRegistry.registerCommand({
 });
 
 CommandsRegistry.registerCommand({
-	id: ADD_PATH_TO_WORKSPACE_ID,
+	id: ADD_PATH_TO_WORKSPACE_COMMAND_ID,
 	handler: async (accessor, resource: URI | object) => {
 		const folders = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService));
 
