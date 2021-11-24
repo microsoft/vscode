@@ -60,7 +60,8 @@ export function setup(opts: ParsedArgs) {
 			await terminal.assertSingleTab({ name });
 		});
 
-		it('should reset the tab name to the default value when no name is provided', async () => {
+		// Flaky: https://github.com/microsoft/vscode/issues/137795
+		it.skip('should reset the tab name to the default value when no name is provided', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
 			const defaultName = await terminal.getSingleTabName();
 			const name = 'my terminal name';
