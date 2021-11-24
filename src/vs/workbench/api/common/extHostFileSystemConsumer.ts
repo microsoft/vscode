@@ -80,7 +80,8 @@ export class ExtHostConsumerFileSystem {
 						await that._proxy.$ensureActivation(uri.scheme);
 						return (await provider.readFile(uri)).slice(); // safe-copy
 					} else {
-						return that._proxy.$readFile(uri).then(buff => buff.buffer);
+						const buff = await that._proxy.$readFile(uri);
+						return buff.buffer;
 					}
 				} catch (err) {
 					return ExtHostConsumerFileSystem._handleError(err);

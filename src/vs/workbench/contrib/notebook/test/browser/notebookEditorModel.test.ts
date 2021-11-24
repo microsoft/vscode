@@ -22,7 +22,7 @@ import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/wo
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellKind, NotebookData, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { setupInstantiationService } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
+import { setupInstantiationService } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Mimes } from 'vs/base/common/mime';

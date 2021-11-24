@@ -596,4 +596,48 @@ suite('SnippetsService', function () {
 
 		model.dispose();
 	});
+
+	test('still show suggestions in string when disable string suggestion #136611', async function () {
+
+		snippetService = new SimpleSnippetService([
+			new Snippet(['fooLang'], 'aaa', 'aaa', '', 'value', '', SnippetSource.User),
+			new Snippet(['fooLang'], 'bbb', 'bbb', '', 'value', '', SnippetSource.User),
+			// new Snippet(['fooLang'], '\'ccc', '\'ccc', '', 'value', '', SnippetSource.User)
+		]);
+
+		const provider = new SnippetCompletionProvider(modeService, snippetService);
+
+		let model = createTextModel('\'\'', undefined, 'fooLang');
+		let result = await provider.provideCompletionItems(
+			model,
+			new Position(1, 2),
+			{ triggerKind: CompletionTriggerKind.TriggerCharacter, triggerCharacter: '\'' }
+		)!;
+
+		assert.strictEqual(result.suggestions.length, 0);
+		model.dispose();
+
+	});
+
+	test('still show suggestions in string when disable string suggestion #136611', async function () {
+
+		snippetService = new SimpleSnippetService([
+			new Snippet(['fooLang'], 'aaa', 'aaa', '', 'value', '', SnippetSource.User),
+			new Snippet(['fooLang'], 'bbb', 'bbb', '', 'value', '', SnippetSource.User),
+			new Snippet(['fooLang'], '\'ccc', '\'ccc', '', 'value', '', SnippetSource.User)
+		]);
+
+		const provider = new SnippetCompletionProvider(modeService, snippetService);
+
+		let model = createTextModel('\'\'', undefined, 'fooLang');
+
+		let result = await provider.provideCompletionItems(
+			model,
+			new Position(1, 2),
+			{ triggerKind: CompletionTriggerKind.TriggerCharacter, triggerCharacter: '\'' }
+		)!;
+
+		assert.strictEqual(result.suggestions.length, 1);
+		model.dispose();
+	});
 });

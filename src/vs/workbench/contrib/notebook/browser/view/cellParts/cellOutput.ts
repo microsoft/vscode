@@ -583,6 +583,10 @@ export class CellOutputContainer extends CellPart {
 		}));
 	}
 
+	renderCell(element: ICellViewModel): void {
+		// no op
+	}
+
 	updateLayoutNow(viewCell: CodeCellViewModel) {
 		this._outputEntries.forEach(entry => {
 			const index = this.viewCell.outputsViewModels.indexOf(entry.model);

@@ -740,25 +740,14 @@ suite('Async', () => {
 	});
 
 	test('IntervalCounter', async () => {
-		let now = Date.now();
-
-		const counter = new async.IntervalCounter(5);
-
-		let ellapsed = Date.now() - now;
-		if (ellapsed > 4) {
-			return; // flaky (https://github.com/microsoft/vscode/issues/114028)
-		}
+		let now = 0;
+		const counter = new async.IntervalCounter(5, () => now);
 
 		assert.strictEqual(counter.increment(), 1);
 		assert.strictEqual(counter.increment(), 2);
 		assert.strictEqual(counter.increment(), 3);
 
-		now = Date.now();
-		await async.timeout(10);
-		ellapsed = Date.now() - now;
-		if (ellapsed < 5) {
-			return; // flaky (https://github.com/microsoft/vscode/issues/114028)
-		}
+		now = 10;
 
 		assert.strictEqual(counter.increment(), 1);
 		assert.strictEqual(counter.increment(), 2);

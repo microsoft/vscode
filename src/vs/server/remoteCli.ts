@@ -121,7 +121,7 @@ export function main(desc: ProductDescription, args: string[]): void {
 	const verbose = !!parsedArgs['verbose'];
 
 	if (parsedArgs.help) {
-		console.log(buildHelpMessage(desc.productName, desc.executableName, desc.version, options, true));
+		console.log(buildHelpMessage(desc.productName, desc.executableName, desc.version, options));
 		return;
 	}
 	if (parsedArgs.version) {
@@ -137,7 +137,7 @@ export function main(desc: ProductDescription, args: string[]): void {
 
 	let remote: string | null | undefined = parsedArgs.remote;
 	if (remote === 'local' || remote === 'false' || remote === '') {
-		remote = null;
+		remote = null; // null represent a local window
 	}
 
 	const folderURIs = (parsedArgs['folder-uri'] || []).map(mapFileUri);
@@ -152,9 +152,7 @@ export function main(desc: ProductDescription, args: string[]): void {
 		if (input === '-') {
 			hasReadStdinArg = true;
 		} else {
-			if (remote !== undefined) {
-				translatePath(input, mapFileUri, folderURIs, fileURIs);
-			}
+			translatePath(input, mapFileUri, folderURIs, fileURIs);
 		}
 	}
 

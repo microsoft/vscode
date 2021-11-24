@@ -30,7 +30,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IBoundarySashes } from 'vs/base/browser/ui/grid/gridview';
 import { CompositeDragAndDropObserver } from 'vs/workbench/browser/dnd';
-import { Promises } from 'vs/base/common/async';
+import { DeferredPromise, Promises } from 'vs/base/common/async';
 import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder';
 import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
@@ -222,11 +222,11 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	private _isReady = false;
 	get isReady(): boolean { return this._isReady; }
 
-	private whenReadyResolve: (() => void) | undefined;
-	readonly whenReady = new Promise<void>(resolve => (this.whenReadyResolve = resolve));
+	private readonly whenReadyPromise = new DeferredPromise<void>();
+	readonly whenReady = this.whenReadyPromise.p;
 
-	private whenRestoredResolve: (() => void) | undefined;
-	readonly whenRestored = new Promise<void>(resolve => (this.whenRestoredResolve = resolve));
+	private readonly whenRestoredPromise = new DeferredPromise<void>();
+	readonly whenRestored = this.whenRestoredPromise.p;
 
 	get hasRestorableState(): boolean {
 		return !!this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
@@ -864,12 +864,12 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.setupDragAndDropSupport(parent, this.container);
 
 		// Signal ready
-		this.whenReadyResolve?.();
+		this.whenReadyPromise.complete();
 		this._isReady = true;
 
 		// Signal restored
 		Promises.settled(this.groups.map(group => group.whenRestored)).finally(() => {
-			this.whenRestoredResolve?.();
+			this.whenRestoredPromise.complete();
 		});
 
 		return this.container;

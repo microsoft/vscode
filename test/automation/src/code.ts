@@ -69,7 +69,7 @@ async function connect(connectDriver: typeof connectElectronDriver, child: cp.Ch
 	while (true) {
 		try {
 			const { client, driver } = await connectDriver(outPath, handlePath);
-			return new Code(client, driver, logger);
+			return new Code(client, driver, logger, child?.pid);
 		} catch (err) {
 			if (++errCount > 50) {
 				if (child) {
@@ -254,7 +254,8 @@ export class Code {
 	constructor(
 		private client: IDisposable,
 		driver: IDriver,
-		readonly logger: Logger
+		readonly logger: Logger,
+		private readonly pid: number | undefined
 	) {
 		this.driver = new Proxy(driver, {
 			get(target, prop, receiver) {
@@ -295,9 +296,27 @@ export class Code {
 	}
 
 	async exit(): Promise<void> {
-		const veto = await this.driver.exitApplication();
-		if (veto === true) {
-			throw new Error('Code exit was blocked by a veto.');
+		const exitPromise = this.driver.exitApplication();
+
+		// If we know the `pid`, use that to await the
+		// process to terminate (desktop).
+		const pid = this.pid;
+		if (typeof pid === 'number') {
+			await (async () => {
+				while (true) {
+					try {
+						process.kill(pid, 0); // throws an exception if the main process doesn't exist anymore.
+						await new Promise(c => setTimeout(c, 100));
+					} catch (error) {
+						return;
+					}
+				}
+			})();
+		}
+
+		// Otherwise await the exit promise (web).
+		else {
+			await exitPromise;
 		}
 	}
 

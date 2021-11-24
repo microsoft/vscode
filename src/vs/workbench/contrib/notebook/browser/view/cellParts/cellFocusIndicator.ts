@@ -21,6 +21,10 @@ export class CellFocusIndicator extends CellPart {
 		super();
 	}
 
+	renderCell(element: ICellViewModel): void {
+		// no op
+	}
+
 	prepareLayout(): void {
 		// nothing to read
 	}
