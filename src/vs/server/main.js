@@ -8,6 +8,7 @@
 const perf = require('../base/common/performance');
 const performance = require('perf_hooks').performance;
 const product = require('../../../product.json');
+const readline = require('readline');
 
 perf.mark('code/server/start');
 // @ts-ignore
@@ -233,18 +234,18 @@ function loadCode() {
 	});
 }
 
-const { stdin, stdout } = process;
-
 /**
  * @param {string} question
  * @returns { Promise<boolean> }
  */
 function prompt(question) {
+	const rl = readline.createInterface({
+		input: process.stdin,
+		output: process.stdout
+	});
 	return new Promise((resolve, reject) => {
-		stdin.resume();
-		stdout.write(question);
-
-		stdin.on('data', async data => {
+		rl.question(question + ' ', async function (data) {
+			rl.close();
 			const str = data.toString().trim().toLowerCase();
 			if (str === '' || str === 'y' || str === 'yes') {
 				resolve(true);
@@ -254,7 +255,6 @@ function prompt(question) {
 				process.stdout.write('\nInvalid Response. Answer either yes (y, yes) or no (n, no)\n');
 				resolve(await prompt(question));
 			}
-			stdin.on('error', err => reject(err));
 		});
 	});
 }
