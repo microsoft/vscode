@@ -13,7 +13,7 @@ import * as objects from 'vs/base/common/objects';
 import { IExtUri } from 'vs/base/common/resources';
 import * as types from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { addToValueTree, ConfigurationTarget, getConfigurationKeys, getConfigurationValue, getDefaultValues, IConfigurationChange, IConfigurationChangeEvent, IConfigurationCompareResult, IConfigurationData, IConfigurationModel, IConfigurationOverrides, IConfigurationUpdateOverrides, IConfigurationValue, IOverrides, removeFromValueTree, toValuesTree } from 'vs/platform/configuration/common/configuration';
+import { addToValueTree, ConfigurationTarget, getConfigurationValue, IConfigurationChange, IConfigurationChangeEvent, IConfigurationCompareResult, IConfigurationData, IConfigurationModel, IConfigurationOverrides, IConfigurationUpdateOverrides, IConfigurationValue, IOverrides, removeFromValueTree, toValuesTree } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions, IConfigurationPropertySchema, IConfigurationRegistry, overrideIdentifiersFromKey, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -234,10 +234,17 @@ export class ConfigurationModel implements IConfigurationModel {
 
 export class DefaultConfigurationModel extends ConfigurationModel {
 
-	constructor() {
-		const contents = getDefaultValues();
-		const keys = getConfigurationKeys();
+	constructor(configurationDefaultsOverrides: IStringDictionary<any> = {}) {
+		const properties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
+		const keys = Object.keys(properties);
+		const contents: any = Object.create(null);
 		const overrides: IOverrides[] = [];
+
+		for (const key in properties) {
+			const defaultOverrideValue = configurationDefaultsOverrides[key];
+			const value = defaultOverrideValue !== undefined ? defaultOverrideValue : properties[key].default;
+			addToValueTree(contents, key, value, message => console.error(`Conflict in default settings: ${message}`));
+		}
 		for (const key of Object.keys(contents)) {
 			if (OVERRIDE_PROPERTY_REGEX.test(key)) {
 				overrides.push({
@@ -247,6 +254,7 @@ export class DefaultConfigurationModel extends ConfigurationModel {
 				});
 			}
 		}
+
 		super(contents, keys, overrides);
 	}
 }
@@ -587,21 +595,12 @@ export class Configuration {
 		this._foldersConsolidatedConfigurations.delete(resource);
 	}
 
-	compareAndUpdateDefaultConfiguration(defaults: ConfigurationModel, keys: string[]): IConfigurationChange {
-		const overrides: [string, string[]][] = [];
-		for (const key of keys) {
-			for (const overrideIdentifier of overrideIdentifiersFromKey(key)) {
-				const fromKeys = this._defaultConfiguration.getKeysForOverrideIdentifier(overrideIdentifier);
-				const toKeys = defaults.getKeysForOverrideIdentifier(overrideIdentifier);
-				const keys = [
-					...toKeys.filter(key => fromKeys.indexOf(key) === -1),
-					...fromKeys.filter(key => toKeys.indexOf(key) === -1),
-					...fromKeys.filter(key => !objects.equals(this._defaultConfiguration.override(overrideIdentifier).getValue(key), defaults.override(overrideIdentifier).getValue(key)))
-				];
-				overrides.push([overrideIdentifier, keys]);
-			}
+	compareAndUpdateDefaultConfiguration(defaults: ConfigurationModel): IConfigurationChange {
+		const { added, updated, removed, overrides } = compare(this._defaultConfiguration, defaults);
+		const keys = [...added, ...updated, ...removed];
+		if (keys.length) {
+			this.updateDefaultConfiguration(defaults);
 		}
-		this.updateDefaultConfiguration(defaults);
 		return { keys, overrides };
 	}
 
