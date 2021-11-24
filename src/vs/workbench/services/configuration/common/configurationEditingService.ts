@@ -181,7 +181,8 @@ export class ConfigurationEditingService {
 		const reference = await this.resolveModelReference(resource);
 		try {
 			const formattingOptions = this.getFormattingOptions(reference.object.textEditorModel);
-			if (this.uriIdentityService.extUri.isEqual(resource, this.environmentService.settingsResource)) {
+			const isDirty = this.textFileService.isDirty(resource);
+			if (!isDirty && this.uriIdentityService.extUri.isEqual(resource, this.environmentService.settingsResource)) {
 				await this.userConfigurationFileService.updateSettings({ path: operation.jsonPath, value: operation.value }, formattingOptions);
 			} else {
 				await this.updateConfiguration(operation, reference.object.textEditorModel, formattingOptions);
@@ -204,9 +205,12 @@ export class ConfigurationEditingService {
 			throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION, operation.target, operation);
 		}
 
+		const isDirty = this.textFileService.isDirty(model.uri);
 		const edit = this.getEdits(operation, model.getValue(), formattingOptions)[0];
 		if (edit && this.applyEditsToBuffer(edit, model)) {
-			await this.textFileService.save(model.uri);
+			if (!isDirty) {
+				await this.textFileService.save(model.uri);
+			}
 		}
 	}
 
