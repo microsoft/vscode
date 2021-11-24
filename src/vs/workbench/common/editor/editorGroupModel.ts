@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { IEditorFactoryRegistry, GroupIdentifier, EditorsOrder, EditorExtensions, IUntypedEditorInput, SideBySideEditor, EditorCloseContext, IEditorCloseEvent } from 'vs/workbench/common/editor';
+import { IEditorFactoryRegistry, GroupIdentifier, EditorsOrder, EditorExtensions, IUntypedEditorInput, SideBySideEditor, EditorCloseContext, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -60,17 +60,15 @@ export interface IMatchOptions {
 	 * By default, side by side editors will not be considered
 	 * as matching, even if the editor is opened in one of the sides.
 	 */
-	supportSideBySide?: SideBySideEditor.ANY | SideBySideEditor.BOTH;
+	readonly supportSideBySide?: SideBySideEditor.ANY | SideBySideEditor.BOTH;
 
 	/**
 	 * Only consider an editor to match when the
 	 * `candidate === editor` but not when
 	 * `candidate.matches(editor)`.
 	 */
-	strictEquals?: boolean;
+	readonly strictEquals?: boolean;
 }
-
-//#region GroupChangeEvent
 
 export const enum GroupChangeKind {
 
@@ -97,59 +95,63 @@ export interface IGroupChangeEvent {
 	/**
 	 * The kind of change that occured in the group.
 	 */
-	kind: GroupChangeKind;
+	readonly kind: GroupChangeKind;
 
 	/**
 	 * Only applies when editors change providing
 	 * access to the editor the event is about.
 	 */
-	editor?: EditorInput;
+	readonly editor?: EditorInput;
 
 	/**
 	 * Only applies when an editor opens, closes
 	 * or is moved. Identifies the index of the
 	 * editor in the group.
 	 */
-	editorIndex?: number;
+	readonly editorIndex?: number;
 
 	/**
 	 * For `EDITOR_MOVE` only: Signifies the index the
 	 * editor is moving from. `editorIndex` will contain
 	 * the index the editor is moving to.
 	 */
-	oldEditorIndex?: number;
+	readonly oldEditorIndex?: number;
 
 	/**
 	 * For `EDITOR_CLOSE` only: Signifies
 	 * the context in which the editor is being closed.
 	 * This allows for understanding if a replace or reopen is occuring
 	 */
-	closeContext?: EditorCloseContext;
+	readonly closeContext?: EditorCloseContext;
 
 	/**
 	 * For `EDITOR_CLOSE` only: Signifies
 	 * whether or not the closed editor was sticky.
 	 * This is necessary becasue state is lost after closing.
 	 */
-	closedSticky?: boolean;
+	readonly closedSticky?: boolean;
 }
 
 export interface IGroupEditorMoveEvent extends IGroupChangeEvent {
-	kind: GroupChangeKind.EDITOR_MOVE;
-	editor: EditorInput;
-	editorIndex: number;
-	oldEditorIndex: number;
+	readonly kind: GroupChangeKind.EDITOR_MOVE;
+	readonly editor: EditorInput;
+	readonly editorIndex: number;
+	readonly oldEditorIndex: number;
 }
 
 export interface IGroupEditorCloseEvent extends IGroupChangeEvent {
-	kind: GroupChangeKind.EDITOR_CLOSE;
-	editor: EditorInput;
-	editorIndex: number;
-	closeContext: EditorCloseContext;
-	closedSticky: boolean;
+	readonly kind: GroupChangeKind.EDITOR_CLOSE;
+	readonly editor: EditorInput;
+	readonly editorIndex: number;
+	readonly closeContext: EditorCloseContext;
+	readonly closedSticky: boolean;
 }
 
-//#endregion
+interface IEditorCloseResult extends IEditorIdentifier {
+	readonly context: EditorCloseContext;
+	readonly index: number;
+	readonly sticky: boolean;
+}
 
 export class EditorGroupModel extends Disposable {
 
@@ -450,24 +452,25 @@ export class EditorGroupModel extends Disposable {
 		}
 	}
 
-	closeEditor(candidate: EditorInput, context = EditorCloseContext.UNKNOWN, openNext = true): IEditorCloseEvent | undefined {
-		const event = this.doCloseEditor(candidate, context, openNext);
+	closeEditor(candidate: EditorInput, context = EditorCloseContext.UNKNOWN, openNext = true): IEditorCloseResult | undefined {
+		const closeResult = this.doCloseEditor(candidate, context, openNext);
 
-		if (event) {
+		if (closeResult) {
 			this._onDidModelChange.fire({
 				kind: GroupChangeKind.EDITOR_CLOSE,
-				editor: event.editor,
-				editorIndex: event.index,
-				closeContext: event.context,
-				closedSticky: event.sticky
+				editor: closeResult.editor,
+				editorIndex: closeResult.index,
+				closeContext: closeResult.context,
+				closedSticky: closeResult.sticky
 			});
-			return event;
+
+			return closeResult;
 		}
 
 		return undefined;
 	}
 
-	private doCloseEditor(candidate: EditorInput, context: EditorCloseContext, openNext: boolean): IEditorCloseEvent | undefined {
+	private doCloseEditor(candidate: EditorInput, context: EditorCloseContext, openNext: boolean): IEditorCloseResult | undefined {
 		const index = this.indexOf(candidate);
 		if (index === -1) {
 			return undefined; // not found
