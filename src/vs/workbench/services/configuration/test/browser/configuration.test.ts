@@ -62,6 +62,27 @@ suite('DefaultConfiguration', () => {
 		assert.deepStrictEqual(actual.getValue('test.configurationDefaultsOverride'), 'overrideValue');
 	});
 
+	test('configuration default overrides are read from cache when model is read before initialize', async () => {
+		await configurationCache.write(cacheKey, JSON.stringify({ 'test.configurationDefaultsOverride': 'overrideValue' }));
+		const testObject = new DefaultConfiguration(configurationCache, TestEnvironmentService);
+
+		assert.deepStrictEqual(testObject.configurationModel.getValue('test.configurationDefaultsOverride'), 'defaultValue');
+
+		const actual = await testObject.initialize();
+
+		assert.deepStrictEqual(actual.getValue('test.configurationDefaultsOverride'), 'overrideValue');
+		assert.deepStrictEqual(testObject.configurationModel.getValue('test.configurationDefaultsOverride'), 'overrideValue');
+	});
+
+	test('configuration default overrides are read from cache', async () => {
+		await configurationCache.write(cacheKey, JSON.stringify({ 'test.configurationDefaultsOverride': 'overrideValue' }));
+		const testObject = new DefaultConfiguration(configurationCache, TestEnvironmentService);
+
+		const actual = await testObject.initialize();
+
+		assert.deepStrictEqual(actual.getValue('test.configurationDefaultsOverride'), 'overrideValue');
+	});
+
 	test('configuration default overrides read from cache override environment', async () => {
 		const environmentService = new BrowserWorkbenchEnvironmentService({ logsPath: joinPath(URI.file('tests').with({ scheme: 'vscode-tests' }), 'logs'), workspaceId: '', configurationDefaults: { 'test.configurationDefaultsOverride': 'envOverrideValue' } }, TestProductService);
 		await configurationCache.write(cacheKey, JSON.stringify({ 'test.configurationDefaultsOverride': 'overrideValue' }));
