@@ -44,7 +44,8 @@ suite('DefaultConfiguration', () => {
 
 	teardown(() => {
 		configurationRegistry.deregisterConfigurations(configurationRegistry.getConfigurations());
-		configurationRegistry.deregisterDefaultConfigurations([{ overrides: configurationRegistry.getConfigurationDefaultsOverrides() }]);
+		const configurationDefaultsOverrides = configurationRegistry.getConfigurationDefaultsOverrides();
+		configurationRegistry.deregisterDefaultConfigurations([...configurationDefaultsOverrides.keys()].map(key => ({ extensionId: configurationDefaultsOverrides.get(key)?.source, overrides: { [key]: configurationDefaultsOverrides.get(key)?.value } })));
 	});
 
 	test('configuration default overrides are read from environment', async () => {
