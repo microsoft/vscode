@@ -149,9 +149,9 @@ export class SelectColorThemeAction extends Action {
 					mp_quickpick.items = [];
 					mp_quickpick.sortByLabel = false;
 					mp_quickpick.matchOnDescription = true;
-					mp_quickpick.buttons = [this.quickInputService.backButton]
+					mp_quickpick.buttons = [this.quickInputService.backButton];
 					mp_quickpick.title = 'Marketplace Themes';
-					mp_quickpick.placeholder = localize('themes.selectTheme', "Type to Search More. Select to Install. Up/Down Keys to Preview");
+					mp_quickpick.placeholder = localize('themes.selectMarketplaceTheme', "Type to Search More. Select to Install. Up/Down Keys to Preview");
 					mp_quickpick.canSelectMany = false;
 					mp_quickpick.onDidChangeValue(() => marketplaceThemes.trigger(mp_quickpick.value));
 					mp_quickpick.onDidAccept(async _ => {
@@ -209,7 +209,7 @@ export class SelectColorThemeAction extends Action {
 					});
 					marketplaceThemes.trigger(value);
 					mp_quickpick.show();
-				}
+				};
 
 				browseInstalledThemes(currentTheme.id);
 			});
