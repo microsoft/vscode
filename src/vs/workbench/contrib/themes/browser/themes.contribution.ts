@@ -307,7 +307,7 @@ class MarketplaceThemes {
 					const ext = gallery[i];
 					if (!installedExtensions.has(ext.identifier.id) && !this._marketplaceExtensions.has(ext.identifier.id)) {
 						this._marketplaceExtensions.add(ext.identifier.id);
-						const themes = await this.themeService.getMarketplaceColorThemes(ext.identifier.id, ext.version);
+						const themes = await this.themeService.getMarketplaceColorThemes(ext.publisher, ext.name, ext.version);
 						for (const theme of themes) {
 							this._marketplaceThemes.push({ id: theme.id, theme: theme, label: theme.label, description: `${ext.displayName} · ${ext.publisherDisplayName}`, galleryExtension: ext, buttons: [configureButton] });
 						}

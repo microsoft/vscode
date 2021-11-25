@@ -407,21 +407,15 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.colorThemeRegistry.getThemes();
 	}
 
-	public async getMarketplaceColorThemes(id: string, version: string): Promise<IWorkbenchColorTheme[]> {
-		const [publisher, name] = id.split('.');
+	public async getMarketplaceColorThemes(publisher: string, name: string, version: string): Promise<IWorkbenchColorTheme[]> {
 		const extensionLocation = this.extensionResourceLoaderService.getExtensionGalleryResourceURL({ publisher, name, version }, 'extension');
-		if (!extensionLocation) {
-			return [];
-		}
-		try {
-			const manifestContent = await this.extensionResourceLoaderService.readExtensionResource(resources.joinPath(extensionLocation, 'package.json'));
-
-			const data: ExtensionData = { extensionPublisher: publisher, extensionId: id, extensionName: name, extensionIsBuiltin: false };
-
-			return this.colorThemeRegistry.getMarketplaceThemes(JSON.parse(manifestContent), extensionLocation, data);
-
-		} catch (e) {
-			this.logService.error(`Problem loading themes from marketplace ${e}`);
+		if (extensionLocation) {
+			try {
+				const manifestContent = await this.extensionResourceLoaderService.readExtensionResource(resources.joinPath(extensionLocation, 'package.json'));
+				return this.colorThemeRegistry.getMarketplaceThemes(JSON.parse(manifestContent), extensionLocation, ExtensionData.fromName(publisher, name));
+			} catch (e) {
+				this.logService.error('Problem loading themes from marketplace', e);
+			}
 		}
 		return [];
 	}
@@ -593,13 +587,21 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.onFileIconThemeChange.event;
 	}
 
-
-	public async setFileIconTheme(iconTheme: string | undefined, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchFileIconTheme> {
+	public async setFileIconTheme(iconThemeOrId: string | undefined | IWorkbenchFileIconTheme, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchFileIconTheme> {
 		return this.fileIconThemeSequencer.queue(async () => {
-			iconTheme = iconTheme || '';
-			if (iconTheme !== this.currentFileIconTheme.id || !this.currentFileIconTheme.isLoaded) {
+			if (iconThemeOrId === undefined) {
+				iconThemeOrId = '';
+			}
+			const themeId = types.isString(iconThemeOrId) ? iconThemeOrId : iconThemeOrId.id;
+			if (themeId !== this.currentFileIconTheme.id || !this.currentFileIconTheme.isLoaded) {
 
-				const newThemeData = this.fileIconThemeRegistry.findThemeById(iconTheme) || FileIconThemeData.noIconTheme;
+				let newThemeData = this.fileIconThemeRegistry.findThemeById(themeId);
+				if (!newThemeData && iconThemeOrId instanceof FileIconThemeData) {
+					newThemeData = iconThemeOrId;
+				}
+				if (!newThemeData) {
+					newThemeData = FileIconThemeData.noIconTheme;
+				}
 				await newThemeData.ensureLoaded(this.extensionResourceLoaderService);
 
 				this.applyAndSetFileIconTheme(newThemeData); // updates this.currentFileIconTheme
@@ -617,6 +619,19 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		});
 	}
 
+	public async getMarketplaceFileIconThemes(publisher: string, name: string, version: string): Promise<IWorkbenchFileIconTheme[]> {
+		const extensionLocation = this.extensionResourceLoaderService.getExtensionGalleryResourceURL({ publisher, name, version }, 'extension');
+		if (extensionLocation) {
+			try {
+				const manifestContent = await this.extensionResourceLoaderService.readExtensionResource(resources.joinPath(extensionLocation, 'package.json'));
+				return this.fileIconThemeRegistry.getMarketplaceThemes(JSON.parse(manifestContent), extensionLocation, ExtensionData.fromName(publisher, name));
+			} catch (e) {
+				this.logService.error('Problem loading themes from marketplace', e);
+			}
+		}
+		return [];
+	}
+
 	private async reloadCurrentFileIconTheme() {
 		return this.fileIconThemeSequencer.queue(async () => {
 			await this.currentFileIconTheme.reload(this.extensionResourceLoaderService);
@@ -625,15 +640,19 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 	public async restoreFileIconTheme(): Promise<boolean> {
-		const settingId = this.settings.fileIconTheme;
-		const theme = this.fileIconThemeRegistry.findThemeBySettingsId(settingId);
-		if (theme) {
-			if (settingId !== this.currentFileIconTheme.settingsId) {
-				await this.setFileIconTheme(theme.id, undefined);
+		return this.fileIconThemeSequencer.queue(async () => {
+			const settingId = this.settings.fileIconTheme;
+			const theme = this.fileIconThemeRegistry.findThemeBySettingsId(settingId);
+			if (theme) {
+				if (settingId !== this.currentFileIconTheme.settingsId) {
+					await this.setFileIconTheme(theme.id, undefined);
+				} else if (theme !== this.currentFileIconTheme) {
+					this.applyAndSetFileIconTheme(theme, true);
+				}
+				return true;
 			}
-			return true;
-		}
-		return false;
+			return false;
+		});
 	}
 
 	private applyAndSetFileIconTheme(iconThemeData: FileIconThemeData, silent = false): void {
@@ -670,11 +689,20 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.onProductIconThemeChange.event;
 	}
 
-	public async setProductIconTheme(iconTheme: string | undefined, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchProductIconTheme> {
+	public async setProductIconTheme(iconThemeOrId: string | undefined | IWorkbenchProductIconTheme, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchProductIconTheme> {
 		return this.productIconThemeSequencer.queue(async () => {
-			iconTheme = iconTheme || '';
-			if (iconTheme !== this.currentProductIconTheme.id || !this.currentProductIconTheme.isLoaded) {
-				const newThemeData = this.productIconThemeRegistry.findThemeById(iconTheme) || ProductIconThemeData.defaultTheme;
+			if (iconThemeOrId === undefined) {
+				iconThemeOrId = '';
+			}
+			const themeId = types.isString(iconThemeOrId) ? iconThemeOrId : iconThemeOrId.id;
+			if (themeId !== this.currentProductIconTheme.id || !this.currentProductIconTheme.isLoaded) {
+				let newThemeData = this.productIconThemeRegistry.findThemeById(themeId);
+				if (!newThemeData && iconThemeOrId instanceof ProductIconThemeData) {
+					newThemeData = iconThemeOrId;
+				}
+				if (!newThemeData) {
+					newThemeData = ProductIconThemeData.defaultTheme;
+				}
 				await newThemeData.ensureLoaded(this.extensionResourceLoaderService, this.logService);
 
 				this.applyAndSetProductIconTheme(newThemeData); // updates this.currentProductIconTheme
@@ -691,6 +719,19 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		});
 	}
 
+	public async getMarketplaceProductIconThemes(publisher: string, name: string, version: string): Promise<IWorkbenchProductIconTheme[]> {
+		const extensionLocation = this.extensionResourceLoaderService.getExtensionGalleryResourceURL({ publisher, name, version }, 'extension');
+		if (extensionLocation) {
+			try {
+				const manifestContent = await this.extensionResourceLoaderService.readExtensionResource(resources.joinPath(extensionLocation, 'package.json'));
+				return this.productIconThemeRegistry.getMarketplaceThemes(JSON.parse(manifestContent), extensionLocation, ExtensionData.fromName(publisher, name));
+			} catch (e) {
+				this.logService.error('Problem loading themes from marketplace', e);
+			}
+		}
+		return [];
+	}
+
 	private async reloadCurrentProductIconTheme() {
 		return this.productIconThemeSequencer.queue(async () => {
 			await this.currentProductIconTheme.reload(this.extensionResourceLoaderService, this.logService);
@@ -699,15 +740,19 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 	public async restoreProductIconTheme(): Promise<boolean> {
-		const settingId = this.settings.productIconTheme;
-		const theme = this.productIconThemeRegistry.findThemeBySettingsId(settingId);
-		if (theme) {
-			if (settingId !== this.currentProductIconTheme.settingsId) {
-				await this.setProductIconTheme(theme.id, undefined);
+		return this.productIconThemeSequencer.queue(async () => {
+			const settingId = this.settings.productIconTheme;
+			const theme = this.productIconThemeRegistry.findThemeBySettingsId(settingId);
+			if (theme) {
+				if (settingId !== this.currentProductIconTheme.settingsId) {
+					await this.setProductIconTheme(theme.id, undefined);
+				} else if (theme !== this.currentProductIconTheme) {
+					this.applyAndSetProductIconTheme(theme, true);
+				}
+				return true;
 			}
-			return true;
-		}
-		return false;
+			return false;
+		});
 	}
 
 	private applyAndSetProductIconTheme(iconThemeData: ProductIconThemeData, silent = false): void {
