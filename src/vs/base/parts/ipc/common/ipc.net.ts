@@ -25,7 +25,7 @@ export const enum SocketDiagnosticsEventType {
 
 	zlibInflateError = 'zlibInflateError',
 	zlibInflateData = 'zlibInflateData',
-	zlibInflateWriteInitial = 'zlibInflateWriteInitial',
+	zlibInflateInitialWrite = 'zlibInflateInitialWrite',
 	zlibInflateInitialFlushFired = 'zlibInflateInitialFlushFired',
 	zlibInflateWrite = 'zlibInflateWrite',
 	zlibInflateFlushFired = 'zlibInflateFlushFired',

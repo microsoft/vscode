@@ -43,6 +43,14 @@ export class VSBuffer {
 		}
 	}
 
+	static fromByteArray(source: number[]): VSBuffer {
+		const result = VSBuffer.alloc(source.length);
+		for (let i = 0, len = source.length; i < len; i++) {
+			result.buffer[i] = source[i];
+		}
+		return result;
+	}
+
 	static concat(buffers: VSBuffer[], totalLength?: number): VSBuffer {
 		if (typeof totalLength === 'undefined') {
 			totalLength = 0;
@@ -68,6 +76,12 @@ export class VSBuffer {
 	private constructor(buffer: Uint8Array) {
 		this.buffer = buffer;
 		this.byteLength = this.buffer.byteLength;
+	}
+
+	clone(): VSBuffer {
+		const result = VSBuffer.alloc(this.byteLength);
+		result.set(this);
+		return result;
 	}
 
 	toString(): string {
