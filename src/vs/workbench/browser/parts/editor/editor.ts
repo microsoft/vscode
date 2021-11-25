@@ -29,7 +29,7 @@ export function impactsEditorPartOptions(event: IConfigurationChangeEvent): bool
 
 export function getEditorPartOptions(configurationService: IConfigurationService, themeService: IThemeService): IEditorPartOptions {
 	const options: IEditorPartOptions = {
-		...configurationService.inspect('workbench.editor').default,
+		...configurationService.inspect('workbench.editor').default?.value,
 		hasIcons: themeService.getFileIconTheme().hasFileIcons
 	};
 
