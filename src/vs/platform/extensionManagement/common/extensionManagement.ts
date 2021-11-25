@@ -482,7 +482,7 @@ export interface IExtensionManagementCLIService {
 	readonly _serviceBrand: undefined;
 
 	listExtensions(showVersions: boolean, category?: string, output?: CLIOutput): Promise<void>;
-	installExtensions(extensions: (string | URI)[], builtinExtensionIds: string[], isMachineScoped: boolean, force: boolean, output?: CLIOutput): Promise<void>;
+	installExtensions(extensions: (string | URI)[], builtinExtensionIds: string[], installOptions: InstallOptions, force: boolean, output?: CLIOutput): Promise<void>;
 	uninstallExtensions(extensions: (string | URI)[], force: boolean, output?: CLIOutput): Promise<void>;
 	locateExtension(extensions: string[], output?: CLIOutput): Promise<void>;
 }

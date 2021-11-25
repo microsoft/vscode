@@ -28,6 +28,7 @@ import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/work
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { isUndefined } from 'vs/base/common/types';
 
 export class ExtensionManagementService extends Disposable implements IWorkbenchExtensionManagementService {
 
@@ -292,7 +293,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		}
 
 		if (servers.length) {
-			if (!installOptions) {
+			if (!installOptions || isUndefined(installOptions.isMachineScoped)) {
 				const isMachineScoped = await this.hasToFlagExtensionsMachineScoped([gallery]);
 				installOptions = { isMachineScoped, isBuiltin: false };
 			}
