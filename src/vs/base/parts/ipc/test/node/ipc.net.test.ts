@@ -342,7 +342,7 @@ suite('PersistentProtocol reconnection', () => {
 				assert.strictEqual(b.unacknowledgedCount, 1);
 
 				// wait for scheduled _recvAckCheck() to execute
-				await timeout(2 * ProtocolConstants.AcknowledgeTimeoutTime);
+				await timeout(2 * ProtocolConstants.TimeoutTime);
 
 				assert.strictEqual(a.unacknowledgedCount, 1);
 				assert.strictEqual(b.unacknowledgedCount, 1);
@@ -351,7 +351,7 @@ suite('PersistentProtocol reconnection', () => {
 				a.endAcceptReconnection();
 				assert.strictEqual(timeoutListenerCalled, false);
 
-				await timeout(2 * ProtocolConstants.AcknowledgeTimeoutTime);
+				await timeout(2 * ProtocolConstants.TimeoutTime);
 				assert.strictEqual(a.unacknowledgedCount, 0);
 				assert.strictEqual(b.unacknowledgedCount, 0);
 				assert.strictEqual(timeoutListenerCalled, false);

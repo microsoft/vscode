@@ -512,7 +512,7 @@ export class ReconnectionPermanentFailureEvent {
 }
 export type PersistentConnectionEvent = ConnectionGainEvent | ConnectionLostEvent | ReconnectionWaitEvent | ReconnectionRunningEvent | ReconnectionPermanentFailureEvent;
 
-abstract class PersistentConnection extends Disposable {
+export abstract class PersistentConnection extends Disposable {
 
 	public static triggerPermanentFailure(millisSinceLastIncomingData: number, attempt: number, handled: boolean): void {
 		this._permanentFailure = true;
@@ -521,6 +521,15 @@ abstract class PersistentConnection extends Disposable {
 		this._permanentFailureHandled = handled;
 		this._instances.forEach(instance => instance._gotoPermanentFailure(this._permanentFailureMillisSinceLastIncomingData, this._permanentFailureAttempt, this._permanentFailureHandled));
 	}
+
+	public static debugTriggerReconnection() {
+		this._instances.forEach(instance => instance._beginReconnecting());
+	}
+
+	public static debugPauseSocketWriting() {
+		this._instances.forEach(instance => instance._pauseSocketWriting());
+	}
+
 	private static _permanentFailure: boolean = false;
 	private static _permanentFailureMillisSinceLastIncomingData: number = 0;
 	private static _permanentFailureAttempt: number = 0;
@@ -676,6 +685,10 @@ abstract class PersistentConnection extends Disposable {
 	private _gotoPermanentFailure(millisSinceLastIncomingData: number, attempt: number, handled: boolean): void {
 		this._onDidStateChange.fire(new ReconnectionPermanentFailureEvent(this.reconnectionToken, millisSinceLastIncomingData, attempt, handled));
 		safeDisposeProtocolAndSocket(this.protocol);
+	}
+
+	private _pauseSocketWriting(): void {
+		this.protocol.pauseSocketWriting();
 	}
 
 	protected abstract _reconnect(options: ISimpleConnectionOptions, timeoutCancellationToken: CancellationToken): Promise<void>;
