@@ -6,7 +6,7 @@
 import { Application, ApplicationOptions, Quality } from '../../../../automation';
 import { join } from 'path';
 import { ParsedArgs } from 'minimist';
-import { afterSuite, startApp, timeout } from '../../utils';
+import { afterSuite, startApp } from '../../utils';
 
 export function setup(opts: ParsedArgs, testDataPath: string) {
 
@@ -55,10 +55,11 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 
 			await app.restart();
 
-			await app.workbench.editors.waitForActiveTab(readmeMd, true);
+			await app.workbench.editors.waitForTab(readmeMd, true);
+			await app.workbench.editors.selectTab(readmeMd);
 			await app.workbench.editor.waitForEditorContents(readmeMd, c => c.indexOf(textToType) > -1);
 
-			await app.workbench.editors.waitForTab(untitled);
+			await app.workbench.editors.waitForTab(untitled, true);
 			await app.workbench.editors.selectTab(untitled);
 			await app.workbench.editor.waitForEditorContents(untitled, c => c.indexOf(textToTypeInUntitled) > -1);
 
@@ -150,8 +151,6 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 			const textToType = 'Hello, Code';
 			await stableApp.workbench.quickaccess.openFile(readmeMd);
 			await stableApp.workbench.editor.waitForTypeInEditor(readmeMd, textToType);
-
-			await timeout(2000); // give time to store the backup before stopping the app
 
 			await stableApp.stop();
 			stableApp = undefined;
