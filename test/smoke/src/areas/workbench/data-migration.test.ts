@@ -8,16 +8,16 @@ import { join } from 'path';
 import { ParsedArgs } from 'minimist';
 import { afterSuite, startApp, timeout } from '../../utils';
 
-export function setup(args: ParsedArgs, testDataPath: string) {
+export function setup(opts: ParsedArgs, testDataPath: string) {
 
 	describe('Data Migration (insiders -> insiders)', () => {
 
 		let app: Application | undefined = undefined;
 
-		afterSuite(args, () => app);
+		afterSuite(opts, () => app);
 
 		it(`verifies opened editors are restored`, async function () {
-			app = await startApp(args, this.defaultOptions);
+			app = await startApp(opts, this.defaultOptions);
 
 			// Open 3 editors and pin 2 of them
 			await app.workbench.quickaccess.openFile('www');
@@ -40,7 +40,7 @@ export function setup(args: ParsedArgs, testDataPath: string) {
 		});
 
 		it(`verifies that 'hot exit' works for dirty files`, async function () {
-			app = await startApp(args, this.defaultOptions);
+			app = await startApp(opts, this.defaultOptions);
 
 			await app.workbench.editors.newUntitledFile();
 
@@ -72,11 +72,11 @@ export function setup(args: ParsedArgs, testDataPath: string) {
 		let insidersApp: Application | undefined = undefined;
 		let stableApp: Application | undefined = undefined;
 
-		afterSuite(args, () => insidersApp, async () => stableApp?.stop());
+		afterSuite(opts, () => insidersApp, async () => stableApp?.stop());
 
 		it(`verifies opened editors are restored`, async function () {
-			const stableCodePath = args['stable-build'];
-			if (!stableCodePath || args.remote) {
+			const stableCodePath = opts['stable-build'];
+			if (!stableCodePath || opts.remote) {
 				this.skip();
 			}
 
@@ -125,8 +125,8 @@ export function setup(args: ParsedArgs, testDataPath: string) {
 		});
 
 		it(`verifies that 'hot exit' works for dirty files`, async function () {
-			const stableCodePath = args['stable-build'];
-			if (!stableCodePath || args.remote) {
+			const stableCodePath = opts['stable-build'];
+			if (!stableCodePath || opts.remote) {
 				this.skip();
 			}
 

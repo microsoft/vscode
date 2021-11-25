@@ -19,17 +19,15 @@ export function itRepeat(n: number, description: string, callback: (this: Contex
 	}
 }
 
-export function beforeSuite(opts: minimist.ParsedArgs, optionsTransform?: (opts: ApplicationOptions) => Promise<ApplicationOptions>) {
+export function beforeSuite(args: minimist.ParsedArgs, optionsTransform?: (opts: ApplicationOptions) => Promise<ApplicationOptions>) {
 	before(async function () {
-		this.app = await startApp(opts, this.defaultOptions, optionsTransform);
+		this.app = await startApp(args, this.defaultOptions, optionsTransform);
 	});
 }
 
-export async function startApp(args: minimist.ParsedArgs, opts: ApplicationOptions, optionsTransform?: (opts: ApplicationOptions) => Promise<ApplicationOptions>): Promise<Application> {
-	let options: ApplicationOptions = { ...opts };
-
+export async function startApp(args: minimist.ParsedArgs, options: ApplicationOptions, optionsTransform?: (opts: ApplicationOptions) => Promise<ApplicationOptions>): Promise<Application> {
 	if (optionsTransform) {
-		options = await optionsTransform(options);
+		options = await optionsTransform({ ...options });
 	}
 
 	// https://github.com/microsoft/vscode/issues/34988

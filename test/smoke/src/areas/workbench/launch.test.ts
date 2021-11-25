@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import minimist = require('minimist');
-import * as path from 'path';
+import { join } from 'path';
 import { Application } from '../../../../automation';
 import { afterSuite, startApp } from '../../utils';
 
@@ -17,11 +17,8 @@ export function setup(args: minimist.ParsedArgs) {
 		afterSuite(args, () => app);
 
 		it(`verifies that application launches when user data directory has non-ascii characters`, async function () {
-			app = await startApp(args, this.defaultOptions, async opts => {
-				opts.userDataDir = path.join(this.defaultOptions.userDataDir, 'ø');
-
-				return opts;
-			});
+			const massagedOptions = { ...this.defaultOptions, userDataDir: join(this.defaultOptions.userDataDir, 'ø') };
+			app = await startApp(args, massagedOptions);
 
 			await app.stop();
 			app = undefined;
