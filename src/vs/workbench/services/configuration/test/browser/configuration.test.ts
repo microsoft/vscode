@@ -44,7 +44,7 @@ suite('DefaultConfiguration', () => {
 
 	teardown(() => {
 		configurationRegistry.deregisterConfigurations(configurationRegistry.getConfigurations());
-		configurationRegistry.deregisterDefaultConfigurations([configurationRegistry.getConfigurationDefaultsOverrides()]);
+		configurationRegistry.deregisterDefaultConfigurations([{ overrides: configurationRegistry.getConfigurationDefaultsOverrides() }]);
 	});
 
 	test('configuration default overrides are read from environment', async () => {
@@ -138,7 +138,7 @@ suite('DefaultConfiguration', () => {
 		const testObject = new DefaultConfiguration(configurationCache, TestEnvironmentService);
 		await testObject.initialize();
 		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
-		configurationRegistry.registerDefaultConfigurations([{ 'test.configurationDefaultsOverride': 'newoverrideValue' }]);
+		configurationRegistry.registerDefaultConfigurations([{ overrides: { 'test.configurationDefaultsOverride': 'newoverrideValue' } }]);
 		await promise;
 
 		const actual = JSON.parse(await configurationCache.read(cacheKey));

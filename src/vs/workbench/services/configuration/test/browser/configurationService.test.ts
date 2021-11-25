@@ -672,8 +672,10 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		});
 
 		configurationRegistry.registerDefaultConfigurations([{
-			'[jsonc]': {
-				'configurationService.folder.languageSetting': 'languageValue'
+			overrides: {
+				'[jsonc]': {
+					'configurationService.folder.languageSetting': 'languageValue'
+				}
 			}
 		}]);
 	});

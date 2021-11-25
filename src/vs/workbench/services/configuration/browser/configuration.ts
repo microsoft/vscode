@@ -43,7 +43,7 @@ export class DefaultConfiguration extends Disposable {
 	) {
 		super();
 		if (environmentService.options?.configurationDefaults) {
-			this.configurationRegistry.registerDefaultConfigurations([environmentService.options.configurationDefaults]);
+			this.configurationRegistry.registerDefaultConfigurations([{ overrides: environmentService.options.configurationDefaults }]);
 		}
 	}
 

@@ -48,12 +48,12 @@ export interface IConfigurationRegistry {
 	/**
 	 * Register multiple default configurations to the registry.
 	 */
-	registerDefaultConfigurations(defaultConfigurations: IStringDictionary<any>[]): void;
+	registerDefaultConfigurations(defaultConfigurations: IConfigurationDefaults[]): void;
 
 	/**
 	 * Deregister multiple default configurations from the registry.
 	 */
-	deregisterDefaultConfigurations(defaultConfigurations: IStringDictionary<any>[]): void;
+	deregisterDefaultConfigurations(defaultConfigurations: IConfigurationDefaults[]): void;
 
 	/**
 	 * Return the registered configuration defaults overrides
@@ -182,6 +182,11 @@ export interface IConfigurationNode {
 	extensionInfo?: IConfigurationExtensionInfo;
 }
 
+export interface IConfigurationDefaults {
+	overrides: IStringDictionary<any>;
+	extensionId?: string;
+}
+
 export const allSettings: { properties: IStringDictionary<IConfigurationPropertySchema>, patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
 export const applicationSettings: { properties: IStringDictionary<IConfigurationPropertySchema>, patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
 export const machineSettings: { properties: IStringDictionary<IConfigurationPropertySchema>, patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
@@ -255,16 +260,16 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		this._onDidUpdateConfiguration.fire({ properties: distinct(properties) });
 	}
 
-	public registerDefaultConfigurations(defaultConfigurations: IStringDictionary<any>[]): void {
+	public registerDefaultConfigurations(configurationDefaults: IConfigurationDefaults[]): void {
 		const properties: string[] = [];
 		const overrideIdentifiers: string[] = [];
 
-		for (const defaultConfiguration of defaultConfigurations) {
-			for (const key in defaultConfiguration) {
+		for (const { overrides } of configurationDefaults) {
+			for (const key in overrides) {
 				properties.push(key);
 
 				if (OVERRIDE_PROPERTY_REGEX.test(key)) {
-					this.configurationDefaultsOverrides[key] = { ...(this.configurationDefaultsOverrides[key] || {}), ...defaultConfiguration[key] };
+					this.configurationDefaultsOverrides[key] = { ...(this.configurationDefaultsOverrides[key] || {}), ...overrides[key] };
 					const property: IConfigurationPropertySchema = {
 						type: 'object',
 						default: this.configurationDefaultsOverrides[key],
@@ -275,7 +280,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 					this.configurationProperties[key] = property;
 					this.defaultLanguageConfigurationOverridesNode.properties![key] = property;
 				} else {
-					this.configurationDefaultsOverrides[key] = defaultConfiguration[key];
+					this.configurationDefaultsOverrides[key] = overrides[key];
 					const property = this.configurationProperties[key];
 					if (property) {
 						this.updatePropertyDefaultValue(key, property);
@@ -290,10 +295,10 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		this._onDidUpdateConfiguration.fire({ properties, defaultsOverrides: true });
 	}
 
-	public deregisterDefaultConfigurations(defaultConfigurations: IStringDictionary<any>[]): void {
+	public deregisterDefaultConfigurations(defaultConfigurations: IConfigurationDefaults[]): void {
 		const properties: string[] = [];
-		for (const defaultConfiguration of defaultConfigurations) {
-			for (const key in defaultConfiguration) {
+		for (const { overrides } of defaultConfigurations) {
+			for (const key in overrides) {
 				properties.push(key);
 				delete this.configurationDefaultsOverrides[key];
 				if (OVERRIDE_PROPERTY_REGEX.test(key)) {
