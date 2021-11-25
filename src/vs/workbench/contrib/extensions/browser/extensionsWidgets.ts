@@ -184,7 +184,7 @@ export class PreReleaseIndicatorWidget extends ExtensionWidget {
 			append(this.container, $('span' + ThemeIcon.asCSSSelector(preReleaseIcon)));
 		}
 		if (this.options?.label) {
-			append(this.container, $('span.pre-releaselabel', undefined, localize('pre-release-label', "Pre-release")));
+			append(this.container, $('span.pre-releaselabel', undefined, localize('pre-release-label', "Pre-Release")));
 		}
 	}
 }
@@ -583,7 +583,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 			return undefined;
 		}
 		const extensionPreReleaseIcon = this.themeService.getColorTheme().getColor(extensionPreReleaseIconColor);
-		const preReleaseVersionLink = `[${localize('Show prerelease version', "Pre-release version")}](${URI.parse(`command:workbench.extensions.action.showPreReleaseVersion?${encodeURIComponent(JSON.stringify([extension.identifier.id]))}`)})`;
+		const preReleaseVersionLink = `[${localize('Show prerelease version', "Pre-Release version")}](${URI.parse(`command:workbench.extensions.action.showPreReleaseVersion?${encodeURIComponent(JSON.stringify([extension.identifier.id]))}`)})`;
 		const message = localize('has prerelease', "This extension has a {0} available", preReleaseVersionLink);
 		return `<span style="color:${extensionPreReleaseIcon ? Color.Format.CSS.formatHex(extensionPreReleaseIcon) : '#ffffff'};">$(${preReleaseIcon.id})</span>&nbsp;${message}`;
 	}

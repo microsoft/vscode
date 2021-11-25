@@ -1158,7 +1158,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 	private registerContextMenuActions(): void {
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.showPreReleaseVersion',
-			title: { value: localize('show pre-release version', "Show Pre-release Version"), original: 'Show Pre-release Version' },
+			title: { value: localize('show pre-release version', "Show Pre-Release Version"), original: 'Show Pre-Release Version' },
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '0_install',
@@ -1173,7 +1173,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		});
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.showReleasedVersion',
-			title: { value: localize('show released version', "Show Released Version"), original: 'Show Released Version' },
+			title: { value: localize('show released version', "Show Release Version"), original: 'Show Release Version' },
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '0_install',

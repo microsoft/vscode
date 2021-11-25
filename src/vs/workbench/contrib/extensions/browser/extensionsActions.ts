@@ -148,9 +148,9 @@ export class PromptExtensionInstallFailureAction extends Action {
 
 		if (ExtensionManagementErrorCode.IncompatiblePreRelease === (<ExtensionManagementErrorCode>this.error.name)) {
 			operationMessage = getErrorMessage(this.error);
-			additionalMessage = localize('install release version', "Would you like to install the released version?");
+			additionalMessage = localize('install release version message', "Would you like to install the release version?");
 			promptChoices.push({
-				label: localize('install released version', "Install Released Version"),
+				label: localize('install release version', "Install Release Version"),
 				run: () => {
 					const installAction = this.installOptions?.isMachineScoped ? this.instantiationService.createInstance(InstallAction, !!this.installOptions.installPreReleaseVersion) : this.instantiationService.createInstance(InstallAndSyncAction, !!this.installOptions?.installPreReleaseVersion);
 					installAction.extension = this.extension;
@@ -367,11 +367,11 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 	getLabel(primary?: boolean): string {
 		/* install pre-release version */
 		if (this.installPreReleaseVersion && this.extension?.hasPreReleaseVersion) {
-			return primary ? localize('install pre-release', "Install Pre-release") : localize('install pre-release version', "Install Pre-release Version");
+			return primary ? localize('install pre-release', "Install Pre-Release") : localize('install pre-release version', "Install Pre-Release Version");
 		}
 		/* install released version that has a pre release version */
 		if (this.extension?.hasPreReleaseVersion) {
-			return primary ? localize('install', "Install") : localize('install released version', "Install Released Version");
+			return primary ? localize('install', "Install") : localize('install release version', "Install Release Version");
 		}
 		return localize('install', "Install");
 	}
@@ -1076,7 +1076,7 @@ export class MenuItemExtensionAction extends ExtensionAction {
 export class SwitchToPreReleaseVersionAction extends ExtensionAction {
 
 	static readonly ID = 'workbench.extensions.action.switchToPreReleaseVersion';
-	static readonly TITLE = { value: localize('switch to pre-release version', "Switch to Pre-release Version"), original: 'Switch to  Pre-release Version' };
+	static readonly TITLE = { value: localize('switch to pre-release version', "Switch to Pre-Release Version"), original: 'Switch to  Pre-Release Version' };
 
 	private static readonly Class = `${ExtensionAction.LABEL_ACTION_CLASS} hide-when-disabled`;
 
@@ -1101,8 +1101,8 @@ export class SwitchToPreReleaseVersionAction extends ExtensionAction {
 
 export class SwitchToReleasedVersionAction extends ExtensionAction {
 
-	static readonly ID = 'workbench.extensions.action.switchToReleasedVersion';
-	static readonly TITLE = { value: localize('switch to released version', "Switch to Released Version"), original: 'Switch to Released Version' };
+	static readonly ID = 'workbench.extensions.action.switchToReleaseVersion';
+	static readonly TITLE = { value: localize('switch to release version', "Switch to Release Version"), original: 'Switch to Release Version' };
 
 	private static readonly Class = `${ExtensionAction.LABEL_ACTION_CLASS} hide-when-disabled`;
 
@@ -1175,7 +1175,7 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 				label: v.version,
 				description: `${getRelativeDateLabel(new Date(Date.parse(v.date)))}${v.isPreReleaseVersion ? ` (${localize('pre-release', "pre-release")})` : ''}${v.version === this.extension!.version ? ` (${localize('current', "current")})` : ''}`,
 				latest: i === 0,
-				ariaLabel: `${v.isPreReleaseVersion ? 'Pre-release version' : 'Released version'} ${v.version}`,
+				ariaLabel: `${v.isPreReleaseVersion ? 'Pre-Release version' : 'Release version'} ${v.version}`,
 				isPreReleaseVersion: v.isPreReleaseVersion
 			};
 		});
