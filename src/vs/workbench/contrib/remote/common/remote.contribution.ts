@@ -165,7 +165,7 @@ workbenchContributionsRegistry.registerWorkbenchContribution(RemoteLogOutputChan
 workbenchContributionsRegistry.registerWorkbenchContribution(TunnelFactoryContribution, LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(ShowCandidateContribution, LifecyclePhase.Ready);
 
-const enableDiagnostics = false;
+const enableDiagnostics = true;
 
 if (enableDiagnostics) {
 	class TriggerReconnectAction extends Action2 {
