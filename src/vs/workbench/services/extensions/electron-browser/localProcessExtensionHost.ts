@@ -450,7 +450,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				// using a buffered message protocol here because between now
 				// and the first time a `then` executes some messages might be lost
 				// unless we immediately register a listener for `onMessage`.
-				resolve(new PersistentProtocol(new NodeSocket(this._extensionHostConnection)));
+				resolve(new PersistentProtocol(new NodeSocket(this._extensionHostConnection, 'renderer-exthost')));
 			});
 
 			// Now that the named pipe listener is installed, start the ext host process
