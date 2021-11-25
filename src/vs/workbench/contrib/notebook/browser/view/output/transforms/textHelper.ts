@@ -5,6 +5,7 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
+import { Codicon } from 'vs/base/common/codicons';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -22,7 +23,7 @@ const SIZE_LIMIT = 65535;
 
 function generateViewMoreElement(notebookUri: URI, cellViewModel: IGenericCellViewModel, outputId: string, disposables: DisposableStore, openerService: IOpenerService): HTMLElement {
 	const md: IMarkdownString = {
-		value: `[show more (open the raw output data in a text editor) ...](command:workbench.action.openLargeOutput?${outputId})`,
+		value: `Output exceeds [size limit](command:workbench.action.openSettings?["notebook.output.textLineLimit"]), open the full output data[ in a text editor](command:workbench.action.openLargeOutput?${outputId})`,
 		isTrusted: true,
 		supportThemeIcons: true
 	};
@@ -34,6 +35,10 @@ function generateViewMoreElement(notebookUri: URI, cellViewModel: IGenericCellVi
 				if (ret && ret.length === 2) {
 					const outputId = ret[1];
 					openerService.open(CellUri.generateCellOutputUri(notebookUri, cellViewModel.handle, outputId));
+				}
+
+				if (content.startsWith('command:workbench.action.openSettings')) {
+					openerService.open(content, { allowCommands: true });
 				}
 
 				return;
@@ -83,12 +88,14 @@ export function truncatedArrayOfString(notebookUri: URI, cellViewModel: IGeneric
 		return;
 	}
 
+	container.appendChild(generateViewMoreElement(notebookUri, cellViewModel, outputId, disposables, openerService));
+
 	const pre = DOM.$('pre');
 	container.appendChild(pre);
 	pre.appendChild(handleANSIOutput(buffer.getValueInRange(new Range(1, 1, linesLimit - 5, buffer.getLineLastNonWhitespaceColumn(linesLimit - 5)), EndOfLinePreference.TextDefined), linkDetector, themeService, undefined));
 
 	// view more ...
-	container.appendChild(generateViewMoreElement(notebookUri, cellViewModel, outputId, disposables, openerService));
+	DOM.append(container, DOM.$('span' + Codicon.toolBarMore.cssSelector));
 
 	const lineCount = buffer.getLineCount();
 	const pre2 = DOM.$('div');

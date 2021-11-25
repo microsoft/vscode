@@ -56,6 +56,7 @@ class AuthTestQuickInputService extends TestQuickInputService {
 }
 
 class TestAuthProvider implements AuthenticationProvider {
+	private id = 1;
 	private sessions = new Map<string, AuthenticationSession>();
 	onDidChangeSessions = () => { return { dispose() { } }; };
 	async getSessions(scopes?: readonly string[]): Promise<AuthenticationSession[]> {
@@ -73,14 +74,15 @@ class TestAuthProvider implements AuthenticationProvider {
 		const scopesStr = scopes.join(' ');
 		const session = {
 			scopes,
-			id: 'test' + scopesStr,
+			id: `${this.id}`,
 			account: {
-				label: scopesStr,
-				id: scopesStr,
+				label: `${this.id}`,
+				id: `${this.id}`,
 			},
 			accessToken: Math.random() + '',
 		};
 		this.sessions.set(scopesStr, session);
+		this.id++;
 		return session;
 	}
 	async removeSession(sessionId: string): Promise<void> {
@@ -137,7 +139,7 @@ suite('ExtHostAuthentication', () => {
 			{
 				createIfNone: true
 			});
-		assert.strictEqual(session?.id, 'test' + scopes.join(' '));
+		assert.strictEqual(session?.id, '1');
 		assert.strictEqual(session?.scopes[0], 'foo');
 	});
 
@@ -159,7 +161,7 @@ suite('ExtHostAuthentication', () => {
 				createIfNone: true
 			});
 
-		assert.strictEqual(session?.id, 'test' + scopes.join(' '));
+		assert.strictEqual(session?.id, '1');
 		assert.strictEqual(session?.scopes[0], 'foo');
 
 		const session2 = await extHostAuthentication.getSession(
@@ -194,7 +196,7 @@ suite('ExtHostAuthentication', () => {
 				createIfNone: true
 			});
 
-		assert.strictEqual(session?.id, 'test' + scopes.join(' '));
+		assert.strictEqual(session?.id, '1');
 		assert.strictEqual(session?.scopes[0], 'foo');
 
 		const session2 = await extHostAuthentication.getSession(
@@ -228,7 +230,7 @@ suite('ExtHostAuthentication', () => {
 				forceNewSession: true
 			});
 
-		assert.strictEqual(session2?.id, 'test' + scopes.join(' '));
+		assert.strictEqual(session2?.id, '2');
 		assert.strictEqual(session2?.scopes[0], 'foo');
 		assert.notStrictEqual(session1.accessToken, session2?.accessToken);
 	});
@@ -252,10 +254,12 @@ suite('ExtHostAuthentication', () => {
 				forceNewSession: { detail: 'bar' }
 			});
 
-		assert.strictEqual(session2?.id, 'test' + scopes.join(' '));
+		assert.strictEqual(session2?.id, '2');
 		assert.strictEqual(session2?.scopes[0], 'foo');
 		assert.notStrictEqual(session1.accessToken, session2?.accessToken);
 	});
+
+	//#region Multi-Account AuthProvider
 
 	test('clearSessionPreference - true', async () => {
 		const scopes = ['foo'];
@@ -268,7 +272,7 @@ suite('ExtHostAuthentication', () => {
 				createIfNone: true
 			});
 
-		assert.strictEqual(session?.id, 'test' + scopes.join(' '));
+		assert.strictEqual(session?.id, '1');
 		assert.strictEqual(session?.scopes[0], scopes[0]);
 
 		const scopes2 = ['bar'];
@@ -279,7 +283,7 @@ suite('ExtHostAuthentication', () => {
 			{
 				createIfNone: true
 			});
-		assert.strictEqual(session2?.id, 'test' + scopes2.join(' '));
+		assert.strictEqual(session2?.id, '2');
 		assert.strictEqual(session2?.scopes[0], scopes2[0]);
 
 		const session3 = await extHostAuthentication.getSession(
@@ -297,6 +301,52 @@ suite('ExtHostAuthentication', () => {
 		assert.strictEqual(session.scopes[0], session3?.scopes[0]);
 		assert.strictEqual(session.accessToken, session3?.accessToken);
 	});
+
+	test('silently getting session should return a session (if any) regardless of preference - fixes #137819', async () => {
+		const scopes = ['foo'];
+		// Now create the session
+		const session = await extHostAuthentication.getSession(
+			extensionDescription,
+			'test-multiple',
+			scopes,
+			{
+				createIfNone: true
+			});
+
+		assert.strictEqual(session?.id, '1');
+		assert.strictEqual(session?.scopes[0], scopes[0]);
+
+		const scopes2 = ['bar'];
+		const session2 = await extHostAuthentication.getSession(
+			extensionDescription,
+			'test-multiple',
+			scopes2,
+			{
+				createIfNone: true
+			});
+		assert.strictEqual(session2?.id, '2');
+		assert.strictEqual(session2?.scopes[0], scopes2[0]);
+
+		const shouldBeSession1 = await extHostAuthentication.getSession(
+			extensionDescription,
+			'test-multiple',
+			scopes,
+			{});
+		assert.strictEqual(session.id, shouldBeSession1?.id);
+		assert.strictEqual(session.scopes[0], shouldBeSession1?.scopes[0]);
+		assert.strictEqual(session.accessToken, shouldBeSession1?.accessToken);
+
+		const shouldBeSession2 = await extHostAuthentication.getSession(
+			extensionDescription,
+			'test-multiple',
+			scopes2,
+			{});
+		assert.strictEqual(session2.id, shouldBeSession2?.id);
+		assert.strictEqual(session2.scopes[0], shouldBeSession2?.scopes[0]);
+		assert.strictEqual(session2.accessToken, shouldBeSession2?.accessToken);
+	});
+
+	//#endregion
 
 	//#region error cases
 

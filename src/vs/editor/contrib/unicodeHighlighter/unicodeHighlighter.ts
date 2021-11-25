@@ -119,26 +119,31 @@ export interface UnicodeHighlighterDecorationInfo {
 }
 
 type RemoveDeriveFromWorkspaceTrust<T> = T extends DeriveFromWorkspaceTrust ? never : T;
+type ResolvedOptions = { [TKey in keyof InternalUnicodeHighlightOptions]: RemoveDeriveFromWorkspaceTrust<InternalUnicodeHighlightOptions[TKey]> };
 
-function resolveOptions(_trusted: boolean, options: InternalUnicodeHighlightOptions): { [TKey in keyof InternalUnicodeHighlightOptions]: RemoveDeriveFromWorkspaceTrust<InternalUnicodeHighlightOptions[TKey]> } {
-	/*
-	// TODO@hediet enable some settings by default (depending on trust).
-	// For now, make it opt in, so there is some time to test it without breaking anyone.
+function resolveOptions(trusted: boolean, options: InternalUnicodeHighlightOptions): ResolvedOptions {
+	let defaults;
+	if (trusted) {
+		defaults = {
+			nonBasicASCII: false,
+			ambiguousCharacters: true,
+			invisibleCharacters: true,
+			includeComments: true,
+		};
+	} else {
+		defaults = {
+			nonBasicASCII: true,
+			ambiguousCharacters: true,
+			invisibleCharacters: true,
+			includeComments: false,
+		};
+	}
 
 	return {
-		nonBasicASCII: options.nonBasicASCII !== deriveFromWorkspaceTrust ? options.nonBasicASCII : (trusted ? false : true),
-		ambiguousCharacters: options.ambiguousCharacters !== deriveFromWorkspaceTrust ? options.ambiguousCharacters : (trusted ? false : true),
-		invisibleCharacters: options.invisibleCharacters !== deriveFromWorkspaceTrust ? options.invisibleCharacters : (trusted ? true : true),
-		includeComments: options.includeComments !== deriveFromWorkspaceTrust ? options.includeComments : (trusted ? true : false),
-		allowedCharacters: options.allowedCharacters ?? [],
-	};
-	*/
-
-	return {
-		nonBasicASCII: options.nonBasicASCII !== deriveFromWorkspaceTrust ? options.nonBasicASCII : false,
-		ambiguousCharacters: options.ambiguousCharacters !== deriveFromWorkspaceTrust ? options.ambiguousCharacters : false,
-		invisibleCharacters: options.invisibleCharacters !== deriveFromWorkspaceTrust ? options.invisibleCharacters : false,
-		includeComments: options.includeComments !== deriveFromWorkspaceTrust ? options.includeComments : true,
+		nonBasicASCII: options.nonBasicASCII !== deriveFromWorkspaceTrust ? options.nonBasicASCII : defaults.nonBasicASCII,
+		ambiguousCharacters: options.ambiguousCharacters !== deriveFromWorkspaceTrust ? options.ambiguousCharacters : defaults.ambiguousCharacters,
+		invisibleCharacters: options.invisibleCharacters !== deriveFromWorkspaceTrust ? options.invisibleCharacters : defaults.invisibleCharacters,
+		includeComments: options.includeComments !== deriveFromWorkspaceTrust ? options.includeComments : defaults.includeComments,
 		allowedCharacters: options.allowedCharacters ?? [],
 	};
 }
@@ -306,6 +311,7 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 
 
 		const result: MarkdownHover[] = [];
+		let index = 300;
 		for (const d of lineDecorations) {
 
 			const highlightInfo = unicodeHighlighter.getDecorationInfo(d.id);
@@ -366,7 +372,7 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 				isTrusted: true,
 			}];
 
-			result.push(new MarkdownHover(this, d.range, contents));
+			result.push(new MarkdownHover(this, d.range, contents, index++));
 		}
 		return result;
 	}

@@ -48,7 +48,6 @@ suite('Event', function () {
 
 		let doc = new Samples.Document3();
 
-		document.createElement('div').onclick = function () { };
 		let subscription = doc.onDidChange(counter.onEvent, counter);
 
 		doc.setText('far');

@@ -6,9 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import * as types from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
@@ -260,23 +258,6 @@ export function merge(base: any, add: any, overwrite: boolean): void {
 			}
 		}
 	});
-}
-
-export function getConfigurationKeys(): string[] {
-	const properties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
-	return Object.keys(properties);
-}
-
-export function getDefaultValues(): any {
-	const valueTreeRoot: any = Object.create(null);
-	const properties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
-
-	for (let key in properties) {
-		let value = properties[key].default;
-		addToValueTree(valueTreeRoot, key, value, message => console.error(`Conflict in default settings: ${message}`));
-	}
-
-	return valueTreeRoot;
 }
 
 export function getMigratedSettingValue<T>(configurationService: IConfigurationService, currentSettingName: string, legacySettingName: string): T {

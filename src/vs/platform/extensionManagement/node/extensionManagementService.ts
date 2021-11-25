@@ -288,7 +288,7 @@ class InstallGalleryExtensionTask extends AbstractInstallExtensionTask {
 		installableExtension.metadata.isMachineScoped = this.options.isMachineScoped || existingExtension?.isMachineScoped;
 		installableExtension.metadata.isBuiltin = this.options.isBuiltin || existingExtension?.isBuiltin;
 		installableExtension.metadata.isPreReleaseVersion = this.gallery.properties.isPreReleaseVersion;
-		installableExtension.metadata.hadPreReleaseVersion = this.gallery.properties.isPreReleaseVersion || existingExtension?.hadPreReleaseVersion;
+		installableExtension.metadata.preRelease = this.gallery.hasPreReleaseVersion ? this.gallery.properties.isPreReleaseVersion : existingExtension?.preRelease;
 
 		try {
 			const local = await this.installExtension(installableExtension, token);

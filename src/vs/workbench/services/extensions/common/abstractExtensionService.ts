@@ -1197,9 +1197,6 @@ class ProposedApiController {
 			}
 
 			extension.enabledApiProposals = productEnabledProposals;
-
-			// todo@jrieken REMOVE, legacy flag is turned on
-			extension.enableProposedApi = true;
 			return;
 		}
 
@@ -1209,11 +1206,10 @@ class ProposedApiController {
 			return;
 		}
 
-		if (!extension.isBuiltin && (extension.enableProposedApi || isNonEmptyArray(extension.enabledApiProposals))) {
+		if (!extension.isBuiltin && isNonEmptyArray(extension.enabledApiProposals)) {
 			// restrictive: extension cannot use proposed API in this context and its declaration is nulled
 			this._logService.critical(`Extension '${extension.identifier.value} CANNOT USE these API proposals '${extension.enabledApiProposals?.join(', ') ?? '*'}'. You MUST start in extension development mode or use the --enable-proposed-api command line flag`);
 			extension.enabledApiProposals = [];
-			extension.enableProposedApi = false;
 		}
 	}
 }

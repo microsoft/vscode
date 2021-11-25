@@ -207,6 +207,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 	private async doGetSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<modes.AuthenticationSession | undefined> {
 		const sessions = await this.authenticationService.getSessions(providerId, scopes, true);
+		const supportsMultipleAccounts = this.authenticationService.supportsMultipleAccounts(providerId);
 
 		// Error cases
 		if (options.forceNewSession && !sessions.length) {
@@ -224,7 +225,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 		// Check if the sessions we have are valid
 		if (!options.forceNewSession && sessions.length) {
-			if (this.authenticationService.supportsMultipleAccounts(providerId)) {
+			if (supportsMultipleAccounts) {
 				if (options.clearSessionPreference) {
 					this.storageService.remove(`${extensionName}-${providerId}`, StorageScope.GLOBAL);
 				} else {
@@ -251,18 +252,20 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 				throw new Error('User did not consent to login.');
 			}
 
-			const session = sessions?.length && !options.forceNewSession
+			const session = sessions?.length && !options.forceNewSession && supportsMultipleAccounts
 				? await this.authenticationService.selectSession(providerId, extensionId, extensionName, scopes, sessions)
 				: await this.authenticationService.createSession(providerId, scopes, true);
 			await this.setTrustedExtensionAndAccountPreference(providerId, session.account.label, extensionId, extensionName, session.id);
 			return session;
 		}
-		// passive flows
-		if (!options.silent) {
+
+		// passive flows (silent or default)
+
+		const validSession = sessions.find(s => this.authenticationService.isAccessAllowed(providerId, s.account.label, extensionId));
+		if (!options.silent && !validSession) {
 			await this.authenticationService.requestNewSession(providerId, scopes, extensionId, extensionName);
 		}
-
-		return undefined;
+		return validSession;
 	}
 
 	async $getSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<modes.AuthenticationSession | undefined> {

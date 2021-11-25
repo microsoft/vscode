@@ -5,22 +5,28 @@
 
 import { IConfigurationCache, ConfigurationKey } from 'vs/workbench/services/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Queue } from 'vs/base/common/async';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export class ConfigurationCache implements IConfigurationCache {
 
+	private readonly cacheHome: URI;
 	private readonly cachedConfigurations: Map<string, CachedConfiguration> = new Map<string, CachedConfiguration>();
 
-	constructor(private readonly cacheHome: URI, private readonly fileService: IFileService) {
+	constructor(
+		private readonly donotCacheResourcesWithSchemes: string[],
+		environmentService: IEnvironmentService,
+		private readonly fileService: IFileService
+	) {
+		this.cacheHome = environmentService.cacheHome;
 	}
 
 	needsCaching(resource: URI): boolean {
 		// Cache all non native resources
-		return ![Schemas.file, Schemas.userData].includes(resource.scheme);
+		return !this.donotCacheResourcesWithSchemes.includes(resource.scheme);
 	}
 
 	read(key: ConfigurationKey): Promise<string> {
