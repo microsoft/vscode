@@ -72,7 +72,7 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 		let insidersApp: Application | undefined = undefined;
 		let stableApp: Application | undefined = undefined;
 
-		afterSuite(opts, () => insidersApp, async () => stableApp?.stop());
+		afterSuite(opts, () => insidersApp ?? stableApp, async () => stableApp?.stop());
 
 		it(`verifies opened editors are restored`, async function () {
 			const stableCodePath = opts['stable-build'];
