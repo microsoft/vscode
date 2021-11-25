@@ -749,7 +749,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		options.text = options.text ? this.resolveQueryText(options.text) : options.text;
 		options.includePreRelease = isUndefined(options.includePreRelease) ? this.preferPreReleases : options.includePreRelease;
 
-		const report = await this.extensionManagementService.getExtensionsReport();
+		const report = await this.extensionManagementService.getExtensionsControlManifest();
 		const maliciousSet = getMaliciousExtensionsSet(report);
 		try {
 			const result = await this.galleryService.query(options, token);
