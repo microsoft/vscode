@@ -14,17 +14,25 @@ import { join } from 'vs/base/common/path';
 import { Platform, platform } from 'vs/base/common/platform';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ClientConnectionEvent, IPCServer } from 'vs/base/parts/ipc/common/ipc';
-import { ChunkStream, Client, ISocket, Protocol, SocketCloseEvent, SocketCloseEventType } from 'vs/base/parts/ipc/common/ipc.net';
+import { ChunkStream, Client, ISocket, Protocol, SocketCloseEvent, SocketCloseEventType, SocketDiagnostics, SocketDiagnosticsEventType } from 'vs/base/parts/ipc/common/ipc.net';
 import * as zlib from 'zlib';
 
 export class NodeSocket implements ISocket {
 
+	public readonly debugLabel: string;
 	public readonly socket: Socket;
 	private readonly _errorListener: (err: any) => void;
 
-	constructor(socket: Socket) {
+	public traceSocketEvent(type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | any): void {
+		SocketDiagnostics.traceSocketEvent(this.socket, this.debugLabel, type, data);
+	}
+
+	constructor(socket: Socket, debugLabel: string = '') {
+		this.debugLabel = debugLabel;
 		this.socket = socket;
+		this.traceSocketEvent(SocketDiagnosticsEventType.Created, { type: 'NodeSocket' });
 		this._errorListener = (err: any) => {
+			this.traceSocketEvent(SocketDiagnosticsEventType.Error, { code: err?.code, message: err?.message });
 			if (err) {
 				if (err.code === 'EPIPE') {
 					// An EPIPE exception at the wrong time can lead to a renderer process crash
@@ -47,7 +55,10 @@ export class NodeSocket implements ISocket {
 	}
 
 	public onData(_listener: (e: VSBuffer) => void): IDisposable {
-		const listener = (buff: Buffer) => _listener(VSBuffer.wrap(buff));
+		const listener = (buff: Buffer) => {
+			this.traceSocketEvent(SocketDiagnosticsEventType.Read, buff);
+			_listener(VSBuffer.wrap(buff));
+		};
 		this.socket.on('data', listener);
 		return {
 			dispose: () => this.socket.off('data', listener)
@@ -56,6 +67,7 @@ export class NodeSocket implements ISocket {
 
 	public onClose(listener: (e: SocketCloseEvent) => void): IDisposable {
 		const adapter = (hadError: boolean) => {
+			this.traceSocketEvent(SocketDiagnosticsEventType.Close, { hadError });
 			listener({
 				type: SocketCloseEventType.NodeSocketCloseEvent,
 				hadError: hadError,
@@ -69,9 +81,13 @@ export class NodeSocket implements ISocket {
 	}
 
 	public onEnd(listener: () => void): IDisposable {
-		this.socket.on('end', listener);
+		const adapter = () => {
+			this.traceSocketEvent(SocketDiagnosticsEventType.NodeEndReceived);
+			listener();
+		};
+		this.socket.on('end', adapter);
 		return {
-			dispose: () => this.socket.off('end', listener)
+			dispose: () => this.socket.off('end', adapter)
 		};
 	}
 
@@ -87,7 +103,8 @@ export class NodeSocket implements ISocket {
 		// > However, the false return value is only advisory and the writable stream will unconditionally
 		// > accept and buffer chunk even if it has not been allowed to drain.
 		try {
-			this.socket.write(<Buffer>buffer.buffer, (err: any) => {
+			this.traceSocketEvent(SocketDiagnosticsEventType.Write, buffer);
+			this.socket.write(buffer.buffer, (err: any) => {
 				if (err) {
 					if (err.code === 'EPIPE') {
 						// An EPIPE exception at the wrong time can lead to a renderer process crash
@@ -116,12 +133,15 @@ export class NodeSocket implements ISocket {
 	}
 
 	public end(): void {
+		this.traceSocketEvent(SocketDiagnosticsEventType.NodeEndSent);
 		this.socket.end();
 	}
 
 	public drain(): Promise<void> {
+		this.traceSocketEvent(SocketDiagnosticsEventType.NodeDrainBegin);
 		return new Promise<void>((resolve, reject) => {
 			if (this.socket.bufferSize === 0) {
+				this.traceSocketEvent(SocketDiagnosticsEventType.NodeDrainEnd);
 				resolve();
 				return;
 			}
@@ -131,6 +151,7 @@ export class NodeSocket implements ISocket {
 				this.socket.off('error', finished);
 				this.socket.off('timeout', finished);
 				this.socket.off('drain', finished);
+				this.traceSocketEvent(SocketDiagnosticsEventType.NodeDrainEnd);
 				resolve();
 			};
 			this.socket.on('close', finished);
@@ -209,6 +230,10 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 		return VSBuffer.alloc(0);
 	}
 
+	public traceSocketEvent(type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | any): void {
+		this.socket.traceSocketEvent(type, data);
+	}
+
 	/**
 	 * Create a socket which can communicate using WebSocket frames.
 	 *
@@ -224,6 +249,7 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 	constructor(socket: NodeSocket, permessageDeflate: boolean, inflateBytes: VSBuffer | null, recordInflateBytes: boolean) {
 		super();
 		this.socket = socket;
+		this.traceSocketEvent(SocketDiagnosticsEventType.Created, { type: 'WebSocketNodeSocket', permessageDeflate, inflateBytesLength: inflateBytes?.byteLength || 0, recordInflateBytes });
 		this._totalIncomingWireBytes = 0;
 		this._totalIncomingDataBytes = 0;
 		this._totalOutgoingWireBytes = 0;
@@ -238,6 +264,7 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 				windowBits: 15
 			});
 			this._zlibInflate.on('error', (err) => {
+				this.traceSocketEvent(SocketDiagnosticsEventType.zlibInflateError, { message: err?.message, code: (<any>err)?.code });
 				// zlib errors are fatal, since we have no idea how to recover
 				console.error(err);
 				onUnexpectedError(err);
@@ -248,11 +275,14 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 				});
 			});
 			this._zlibInflate.on('data', (data: Buffer) => {
+				this.traceSocketEvent(SocketDiagnosticsEventType.zlibInflateData, data);
 				this._pendingInflateData.push(data);
 			});
 			if (inflateBytes) {
+				this.traceSocketEvent(SocketDiagnosticsEventType.zlibInflateWriteInitial, inflateBytes.buffer);
 				this._zlibInflate.write(inflateBytes.buffer);
 				this._zlibInflate.flush(() => {
+					this.traceSocketEvent(SocketDiagnosticsEventType.zlibInflateInitialFlushFired);
 					this._pendingInflateData.length = 0;
 				});
 			}
@@ -261,6 +291,7 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 				windowBits: 15
 			});
 			this._zlibDeflate.on('error', (err) => {
+				this.traceSocketEvent(SocketDiagnosticsEventType.zlibDeflateError, { message: err?.message, code: (<any>err)?.code });
 				// zlib errors are fatal, since we have no idea how to recover
 				console.error(err);
 				onUnexpectedError(err);
@@ -271,6 +302,7 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 				});
 			});
 			this._zlibDeflate.on('data', (data: Buffer) => {
+				this.traceSocketEvent(SocketDiagnosticsEventType.zlibDeflateData, data);
 				this._pendingDeflateData.push(data);
 			});
 		} else {
@@ -311,11 +343,13 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 		this._totalOutgoingDataBytes += buffer.byteLength;
 
 		if (this._zlibDeflate) {
+			this.traceSocketEvent(SocketDiagnosticsEventType.zlibDeflateWrite, buffer.buffer);
 			this._zlibDeflate.write(<Buffer>buffer.buffer);
 
 			this._zlibDeflateFlushWaitingCount++;
 			// See https://zlib.net/manual.html#Constants
 			this._zlibDeflate.flush(/*Z_SYNC_FLUSH*/2, () => {
+				this.traceSocketEvent(SocketDiagnosticsEventType.zlibDeflateFlushFired);
 				this._zlibDeflateFlushWaitingCount--;
 				let data = Buffer.concat(this._pendingDeflateData);
 				this._pendingDeflateData.length = 0;
@@ -338,6 +372,7 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 	}
 
 	private _write(buffer: VSBuffer, compressed: boolean): void {
+		this.traceSocketEvent(SocketDiagnosticsEventType.WebSocketNodeSocketWrite, buffer);
 		let headerLen = Constants.MinHeaderByteSize;
 		if (buffer.byteLength < 126) {
 			headerLen += 0;
@@ -413,6 +448,8 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 				this._state.firstFrameOfMessage = Boolean(finBit);
 				this._state.mask = 0;
 
+				this.traceSocketEvent(SocketDiagnosticsEventType.WebSocketNodeSocketPeekedHeader, { headerSize: this._state.readLen, compressed: this._state.compressed, fin: this._state.fin });
+
 			} else if (this._state.state === ReadState.ReadHeader) {
 				// read entire header
 				const header = this._incomingData.read(this._state.readLen);
@@ -453,11 +490,16 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 				this._state.readLen = len;
 				this._state.mask = mask;
 
+				this.traceSocketEvent(SocketDiagnosticsEventType.WebSocketNodeSocketPeekedHeader, { bodySize: this._state.readLen, compressed: this._state.compressed, fin: this._state.fin, mask: this._state.mask });
+
 			} else if (this._state.state === ReadState.ReadBody) {
 				// read body
 
 				const body = this._incomingData.read(this._state.readLen);
+				this.traceSocketEvent(SocketDiagnosticsEventType.WebSocketNodeSocketReadData, body);
+
 				unmask(body, this._state.mask);
+				this.traceSocketEvent(SocketDiagnosticsEventType.WebSocketNodeSocketUnmaskedData, body);
 
 				this._state.state = ReadState.PeekHeader;
 				this._state.readLen = Constants.MinHeaderByteSize;
@@ -473,14 +515,19 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 					if (this._recordInflateBytes) {
 						this._recordedInflateBytes.push(Buffer.from(<Buffer>body.buffer));
 					}
+
+					this.traceSocketEvent(SocketDiagnosticsEventType.zlibInflateWrite, body.buffer);
 					this._zlibInflate.write(<Buffer>body.buffer);
 					if (this._state.fin) {
 						if (this._recordInflateBytes) {
 							this._recordedInflateBytes.push(Buffer.from([0x00, 0x00, 0xff, 0xff]));
 						}
-						this._zlibInflate.write(Buffer.from([0x00, 0x00, 0xff, 0xff]));
+						const buff = Buffer.from([0x00, 0x00, 0xff, 0xff]);
+						this.traceSocketEvent(SocketDiagnosticsEventType.zlibInflateWrite, buff);
+						this._zlibInflate.write(buff);
 					}
 					this._zlibInflate.flush(() => {
+						this.traceSocketEvent(SocketDiagnosticsEventType.zlibInflateFlushFired);
 						const data = Buffer.concat(this._pendingInflateData);
 						this._pendingInflateData.length = 0;
 						this._totalIncomingDataBytes += data.length;
@@ -495,10 +542,12 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 	}
 
 	public async drain(): Promise<void> {
+		this.traceSocketEvent(SocketDiagnosticsEventType.WebSocketNodeSocketDrainBegin);
 		if (this._zlibDeflateFlushWaitingCount > 0) {
 			await Event.toPromise(this._onDidZlibFlush.event);
 		}
 		await this.socket.drain();
+		this.traceSocketEvent(SocketDiagnosticsEventType.WebSocketNodeSocketDrainEnd);
 	}
 }
 
@@ -597,7 +646,7 @@ export class Server extends IPCServer {
 		const onConnection = Event.fromNodeEventEmitter<Socket>(server, 'connection');
 
 		return Event.map(onConnection, socket => ({
-			protocol: new Protocol(new NodeSocket(socket)),
+			protocol: new Protocol(new NodeSocket(socket, 'ipc-server-connection')),
 			onDidClientDisconnect: Event.once(Event.fromNodeEventEmitter<void>(socket, 'close'))
 		}));
 	}
@@ -639,7 +688,7 @@ export function connect(hook: any, clientId: string): Promise<Client> {
 	return new Promise<Client>((c, e) => {
 		const socket = createConnection(hook, () => {
 			socket.removeListener('error', e);
-			c(Client.fromSocket(new NodeSocket(socket), clientId));
+			c(Client.fromSocket(new NodeSocket(socket, `ipc-client${clientId}`), clientId));
 		});
 
 		socket.once('error', e);

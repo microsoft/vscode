@@ -90,11 +90,20 @@ export class VSBuffer {
 
 	set(array: VSBuffer, offset?: number): void;
 	set(array: Uint8Array, offset?: number): void;
-	set(array: VSBuffer | Uint8Array, offset?: number): void {
+	set(array: ArrayBuffer, offset?: number): void;
+	set(array: ArrayBufferView, offset?: number): void;
+	set(array: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView, offset?: number): void;
+	set(array: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView, offset?: number): void {
 		if (array instanceof VSBuffer) {
 			this.buffer.set(array.buffer, offset);
-		} else {
+		} else if (array instanceof Uint8Array) {
 			this.buffer.set(array, offset);
+		} else if (array instanceof ArrayBuffer) {
+			this.buffer.set(new Uint8Array(array), offset);
+		} else if (ArrayBuffer.isView(array)) {
+			this.buffer.set(new Uint8Array(array.buffer, array.byteOffset, array.byteLength), offset);
+		} else {
+			throw new Error(`Unkown argument 'array'`);
 		}
 	}
 

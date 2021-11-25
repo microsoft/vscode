@@ -8,7 +8,7 @@ import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { IConnectCallback, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
 
 export const nodeSocketFactory = new class implements ISocketFactory {
-	connect(host: string, port: number, query: string, callback: IConnectCallback): void {
+	connect(host: string, port: number, query: string, debugLabel: string, callback: IConnectCallback): void {
 		const errorListener = (err: any) => callback(err, undefined);
 
 		const socket = net.createConnection({ host: host, port: port }, () => {
@@ -34,7 +34,7 @@ export const nodeSocketFactory = new class implements ISocketFactory {
 				if (strData.indexOf('\r\n\r\n') >= 0) {
 					// headers received OK
 					socket.off('data', onData);
-					callback(undefined, new NodeSocket(socket));
+					callback(undefined, new NodeSocket(socket, debugLabel));
 				}
 			};
 			socket.on('data', onData);

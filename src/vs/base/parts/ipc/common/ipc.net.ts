@@ -8,6 +8,89 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IIPCLogger, IMessagePassingProtocol, IPCClient } from 'vs/base/parts/ipc/common/ipc';
 
+export const enum SocketDiagnosticsEventType {
+	Created = 'created',
+	Read = 'read',
+	Write = 'write',
+	Open = 'open',
+	Error = 'error',
+	Close = 'close',
+
+	BrowserWebSocketBlobReceived = 'browserWebSocketBlobReceived',
+
+	NodeEndReceived = 'nodeEndReceived',
+	NodeEndSent = 'nodeEndSent',
+	NodeDrainBegin = 'nodeDrainBegin',
+	NodeDrainEnd = 'nodeDrainEnd',
+
+	zlibInflateError = 'zlibInflateError',
+	zlibInflateData = 'zlibInflateData',
+	zlibInflateWriteInitial = 'zlibInflateWriteInitial',
+	zlibInflateInitialFlushFired = 'zlibInflateInitialFlushFired',
+	zlibInflateWrite = 'zlibInflateWrite',
+	zlibInflateFlushFired = 'zlibInflateFlushFired',
+	zlibDeflateError = 'zlibDeflateError',
+	zlibDeflateData = 'zlibDeflateData',
+	zlibDeflateWrite = 'zlibDeflateWrite',
+	zlibDeflateFlushFired = 'zlibDeflateFlushFired',
+
+	WebSocketNodeSocketWrite = 'webSocketNodeSocketWrite',
+	WebSocketNodeSocketPeekedHeader = 'webSocketNodeSocketPeekedHeader',
+	WebSocketNodeSocketReadHeader = 'webSocketNodeSocketReadHeader',
+	WebSocketNodeSocketReadData = 'webSocketNodeSocketReadData',
+	WebSocketNodeSocketUnmaskedData = 'webSocketNodeSocketUnmaskedData',
+	WebSocketNodeSocketDrainBegin = 'webSocketNodeSocketDrainBegin',
+	WebSocketNodeSocketDrainEnd = 'webSocketNodeSocketDrainEnd',
+
+	ProtocolHeaderRead = 'protocolHeaderRead',
+	ProtocolMessageRead = 'protocolMessageRead',
+	ProtocolHeaderWrite = 'protocolHeaderWrite',
+	ProtocolMessageWrite = 'protocolMessageWrite',
+	ProtocolWrite = 'protocolWrite',
+}
+
+export namespace SocketDiagnostics {
+
+	export const enableDiagnostics = false;
+
+	export interface IRecord {
+		timestamp: number;
+		id: string;
+		label: string;
+		type: SocketDiagnosticsEventType;
+		buff?: VSBuffer;
+		data?: any;
+	}
+
+	export const records: IRecord[] = [];
+	const socketIds = new WeakMap<any, string>();
+	let lastUsedSocketId = 0;
+
+	function getSocketId(nativeObject: any, label: string): string {
+		if (!socketIds.has(nativeObject)) {
+			const id = String(++lastUsedSocketId);
+			socketIds.set(nativeObject, id);
+		}
+		return socketIds.get(nativeObject)!;
+	}
+
+	export function traceSocketEvent(nativeObject: any, socketDebugLabel: string, type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | any): void {
+		if (!enableDiagnostics) {
+			return;
+		}
+		const id = getSocketId(nativeObject, socketDebugLabel);
+
+		if (data instanceof VSBuffer || data instanceof Uint8Array || data instanceof ArrayBuffer || ArrayBuffer.isView(data)) {
+			const copiedData = VSBuffer.alloc(data.byteLength);
+			copiedData.set(data);
+			records.push({ timestamp: Date.now(), id, label: socketDebugLabel, type, buff: copiedData });
+		} else {
+			// data is a custom object
+			records.push({ timestamp: Date.now(), id, label: socketDebugLabel, type, data: data });
+		}
+	}
+}
+
 export const enum SocketCloseEventType {
 	NodeSocketCloseEvent = 0,
 	WebSocketCloseEvent = 1
@@ -60,6 +143,8 @@ export interface ISocket extends IDisposable {
 	write(buffer: VSBuffer): void;
 	end(): void;
 	drain(): Promise<void>;
+
+	traceSocketEvent(type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | any): void;
 }
 
 let emptyBuffer: VSBuffer | null = null;
@@ -173,6 +258,18 @@ const enum ProtocolMessageType {
 	ReplayRequest = 6
 }
 
+function protocolMessageTypeToString(messageType: ProtocolMessageType) {
+	switch (messageType) {
+		case ProtocolMessageType.None: return 'None';
+		case ProtocolMessageType.Regular: return 'Regular';
+		case ProtocolMessageType.Control: return 'Control';
+		case ProtocolMessageType.Ack: return 'Ack';
+		case ProtocolMessageType.KeepAlive: return 'KeepAlive';
+		case ProtocolMessageType.Disconnect: return 'Disconnect';
+		case ProtocolMessageType.ReplayRequest: return 'ReplayRequest';
+	}
+}
+
 export const enum ProtocolConstants {
 	HeaderLength = 13,
 	/**
@@ -268,6 +365,9 @@ class ProtocolReader extends Disposable {
 				this._state.messageType = buff.readUInt8(0);
 				this._state.id = buff.readUInt32BE(1);
 				this._state.ack = buff.readUInt32BE(5);
+
+				this._socket.traceSocketEvent(SocketDiagnosticsEventType.ProtocolHeaderRead, { messageType: protocolMessageTypeToString(this._state.messageType), id: this._state.id, ack: this._state.ack, messageSize: this._state.readLen });
+
 			} else {
 				// buff is the body
 				const messageType = this._state.messageType;
@@ -280,6 +380,8 @@ class ProtocolReader extends Disposable {
 				this._state.messageType = ProtocolMessageType.None;
 				this._state.id = 0;
 				this._state.ack = 0;
+
+				this._socket.traceSocketEvent(SocketDiagnosticsEventType.ProtocolMessageRead, buff);
 
 				this._onMessage.fire(new ProtocolMessage(messageType, id, ack, buff));
 
@@ -349,6 +451,10 @@ class ProtocolWriter {
 		header.writeUInt32BE(msg.id, 1);
 		header.writeUInt32BE(msg.ack, 5);
 		header.writeUInt32BE(msg.data.byteLength, 9);
+
+		this._socket.traceSocketEvent(SocketDiagnosticsEventType.ProtocolHeaderWrite, { messageType: protocolMessageTypeToString(msg.type), id: msg.id, ack: msg.ack, messageSize: msg.data.byteLength });
+		this._socket.traceSocketEvent(SocketDiagnosticsEventType.ProtocolMessageWrite, msg.data);
+
 		this._writeSoon(header, msg.data);
 	}
 
@@ -378,7 +484,9 @@ class ProtocolWriter {
 		if (this._totalLength === 0) {
 			return;
 		}
-		this._socket.write(this._bufferTake());
+		const data = this._bufferTake();
+		this._socket.traceSocketEvent(SocketDiagnosticsEventType.ProtocolWrite, { byteLength: data.byteLength });
+		this._socket.write(data);
 	}
 }
 
@@ -983,3 +1091,39 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		this._socketWriter.write(msg);
 	}
 }
+
+// (() => {
+// 	if (!SocketDiagnostics.enableDiagnostics) {
+// 		return;
+// 	}
+// 	if (typeof require.__$__nodeRequire !== 'function') {
+// 		console.log(`Can only log socket diagnostics on native platforms.`);
+// 		return;
+// 	}
+// 	const type = (
+// 		process.argv.includes('--type=renderer')
+// 			? 'renderer'
+// 			: (process.argv.includes('--type=extensionHost')
+// 				? 'extensionHost'
+// 				: (process.argv.some(item => item.includes('server/main'))
+// 					? 'server'
+// 					: 'unknown'
+// 				)
+// 			)
+// 	);
+// 	setTimeout(() => {
+// 		SocketDiagnostics.records.forEach(r => {
+// 			if (r.buff) {
+// 				r.data = Buffer.from(r.buff.buffer).toString('base64');
+// 				r.buff = undefined;
+// 			}
+// 		});
+
+// 		const fs = <typeof import('fs')>require.__$__nodeRequire('fs');
+// 		const path = <typeof import('path')>require.__$__nodeRequire('path');
+// 		const logPath = path.join(process.cwd(),`${type}-${process.pid}`);
+
+// 		console.log(`dumping socket diagnostics at ${logPath}`);
+// 		fs.writeFileSync(logPath, JSON.stringify(SocketDiagnostics.records));
+// 	}, 20000);
+// })();
