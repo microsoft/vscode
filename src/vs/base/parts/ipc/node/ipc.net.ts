@@ -191,8 +191,6 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 	private _totalOutgoingDataBytes: number = 0;
 	private readonly _zlibInflateStream: ZlibInflateStream | null;
 	private readonly _zlibDeflateStream: ZlibDeflateStream | null;
-	private _zlibDeflateFlushWaitingCount: number;
-	private readonly _onDidZlibFlush = this._register(new Emitter<void>());
 	private readonly _incomingData: ChunkStream;
 	private readonly _onData = this._register(new Emitter<VSBuffer>());
 	private readonly _onClose = this._register(new Emitter<SocketCloseEvent>());
@@ -290,16 +288,15 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 			this._zlibInflateStream = null;
 			this._zlibDeflateStream = null;
 		}
-		this._zlibDeflateFlushWaitingCount = 0;
 		this._incomingData = new ChunkStream();
 		this._register(this.socket.onData(data => this._acceptChunk(data)));
 		this._register(this.socket.onClose((e) => this._onClose.fire(e)));
 	}
 
 	public override dispose(): void {
-		if (this._zlibDeflateFlushWaitingCount > 0) {
+		if (this._zlibDeflateStream && this._zlibDeflateStream.needsDraining()) {
 			// Wait for any outstanding writes to finish before disposing
-			this._register(this._onDidZlibFlush.event(() => {
+			this._register(this._zlibDeflateStream.onDidDrain(() => {
 				this.dispose();
 			}));
 		} else {
@@ -324,20 +321,11 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 		this._totalOutgoingDataBytes += buffer.byteLength;
 
 		if (this._zlibDeflateStream) {
-
 			this._zlibDeflateStream.write(buffer);
-
-			this._zlibDeflateFlushWaitingCount++;
 			this._zlibDeflateStream.flush((data) => {
-				this._zlibDeflateFlushWaitingCount--;
-
 				if (!this._isEnded) {
 					// Avoid ERR_STREAM_WRITE_AFTER_END
 					this._write(data, true);
-				}
-
-				if (this._zlibDeflateFlushWaitingCount === 0) {
-					this._onDidZlibFlush.fire();
 				}
 			});
 		} else {
@@ -502,8 +490,8 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 
 	public async drain(): Promise<void> {
 		this.traceSocketEvent(SocketDiagnosticsEventType.WebSocketNodeSocketDrainBegin);
-		if (this._zlibDeflateFlushWaitingCount > 0) {
-			await Event.toPromise(this._onDidZlibFlush.event);
+		if (this._zlibDeflateStream) {
+			await this._zlibDeflateStream.drain();
 		}
 		await this.socket.drain();
 		this.traceSocketEvent(SocketDiagnosticsEventType.WebSocketNodeSocketDrainEnd);
@@ -578,8 +566,12 @@ class ZlibDeflateStream extends Disposable {
 	private readonly _onError = this._register(new Emitter<Error>());
 	public readonly onError = this._onError.event;
 
+	private readonly _onDidDrain = this._register(new Emitter<void>());
+	public readonly onDidDrain = this._onDidDrain.event;
+
 	private readonly _zlibDeflate: zlib.DeflateRaw;
 	private readonly _pendingDeflateData: VSBuffer[] = [];
+	private _flushWaitingCount: number = 0;
 
 	constructor(
 		private readonly _tracer: ISocketTracer,
@@ -606,8 +598,12 @@ class ZlibDeflateStream extends Disposable {
 	}
 
 	public flush(callback: (data: VSBuffer) => void): void {
+		this._flushWaitingCount++;
+
 		// See https://zlib.net/manual.html#Constants
 		this._zlibDeflate.flush(/*Z_SYNC_FLUSH*/2, () => {
+			this._flushWaitingCount--;
+
 			this._tracer.traceSocketEvent(SocketDiagnosticsEventType.zlibDeflateFlushFired);
 
 			let data = VSBuffer.concat(this._pendingDeflateData);
@@ -617,7 +613,21 @@ class ZlibDeflateStream extends Disposable {
 			data = data.slice(0, data.byteLength - 4);
 
 			callback(data);
+
+			if (this._flushWaitingCount === 0) {
+				this._onDidDrain.fire();
+			}
 		});
+	}
+
+	public needsDraining(): boolean {
+		return (this._flushWaitingCount > 0);
+	}
+
+	public async drain(): Promise<void> {
+		if (this._flushWaitingCount > 0) {
+			await Event.toPromise(this.onDidDrain);
+		}
 	}
 }
 
