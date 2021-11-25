@@ -525,5 +525,14 @@ suite('WebSocketNodeSocket', () => {
 			const actual = await testReading(frames, true);
 			assert.deepStrictEqual(actual, 'Hello');
 		});
+
+		test('A single-frame compressed text message followed by a single-frame non-compressed text message', async () => {
+			const frames = [
+				[0xc1, 0x07, 0xf2, 0x48, 0xcd, 0xc9, 0xc9, 0x07, 0x00], // contains "Hello"
+				[0x81, 0x05, 0x77, 0x6f, 0x72, 0x6c, 0x64] // contains "world"
+			];
+			const actual = await testReading(frames, true);
+			assert.deepStrictEqual(actual, 'Helloworld');
+		});
 	});
 });
