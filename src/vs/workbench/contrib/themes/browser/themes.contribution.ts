@@ -358,7 +358,7 @@ abstract class AbstractIconThemeAction extends Action {
 	protected abstract setTheme(id: string, settingsTarget: ThemeSettingTarget): Promise<any>;
 
 	protected pick(themes: IWorkbenchTheme[], currentTheme: IWorkbenchTheme) {
-		let picks: QuickPickInput<ThemeItem>[] = [this.builtInEntry, ...toEntries(themes), ...configurationEntries(this.installMessage)];
+		let picks: QuickPickInput<ThemeItem>[] = [this.builtInEntry, ...toEntries(themes), ...(this.extensionGalleryService.isEnabled() ? configurationEntries(this.installMessage) : [])];
 
 		let selectThemeTimeout: number | undefined;
 
@@ -383,7 +383,7 @@ abstract class AbstractIconThemeAction extends Action {
 
 			const autoFocusIndex = picks.findIndex(p => isItem(p) && p.id === currentTheme.id);
 			const quickpick = this.quickInputService.createQuickPick<ThemeItem>();
-			quickpick.items = this.extensionGalleryService.isEnabled() ? picks.concat(configurationEntries(this.installMessage)) : picks;
+			quickpick.items = picks;
 			quickpick.placeholder = this.placeholderMessage;
 			quickpick.activeItems = [picks[autoFocusIndex] as ThemeItem];
 			quickpick.canSelectMany = false;
