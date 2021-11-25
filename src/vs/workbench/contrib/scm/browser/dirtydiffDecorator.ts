@@ -1162,7 +1162,7 @@ export class DirtyDiffModel extends Disposable {
 	}
 
 	private diff(): Promise<IChange[] | null> {
-		return this.progressService.withProgress({ location: ProgressLocation.Scm }, async () => {
+		return this.progressService.withProgress({ location: ProgressLocation.Scm, delay: 250 }, async () => {
 			return this.getOriginalURIPromise().then(originalURI => {
 				if (this._disposed || this._model.isDisposed() || !originalURI) {
 					return Promise.resolve([]); // disposed

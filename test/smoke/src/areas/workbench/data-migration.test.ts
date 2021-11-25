@@ -6,20 +6,78 @@
 import { Application, ApplicationOptions, Quality } from '../../../../automation';
 import { join } from 'path';
 import { ParsedArgs } from 'minimist';
-import { afterSuite, timeout } from '../../utils';
+import { afterSuite, startApp } from '../../utils';
 
 export function setup(opts: ParsedArgs, testDataPath: string) {
 
-	describe('Datamigration', () => {
+	describe('Data Migration (insiders -> insiders)', () => {
+
+		let app: Application | undefined = undefined;
+
+		afterSuite(opts, () => app);
+
+		it(`verifies opened editors are restored`, async function () {
+			app = await startApp(opts, this.defaultOptions);
+
+			// Open 3 editors and pin 2 of them
+			await app.workbench.quickaccess.openFile('www');
+			await app.workbench.quickaccess.runCommand('View: Keep Editor');
+
+			await app.workbench.quickaccess.openFile('app.js');
+			await app.workbench.quickaccess.runCommand('View: Keep Editor');
+
+			await app.workbench.editors.newUntitledFile();
+
+			await app.restart();
+
+			// Verify 3 editors are open
+			await app.workbench.editors.selectTab('Untitled-1');
+			await app.workbench.editors.selectTab('app.js');
+			await app.workbench.editors.selectTab('www');
+
+			await app.stop();
+			app = undefined;
+		});
+
+		it(`verifies that 'hot exit' works for dirty files`, async function () {
+			app = await startApp(opts, this.defaultOptions);
+
+			await app.workbench.editors.newUntitledFile();
+
+			const untitled = 'Untitled-1';
+			const textToTypeInUntitled = 'Hello from Untitled';
+			await app.workbench.editor.waitForTypeInEditor(untitled, textToTypeInUntitled);
+
+			const readmeMd = 'readme.md';
+			const textToType = 'Hello, Code';
+			await app.workbench.quickaccess.openFile(readmeMd);
+			await app.workbench.editor.waitForTypeInEditor(readmeMd, textToType);
+
+			await app.restart();
+
+			await app.workbench.editors.waitForTab(readmeMd, true);
+			await app.workbench.editors.selectTab(readmeMd);
+			await app.workbench.editor.waitForEditorContents(readmeMd, c => c.indexOf(textToType) > -1);
+
+			await app.workbench.editors.waitForTab(untitled, true);
+			await app.workbench.editors.selectTab(untitled);
+			await app.workbench.editor.waitForEditorContents(untitled, c => c.indexOf(textToTypeInUntitled) > -1);
+
+			await app.stop();
+			app = undefined;
+		});
+	});
+
+	describe('Data Migration (stable -> insiders)', () => {
 
 		let insidersApp: Application | undefined = undefined;
 		let stableApp: Application | undefined = undefined;
 
-		afterSuite(opts, () => insidersApp, async () => stableApp?.stop());
+		afterSuite(opts, () => insidersApp ?? stableApp, async () => stableApp?.stop());
 
 		it(`verifies opened editors are restored`, async function () {
 			const stableCodePath = opts['stable-build'];
-			if (!stableCodePath) {
+			if (!stableCodePath || opts.remote) {
 				this.skip();
 			}
 
@@ -69,7 +127,7 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 
 		it(`verifies that 'hot exit' works for dirty files`, async function () {
 			const stableCodePath = opts['stable-build'];
-			if (!stableCodePath) {
+			if (!stableCodePath || opts.remote) {
 				this.skip();
 			}
 
@@ -93,8 +151,6 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 			const textToType = 'Hello, Code';
 			await stableApp.workbench.quickaccess.openFile(readmeMd);
 			await stableApp.workbench.editor.waitForTypeInEditor(readmeMd, textToType);
-
-			await timeout(2000); // give time to store the backup before stopping the app
 
 			await stableApp.stop();
 			stableApp = undefined;

@@ -204,12 +204,12 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 			switch (source) {
 				case CandidatePortSource.None: {
 					Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-						.registerDefaultConfigurations([{ 'remote.autoForwardPorts': false }]);
+						.registerDefaultConfigurations([{ overrides: { 'remote.autoForwardPorts': false } }]);
 					break;
 				}
 				case CandidatePortSource.Output: {
 					Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-						.registerDefaultConfigurations([{ 'remote.autoForwardPortsSource': PORT_AUTO_SOURCE_SETTING_OUTPUT }]);
+						.registerDefaultConfigurations([{ overrides: { 'remote.autoForwardPortsSource': PORT_AUTO_SOURCE_SETTING_OUTPUT } }]);
 					break;
 				}
 				default: // Do nothing, the defaults for these settings should be used.

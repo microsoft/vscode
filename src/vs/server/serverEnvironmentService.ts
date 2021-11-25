@@ -120,6 +120,7 @@ export interface ServerParsedArgs {
 
 	force?: boolean; // used by install-extension
 	'do-not-sync'?: boolean; // used by install-extension
+	'pre-release'?: boolean; // used by install-extension
 
 	'user-data-dir'?: string;
 	'builtin-extensions-dir'?: string;

@@ -8,7 +8,7 @@ import * as objects from 'vs/base/common/objects';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IConfigurationNode, IConfigurationRegistry, Extensions, resourceLanguageSettingsSchemaId, validateProperty, ConfigurationScope, OVERRIDE_PROPERTY_PATTERN, OVERRIDE_PROPERTY_REGEX, windowSettings, resourceSettings, machineOverridableSettings } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationNode, IConfigurationRegistry, Extensions, resourceLanguageSettingsSchemaId, validateProperty, ConfigurationScope, OVERRIDE_PROPERTY_PATTERN, OVERRIDE_PROPERTY_REGEX, windowSettings, resourceSettings, machineOverridableSettings, IConfigurationDefaults } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { workspaceSettingsSchemaId, launchSchemaId, tasksSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { isObject } from 'vs/base/common/types';
@@ -144,24 +144,24 @@ const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<I
 });
 defaultConfigurationExtPoint.setHandler((extensions, { added, removed }) => {
 	if (removed.length) {
-		const removedDefaultConfigurations = removed.map<IStringDictionary<any>>(extension => objects.deepClone(extension.value));
+		const removedDefaultConfigurations = removed.map<IConfigurationDefaults>(extension => ({ overrides: objects.deepClone(extension.value), extensionId: extension.description.identifier.value }));
 		configurationRegistry.deregisterDefaultConfigurations(removedDefaultConfigurations);
 	}
 	if (added.length) {
 		const registeredProperties = configurationRegistry.getConfigurationProperties();
 		const allowedScopes = [ConfigurationScope.MACHINE_OVERRIDABLE, ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE, ConfigurationScope.LANGUAGE_OVERRIDABLE];
-		const addedDefaultConfigurations = added.map<IStringDictionary<any>>(extension => {
-			const defaults: IStringDictionary<any> = objects.deepClone(extension.value);
-			for (const key of Object.keys(defaults)) {
+		const addedDefaultConfigurations = added.map<IConfigurationDefaults>(extension => {
+			const overrides: IStringDictionary<any> = objects.deepClone(extension.value);
+			for (const key of Object.keys(overrides)) {
 				if (!OVERRIDE_PROPERTY_REGEX.test(key)) {
 					const registeredPropertyScheme = registeredProperties[key];
 					if (registeredPropertyScheme.scope && !allowedScopes.includes(registeredPropertyScheme.scope)) {
 						extension.collector.warn(nls.localize('config.property.defaultConfiguration.warning', "Cannot register configuration defaults for '{0}'. Only defaults for machine-overridable, window, resource and language overridable scoped settings are supported.", key));
-						delete defaults[key];
+						delete overrides[key];
 					}
 				}
 			}
-			return defaults;
+			return { overrides, extensionId: extension.description.identifier.value };
 		});
 		configurationRegistry.registerDefaultConfigurations(addedDefaultConfigurations);
 	}

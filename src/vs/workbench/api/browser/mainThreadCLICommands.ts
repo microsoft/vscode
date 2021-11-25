@@ -71,7 +71,7 @@ CommandsRegistry.registerCommand('_remoteCLI.manageExtensions', async function (
 		const revive = (inputs: (string | UriComponents)[]) => inputs.map(input => isString(input) ? input : URI.revive(input));
 		if (Array.isArray(args.install) && args.install.length) {
 			try {
-				await cliService.installExtensions(revive(args.install), [], true, !!args.force, output);
+				await cliService.installExtensions(revive(args.install), [], { isMachineScoped: true }, !!args.force, output);
 			} catch (e) {
 				lines.push(e.message);
 			}

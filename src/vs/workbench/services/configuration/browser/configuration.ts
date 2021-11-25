@@ -43,7 +43,7 @@ export class DefaultConfiguration extends Disposable {
 	) {
 		super();
 		if (environmentService.options?.configurationDefaults) {
-			this.configurationRegistry.registerDefaultConfigurations([environmentService.options.configurationDefaults]);
+			this.configurationRegistry.registerDefaultConfigurations([{ overrides: environmentService.options.configurationDefaults }]);
 		}
 	}
 
@@ -57,6 +57,7 @@ export class DefaultConfiguration extends Disposable {
 
 	async initialize(): Promise<ConfigurationModel> {
 		await this.initializeCachedConfigurationDefaultsOverrides();
+		this._configurationModel = undefined;
 		this._register(this.configurationRegistry.onDidUpdateConfiguration(({ defaultsOverrides }) => this.onDidUpdateConfiguration(defaultsOverrides)));
 		return this.configurationModel;
 	}
@@ -95,9 +96,9 @@ export class DefaultConfiguration extends Disposable {
 	private async updateCachedConfigurationDefaultsOverrides(): Promise<void> {
 		const cachedConfigurationDefaultsOverrides: IStringDictionary<any> = {};
 		const configurationDefaultsOverrides = this.configurationRegistry.getConfigurationDefaultsOverrides();
-		for (const key of Object.keys(configurationDefaultsOverrides)) {
-			if (!OVERRIDE_PROPERTY_REGEX.test(key) && configurationDefaultsOverrides[key] !== undefined) {
-				cachedConfigurationDefaultsOverrides[key] = configurationDefaultsOverrides[key];
+		for (const [key, value] of configurationDefaultsOverrides) {
+			if (!OVERRIDE_PROPERTY_REGEX.test(key) && value.value !== undefined) {
+				cachedConfigurationDefaultsOverrides[key] = value.value;
 			}
 		}
 		try {

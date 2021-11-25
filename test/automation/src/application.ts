@@ -75,24 +75,14 @@ export class Application {
 		await this.code.waitForElement('.explorer-folders-view');
 	}
 
-	async restart(options: { workspaceOrFolder?: string, extraArgs?: string[] }): Promise<any> {
+	async restart(options?: { workspaceOrFolder?: string, extraArgs?: string[] }): Promise<any> {
 		await this.stop();
-		await new Promise(c => setTimeout(c, 1000));
-		await this._start(options.workspaceOrFolder, options.extraArgs);
+		await this._start(options?.workspaceOrFolder, options?.extraArgs);
 	}
 
 	private async _start(workspaceOrFolder = this.workspacePathOrFolder, extraArgs: string[] = []): Promise<any> {
 		this._workspacePathOrFolder = workspaceOrFolder;
 		await this.startApplication(extraArgs);
-		await this.checkWindowReady();
-	}
-
-	async reload(): Promise<any> {
-		this.code.reload()
-			.catch(err => null); // ignore the connection drop errors
-
-		// needs to be enough to propagate the 'Reload Window' command
-		await new Promise(c => setTimeout(c, 1500));
 		await this.checkWindowReady();
 	}
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { compareIgnoreCase } from 'vs/base/common/strings';
-import { IExtensionIdentifier, IExtensionIdentifierWithVersion, IGalleryExtension, ILocalExtension, IReportedExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionIdentifier, IExtensionIdentifierWithVersion, IGalleryExtension, ILocalExtension, IExtensionsControlManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionIdentifier, IExtension } from 'vs/platform/extensions/common/extensions';
 
 export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifier): boolean {
@@ -117,12 +117,12 @@ export function getGalleryExtensionTelemetryData(extension: IGalleryExtension): 
 
 export const BetterMergeId = new ExtensionIdentifier('pprice.better-merge');
 
-export function getMaliciousExtensionsSet(report: IReportedExtension[]): Set<string> {
+export function getMaliciousExtensionsSet(manifest: IExtensionsControlManifest): Set<string> {
 	const result = new Set<string>();
 
-	for (const extension of report) {
-		if (extension.malicious) {
-			result.add(extension.id.id);
+	if (manifest.malicious) {
+		for (const extension of manifest.malicious) {
+			result.add(extension.id);
 		}
 	}
 

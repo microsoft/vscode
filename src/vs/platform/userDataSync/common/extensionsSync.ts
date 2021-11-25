@@ -416,7 +416,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 						) {
 							if (await this.extensionManagementService.canInstall(extension)) {
 								this.logService.trace(`${this.syncResourceLogLabel}: Installing extension...`, e.identifier.id, extension.version);
-								await this.extensionManagementService.installFromGallery(extension, { isMachineScoped: false, donotIncludePackAndDependencies: true, installPreReleaseVersion: e.preRelease } /* pass options to prevent install and sync dialog in web */);
+								await this.extensionManagementService.installFromGallery(extension, { isMachineScoped: false, donotIncludePackAndDependencies: true, installPreReleaseVersion: e.preRelease } /* set isMachineScoped value to prevent install and sync dialog in web */);
 								this.logService.info(`${this.syncResourceLogLabel}: Installed extension.`, e.identifier.id, extension.version);
 								removeFromSkipped.push(extension.identifier);
 							} else {
