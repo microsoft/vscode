@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { Action } from 'vs/base/common/actions';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
-import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { MenuRegistry, MenuId, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchActionRegistry, Extensions, CATEGORIES } from 'vs/workbench/common/actions';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IWorkbenchThemeService, IWorkbenchTheme, ThemeSettingTarget, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IWorkbenchProductIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IExtensionGalleryService, IExtensionManagementService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -31,13 +30,14 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { Emitter } from 'vs/base/common/event';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export const manageExtensionIcon = registerIcon('theme-selection-manage-extension', Codicon.gear, localize('manageExtensionIcon', 'Icon for the \'Manage\' action in the theme selection quick pick.'));
 
 type PickerResult = 'back' | 'selected' | 'cancelled';
 
-class MarketplaceThemes {
+class MarketplaceThemesPicker {
 	private readonly _installedExtensions: Promise<Set<string>>;
 	private readonly _marketplaceExtensions: Set<string> = new Set();
 	private readonly _marketplaceThemes: ThemeItem[] = [];
@@ -129,9 +129,11 @@ class MarketplaceThemes {
 			if (!isPromiseCanceledError(e)) {
 				this.logService.error(`Error while searching for themes:`, e);
 			}
+		} finally {
+			this._searchOngoing = false;
+			this._onDidChange.fire();
 		}
-		this._searchOngoing = false;
-		this._onDidChange.fire();
+
 	}
 
 	public openQuickPick(value: string, currentTheme: IWorkbenchTheme | undefined, selectTheme: (theme: IWorkbenchTheme | undefined, applyTheme: boolean) => void): Promise<PickerResult> {
@@ -233,33 +235,27 @@ class MarketplaceThemes {
 	}
 }
 
-abstract class AbstractSelectThemeAction extends Action {
+class InstalledThemesPicker {
 	constructor(
-		id: string,
-		label: string,
-		private readonly quickInputService: IQuickInputService,
-		private readonly extensionGalleryService: IExtensionGalleryService,
-		private readonly paneCompositeService: IPaneCompositePartService,
-		private readonly extensionResourceLoaderService: IExtensionResourceLoaderService,
-		private readonly instantiationService: IInstantiationService
-
+		private readonly installMessage: string,
+		private readonly browseMessage: string,
+		private readonly placeholderMessage: string,
+		private readonly marketplaceTag: string,
+		private readonly setTheme: (theme: IWorkbenchTheme | undefined, settingsTarget: ThemeSettingTarget) => Promise<any>,
+		private readonly getMarketplaceColorThemes: (publisher: string, name: string, version: string) => Promise<IWorkbenchTheme[]>,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
+		@IExtensionResourceLoaderService private readonly extensionResourceLoaderService: IExtensionResourceLoaderService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
-		super(id, label);
 	}
 
-	protected abstract get installMessage(): string;
-	protected abstract get browseMessage(): string;
-	protected abstract get placeholderMessage(): string;
-	protected abstract get marketplaceTag(): string;
-
-	protected abstract setTheme(theme: IWorkbenchTheme | undefined, settingsTarget: ThemeSettingTarget): Promise<any>;
-	protected abstract getMarketplaceColorThemes(publisher: string, name: string, version: string): Promise<IWorkbenchTheme[]>;
-
-	protected async pick(picks: QuickPickInput<ThemeItem>[], currentTheme: IWorkbenchTheme) {
-		let marketplaceThemes: MarketplaceThemes | undefined;
+	public async openQuickPick(picks: QuickPickInput<ThemeItem>[], currentTheme: IWorkbenchTheme) {
+		let marketplaceThemes: MarketplaceThemesPicker | undefined;
 		if (this.extensionGalleryService.isEnabled()) {
 			if (this.extensionResourceLoaderService.supportsExtensionGalleryResources) {
-				marketplaceThemes = this.instantiationService.createInstance(MarketplaceThemes, this.getMarketplaceColorThemes.bind(this), this.marketplaceTag);
+				marketplaceThemes = this.instantiationService.createInstance(MarketplaceThemesPicker, this.getMarketplaceColorThemes.bind(this), this.marketplaceTag);
 				picks = [...configurationEntries(this.browseMessage), ...picks];
 			} else {
 				picks = [...picks, ...configurationEntries(this.installMessage)];
@@ -341,129 +337,119 @@ abstract class AbstractSelectThemeAction extends Action {
 	}
 }
 
-export class SelectColorThemeAction extends AbstractSelectThemeAction {
+const SelectColorThemeCommandId = 'workbench.action.selectTheme';
 
-	static readonly ID = 'workbench.action.selectTheme';
-	static readonly LABEL = localize('selectTheme.label', "Color Theme");
+registerAction2(class extends Action2 {
 
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService quickInputService: IQuickInputService,
-		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
-		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
-		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
-		@IExtensionResourceLoaderService extensionResourceLoaderService: IExtensionResourceLoaderService,
-		@IInstantiationService instantiationService: IInstantiationService
-
-	) {
-		super(id, label, quickInputService, extensionGalleryService, paneCompositeService, extensionResourceLoaderService, instantiationService);
+	constructor() {
+		super({
+			id: SelectColorThemeCommandId,
+			title: localize('selectTheme.label', "Color Theme"),
+			category: CATEGORIES.Preferences,
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyT)
+			}
+		});
 	}
 
-	protected override readonly installMessage = localize('installColorThemes', "Install Additional Color Themes...");
-	protected override readonly browseMessage = '$(plus) ' + localize('browseColorThemes', "Browse Additional Color Themes...");
-	protected override readonly placeholderMessage = localize('themes.selectTheme', "Select Color Theme (Up/Down Keys to Preview)");
-	protected override readonly marketplaceTag = 'category:themes';
-	protected override setTheme(theme: IWorkbenchTheme | undefined, settingsTarget: ThemeSettingTarget): Promise<any> {
-		return this.themeService.setColorTheme(theme as IWorkbenchColorTheme, settingsTarget);
-	}
-	protected override getMarketplaceColorThemes(publisher: string, name: string, version: string): Promise<IWorkbenchTheme[]> {
-		return this.themeService.getMarketplaceColorThemes(publisher, name, version);
-	}
+	override async run(accessor: ServicesAccessor) {
+		const themeService = accessor.get(IWorkbenchThemeService);
 
-	override async run(): Promise<void> {
-		const themes = await this.themeService.getColorThemes();
-		const currentTheme = this.themeService.getColorTheme();
+		const installMessage = localize('installColorThemes', "Install Additional Color Themes...");
+		const browseMessage = '$(plus) ' + localize('browseColorThemes', "Browse Additional Color Themes...");
+		const placeholderMessage = localize('themes.selectTheme', "Select Color Theme (Up/Down Keys to Preview)");
+		const marketplaceTag = 'category:themes';
+		const setTheme = (theme: IWorkbenchTheme | undefined, settingsTarget: ThemeSettingTarget) => themeService.setColorTheme(theme as IWorkbenchColorTheme, settingsTarget);
+		const getMarketplaceColorThemes = (publisher: string, name: string, version: string) => themeService.getMarketplaceColorThemes(publisher, name, version);
+
+		const instantiationService = accessor.get(IInstantiationService);
+		const picker = instantiationService.createInstance(InstalledThemesPicker, installMessage, browseMessage, placeholderMessage, marketplaceTag, setTheme, getMarketplaceColorThemes);
+
+		const themes = await themeService.getColorThemes();
+		const currentTheme = themeService.getColorTheme();
 
 		const picks: QuickPickInput<ThemeItem>[] = [
 			...toEntries(themes.filter(t => t.type === ColorScheme.LIGHT), localize('themes.category.light', "light themes")),
 			...toEntries(themes.filter(t => t.type === ColorScheme.DARK), localize('themes.category.dark', "dark themes")),
 			...toEntries(themes.filter(t => t.type === ColorScheme.HIGH_CONTRAST), localize('themes.category.hc', "high contrast themes")),
 		];
-		this.pick(picks, currentTheme);
+		await picker.openQuickPick(picks, currentTheme);
 	}
-}
+});
 
-class SelectFileIconThemeAction extends AbstractSelectThemeAction {
+const SelectFileIconThemeCommandId = 'workbench.action.selectIconTheme';
 
-	static readonly ID = 'workbench.action.selectIconTheme';
-	static readonly LABEL = localize('selectIconTheme.label', "File Icon Theme");
+registerAction2(class extends Action2 {
 
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService quickInputService: IQuickInputService,
-		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
-		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
-		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
-		@IExtensionResourceLoaderService extensionResourceLoaderService: IExtensionResourceLoaderService,
-		@IInstantiationService instantiationService: IInstantiationService
-	) {
-		super(id, label, quickInputService, extensionGalleryService, paneCompositeService, extensionResourceLoaderService, instantiationService);
+	constructor() {
+		super({
+			id: SelectFileIconThemeCommandId,
+			title: localize('selectIconTheme.label', "File Icon Theme"),
+			category: CATEGORIES.Preferences,
+			f1: true
+		});
 	}
 
-	protected override readonly installMessage = localize('installIconThemes', "Install Additional File Icon Themes...");
-	protected override readonly browseMessage = localize('browseIconThemes', "$(plus) Browse Additional File Icon Themes...");
-	protected override readonly placeholderMessage = localize('themes.selectIconTheme', "Select File Icon Theme");
-	protected override readonly marketplaceTag = 'tag:icon-theme';
-	protected override setTheme(theme: IWorkbenchTheme | undefined, settingsTarget: ThemeSettingTarget) {
-		return this.themeService.setFileIconTheme(theme as IWorkbenchFileIconTheme, settingsTarget);
-	}
-	protected override getMarketplaceColorThemes(publisher: string, name: string, version: string) {
-		return this.themeService.getMarketplaceFileIconThemes(publisher, name, version);
-	}
+	override async run(accessor: ServicesAccessor) {
+		const themeService = accessor.get(IWorkbenchThemeService);
 
-	override async run(): Promise<void> {
+		const installMessage = localize('installIconThemes', "Install Additional File Icon Themes...");
+		const browseMessage = '$(plus) ' + localize('browseIconThemes', "Browse Additional File Icon Themes...");
+		const placeholderMessage = localize('themes.selectIconTheme', "Select File Icon Theme (Up/Down Keys to Preview)");
+		const marketplaceTag = 'tag:icon-theme';
+		const setTheme = (theme: IWorkbenchTheme | undefined, settingsTarget: ThemeSettingTarget) => themeService.setFileIconTheme(theme as IWorkbenchFileIconTheme, settingsTarget);
+		const getMarketplaceColorThemes = (publisher: string, name: string, version: string) => themeService.getMarketplaceFileIconThemes(publisher, name, version);
+
+		const instantiationService = accessor.get(IInstantiationService);
+		const picker = instantiationService.createInstance(InstalledThemesPicker, installMessage, browseMessage, placeholderMessage, marketplaceTag, setTheme, getMarketplaceColorThemes);
+
 		const picks: QuickPickInput<ThemeItem>[] = [
 			{ type: 'separator', label: localize('fileIconThemeCategory', 'file icon themes') },
 			{ id: '', label: localize('noIconThemeLabel', 'None'), description: localize('noIconThemeDesc', 'Disable File Icons') },
-			...toEntries(await this.themeService.getFileIconThemes()),
+			...toEntries(await themeService.getFileIconThemes()),
 		];
 
-		await this.pick(picks, this.themeService.getFileIconTheme());
+		await picker.openQuickPick(picks, themeService.getFileIconTheme());
 	}
-}
+});
 
+const SelectProductIconThemeCommandId = 'workbench.action.selectProductIconTheme';
 
-class SelectProductIconThemeAction extends AbstractSelectThemeAction {
+registerAction2(class extends Action2 {
 
-	static readonly ID = 'workbench.action.selectProductIconTheme';
-	static readonly LABEL = localize('selectProductIconTheme.label', "Product Icon Theme");
-
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService quickInputService: IQuickInputService,
-		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
-		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
-		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
-		@IExtensionResourceLoaderService extensionResourceLoaderService: IExtensionResourceLoaderService,
-		@IInstantiationService instantiationService: IInstantiationService
-
-	) {
-		super(id, label, quickInputService, extensionGalleryService, paneCompositeService, extensionResourceLoaderService, instantiationService);
+	constructor() {
+		super({
+			id: SelectProductIconThemeCommandId,
+			title: localize('selectProductIconTheme.label', "Product Icon Theme"),
+			category: CATEGORIES.Preferences,
+			f1: true
+		});
 	}
 
-	protected override readonly installMessage = localize('installProductIconThemes', "Install Additional Product Icon Themes...");
-	protected override readonly browseMessage = localize('browseProductIconThemes', "$(plus) Browse Additional Product Icon Themes...");
-	protected override readonly placeholderMessage = localize('themes.selectProductIconTheme', "Select Product Icon Theme");
-	protected override readonly marketplaceTag = 'tag:product-icon-theme';
-	protected override setTheme(theme: IWorkbenchTheme | undefined, settingsTarget: ThemeSettingTarget): Promise<any> {
-		return this.themeService.setProductIconTheme(theme as IWorkbenchProductIconTheme, settingsTarget);
-	}
-	protected override getMarketplaceColorThemes(publisher: string, name: string, version: string): Promise<IWorkbenchTheme[]> {
-		return this.themeService.getMarketplaceProductIconThemes(publisher, name, version);
-	}
-	override async run(): Promise<void> {
+	override async run(accessor: ServicesAccessor) {
+		const themeService = accessor.get(IWorkbenchThemeService);
+
+		const installMessage = localize('installProductIconThemes', "Install Additional Product Icon Themes...");
+		const browseMessage = '$(plus) ' + localize('browseProductIconThemes', "Browse Additional Product Icon Themes...");
+		const placeholderMessage = localize('themes.selectProductIconTheme', "Select Product Icon Theme (Up/Down Keys to Preview)");
+		const marketplaceTag = 'tag:product-icon-theme';
+		const setTheme = (theme: IWorkbenchTheme | undefined, settingsTarget: ThemeSettingTarget) => themeService.setProductIconTheme(theme as IWorkbenchProductIconTheme, settingsTarget);
+		const getMarketplaceColorThemes = (publisher: string, name: string, version: string) => themeService.getMarketplaceProductIconThemes(publisher, name, version);
+
+		const instantiationService = accessor.get(IInstantiationService);
+		const picker = instantiationService.createInstance(InstalledThemesPicker, installMessage, browseMessage, placeholderMessage, marketplaceTag, setTheme, getMarketplaceColorThemes);
+
 		const picks: QuickPickInput<ThemeItem>[] = [
 			{ type: 'separator', label: localize('productIconThemeCategory', 'product icon themes') },
 			{ id: DEFAULT_PRODUCT_ICON_THEME_ID, label: localize('defaultProductIconThemeLabel', 'Default') },
-			...toEntries(await this.themeService.getProductIconThemes()),
+			...toEntries(await themeService.getProductIconThemes()),
 		];
 
-		await this.pick(picks, this.themeService.getProductIconTheme());
+		await picker.openQuickPick(picks, themeService.getProductIconTheme());
 	}
-}
+});
 
 function configurationEntries(label: string): QuickPickInput<ThemeItem>[] {
 	return [
@@ -522,27 +508,26 @@ const configureButton: IQuickInputButton = {
 	iconClass: ThemeIcon.asClassName(manageExtensionIcon),
 	tooltip: localize('manage extension', "Manage Extension"),
 };
-class GenerateColorThemeAction extends Action {
 
-	static readonly ID = 'workbench.action.generateColorTheme';
-	static readonly LABEL = localize('generateColorTheme.label', "Generate Color Theme From Current Settings");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
-		@IEditorService private readonly editorService: IEditorService,
-	) {
-		super(id, label);
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.generateColorTheme',
+			title: localize('generateColorTheme.label', "Generate Color Theme From Current Settings"),
+			category: CATEGORIES.Developer,
+			f1: true
+		});
 	}
 
-	override run(): Promise<any> {
-		let theme = this.themeService.getColorTheme();
-		let colors = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution).getColors();
-		let colorIds = colors.map(c => c.id).sort();
-		let resultingColors: { [key: string]: string | null } = {};
-		let inherited: string[] = [];
-		for (let colorId of colorIds) {
+	override run(accessor: ServicesAccessor) {
+		const themeService = accessor.get(IWorkbenchThemeService);
+
+		const theme = themeService.getColorTheme();
+		const colors = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution).getColors();
+		const colorIds = colors.map(c => c.id).sort();
+		const resultingColors: { [key: string]: string | null } = {};
+		const inherited: string[] = [];
+		for (const colorId of colorIds) {
 			const color = theme.getColor(colorId, false);
 			if (color) {
 				resultingColors[colorId] = Color.Format.CSS.formatHexA(color, true);
@@ -551,7 +536,7 @@ class GenerateColorThemeAction extends Action {
 			}
 		}
 		const nullDefaults = [];
-		for (let id of inherited) {
+		for (const id of inherited) {
 			const color = theme.getColor(id);
 			if (color) {
 				resultingColors['__' + id] = Color.Format.CSS.formatHexA(color, true);
@@ -559,7 +544,7 @@ class GenerateColorThemeAction extends Action {
 				nullDefaults.push(id);
 			}
 		}
-		for (let id of nullDefaults) {
+		for (const id of nullDefaults) {
 			resultingColors['__' + id] = null;
 		}
 		let contents = JSON.stringify({
@@ -570,29 +555,15 @@ class GenerateColorThemeAction extends Action {
 		}, null, '\t');
 		contents = contents.replace(/\"__/g, '//"');
 
-		return this.editorService.openEditor({ resource: undefined, contents, mode: 'jsonc', options: { pinned: true } });
+		const editorService = accessor.get(IEditorService);
+		return editorService.openEditor({ resource: undefined, contents, mode: 'jsonc', options: { pinned: true } });
 	}
-}
-
-const category = localize('preferences', "Preferences");
-
-const colorThemeDescriptor = SyncActionDescriptor.from(SelectColorThemeAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyT) });
-Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(colorThemeDescriptor, 'Preferences: Color Theme', category);
-
-const fileIconThemeDescriptor = SyncActionDescriptor.from(SelectFileIconThemeAction);
-Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(fileIconThemeDescriptor, 'Preferences: File Icon Theme', category);
-
-const productIconThemeDescriptor = SyncActionDescriptor.from(SelectProductIconThemeAction);
-Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(productIconThemeDescriptor, 'Preferences: Product Icon Theme', category);
-
-
-const generateColorThemeDescriptor = SyncActionDescriptor.from(GenerateColorThemeAction);
-Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(generateColorThemeDescriptor, 'Developer: Generate Color Theme From Current Settings', CATEGORIES.Developer.value);
+});
 
 MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	group: '4_themes',
 	command: {
-		id: SelectColorThemeAction.ID,
+		id: SelectColorThemeCommandId,
 		title: localize({ key: 'miSelectColorTheme', comment: ['&& denotes a mnemonic'] }, "&&Color Theme")
 	},
 	order: 1
@@ -601,7 +572,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	group: '4_themes',
 	command: {
-		id: SelectFileIconThemeAction.ID,
+		id: SelectFileIconThemeCommandId,
 		title: localize({ key: 'miSelectIconTheme', comment: ['&& denotes a mnemonic'] }, "File &&Icon Theme")
 	},
 	order: 2
@@ -610,7 +581,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	group: '4_themes',
 	command: {
-		id: SelectProductIconThemeAction.ID,
+		id: SelectProductIconThemeCommandId,
 		title: localize({ key: 'miSelectProductIconTheme', comment: ['&& denotes a mnemonic'] }, "&&Product Icon Theme")
 	},
 	order: 3
@@ -620,7 +591,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 	group: '4_themes',
 	command: {
-		id: SelectColorThemeAction.ID,
+		id: SelectColorThemeCommandId,
 		title: localize('selectTheme.label', "Color Theme")
 	},
 	order: 1
@@ -629,7 +600,7 @@ MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 	group: '4_themes',
 	command: {
-		id: SelectFileIconThemeAction.ID,
+		id: SelectFileIconThemeCommandId,
 		title: localize('themes.selectIconTheme.label', "File Icon Theme")
 	},
 	order: 2
@@ -638,7 +609,7 @@ MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 	group: '4_themes',
 	command: {
-		id: SelectProductIconThemeAction.ID,
+		id: SelectProductIconThemeCommandId,
 		title: localize('themes.selectProductIconTheme.label', "Product Icon Theme")
 	},
 	order: 3
