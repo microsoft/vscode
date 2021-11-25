@@ -32,6 +32,7 @@ import { Emitter } from 'vs/base/common/event';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 export const manageExtensionIcon = registerIcon('theme-selection-manage-extension', Codicon.gear, localize('manageExtensionIcon', 'Icon for the \'Manage\' action in the theme selection quick pick.'));
 
@@ -235,6 +236,7 @@ class MarketplaceThemesPicker {
 	}
 }
 
+
 class InstalledThemesPicker {
 	constructor(
 		private readonly installMessage: string,
@@ -252,10 +254,10 @@ class InstalledThemesPicker {
 	}
 
 	public async openQuickPick(picks: QuickPickInput<ThemeItem>[], currentTheme: IWorkbenchTheme) {
-		let marketplaceThemes: MarketplaceThemesPicker | undefined;
+		let marketplaceThemePicker: MarketplaceThemesPicker | undefined;
 		if (this.extensionGalleryService.isEnabled()) {
 			if (this.extensionResourceLoaderService.supportsExtensionGalleryResources) {
-				marketplaceThemes = this.instantiationService.createInstance(MarketplaceThemesPicker, this.getMarketplaceColorThemes.bind(this), this.marketplaceTag);
+				marketplaceThemePicker = this.instantiationService.createInstance(MarketplaceThemesPicker, this.getMarketplaceColorThemes.bind(this), this.marketplaceTag);
 				picks = [...configurationEntries(this.browseMessage), ...picks];
 			} else {
 				picks = [...picks, ...configurationEntries(this.installMessage)];
@@ -264,7 +266,7 @@ class InstalledThemesPicker {
 
 		let selectThemeTimeout: number | undefined;
 
-		const selectTheme = (theme: ThemeItem | undefined, applyTheme: boolean) => {
+		const selectTheme = (theme: IWorkbenchTheme | undefined, applyTheme: boolean) => {
 			if (selectThemeTimeout) {
 				clearTimeout(selectThemeTimeout);
 			}
@@ -294,8 +296,8 @@ class InstalledThemesPicker {
 					isCompleted = true;
 					const theme = quickpick.selectedItems[0];
 					if (!theme || typeof theme.id === 'undefined') { // 'pick in marketplace' entry
-						if (marketplaceThemes) {
-							const res = await marketplaceThemes.openQuickPick(quickpick.value, currentTheme, selectTheme);
+						if (marketplaceThemePicker) {
+							const res = await marketplaceThemePicker.openQuickPick(quickpick.value, currentTheme, selectTheme);
 							if (res === 'back') {
 								await pickInstalledThemes(undefined);
 							}
@@ -303,13 +305,13 @@ class InstalledThemesPicker {
 							openExtensionViewlet(this.paneCompositeService, `${this.marketplaceTag} ${quickpick.value}`);
 						}
 					} else {
-						selectTheme(theme, true);
+						selectTheme(theme.theme, true);
 					}
 
 					quickpick.hide();
 					s();
 				});
-				quickpick.onDidChangeActive(themes => selectTheme(themes[0], false));
+				quickpick.onDidChangeActive(themes => selectTheme(themes[0].theme, false));
 				quickpick.onDidHide(() => {
 					if (!isCompleted) {
 						selectTheme(currentTheme, true);
@@ -332,7 +334,7 @@ class InstalledThemesPicker {
 		};
 		await pickInstalledThemes(currentTheme.id);
 
-		marketplaceThemes?.dispose();
+		marketplaceThemePicker?.dispose();
 
 	}
 }
@@ -449,6 +451,19 @@ registerAction2(class extends Action2 {
 
 		await picker.openQuickPick(picks, themeService.getProductIconTheme());
 	}
+});
+
+CommandsRegistry.registerCommand('workbench.action.previewColorTheme', async function (accessor: ServicesAccessor, extension: { publisher: string, name: string, version: string }, themeSettingsId?: string) {
+	const themeService = accessor.get(IWorkbenchThemeService);
+
+	const themes = await themeService.getMarketplaceColorThemes(extension.publisher, extension.name, extension.version);
+	for (const theme of themes) {
+		if (!themeSettingsId || theme.settingsId === themeSettingsId) {
+			await themeService.setColorTheme(theme, 'preview');
+			return theme.settingsId;
+		}
+	}
+	return undefined;
 });
 
 function configurationEntries(label: string): QuickPickInput<ThemeItem>[] {
