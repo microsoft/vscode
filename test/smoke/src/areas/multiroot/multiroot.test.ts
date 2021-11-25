@@ -17,7 +17,7 @@ function toUri(path: string): string {
 	return `${path}`;
 }
 
-async function createWorkspaceFile(workspacePath: string): Promise<string> {
+function createWorkspaceFile(workspacePath: string): string {
 	const workspaceFilePath = path.join(path.dirname(workspacePath), 'smoketest.code-workspace');
 	const workspace = {
 		folders: [
@@ -39,7 +39,7 @@ async function createWorkspaceFile(workspacePath: string): Promise<string> {
 export function setup(opts: minimist.ParsedArgs) {
 	describe('Multiroot', () => {
 		beforeSuite(opts, async opts => {
-			const workspacePath = await createWorkspaceFile(opts.workspacePath);
+			const workspacePath = createWorkspaceFile(opts.workspacePath);
 			return { ...opts, workspacePath };
 		});
 

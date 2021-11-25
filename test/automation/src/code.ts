@@ -290,34 +290,55 @@ export class Code {
 		await this.driver.dispatchKeybinding(windowId, keybinding);
 	}
 
-	async reload(): Promise<void> {
-		const windowId = await this.getActiveWindowId();
-		await this.driver.reloadWindow(windowId);
-	}
-
 	async exit(): Promise<void> {
-		const exitPromise = this.driver.exitApplication();
+		return new Promise<void>((resolve, reject) => {
+			let done = false;
 
-		// If we know the `pid`, use that to await the
-		// process to terminate (desktop).
-		const pid = this.pid;
-		if (typeof pid === 'number') {
-			await (async () => {
-				while (true) {
-					try {
-						process.kill(pid, 0); // throws an exception if the main process doesn't exist anymore.
-						await new Promise(c => setTimeout(c, 100));
-					} catch (error) {
-						return;
-					}
+			// Start the exit flow via driver
+			const exitPromise = this.driver.exitApplication().then(veto => {
+				if (veto) {
+					done = true;
+					reject(new Error('Smoke test exit call resulted in unexpected veto'));
 				}
-			})();
-		}
+			});
 
-		// Otherwise await the exit promise (web).
-		else {
-			await exitPromise;
-		}
+			// If we know the `pid` of the smoke tested application
+			// use that as way to detect the exit of the application
+			const pid = this.pid;
+			if (typeof pid === 'number') {
+				(async () => {
+					let killCounter = 0;
+					while (!done) {
+						killCounter++;
+
+						if (killCounter > 40) {
+							done = true;
+							reject(new Error('Smoke test exit call did not terminate main process after 20s, giving up'));
+						}
+
+						try {
+							process.kill(pid, 0); // throws an exception if the main process doesn't exist anymore.
+							await new Promise(resolve => setTimeout(resolve, 500));
+						} catch (error) {
+							done = true;
+							resolve();
+						}
+					}
+				})();
+			}
+
+			// Otherwise await the exit promise (web).
+			else {
+				(async () => {
+					try {
+						await exitPromise;
+						resolve();
+					} catch (error) {
+						reject(new Error(`Smoke test exit call resulted in error: ${error}`));
+					}
+				})();
+			}
+		});
 	}
 
 	async waitForTextContent(selector: string, textContent?: string, accept?: (result: string) => boolean, retryCount?: number): Promise<string> {
