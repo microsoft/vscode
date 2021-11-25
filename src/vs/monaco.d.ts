@@ -5117,6 +5117,7 @@ declare namespace monaco.editor {
 		 * Apply the same font settings as the editor to `target`.
 		 */
 		applyFontInfo(target: HTMLElement): void;
+		setBanner(bannerDomNode: HTMLElement | null, height: number): void;
 	}
 
 	/**

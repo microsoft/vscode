@@ -458,6 +458,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements IC
 
 	protected abstract readConfiguration(styling: BareFontInfo): FontInfo;
 
+	public abstract reserveHeight(height: number): void;
 }
 
 export const editorConfigurationBaseNode = Object.freeze<IConfigurationNode>({

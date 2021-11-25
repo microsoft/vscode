@@ -47,4 +47,8 @@ export class TestConfiguration extends CommonEditorConfiguration {
 			maxDigitWidth: 10,
 		}, true);
 	}
+
+	public reserveHeight(height: number): void {
+		throw new Error('Not supported');
+	}
 }
