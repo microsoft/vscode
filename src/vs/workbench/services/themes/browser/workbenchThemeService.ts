@@ -453,6 +453,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			}
 			try {
 				await themeData.ensureLoaded(this.extensionResourceLoaderService);
+				themeData.setCustomizations(this.settings);
 				return this.applyTheme(themeData, settingsTarget);
 			} catch (error) {
 				throw new Error(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.location?.toString(), error.message));
