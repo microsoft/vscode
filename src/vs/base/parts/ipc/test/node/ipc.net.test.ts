@@ -364,6 +364,59 @@ suite('PersistentProtocol reconnection', () => {
 			}
 		);
 	});
+
+	test('writing can be paused', async () => {
+		await runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 100 }, async () => {
+			const loadEstimator: ILoadEstimator = {
+				hasHighLoad: () => false
+			};
+			const ether = new Ether();
+			const aSocket = new NodeSocket(ether.a);
+			const a = new PersistentProtocol(aSocket, null, loadEstimator);
+			const aMessages = new MessageStream(a);
+			const bSocket = new NodeSocket(ether.b);
+			const b = new PersistentProtocol(bSocket, null, loadEstimator);
+			const bMessages = new MessageStream(b);
+
+			// send one message A -> B
+			a.send(VSBuffer.fromString('a1'));
+			const a1 = await bMessages.waitForOne();
+			assert.strictEqual(a1.toString(), 'a1');
+
+			// ask A to pause writing
+			b.sendPause();
+
+			// send a message B -> A
+			b.send(VSBuffer.fromString('b1'));
+			const b1 = await aMessages.waitForOne();
+			assert.strictEqual(b1.toString(), 'b1');
+
+			// send a message A -> B (this should be blocked at A)
+			a.send(VSBuffer.fromString('a2'));
+
+			// wait a long time and check that not even acks are written
+			await timeout(2 * ProtocolConstants.AcknowledgeTime);
+			assert.strictEqual(a.unacknowledgedCount, 1);
+			assert.strictEqual(b.unacknowledgedCount, 1);
+
+			// ask A to resume writing
+			b.sendResume();
+
+			// check that B receives message
+			const a2 = await bMessages.waitForOne();
+			assert.strictEqual(a2.toString(), 'a2');
+
+			// wait a long time and check that acks are written
+			await timeout(2 * ProtocolConstants.AcknowledgeTime);
+			assert.strictEqual(a.unacknowledgedCount, 0);
+			assert.strictEqual(b.unacknowledgedCount, 0);
+
+			aMessages.dispose();
+			bMessages.dispose();
+			a.dispose();
+			b.dispose();
+		});
+	});
 });
 
 suite('IPC, create handle', () => {

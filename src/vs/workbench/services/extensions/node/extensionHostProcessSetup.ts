@@ -134,9 +134,11 @@ function _createExtHostProtocol(): Promise<PersistentProtocol> {
 						disconnectRunner2.cancel();
 						protocol.beginAcceptReconnection(socket, initialDataChunk);
 						protocol.endAcceptReconnection();
+						protocol.sendResume();
 					} else {
 						clearTimeout(timer);
 						protocol = new PersistentProtocol(socket, initialDataChunk);
+						protocol.sendResume();
 						protocol.onDidDispose(() => onTerminate('renderer disconnected'));
 						resolve(protocol);
 

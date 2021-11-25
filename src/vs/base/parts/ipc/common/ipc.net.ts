@@ -254,7 +254,9 @@ const enum ProtocolMessageType {
 	Control = 2,
 	Ack = 3,
 	Disconnect = 5,
-	ReplayRequest = 6
+	ReplayRequest = 6,
+	Pause = 7,
+	Resume = 8
 }
 
 function protocolMessageTypeToString(messageType: ProtocolMessageType) {
@@ -265,6 +267,8 @@ function protocolMessageTypeToString(messageType: ProtocolMessageType) {
 		case ProtocolMessageType.Ack: return 'Ack';
 		case ProtocolMessageType.Disconnect: return 'Disconnect';
 		case ProtocolMessageType.ReplayRequest: return 'ReplayRequest';
+		case ProtocolMessageType.Pause: return 'PauseWriting';
+		case ProtocolMessageType.Resume: return 'ResumeWriting';
 	}
 }
 
@@ -432,8 +436,13 @@ class ProtocolWriter {
 		this._writeNow();
 	}
 
-	public pause() {
+	public pause(): void {
 		this._isPaused = true;
+	}
+
+	public resume(): void {
+		this._isPaused = false;
+		this._scheduleWriting();
 	}
 
 	public write(msg: ProtocolMessage) {
@@ -472,10 +481,19 @@ class ProtocolWriter {
 
 	private _writeSoon(header: VSBuffer, data: VSBuffer): void {
 		if (this._bufferAdd(header, data)) {
-			setTimeout(() => {
-				this._writeNow();
-			});
+			this._scheduleWriting();
 		}
+	}
+
+	private _writeNowTimeout: any = null;
+	private _scheduleWriting(): void {
+		if (this._writeNowTimeout) {
+			return;
+		}
+		this._writeNowTimeout = setTimeout(() => {
+			this._writeNowTimeout = null;
+			this._writeNow();
+		});
 	}
 
 	private _writeNow(): void {
@@ -837,6 +855,16 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		this._socketWriter.flush();
 	}
 
+	sendPause(): void {
+		const msg = new ProtocolMessage(ProtocolMessageType.Pause, 0, 0, getEmptyBuffer());
+		this._socketWriter.write(msg);
+	}
+
+	sendResume(): void {
+		const msg = new ProtocolMessage(ProtocolMessageType.Resume, 0, 0, getEmptyBuffer());
+		this._socketWriter.write(msg);
+	}
+
 	pauseSocketWriting() {
 		this._socketWriter.pause();
 	}
@@ -899,34 +927,59 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 			} while (true);
 		}
 
-		if (msg.type === ProtocolMessageType.Regular) {
-			if (msg.id > this._incomingMsgId) {
-				if (msg.id !== this._incomingMsgId + 1) {
-					// in case we missed some messages we ask the other party to resend them
-					const now = Date.now();
-					if (now - this._lastReplayRequestTime > 10000) {
-						// send a replay request at most once every 10s
-						this._lastReplayRequestTime = now;
-						this._socketWriter.write(new ProtocolMessage(ProtocolMessageType.ReplayRequest, 0, 0, getEmptyBuffer()));
+		switch (msg.type) {
+			case ProtocolMessageType.None: {
+				// N/A
+				break;
+			}
+			case ProtocolMessageType.Regular: {
+				if (msg.id > this._incomingMsgId) {
+					if (msg.id !== this._incomingMsgId + 1) {
+						// in case we missed some messages we ask the other party to resend them
+						const now = Date.now();
+						if (now - this._lastReplayRequestTime > 10000) {
+							// send a replay request at most once every 10s
+							this._lastReplayRequestTime = now;
+							this._socketWriter.write(new ProtocolMessage(ProtocolMessageType.ReplayRequest, 0, 0, getEmptyBuffer()));
+						}
+					} else {
+						this._incomingMsgId = msg.id;
+						this._incomingMsgLastTime = Date.now();
+						this._sendAckCheck();
+						this._onMessage.fire(msg.data);
 					}
-				} else {
-					this._incomingMsgId = msg.id;
-					this._incomingMsgLastTime = Date.now();
-					this._sendAckCheck();
-					this._onMessage.fire(msg.data);
 				}
+				break;
 			}
-		} else if (msg.type === ProtocolMessageType.Control) {
-			this._onControlMessage.fire(msg.data);
-		} else if (msg.type === ProtocolMessageType.Disconnect) {
-			this._onDidDispose.fire();
-		} else if (msg.type === ProtocolMessageType.ReplayRequest) {
-			// Send again all unacknowledged messages
-			const toSend = this._outgoingUnackMsg.toArray();
-			for (let i = 0, len = toSend.length; i < len; i++) {
-				this._socketWriter.write(toSend[i]);
+			case ProtocolMessageType.Control: {
+				this._onControlMessage.fire(msg.data);
+				break;
 			}
-			this._recvAckCheck();
+			case ProtocolMessageType.Ack: {
+				// nothing to do
+				break;
+			}
+			case ProtocolMessageType.Disconnect: {
+				this._onDidDispose.fire();
+				break;
+			}
+			case ProtocolMessageType.ReplayRequest: {
+				// Send again all unacknowledged messages
+				const toSend = this._outgoingUnackMsg.toArray();
+				for (let i = 0, len = toSend.length; i < len; i++) {
+					this._socketWriter.write(toSend[i]);
+				}
+				this._recvAckCheck();
+				break;
+			}
+			case ProtocolMessageType.Pause: {
+				this._socketWriter.pause();
+				break;
+			}
+			case ProtocolMessageType.Resume: {
+				this._socketWriter.resume();
+				break;
+			}
 		}
 	}
 

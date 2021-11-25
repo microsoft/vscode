@@ -754,6 +754,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 					}
 				}
 
+				protocol.sendPause();
 				protocol.sendControl(VSBuffer.fromString(JSON.stringify(startParams.port ? { debugPort: startParams.port } : {})));
 				const dataChunk = protocol.readEntireBuffer();
 				protocol.dispose();
@@ -766,6 +767,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 					return this._rejectWebSocketConnection(logPrefix, protocol, `Duplicate reconnection token`);
 				}
 
+				protocol.sendPause();
 				protocol.sendControl(VSBuffer.fromString(JSON.stringify(startParams.port ? { debugPort: startParams.port } : {})));
 				const dataChunk = protocol.readEntireBuffer();
 				protocol.dispose();
