@@ -241,7 +241,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': false,
 				'description': localize('perEditorGroup', "Controls if the limit of maximum opened editors should apply per editor group or across all editor groups.")
 			},
-			'workbench.editor.experimentalDisableClearInputOnSetInput': {
+			'workbench.editor.experimentalDisableClearInputOnSetInput': { //TODO@bpasero remove this setting in December
 				'type': 'boolean',
 				'default': false,
 				'description': localize('experimentalDisableClearInputOnSetInput', "Experimental setting: do not change unless instructed.")

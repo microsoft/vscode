@@ -23,33 +23,13 @@ export interface IEditorPartCreationOptions {
 export const DEFAULT_EDITOR_MIN_DIMENSIONS = new Dimension(220, 70);
 export const DEFAULT_EDITOR_MAX_DIMENSIONS = new Dimension(Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY);
 
-export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
-	showTabs: true,
-	highlightModifiedTabs: false,
-	tabCloseButton: 'right',
-	tabSizing: 'fit',
-	pinnedTabSizing: 'normal',
-	titleScrollbarSizing: 'default',
-	focusRecentEditorAfterClose: true,
-	showIcons: true,
-	hasIcons: true, // 'vs-seti' is our default icon theme
-	enablePreview: true,
-	openPositioning: 'right',
-	openSideBySideDirection: 'right',
-	closeEmptyGroups: true,
-	labelFormat: 'default',
-	splitSizing: 'distribute',
-	splitOnDragAndDrop: true,
-	experimentalDisableClearInputOnSetInput: false //TODO@bpasero remove this setting in December
-};
-
 export function impactsEditorPartOptions(event: IConfigurationChangeEvent): boolean {
 	return event.affectsConfiguration('workbench.editor') || event.affectsConfiguration('workbench.iconTheme');
 }
 
 export function getEditorPartOptions(configurationService: IConfigurationService, themeService: IThemeService): IEditorPartOptions {
-	const options = {
-		...DEFAULT_EDITOR_PART_OPTIONS,
+	const options: IEditorPartOptions = {
+		...configurationService.inspect('workbench.editor').default,
 		hasIcons: themeService.getFileIconTheme().hasFileIcons
 	};
 
