@@ -7,7 +7,7 @@ import 'vs/css!./media/progressService';
 
 import { localize } from 'vs/nls';
 import { IDisposable, dispose, DisposableStore, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IProgressService, IProgressOptions, IProgressStep, ProgressLocation, IProgress, Progress, IProgressCompositeOptions, IProgressNotificationOptions, IProgressRunner, IProgressIndicator, IProgressWindowOptions, IProgressDialogOptions } from 'vs/platform/progress/common/progress';
+import { IProgressService, IProgressOptions, IProgressStep, ProgressLocation, IProgress, Progress, IProgressCompositeOptions, IProgressNotificationOptions, IProgressRunner, IProgressIndicator, IProgressWindowOptions, IProgressDialogOptions, ICustomProgressLocation } from 'vs/platform/progress/common/progress';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { DeferredPromise, RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/common/activity';
@@ -26,9 +26,11 @@ import { parseLinkedText } from 'vs/base/common/linkedText';
 import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
-export class ProgressService extends Disposable implements IProgressService {
+export class ProgressService implements IProgressService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private readonly customProgessLocations = new Map<string, ICustomProgressLocation>();
 
 	constructor(
 		@IActivityService private readonly activityService: IActivityService,
@@ -41,7 +43,15 @@ export class ProgressService extends Disposable implements IProgressService {
 		@IThemeService private readonly themeService: IThemeService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
-		super();
+
+	}
+
+	registerProgressLocation(location: string, handle: ICustomProgressLocation): IDisposable {
+		if (this.customProgessLocations.has(location)) {
+			throw new Error(`${location} already used`);
+		}
+		this.customProgessLocations.set(location, handle);
+		return toDisposable(() => this.customProgessLocations.delete(location));
 	}
 
 	async withProgress<R = unknown>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: (choice?: number) => void): Promise<R> {
@@ -58,6 +68,11 @@ export class ProgressService extends Disposable implements IProgressService {
 
 			if (this.viewsService.getViewProgressIndicator(location)) {
 				return this.withViewProgress(location, task, { ...options, location });
+			}
+
+			const customLocation = this.customProgessLocations.get(location);
+			if (customLocation) {
+				return customLocation<R>(options, task, onDidCancel);
 			}
 
 			throw new Error(`Bad progress location: ${location}`);

@@ -6,7 +6,7 @@
 import { IAction } from 'vs/base/common/actions';
 import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IProgressService = createDecorator<IProgressService>('progressService');
@@ -23,7 +23,15 @@ export interface IProgressService {
 		task: (progress: IProgress<IProgressStep>) => Promise<R>,
 		onDidCancel?: (choice?: number) => void
 	): Promise<R>;
+
+	registerProgressLocation(location: string, handle: ICustomProgressLocation): IDisposable;
 }
+
+export type ICustomProgressLocation = <R>(
+	options: IProgressOptions | IProgressDialogOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
+	task: (progress: IProgress<IProgressStep>) => Promise<R>,
+	onDidCancel?: (choice?: number) => void
+) => Promise<R>;
 
 export interface IProgressIndicator {
 

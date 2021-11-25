@@ -441,6 +441,10 @@ export class TestProgressService implements IProgressService {
 
 	declare readonly _serviceBrand: undefined;
 
+	registerProgressLocation(): IDisposable {
+		return Disposable.None;
+	}
+
 	withProgress(
 		options: IProgressOptions | IProgressDialogOptions | IProgressWindowOptions | IProgressNotificationOptions | IProgressCompositeOptions,
 		task: (progress: IProgress<IProgressStep>) => Promise<any>,
