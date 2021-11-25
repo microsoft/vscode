@@ -11,7 +11,7 @@ import { Barrier, timeout } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ILoadEstimator, PersistentProtocol, Protocol, ProtocolConstants, SocketCloseEvent } from 'vs/base/parts/ipc/common/ipc.net';
+import { ILoadEstimator, PersistentProtocol, Protocol, ProtocolConstants, SocketCloseEvent, SocketDiagnosticsEventType } from 'vs/base/parts/ipc/common/ipc.net';
 import { createRandomIPCHandle, createStaticIPCHandle, NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
@@ -431,6 +431,9 @@ suite('WebSocketNodeSocket', () => {
 
 		private readonly _onClose = new Emitter<SocketCloseEvent>();
 		public readonly onClose = this._onClose.event;
+
+		public traceSocketEvent(type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | any): void {
+		}
 
 		constructor() {
 			super();
