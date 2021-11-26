@@ -516,7 +516,11 @@ const DECORATION = ModelDecorationOptions.register({
 	}
 });
 
-export class DisableHighlightingOfAmbiguousCharactersAction extends EditorAction {
+interface IDisableUnicodeHighlightAction {
+	shortLabel: string;
+}
+
+export class DisableHighlightingOfAmbiguousCharactersAction extends EditorAction implements IDisableUnicodeHighlightAction {
 	public static ID = 'editor.action.unicodeHighlight.disableHighlightingOfAmbiguousCharacters';
 	public readonly shortLabel = nls.localize('unicodeHighlight.disableHighlightingOfAmbiguousCharacters.shortLabel', '');
 	constructor() {
@@ -540,7 +544,7 @@ export class DisableHighlightingOfAmbiguousCharactersAction extends EditorAction
 	}
 }
 
-export class DisableHighlightingOfInvisibleCharactersAction extends EditorAction {
+export class DisableHighlightingOfInvisibleCharactersAction extends EditorAction implements IDisableUnicodeHighlightAction {
 	public static ID = 'editor.action.unicodeHighlight.disableHighlightingOfInvisibleCharacters';
 	public readonly shortLabel = nls.localize('unicodeHighlight.disableHighlightingOfInvisibleCharacters.shortLabel', 'Disable Invisible Highlight');
 	constructor() {
@@ -564,7 +568,7 @@ export class DisableHighlightingOfInvisibleCharactersAction extends EditorAction
 	}
 }
 
-export class DisableHighlightingOfNonBasicAsciiCharactersAction extends EditorAction {
+export class DisableHighlightingOfNonBasicAsciiCharactersAction extends EditorAction implements IDisableUnicodeHighlightAction {
 	public static ID = 'editor.action.unicodeHighlight.disableHighlightingOfNonBasicAsciiCharacters';
 	public readonly shortLabel = nls.localize('unicodeHighlight.disableHighlightingOfNonBasicAsciiCharacters.shortLabel', 'Disable Non ASCII Highlight');
 	constructor() {
