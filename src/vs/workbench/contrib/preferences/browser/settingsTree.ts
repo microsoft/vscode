@@ -422,7 +422,7 @@ export async function resolveExtensionsSettings(extensionService: IExtensionServ
 		const flatSettings = arrays.flatten(
 			group.sections.map(section => section.settings));
 
-		const extensionId = group.extensionInfo!.extensionDescription.identifier.value;
+		const extensionId = group.extensionInfo!.id;
 		const extension = await extensionService.getExtension(extensionId);
 		const extensionName = extension!.displayName ?? extension!.name;
 

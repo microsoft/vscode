@@ -314,7 +314,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			return false;
 		}
 
-		return Array.from(extensionFilters).some(extensionId => extensionId.toLowerCase() === this.setting.extensionInfo!.extensionDescription.identifier.value.toLowerCase());
+		return Array.from(extensionFilters).some(extensionId => extensionId.toLowerCase() === this.setting.extensionInfo!.id.toLowerCase());
 	}
 
 	matchesAnyFeature(featureFilters?: Set<string>): boolean {
