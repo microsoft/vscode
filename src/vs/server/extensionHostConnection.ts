@@ -13,7 +13,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { IRemoteConsoleLog } from 'vs/base/common/console';
 import { Emitter, Event } from 'vs/base/common/event';
 import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
-import { resolveShellEnv } from 'vs/platform/environment/node/shellEnv';
+import { getResolvedShellEnv } from 'vs/platform/environment/node/shellEnv';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteExtensionHostStartParams } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IExtHostReadyMessage, IExtHostSocketMessage, IExtHostReduceGraceTimeMessage } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
@@ -27,7 +27,7 @@ export async function buildUserEnvironment(startParamsEnv: { [key: string]: stri
 
 	let userShellEnv: typeof process.env | undefined = undefined;
 	try {
-		userShellEnv = await resolveShellEnv(logService, environmentService.args, process.env);
+		userShellEnv = await getResolvedShellEnv(logService, environmentService.args, process.env);
 	} catch (error) {
 		logService.error('ExtensionHostConnection#buildUserEnvironment resolving shell environment failed', error);
 		userShellEnv = {};
