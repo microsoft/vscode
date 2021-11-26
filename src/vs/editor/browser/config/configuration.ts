@@ -314,7 +314,6 @@ export class Configuration extends CommonEditorConfiguration {
 	}
 
 	private readonly _elementSizeObserver: ElementSizeObserver;
-	private _reservedHeight: number = 0;
 
 	constructor(
 		isSimpleWidget: boolean,
@@ -366,7 +365,7 @@ export class Configuration extends CommonEditorConfiguration {
 		return {
 			extraEditorClassName: Configuration._getExtraEditorClassName(),
 			outerWidth: this._elementSizeObserver.getWidth(),
-			outerHeight: this._elementSizeObserver.getHeight() - this._reservedHeight,
+			outerHeight: this._elementSizeObserver.getHeight(),
 			emptySelectionClipboard: browser.isWebKit || browser.isFirefox,
 			pixelRatio: browser.getPixelRatio(),
 			zoomLevel: browser.getZoomLevel(),
@@ -380,10 +379,5 @@ export class Configuration extends CommonEditorConfiguration {
 
 	protected readConfiguration(bareFontInfo: BareFontInfo): FontInfo {
 		return CSSBasedConfiguration.INSTANCE.readConfiguration(bareFontInfo);
-	}
-
-	public reserveHeight(height: number) {
-		this._reservedHeight = height;
-		this._recomputeOptions();
 	}
 }
