@@ -595,15 +595,15 @@ export function resolveResourcesForSearchIncludes(resources: URI[], contextServi
 			} else {
 				const owningFolder = contextService.getWorkspaceFolder(resource);
 				if (owningFolder) {
-					const owningRootName = owningFolder.name;
+					const owningRootBasename = basename(owningFolder.uri);
 					// If this root is the only one with its basename, use a relative ./ path. If there is another, use an absolute path
-					const isUniqueFolder = workspace.folders.filter(folder => folder.name === owningRootName).length === 1;
+					const isUniqueFolder = workspace.folders.filter(folder => basename(folder.uri) === owningRootBasename).length === 1;
 					if (isUniqueFolder) {
 						const relPath = relativePath(owningFolder.uri, resource); // always uses forward slashes
 						if (relPath === '') {
-							folderPath = `./${owningFolder.name}`;
+							folderPath = `./${owningRootBasename}`;
 						} else {
-							folderPath = `./${owningFolder.name}/${relPath}`;
+							folderPath = `./${owningRootBasename}/${relPath}`;
 						}
 					} else {
 						folderPath = resource.fsPath; // TODO rob: handle non-file URIs
