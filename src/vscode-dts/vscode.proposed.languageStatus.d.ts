@@ -18,6 +18,7 @@ declare module 'vscode' {
 		selector: DocumentSelector;
 		// todo@jrieken replace with boolean ala needsAttention
 		severity: LanguageStatusSeverity;
+		busy: boolean;
 		name: string | undefined;
 		text: string;
 		detail?: string;
