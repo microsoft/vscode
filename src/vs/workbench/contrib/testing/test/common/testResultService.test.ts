@@ -312,11 +312,7 @@ suite('Workbench - Test Results Service', () => {
 		});
 	});
 
-	test('resultItemParents', function () {
-		if (isNative && !isElectron) {
-			this.skip(); // TODO@connor4312 https://github.com/microsoft/vscode/issues/137853
-		}
-
+	((isNative && !isElectron) ? test.skip /* TODO@connor4312 https://github.com/microsoft/vscode/issues/137853 */ : test)('resultItemParents', function () {
 		assert.deepStrictEqual([...resultItemParents(r, r.getStateById(new TestId(['ctrlId', 'id-a', 'id-aa']).toString())!)], [
 			r.getStateById(new TestId(['ctrlId', 'id-a', 'id-aa']).toString()),
 			r.getStateById(new TestId(['ctrlId', 'id-a']).toString()),
