@@ -202,7 +202,7 @@ export interface IConfigurationDefaults {
 export type IRegisteredConfigurationPropertySchema = IConfigurationPropertySchema & {
 	defaultDefaultValue?: any,
 	source?: IExtensionInfo,
-	defaultSource?: IExtensionInfo | string;
+	defaultValueSource?: IExtensionInfo | string;
 };
 
 export type IConfigurationDefaultOverride = { value: any, source?: IExtensionInfo | string };
@@ -575,7 +575,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 			defaultValue = getDefaultValue(property.type);
 		}
 		property.default = defaultValue;
-		property.defaultSource = defaultSource;
+		property.defaultValueSource = defaultSource;
 	}
 }
 
