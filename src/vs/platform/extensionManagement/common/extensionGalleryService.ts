@@ -5,6 +5,7 @@
 
 import { distinct } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IStringDictionary } from 'vs/base/common/collections';
 import { canceled, getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
 import { getOrDefault } from 'vs/base/common/objects';
 import { IPager } from 'vs/base/common/paging';
@@ -440,7 +441,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 
 interface IRawExtensionsControlManifest {
 	malicious: string[];
-	slow: string[];
+	unsupported: IStringDictionary<boolean | { preReleaseExtension: { id: string, displayName: string } }>;
 }
 
 abstract class AbstractExtensionGalleryService implements IExtensionGalleryService {
@@ -958,14 +959,23 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 
 		const result = await asJson<IRawExtensionsControlManifest>(context);
 		const malicious: IExtensionIdentifier[] = [];
+		const unsupportedPreReleaseExtensions: IStringDictionary<{ id: string, displayName: string }> = {};
 
 		if (result) {
 			for (const id of result.malicious) {
 				malicious.push({ id });
 			}
+			if (result.unsupported) {
+				for (const extensionId of Object.keys(result.unsupported)) {
+					const value = result.unsupported[extensionId];
+					if (!isBoolean(value)) {
+						unsupportedPreReleaseExtensions[extensionId.toLowerCase()] = value.preReleaseExtension;
+					}
+				}
+			}
 		}
 
-		return { malicious };
+		return { malicious, unsupportedPreReleaseExtensions };
 	}
 }
 

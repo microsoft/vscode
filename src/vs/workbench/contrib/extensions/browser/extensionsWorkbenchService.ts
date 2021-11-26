@@ -14,10 +14,10 @@ import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
-	InstallExtensionEvent, DidUninstallExtensionEvent, IExtensionIdentifier, InstallOperation, DefaultIconPath, InstallOptions, WEB_EXTENSION_TAG, InstallExtensionResult, isIExtensionIdentifier
+	InstallExtensionEvent, DidUninstallExtensionEvent, IExtensionIdentifier, InstallOperation, DefaultIconPath, InstallOptions, WEB_EXTENSION_TAG, InstallExtensionResult, isIExtensionIdentifier, IExtensionsControlManifest
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, getMaliciousExtensionsSet, groupByExtension, ExtensionIdentifierWithVersion, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, ExtensionIdentifierWithVersion, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -418,28 +418,32 @@ class Extensions extends Disposable {
 		return this.local;
 	}
 
-	async syncLocalWithGalleryExtension(gallery: IGalleryExtension, maliciousExtensionSet: Set<string>): Promise<boolean> {
+	async syncLocalWithGalleryExtension(gallery: IGalleryExtension, extensionsControlManifest: IExtensionsControlManifest): Promise<boolean> {
 		const extension = this.getInstalledExtensionMatchingGallery(gallery);
-		if (!extension) {
+		if (!extension?.local) {
 			return false;
 		}
-		if (maliciousExtensionSet.has(extension.identifier.id)) {
-			extension.isMalicious = true;
+
+		let hasChanged: boolean = false;
+
+		const isMalicious = extensionsControlManifest.malicious.some(identifier => areSameExtensions(extension.identifier, identifier));
+		if (extension.isMalicious !== isMalicious) {
+			extension.isMalicious = isMalicious;
+			hasChanged = true;
 		}
 
 		const compatible = await this.getCompatibleExtension(gallery, !!extension.local?.isPreReleaseVersion);
-		if (!compatible) {
-			return false;
-		}
-		// Sync the local extension with gallery extension if local extension doesnot has metadata
-		if (extension.local) {
+		if (compatible) {
 			const local = extension.local.identifier.uuid ? extension.local : await this.server.extensionManagementService.updateMetadata(extension.local, { id: compatible.identifier.uuid, publisherDisplayName: compatible.publisherDisplayName, publisherId: compatible.publisherId });
 			extension.local = local;
 			extension.gallery = compatible;
-			this._onChange.fire({ extension });
-			return true;
+			hasChanged = true;
 		}
-		return false;
+
+		if (hasChanged) {
+			this._onChange.fire({ extension });
+		}
+		return hasChanged;
 	}
 
 	private async getCompatibleExtension(extensionOrIdentifier: IGalleryExtension | IExtensionIdentifier, includePreRelease: boolean): Promise<IGalleryExtension | null> {
@@ -749,11 +753,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		options.text = options.text ? this.resolveQueryText(options.text) : options.text;
 		options.includePreRelease = isUndefined(options.includePreRelease) ? this.preferPreReleases : options.includePreRelease;
 
-		const report = await this.extensionManagementService.getExtensionsControlManifest();
-		const maliciousSet = getMaliciousExtensionsSet(report);
+		const extensionsControlManifest = await this.extensionManagementService.getExtensionsControlManifest();
 		try {
 			const result = await this.galleryService.query(options, token);
-			return mapPager(result, gallery => this.fromGallery(gallery, maliciousSet));
+			return mapPager(result, gallery => this.fromGallery(gallery, extensionsControlManifest));
 		} catch (error) {
 			if (/No extension gallery service configured/.test(error.message)) {
 				return Promise.resolve(singlePagePager([]));
@@ -890,11 +893,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return extension || extensions[0];
 	}
 
-	private fromGallery(gallery: IGalleryExtension, maliciousExtensionSet: Set<string>): IExtension {
+	private fromGallery(gallery: IGalleryExtension, extensionsControlManifest: IExtensionsControlManifest): IExtension {
 		Promise.all([
-			this.localExtensions ? this.localExtensions.syncLocalWithGalleryExtension(gallery, maliciousExtensionSet) : Promise.resolve(false),
-			this.remoteExtensions ? this.remoteExtensions.syncLocalWithGalleryExtension(gallery, maliciousExtensionSet) : Promise.resolve(false),
-			this.webExtensions ? this.webExtensions.syncLocalWithGalleryExtension(gallery, maliciousExtensionSet) : Promise.resolve(false)
+			this.localExtensions ? this.localExtensions.syncLocalWithGalleryExtension(gallery, extensionsControlManifest) : Promise.resolve(false),
+			this.remoteExtensions ? this.remoteExtensions.syncLocalWithGalleryExtension(gallery, extensionsControlManifest) : Promise.resolve(false),
+			this.webExtensions ? this.webExtensions.syncLocalWithGalleryExtension(gallery, extensionsControlManifest) : Promise.resolve(false)
 		])
 			.then(result => {
 				if (result[0] || result[1] || result[2]) {
@@ -907,7 +910,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return installed;
 		}
 		const extension = this.instantiationService.createInstance(Extension, ext => this.getExtensionState(ext), undefined, undefined, gallery);
-		if (maliciousExtensionSet.has(extension.identifier.id)) {
+		if (extensionsControlManifest.malicious.some(identifier => areSameExtensions(extension.identifier, identifier))) {
 			extension.isMalicious = true;
 		}
 		return extension;

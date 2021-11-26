@@ -14,7 +14,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { dispose } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
-import { IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOptions, InstallOperation, TargetPlatformToString, ExtensionManagementErrorCode } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOptions, InstallOperation, TargetPlatformToString, ExtensionManagementErrorCode, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionRecommendationReason, IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -1122,6 +1122,40 @@ export class SwitchToReleasedVersionAction extends ExtensionAction {
 			return;
 		}
 		return this.commandService.executeCommand(SwitchToReleasedVersionAction.ID, this.extension?.identifier.id);
+	}
+}
+
+export class SwitchUnsupportedExtensionToPreReleaseExtensionAction extends Action {
+
+	private static readonly Class = `${ExtensionAction.LABEL_ACTION_CLASS} hide-when-disabled`;
+
+	constructor(
+		private readonly local: ILocalExtension,
+		private readonly gallery: IGalleryExtension,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IProductService private readonly productService: IProductService,
+		@IHostService private readonly hostService: IHostService,
+		@IWorkbenchExtensionEnablementService private readonly workbenchExtensionEnablementService: IWorkbenchExtensionEnablementService,
+		@INotificationService private readonly notificationService: INotificationService,
+	) {
+		super('workbench.extensions.action.switchUnsupportedExtensionToPreReleaseExtension', localize('switchUnsupportedExtensionToPreReleaseExtension', "Switch to '{0}' Pre-Release version", gallery.displayName), SwitchUnsupportedExtensionToPreReleaseExtensionAction.Class);
+	}
+
+	override async run(): Promise<any> {
+		await Promise.all([
+			this.extensionManagementService.uninstall(this.local),
+			this.extensionManagementService.installFromGallery(this.gallery, { installPreReleaseVersion: true, isMachineScoped: this.local.isMachineScoped })
+				.then(local => this.workbenchExtensionEnablementService.setEnablement([this.local], EnablementState.EnabledGlobally)),
+		]);
+		this.notificationService.prompt(
+			Severity.Info,
+			localize('SwitchToAnotherReleaseExtension.successReload', "Please reload {0} to complete switching to the '{1}' extension.", this.productService.nameLong, this.gallery.displayName),
+			[{
+				label: localize('reloadNow', "Reload Now"),
+				run: () => this.hostService.reload()
+			}],
+			{ sticky: true }
+		);
 	}
 }
 

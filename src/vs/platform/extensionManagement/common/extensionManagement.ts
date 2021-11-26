@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IStringDictionary } from 'vs/base/common/collections';
 import { Event } from 'vs/base/common/event';
 import { FileAccess } from 'vs/base/common/network';
 import { IPager } from 'vs/base/common/paging';
@@ -312,6 +313,7 @@ export const enum StatisticType {
 
 export interface IExtensionsControlManifest {
 	malicious: IExtensionIdentifier[];
+	unsupportedPreReleaseExtensions?: IStringDictionary<{ id: string, displayName: string }>;
 }
 
 export const enum InstallOperation {
