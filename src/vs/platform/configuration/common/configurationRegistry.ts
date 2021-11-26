@@ -136,8 +136,16 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	 */
 	restricted?: boolean;
 
+	/**
+	 * When `false` this property is excluded from the registry. Default is to include.
+	 */
 	included?: boolean;
 
+	/**
+	 * List of tags associated to the property.
+	 *  - A tag can be used for filtering
+	 *  - Use `experimental` tag for marking the setting as experimental. **Note:** Defaults of experimental settings can be changed by the running experiments.
+	 */
 	tags?: string[];
 
 	/**
@@ -150,6 +158,9 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	 */
 	disallowSyncIgnore?: boolean;
 
+	/**
+	 * Labels for enumeration items
+	 */
 	enumItemLabels?: string[];
 
 	/**
