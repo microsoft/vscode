@@ -176,7 +176,7 @@ export class PreReleaseIndicatorWidget extends ExtensionWidget {
 			return;
 		}
 
-		if (!this.extension.local?.isPreReleaseVersion) {
+		if (!this.extension.local?.isPreReleaseVersion && !this.extension.gallery?.properties.isPreReleaseVersion) {
 			return;
 		}
 
@@ -482,9 +482,9 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 
 		markdown.appendMarkdown(`**${this.extension.displayName}**&nbsp;_v${this.extension.version}_`);
-		if (this.extension.state === ExtensionState.Installed && this.extension.local?.isPreReleaseVersion) {
+		if (this.extension.local?.isPreReleaseVersion || this.extension.gallery?.properties.isPreReleaseVersion) {
 			const extensionPreReleaseIcon = this.themeService.getColorTheme().getColor(extensionPreReleaseIconColor);
-			markdown.appendMarkdown(`&nbsp;<span style="color:${extensionPreReleaseIcon ? Color.Format.CSS.formatHex(extensionPreReleaseIcon) : '#ffffff'};">$(${preReleaseIcon.id})</span>`);
+			markdown.appendMarkdown(`&nbsp;<span style="color:#ffffff;background-color:${extensionPreReleaseIcon ? Color.Format.CSS.formatHex(extensionPreReleaseIcon) : '#ffffff'};">&nbsp;${localize('pre-release-label', "Pre-Release")}&nbsp;</span>`);
 		}
 		markdown.appendText(`\n`);
 
@@ -579,7 +579,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		if (!extension.hasPreReleaseVersion) {
 			return undefined;
 		}
-		if (extension.state === ExtensionState.Installed && extension.local?.isPreReleaseVersion) {
+		if (extension.local?.isPreReleaseVersion || extension.gallery?.properties.isPreReleaseVersion) {
 			return undefined;
 		}
 		const extensionPreReleaseIcon = this.themeService.getColorTheme().getColor(extensionPreReleaseIconColor);
