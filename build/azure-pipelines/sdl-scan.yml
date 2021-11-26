@@ -199,8 +199,8 @@ stages:
               fi
 
               if [ "$VSCODE_ARCH" == "x64" ]; then
-                export VSCODE_REMOTE_CC=$(which gcc-4.8)
-                export VSCODE_REMOTE_CXX=$(which g++-4.8)
+                export VSCODE_REMOTE_CC=$(which gcc-4.9)
+                export VSCODE_REMOTE_CXX=$(which g++-4.9)
               fi
 
               for i in {1..3}; do # try 3 times, for Terrapin
