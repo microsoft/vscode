@@ -47,11 +47,13 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 			const untitled = 'Untitled-1';
 			const textToTypeInUntitled = 'Hello from Untitled';
 			await app.workbench.editor.waitForTypeInEditor(untitled, textToTypeInUntitled);
+			await app.workbench.editors.waitForTab(untitled, true);
 
 			const readmeMd = 'readme.md';
 			const textToType = 'Hello, Code';
 			await app.workbench.quickaccess.openFile(readmeMd);
 			await app.workbench.editor.waitForTypeInEditor(readmeMd, textToType);
+			await app.workbench.editors.waitForTab(readmeMd, true);
 
 			await app.restart();
 
@@ -146,11 +148,13 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 			const untitled = 'Untitled-1';
 			const textToTypeInUntitled = 'Hello from Untitled';
 			await stableApp.workbench.editor.waitForTypeInEditor(untitled, textToTypeInUntitled);
+			await stableApp.workbench.editors.waitForTab(untitled, true);
 
 			const readmeMd = 'readme.md';
 			const textToType = 'Hello, Code';
 			await stableApp.workbench.quickaccess.openFile(readmeMd);
 			await stableApp.workbench.editor.waitForTypeInEditor(readmeMd, textToType);
+			await stableApp.workbench.editors.waitForTab(readmeMd, true);
 
 			await stableApp.stop();
 			stableApp = undefined;
