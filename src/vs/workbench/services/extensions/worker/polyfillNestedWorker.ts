@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { NewWorkerMessage, TerminateWorkerMessage } from 'vs/workbench/services/extensions/common/polyfillNestedWorker.protocol';
+import { NewWorkerMessage, TerminateWorkerMessage, WorkerMessageType } from 'vs/workbench/services/extensions/common/polyfillNestedWorker.protocol';
 
 declare function postMessage(data: any, transferables?: Transferable[]): void;
 
@@ -75,7 +75,7 @@ export class NestedWorker extends EventTarget implements Worker {
 		const id = blobUrl; // works because blob url is unique, needs ID pool otherwise
 
 		const msg: NewWorkerMessage = {
-			type: '_newWorker',
+			type: WorkerMessageType.NewWorker,
 			id,
 			port: channel.port2,
 			url: blobUrl,
@@ -87,7 +87,7 @@ export class NestedWorker extends EventTarget implements Worker {
 		this.postMessage = channel.port1.postMessage.bind(channel.port1);
 		this.terminate = () => {
 			const msg: TerminateWorkerMessage = {
-				type: '_terminateWorker',
+				type: WorkerMessageType.TerminateWorker,
 				id
 			};
 			channel.port1.postMessage(msg);

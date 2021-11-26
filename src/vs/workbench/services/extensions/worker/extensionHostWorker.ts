@@ -18,6 +18,7 @@ import 'vs/workbench/api/common/extHost.common.services';
 import 'vs/workbench/api/worker/extHost.worker.services';
 import { FileAccess } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
+import { WorkerMessageType } from 'vs/workbench/services/extensions/common/polyfillNestedWorker.protocol';
 
 //#region --- Define, capture, and override some globals
 
@@ -161,16 +162,11 @@ class ExtensionWorker {
 	// protocol
 	readonly protocol: IMessagePassingProtocol;
 
-	constructor() {
-
-		const channel = new MessageChannel();
+	constructor(port: MessagePort) {
 		const emitter = new Emitter<VSBuffer>();
 		let terminating = false;
 
-		// send over port2, keep port1
-		nativePostMessage(channel.port2, [channel.port2]);
-
-		channel.port1.onmessage = event => {
+		port.onmessage = event => {
 			const { data } = event;
 			if (!(data instanceof ArrayBuffer)) {
 				console.warn('UNKNOWN data received', data);
@@ -194,7 +190,7 @@ class ExtensionWorker {
 			send: vsbuf => {
 				if (!terminating) {
 					const data = vsbuf.buffer.buffer.slice(vsbuf.buffer.byteOffset, vsbuf.buffer.byteOffset + vsbuf.buffer.byteLength);
-					channel.port1.postMessage(data, [data]);
+					port.postMessage(data, [data]);
 				}
 			}
 		};
@@ -219,18 +215,23 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 
 let onTerminate = (reason: string) => nativeClose();
 
-export function create(): void {
-	const res = new ExtensionWorker();
+export function create(): { onmessage: (message: any) => void } {
 	performance.mark(`code/extHost/willConnectToRenderer`);
-	connectToRenderer(res.protocol).then(data => {
-		performance.mark(`code/extHost/didWaitForInitData`);
-		const extHostMain = new ExtensionHostMain(
-			data.protocol,
-			data.initData,
-			hostUtil,
-			null,
-		);
+	return {
+		onmessage(port: MessagePort) {
+			const res = new ExtensionWorker(port);
+			nativePostMessage({ type: WorkerMessageType.Ready });
+			connectToRenderer(res.protocol).then(data => {
+				performance.mark(`code/extHost/didWaitForInitData`);
+				const extHostMain = new ExtensionHostMain(
+					data.protocol,
+					data.initData,
+					hostUtil,
+					null,
+				);
 
-		onTerminate = (reason: string) => extHostMain.terminate(reason);
-	});
+				onTerminate = (reason: string) => extHostMain.terminate(reason);
+			});
+		}
+	};
 }

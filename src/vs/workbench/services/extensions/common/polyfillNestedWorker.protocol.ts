@@ -3,9 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+export const enum WorkerMessageType {
+	Ready = '_workerReady',
+	NewWorker = '_newWorker',
+	TerminateWorker = '_terminateWorker'
+}
+
+export interface WorkerReadyMessage {
+	type: WorkerMessageType.Ready;
+}
 
 export interface NewWorkerMessage {
-	type: '_newWorker';
+	type: WorkerMessageType.NewWorker;
 	id: string;
 	port: any /* MessagePort */;
 	url: string;
@@ -13,6 +22,8 @@ export interface NewWorkerMessage {
 }
 
 export interface TerminateWorkerMessage {
-	type: '_terminateWorker';
+	type: WorkerMessageType.TerminateWorker;
 	id: string;
 }
+
+export type WorkerMessage = WorkerReadyMessage | NewWorkerMessage | TerminateWorkerMessage;

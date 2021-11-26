@@ -29,7 +29,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { canceled, onUnexpectedError } from 'vs/base/common/errors';
 import { Barrier } from 'vs/base/common/async';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { NewWorkerMessage, TerminateWorkerMessage } from 'vs/workbench/services/extensions/common/polyfillNestedWorker.protocol';
+import { WorkerMessage, WorkerMessageType } from 'vs/workbench/services/extensions/common/polyfillNestedWorker.protocol';
 
 export interface IWebWorkerExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -149,7 +149,8 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 	}
 
 	private async _startInsideIframe(webWorkerExtensionHostIframeSrc: string): Promise<IMessagePassingProtocol> {
-		const emitter = this._register(new Emitter<VSBuffer>());
+		const { port1, port2 } = new MessageChannel();
+		const barrier = new Barrier();
 
 		const iframe = document.createElement('iframe');
 		iframe.setAttribute('class', 'web-worker-ext-host-iframe');
@@ -159,8 +160,10 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		const vscodeWebWorkerExtHostId = generateUuid();
 		iframe.setAttribute('src', `${webWorkerExtensionHostIframeSrc}&vscodeWebWorkerExtHostId=${vscodeWebWorkerExtHostId}`);
 
-		const barrier = new Barrier();
-		let port!: MessagePort;
+		const iframeLoaded = new Promise(c => iframe.onload = c);
+		this._layoutService.container.appendChild(iframe);
+		this._register(toDisposable(() => iframe.remove()));
+
 		let barrierError: Error | null = null;
 		let barrierHasError = false;
 		let startTimeout: any = null;
@@ -174,8 +177,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			barrier.open();
 		};
 
-		const resolveBarrier = (messagePort: MessagePort) => {
-			port = messagePort;
+		const resolveBarrier = () => {
 			clearTimeout(startTimeout);
 			barrier.open();
 		};
@@ -188,9 +190,11 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			if (event.source !== iframe.contentWindow) {
 				return;
 			}
+
 			if (event.data.vscodeWebWorkerExtHostId !== vscodeWebWorkerExtHostId) {
 				return;
 			}
+
 			if (event.data.error) {
 				const { name, message, stack } = event.data.error;
 				const err = new Error();
@@ -199,27 +203,33 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				err.stack = stack;
 				return rejectBarrier(ExtensionHostExitCode.UnexpectedError, err);
 			}
-			const { data } = event.data;
-			if (barrier.isOpen() || !(data instanceof MessagePort)) {
-				console.warn('UNEXPECTED message', event);
-				const err = new Error('UNEXPECTED message');
-				return rejectBarrier(ExtensionHostExitCode.UnexpectedError, err);
+
+			if (barrier.isOpen()) {
+				console.warn('UNEXPECTED message after worker ready', event);
+				return;
 			}
-			resolveBarrier(data);
+
+			if (event.data.data.type === WorkerMessageType.Ready) {
+				resolveBarrier();
+				return;
+			}
+
+			console.warn('UNEXPECTED message', event);
+			const err = new Error('UNEXPECTED message');
+			return rejectBarrier(ExtensionHostExitCode.UnexpectedError, err);
 		}));
 
-		this._layoutService.container.appendChild(iframe);
-		this._register(toDisposable(() => iframe.remove()));
-
-		// await MessagePort and use it to directly communicate
-		// with the worker extension host
+		await iframeLoaded;
+		iframe.contentWindow!.postMessage(port2, '*', [port2]);
 		await barrier.wait();
 
 		if (barrierHasError) {
 			throw barrierError;
 		}
 
-		port.onmessage = (event) => {
+		const emitter = this._register(new Emitter<VSBuffer>());
+
+		port1.onmessage = (event) => {
 			const { data } = event;
 			if (!(data instanceof ArrayBuffer)) {
 				console.warn('UNKNOWN data received', data);
@@ -233,7 +243,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			onMessage: emitter.event,
 			send: vsbuf => {
 				const data = vsbuf.buffer.buffer.slice(vsbuf.buffer.byteOffset, vsbuf.buffer.byteOffset + vsbuf.buffer.byteLength);
-				port.postMessage(data, [data]);
+				port1.postMessage(data, [data]);
 			}
 		};
 
@@ -241,37 +251,25 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 	}
 
 	private async _startOutsideIframe(): Promise<IMessagePassingProtocol> {
-		const emitter = new Emitter<VSBuffer>();
+		const { port1, port2 } = new MessageChannel();
 		const barrier = new Barrier();
-		let port!: MessagePort;
-
 		const nestedWorker = new Map<string, Worker>();
 
 		const name = this._environmentService.debugRenderer && this._environmentService.debugExtensionHost ? 'DebugWorkerExtensionHost' : 'WorkerExtensionHost';
-		const worker = new DefaultWorkerFactory(name).create(
+		const worker = this._register(new DefaultWorkerFactory(name).create(
 			'vs/workbench/services/extensions/worker/extensionHostWorker',
-			(data: MessagePort | NewWorkerMessage | TerminateWorkerMessage | any) => {
-
-				if (data instanceof MessagePort) {
-					// receiving a message port which is used to communicate
-					// with the web worker extension host
-					if (barrier.isOpen()) {
-						console.warn('UNEXPECTED message', data);
-						this._onDidExit.fire([ExtensionHostExitCode.UnexpectedError, 'received a message port AFTER opening the barrier']);
-						return;
-					}
-					port = data;
+			(data: WorkerMessage | any /* this `any` is a hack */) => {
+				if (data?.type === WorkerMessageType.Ready) {
 					barrier.open();
 
-
-				} else if (data?.type === '_newWorker') {
+				} else if (data?.type === WorkerMessageType.NewWorker) {
 					// receiving a message to create a new nested/child worker
 					const worker = new Worker((ttPolicyNestedWorker?.createScriptURL(data.url) ?? data.url) as string, data.options);
 					worker.postMessage(data.port, [data.port]);
 					worker.onerror = console.error.bind(console);
 					nestedWorker.set(data.id, worker);
 
-				} else if (data?.type === '_terminateWorker') {
+				} else if (data?.type === WorkerMessageType.TerminateWorker) {
 					// receiving a message to terminate nested/child worker
 					if (nestedWorker.has(data.id)) {
 						nestedWorker.get(data.id)!.terminate();
@@ -293,14 +291,14 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 					this._onDidExit.fire([ExtensionHostExitCode.UnexpectedError, event.message || event.error]);
 				}
 			}
-		);
+		));
 
-		// await MessagePort and use it to directly communicate
-		// with the worker extension host
+		worker.postMessage(port2 as any /* this `any` is a hack */, [port2 as any /* this `any` is a hack */]);
 		await barrier.wait();
 
-		port.onmessage = (event) => {
-			const { data } = event;
+		const emitter = this._register(new Emitter<VSBuffer>());
+
+		port1.onmessage = ({ data }) => {
 			if (!(data instanceof ArrayBuffer)) {
 				console.warn('UNKNOWN data received', data);
 				this._onDidExit.fire([77, 'UNKNOWN data received']);
@@ -310,16 +308,11 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			emitter.fire(VSBuffer.wrap(new Uint8Array(data, 0, data.byteLength)));
 		};
 
-
-		// keep for cleanup
-		this._register(emitter);
-		this._register(worker);
-
 		const protocol: IMessagePassingProtocol = {
 			onMessage: emitter.event,
 			send: vsbuf => {
 				const data = vsbuf.buffer.buffer.slice(vsbuf.buffer.byteOffset, vsbuf.buffer.byteOffset + vsbuf.buffer.byteLength);
-				port.postMessage(data, [data]);
+				port1.postMessage(data, [data]);
 			}
 		};
 
