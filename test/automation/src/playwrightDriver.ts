@@ -57,9 +57,15 @@ class PlaywrightDriver implements IDriver {
 		try {
 			await this._context.tracing.stop({ path: join(logsPath, `playwright-trace-${traceCounter++}.zip`) });
 		} catch (error) {
-			console.warn(`Failed to stop playwright tracing.`); // do not fail the build when this fails
+			console.warn(`Failed to stop playwright tracing: ${error}`);
 		}
-		await this._browser.close();
+
+		try {
+			await this._browser.close();
+		} catch (error) {
+			console.warn(`Failed to close browser: ${error}`);
+		}
+
 		await teardown();
 
 		return false;
@@ -207,9 +213,9 @@ export async function launch(userDataDir: string, _workspacePath: string, codeSe
 async function teardown(): Promise<void> {
 	if (server) {
 		try {
-			await new Promise<void>((c, e) => kill(server!.pid, err => err ? e(err) : c()));
-		} catch {
-			// noop
+			await new Promise<void>((resolve, reject) => kill(server!.pid, err => err ? reject(err) : resolve()));
+		} catch (error) {
+			console.warn(`Error tearing down server: ${error}`);
 		}
 
 		server = undefined;

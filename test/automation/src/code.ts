@@ -63,7 +63,7 @@ function getBuildOutPath(root: string): string {
 	}
 }
 
-async function connect(connectDriver: typeof connectElectronDriver, child: cp.ChildProcess | undefined, outPath: string, handlePath: string, logger: Logger): Promise<Code> {
+async function connect(connectDriver: typeof connectElectronDriver | typeof connectPlaywrightDriver, child: cp.ChildProcess | undefined, outPath: string, handlePath: string, logger: Logger): Promise<Code> {
 	let errCount = 0;
 
 	while (true) {
@@ -79,7 +79,7 @@ async function connect(connectDriver: typeof connectElectronDriver, child: cp.Ch
 			}
 
 			// retry
-			await new Promise(c => setTimeout(c, 100));
+			await new Promise(resolve => setTimeout(resolve, 100));
 		}
 	}
 }
@@ -116,14 +116,12 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 	const handle = await createDriverHandle();
 
 	let child: cp.ChildProcess | undefined;
-	let connectDriver: typeof connectElectronDriver;
 
 	copyExtension(options.extensionsPath, 'vscode-notebook-tests');
 
 	if (options.web) {
 		await launch(options.userDataDir, options.workspacePath, options.codePath, options.extensionsPath, Boolean(options.verbose));
-		connectDriver = connectPlaywrightDriver.bind(connectPlaywrightDriver, options);
-		return connect(connectDriver, child, '', handle, options.logger);
+		return connect(connectPlaywrightDriver.bind(connectPlaywrightDriver, options), child, '', handle, options.logger);
 	}
 
 	const env = { ...process.env };
@@ -199,8 +197,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 	child = cp.spawn(electronPath, args, spawnOptions);
 	instances.add(child);
 	child.once('exit', () => instances.delete(child!));
-	connectDriver = connectElectronDriver;
-	return connect(connectDriver, child, outPath, handle, options.logger);
+	return connect(connectElectronDriver, child, outPath, handle, options.logger);
 }
 
 async function copyExtension(extensionsPath: string, extId: string): Promise<void> {
