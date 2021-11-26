@@ -15,9 +15,9 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 
 export class ExtHostProgress implements ExtHostProgressShape {
 
-	private _proxy: MainThreadProgressShape;
+	private readonly _proxy: MainThreadProgressShape;
+	private readonly _mapHandleToCancellationSource = new Map<number, CancellationTokenSource>();
 	private _handles: number = 0;
-	private _mapHandleToCancellationSource: Map<number, CancellationTokenSource> = new Map();
 
 	constructor(proxy: MainThreadProgressShape) {
 		this._proxy = proxy;
@@ -42,9 +42,7 @@ export class ExtHostProgress implements ExtHostProgressShape {
 		const progressEnd = (handle: number): void => {
 			this._proxy.$progressEnd(handle);
 			this._mapHandleToCancellationSource.delete(handle);
-			if (source) {
-				source.dispose();
-			}
+			source?.dispose();
 		};
 
 		let p: Thenable<R>;
@@ -56,7 +54,7 @@ export class ExtHostProgress implements ExtHostProgressShape {
 			throw err;
 		}
 
-		p.then(result => progressEnd(handle), err => progressEnd(handle));
+		Promise.resolve(p).finally(() => progressEnd(handle));
 		return p;
 	}
 

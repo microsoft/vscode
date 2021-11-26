@@ -27,11 +27,9 @@ export interface IProgressService {
 	registerProgressLocation(location: string, handle: ICustomProgressLocation): IDisposable;
 }
 
-export type ICustomProgressLocation = <R>(
-	options: IProgressOptions | IProgressDialogOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
-	task: (progress: IProgress<IProgressStep>) => Promise<R>,
-	onDidCancel?: (choice?: number) => void
-) => Promise<R>;
+export interface ICustomProgressLocation {
+	startProgress(): { progress: IProgress<IProgressStep>, token?: CancellationToken, stop(): void };
+}
 
 export interface IProgressIndicator {
 

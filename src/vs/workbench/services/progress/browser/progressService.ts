@@ -72,7 +72,10 @@ export class ProgressService implements IProgressService {
 
 			const customLocation = this.customProgessLocations.get(location);
 			if (customLocation) {
-				return customLocation<R>(options, task, onDidCancel);
+				const obj = customLocation.startProgress();
+				const promise = task(obj.progress);
+				promise.finally(() => obj.stop());
+				return promise;
 			}
 
 			throw new Error(`Bad progress location: ${location}`);

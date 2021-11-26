@@ -66,8 +66,9 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		_storageService.onDidChangeValue(this._handleStorageChange, this, this._disposables);
 		this._restoreState();
 
-		_languageStatusService.onDidChange(this._update, this, this._disposables);
-		_editorService.onDidActiveEditorChange(this._update, this, this._disposables);
+		_editorService.onDidActiveEditorChange(() => this._update(), this, this._disposables);
+		_languageStatusService.onDidChange(() => this._update(), this, this._disposables);
+		_languageStatusService.onDidChangeBusy(() => this._update(true), this, this._disposables);
 		this._update();
 
 		_statusBarService.onDidChangeEntryVisibility(e => {
@@ -136,11 +137,11 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		return new LanguageStatusViewModel(combined, dedicated);
 	}
 
-	private _update(): void {
+	private _update(force?: boolean): void {
 
 		const model = this._createViewModel();
 
-		if (this._model?.isEqual(model)) {
+		if (this._model?.isEqual(model) && !force) {
 			return;
 		}
 
@@ -160,18 +161,21 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			const showSeverity = first.severity >= Severity.Warning;
 			const text = EditorStatusContribution._severityToComboCodicon(first.severity);
 
+			let isBusy = false;
 			const ariaLabels: string[] = [];
 			const element = document.createElement('div');
 			for (const status of model.combined) {
-				element.appendChild(this._renderStatus(status, showSeverity, this._renderDisposables));
+				const thisIsBusy = this._languageStatusService.isBusy(status);
+				element.appendChild(this._renderStatus(status, showSeverity, thisIsBusy, this._renderDisposables));
 				ariaLabels.push(this._asAriaLabel(status));
+				isBusy = isBusy || thisIsBusy;
 			}
 			const props: IStatusbarEntry = {
 				name: localize('langStatus.name', "Editor Language Status"),
 				ariaLabel: localize('langStatus.aria', "Editor Language Status: {0}", ariaLabels.join(', next: ')),
 				tooltip: element,
 				command: ShowTooltipCommand,
-				text,
+				text: isBusy ? `${text}\u00A0\u00A0$(loading~spin)` : text,
 			};
 			if (!this._combinedEntry) {
 				this._combinedEntry = this._statusBarService.addEntry(props, EditorStatusContribution._id, StatusbarAlignment.RIGHT, { id: 'status.editor.mode', alignment: StatusbarAlignment.LEFT, compact: true });
@@ -183,7 +187,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		// dedicated status bar items are shows as-is in the status bar
 		const newDedicatedEntries = new Map<string, IStatusbarEntryAccessor>();
 		for (const status of model.dedicated) {
-			const props = EditorStatusContribution._asStatusbarEntry(status);
+			const props = EditorStatusContribution._asStatusbarEntry(status, this._languageStatusService.isBusy(status));
 			let entry = this._dedicatedEntries.get(status.id);
 			if (!entry) {
 				entry = this._statusBarService.addEntry(props, status.id, StatusbarAlignment.RIGHT, 100.09999);
@@ -197,7 +201,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		this._dedicatedEntries = newDedicatedEntries;
 	}
 
-	private _renderStatus(status: ILanguageStatus, showSeverity: boolean, store: DisposableStore): HTMLElement {
+	private _renderStatus(status: ILanguageStatus, showSeverity: boolean, isBusy: boolean, store: DisposableStore): HTMLElement {
 
 		const parent = document.createElement('div');
 		parent.classList.add('hover-language-status');
@@ -219,6 +223,9 @@ class EditorStatusContribution implements IWorkbenchContribution {
 
 		const label = document.createElement('span');
 		label.classList.add('label');
+		if (isBusy) {
+			dom.append(label, ...renderLabelWithIcons('$(loading~spin)\u00A0\u00A0'));
+		}
 		dom.append(label, ...renderLabelWithIcons(status.label));
 		left.appendChild(label);
 
@@ -297,7 +304,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 
 	// ---
 
-	private static _asStatusbarEntry(item: ILanguageStatus): IStatusbarEntry {
+	private static _asStatusbarEntry(item: ILanguageStatus, isBusy: boolean): IStatusbarEntry {
 
 		let color: ThemeColor | undefined;
 		let backgroundColor: ThemeColor | undefined;
@@ -311,7 +318,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 
 		return {
 			name: localize('name.pattern', '{0} (Language Status)', item.name),
-			text: item.label,
+			text: isBusy ? `${item.label}\u00A0\u00A0$(loading~spin)` : item.label,
 			ariaLabel: item.accessibilityInfo?.label ?? item.label,
 			role: item.accessibilityInfo?.role,
 			tooltip: item.command?.tooltip || new MarkdownString(item.detail, true),
