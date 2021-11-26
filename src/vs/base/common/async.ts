@@ -1203,10 +1203,10 @@ export class IntervalCounter {
 
 	private value = 0;
 
-	constructor(private readonly interval: number) { }
+	constructor(private readonly interval: number, private readonly nowFn = () => Date.now()) { }
 
 	increment(): number {
-		const now = Date.now();
+		const now = this.nowFn();
 
 		// We are outside of the range of `interval` and as such
 		// start counting from 0 and remember the time
@@ -1334,6 +1334,284 @@ export namespace Promises {
 			}
 		});
 	}
+}
+
+//#endregion
+
+//#region
+
+const enum AsyncIterableSourceState {
+	Initial,
+	DoneOK,
+	DoneError,
+}
+
+/**
+ * An object that allows to emit async values asynchronously or bring the iterable to an error state using `reject()`.
+ * This emitter is valid only for the duration of the executor (until the promise returned by the executor settles).
+ */
+export interface AsyncIterableEmitter<T> {
+	/**
+	 * The value will be appended at the end.
+	 *
+	 * **NOTE** If `reject()` has already been called, this method has no effect.
+	 */
+	emitOne(value: T): void;
+	/**
+	 * The values will be appended at the end.
+	 *
+	 * **NOTE** If `reject()` has already been called, this method has no effect.
+	 */
+	emitMany(values: T[]): void;
+	/**
+	 * Writing an error will permanently invalidate this iterable.
+	 * The current users will receive an error thrown, as will all future users.
+	 *
+	 * **NOTE** If `reject()` have already been called, this method has no effect.
+	 */
+	reject(error: Error): void;
+}
+
+/**
+ * An executor for the `AsyncIterableObject` that has access to an emitter.
+ */
+export interface AyncIterableExecutor<T> {
+	/**
+	 * @param emitter An object that allows to emit async values valid only for the duration of the executor.
+	 */
+	(emitter: AsyncIterableEmitter<T>): void | Promise<void>
+}
+
+/**
+ * A rich implementation for an `AsyncIterable<T>`.
+ */
+export class AsyncIterableObject<T> implements AsyncIterable<T> {
+
+	public static fromArray<T>(items: T[]): AsyncIterableObject<T> {
+		return new AsyncIterableObject<T>((writer) => {
+			writer.emitMany(items);
+		});
+	}
+
+	public static fromPromise<T>(promise: Promise<T[]>): AsyncIterableObject<T> {
+		return new AsyncIterableObject<T>(async (emitter) => {
+			emitter.emitMany(await promise);
+		});
+	}
+
+	public static fromPromises<T>(promises: Promise<T>[]): AsyncIterableObject<T> {
+		return new AsyncIterableObject<T>(async (emitter) => {
+			await Promise.all(promises.map(async (p) => emitter.emitOne(await p)));
+		});
+	}
+
+	public static merge<T>(iterables: AsyncIterable<T>[]): AsyncIterableObject<T> {
+		return new AsyncIterableObject(async (emitter) => {
+			await Promise.all(iterables.map(async (iterable) => {
+				for await(const item of iterable) {
+					emitter.emitOne(item);
+				}
+			}));
+		});
+	}
+
+	public static EMPTY = AsyncIterableObject.fromArray<any>([]);
+
+	private _state: AsyncIterableSourceState;
+	private _results: T[];
+	private _error: Error | null;
+	private readonly _onStateChanged: Emitter<void>;
+
+	constructor(executor: AyncIterableExecutor<T>) {
+		this._state = AsyncIterableSourceState.Initial;
+		this._results = [];
+		this._error = null;
+		this._onStateChanged = new Emitter<void>();
+
+		queueMicrotask(async () => {
+			const writer: AsyncIterableEmitter<T> = {
+				emitOne: (item) => this.emitOne(item),
+				emitMany: (items) => this.emitMany(items),
+				reject: (error) => this.reject(error)
+			};
+			try {
+				await Promise.resolve(executor(writer));
+				this.resolve();
+			} catch (err) {
+				this.reject(err);
+			} finally {
+				writer.emitOne = undefined!;
+				writer.emitMany = undefined!;
+				writer.reject = undefined!;
+			}
+		});
+	}
+
+	[Symbol.asyncIterator](): AsyncIterator<T, undefined, undefined> {
+		let i = 0;
+		return {
+			next: async () => {
+				do {
+					if (this._state === AsyncIterableSourceState.DoneError) {
+						throw this._error;
+					}
+					if (i < this._results.length) {
+						return { done: false, value: this._results[i++] };
+					}
+					if (this._state === AsyncIterableSourceState.DoneOK) {
+						return { done: true, value: undefined };
+					}
+					await Event.toPromise(this._onStateChanged.event);
+				} while (true);
+			}
+		};
+	}
+
+	public static map<T, R>(iterable: AsyncIterable<T>, mapFn: (item: T) => R): AsyncIterableObject<R> {
+		return new AsyncIterableObject<R>(async (emitter) => {
+			for await(const item of iterable) {
+				emitter.emitOne(mapFn(item));
+			}
+		});
+	}
+
+	public map<R>(mapFn: (item: T) => R): AsyncIterableObject<R> {
+		return AsyncIterableObject.map(this, mapFn);
+	}
+
+	public static filter<T>(iterable: AsyncIterable<T>, filterFn: (item: T) => boolean): AsyncIterableObject<T> {
+		return new AsyncIterableObject<T>(async (emitter) => {
+			for await(const item of iterable) {
+				if (filterFn(item)) {
+					emitter.emitOne(item);
+				}
+			}
+		});
+	}
+
+	public filter(filterFn: (item: T) => boolean): AsyncIterableObject<T> {
+		return AsyncIterableObject.filter(this, filterFn);
+	}
+
+	public static coalesce<T>(iterable: AsyncIterable<T | undefined | null>): AsyncIterableObject<T> {
+		return <AsyncIterableObject<T>>AsyncIterableObject.filter(iterable, item => !!item);
+	}
+
+	public coalesce(): AsyncIterableObject<NonNullable<T>> {
+		return AsyncIterableObject.coalesce(this) as AsyncIterableObject<NonNullable<T>>;
+	}
+
+	public static async toPromise<T>(iterable: AsyncIterable<T>): Promise<T[]> {
+		const result: T[] = [];
+		for await (const item of iterable) {
+			result.push(item);
+		}
+		return result;
+	}
+
+	public toPromise(): Promise<T[]> {
+		return AsyncIterableObject.toPromise(this);
+	}
+
+	/**
+	 * The value will be appended at the end.
+	 *
+	 * **NOTE** If `resolve()` or `reject()` have already been called, this method has no effect.
+	 */
+	private emitOne(value: T): void {
+		if (this._state !== AsyncIterableSourceState.Initial) {
+			return;
+		}
+		// it is important to add new values at the end,
+		// as we may have iterators already running on the array
+		this._results.push(value);
+		this._onStateChanged.fire();
+	}
+
+	/**
+	 * The values will be appended at the end.
+	 *
+	 * **NOTE** If `resolve()` or `reject()` have already been called, this method has no effect.
+	 */
+	private emitMany(values: T[]): void {
+		if (this._state !== AsyncIterableSourceState.Initial) {
+			return;
+		}
+		// it is important to add new values at the end,
+		// as we may have iterators already running on the array
+		this._results = this._results.concat(values);
+		this._onStateChanged.fire();
+	}
+
+	/**
+	 * Calling `resolve()` will mark the result array as complete.
+	 *
+	 * **NOTE** `resolve()` must be called, otherwise all consumers of this iterable will hang indefinitely, similar to a non-resolved promise.
+	 * **NOTE** If `resolve()` or `reject()` have already been called, this method has no effect.
+	 */
+	private resolve(): void {
+		if (this._state !== AsyncIterableSourceState.Initial) {
+			return;
+		}
+		this._state = AsyncIterableSourceState.DoneOK;
+		this._onStateChanged.fire();
+	}
+
+	/**
+	 * Writing an error will permanently invalidate this iterable.
+	 * The current users will receive an error thrown, as will all future users.
+	 *
+	 * **NOTE** If `resolve()` or `reject()` have already been called, this method has no effect.
+	 */
+	private reject(error: Error) {
+		if (this._state !== AsyncIterableSourceState.Initial) {
+			return;
+		}
+		this._state = AsyncIterableSourceState.DoneError;
+		this._error = error;
+		this._onStateChanged.fire();
+	}
+}
+
+export class CancelableAsyncIterableObject<T> extends AsyncIterableObject<T> {
+	constructor(
+		private readonly _source: CancellationTokenSource,
+		executor: AyncIterableExecutor<T>
+	) {
+		super(executor);
+	}
+
+	cancel(): void {
+		this._source.cancel();
+	}
+}
+
+export function createCancelableAsyncIterable<T>(callback: (token: CancellationToken) => AsyncIterable<T>): CancelableAsyncIterableObject<T> {
+	const source = new CancellationTokenSource();
+	const innerIterable = callback(source.token);
+
+	return new CancelableAsyncIterableObject<T>(source, async (emitter) => {
+		const subscription = source.token.onCancellationRequested(() => {
+			subscription.dispose();
+			source.dispose();
+			emitter.reject(canceled());
+		});
+		try {
+			for await (const item of innerIterable) {
+				if (source.token.isCancellationRequested) {
+					// canceled in the meantime
+					return;
+				}
+				emitter.emitOne(item);
+			}
+			subscription.dispose();
+			source.dispose();
+		} catch (err) {
+			subscription.dispose();
+			source.dispose();
+			emitter.reject(err);
+		}
+	});
 }
 
 //#endregion

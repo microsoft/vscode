@@ -5,6 +5,7 @@
 
 import { distinct } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IStringDictionary } from 'vs/base/common/collections';
 import { canceled, getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
 import { getOrDefault } from 'vs/base/common/objects';
 import { IPager } from 'vs/base/common/paging';
@@ -15,7 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import { IHeaders, IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { DefaultIconPath, getFallbackTargetPlarforms, getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionIdentifierWithVersion, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IReportedExtension, isIExtensionIdentifier, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortBy, SortOrder, StatisticType, TargetPlatform, toTargetPlatform, WEB_EXTENSION_TAG } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { DefaultIconPath, getFallbackTargetPlarforms, getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionIdentifierWithVersion, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isIExtensionIdentifier, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortBy, SortOrder, StatisticType, TargetPlatform, toTargetPlatform, WEB_EXTENSION_TAG } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, getGalleryExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
@@ -438,9 +439,9 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 	};
 }
 
-interface IRawExtensionsReport {
+interface IRawExtensionsControlManifest {
 	malicious: string[];
-	slow: string[];
+	unsupported: IStringDictionary<boolean | { preReleaseExtension: { id: string, displayName: string } }>;
 }
 
 abstract class AbstractExtensionGalleryService implements IExtensionGalleryService {
@@ -885,7 +886,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		for (const version of galleryExtensions[0].versions) {
 			try {
 				if (result[result.length - 1]?.version !== version.version && await this.isRawExtensionVersionCompatible(version, includePreRelease, allTargetPlatforms, targetPlatform)) {
-					result.push({ version: version.version, date: version.lastUpdated });
+					result.push({ version: version.version, date: version.lastUpdated, isPreReleaseVersion: isPreReleaseVersion(version) });
 				}
 			} catch (error) { /* Ignore error and skip version */ }
 		}
@@ -942,13 +943,13 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		return engine;
 	}
 
-	async getExtensionsReport(): Promise<IReportedExtension[]> {
+	async getExtensionsControlManifest(): Promise<IExtensionsControlManifest> {
 		if (!this.isEnabled()) {
 			throw new Error('No extension gallery service configured.');
 		}
 
 		if (!this.extensionsControlUrl) {
-			return [];
+			return { malicious: [] };
 		}
 
 		const context = await this.requestService.request({ type: 'GET', url: this.extensionsControlUrl }, CancellationToken.None);
@@ -956,18 +957,25 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			throw new Error('Could not get extensions report.');
 		}
 
-		const result = await asJson<IRawExtensionsReport>(context);
-		const map = new Map<string, IReportedExtension>();
+		const result = await asJson<IRawExtensionsControlManifest>(context);
+		const malicious: IExtensionIdentifier[] = [];
+		const unsupportedPreReleaseExtensions: IStringDictionary<{ id: string, displayName: string }> = {};
 
 		if (result) {
 			for (const id of result.malicious) {
-				const ext = map.get(id) || { id: { id }, malicious: true, slow: false };
-				ext.malicious = true;
-				map.set(id, ext);
+				malicious.push({ id });
+			}
+			if (result.unsupported) {
+				for (const extensionId of Object.keys(result.unsupported)) {
+					const value = result.unsupported[extensionId];
+					if (!isBoolean(value)) {
+						unsupportedPreReleaseExtensions[extensionId.toLowerCase()] = value.preReleaseExtension;
+					}
+				}
 			}
 		}
 
-		return [...map.values()];
+		return { malicious, unsupportedPreReleaseExtensions };
 	}
 }
 

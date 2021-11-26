@@ -11,7 +11,7 @@ import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/no
 import { expandCellRangesWithHiddenCells, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { ListViewInfoAccessor } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { createNotebookCellList, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
+import { createNotebookCellList, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 
 suite('ListViewInfoAccessor', () => {
 	let disposables: DisposableStore;

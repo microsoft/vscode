@@ -57,6 +57,7 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 
 	'help': OPTIONS['help'],
 	'version': OPTIONS['version'],
+	'accept-server-license-terms': { type: 'boolean' },
 
 	_: OPTIONS['_']
 };
@@ -119,6 +120,7 @@ export interface ServerParsedArgs {
 
 	force?: boolean; // used by install-extension
 	'do-not-sync'?: boolean; // used by install-extension
+	'pre-release'?: boolean; // used by install-extension
 
 	'user-data-dir'?: string;
 	'builtin-extensions-dir'?: string;
@@ -135,6 +137,8 @@ export interface ServerParsedArgs {
 	// server cli
 	help: boolean;
 	version: boolean;
+
+	'accept-server-license-terms': boolean;
 
 	_: string[];
 }

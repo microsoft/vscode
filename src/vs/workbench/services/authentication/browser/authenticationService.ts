@@ -614,68 +614,70 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			});
 		}
 
-		if (provider) {
-			const providerRequests = this._signInRequestItems.get(providerId);
-			const scopesList = scopes.join(SCOPESLIST_SEPARATOR);
-			const extensionHasExistingRequest = providerRequests
-				&& providerRequests[scopesList]
-				&& providerRequests[scopesList].requestingExtensionIds.includes(extensionId);
-
-			if (extensionHasExistingRequest) {
-				return;
-			}
-
-			// Construct a commandId that won't clash with others generated here, nor likely with an extension's command
-			const commandId = `${providerId}:${extensionId}:signIn${Object.keys(providerRequests || []).length}`;
-			const menuItem = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
-				group: '2_signInRequests',
-				command: {
-					id: commandId,
-					title: nls.localize({
-						key: 'signInRequest',
-						comment: [`The placeholder {0} will be replaced with an authentication provider's label. {1} will be replaced with an extension name. (1) is to indicate that this menu item contributes to a badge count.`]
-					},
-						"Sign in with {0} to use {1} (1)",
-						provider.label,
-						extensionName)
-				}
-			});
-
-			const signInCommand = CommandsRegistry.registerCommand({
-				id: commandId,
-				handler: async (accessor) => {
-					const authenticationService = accessor.get(IAuthenticationService);
-					const storageService = accessor.get(IStorageService);
-					const session = await authenticationService.createSession(providerId, scopes);
-
-					// Add extension to allow list since user explicitly signed in on behalf of it
-					this.updatedAllowedExtension(providerId, session.account.label, extensionId, extensionName, true);
-
-					// And also set it as the preferred account for the extension
-					storageService.store(`${extensionName}-${providerId}`, session.id, StorageScope.GLOBAL, StorageTarget.MACHINE);
-				}
-			});
-
-
-			if (providerRequests) {
-				const existingRequest = providerRequests[scopesList] || { disposables: [], requestingExtensionIds: [] };
-
-				providerRequests[scopesList] = {
-					disposables: [...existingRequest.disposables, menuItem, signInCommand],
-					requestingExtensionIds: [...existingRequest.requestingExtensionIds, extensionId]
-				};
-				this._signInRequestItems.set(providerId, providerRequests);
-			} else {
-				this._signInRequestItems.set(providerId, {
-					[scopesList]: {
-						disposables: [menuItem, signInCommand],
-						requestingExtensionIds: [extensionId]
-					}
-				});
-			}
-
-			this.updateBadgeCount();
+		if (!provider) {
+			return;
 		}
+
+		const providerRequests = this._signInRequestItems.get(providerId);
+		const scopesList = scopes.join(SCOPESLIST_SEPARATOR);
+		const extensionHasExistingRequest = providerRequests
+			&& providerRequests[scopesList]
+			&& providerRequests[scopesList].requestingExtensionIds.includes(extensionId);
+
+		if (extensionHasExistingRequest) {
+			return;
+		}
+
+		// Construct a commandId that won't clash with others generated here, nor likely with an extension's command
+		const commandId = `${providerId}:${extensionId}:signIn${Object.keys(providerRequests || []).length}`;
+		const menuItem = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
+			group: '2_signInRequests',
+			command: {
+				id: commandId,
+				title: nls.localize({
+					key: 'signInRequest',
+					comment: [`The placeholder {0} will be replaced with an authentication provider's label. {1} will be replaced with an extension name. (1) is to indicate that this menu item contributes to a badge count.`]
+				},
+					"Sign in with {0} to use {1} (1)",
+					provider.label,
+					extensionName)
+			}
+		});
+
+		const signInCommand = CommandsRegistry.registerCommand({
+			id: commandId,
+			handler: async (accessor) => {
+				const authenticationService = accessor.get(IAuthenticationService);
+				const storageService = accessor.get(IStorageService);
+				const session = await authenticationService.createSession(providerId, scopes);
+
+				// Add extension to allow list since user explicitly signed in on behalf of it
+				this.updatedAllowedExtension(providerId, session.account.label, extensionId, extensionName, true);
+
+				// And also set it as the preferred account for the extension
+				storageService.store(`${extensionName}-${providerId}`, session.id, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			}
+		});
+
+
+		if (providerRequests) {
+			const existingRequest = providerRequests[scopesList] || { disposables: [], requestingExtensionIds: [] };
+
+			providerRequests[scopesList] = {
+				disposables: [...existingRequest.disposables, menuItem, signInCommand],
+				requestingExtensionIds: [...existingRequest.requestingExtensionIds, extensionId]
+			};
+			this._signInRequestItems.set(providerId, providerRequests);
+		} else {
+			this._signInRequestItems.set(providerId, {
+				[scopesList]: {
+					disposables: [menuItem, signInCommand],
+					requestingExtensionIds: [extensionId]
+				}
+			});
+		}
+
+		this.updateBadgeCount();
 	}
 	getLabel(id: string): string {
 		const authProvider = this._authenticationProviders.get(id);

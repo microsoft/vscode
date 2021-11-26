@@ -254,7 +254,7 @@ export function topAsync<T>(array: T[], compare: (a: T, b: T) => number, n: numb
 			const result = array.slice(0, n).sort(compare);
 			for (let i = n, m = Math.min(n + batch, o); i < o; i = m, m = Math.min(m + batch, o)) {
 				if (i > n) {
-					await new Promise(resolve => setTimeout(resolve)); // nextTick() would starve I/O.
+					await new Promise(resolve => setTimeout(resolve)); // any other delay function would starve I/O
 				}
 				if (token && token.isCancellationRequested) {
 					throw canceled();

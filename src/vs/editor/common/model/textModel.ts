@@ -2457,7 +2457,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			const bracketsContainingActivePosition =
 				(startLineNumber <= activePosition.lineNumber && activePosition.lineNumber <= endLineNumber)
 					// Does active position intersect with the view port? -> Intersect bracket pairs with activePosition
-					? bracketPairs.filter(bp => bp.range.containsPosition(activePosition))
+					? bracketPairs.filter(bp => Range.strictContainsPosition(bp.range, activePosition))
 					: this._bracketPairColorizer.getBracketPairsInRange(
 						Range.fromPositions(activePosition)
 					);
@@ -2516,7 +2516,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 						renderHorizontalEndLineAtTheBottom = true;
 					}
 				}
-				// TODO: Consider indentation when computing guideVisibleColumn
+
 				const start = pair.openingBracketRange.getStartPosition();
 				const end = (pair.closingBracketRange?.getStartPosition() ?? pair.range.getEndPosition());
 

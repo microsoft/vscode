@@ -11,7 +11,7 @@ import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/no
 import { runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { NotebookCellSelectionCollection } from 'vs/workbench/contrib/notebook/browser/viewModel/cellSelectionCollection';
 import { CellEditType, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { createNotebookCellList, setupInstantiationService, TestCell, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
+import { createNotebookCellList, setupInstantiationService, TestCell, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 
 suite('NotebookSelection', () => {
 	test('focus is never empty', function () {

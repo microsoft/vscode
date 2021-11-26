@@ -69,7 +69,7 @@ async function connect(connectDriver: typeof connectElectronDriver, child: cp.Ch
 	while (true) {
 		try {
 			const { client, driver } = await connectDriver(outPath, handlePath);
-			return new Code(client, driver, logger);
+			return new Code(client, driver, logger, child?.pid);
 		} catch (err) {
 			if (++errCount > 50) {
 				if (child) {
@@ -254,7 +254,8 @@ export class Code {
 	constructor(
 		private client: IDisposable,
 		driver: IDriver,
-		readonly logger: Logger
+		readonly logger: Logger,
+		private readonly pid: number | undefined
 	) {
 		this.driver = new Proxy(driver, {
 			get(target, prop, receiver) {
@@ -289,16 +290,55 @@ export class Code {
 		await this.driver.dispatchKeybinding(windowId, keybinding);
 	}
 
-	async reload(): Promise<void> {
-		const windowId = await this.getActiveWindowId();
-		await this.driver.reloadWindow(windowId);
-	}
-
 	async exit(): Promise<void> {
-		const veto = await this.driver.exitApplication();
-		if (veto === true) {
-			throw new Error('Code exit was blocked by a veto.');
-		}
+		return new Promise<void>((resolve, reject) => {
+			let done = false;
+
+			// Start the exit flow via driver
+			const exitPromise = this.driver.exitApplication().then(veto => {
+				if (veto) {
+					done = true;
+					reject(new Error('Smoke test exit call resulted in unexpected veto'));
+				}
+			});
+
+			// If we know the `pid` of the smoke tested application
+			// use that as way to detect the exit of the application
+			const pid = this.pid;
+			if (typeof pid === 'number') {
+				(async () => {
+					let killCounter = 0;
+					while (!done) {
+						killCounter++;
+
+						if (killCounter > 40) {
+							done = true;
+							reject(new Error('Smoke test exit call did not terminate main process after 20s, giving up'));
+						}
+
+						try {
+							process.kill(pid, 0); // throws an exception if the main process doesn't exist anymore.
+							await new Promise(resolve => setTimeout(resolve, 500));
+						} catch (error) {
+							done = true;
+							resolve();
+						}
+					}
+				})();
+			}
+
+			// Otherwise await the exit promise (web).
+			else {
+				(async () => {
+					try {
+						await exitPromise;
+						resolve();
+					} catch (error) {
+						reject(new Error(`Smoke test exit call resulted in error: ${error}`));
+					}
+				})();
+			}
+		});
 	}
 
 	async waitForTextContent(selector: string, textContent?: string, accept?: (result: string) => boolean, retryCount?: number): Promise<string> {

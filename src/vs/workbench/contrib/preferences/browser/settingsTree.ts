@@ -971,7 +971,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 					if (content.startsWith('#')) {
 						const e: ISettingLinkClickEvent = {
 							source: element,
-							targetKey: content.substr(1)
+							targetKey: content.substring(1)
 						};
 						this._onDidClickSettingLink.fire(e);
 					} else {

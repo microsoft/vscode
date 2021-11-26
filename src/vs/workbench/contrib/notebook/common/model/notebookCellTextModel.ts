@@ -15,11 +15,14 @@ import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeText
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel';
-import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellOutput, IOutputDto, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellOutput, IOutputDto, IOutputItemDto, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
 	private readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
 	onDidChangeOutputs: Event<NotebookCellOutputsSplice> = this._onDidChangeOutputs.event;
+
+	private readonly _onDidChangeOutputItems = this._register(new Emitter<void>());
+	onDidChangeOutputItems: Event<void> = this._onDidChangeOutputItems.event;
 
 	private readonly _onDidChangeContent = this._register(new Emitter<'content' | 'language' | 'mime'>());
 	onDidChangeContent: Event<'content' | 'language' | 'mime'> = this._onDidChangeContent.event;
@@ -262,6 +265,24 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	spliceNotebookCellOutputs(splice: NotebookCellOutputsSplice): void {
 		this.outputs.splice(splice.start, splice.deleteCount, ...splice.newOutputs);
 		this._onDidChangeOutputs.fire(splice);
+	}
+
+	changeOutputItems(outputId: string, append: boolean, items: IOutputItemDto[]): boolean {
+		const outputIndex = this.outputs.findIndex(output => output.outputId === outputId);
+
+		if (outputIndex < 0) {
+			return false;
+		}
+
+		const output = this.outputs[outputIndex];
+		if (append) {
+			output.appendData(items);
+		} else {
+			output.replaceData(items);
+		}
+
+		this._onDidChangeOutputItems.fire();
+		return true;
 	}
 
 	private _outputNotEqualFastCheck(left: ICellOutput[], right: ICellOutput[]) {

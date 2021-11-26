@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IStringDictionary } from 'vs/base/common/collections';
 import { Event } from 'vs/base/common/event';
 import { FileAccess } from 'vs/base/common/network';
 import { IPager } from 'vs/base/common/paging';
@@ -234,6 +235,7 @@ export interface IGalleryExtensionIdentifier extends IExtensionIdentifier {
 export interface IGalleryExtensionVersion {
 	version: string;
 	date: string;
+	isPreReleaseVersion: boolean;
 }
 
 export interface IGalleryExtension {
@@ -273,7 +275,7 @@ export interface ILocalExtension extends IExtension {
 	publisherDisplayName: string | null;
 	installedTimestamp?: number;
 	isPreReleaseVersion: boolean;
-	hadPreReleaseVersion: boolean;
+	preRelease: boolean;
 }
 
 export const enum SortBy {
@@ -309,9 +311,9 @@ export const enum StatisticType {
 	Uninstall = 'uninstall'
 }
 
-export interface IReportedExtension {
-	id: IExtensionIdentifier;
-	malicious: boolean;
+export interface IExtensionsControlManifest {
+	malicious: IExtensionIdentifier[];
+	unsupportedPreReleaseExtensions?: IStringDictionary<{ id: string, displayName: string }>;
 }
 
 export const enum InstallOperation {
@@ -337,7 +339,7 @@ export interface IExtensionGalleryService {
 	getManifest(extension: IGalleryExtension, token: CancellationToken): Promise<IExtensionManifest | null>;
 	getChangelog(extension: IGalleryExtension, token: CancellationToken): Promise<string>;
 	getCoreTranslation(extension: IGalleryExtension, languageId: string): Promise<ITranslation | null>;
-	getExtensionsReport(): Promise<IReportedExtension[]>;
+	getExtensionsControlManifest(): Promise<IExtensionsControlManifest>;
 	isExtensionCompatible(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<boolean>;
 	getCompatibleExtension(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtension | null>;
 	getCompatibleExtension(id: IExtensionIdentifier, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtension | null>;
@@ -365,6 +367,7 @@ export enum ExtensionManagementErrorCode {
 	Unsupported = 'Unsupported',
 	Malicious = 'Malicious',
 	Incompatible = 'Incompatible',
+	IncompatiblePreRelease = 'IncompatiblePreRelease',
 	IncompatibleTargetPlatform = 'IncompatibleTargetPlatform',
 	Invalid = 'Invalid',
 	Download = 'Download',
@@ -410,7 +413,7 @@ export interface IExtensionManagementService {
 	uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void>;
 	reinstallFromGallery(extension: ILocalExtension): Promise<void>;
 	getInstalled(type?: ExtensionType, donotIgnoreInvalidExtensions?: boolean): Promise<ILocalExtension[]>;
-	getExtensionsReport(): Promise<IReportedExtension[]>;
+	getExtensionsControlManifest(): Promise<IExtensionsControlManifest>;
 
 	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension>;
 	updateExtensionScope(local: ILocalExtension, isMachineScoped: boolean): Promise<ILocalExtension>;
@@ -481,7 +484,7 @@ export interface IExtensionManagementCLIService {
 	readonly _serviceBrand: undefined;
 
 	listExtensions(showVersions: boolean, category?: string, output?: CLIOutput): Promise<void>;
-	installExtensions(extensions: (string | URI)[], builtinExtensionIds: string[], isMachineScoped: boolean, force: boolean, output?: CLIOutput): Promise<void>;
+	installExtensions(extensions: (string | URI)[], builtinExtensionIds: string[], installOptions: InstallOptions, force: boolean, output?: CLIOutput): Promise<void>;
 	uninstallExtensions(extensions: (string | URI)[], force: boolean, output?: CLIOutput): Promise<void>;
 	locateExtension(extensions: string[], output?: CLIOutput): Promise<void>;
 }

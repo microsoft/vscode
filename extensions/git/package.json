@@ -24,6 +24,9 @@
     "*",
     "onFileSystem:git"
   ],
+  "extensionDependencies": [
+    "vscode.git-base"
+  ],
   "main": "./out/main",
   "icon": "resources/icons/git.png",
   "scripts": {

@@ -12,7 +12,6 @@ import * as rimraf from 'rimraf';
 import { URI } from 'vscode-uri';
 import * as kill from 'tree-kill';
 import * as optimistLib from 'optimist';
-import { StdioOptions } from 'node:child_process';
 
 const optimist = optimistLib
 	.describe('workspacePath', 'path to the workspace (folder or *.code-workspace file) to open in the test').string('workspacePath')
@@ -154,7 +153,7 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 		}
 	}
 
-	const stdio: StdioOptions = optimist.argv.debug ? 'pipe' : ['ignore', 'pipe', 'ignore'];
+	const stdio: cp.StdioOptions = optimist.argv.debug ? 'pipe' : ['ignore', 'pipe', 'ignore'];
 
 	let serverProcess = cp.spawn(
 		serverLocation,

@@ -168,7 +168,7 @@ export const keywords: IEntries = {
 		description: 'This language construct is equivalent to exit().',
 	},
 	echo: {
-		description: 'Outputs all parameters. \r\n\r\necho() is not actually a function (it is a language construct), so you are not required to use parentheses with it. echo() (unlike some other language constructs) does not behave like a function, so it cannot always be used in the context of a function. Additionally, if you want to pass more than one parameter to echo(), the parameters must not be enclosed within parentheses.\r\n\r\necho() also has a shortcut syntax, where you can immediately follow the opening tag with an equals sign. This short syntax only works with the short_open_tag configuration setting enabled.',
+		description: 'Outputs all parameters. \r\n\r\necho is not actually a function (it is a language construct), so you are not required to use parentheses with it. echo (unlike some other language constructs) does not behave like a function, so it cannot always be used in the context of a function. Additionally, if you want to pass more than one parameter to echo, the parameters must not be enclosed within parentheses.\r\n\r\necho also has a shortcut syntax, where you can immediately follow the opening tag with an equals sign. This short syntax only works with the short_open_tag configuration setting enabled.',
 		signature: '( string $arg1 [, string $... ] ): void'
 	},
 	empty: {
@@ -184,10 +184,10 @@ export const keywords: IEntries = {
 		signature: '( string $code_str ): mixed'
 	},
 	include: {
-		description: 'The include() statement includes and evaluates the specified file.',
+		description: 'The include statement includes and evaluates the specified file.',
 	},
 	include_once: {
-		description: 'The include_once() statement includes and evaluates the specified file during the execution of the script. This is a behavior similar to the include() statement, with the only difference being that if the code from a file has already been included, it will not be included again. As the name suggests, it will be included just once. \r\n\r\ninclude_once() may be used in cases where the same file might be included and evaluated more than once during a particular execution of a script, so in this case it may help avoid problems such as function redefinitions, variable value reassignments, etc.',
+		description: 'The include_once statement includes and evaluates the specified file during the execution of the script. This is a behavior similar to the include statement, with the only difference being that if the code from a file has already been included, it will not be included again. As the name suggests, it will be included just once. \r\n\r\ninclude_once may be used in cases where the same file might be included and evaluated more than once during a particular execution of a script, so in this case it may help avoid problems such as function redefinitions, variable value reassignments, etc.',
 	},
 	isset: {
 		description: 'Determine if a variable is set and is not NULL. \r\n\r\nIf a variable has been unset with unset(), it will no longer be set. isset() will return FALSE if testing a variable that has been set to NULL. Also note that a NULL byte is not equivalent to the PHP NULL constant. \r\n\r\nIf multiple parameters are supplied then isset() will return TRUE only if all of the parameters are set. Evaluation goes from left to right and stops as soon as an unset variable is encountered.',
@@ -198,13 +198,13 @@ export const keywords: IEntries = {
 		signature: '( mixed $varname [, mixed $... ] ): array'
 	},
 	require: {
-		description: 'require() is identical to include() except upon failure it will also produce a fatal E_COMPILE_ERROR level error. In other words, it will halt the script whereas include() only emits a warning (E_WARNING) which allows the script to continue.',
+		description: 'require is identical to include except upon failure it will also produce a fatal E_COMPILE_ERROR level error. In other words, it will halt the script whereas include only emits a warning (E_WARNING) which allows the script to continue.',
 	},
 	require_once: {
-		description: 'The require_once() statement is identical to require() except PHP will check if the file has already been included, and if so, not include (require) it again.',
+		description: 'The require_once statement is identical to require except PHP will check if the file has already been included, and if so, not include (require) it again.',
 	},
 	return: {
-		description: 'If called from within a function, the return() statement immediately ends execution of the current function, and returns its argument as the value of the function call. return() will also end the execution of an eval() statement or script file. \r\n\r\nIf called from the global scope, then execution of the current script file is ended. If the current script file was include()ed or require()ed, then control is passed back to the calling file. Furthermore, if the current script file was include()ed, then the value given to return() will be returned as the value of the include() call. If return() is called from within the main script file, then script execution ends. If the current script file was named by the auto_prepend_file or auto_append_file configuration options in php.ini, then that script file\'s execution is ended.',
+		description: 'If called from within a function, the return statement immediately ends execution of the current function, and returns its argument as the value of the function call. return will also end the execution of an eval() statement or script file. \r\n\r\nIf called from the global scope, then execution of the current script file is ended. If the current script file was included or required, then control is passed back to the calling file. Furthermore, if the current script file was included, then the value given to return will be returned as the value of the include call. If return is called from within the main script file, then script execution ends. If the current script file was named by the auto_prepend_file or auto_append_file configuration options in php.ini, then that script file\'s execution is ended.',
 	},
 	print: {
 		description: 'Outputs arg. \r\n\r\nprint() is not actually a real function (it is a language construct) so you are not required to use parentheses with its argument list.',

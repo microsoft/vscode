@@ -36,7 +36,7 @@ WORKSPACE_STANDALONE_CONFIGURATIONS[LAUNCH_CONFIGURATION_KEY] = `${FOLDER_CONFIG
 export const USER_STANDALONE_CONFIGURATIONS = Object.create(null);
 USER_STANDALONE_CONFIGURATIONS[TASKS_CONFIGURATION_KEY] = `${TASKS_CONFIGURATION_KEY}.json`;
 
-export type ConfigurationKey = { type: 'user' | 'workspaces' | 'folder', key: string };
+export type ConfigurationKey = { type: 'defaults' | 'user' | 'workspaces' | 'folder', key: string };
 
 export interface IConfigurationCache {
 

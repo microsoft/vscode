@@ -8,7 +8,7 @@ import * as path from 'path';
 import { Command, commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider } from 'vscode';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
-import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourceProvider } from './api/git';
+import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher } from './api/git';
 import { Git, Stash } from './git';
 import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
@@ -392,7 +392,7 @@ export class CommandCenter {
 
 	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean } = {}): Promise<void> {
 		if (!url || typeof url !== 'string') {
-			url = await pickRemoteSource(this.model, {
+			url = await pickRemoteSource({
 				providerLabel: provider => localize('clonefrom', "Clone from {0}", provider.name),
 				urlLabel: localize('repourl', "Clone from URL")
 			});
@@ -2215,7 +2215,7 @@ export class CommandCenter {
 
 	@command('git.addRemote', { repository: true })
 	async addRemote(repository: Repository): Promise<string | undefined> {
-		const url = await pickRemoteSource(this.model, {
+		const url = await pickRemoteSource({
 			providerLabel: provider => localize('addfrom', "Add remote from {0}", provider.name),
 			urlLabel: localize('addFrom', "Add remote from URL")
 		});
@@ -2360,19 +2360,19 @@ export class CommandCenter {
 		const remotes = repository.remotes;
 
 		if (remotes.length === 0) {
-			const providers = this.model.getRemoteProviders().filter(p => !!p.publishRepository);
+			const publishers = this.model.getRemoteSourcePublishers();
 
-			if (providers.length === 0) {
+			if (publishers.length === 0) {
 				window.showWarningMessage(localize('no remotes to publish', "Your repository has no remotes configured to publish to."));
 				return;
 			}
 
-			let provider: RemoteSourceProvider;
+			let publisher: RemoteSourcePublisher;
 
-			if (providers.length === 1) {
-				provider = providers[0];
+			if (publishers.length === 1) {
+				publisher = publishers[0];
 			} else {
-				const picks = providers
+				const picks = publishers
 					.map(provider => ({ label: (provider.icon ? `$(${provider.icon}) ` : '') + localize('publish to', "Publish to {0}", provider.name), alwaysShow: true, provider }));
 				const placeHolder = localize('pick provider', "Pick a provider to publish the branch '{0}' to:", branchName);
 				const choice = await window.showQuickPick(picks, { placeHolder });
@@ -2381,10 +2381,10 @@ export class CommandCenter {
 					return;
 				}
 
-				provider = choice.provider;
+				publisher = choice.provider;
 			}
 
-			await provider.publishRepository!(new ApiRepository(repository));
+			await publisher.publishRepository(new ApiRepository(repository));
 			this.model.firePublishEvent(repository, branchName);
 
 			return;

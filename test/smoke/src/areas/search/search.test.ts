@@ -88,7 +88,7 @@ export function setup(opts: minimist.ParsedArgs) {
 				'jsconfig.json'
 			];
 
-			await app.workbench.quickaccess.openQuickAccess('.js');
+			await app.workbench.quickaccess.openQuickAccessAndWait('.js');
 			await app.workbench.quickinput.waitForQuickInputElements(names => expectedNames.every(n => names.some(m => n === m)));
 			await app.code.dispatchKeybinding('escape');
 		});
@@ -101,7 +101,7 @@ export function setup(opts: minimist.ParsedArgs) {
 				'package.json'
 			];
 
-			await app.workbench.quickaccess.openQuickAccess('a.s');
+			await app.workbench.quickaccess.openQuickAccessAndWait('a.s');
 			await app.workbench.quickinput.waitForQuickInputElements(names => expectedNames.every(n => names.some(m => n === m)));
 			await app.code.dispatchKeybinding('escape');
 		});

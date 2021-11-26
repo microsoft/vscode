@@ -939,9 +939,15 @@ class FocusTracker extends Disposable implements IFocusTracker {
 
 	private _refreshStateHandler: () => void;
 
+	private static hasFocusWithin(element: HTMLElement): boolean {
+		const shadowRoot = getShadowRoot(element);
+		const activeElement = (shadowRoot ? shadowRoot.activeElement : document.activeElement);
+		return isAncestor(activeElement, element);
+	}
+
 	constructor(element: HTMLElement | Window) {
 		super();
-		let hasFocus = isAncestor(document.activeElement, <HTMLElement>element);
+		let hasFocus = FocusTracker.hasFocusWithin(<HTMLElement>element);
 		let loosingFocus = false;
 
 		const onFocus = () => {
@@ -966,7 +972,7 @@ class FocusTracker extends Disposable implements IFocusTracker {
 		};
 
 		this._refreshStateHandler = () => {
-			let currentNodeHasFocus = isAncestor(document.activeElement, <HTMLElement>element);
+			let currentNodeHasFocus = FocusTracker.hasFocusWithin(<HTMLElement>element);
 			if (currentNodeHasFocus !== hasFocus) {
 				if (hasFocus) {
 					onBlur();

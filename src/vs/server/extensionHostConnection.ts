@@ -110,7 +110,6 @@ export class ExtensionHostConnection {
 		this._remoteAddress = remoteAddress;
 		this._extensionHostProcess = null;
 		this._connectionData = ExtensionHostConnection._toConnectionData(socket, initialDataChunk);
-		this._connectionData.socket.pause();
 
 		this._log(`New connection established.`);
 	}
@@ -156,7 +155,6 @@ export class ExtensionHostConnection {
 		this._remoteAddress = remoteAddress;
 		this._log(`The client has reconnected.`);
 		const connectionData = ExtensionHostConnection._toConnectionData(_socket, initialDataChunk);
-		connectionData.socket.pause();
 
 		if (!this._extensionHostProcess) {
 			// The extension host didn't even start up yet

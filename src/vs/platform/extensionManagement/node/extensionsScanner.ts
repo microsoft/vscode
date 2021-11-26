@@ -299,9 +299,7 @@ export class ExtensionsScanner extends Disposable {
 				const changelogUrl = stat.children.find(({ name }) => /^changelog(\.txt|\.md|)$/i.test(name))?.resource;
 				const identifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
 				const local = <ILocalExtension>{ type, identifier, manifest, location: extensionLocation, readmeUrl, changelogUrl, publisherDisplayName: null, publisherId: null, isMachineScoped: false, isBuiltin: type === ExtensionType.System };
-				if (metadata) {
-					this.setMetadata(local, metadata);
-				}
+				this.setMetadata(local, metadata);
 				return local;
 			}
 		} catch (e) {
@@ -329,15 +327,15 @@ export class ExtensionsScanner extends Disposable {
 		}
 	}
 
-	private setMetadata(local: IRelaxedLocalExtension, metadata: Metadata): void {
-		local.publisherDisplayName = metadata.publisherDisplayName || null;
-		local.publisherId = metadata.publisherId || null;
-		local.identifier.uuid = metadata.id;
-		local.isMachineScoped = !!metadata.isMachineScoped;
-		local.isPreReleaseVersion = !!metadata.isPreReleaseVersion;
-		local.hadPreReleaseVersion = !!metadata.hadPreReleaseVersion;
-		local.isBuiltin = local.type === ExtensionType.System || !!metadata.isBuiltin;
-		local.installedTimestamp = metadata.installedTimestamp;
+	private setMetadata(local: IRelaxedLocalExtension, metadata: Metadata | null): void {
+		local.publisherDisplayName = metadata?.publisherDisplayName || null;
+		local.publisherId = metadata?.publisherId || null;
+		local.identifier.uuid = metadata?.id;
+		local.isMachineScoped = !!metadata?.isMachineScoped;
+		local.isPreReleaseVersion = !!metadata?.isPreReleaseVersion;
+		local.preRelease = !!metadata?.preRelease;
+		local.isBuiltin = local.type === ExtensionType.System || !!metadata?.isBuiltin;
+		local.installedTimestamp = metadata?.installedTimestamp;
 	}
 
 	private async removeUninstalledExtensions(): Promise<void> {

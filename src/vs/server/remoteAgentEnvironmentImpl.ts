@@ -27,7 +27,7 @@ import { ProcessItem } from 'vs/base/common/processes';
 import { ILog, Translations } from 'vs/workbench/services/extensions/common/extensionPoints';
 import { ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IBuiltInExtension } from 'vs/base/common/product';
-import { IExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementCLIService, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { cwd } from 'vs/base/common/process';
 import { IRemoteTelemetryService } from 'vs/server/remoteTelemetryService';
 import { Promises } from 'vs/base/node/pfs';
@@ -77,7 +77,8 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		};
 
 		if (environmentService.args['install-builtin-extension']) {
-			this.whenExtensionsReady = extensionManagementCLIService.installExtensions([], environmentService.args['install-builtin-extension'], !!environmentService.args['do-not-sync'], !!environmentService.args['force'])
+			const installOptions: InstallOptions = { isMachineScoped: !!environmentService.args['do-not-sync'], installPreReleaseVersion: !!environmentService.args['pre-release'] };
+			this.whenExtensionsReady = extensionManagementCLIService.installExtensions([], environmentService.args['install-builtin-extension'], installOptions, !!environmentService.args['force'])
 				.then(null, error => {
 					logService.error(error);
 				});
@@ -89,7 +90,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		if (extensionsToInstall) {
 			const idsOrVSIX = extensionsToInstall.map(input => /\.vsix$/i.test(input) ? URI.file(isAbsolute(input) ? input : join(cwd(), input)) : input);
 			this.whenExtensionsReady
-				.then(() => extensionManagementCLIService.installExtensions(idsOrVSIX, [], !!environmentService.args['do-not-sync'], !!environmentService.args['force']))
+				.then(() => extensionManagementCLIService.installExtensions(idsOrVSIX, [], { isMachineScoped: !!environmentService.args['do-not-sync'], installPreReleaseVersion: !!environmentService.args['pre-release'] }, !!environmentService.args['force']))
 				.then(null, error => {
 					logService.error(error);
 				});

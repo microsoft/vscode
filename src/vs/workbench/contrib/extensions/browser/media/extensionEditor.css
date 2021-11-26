@@ -82,15 +82,22 @@
 	white-space: nowrap;
 }
 
-.extension-editor > .header > .details > .title > .pre-release {
-	display: flex;
-	margin-left: 4px;
-}
-
 .extension-editor > .header > .details > .title > .builtin {
 	font-size: 10px;
 	font-style: italic;
 	margin-left: 10px;
+}
+
+.extension-editor > .header > .details > .title > .pre-release {
+	display: flex;
+	font-size: 10px;
+	margin-left: 10px;
+	padding: 0px 4px;
+	border-radius: 4px;
+	user-select: none;
+	-webkit-user-select: none;
+	background-color: var(--vscode-extensionIcon-preReleaseForeground);
+	color: #ffffff;
 }
 
 .monaco-workbench.vs .extension-editor > .header > .details > .title > .preview {

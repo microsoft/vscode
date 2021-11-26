@@ -1751,9 +1751,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	async toggleEscapeSequenceLogging(): Promise<void> {
+	async toggleEscapeSequenceLogging(): Promise<boolean> {
 		const xterm = await this._xtermReadyPromise;
 		xterm.raw.options.logLevel = xterm.raw.options.logLevel === 'debug' ? 'info' : 'debug';
+		return xterm.raw.options.logLevel === 'debug';
 	}
 
 	async getInitialCwd(): Promise<string> {
