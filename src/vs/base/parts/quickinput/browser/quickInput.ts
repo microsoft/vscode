@@ -496,9 +496,11 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			if (!skipUpdate) {
 				this.update();
 			}
-			const didFilter = this.ui.list.filter(this.filterValue(this._value));
-			if (didFilter) {
-				this.trySelectFirst();
+			if (this.visible) {
+				const didFilter = this.ui.list.filter(this.filterValue(this._value));
+				if (didFilter) {
+					this.trySelectFirst();
+				}
 			}
 			this.onDidChangeValueEmitter.fire(this._value);
 		}
