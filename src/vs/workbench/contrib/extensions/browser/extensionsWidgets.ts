@@ -501,18 +501,12 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		}
 
 		const preReleaseMessage = ExtensionHoverWidget.getPreReleaseMessage(this.extension);
-		if (preReleaseMessage) {
-			const extensionPreReleaseIcon = this.themeService.getColorTheme().getColor(extensionPreReleaseIconColor);
-			markdown.appendMarkdown(`<span style="color:${extensionPreReleaseIcon ? Color.Format.CSS.formatHex(extensionPreReleaseIcon) : '#ffffff'};">$(${preReleaseIcon.id})</span>&nbsp;${preReleaseMessage}`);
-			markdown.appendText(`\n`);
-		}
-
 		const extensionRuntimeStatus = this.extensionsWorkbenchService.getExtensionStatus(this.extension);
 		const extensionStatus = this.extensionStatusAction.status;
 		const reloadRequiredMessage = this.reloadAction.enabled ? this.reloadAction.tooltip : '';
 		const recommendationMessage = this.getRecommendationMessage(this.extension);
 
-		if (extensionRuntimeStatus || extensionStatus || reloadRequiredMessage || recommendationMessage) {
+		if (extensionRuntimeStatus || extensionStatus || reloadRequiredMessage || recommendationMessage || preReleaseMessage) {
 
 			markdown.appendMarkdown(`---`);
 			markdown.appendText(`\n`);
@@ -552,6 +546,12 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 			if (reloadRequiredMessage) {
 				markdown.appendMarkdown(`$(${infoIcon.id})&nbsp;`);
 				markdown.appendMarkdown(`${reloadRequiredMessage}`);
+				markdown.appendText(`\n`);
+			}
+
+			if (preReleaseMessage) {
+				const extensionPreReleaseIcon = this.themeService.getColorTheme().getColor(extensionPreReleaseIconColor);
+				markdown.appendMarkdown(`<span style="color:${extensionPreReleaseIcon ? Color.Format.CSS.formatHex(extensionPreReleaseIcon) : '#ffffff'};">$(${preReleaseIcon.id})</span>&nbsp;${preReleaseMessage}`);
 				markdown.appendText(`\n`);
 			}
 

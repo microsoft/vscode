@@ -284,8 +284,9 @@
 }
 
 .extension-editor > .header > .details > .pre-release-text:not(:empty){
-	margin-top: 10px;
+	margin-top: 5px;
 	display: flex;
+	font-size: 90%;
 }
 
 .extension-editor > .header > .details > .recommendation {

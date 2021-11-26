@@ -255,7 +255,6 @@ export class ExtensionEditor extends EditorPane {
 		rating.setAttribute('role', 'link'); // #132645
 
 		const description = append(details, $('.description'));
-		const preReleaseText = append(details, $('.pre-release-text'));
 
 		const actionsAndStatusContainer = append(details, $('.actions-status-container'));
 		const extensionActionBar = this._register(new ActionBar(actionsAndStatusContainer, {
@@ -273,6 +272,7 @@ export class ExtensionEditor extends EditorPane {
 		}));
 
 		const status = append(actionsAndStatusContainer, $('.status'));
+		const preReleaseText = append(details, $('.pre-release-text'));
 		const recommendation = append(details, $('.recommendation'));
 
 		this._register(Event.chain(extensionActionBar.onDidRun)
