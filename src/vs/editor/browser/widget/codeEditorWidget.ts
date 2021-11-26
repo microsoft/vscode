@@ -1492,13 +1492,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		Configuration.applyFontInfoSlow(target, this._configuration.options.get(EditorOption.fontInfo));
 	}
 
-	public setBanner(domNode: HTMLElement | null, height: number): void {
+	public setBanner(domNode: HTMLElement | null, domNodeHeight: number): void {
 		if (this._bannerDomNode && this._domElement.contains(this._bannerDomNode)) {
 			this._domElement.removeChild(this._bannerDomNode);
 		}
 
 		this._bannerDomNode = domNode;
-		this._configuration.reserveHeight(height);
+		this._configuration.reserveHeight(domNode ? domNodeHeight : 0);
 
 		if (this._bannerDomNode) {
 			this._domElement.prepend(this._bannerDomNode);
