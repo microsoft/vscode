@@ -137,7 +137,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 			return;
 		}
 
-		if ([ExtensionManagementErrorCode.Incompatible, ExtensionManagementErrorCode.IncompatibleTargetPlatform, ExtensionManagementErrorCode.Malicious].includes(<ExtensionManagementErrorCode>this.error.name)) {
+		if ([ExtensionManagementErrorCode.Incompatible, ExtensionManagementErrorCode.IncompatibleTargetPlatform, ExtensionManagementErrorCode.Malicious, ExtensionManagementErrorCode.UnsupportedPreRelease].includes(<ExtensionManagementErrorCode>this.error.name)) {
 			await this.dialogService.show(Severity.Info, getErrorMessage(this.error));
 			return;
 		}
