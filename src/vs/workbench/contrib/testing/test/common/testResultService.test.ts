@@ -18,6 +18,7 @@ import { TestResultService } from 'vs/workbench/contrib/testing/common/testResul
 import { InMemoryResultStorage, ITestResultStorage } from 'vs/workbench/contrib/testing/common/testResultStorage';
 import { Convert, getInitializedMainTestCollection, TestItemImpl, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { isNative, isElectron } from 'vs/base/common/platform';
 
 export const emptyOutputController = () => new LiveOutputController(
 	new Lazy(() => [newWriteableBufferStream(), Promise.resolve()]),
@@ -311,7 +312,11 @@ suite('Workbench - Test Results Service', () => {
 		});
 	});
 
-	test('resultItemParents', () => {
+	test('resultItemParents', function () {
+		if (isNative && !isElectron) {
+			this.skip(); // TODO@connor4312 https://github.com/microsoft/vscode/issues/137853
+		}
+
 		assert.deepStrictEqual([...resultItemParents(r, r.getStateById(new TestId(['ctrlId', 'id-a', 'id-aa']).toString())!)], [
 			r.getStateById(new TestId(['ctrlId', 'id-a', 'id-aa']).toString()),
 			r.getStateById(new TestId(['ctrlId', 'id-a']).toString()),
