@@ -56,11 +56,11 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 			await app.restart();
 
 			await app.workbench.editors.waitForTab(readmeMd, true);
-			await app.workbench.editors.selectTab(readmeMd);
+			await app.workbench.quickaccess.openFile(readmeMd);
 			await app.workbench.editor.waitForEditorContents(readmeMd, c => c.indexOf(textToType) > -1);
 
 			await app.workbench.editors.waitForTab(untitled, true);
-			await app.workbench.editors.selectTab(untitled);
+			await app.workbench.quickaccess.openFile(untitled, textToTypeInUntitled);
 			await app.workbench.editor.waitForEditorContents(untitled, c => c.indexOf(textToTypeInUntitled) > -1);
 
 			await app.stop();
@@ -162,11 +162,11 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 			await insidersApp.start();
 
 			await insidersApp.workbench.editors.waitForTab(readmeMd, true);
-			await insidersApp.workbench.editors.selectTab(readmeMd);
+			await insidersApp.workbench.quickaccess.openFile(readmeMd);
 			await insidersApp.workbench.editor.waitForEditorContents(readmeMd, c => c.indexOf(textToType) > -1);
 
 			await insidersApp.workbench.editors.waitForTab(untitled, true);
-			await insidersApp.workbench.editors.selectTab(untitled);
+			await insidersApp.workbench.quickaccess.openFile(textToTypeInUntitled);
 			await insidersApp.workbench.editor.waitForEditorContents(untitled, c => c.indexOf(textToTypeInUntitled) > -1);
 
 			await insidersApp.stop();
