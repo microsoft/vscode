@@ -11,7 +11,7 @@ import { ExtensionType, IExtensionIdentifier } from 'vs/platform/extensions/comm
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { SwitchUnsupportedExtensionToPreReleaseExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { SwitchUnsupportedExtensionToPreReleaseExtensionCommandAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 
 export class UnsupportedPreReleaseExtensionsChecker implements IWorkbenchContribution {
 
@@ -56,7 +56,7 @@ export class UnsupportedPreReleaseExtensionsChecker implements IWorkbenchContrib
 
 		if (unsupportedPreReleaseExtensions.length === 1) {
 			const [local, gallery] = unsupportedPreReleaseExtensions[0];
-			const action = this.instantiationService.createInstance(SwitchUnsupportedExtensionToPreReleaseExtensionAction, unsupportedPreReleaseExtensions[0][0], unsupportedPreReleaseExtensions[0][1]);
+			const action = this.instantiationService.createInstance(SwitchUnsupportedExtensionToPreReleaseExtensionCommandAction, unsupportedPreReleaseExtensions[0][0], unsupportedPreReleaseExtensions[0][1], true);
 			this.notificationService.notify({
 				severity: Severity.Info,
 				message: localize('unsupported prerelease message', "'{0}' extension is now part of the '{1}' extension as a pre-release version and it is no longer supported. Would you like to switch to '{2}' extension?", local.manifest.displayName || local.identifier.id, gallery.displayName, gallery.displayName),

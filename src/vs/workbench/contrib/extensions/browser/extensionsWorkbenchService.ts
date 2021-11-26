@@ -186,6 +186,7 @@ class Extension implements IExtension {
 	}
 
 	public isMalicious: boolean = false;
+	public isUnsupported: boolean | { preReleaseExtension: { id: string, displayName: string } } = false;
 
 	get installCount(): number | undefined {
 		return this.gallery ? this.gallery.installCount : undefined;
@@ -437,6 +438,17 @@ class Extensions extends Disposable {
 			const local = extension.local.identifier.uuid ? extension.local : await this.server.extensionManagementService.updateMetadata(extension.local, { id: compatible.identifier.uuid, publisherDisplayName: compatible.publisherDisplayName, publisherId: compatible.publisherId });
 			extension.local = local;
 			extension.gallery = compatible;
+			hasChanged = true;
+		}
+
+		const unsupportedPreRelease = extensionsControlManifest.unsupportedPreReleaseExtensions ? extensionsControlManifest.unsupportedPreReleaseExtensions[extension.identifier.id.toLowerCase()] : undefined;
+		if (unsupportedPreRelease) {
+			if (isBoolean(extension.isUnsupported) || !areSameExtensions({ id: extension.isUnsupported.preReleaseExtension.id }, { id: unsupportedPreRelease.id })) {
+				extension.isUnsupported = { preReleaseExtension: unsupportedPreRelease };
+				hasChanged = true;
+			}
+		} else if (extension.isUnsupported) {
+			extension.isUnsupported = false;
 			hasChanged = true;
 		}
 
@@ -913,6 +925,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (extensionsControlManifest.malicious.some(identifier => areSameExtensions(extension.identifier, identifier))) {
 			extension.isMalicious = true;
 		}
+		const unsupportedPreRelease = extensionsControlManifest.unsupportedPreReleaseExtensions ? extensionsControlManifest.unsupportedPreReleaseExtensions[extension.identifier.id.toLowerCase()] : undefined;
+		if (unsupportedPreRelease) {
+			if (isBoolean(extension.isUnsupported) || !areSameExtensions({ id: extension.isUnsupported.preReleaseExtension.id }, { id: unsupportedPreRelease.id })) {
+				extension.isUnsupported = { preReleaseExtension: unsupportedPreRelease };
+			}
+		}
 		return extension;
 	}
 
@@ -1031,6 +1049,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		if (extension.isMalicious) {
+			return false;
+		}
+
+		if (extension.isUnsupported) {
 			return false;
 		}
 
