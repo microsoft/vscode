@@ -1141,7 +1141,7 @@ export class SwitchUnsupportedExtensionToPreReleaseExtensionAction extends Exten
 		this.enabled = false;
 		if (!!this.extension && !!this.extension.local && this.extension.isUnsupported && !isBoolean(this.extension.isUnsupported) && this.extension.state === ExtensionState.Installed) {
 			this.enabled = true;
-			this.label = localize('switchUnsupportedExtensionToPreReleaseExtension', "Switch to '{0}' Pre-Release version", this.extension.isUnsupported.preReleaseExtension.displayName);
+			this.label = localize('switchUnsupportedExtensionToPreReleaseExtension', "Switch to '{0}'", this.extension.isUnsupported.preReleaseExtension.displayName);
 		}
 	}
 
@@ -1165,7 +1165,7 @@ export class SwitchUnsupportedExtensionToPreReleaseExtensionCommandAction extend
 		@IWorkbenchExtensionEnablementService private readonly workbenchExtensionEnablementService: IWorkbenchExtensionEnablementService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
-		super('workbench.extensions.action.switchUnsupportedExtensionToPreReleaseExtensionCommand', localize('switchUnsupportedExtensionToPreReleaseExtension', "Switch to '{0}' Pre-Release version", gallery.displayName));
+		super('workbench.extensions.action.switchUnsupportedExtensionToPreReleaseExtensionCommand', localize('switchUnsupportedExtensionToPreReleaseExtension', "Switch to '{0}'", gallery.displayName));
 	}
 
 	override async run(): Promise<any> {
@@ -2249,7 +2249,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('unsupported tooltip', "This extension no longer supported.")) }, true);
 			} else {
 				const link = `[${this.extension.isUnsupported.preReleaseExtension.displayName}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.isUnsupported.preReleaseExtension.id]))}`)})`;
-				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('unsupported prerelease tooltip', "This extension is now part of the {0} extension as a pre-release version and it is no longer supported.", link)) }, true);
+				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('unsupported prerelease tooltip', "This extension is no longer supported and is now part of the {0} extension as a pre-release version. We recommend that you switch to it.", link)) }, true);
 			}
 			return;
 		}

@@ -59,7 +59,7 @@ export class UnsupportedPreReleaseExtensionsChecker implements IWorkbenchContrib
 			const action = this.instantiationService.createInstance(SwitchUnsupportedExtensionToPreReleaseExtensionCommandAction, unsupportedPreReleaseExtensions[0][0], unsupportedPreReleaseExtensions[0][1], true);
 			this.notificationService.notify({
 				severity: Severity.Info,
-				message: localize('unsupported prerelease message', "'{0}' extension is now part of the '{1}' extension as a pre-release version and it is no longer supported. Would you like to switch to '{2}' extension?", local.manifest.displayName || local.identifier.id, gallery.displayName, gallery.displayName),
+				message: localize('unsupported prerelease message', "'{0}' extension is no longer supported and is now part of the '{1}' extension as a pre-release version. Would you like to switch to it?", local.manifest.displayName || local.identifier.id, gallery.displayName, gallery.displayName),
 				actions: {
 					primary: [action]
 				},
