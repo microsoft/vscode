@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Uri, workspace } from 'vscode';
+import { Uri, workspace, Disposable } from 'vscode';
 import { RequestType, CommonLanguageClient } from 'vscode-languageclient';
 import { Runtime } from './htmlClient';
-
-export const uriScheme = /^(?<scheme>\w[\w\d+.-]*):/;
 
 export namespace FsContentRequest {
 	export const type: RequestType<{ uri: string; encoding?: string; }, string, any> = new RequestType('fs/content');
@@ -20,37 +18,32 @@ export namespace FsReadDirRequest {
 	export const type: RequestType<string, [string, FileType][], any> = new RequestType('fs/readDir');
 }
 
-export function serveFileSystemRequests(client: CommonLanguageClient, runtime: Runtime, subscriptions: { dispose(): any }[]) {
-	subscriptions.push(client.onRequest(FsContentRequest.type, (param: { uri: string; encoding?: string; }) => {
-		const uri = param.uri.match(uriScheme);
-		if (uri?.groups?.scheme === 'file') {
-			if (runtime.fs) {
-				return runtime.fs.getContent(param.uri);
-			} else {
-				return workspace.fs.readFile(Uri.parse(param.uri)).then(buffer => {
-					return new runtime.TextDecoder(param.encoding).decode(buffer);
-				});
-			}
-		} else {
-			return workspace.openTextDocument(Uri.parse(param.uri)).then(doc => {
-				return doc.getText();
-			});
+export function serveFileSystemRequests(client: CommonLanguageClient, runtime: Runtime): Disposable {
+	const disposables = [];
+	disposables.push(client.onRequest(FsContentRequest.type, (param: { uri: string; encoding?: string; }) => {
+		const uri = Uri.parse(param.uri);
+		if (uri.scheme === 'file' && runtime.fs) {
+			return runtime.fs.getContent(param.uri);
 		}
+		return workspace.fs.readFile(uri).then(buffer => {
+			return new runtime.TextDecoder(param.encoding).decode(buffer);
+		});
 	}));
-	subscriptions.push(client.onRequest(FsReadDirRequest.type, (uriString: string) => {
-		const uri = uriString.match(uriScheme);
-		if (uri?.groups?.scheme === 'file' && runtime.fs) {
+	disposables.push(client.onRequest(FsReadDirRequest.type, (uriString: string) => {
+		const uri = Uri.parse(uriString);
+		if (uri.scheme === 'file' && runtime.fs) {
 			return runtime.fs.readDirectory(uriString);
 		}
-		return workspace.fs.readDirectory(Uri.parse(uriString));
+		return workspace.fs.readDirectory(uri);
 	}));
-	subscriptions.push(client.onRequest(FsStatRequest.type, (uriString: string) => {
-		const uri = uriString.match(uriScheme);
-		if (uri?.groups?.scheme === 'file' && runtime.fs) {
+	disposables.push(client.onRequest(FsStatRequest.type, (uriString: string) => {
+		const uri = Uri.parse(uriString);
+		if (uri.scheme === 'file' && runtime.fs) {
 			return runtime.fs.stat(uriString);
 		}
-		return workspace.fs.stat(Uri.parse(uriString));
+		return workspace.fs.stat(uri);
 	}));
+	return Disposable.from(...disposables);
 }
 
 export enum FileType {

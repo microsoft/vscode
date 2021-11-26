@@ -120,7 +120,7 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 	toDispose.push(disposable);
 	client.onReady().then(() => {
 
-		serveFileSystemRequests(client, runtime, context.subscriptions);
+		toDispose.push(serveFileSystemRequests(client, runtime));
 
 		client.sendNotification(CustomDataChangedNotification.type, customDataSource.uris);
 		customDataSource.onDidChange(() => {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { workspace, extensions, Uri, EventEmitter, Disposable } from 'vscode';
-import { resolvePath, joinPath, uriScheme } from './requests';
+import { resolvePath, joinPath } from './requests';
 
 
 export function getCustomDataSource(toDispose: Disposable[]) {
@@ -44,6 +44,10 @@ export function getCustomDataSource(toDispose: Disposable[]) {
 	};
 }
 
+function isURI(uriOrPath: string) {
+	return /^(?<scheme>\w[\w\d+.-]*):/.test(uriOrPath);
+}
+
 
 function getCustomDataPathsInAllWorkspaces(): Set<string> {
 	const workspaceFolders = workspace.workspaceFolders;
@@ -54,16 +58,16 @@ function getCustomDataPathsInAllWorkspaces(): Set<string> {
 		return dataPaths;
 	}
 
-	const collect = (paths: string[] | undefined, rootFolder: Uri) => {
-		if (Array.isArray(paths)) {
-			for (const path of paths) {
-				if (typeof path === 'string') {
-					if (!uriScheme.test(path)) {
-						// only resolve file paths relative to extension
-						dataPaths.add(resolvePath(rootFolder, path).toString());
+	const collect = (uriOrPaths: string[] | undefined, rootFolder: Uri) => {
+		if (Array.isArray(uriOrPaths)) {
+			for (const uriOrPath of uriOrPaths) {
+				if (typeof uriOrPath === 'string') {
+					if (!isURI(uriOrPath)) {
+						// path in the workspace
+						dataPaths.add(resolvePath(rootFolder, uriOrPath).toString());
 					} else {
-						// others schemes
-						dataPaths.add(path);
+						// external uri
+						dataPaths.add(uriOrPath);
 					}
 				}
 			}
@@ -93,13 +97,13 @@ function getCustomDataPathsFromAllExtensions(): Set<string> {
 	for (const extension of extensions.all) {
 		const customData = extension.packageJSON?.contributes?.html?.customData;
 		if (Array.isArray(customData)) {
-			for (const rp of customData) {
-				if (!uriScheme.test(rp)) {
-					// no schame -> resolve relative to extension
-					dataPaths.add(joinPath(extension.extensionUri, rp).toString());
+			for (const uriOrPath of customData) {
+				if (!isURI(uriOrPath)) {
+					// relative path in an extension
+					dataPaths.add(joinPath(extension.extensionUri, uriOrPath).toString());
 				} else {
-					// actual schemes
-					dataPaths.add(rp);
+					// external uri
+					dataPaths.add(uriOrPath);
 				}
 
 			}
