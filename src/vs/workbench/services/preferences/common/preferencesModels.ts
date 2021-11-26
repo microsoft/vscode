@@ -565,7 +565,7 @@ export class DefaultSettings extends Disposable {
 		}
 		if (title) {
 			if (!settingsGroup) {
-				settingsGroup = result.find(g => g.title === title && g.extensionInfo?.id === config.extensionInfo?.id);
+				settingsGroup = result.find(g => g.title === title && g.extensionInfo?.extensionDescription.identifier.value === config.extensionInfo?.extensionDescription.identifier.value);
 				if (!settingsGroup) {
 					settingsGroup = { sections: [{ settings: [] }], id: config.id || '', title: title || '', titleRange: nullRange, order: config.order, range: nullRange, extensionInfo: config.extensionInfo };
 					result.push(settingsGroup);

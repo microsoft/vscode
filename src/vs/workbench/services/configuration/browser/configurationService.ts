@@ -38,6 +38,7 @@ import { forEach, IStringDictionary } from 'vs/base/common/collections';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { isUndefined } from 'vs/base/common/types';
+import { localize } from 'vs/nls';
 
 class Workspace extends BaseWorkspace {
 	initialized: boolean = false;
@@ -1151,7 +1152,7 @@ class UpdateExperimentalSettingsDefaults extends Disposable implements IWorkbenc
 			} catch (error) {/*ignore */ }
 		}
 		if (Object.keys(overrides).length) {
-			this.configurationRegistry.registerDefaultConfigurations([{ overrides }]);
+			this.configurationRegistry.registerDefaultConfigurations([{ overrides, source: localize('experimental', "Experiments") }]);
 		}
 	}
 }

@@ -144,7 +144,7 @@ const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<I
 });
 defaultConfigurationExtPoint.setHandler((extensions, { added, removed }) => {
 	if (removed.length) {
-		const removedDefaultConfigurations = removed.map<IConfigurationDefaults>(extension => ({ overrides: objects.deepClone(extension.value), extensionId: extension.description.identifier.value }));
+		const removedDefaultConfigurations = removed.map<IConfigurationDefaults>(extension => ({ overrides: objects.deepClone(extension.value), source: extension.description }));
 		configurationRegistry.deregisterDefaultConfigurations(removedDefaultConfigurations);
 	}
 	if (added.length) {
@@ -161,7 +161,7 @@ defaultConfigurationExtPoint.setHandler((extensions, { added, removed }) => {
 					}
 				}
 			}
-			return { overrides, extensionId: extension.description.identifier.value };
+			return { overrides, source: extension.description };
 		});
 		configurationRegistry.registerDefaultConfigurations(addedDefaultConfigurations);
 	}
@@ -212,7 +212,7 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 		validateProperties(configuration, extension);
 
 		configuration.id = node.id || extension.description.identifier.value;
-		configuration.extensionInfo = { id: extension.description.identifier.value, restrictedConfigurations: extension.description.capabilities?.untrustedWorkspaces?.supported === 'limited' ? extension.description.capabilities?.untrustedWorkspaces.restrictedConfigurations : undefined };
+		configuration.extensionInfo = { extensionDescription: extension.description, restrictedConfigurations: extension.description.capabilities?.untrustedWorkspaces?.supported === 'limited' ? extension.description.capabilities?.untrustedWorkspaces.restrictedConfigurations : undefined };
 		configuration.title = configuration.title || extension.description.displayName || extension.description.identifier.value;
 		configurations.push(configuration);
 		return configurations;
