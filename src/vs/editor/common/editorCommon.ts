@@ -162,6 +162,7 @@ export interface IConfiguration extends IDisposable {
 	observeReferenceElement(dimension?: IDimension): void;
 	updatePixelRatio(): void;
 	setIsDominatedByLongLines(isDominatedByLongLines: boolean): void;
+	reserveHeight(height: number): void;
 }
 
 // --- view
