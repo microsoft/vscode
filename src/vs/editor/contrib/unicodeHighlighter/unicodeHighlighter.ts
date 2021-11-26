@@ -448,7 +448,7 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 					reason = nls.localize(
 						'unicodeHighlight.characterIsNonBasicAscii',
 						'The character {0} is not a basic ASCII character.',
-						codePoint
+						codePointStr
 					);
 					break;
 			}
