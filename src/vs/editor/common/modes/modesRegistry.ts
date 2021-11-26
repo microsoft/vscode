@@ -10,8 +10,7 @@ import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
-import { IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 
 // Define extension point ids
 export const Extensions = {
