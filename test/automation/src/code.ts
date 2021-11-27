@@ -4,18 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
-import * as cp from 'child_process';
 import * as os from 'os';
-import * as fs from 'fs';
-import * as mkdirp from 'mkdirp';
 import { IDriver, IDisposable, IElement, Thenable, ILocalizedStrings, ILocaleInfo } from './driver';
-import { connect as connectElectronDriver, createDriverHandle, getBuildElectronPath, getBuildOutPath, getDevElectronPath, getDevOutPath } from './electronDriver';
+import { launch as launchElectron } from './electronDriver';
 import { launch as launchPlaywright } from './playwrightDriver';
 import { Logger } from './logger';
-import { ncp } from 'ncp';
-import { URI } from 'vscode-uri';
-import * as kill from 'tree-kill';
-import { promisify } from 'util';
+import { copyExtension } from './extensions';
 
 const repoPath = path.join(__dirname, '../../..');
 
@@ -36,7 +30,7 @@ export interface SpawnOptions {
 
 export async function spawn(options: SpawnOptions): Promise<Code> {
 
-	await copyExtension(options.extensionsPath, 'vscode-notebook-tests');
+	await copyExtension(repoPath, options.extensionsPath, 'vscode-notebook-tests');
 
 	// Browser smoke tests
 	if (options.web) {
@@ -54,132 +48,9 @@ async function spawnBrowser(options: SpawnOptions): Promise<Code> {
 }
 
 async function spawnElectron(options: SpawnOptions): Promise<Code> {
-	const env = { ...process.env };
-	const codePath = options.codePath;
-	const logsPath = path.join(repoPath, '.build', 'logs', options.remote ? 'smoke-tests-remote' : 'smoke-tests');
-	const outPath = codePath ? getBuildOutPath(codePath) : getDevOutPath();
+	const { electronProcess, client, driver } = await launchElectron(options.workspacePath, options.userDataDir, options.codePath, options.extensionsPath, Boolean(options.verbose), Boolean(options.remote), options.log, options.extraArgs);
 
-	const driverIPCHandle = await createDriverHandle();
-
-	const args = [
-		options.workspacePath,
-		'--skip-release-notes',
-		'--skip-welcome',
-		'--disable-telemetry',
-		'--no-cached-data',
-		'--disable-updates',
-		'--disable-keytar',
-		'--disable-crash-reporter',
-		'--disable-workspace-trust',
-		`--extensions-dir=${options.extensionsPath}`,
-		`--user-data-dir=${options.userDataDir}`,
-		`--logsPath=${logsPath}`,
-		'--driver', driverIPCHandle
-	];
-
-	if (process.platform === 'linux') {
-		args.push('--disable-gpu'); // Linux has trouble in VMs to render properly with GPU enabled
-	}
-
-	if (options.remote) {
-		// Replace workspace path with URI
-		args[0] = `--${options.workspacePath.endsWith('.code-workspace') ? 'file' : 'folder'}-uri=vscode-remote://test+test/${URI.file(options.workspacePath).path}`;
-
-		if (codePath) {
-			// running against a build: copy the test resolver extension
-			await copyExtension(options.extensionsPath, 'vscode-test-resolver');
-		}
-		args.push('--enable-proposed-api=vscode.vscode-test-resolver');
-		const remoteDataDir = `${options.userDataDir}-server`;
-		mkdirp.sync(remoteDataDir);
-
-		if (codePath) {
-			// running against a build: copy the test resolver extension into remote extensions dir
-			const remoteExtensionsDir = path.join(remoteDataDir, 'extensions');
-			mkdirp.sync(remoteExtensionsDir);
-			await copyExtension(remoteExtensionsDir, 'vscode-notebook-tests');
-		}
-
-		env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
-		env['TESTRESOLVER_LOGS_FOLDER'] = path.join(logsPath, 'server');
-	}
-
-	const spawnOptions: cp.SpawnOptions = { env };
-
-	args.push('--enable-proposed-api=vscode.vscode-notebook-tests');
-
-	if (!codePath) {
-		args.unshift(repoPath);
-	}
-
-	if (options.verbose) {
-		args.push('--driver-verbose');
-		spawnOptions.stdio = ['ignore', 'inherit', 'inherit'];
-	}
-
-	if (options.log) {
-		args.push('--log', options.log);
-	}
-
-	if (options.extraArgs) {
-		args.push(...options.extraArgs);
-	}
-
-	const electronPath = codePath ? getBuildElectronPath(codePath) : getDevElectronPath();
-	const electronProcess = cp.spawn(electronPath, args, spawnOptions);
-
-	console.info(`*** Started electron for desktop smoke tests on pid ${electronProcess.pid}`);
-
-	let electronProcessDidExit = false;
-	electronProcess.once('exit', (code, signal) => {
-		console.info(`*** Electron for desktop smoke tests terminated (pid: ${electronProcess.pid}, code: ${code}, signal: ${signal})`);
-		electronProcessDidExit = true;
-	});
-
-	process.once('exit', () => {
-		if (!electronProcessDidExit) {
-			electronProcess.kill();
-		}
-	});
-
-	let retries = 0;
-
-	while (true) {
-		try {
-			const { client, driver } = await connectElectronDriver(outPath, driverIPCHandle);
-			return new Code(client, driver, options.logger, electronProcess.pid);
-		} catch (err) {
-
-			// give up
-			if (++retries > 30) {
-				console.error(`*** Error connecting driver: ${err}. Giving up...`);
-
-				try {
-					await promisify(kill)(electronProcess.pid);
-				} catch (error) {
-					console.warn(`*** Error tearing down: ${error}`);
-				}
-
-				throw err;
-			}
-
-			// retry
-			else {
-				if ((err as NodeJS.ErrnoException).code !== 'ENOENT' /* ENOENT is expected for as long as the server has not started on the socket */) {
-					console.error(`*** Error connecting driver: ${err}. Attempting to retry...`);
-				}
-				await new Promise(resolve => setTimeout(resolve, 1000));
-			}
-		}
-	}
-}
-
-async function copyExtension(extensionsPath: string, extId: string): Promise<void> {
-	const dest = path.join(extensionsPath, extId);
-	if (!fs.existsSync(dest)) {
-		const orig = path.join(repoPath, 'extensions', extId);
-		await new Promise<void>((resolve, reject) => ncp(orig, dest, err => err ? reject(err) : resolve()));
-	}
+	return new Code(client, driver, options.logger, electronProcess.pid);
 }
 
 async function poll<T>(

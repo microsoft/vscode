@@ -180,10 +180,10 @@ export interface PlaywrightOptions {
 	readonly headless?: boolean;
 }
 
-export async function launch(workspacePath: string, userDataDir: string, codeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH, extPath: string, verbose: boolean, options: PlaywrightOptions = {}): Promise<{ serverProcess: ChildProcess, client: IDisposable, driver: IDriver }> {
+export async function launch(workspacePath: string, userDataDir: string, codeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH, extensionsPath: string, verbose: boolean, options: PlaywrightOptions = {}): Promise<{ serverProcess: ChildProcess, client: IDisposable, driver: IDriver }> {
 
 	// Launch server
-	const { serverProcess, endpoint } = await launchServer(userDataDir, codeServerPath, extPath, verbose);
+	const { serverProcess, endpoint } = await launchServer(userDataDir, codeServerPath, extensionsPath, verbose);
 
 	console.info(`*** Started server for browser smoke tests (pid: ${serverProcess.pid})`);
 	serverProcess.once('exit', (code, signal) => console.info(`*** Server for browser smoke tests terminated (pid: ${serverProcess.pid}, code: ${code}, signal: ${signal})`));
@@ -200,7 +200,7 @@ export async function launch(workspacePath: string, userDataDir: string, codeSer
 	};
 }
 
-async function launchServer(userDataDir: string, codeServerPath: string | undefined, extPath: string, verbose: boolean) {
+async function launchServer(userDataDir: string, codeServerPath: string | undefined, extensionsPath: string, verbose: boolean) {
 	const agentFolder = userDataDir;
 	await promisify(mkdir)(agentFolder);
 	const env = {
@@ -209,7 +209,7 @@ async function launchServer(userDataDir: string, codeServerPath: string | undefi
 		...process.env
 	};
 
-	const args = ['--disable-telemetry', '--port', `${port++}`, '--browser', 'none', '--driver', 'web', '--extensions-dir', extPath];
+	const args = ['--disable-telemetry', '--port', `${port++}`, '--browser', 'none', '--driver', 'web', '--extensions-dir', extensionsPath];
 
 	let serverLocation: string | undefined;
 	if (codeServerPath) {
