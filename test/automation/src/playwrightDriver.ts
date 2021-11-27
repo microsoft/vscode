@@ -175,12 +175,32 @@ class PlaywrightDriver implements IDriver {
 
 let port = 9000;
 
-interface Options {
+export interface PlaywrightOptions {
 	readonly browser?: 'chromium' | 'webkit' | 'firefox';
 	readonly headless?: boolean;
 }
 
-export async function launch(workspacePath: string, userDataDir: string, codeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH, extPath: string, verbose: boolean, options: Options = {}): Promise<{ serverProcess: ChildProcess, client: IDisposable, driver: IDriver }> {
+export async function launch(workspacePath: string, userDataDir: string, codeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH, extPath: string, verbose: boolean, options: PlaywrightOptions = {}): Promise<{ serverProcess: ChildProcess, client: IDisposable, driver: IDriver }> {
+
+	// Launch server
+	const { serverProcess, endpoint } = await launchServer(userDataDir, codeServerPath, extPath, verbose);
+
+	console.info(`*** Started server for browser smoke tests (pid: ${serverProcess.pid})`);
+	serverProcess.once('exit', (code, signal) => console.info(`*** Server for browser smoke tests terminated (pid: ${serverProcess.pid}, code: ${code}, signal: ${signal})`));
+
+	// Launch browser
+	const { browser, context, page } = await launchBrowser(options, endpoint, workspacePath);
+
+	return {
+		serverProcess,
+		client: {
+			dispose: () => { /* there is no client to dispose for browser, teardown is triggered via exitApplication call */ }
+		},
+		driver: new PlaywrightDriver(serverProcess, browser, context, page)
+	};
+}
+
+async function launchServer(userDataDir: string, codeServerPath: string | undefined, extPath: string, verbose: boolean) {
 	const agentFolder = userDataDir;
 	await promisify(mkdir)(agentFolder);
 	const env = {
@@ -225,10 +245,14 @@ export async function launch(workspacePath: string, userDataDir: string, codeSer
 	process.on('SIGINT', () => teardown(serverProcess));
 	process.on('SIGTERM', () => teardown(serverProcess));
 
-	const endpoint = await waitForEndpoint(serverProcess);
+	return {
+		serverProcess,
+		endpoint: await waitForEndpoint(serverProcess)
+	};
+}
 
+async function launchBrowser(options: PlaywrightOptions, endpoint: string, workspacePath: string) {
 	const browser = await playwright[options.browser ?? 'chromium'].launch({ headless: options.headless ?? false });
-
 	const context = await browser.newContext();
 
 	try {
@@ -240,9 +264,9 @@ export async function launch(workspacePath: string, userDataDir: string, codeSer
 	const page = await context.newPage();
 	await page.setViewportSize({ width, height });
 
-	page.on('pageerror', async error => console.error(`Playwright ERROR: page error: ${error}`));
+	page.on('pageerror', async (error) => console.error(`Playwright ERROR: page error: ${error}`));
 	page.on('crash', page => console.error('Playwright ERROR: page crash'));
-	page.on('response', async response => {
+	page.on('response', async (response) => {
 		if (response.status() >= 400) {
 			console.error(`Playwright ERROR: HTTP status ${response.status()} for ${response.url()}`);
 		}
@@ -251,13 +275,7 @@ export async function launch(workspacePath: string, userDataDir: string, codeSer
 	const payloadParam = `[["enableProposedApi",""],["skipWelcome","true"]]`;
 	await page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${URI.file(workspacePath!).path}&payload=${payloadParam}`);
 
-	return {
-		serverProcess,
-		client: {
-			dispose: () => { /* there is no client to dispose for browser, teardown is triggered via exitApplication call */ }
-		},
-		driver: new PlaywrightDriver(serverProcess, browser, context, page)
-	};
+	return { browser, context, page };
 }
 
 async function teardown(server: ChildProcess): Promise<void> {

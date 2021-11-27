@@ -50,9 +50,6 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 async function spawnBrowser(options: SpawnOptions): Promise<Code> {
 	const { serverProcess, client, driver } = await launchPlaywright(options.workspacePath, options.userDataDir, options.codePath, options.extensionsPath, Boolean(options.verbose), options);
 
-	console.info(`*** Started server for browser smoke tests (pid: ${serverProcess.pid})`);
-	serverProcess.once('exit', (code, signal) => console.info(`*** Server for browser smoke tests terminated (pid: ${serverProcess.pid}, code: ${code}, signal: ${signal})`));
-
 	return new Code(client, driver, options.logger, serverProcess.pid);
 }
 
