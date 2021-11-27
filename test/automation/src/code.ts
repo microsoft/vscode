@@ -89,7 +89,9 @@ async function connect(connectDriver: typeof connectElectronDriver | typeof conn
 
 			// retry
 			else {
-				console.error(`Error connecting driver: ${err}. Attempting to retry...`);
+				if ((err as NodeJS.ErrnoException).code !== 'ENOENT' /* ENOENT is expected for as long as the server has not started on the socket */) {
+					console.error(`Error connecting driver: ${err}. Attempting to retry...`);
+				}
 				await new Promise(resolve => setTimeout(resolve, 1000));
 			}
 		}
