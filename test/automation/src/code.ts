@@ -129,7 +129,7 @@ async function createDriverHandle(): Promise<string> {
 export async function spawn(options: SpawnOptions): Promise<Code> {
 	const handle = await createDriverHandle();
 
-	let child: cp.ChildProcess | undefined;
+	let child: cp.ChildProcess;
 	let connectFunction: typeof connectElectronDriver | typeof connectPlaywrightDriver;
 	let outPath: string;
 

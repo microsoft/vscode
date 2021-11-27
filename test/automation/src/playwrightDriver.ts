@@ -213,19 +213,21 @@ export async function launch(userDataDir: string, _workspacePath: string, codeSe
 }
 
 async function teardown(): Promise<void> {
+	if (!server) {
+		return;
+	}
+
 	let retries = 0;
-	while (retries < 3) {
+	while (server && retries < 3) {
 		retries++;
 
-		if (server) {
-			try {
-				await promisify(kill)(server.pid);
-				server = undefined;
+		try {
+			await promisify(kill)(server.pid);
+			server = undefined;
 
-				return;
-			} catch (error) {
-				console.warn(`Error tearing down server: ${error} (attempt: ${retries})`);
-			}
+			return;
+		} catch (error) {
+			console.warn(`Error tearing down server: ${error} (attempt: ${retries})`);
 		}
 	}
 
