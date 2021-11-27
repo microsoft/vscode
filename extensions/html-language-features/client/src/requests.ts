@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Uri, workspace } from 'vscode';
+import { Uri, workspace, Disposable } from 'vscode';
 import { RequestType, CommonLanguageClient } from 'vscode-languageclient';
 import { Runtime } from './htmlClient';
 
@@ -18,8 +18,9 @@ export namespace FsReadDirRequest {
 	export const type: RequestType<string, [string, FileType][], any> = new RequestType('fs/readDir');
 }
 
-export function serveFileSystemRequests(client: CommonLanguageClient, runtime: Runtime) {
-	client.onRequest(FsContentRequest.type, (param: { uri: string; encoding?: string; }) => {
+export function serveFileSystemRequests(client: CommonLanguageClient, runtime: Runtime): Disposable {
+	const disposables = [];
+	disposables.push(client.onRequest(FsContentRequest.type, (param: { uri: string; encoding?: string; }) => {
 		const uri = Uri.parse(param.uri);
 		if (uri.scheme === 'file' && runtime.fs) {
 			return runtime.fs.getContent(param.uri);
@@ -27,21 +28,22 @@ export function serveFileSystemRequests(client: CommonLanguageClient, runtime: R
 		return workspace.fs.readFile(uri).then(buffer => {
 			return new runtime.TextDecoder(param.encoding).decode(buffer);
 		});
-	});
-	client.onRequest(FsReadDirRequest.type, (uriString: string) => {
+	}));
+	disposables.push(client.onRequest(FsReadDirRequest.type, (uriString: string) => {
 		const uri = Uri.parse(uriString);
 		if (uri.scheme === 'file' && runtime.fs) {
 			return runtime.fs.readDirectory(uriString);
 		}
 		return workspace.fs.readDirectory(uri);
-	});
-	client.onRequest(FsStatRequest.type, (uriString: string) => {
+	}));
+	disposables.push(client.onRequest(FsStatRequest.type, (uriString: string) => {
 		const uri = Uri.parse(uriString);
 		if (uri.scheme === 'file' && runtime.fs) {
 			return runtime.fs.stat(uriString);
 		}
 		return workspace.fs.stat(uri);
-	});
+	}));
+	return Disposable.from(...disposables);
 }
 
 export enum FileType {

@@ -16,7 +16,7 @@ import {
 	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, TextDocumentIdentifier, RequestType0, Range as LspRange, NotificationType, CommonLanguageClient
 } from 'vscode-languageclient';
 import { activateTagClosing } from './tagClosing';
-import { RequestService } from './requests';
+import { RequestService, serveFileSystemRequests } from './requests';
 import { getCustomDataSource } from './customData';
 
 namespace CustomDataChangedNotification {
@@ -119,6 +119,8 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 	let disposable = client.start();
 	toDispose.push(disposable);
 	client.onReady().then(() => {
+
+		toDispose.push(serveFileSystemRequests(client, runtime));
 
 		client.sendNotification(CustomDataChangedNotification.type, customDataSource.uris);
 		customDataSource.onDidChange(() => {

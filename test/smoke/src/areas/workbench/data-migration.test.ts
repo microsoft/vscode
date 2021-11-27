@@ -170,7 +170,7 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 			await insidersApp.workbench.editor.waitForEditorContents(readmeMd, c => c.indexOf(textToType) > -1);
 
 			await insidersApp.workbench.editors.waitForTab(untitled, true);
-			await insidersApp.workbench.quickaccess.openFile(textToTypeInUntitled);
+			await insidersApp.workbench.quickaccess.openFile(untitled, textToTypeInUntitled);
 			await insidersApp.workbench.editor.waitForEditorContents(untitled, c => c.indexOf(textToTypeInUntitled) > -1);
 
 			await insidersApp.stop();

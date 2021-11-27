@@ -261,13 +261,32 @@
 	margin-top: 2px;
 }
 
+.extension-editor > .header > .details > .pre-release-text p,
 .extension-editor > .header > .details > .actions-status-container > .status > .status-text p {
 	margin-top: 0px;
 	margin-bottom: 0px;
 }
 
+.extension-editor > .header > .details > .pre-release-text a,
+.extension-editor > .header > .details > .actions-status-container > .status > .status-text a {
+	color: var(--vscode-textLink-foreground)
+}
+
+.extension-editor > .header > .details > .pre-release-text a:hover,
 .extension-editor > .header > .details > .actions-status-container > .status > .status-text a:hover {
 	text-decoration: underline;
+	color: var(--vscode-textLink-activeForeground)
+}
+
+.extension-editor > .header > .details > .pre-release-text a:active,
+.extension-editor > .header > .details > .actions-status-container > .status > .status-text a:active {
+	color: var(--vscode-textLink-activeForeground)
+}
+
+.extension-editor > .header > .details > .pre-release-text:not(:empty){
+	margin-top: 5px;
+	display: flex;
+	font-size: 90%;
 }
 
 .extension-editor > .header > .details > .recommendation {

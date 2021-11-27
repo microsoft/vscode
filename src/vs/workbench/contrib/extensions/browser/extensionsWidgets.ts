@@ -176,7 +176,7 @@ export class PreReleaseIndicatorWidget extends ExtensionWidget {
 			return;
 		}
 
-		if (!this.extension.local?.isPreReleaseVersion) {
+		if (!this.extension.local?.isPreReleaseVersion && !this.extension.gallery?.properties.isPreReleaseVersion) {
 			return;
 		}
 
@@ -482,9 +482,9 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 
 		markdown.appendMarkdown(`**${this.extension.displayName}**&nbsp;_v${this.extension.version}_`);
-		if (this.extension.state === ExtensionState.Installed && this.extension.local?.isPreReleaseVersion) {
+		if (this.extension.local?.isPreReleaseVersion || this.extension.gallery?.properties.isPreReleaseVersion) {
 			const extensionPreReleaseIcon = this.themeService.getColorTheme().getColor(extensionPreReleaseIconColor);
-			markdown.appendMarkdown(`&nbsp;<span style="color:${extensionPreReleaseIcon ? Color.Format.CSS.formatHex(extensionPreReleaseIcon) : '#ffffff'};">$(${preReleaseIcon.id})</span>`);
+			markdown.appendMarkdown(`&nbsp;<span style="color:#ffffff;background-color:${extensionPreReleaseIcon ? Color.Format.CSS.formatHex(extensionPreReleaseIcon) : '#ffffff'};">&nbsp;${localize('pre-release-label', "Pre-Release")}&nbsp;</span>`);
 		}
 		markdown.appendText(`\n`);
 
@@ -500,18 +500,13 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 			markdown.appendText(`\n`);
 		}
 
-		const preReleaseMessage = this.getPreReleaseMessage(this.extension);
-		if (preReleaseMessage) {
-			markdown.appendMarkdown(preReleaseMessage);
-			markdown.appendText(`\n`);
-		}
-
+		const preReleaseMessage = ExtensionHoverWidget.getPreReleaseMessage(this.extension);
 		const extensionRuntimeStatus = this.extensionsWorkbenchService.getExtensionStatus(this.extension);
 		const extensionStatus = this.extensionStatusAction.status;
 		const reloadRequiredMessage = this.reloadAction.enabled ? this.reloadAction.tooltip : '';
 		const recommendationMessage = this.getRecommendationMessage(this.extension);
 
-		if (extensionRuntimeStatus || extensionStatus || reloadRequiredMessage || recommendationMessage) {
+		if (extensionRuntimeStatus || extensionStatus || reloadRequiredMessage || recommendationMessage || preReleaseMessage) {
 
 			markdown.appendMarkdown(`---`);
 			markdown.appendText(`\n`);
@@ -554,6 +549,12 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 				markdown.appendText(`\n`);
 			}
 
+			if (preReleaseMessage) {
+				const extensionPreReleaseIcon = this.themeService.getColorTheme().getColor(extensionPreReleaseIconColor);
+				markdown.appendMarkdown(`<span style="color:${extensionPreReleaseIcon ? Color.Format.CSS.formatHex(extensionPreReleaseIcon) : '#ffffff'};">$(${preReleaseIcon.id})</span>&nbsp;${preReleaseMessage}`);
+				markdown.appendText(`\n`);
+			}
+
 			if (recommendationMessage) {
 				markdown.appendMarkdown(recommendationMessage);
 				markdown.appendText(`\n`);
@@ -575,17 +576,15 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		return `<span style="color:${bgColor ? Color.Format.CSS.formatHex(bgColor) : '#ffffff'};">$(${starEmptyIcon.id})</span>&nbsp;${recommendation.reasonText}`;
 	}
 
-	private getPreReleaseMessage(extension: IExtension): string | undefined {
+	static getPreReleaseMessage(extension: IExtension): string | undefined {
 		if (!extension.hasPreReleaseVersion) {
 			return undefined;
 		}
-		if (extension.state === ExtensionState.Installed && extension.local?.isPreReleaseVersion) {
+		if (extension.local?.isPreReleaseVersion || extension.gallery?.properties.isPreReleaseVersion) {
 			return undefined;
 		}
-		const extensionPreReleaseIcon = this.themeService.getColorTheme().getColor(extensionPreReleaseIconColor);
 		const preReleaseVersionLink = `[${localize('Show prerelease version', "Pre-Release version")}](${URI.parse(`command:workbench.extensions.action.showPreReleaseVersion?${encodeURIComponent(JSON.stringify([extension.identifier.id]))}`)})`;
-		const message = localize('has prerelease', "This extension has a {0} available", preReleaseVersionLink);
-		return `<span style="color:${extensionPreReleaseIcon ? Color.Format.CSS.formatHex(extensionPreReleaseIcon) : '#ffffff'};">$(${preReleaseIcon.id})</span>&nbsp;${message}`;
+		return localize('has prerelease', "This extension has a {0} available", preReleaseVersionLink);
 	}
 
 }

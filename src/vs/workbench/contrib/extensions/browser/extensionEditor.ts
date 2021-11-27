@@ -23,7 +23,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { ExtensionsInput, IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, IExtension, ExtensionContainers, ExtensionEditorTab, ExtensionState } from 'vs/workbench/contrib/extensions/common/extensions';
-import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget, PreReleaseIndicatorWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
+import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget, PreReleaseIndicatorWidget, ExtensionHoverWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import {
@@ -68,7 +68,7 @@ import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { attachKeybindingLabelStyler } from 'vs/platform/theme/common/styler';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { errorIcon, infoIcon, starEmptyIcon, verifiedPublisherIcon as verifiedPublisherThemeIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
+import { errorIcon, infoIcon, preReleaseIcon, starEmptyIcon, verifiedPublisherIcon as verifiedPublisherThemeIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
@@ -150,6 +150,7 @@ interface IExtensionEditorTemplate {
 	actionsAndStatusContainer: HTMLElement;
 	extensionActionBar: ActionBar;
 	status: HTMLElement;
+	preReleaseText: HTMLElement;
 	recommendation: HTMLElement;
 	navbar: NavBar;
 	content: HTMLElement;
@@ -271,6 +272,7 @@ export class ExtensionEditor extends EditorPane {
 		}));
 
 		const status = append(actionsAndStatusContainer, $('.status'));
+		const preReleaseText = append(details, $('.pre-release-text'));
 		const recommendation = append(details, $('.recommendation'));
 
 		this._register(Event.chain(extensionActionBar.onDidRun)
@@ -303,6 +305,7 @@ export class ExtensionEditor extends EditorPane {
 			rating,
 			actionsAndStatusContainer,
 			extensionActionBar,
+			preReleaseText,
 			status,
 			recommendation
 		};
@@ -476,6 +479,7 @@ export class ExtensionEditor extends EditorPane {
 			this.transientDisposables.add(disposable);
 		}
 
+		this.setPreReleaseText(extension, template);
 		this.setStatus(extension, extensionStatus, template);
 		this.setRecommendationText(extension, template);
 
@@ -524,6 +528,30 @@ export class ExtensionEditor extends EditorPane {
 		this.editorLoadComplete = true;
 	}
 
+	private setPreReleaseText(extension: IExtension, template: IExtensionEditorTemplate): void {
+		let preReleaseText: string | undefined;
+		reset(template.preReleaseText);
+		const disposables = this.transientDisposables.add(new DisposableStore());
+		const updatePreReleaseText = () => {
+			const newPreReleaseText = ExtensionHoverWidget.getPreReleaseMessage(extension);
+			if (preReleaseText !== newPreReleaseText) {
+				preReleaseText = newPreReleaseText;
+				disposables.clear();
+				reset(template.preReleaseText);
+				if (preReleaseText) {
+					append(template.preReleaseText, $(`span${ThemeIcon.asCSSSelector(preReleaseIcon)}`));
+					disposables.add(this.renderMarkdownText(preReleaseText, template.preReleaseText));
+				}
+			}
+		};
+		updatePreReleaseText();
+		this.transientDisposables.add(this.extensionsWorkbenchService.onChange(e => {
+			if (e && areSameExtensions(e.identifier, extension.identifier)) {
+				updatePreReleaseText();
+			}
+		}));
+	}
+
 	private setStatus(extension: IExtension, extensionStatus: ExtensionStatusAction, template: IExtensionEditorTemplate): void {
 		const disposables = new DisposableStore();
 		this.transientDisposables.add(disposables);
@@ -536,16 +564,7 @@ export class ExtensionEditor extends EditorPane {
 					const statusIconActionBar = disposables.add(new ActionBar(template.status, { animated: false }));
 					statusIconActionBar.push(extensionStatus, { icon: true, label: false });
 				}
-				const rendered = disposables.add(renderMarkdown(new MarkdownString(status.message.value, { isTrusted: true, supportThemeIcons: true }), {
-					actionHandler: {
-						callback: (content) => {
-							this.openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
-						},
-						disposables: disposables
-					}
-				}));
-				append(append(template.status, $('.status-text')),
-					rendered.element);
+				disposables.add(this.renderMarkdownText(status.message.value, append(template.status, $('.status-text'))));
 			}
 		};
 		updateStatus();
@@ -572,6 +591,20 @@ export class ExtensionEditor extends EditorPane {
 		};
 		updateRecommendationText();
 		this.transientDisposables.add(this.extensionRecommendationsService.onDidChangeRecommendations(() => updateRecommendationText()));
+	}
+
+	private renderMarkdownText(markdownText: string, parent: HTMLElement): IDisposable {
+		const disposables = new DisposableStore();
+		const rendered = disposables.add(renderMarkdown(new MarkdownString(markdownText, { isTrusted: true, supportThemeIcons: true }), {
+			actionHandler: {
+				callback: (content) => {
+					this.openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
+				},
+				disposables: disposables
+			}
+		}));
+		append(parent, rendered.element);
+		return disposables;
 	}
 
 	override clearInput(): void {
@@ -1769,7 +1802,6 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	if (link) {
 		collector.addRule(`.monaco-workbench .extension-editor .content .details .additional-details-container .resources-container a { color: ${link}; }`);
 		collector.addRule(`.monaco-workbench .extension-editor .content .feature-contributions a { color: ${link}; }`);
-		collector.addRule(`.monaco-workbench .extension-editor > .header > .details > .actions-status-container > .status > .status-text a { color: ${link}; }`);
 	}
 
 	const activeLink = theme.getColor(textLinkActiveForeground);
@@ -1778,9 +1810,6 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 			.monaco-workbench .extension-editor .content .details .additional-details-container .resources-container a:active { color: ${activeLink}; }`);
 		collector.addRule(`.monaco-workbench .extension-editor .content .feature-contributions a:hover,
 			.monaco-workbench .extension-editor .content .feature-contributions a:active { color: ${activeLink}; }`);
-		collector.addRule(`.monaco-workbench .extension-editor > .header > .details > .actions-status-container > .status > .status-text a:hover,
-			.monaco-workbench .extension-editor > .header > .details > actions-status-container > .status > .status-text a:active { color: ${activeLink}; }`);
-
 	}
 
 	const buttonHoverBackgroundColor = theme.getColor(buttonHoverBackground);
