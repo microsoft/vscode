@@ -160,7 +160,7 @@ let server: ChildProcess | undefined;
 let endpoint: string | undefined;
 let workspacePath: string | undefined;
 
-export async function launch(userDataDir: string, _workspacePath: string, codeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH, extPath: string, verbose: boolean): Promise<void> {
+export async function launch(userDataDir: string, _workspacePath: string, codeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH, extPath: string, verbose: boolean): Promise<ChildProcess> {
 	workspacePath = _workspacePath;
 
 	const agentFolder = userDataDir;
@@ -208,23 +208,34 @@ export async function launch(userDataDir: string, _workspacePath: string, codeSe
 	process.on('SIGTERM', teardown);
 
 	endpoint = await waitForEndpoint();
+
+	return server;
 }
 
 async function teardown(): Promise<void> {
-	if (server) {
-		try {
-			await new Promise<void>((resolve, reject) => kill(server!.pid, err => err ? reject(err) : resolve()));
-		} catch (error) {
-			console.warn(`Error tearing down server: ${error}`);
-		}
+	let retries = 0;
+	while (retries < 3) {
+		retries++;
 
-		server = undefined;
+		if (server) {
+			try {
+				await promisify(kill)(server.pid);
+				server = undefined;
+
+				return;
+			} catch (error) {
+				console.warn(`Error tearing down server: ${error} (attempt: ${retries})`);
+			}
+		}
 	}
+
+	console.error(`Gave up tearing down server after ${retries} attempts...`);
+	server = undefined;
 }
 
 function waitForEndpoint(): Promise<string> {
 	return new Promise<string>(r => {
-		server!.stdout?.on('data', (d: Buffer) => {
+		server?.stdout?.on('data', (d: Buffer) => {
 			const matches = d.toString('ascii').match(/Web UI available at (.+)/);
 			if (matches !== null) {
 				r(matches[1]);
@@ -260,10 +271,7 @@ export async function connect(options: Options = {}): Promise<{ client: IDisposa
 
 	return {
 		client: {
-			dispose: () => {
-				browser.close();
-				teardown();
-			}
+			dispose: () => { /* there is no client to dispose for browser, teardown is triggered via exitApplication call */ }
 		},
 		driver: buildDriver(browser, context, page)
 	};

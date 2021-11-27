@@ -14,6 +14,8 @@ import { connect as connectPlaywrightDriver, launch } from './playwrightDriver';
 import { Logger } from './logger';
 import { ncp } from 'ncp';
 import { URI } from 'vscode-uri';
+import * as kill from 'tree-kill';
+import { promisify } from 'util';
 
 const repoPath = path.join(__dirname, '../../..');
 
@@ -63,23 +65,33 @@ function getBuildOutPath(root: string): string {
 	}
 }
 
-async function connect(connectDriver: typeof connectElectronDriver | typeof connectPlaywrightDriver, child: cp.ChildProcess | undefined, outPath: string, handlePath: string, logger: Logger): Promise<Code> {
+async function connect(connectDriver: typeof connectElectronDriver | typeof connectPlaywrightDriver, child: cp.ChildProcess, outPath: string, handlePath: string, logger: Logger): Promise<Code> {
 	let errCount = 0;
 
 	while (true) {
 		try {
 			const { client, driver } = await connectDriver(outPath, handlePath);
-			return new Code(client, driver, logger, child?.pid);
+			return new Code(client, driver, logger, child.pid);
 		} catch (err) {
+
+			// give up
 			if (++errCount > 50) {
-				if (child) {
-					child.kill();
+				console.error(`Error connecting driver: ${err}. Giving up...`);
+
+				try {
+					await promisify(kill)(child.pid);
+				} catch (error) {
+					console.warn(`Error tearing down: ${error}`);
 				}
+
 				throw err;
 			}
 
 			// retry
-			await new Promise(resolve => setTimeout(resolve, 100));
+			else {
+				console.error(`Error connecting driver: ${err}. Attempting to retry...`);
+				await new Promise(resolve => setTimeout(resolve, 100));
+			}
 		}
 	}
 }
@@ -108,7 +120,7 @@ async function createDriverHandle(): Promise<string> {
 		const name = [...Array(15)].map(() => Math.random().toString(36)[3]).join('');
 		return `\\\\.\\pipe\\${name}`;
 	} else {
-		return await new Promise<string>((c, e) => tmpName((err, handlePath) => err ? e(err) : c(handlePath)));
+		return await new Promise<string>((resolve, reject) => tmpName((err, handlePath) => err ? reject(err) : resolve(handlePath)));
 	}
 }
 
@@ -116,95 +128,107 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 	const handle = await createDriverHandle();
 
 	let child: cp.ChildProcess | undefined;
+	let connectFunction: typeof connectElectronDriver | typeof connectPlaywrightDriver;
+	let outPath: string;
 
 	copyExtension(options.extensionsPath, 'vscode-notebook-tests');
 
+	// Browser smoke tests
 	if (options.web) {
-		await launch(options.userDataDir, options.workspacePath, options.codePath, options.extensionsPath, Boolean(options.verbose));
-		return connect(connectPlaywrightDriver.bind(connectPlaywrightDriver, options), child, '', handle, options.logger);
+		child = await launch(options.userDataDir, options.workspacePath, options.codePath, options.extensionsPath, Boolean(options.verbose));
+		outPath = '';
+
+		connectFunction = connectPlaywrightDriver.bind(connectPlaywrightDriver, options);
 	}
 
-	const env = { ...process.env };
-	const codePath = options.codePath;
-	const logsPath = path.join(repoPath, '.build', 'logs', options.remote ? 'smoke-tests-remote' : 'smoke-tests');
-	const outPath = codePath ? getBuildOutPath(codePath) : getDevOutPath();
+	// Electron smoke tests
+	else {
+		const env = { ...process.env };
+		const codePath = options.codePath;
+		const logsPath = path.join(repoPath, '.build', 'logs', options.remote ? 'smoke-tests-remote' : 'smoke-tests');
+		outPath = codePath ? getBuildOutPath(codePath) : getDevOutPath();
 
-	const args = [
-		options.workspacePath,
-		'--skip-release-notes',
-		'--skip-welcome',
-		'--disable-telemetry',
-		'--no-cached-data',
-		'--disable-updates',
-		'--disable-keytar',
-		'--disable-crash-reporter',
-		'--disable-workspace-trust',
-		`--extensions-dir=${options.extensionsPath}`,
-		`--user-data-dir=${options.userDataDir}`,
-		`--logsPath=${logsPath}`,
-		'--driver', handle
-	];
+		const args = [
+			options.workspacePath,
+			'--skip-release-notes',
+			'--skip-welcome',
+			'--disable-telemetry',
+			'--no-cached-data',
+			'--disable-updates',
+			'--disable-keytar',
+			'--disable-crash-reporter',
+			'--disable-workspace-trust',
+			`--extensions-dir=${options.extensionsPath}`,
+			`--user-data-dir=${options.userDataDir}`,
+			`--logsPath=${logsPath}`,
+			'--driver', handle
+		];
 
-	if (process.platform === 'linux') {
-		args.push('--disable-gpu'); // Linux has trouble in VMs to render properly with GPU enabled
-	}
-
-	if (options.remote) {
-		// Replace workspace path with URI
-		args[0] = `--${options.workspacePath.endsWith('.code-workspace') ? 'file' : 'folder'}-uri=vscode-remote://test+test/${URI.file(options.workspacePath).path}`;
-
-		if (codePath) {
-			// running against a build: copy the test resolver extension
-			copyExtension(options.extensionsPath, 'vscode-test-resolver');
-		}
-		args.push('--enable-proposed-api=vscode.vscode-test-resolver');
-		const remoteDataDir = `${options.userDataDir}-server`;
-		mkdirp.sync(remoteDataDir);
-
-		if (codePath) {
-			// running against a build: copy the test resolver extension into remote extensions dir
-			const remoteExtensionsDir = path.join(remoteDataDir, 'extensions');
-			mkdirp.sync(remoteExtensionsDir);
-			copyExtension(remoteExtensionsDir, 'vscode-notebook-tests');
+		if (process.platform === 'linux') {
+			args.push('--disable-gpu'); // Linux has trouble in VMs to render properly with GPU enabled
 		}
 
-		env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
-		env['TESTRESOLVER_LOGS_FOLDER'] = path.join(logsPath, 'server');
+		if (options.remote) {
+			// Replace workspace path with URI
+			args[0] = `--${options.workspacePath.endsWith('.code-workspace') ? 'file' : 'folder'}-uri=vscode-remote://test+test/${URI.file(options.workspacePath).path}`;
+
+			if (codePath) {
+				// running against a build: copy the test resolver extension
+				copyExtension(options.extensionsPath, 'vscode-test-resolver');
+			}
+			args.push('--enable-proposed-api=vscode.vscode-test-resolver');
+			const remoteDataDir = `${options.userDataDir}-server`;
+			mkdirp.sync(remoteDataDir);
+
+			if (codePath) {
+				// running against a build: copy the test resolver extension into remote extensions dir
+				const remoteExtensionsDir = path.join(remoteDataDir, 'extensions');
+				mkdirp.sync(remoteExtensionsDir);
+				copyExtension(remoteExtensionsDir, 'vscode-notebook-tests');
+			}
+
+			env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
+			env['TESTRESOLVER_LOGS_FOLDER'] = path.join(logsPath, 'server');
+		}
+
+		const spawnOptions: cp.SpawnOptions = { env };
+
+		args.push('--enable-proposed-api=vscode.vscode-notebook-tests');
+
+		if (!codePath) {
+			args.unshift(repoPath);
+		}
+
+		if (options.verbose) {
+			args.push('--driver-verbose');
+			spawnOptions.stdio = ['ignore', 'inherit', 'inherit'];
+		}
+
+		if (options.log) {
+			args.push('--log', options.log);
+		}
+
+		if (options.extraArgs) {
+			args.push(...options.extraArgs);
+		}
+
+		const electronPath = codePath ? getBuildElectronPath(codePath) : getDevElectronPath();
+		child = cp.spawn(electronPath, args, spawnOptions);
+
+		connectFunction = connectElectronDriver;
 	}
 
-	const spawnOptions: cp.SpawnOptions = { env };
-
-	args.push('--enable-proposed-api=vscode.vscode-notebook-tests');
-
-	if (!codePath) {
-		args.unshift(repoPath);
-	}
-
-	if (options.verbose) {
-		args.push('--driver-verbose');
-		spawnOptions.stdio = ['ignore', 'inherit', 'inherit'];
-	}
-
-	if (options.log) {
-		args.push('--log', options.log);
-	}
-
-	if (options.extraArgs) {
-		args.push(...options.extraArgs);
-	}
-
-	const electronPath = codePath ? getBuildElectronPath(codePath) : getDevElectronPath();
-	child = cp.spawn(electronPath, args, spawnOptions);
 	instances.add(child);
 	child.once('exit', () => instances.delete(child!));
-	return connect(connectElectronDriver, child, outPath, handle, options.logger);
+
+	return connect(connectFunction, child, outPath, handle, options.logger);
 }
 
 async function copyExtension(extensionsPath: string, extId: string): Promise<void> {
 	const dest = path.join(extensionsPath, extId);
 	if (!fs.existsSync(dest)) {
 		const orig = path.join(repoPath, 'extensions', extId);
-		await new Promise<void>((c, e) => ncp(orig, dest, err => err ? e(err) : c()));
+		await new Promise<void>((resolve, reject) => ncp(orig, dest, err => err ? reject(err) : resolve()));
 	}
 }
 
@@ -252,7 +276,7 @@ export class Code {
 		private client: IDisposable,
 		driver: IDriver,
 		readonly logger: Logger,
-		private readonly pid: number | undefined
+		private readonly pid: number
 	) {
 		this.driver = new Proxy(driver, {
 			get(target, prop, receiver) {
@@ -292,49 +316,35 @@ export class Code {
 			let done = false;
 
 			// Start the exit flow via driver
-			const exitPromise = this.driver.exitApplication().then(veto => {
+			this.driver.exitApplication().then(veto => {
 				if (veto) {
 					done = true;
 					reject(new Error('Smoke test exit call resulted in unexpected veto'));
 				}
 			});
 
-			// If we know the `pid` of the smoke tested application
-			// use that as way to detect the exit of the application
-			const pid = this.pid;
-			if (typeof pid === 'number') {
-				(async () => {
-					let killCounter = 0;
-					while (!done) {
-						killCounter++;
+			// Await the exit of the application
+			(async () => {
+				let killCounter = 0;
+				while (!done) {
+					killCounter++;
 
-						if (killCounter > 40) {
-							done = true;
-							reject(new Error('Smoke test exit call did not terminate main process after 20s, giving up'));
-						}
-
-						try {
-							process.kill(pid, 0); // throws an exception if the main process doesn't exist anymore.
-							await new Promise(resolve => setTimeout(resolve, 500));
-						} catch (error) {
-							done = true;
-							resolve();
-						}
+					if (killCounter > 40) {
+						done = true;
+						reject(new Error('Smoke test exit call did not terminate process after 20s, giving up'));
 					}
-				})();
-			}
 
-			// Otherwise await the exit promise (web).
-			else {
-				(async () => {
 					try {
-						await exitPromise;
-						resolve();
+						process.kill(this.pid, 0); // throws an exception if the process doesn't exist anymore.
+						await new Promise(resolve => setTimeout(resolve, 500));
 					} catch (error) {
-						reject(new Error(`Smoke test exit call resulted in error: ${error}`));
+						done = true;
+						resolve();
 					}
-				})();
-			}
+				}
+			})();
+		}).finally(() => {
+			this.dispose();
 		});
 	}
 

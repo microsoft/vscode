@@ -88,9 +88,11 @@ export class Application {
 
 	async stop(): Promise<any> {
 		if (this._code) {
-			await this._code.exit();
-			this._code.dispose();
-			this._code = undefined;
+			try {
+				await this._code.exit();
+			} finally {
+				this._code = undefined;
+			}
 		}
 	}
 
