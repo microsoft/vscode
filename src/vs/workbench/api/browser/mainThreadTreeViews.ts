@@ -32,13 +32,14 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTreeViews);
 	}
 
-	async $registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean, canSelectMany: boolean, canDragAndDrop: boolean }): Promise<void> {
+	async $registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean, canSelectMany: boolean, dragAndDropMimeTypes: string[] | undefined }): Promise<void> {
 		this.logService.trace('MainThreadTreeViews#$registerTreeViewDataProvider', treeViewId, options);
 
 		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
 			const dataProvider = new TreeViewDataProvider(treeViewId, this._proxy, this.notificationService);
 			this._dataProviders.set(treeViewId, dataProvider);
-			const dndController = options.canDragAndDrop ? new TreeViewDragAndDropController(treeViewId, this._proxy) : undefined;
+			const dndController = options.dragAndDropMimeTypes
+				? new TreeViewDragAndDropController(treeViewId, options.dragAndDropMimeTypes, this._proxy) : undefined;
 			const viewer = this.getTreeView(treeViewId);
 			if (viewer) {
 				// Order is important here. The internal tree isn't created until the dataProvider is set.
@@ -167,10 +168,11 @@ type TreeItemHandle = string;
 class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
 
 	constructor(private readonly treeViewId: string,
+		readonly supportedMimeTypes: string[],
 		private readonly _proxy: ExtHostTreeViewsShape) { }
 
-	async onDrop(dataTransfer: ITreeDataTransfer, targetTreeItem: ITreeItem): Promise<void> {
-		return this._proxy.$onDrop(this.treeViewId, await TreeDataTransferConverter.toTreeDataTransferDTO(dataTransfer), targetTreeItem.handle);
+	async onDrop(dataTransfer: ITreeDataTransfer, targetTreeItem: ITreeItem, sourceTreeId?: string, sourceTreeItemHandles?: string[]): Promise<void> {
+		return this._proxy.$onDrop(this.treeViewId, await TreeDataTransferConverter.toTreeDataTransferDTO(dataTransfer), targetTreeItem.handle, sourceTreeId, sourceTreeItemHandles);
 	}
 }
 

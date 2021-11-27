@@ -46,7 +46,7 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IShellLaunchConfig, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
 import { TaskTerminalStatus } from 'vs/workbench/contrib/tasks/browser/taskTerminalStatus';
 import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
@@ -200,6 +200,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private previousPanelId: string | undefined;
 	private previousTerminalInstance: ITerminalInstance | undefined;
 	private terminalStatusManager: TaskTerminalStatus;
+	private terminalCreationQueue: Promise<ITerminalInstance | void> = Promise.resolve();
 
 	private readonly _onDidStateChange: Emitter<TaskEvent>;
 
@@ -828,12 +829,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				this.logService.error('Task terminal process never got ready');
 			});
 			this.fireTaskEvent(TaskEvent.create(TaskEventKind.Start, task, terminal.instanceId));
-			let skipLine: boolean = (!!task.command.presentation && task.command.presentation.echo);
 			const onData = terminal.onLineData((line) => {
-				if (skipLine) {
-					skipLine = false;
-					return;
-				}
 				watchingProblemMatcher.processLine(line);
 				if (!delayer) {
 					delayer = new Async.Delayer(3000);
@@ -919,12 +915,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			let problemMatchers = await this.resolveMatchers(resolver, task.configurationProperties.problemMatchers);
 			let startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this.markerService, this.modelService, ProblemHandlingStrategy.Clean, this.fileService);
 			this.terminalStatusManager.addTerminal(task, terminal, startStopProblemMatcher);
-			let skipLine: boolean = (!!task.command.presentation && task.command.presentation.echo);
 			const onData = terminal.onLineData((line) => {
-				if (skipLine) {
-					skipLine = false;
-					return;
-				}
 				startStopProblemMatcher.processLine(line);
 			});
 			promise = new Promise<ITaskSummary>((resolve, reject) => {
@@ -1059,11 +1050,16 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				os,
 				remoteAuthority: this.environmentService.remoteAuthority
 			});
-			const defaultConfig = {
-				shell: defaultProfile.path,
-				args: defaultProfile.args
+			shellLaunchConfig = {
+				name: terminalName,
+				description,
+				executable: defaultProfile.path,
+				args: defaultProfile.args,
+				icon: defaultProfile.icon,
+				env: { ...defaultProfile.env },
+				color: defaultProfile.color,
+				waitOnExit
 			};
-			shellLaunchConfig = { name: terminalName, description, executable: defaultConfig.shell, args: defaultConfig.args, waitOnExit };
 			let shellSpecified: boolean = false;
 			let shellOptions: ShellConfiguration | undefined = task.command.options && task.command.options.shell;
 			if (shellOptions) {
@@ -1088,7 +1084,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			let windowsShellArgs: boolean = false;
 			if (platform === Platform.Platform.Windows) {
 				windowsShellArgs = true;
-				let basename = path.basename(shellLaunchConfig.executable!).toLowerCase();
+				let basename = path.posix.basename(URI.file(shellLaunchConfig.executable!).path).toLowerCase();
 				// If we don't have a cwd, then the terminal uses the home dir.
 				const userHome = await this.pathService.userHome();
 				if (basename === 'cmd.exe' && ((options.cwd && isUNC(options.cwd)) || (!options.cwd && isUNC(userHome.fsPath)))) {
@@ -1189,11 +1185,33 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			shellLaunchConfig.cwd = isUNC(cwd) ? cwd : resources.toLocalResource(URI.from({ scheme: Schemas.file, path: cwd }), this.environmentService.remoteAuthority, this.pathService.defaultUriScheme);
 		}
 		if (options.env) {
-			shellLaunchConfig.env = options.env;
+			if (shellLaunchConfig.env) {
+				shellLaunchConfig.env = { ...shellLaunchConfig.env, ...options.env };
+			} else {
+				shellLaunchConfig.env = options.env;
+			}
 		}
 		shellLaunchConfig.isFeatureTerminal = true;
 		shellLaunchConfig.useShellEnvironment = true;
 		return shellLaunchConfig;
+	}
+
+	private async doCreateTerminal(group: string | undefined, launchConfigs: IShellLaunchConfig): Promise<ITerminalInstance> {
+		if (group) {
+			// Try to find an existing terminal to split.
+			// Even if an existing terminal is found, the split can fail if the terminal width is too small.
+			for (const terminal of values(this.terminals)) {
+				if (terminal.group === group) {
+					const originalInstance = terminal.terminal;
+					const result = await this.terminalService.createTerminal({ location: { parentTerminal: originalInstance }, config: launchConfigs });
+					if (result) {
+						return result;
+					}
+				}
+			}
+		}
+		// Either no group is used, no terminal with the group exists or splitting an existing terminal failed.
+		return this.terminalService.createTerminal({ location: TerminalLocation.Panel, config: launchConfigs });
 	}
 
 	private async createTerminal(task: CustomTask | ContributedTask, resolver: VariableResolver, workspaceFolder: IWorkspaceFolder | undefined): Promise<[ITerminalInstance | undefined, string | undefined, TaskError | undefined]> {
@@ -1244,9 +1262,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				return [undefined, undefined, new TaskError(Severity.Error, nls.localize('TerminalTaskSystem', 'Can\'t execute a shell command on an UNC drive using cmd.exe.'), TaskErrors.UnknownError)];
 			}
 		}
-		if (this.currentTask.shellLaunchConfig) {
-			this.currentTask.shellLaunchConfig.icon = { id: 'tools' };
-		}
 
 		let prefersSameTerminal = presentationOptions.panel === PanelKind.Dedicated;
 		let allowsSharedTerminal = presentationOptions.panel === PanelKind.Shared;
@@ -1288,31 +1303,16 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			await terminalToReuse.terminal.reuseTerminal(launchConfigs);
 
 			if (task.command.presentation && task.command.presentation.clear) {
-				terminalToReuse.terminal.clear();
+				terminalToReuse.terminal.clearBuffer();
 			}
 			this.terminals[terminalToReuse.terminal.instanceId.toString()].lastTask = taskKey;
 			return [terminalToReuse.terminal, commandExecutable, undefined];
 		}
 
-		let result: ITerminalInstance | null = null;
-		if (group) {
-			// Try to find an existing terminal to split.
-			// Even if an existing terminal is found, the split can fail if the terminal width is too small.
-			for (const terminal of values(this.terminals)) {
-				if (terminal.group === group) {
-					const originalInstance = terminal.terminal;
-					await originalInstance.waitForTitle();
-					result = await this.terminalService.createTerminal({ location: { parentTerminal: originalInstance }, config: launchConfigs });
-					if (result) {
-						break;
-					}
-				}
-			}
-		}
-		if (!result) {
-			// Either no group is used, no terminal with the group exists or splitting an existing terminal failed.
-			result = await this.terminalService.createTerminal({ config: launchConfigs });
-		}
+		await this.terminalCreationQueue;
+		const createTerminalPromise = this.doCreateTerminal(group, launchConfigs);
+		this.terminalCreationQueue = createTerminalPromise;
+		const result: ITerminalInstance = await createTerminalPromise;
 
 		const terminalKey = result.instanceId.toString();
 		result.onDisposed((terminal) => {
@@ -1448,8 +1448,16 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 		this.collectMatcherVariables(variables, task.configurationProperties.problemMatchers);
 
-		if (task.command.runtime === RuntimeType.CustomExecution && CustomTask.is(task)) {
-			this.collectDefinitionVariables(variables, task._source.config.element);
+		if (task.command.runtime === RuntimeType.CustomExecution && (CustomTask.is(task) || ContributedTask.is(task))) {
+			let definition: any;
+			if (CustomTask.is(task)) {
+				definition = task._source.config.element;
+			} else {
+				definition = Objects.deepClone(task.defines);
+				delete definition._key;
+				delete definition.type;
+			}
+			this.collectDefinitionVariables(variables, definition);
 		}
 	}
 

@@ -15,6 +15,7 @@ import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ILanguageIdCodec, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { URI } from 'vs/base/common/uri';
+import { Configuration } from 'vs/editor/browser/config/configuration';
 
 export interface IMarkdownRenderResult extends IDisposable {
 	element: HTMLElement;
@@ -89,12 +90,11 @@ export class MarkdownRenderer {
 				element.innerHTML = (MarkdownRenderer._ttpTokenizer?.createHTML(value, this._modeService.languageIdCodec, tokenization) ?? tokenizeToString(value, this._modeService.languageIdCodec, tokenization)) as string;
 
 				// use "good" font
-				let fontFamily = this._options.codeBlockFontFamily;
 				if (this._options.editor) {
-					fontFamily = this._options.editor.getOption(EditorOption.fontInfo).fontFamily;
-				}
-				if (fontFamily) {
-					element.style.fontFamily = fontFamily;
+					const fontInfo = this._options.editor.getOption(EditorOption.fontInfo);
+					Configuration.applyFontInfoSlow(element, fontInfo);
+				} else if (this._options.codeBlockFontFamily) {
+					element.style.fontFamily = this._options.codeBlockFontFamily;
 				}
 
 				return element;

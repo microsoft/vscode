@@ -20,9 +20,9 @@ export class SemanticTokensProviderStyling {
 
 	constructor(
 		private readonly _legend: SemanticTokensLegend,
-		private readonly _themeService: IThemeService,
-		private readonly _modeService: IModeService,
-		private readonly _logService: ILogService
+		@IThemeService private readonly _themeService: IThemeService,
+		@IModeService private readonly _modeService: IModeService,
+		@ILogService private readonly _logService: ILogService
 	) {
 		this._hashTable = new HashTable();
 		this._hasWarnedOverlappingTokens = false;
@@ -162,8 +162,10 @@ export function toMultilineTokens2(tokens: SemanticTokens, styling: SemanticToke
 			const srcOffset = 5 * tokenIndex;
 			const deltaLine = srcData[srcOffset];
 			const deltaCharacter = srcData[srcOffset + 1];
-			const lineNumber = lastLineNumber + deltaLine;
-			const startCharacter = (deltaLine === 0 ? lastStartCharacter + deltaCharacter : deltaCharacter);
+			// Casting both `lineNumber` and `startCharacter` here to uint32 using `|0`
+			// to do checks below with the actual value that will be inserted in the Uint32Array result
+			const lineNumber = (lastLineNumber + deltaLine) | 0;
+			const startCharacter = (deltaLine === 0 ? (lastStartCharacter + deltaCharacter) | 0 : deltaCharacter);
 			const length = srcData[srcOffset + 2];
 			const tokenTypeIndex = srcData[srcOffset + 3];
 			const tokenModifierSet = srcData[srcOffset + 4];

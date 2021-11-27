@@ -17,7 +17,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IEncodingSupport, IModeSupport } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ICompositeControl, IComposite } from 'vs/workbench/common/composite';
-import { IFileService } from 'vs/platform/files/common/files';
+import { FileType, IFileService } from 'vs/platform/files/common/files';
 import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce } from 'vs/base/common/arrays';
 import { IExtUri } from 'vs/base/common/resources';
@@ -38,7 +38,7 @@ export const DEFAULT_EDITOR_ASSOCIATION = {
 };
 
 // Editor State Context Keys
-export const ActiveEditorDirtyContext = new RawContextKey<boolean>('activeEditorIsDirty', false, localize('activeEditorIsDirty', "Whether the active editor is dirty"));
+export const ActiveEditorDirtyContext = new RawContextKey<boolean>('activeEditorIsDirty', false, localize('activeEditorIsDirty', "Whether the active editor has unsaved changes"));
 export const ActiveEditorPinnedContext = new RawContextKey<boolean>('activeEditorIsNotPreview', false, localize('activeEditorIsNotPreview', "Whether the active editor is not in preview mode"));
 export const ActiveEditorStickyContext = new RawContextKey<boolean>('activeEditorIsPinned', false, localize('activeEditorIsPinned', "Whether the active editor is pinned"));
 export const ActiveEditorReadonlyContext = new RawContextKey<boolean>('activeEditorIsReadonly', false, localize('activeEditorIsReadonly', "Whether the active editor is readonly"));
@@ -114,7 +114,7 @@ export interface IEditorDescriptor<T extends IEditorPane> {
 export interface IEditorPane extends IComposite {
 
 	/**
-	 * An event to notify when the `IEditorControl´ in this
+	 * An event to notify when the `IEditorControl` in this
 	 * editor pane changes.
 	 *
 	 * This can be used for editor panes that are a compound
@@ -864,7 +864,8 @@ interface IEditorPartConfiguration {
 	decorations?: {
 		badges?: boolean;
 		colors?: boolean;
-	}
+	},
+	experimentalDisableClearInputOnSetInput?: boolean;
 }
 
 export interface IEditorPartOptions extends IEditorPartConfiguration {
@@ -1138,8 +1139,22 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 			return;
 		}
 
-		const exists = (typeof path.exists === 'boolean') ? path.exists : await fileService.exists(resource);
+		let exists = path.exists;
+		let type = path.type;
+		if (typeof exists !== 'boolean' || typeof type !== 'number') {
+			try {
+				type = (await fileService.resolve(resource)).isFile ? FileType.File : FileType.Unknown;
+				exists = true;
+			} catch {
+				exists = false;
+			}
+		}
+
 		if (!exists && path.openOnlyIfExists) {
+			return;
+		}
+
+		if (type !== FileType.File) {
 			return;
 		}
 

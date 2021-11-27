@@ -9,7 +9,6 @@ import * as Paths from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import * as Json from 'vs/base/common/json';
 import { ExtensionData, IThemeExtensionPoint, IWorkbenchProductIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IFileService } from 'vs/platform/files/common/files';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { asCSSUrl } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -19,6 +18,7 @@ import { isString } from 'vs/base/common/types';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 
 export const DEFAULT_PRODUCT_ICON_THEME_ID = ''; // TODO
 
@@ -44,15 +44,15 @@ export class ProductIconThemeData implements IWorkbenchProductIconTheme {
 		this.isLoaded = false;
 	}
 
-	public ensureLoaded(fileService: IFileService, logService: ILogService): Promise<string | undefined> {
+	public ensureLoaded(fileService: IExtensionResourceLoaderService, logService: ILogService): Promise<string | undefined> {
 		return !this.isLoaded ? this.load(fileService, logService) : Promise.resolve(this.styleSheetContent);
 	}
 
-	public reload(fileService: IFileService, logService: ILogService): Promise<string | undefined> {
+	public reload(fileService: IExtensionResourceLoaderService, logService: ILogService): Promise<string | undefined> {
 		return this.load(fileService, logService);
 	}
 
-	private load(fileService: IFileService, logService: ILogService): Promise<string | undefined> {
+	private load(fileService: IExtensionResourceLoaderService, logService: ILogService): Promise<string | undefined> {
 		const location = this.location;
 		if (!location) {
 			return Promise.resolve(this.styleSheetContent);
@@ -168,10 +168,10 @@ interface ProductIconThemeDocument {
 	fonts: FontDefinition[];
 }
 
-function _loadProductIconThemeDocument(fileService: IFileService, location: URI): Promise<ProductIconThemeDocument> {
-	return fileService.readFile(location).then((content) => {
+function _loadProductIconThemeDocument(fileService: IExtensionResourceLoaderService, location: URI): Promise<ProductIconThemeDocument> {
+	return fileService.readExtensionResource(location).then((content) => {
 		let errors: Json.ParseError[] = [];
-		let contentValue = Json.parse(content.value.toString(), errors);
+		let contentValue = Json.parse(content, errors);
 		if (errors.length > 0) {
 			return Promise.reject(new Error(nls.localize('error.cannotparseicontheme', "Problems parsing product icons file: {0}", errors.map(e => getParseErrorMessage(e.error)).join(', '))));
 		} else if (Json.getNodeType(contentValue) !== 'object') {

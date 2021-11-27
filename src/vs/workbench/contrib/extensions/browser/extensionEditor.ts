@@ -12,7 +12,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Cache, CacheResult } from 'vs/base/common/cache';
 import { Action, IAction } from 'vs/base/common/actions';
 import { getErrorMessage, isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
-import { dispose, toDisposable, Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, toDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { append, $, finalHandler, join, addDisposableListener, EventType, setParentFlowTo, reset, Dimension } from 'vs/base/browser/dom';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -21,23 +21,23 @@ import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsServi
 import { IExtensionManifest, IKeyBinding, IView, IViewContainer } from 'vs/platform/extensions/common/extensions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
+import { ExtensionsInput, IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, IExtension, ExtensionContainers, ExtensionEditorTab, ExtensionState } from 'vs/workbench/contrib/extensions/common/extensions';
-import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
+import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget, PreReleaseIndicatorWidget, ExtensionHoverWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import {
 	UpdateAction, ReloadAction, EnableDropDownAction, DisableDropDownAction, ExtensionStatusLabelAction, SetFileIconThemeAction, SetColorThemeAction,
 	RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ToggleSyncExtensionAction, SetProductIconThemeAction,
 	ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, UninstallAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction,
-	InstallAnotherVersionAction, ExtensionEditorManageExtensionAction, WebInstallAction
+	InstallAnotherVersionAction, ExtensionEditorManageExtensionAction, WebInstallAction, SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction, SwitchUnsupportedExtensionToPreReleaseExtensionAction
 } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Color } from 'vs/base/common/color';
@@ -50,7 +50,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { getDefaultValue } from 'vs/platform/configuration/common/configurationRegistry';
 import { isUndefined } from 'vs/base/common/types';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IWebviewService, Webview, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, IWebview, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/webview/browser/webview';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { generateUuid } from 'vs/base/common/uuid';
 import { platform } from 'vs/base/common/process';
@@ -67,9 +67,8 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { attachKeybindingLabelStyler } from 'vs/platform/theme/common/styler';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { errorIcon, infoIcon, starEmptyIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
+import { errorIcon, infoIcon, preReleaseIcon, starEmptyIcon, verifiedPublisherIcon as verifiedPublisherThemeIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
@@ -141,13 +140,17 @@ interface IExtensionEditorTemplate {
 	preview: HTMLElement;
 	builtin: HTMLElement;
 	version: HTMLElement;
+	preRelease: HTMLElement;
 	publisher: HTMLElement;
+	publisherDisplayName: HTMLElement;
+	verifiedPublisherIcon: HTMLElement;
 	installCount: HTMLElement;
 	rating: HTMLElement;
 	description: HTMLElement;
 	actionsAndStatusContainer: HTMLElement;
 	extensionActionBar: ActionBar;
 	status: HTMLElement;
+	preReleaseText: HTMLElement;
 	recommendation: HTMLElement;
 	navbar: NavBar;
 	content: HTMLElement;
@@ -159,10 +162,13 @@ const enum WebviewIndex {
 	Changelog
 }
 
+const CONTEXT_SHOW_PRE_RELEASE_VERSION = new RawContextKey<boolean>('showPreReleaseVersion', false);
+
 export class ExtensionEditor extends EditorPane {
 
 	static readonly ID: string = 'workbench.editor.extension';
 
+	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IContextKeyService>());
 	private template: IExtensionEditorTemplate | undefined;
 
 	private extensionReadme: Cache<string> | null;
@@ -182,6 +188,8 @@ export class ExtensionEditor extends EditorPane {
 	private editorLoadComplete: boolean = false;
 	private dimension: Dimension | undefined;
 
+	private showPreReleaseVersionContextKey: IContextKey<boolean> | undefined;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -199,6 +207,7 @@ export class ExtensionEditor extends EditorPane {
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@IModeService private readonly modeService: IModeService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService, storageService);
 		this.extensionReadme = null;
@@ -206,8 +215,16 @@ export class ExtensionEditor extends EditorPane {
 		this.extensionManifest = null;
 	}
 
+	override get scopedContextKeyService(): IContextKeyService | undefined {
+		return this._scopedContextKeyService.value;
+	}
+
 	createEditor(parent: HTMLElement): void {
 		const root = append(parent, $('.extension-editor'));
+		this._scopedContextKeyService.value = this.contextKeyService.createScoped(root);
+		this._scopedContextKeyService.value.createKey('inExtensionEditor', true);
+		this.showPreReleaseVersionContextKey = CONTEXT_SHOW_PRE_RELEASE_VERSION.bindTo(this._scopedContextKeyService.value);
+
 		root.tabIndex = 0; // this is required for the focus tracker on the editor
 		root.style.outline = 'none';
 		root.setAttribute('role', 'document');
@@ -226,10 +243,13 @@ export class ExtensionEditor extends EditorPane {
 
 		const builtin = append(title, $('span.builtin'));
 		builtin.textContent = localize('builtin', "Built-in");
+		const preRelease = append(title, $('span.pre-release'));
 
 		const subtitle = append(details, $('.subtitle'));
-		const publisher = append(append(subtitle, $('.subtitle-entry')), $('span.publisher.clickable', { title: localize('publisher', "Publisher"), tabIndex: 0 }));
+		const publisher = append(append(subtitle, $('.subtitle-entry')), $('.publisher.clickable', { title: localize('publisher', "Publisher"), tabIndex: 0 }));
 		publisher.setAttribute('role', 'button');
+		const verifiedPublisherIcon = append(publisher, $(`.publisher-verified${ThemeIcon.asCSSSelector(verifiedPublisherThemeIcon)}`));
+		const publisherDisplayName = append(publisher, $('.publisher-name'));
 		const installCount = append(append(subtitle, $('.subtitle-entry')), $('span.install', { title: localize('install count', "Install count"), tabIndex: 0 }));
 		const rating = append(append(subtitle, $('.subtitle-entry')), $('span.rating.clickable', { title: localize('rating', "Rating"), tabIndex: 0 }));
 		rating.setAttribute('role', 'link'); // #132645
@@ -252,6 +272,7 @@ export class ExtensionEditor extends EditorPane {
 		}));
 
 		const status = append(actionsAndStatusContainer, $('.status'));
+		const preReleaseText = append(details, $('.pre-release-text'));
 		const recommendation = append(details, $('.recommendation'));
 
 		this._register(Event.chain(extensionActionBar.onDidRun)
@@ -273,14 +294,18 @@ export class ExtensionEditor extends EditorPane {
 			icon,
 			iconContainer,
 			version,
+			preRelease,
 			installCount,
 			name,
 			navbar,
 			preview,
 			publisher,
+			publisherDisplayName,
+			verifiedPublisherIcon,
 			rating,
 			actionsAndStatusContainer,
 			extensionActionBar,
+			preReleaseText,
 			status,
 			recommendation
 		};
@@ -300,11 +325,29 @@ export class ExtensionEditor extends EditorPane {
 		return disposables;
 	}
 
-	override async setInput(input: ExtensionsInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: ExtensionsInput, options: IExtensionEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
+		this.updatePreReleaseVersionContext();
 		if (this.template) {
-			await this.updateTemplate(input, this.template, !!options?.preserveFocus);
+			await this.updateTemplate(input.extension, this.template, !!options?.preserveFocus);
 		}
+	}
+
+	override setOptions(options: IExtensionEditorOptions | undefined): void {
+		const currentOptions: IExtensionEditorOptions | undefined = this.options;
+		super.setOptions(options);
+		this.updatePreReleaseVersionContext();
+		if (currentOptions?.showPreReleaseVersion !== options?.showPreReleaseVersion) {
+			this.openTab(ExtensionEditorTab.Readme);
+		}
+	}
+
+	private updatePreReleaseVersionContext(): void {
+		let showPreReleaseVersion = (<IExtensionEditorOptions | undefined>this.options)?.showPreReleaseVersion;
+		if (isUndefined(showPreReleaseVersion)) {
+			showPreReleaseVersion = !!(<ExtensionsInput>this.input).extension.gallery?.properties.isPreReleaseVersion;
+		}
+		this.showPreReleaseVersionContextKey?.set(showPreReleaseVersion);
 	}
 
 	async openTab(tab: ExtensionEditorTab): Promise<void> {
@@ -320,10 +363,9 @@ export class ExtensionEditor extends EditorPane {
 		}
 	}
 
-	private async updateTemplate(input: ExtensionsInput, template: IExtensionEditorTemplate, preserveFocus: boolean): Promise<void> {
+	private async updateTemplate(extension: IExtension, template: IExtensionEditorTemplate, preserveFocus: boolean): Promise<void> {
 		this.activeElement = null;
 		this.editorLoadComplete = false;
-		const extension = input.extension;
 
 		if (this.currentIdentifier !== extension.identifier.id) {
 			this.initialScrollProgress.clear();
@@ -332,9 +374,9 @@ export class ExtensionEditor extends EditorPane {
 
 		this.transientDisposables.clear();
 
-		this.extensionReadme = new Cache(() => createCancelablePromise(token => extension.getReadme(token)));
-		this.extensionChangelog = new Cache(() => createCancelablePromise(token => extension.getChangelog(token)));
-		this.extensionManifest = new Cache(() => createCancelablePromise(token => extension.getManifest(token)));
+		this.extensionReadme = new Cache(() => createCancelablePromise(token => extension.getReadme(!!this.showPreReleaseVersionContextKey?.get(), token)));
+		this.extensionChangelog = new Cache(() => createCancelablePromise(token => extension.getChangelog(!!this.showPreReleaseVersionContextKey?.get(), token)));
+		this.extensionManifest = new Cache(() => createCancelablePromise(token => extension.getManifest(!!this.showPreReleaseVersionContextKey?.get(), token)));
 
 		const remoteBadge = this.instantiationService.createInstance(RemoteBadgeWidget, template.iconContainer, true);
 		this.transientDisposables.add(addDisposableListener(template.icon, 'error', () => template.icon.src = extension.iconUrlFallback, { once: true }));
@@ -366,8 +408,10 @@ export class ExtensionEditor extends EditorPane {
 		template.name.classList.toggle('clickable', !!extension.url);
 
 		// subtitle
-		template.publisher.textContent = extension.publisherDisplayName;
 		template.publisher.classList.toggle('clickable', !!extension.url);
+		template.publisherDisplayName.textContent = extension.publisherDisplayName;
+		template.verifiedPublisherIcon.style.display = extension.publisherDomain?.verified ? 'inherit' : 'none';
+		template.publisher.title = extension.publisherDomain?.link ? localize('publisher verified tooltip', "This publisher has verified ownership of {0}", URI.parse(extension.publisherDomain.link).authority) : '';
 
 		template.installCount.parentElement?.classList.toggle('hide', !extension.url);
 
@@ -385,6 +429,7 @@ export class ExtensionEditor extends EditorPane {
 		}
 
 		const widgets = [
+			this.instantiationService.createInstance(PreReleaseIndicatorWidget, template.preRelease, { label: true, icon: false }),
 			remoteBadge,
 			this.instantiationService.createInstance(InstallCountWidget, template.installCount, false),
 			this.instantiationService.createInstance(RatingsWidget, template.rating, false)
@@ -407,11 +452,16 @@ export class ExtensionEditor extends EditorPane {
 			combinedInstallAction,
 			this.instantiationService.createInstance(InstallingLabelAction),
 			this.instantiationService.createInstance(ActionWithDropDownAction, 'extensions.uninstall', UninstallAction.UninstallLabel, [
-				this.instantiationService.createInstance(UninstallAction),
-				this.instantiationService.createInstance(InstallAnotherVersionAction),
+				[
+					this.instantiationService.createInstance(UninstallAction),
+					this.instantiationService.createInstance(InstallAnotherVersionAction),
+				]
 			]),
+			this.instantiationService.createInstance(SwitchToPreReleaseVersionAction),
+			this.instantiationService.createInstance(SwitchToReleasedVersionAction),
+			this.instantiationService.createInstance(SwitchUnsupportedExtensionToPreReleaseExtensionAction),
 			this.instantiationService.createInstance(ToggleSyncExtensionAction),
-			this.instantiationService.createInstance(ExtensionEditorManageExtensionAction),
+			new ExtensionEditorManageExtensionAction(this.scopedContextKeyService || this.contextKeyService, this.instantiationService),
 		];
 		const extensionStatus = this.instantiationService.createInstance(ExtensionStatusAction);
 		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets, extensionStatus]);
@@ -429,6 +479,7 @@ export class ExtensionEditor extends EditorPane {
 			this.transientDisposables.add(disposable);
 		}
 
+		this.setPreReleaseText(extension, template);
 		this.setStatus(extension, extensionStatus, template);
 		this.setRecommendationText(extension, template);
 
@@ -477,6 +528,30 @@ export class ExtensionEditor extends EditorPane {
 		this.editorLoadComplete = true;
 	}
 
+	private setPreReleaseText(extension: IExtension, template: IExtensionEditorTemplate): void {
+		let preReleaseText: string | undefined;
+		reset(template.preReleaseText);
+		const disposables = this.transientDisposables.add(new DisposableStore());
+		const updatePreReleaseText = () => {
+			const newPreReleaseText = ExtensionHoverWidget.getPreReleaseMessage(extension);
+			if (preReleaseText !== newPreReleaseText) {
+				preReleaseText = newPreReleaseText;
+				disposables.clear();
+				reset(template.preReleaseText);
+				if (preReleaseText) {
+					append(template.preReleaseText, $(`span${ThemeIcon.asCSSSelector(preReleaseIcon)}`));
+					disposables.add(this.renderMarkdownText(preReleaseText, template.preReleaseText));
+				}
+			}
+		};
+		updatePreReleaseText();
+		this.transientDisposables.add(this.extensionsWorkbenchService.onChange(e => {
+			if (e && areSameExtensions(e.identifier, extension.identifier)) {
+				updatePreReleaseText();
+			}
+		}));
+	}
+
 	private setStatus(extension: IExtension, extensionStatus: ExtensionStatusAction, template: IExtensionEditorTemplate): void {
 		const disposables = new DisposableStore();
 		this.transientDisposables.add(disposables);
@@ -489,16 +564,7 @@ export class ExtensionEditor extends EditorPane {
 					const statusIconActionBar = disposables.add(new ActionBar(template.status, { animated: false }));
 					statusIconActionBar.push(extensionStatus, { icon: true, label: false });
 				}
-				const rendered = disposables.add(renderMarkdown(new MarkdownString(status.message.value, { isTrusted: true, supportThemeIcons: true }), {
-					actionHandler: {
-						callback: (content) => {
-							this.openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
-						},
-						disposables: disposables
-					}
-				}));
-				append(append(template.status, $('.status-text')),
-					rendered.element);
+				disposables.add(this.renderMarkdownText(status.message.value, append(template.status, $('.status-text'))));
 			}
 		};
 		updateStatus();
@@ -527,6 +593,20 @@ export class ExtensionEditor extends EditorPane {
 		this.transientDisposables.add(this.extensionRecommendationsService.onDidChangeRecommendations(() => updateRecommendationText()));
 	}
 
+	private renderMarkdownText(markdownText: string, parent: HTMLElement): IDisposable {
+		const disposables = new DisposableStore();
+		const rendered = disposables.add(renderMarkdown(new MarkdownString(markdownText, { isTrusted: true, supportThemeIcons: true }), {
+			actionHandler: {
+				callback: (content) => {
+					this.openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
+				},
+				disposables: disposables
+			}
+		}));
+		append(parent, rendered.element);
+		return disposables;
+	}
+
 	override clearInput(): void {
 		this.contentDisposables.clear();
 		this.transientDisposables.clear();
@@ -546,11 +626,11 @@ export class ExtensionEditor extends EditorPane {
 		this.activeWebview?.runFindAction(previous);
 	}
 
-	public get activeWebview(): Webview | undefined {
-		if (!this.activeElement || !(this.activeElement as Webview).runFindAction) {
+	public get activeWebview(): IWebview | undefined {
+		if (!this.activeElement || !(this.activeElement as IWebview).runFindAction) {
 			return undefined;
 		}
-		return this.activeElement as Webview;
+		return this.activeElement as IWebview;
 	}
 
 	private onNavbarChange(extension: IExtension, { id, focus }: { id: string | null, focus: boolean }, template: IExtensionEditorTemplate): void {
@@ -837,12 +917,16 @@ export class ExtensionEditor extends EditorPane {
 		if (extension.url && extension.licenseUrl) {
 			resources.push([localize('license', "License"), URI.parse(extension.licenseUrl)]);
 		}
+		if (extension.publisherDomain?.verified) {
+			const publisherDomainUri = URI.parse(extension.publisherDomain.link);
+			resources.push([publisherDomainUri.authority, publisherDomainUri]);
+		}
 		if (resources.length) {
 			const resourcesContainer = append(container, $('.resources-container'));
 			append(resourcesContainer, $('.additional-details-title', undefined, localize('resources', "Resources")));
 			const resourcesElement = append(resourcesContainer, $('.resources'));
 			for (const [label, uri] of resources) {
-				this.transientDisposables.add(this.onClick(append(resourcesElement, $('a.resource', undefined, label)), () => this.openerService.open(uri)));
+				this.transientDisposables.add(this.onClick(append(resourcesElement, $('a.resource', { title: uri.toString() }, label)), () => this.openerService.open(uri)));
 			}
 		}
 	}
@@ -908,6 +992,8 @@ export class ExtensionEditor extends EditorPane {
 					this.renderViews(content, manifest, layout),
 					this.renderLocalizations(content, manifest, layout),
 					this.renderCustomEditors(content, manifest, layout),
+					this.renderNotebooks(content, manifest, layout),
+					this.renderNotebookRenderers(content, manifest, layout),
 					this.renderAuthentication(content, manifest, layout),
 					this.renderActivationEvents(content, manifest, layout),
 				];
@@ -1096,11 +1182,18 @@ export class ExtensionEditor extends EditorPane {
 					$('th', undefined, localize('description', "Description")),
 					$('th', undefined, localize('default', "Default"))
 				),
-				...contrib.map(key => $('tr', undefined,
-					$('td', undefined, $('code', undefined, key)),
-					$('td', undefined, properties[key].description || (properties[key].markdownDescription && renderMarkdown({ value: properties[key].markdownDescription }, { actionHandler: { callback: (content) => this.openerService.open(content).catch(onUnexpectedError), disposables: this.contentDisposables } }))),
-					$('td', undefined, $('code', undefined, `${isUndefined(properties[key].default) ? getDefaultValue(properties[key].type) : properties[key].default}`))
-				))
+				...contrib.map(key => {
+					let description: (Node | string) = properties[key].description;
+					if (properties[key].markdownDescription) {
+						const { element, dispose } = renderMarkdown({ value: properties[key].markdownDescription }, { actionHandler: { callback: (content) => this.openerService.open(content).catch(onUnexpectedError), disposables: this.contentDisposables } });
+						description = element;
+						this.contentDisposables.add(toDisposable(dispose));
+					}
+					return $('tr', undefined,
+						$('td', undefined, $('code', undefined, key)),
+						$('td', undefined, description),
+						$('td', undefined, $('code', undefined, `${isUndefined(properties[key].default) ? getDefaultValue(properties[key].type) : properties[key].default}`)));
+				})
 			)
 		);
 
@@ -1529,8 +1622,8 @@ export class ExtensionEditor extends EditorPane {
 					$('td', undefined, l.id),
 					$('td', undefined, l.name),
 					$('td', undefined, ...join(l.extensions.map(ext => $('code', undefined, ext)), ' ')),
-					$('td', undefined, document.createTextNode(l.hasGrammar ? '✔︎' : '—')),
-					$('td', undefined, document.createTextNode(l.hasSnippets ? '✔︎' : '—'))
+					$('td', undefined, document.createTextNode(l.hasGrammar ? '✔︎' : '\u2014')),
+					$('td', undefined, document.createTextNode(l.hasSnippets ? '✔︎' : '\u2014'))
 				))
 			)
 		);
@@ -1548,6 +1641,54 @@ export class ExtensionEditor extends EditorPane {
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', { tabindex: '0' }, localize('activation events', "Activation Events ({0})", activationEvents.length)),
 			$('ul', undefined, ...activationEvents.map(activationEvent => $('li', undefined, $('code', undefined, activationEvent))))
+		);
+
+		append(container, details);
+		return true;
+	}
+
+	private renderNotebooks(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+		const contrib = manifest.contributes?.notebooks || [];
+
+		if (!contrib.length) {
+			return false;
+		}
+
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
+			$('summary', { tabindex: '0' }, localize('Notebooks', "Notebooks ({0})", contrib.length)),
+			$('table', undefined,
+				$('tr', undefined,
+					$('th', undefined, localize('Notebook id', "Id")),
+					$('th', undefined, localize('Notebook name', "Name")),
+				),
+				...contrib.map(d => $('tr', undefined,
+					$('td', undefined, d.type),
+					$('td', undefined, d.displayName)))
+			)
+		);
+
+		append(container, details);
+		return true;
+	}
+
+	private renderNotebookRenderers(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+		const contrib = manifest.contributes?.notebookRenderer || [];
+
+		if (!contrib.length) {
+			return false;
+		}
+
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
+			$('summary', { tabindex: '0' }, localize('NotebookRenderers', "Notebook Renderers ({0})", contrib.length)),
+			$('table', undefined,
+				$('tr', undefined,
+					$('th', undefined, localize('Notebook renderer name', "Name")),
+					$('th', undefined, localize('Notebook mimetypes', "Mimetypes")),
+				),
+				...contrib.map(d => $('tr', undefined,
+					$('td', undefined, d.displayName),
+					$('td', undefined, d.mimeTypes.join(','))))
+			)
 		);
 
 		append(container, details);
@@ -1661,7 +1802,6 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	if (link) {
 		collector.addRule(`.monaco-workbench .extension-editor .content .details .additional-details-container .resources-container a { color: ${link}; }`);
 		collector.addRule(`.monaco-workbench .extension-editor .content .feature-contributions a { color: ${link}; }`);
-		collector.addRule(`.monaco-workbench .extension-editor > .header > .details > .actions-status-container > .status > .status-text a { color: ${link}; }`);
 	}
 
 	const activeLink = theme.getColor(textLinkActiveForeground);
@@ -1670,9 +1810,6 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 			.monaco-workbench .extension-editor .content .details .additional-details-container .resources-container a:active { color: ${activeLink}; }`);
 		collector.addRule(`.monaco-workbench .extension-editor .content .feature-contributions a:hover,
 			.monaco-workbench .extension-editor .content .feature-contributions a:active { color: ${activeLink}; }`);
-		collector.addRule(`.monaco-workbench .extension-editor > .header > .details > .actions-status-container > .status > .status-text a:hover,
-			.monaco-workbench .extension-editor > .header > .details > actions-status-container > .status > .status-text a:active { color: ${activeLink}; }`);
-
 	}
 
 	const buttonHoverBackgroundColor = theme.getColor(buttonHoverBackground);

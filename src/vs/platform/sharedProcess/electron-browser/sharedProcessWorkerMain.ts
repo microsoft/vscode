@@ -11,8 +11,9 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { deepClone } from 'vs/base/common/objects';
+import { withNullAsUndefined } from 'vs/base/common/types';
 import { removeDangerousEnvVariables } from 'vs/base/node/processes';
-import { hash, ISharedProcessWorkerConfiguration } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
+import { hash, ISharedProcessWorkerConfiguration, ISharedProcessWorkerProcessExit } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
 import { SharedProcessWorkerMessages, ISharedProcessToWorkerMessage, ISharedProcessWorkerEnvironment, IWorkerToSharedProcessMessage } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorker';
 
 /**
@@ -75,10 +76,11 @@ class SharedProcessWorkerMain {
 			process.spawn();
 
 			// Handle self termination of the child process
-			const listener = Event.once(process.onDidProcessSelfTerminate)(() => {
+			const listener = Event.once(process.onDidProcessSelfTerminate)(reason => {
 				send({
 					id: SharedProcessWorkerMessages.SelfTerminated,
-					configuration
+					configuration,
+					message: JSON.stringify(reason)
 				});
 			});
 
@@ -108,7 +110,7 @@ class SharedProcessWorkerMain {
 
 class SharedProcessWorkerProcess extends Disposable {
 
-	private readonly _onDidProcessSelfTerminate = this._register(new Emitter<void>());
+	private readonly _onDidProcessSelfTerminate = this._register(new Emitter<ISharedProcessWorkerProcessExit>());
 	readonly onDidProcessSelfTerminate = this._onDidProcessSelfTerminate.event;
 
 	private child: ChildProcess | undefined = undefined;
@@ -122,7 +124,7 @@ class SharedProcessWorkerProcess extends Disposable {
 	}
 
 	spawn(): void {
-		Logger.trace('Forking worker process');
+		Logger.trace(`Forking worker process (env: ${JSON.stringify(this.environment.env)})`);
 
 		// Fork module via bootstrap-fork for AMD support
 		this.child = fork(
@@ -151,7 +153,10 @@ class SharedProcessWorkerProcess extends Disposable {
 
 			this.child = undefined;
 
-			this._onDidProcessSelfTerminate.fire();
+			this._onDidProcessSelfTerminate.fire({
+				code: withNullAsUndefined(code),
+				signal: withNullAsUndefined(signal)
+			});
 		}));
 
 		const onMessageEmitter = this._register(new Emitter<VSBuffer>());
@@ -189,6 +194,7 @@ class SharedProcessWorkerProcess extends Disposable {
 	private getEnv(): NodeJS.ProcessEnv {
 		const env: NodeJS.ProcessEnv = {
 			...deepClone(process.env),
+			...this.environment.env,
 			VSCODE_AMD_ENTRYPOINT: this.configuration.process.moduleId,
 			VSCODE_PIPE_LOGGING: 'true',
 			VSCODE_VERBOSE_LOGGING: 'true',

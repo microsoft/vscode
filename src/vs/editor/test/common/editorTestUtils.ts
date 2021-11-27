@@ -18,7 +18,6 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -30,6 +29,7 @@ import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 
 class TestTextModel extends TextModel {
 	public registerDisposable(disposable: IDisposable): void {
@@ -70,7 +70,8 @@ function resolveOptions(_options: IRelaxedTextModelCreationOptions): ITextModelC
 }
 
 export function createTextModel(text: string | ITextBufferFactory, _options: IRelaxedTextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS, languageId: string | null = null, uri: URI | null = null): TextModel {
-	const [instantiationService, disposables] = createModelServices();
+	const disposables = new DisposableStore();
+	const instantiationService = createModelServices(disposables);
 	const model = createTextModel2(instantiationService, text, _options, languageId, uri);
 	model.registerDisposable(disposables);
 	return model;
@@ -81,7 +82,7 @@ export function createTextModel2(instantiationService: IInstantiationService, te
 	return instantiationService.createInstance(TestTextModel, text, options, languageId, uri);
 }
 
-export function createModelServices(services: ServiceCollection = new ServiceCollection()): [IInstantiationService, DisposableStore] {
+export function createModelServices(disposables: DisposableStore, services: ServiceCollection = new ServiceCollection()): TestInstantiationService {
 	const serviceIdentifiers: ServiceIdentifier<any>[] = [];
 	const define = <T>(id: ServiceIdentifier<T>, ctor: new (...args: any[]) => T) => {
 		if (!services.has(id)) {
@@ -101,8 +102,7 @@ export function createModelServices(services: ServiceCollection = new ServiceCol
 	define(ILogService, NullLogService);
 	define(IModelService, ModelServiceImpl);
 
-	const instantiationService: IInstantiationService = new InstantiationService(services);
-	const disposables = new DisposableStore();
+	const instantiationService = new TestInstantiationService(services);
 	disposables.add(toDisposable(() => {
 		for (const id of serviceIdentifiers) {
 			const instanceOrDescriptor = services.get(id);
@@ -111,5 +111,5 @@ export function createModelServices(services: ServiceCollection = new ServiceCol
 			}
 		}
 	}));
-	return [instantiationService, disposables];
+	return instantiationService;
 }

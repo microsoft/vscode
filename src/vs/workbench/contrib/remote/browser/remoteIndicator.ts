@@ -254,7 +254,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	}
 
 	private validatedGroup(group: string) {
-		if (!group.match(/^(remote|virtualfs)_(\d\d)_(([a-z][a-z0-9+\-.]*)_(.*))$/)) {
+		if (!group.match(/^(remote|virtualfs)_(\d\d)_(([a-z][a-z0-9+.-]*)_(.*))$/)) {
 			if (!this.loggedInvalidGroupNames[group]) {
 				this.loggedInvalidGroupNames[group] = true;
 				this.logService.warn(`Invalid group name used in "statusBar/remoteIndicator" menu contribution: ${group}. Entries ignored. Expected format: 'remote_$ORDER_$REMOTENAME_$GROUPING or 'virtualfs_$ORDER_$FILESCHEME_$GROUPING.`);

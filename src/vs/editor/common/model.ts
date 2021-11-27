@@ -13,7 +13,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelInjectedTextChangedEvent, ModelRawContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
-import { FormattingOptions } from 'vs/editor/common/modes';
+import { FormattingOptions, StandardTokenType } from 'vs/editor/common/modes';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { MultilineTokens, MultilineTokens2 } from 'vs/editor/common/model/tokensStore';
 import { TextChange } from 'vs/editor/common/model/textChange';
@@ -168,6 +168,12 @@ export interface IModelDecorationOptions {
 	 * If set, text will be injected in the view before the range.
 	 */
 	before?: InjectedTextOptions | null;
+
+	/**
+	 * If set, this decoration will not be rendered for comment tokens.
+	 * @internal
+	*/
+	hideInCommentTokens?: boolean | null;
 }
 
 /**
@@ -530,16 +536,6 @@ export class FindMatch {
 }
 
 /**
- * @internal
- */
-export interface IFoundBracket {
-	range: Range;
-	open: string[];
-	close: string[];
-	isOpen: boolean;
-}
-
-/**
  * Describes the behavior of decorations when typing/editing near their edges.
  * Note: Please do not edit the values, as they very carefully match `DecorationRangeBehavior`
  */
@@ -764,7 +760,7 @@ export interface ITextModel {
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
 
 	/**
-	 * Create a valid position,
+	 * Create a valid position.
 	 */
 	validatePosition(position: IPosition): Position;
 
@@ -804,7 +800,7 @@ export interface ITextModel {
 	getPositionAt(offset: number): Position;
 
 	/**
-	 * Get a range covering the entire model
+	 * Get a range covering the entire model.
 	 */
 	getFullModelRange(): Range;
 
@@ -955,6 +951,13 @@ export interface ITextModel {
 	getLanguageIdAtPosition(lineNumber: number, column: number): string;
 
 	/**
+	 * Returns the standard token type for a character if the character were to be inserted at
+	 * the given position. If the result cannot be accurate, it returns null.
+	 * @internal
+	 */
+	getTokenTypeIfInsertingCharacter(lineNumber: number, column: number, character: string): StandardTokenType;
+
+	/**
 	 * Get the word under or besides `position`.
 	 * @param position The position to look for a word.
 	 * @return The word under or besides `position`. Might be null.
@@ -967,46 +970,6 @@ export interface ITextModel {
 	 * @return The word under or besides `position`. Will never be null.
 	 */
 	getWordUntilPosition(position: IPosition): IWordAtPosition;
-
-	/**
-	 * Find the matching bracket of `request` up, counting brackets.
-	 * @param request The bracket we're searching for
-	 * @param position The position at which to start the search.
-	 * @return The range of the matching bracket, or null if the bracket match was not found.
-	 * @internal
-	 */
-	findMatchingBracketUp(bracket: string, position: IPosition): Range | null;
-
-	/**
-	 * Find the first bracket in the model before `position`.
-	 * @param position The position at which to start the search.
-	 * @return The info for the first bracket before `position`, or null if there are no more brackets before `positions`.
-	 * @internal
-	 */
-	findPrevBracket(position: IPosition): IFoundBracket | null;
-
-	/**
-	 * Find the first bracket in the model after `position`.
-	 * @param position The position at which to start the search.
-	 * @return The info for the first bracket after `position`, or null if there are no more brackets after `positions`.
-	 * @internal
-	 */
-	findNextBracket(position: IPosition): IFoundBracket | null;
-
-	/**
-	 * Find the enclosing brackets that contain `position`.
-	 * @param position The position at which to start the search.
-	 * @internal
-	 */
-	findEnclosingBrackets(position: IPosition, maxDuration?: number): [Range, Range] | null;
-
-	/**
-	 * Given a `position`, if the position is on top or near a bracket,
-	 * find the matching bracket of that bracket and return the ranges of both brackets.
-	 * @param position The position at which to look for a bracket.
-	 * @internal
-	 */
-	matchBracket(position: IPosition): [Range, Range] | null;
 
 	/**
 	 * @internal
@@ -1281,8 +1244,7 @@ export interface ITextModel {
 	onWillDispose(listener: () => void): IDisposable;
 
 	/**
-	 * Destroy this model. This will unbind the model from the mode
-	 * and make all necessary clean-up to release this object to the GC.
+	 * Destroy this model.
 	 */
 	dispose(): void;
 

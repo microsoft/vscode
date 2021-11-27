@@ -10,7 +10,7 @@ import { IBufferRange } from 'xterm';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { localize } from 'vs/nls';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';

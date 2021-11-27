@@ -148,8 +148,15 @@ export interface IStartEntry {
 	readonly category: 'file' | 'folder' | 'notebook';
 }
 
+export interface INotebookEntry {
+	readonly type: string;
+	readonly displayName: string;
+}
+
 export interface INotebookRendererContribution {
 	readonly id: string;
+	readonly displayName: string;
+	readonly mimeTypes: string[];
 }
 
 export interface IExtensionContributions {
@@ -174,6 +181,7 @@ export interface IExtensionContributions {
 	authentication?: IAuthenticationContribution[];
 	walkthroughs?: IWalkthrough[];
 	startEntries?: IStartEntry[];
+	readonly notebooks?: INotebookEntry[];
 	readonly notebookRenderer?: INotebookRendererContribution[];
 }
 
@@ -255,7 +263,7 @@ export interface IExtensionManifest {
 	readonly contributes?: IExtensionContributions;
 	readonly repository?: { url: string; };
 	readonly bugs?: { url: string; };
-	readonly enableProposedApi?: boolean;
+	readonly enabledApiProposals?: readonly string[];
 	readonly api?: string;
 	readonly scripts?: { [key: string]: string; };
 	readonly capabilities?: IExtensionCapabilities;
@@ -338,7 +346,6 @@ export interface IExtensionDescription extends IExtensionManifest {
 	readonly isUserBuiltin: boolean;
 	readonly isUnderDevelopment: boolean;
 	readonly extensionLocation: URI;
-	enableProposedApi?: boolean;
 }
 
 export function isLanguagePackExtension(manifest: IExtensionManifest): boolean {
@@ -350,7 +357,7 @@ export function isAuthenticationProviderExtension(manifest: IExtensionManifest):
 }
 
 export function isResolverExtension(manifest: IExtensionManifest, remoteAuthority: string | undefined): boolean {
-	if (remoteAuthority && manifest.enableProposedApi) {
+	if (remoteAuthority) {
 		const activationEvent = `onResolveRemoteAuthority:${getRemoteName(remoteAuthority)}`;
 		return manifest.activationEvents?.indexOf(activationEvent) !== -1;
 	}

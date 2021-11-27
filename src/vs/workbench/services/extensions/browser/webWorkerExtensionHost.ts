@@ -92,26 +92,23 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		}
 
 		const forceHTTPS = (location.protocol === 'https:');
+		const webEndpointUrlTemplate = this._productService.webEndpointUrlTemplate;
+		const commit = this._productService.commit;
+		const quality = this._productService.quality;
+		if (webEndpointUrlTemplate && commit && quality) {
+			const baseUrl = (
+				webEndpointUrlTemplate
+					.replace('{{uuid}}', generateUuid())
+					.replace('{{commit}}', commit)
+					.replace('{{quality}}', quality)
+			);
+			const base = (
+				forceHTTPS
+					? `${baseUrl}/out/vs/workbench/services/extensions/worker/httpsWebWorkerExtensionHostIframe.html`
+					: `${baseUrl}/out/vs/workbench/services/extensions/worker/httpWebWorkerExtensionHostIframe.html`
+			);
 
-		if (this._environmentService.options && this._environmentService.options.__uniqueWebWorkerExtensionHostOrigin) {
-			const webEndpointUrlTemplate = this._productService.webEndpointUrlTemplate;
-			const commit = this._productService.commit;
-			const quality = this._productService.quality;
-			if (webEndpointUrlTemplate && commit && quality) {
-				const baseUrl = (
-					webEndpointUrlTemplate
-						.replace('{{uuid}}', generateUuid())
-						.replace('{{commit}}', commit)
-						.replace('{{quality}}', quality)
-				);
-				const base = (
-					forceHTTPS
-						? `${baseUrl}/out/vs/workbench/services/extensions/worker/httpsWebWorkerExtensionHostIframe.html`
-						: `${baseUrl}/out/vs/workbench/services/extensions/worker/httpWebWorkerExtensionHostIframe.html`
-				);
-
-				return base + suffix;
-			}
+			return base + suffix;
 		}
 
 		if (this._productService.webEndpointUrl) {

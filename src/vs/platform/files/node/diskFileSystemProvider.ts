@@ -23,10 +23,8 @@ import { readFileIntoStream } from 'vs/platform/files/common/io';
 import { FileWatcher as NodeJSWatcherService } from 'vs/platform/files/node/watcher/nodejs/watcherService';
 import { FileWatcher as NsfwWatcherService } from 'vs/platform/files/node/watcher/nsfw/watcherService';
 import { FileWatcher as ParcelWatcherService } from 'vs/platform/files/node/watcher/parcel/watcherService';
-import { FileWatcher as UnixWatcherService } from 'vs/platform/files/node/watcher/unix/watcherService';
-import { IDiskFileChange, ILogMessage, WatcherService } from 'vs/platform/files/common/watcher';
+import { IDiskFileChange, ILogMessage, IWatchRequest, WatcherService } from 'vs/platform/files/common/watcher';
 import { ILogService } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/common/product';
 import { AbstractDiskFileSystemProvider } from 'vs/platform/files/common/diskFileSystemProvider';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 
@@ -43,8 +41,24 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 })();
 
 export interface IWatcherOptions {
-	pollingInterval?: number;
+
+	/**
+	 * If `true`, will enable polling for all watchers, otherwise
+	 * will enable it for paths included in the string array.
+	 *
+	 * @deprecated this only exists for WSL1 support and should never
+	 * be used in any other case.
+	 */
 	usePolling: boolean | string[];
+
+	/**
+	 * If polling is enabled (via `usePolling`), defines the duration
+	 * in which the watcher will poll for changes.
+	 *
+	 * @deprecated this only exists for WSL1 support and should never
+	 * be used in any other case.
+	 */
+	pollingInterval?: number;
 }
 
 export interface IDiskFileSystemProviderOptions {
@@ -538,7 +552,6 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	//#region File Watching
 
 	protected createRecursiveWatcher(
-		folders: number,
 		onChange: (changes: IDiskFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
@@ -552,44 +565,42 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			): WatcherService
 		};
 
-		let watcherOptions: IWatcherOptions | undefined = undefined;
-
-		// requires a polling watcher
+		let enableLegacyWatcher = false;
 		if (this.options?.watcher?.usePolling) {
-			watcherImpl = UnixWatcherService;
-			watcherOptions = this.options?.watcher;
+			enableLegacyWatcher = false; // must use Parcel watcher for when polling is required
+		} else {
+			enableLegacyWatcher = this.options?.legacyWatcher === 'on'; // setting always wins
 		}
 
-		// can use efficient watcher
-		else {
-			let enableLegacyWatcher = false;
-			if (this.options?.legacyWatcher === 'on' || this.options?.legacyWatcher === 'off') {
-				enableLegacyWatcher = this.options.legacyWatcher === 'on'; // setting always wins
-			} else {
-				if (product.quality === 'stable') {
-					// in stable use legacy for single folder workspaces
-					// TODO@bpasero remove me eventually
-					enableLegacyWatcher = folders === 1;
-				}
-			}
-
-			if (enableLegacyWatcher) {
-				if (isLinux) {
-					watcherImpl = UnixWatcherService;
-				} else {
-					watcherImpl = NsfwWatcherService;
-				}
-			} else {
-				watcherImpl = ParcelWatcherService;
-			}
+		if (enableLegacyWatcher) {
+			watcherImpl = NsfwWatcherService;
+		} else {
+			watcherImpl = ParcelWatcherService;
 		}
 
 		return new watcherImpl(
 			changes => onChange(changes),
 			msg => onLogMessage(msg),
 			verboseLogging,
-			watcherOptions
+			this.options?.watcher
 		);
+	}
+
+	protected override doWatch(watcher: WatcherService, requests: IWatchRequest[]): Promise<void> {
+		const usePolling = this.options?.watcher?.usePolling;
+		if (usePolling === true) {
+			for (const request of requests) {
+				request.pollingInterval = this.options?.watcher?.pollingInterval ?? 5000;
+			}
+		} else if (Array.isArray(usePolling)) {
+			for (const request of requests) {
+				if (usePolling.includes(request.path)) {
+					request.pollingInterval = this.options?.watcher?.pollingInterval ?? 5000;
+				}
+			}
+		}
+
+		return super.doWatch(watcher, requests);
 	}
 
 	protected createNonRecursiveWatcher(

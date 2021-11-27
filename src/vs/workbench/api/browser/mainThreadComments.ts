@@ -138,7 +138,7 @@ export class MainThreadCommentThread implements modes.CommentThread {
 
 		if (modified('range')) { this._range = changes.range!; }
 		if (modified('label')) { this._label = changes.label; }
-		if (modified('contextValue')) { this._contextValue = changes.contextValue; }
+		if (modified('contextValue')) { this._contextValue = changes.contextValue === null ? undefined : changes.contextValue; }
 		if (modified('comments')) { this._comments = changes.comments; }
 		if (modified('collapseState')) { this._collapsibleState = changes.collapseState; }
 		if (modified('canReply')) { this.canReply = changes.canReply!; }

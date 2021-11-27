@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
+import { gracefulify } from 'graceful-fs';
 import * as cp from 'child_process';
 import * as path from 'path';
 import * as os from 'os';
@@ -16,17 +17,23 @@ import fetch from 'node-fetch';
 import { Quality, ApplicationOptions, MultiLogger, Logger, ConsoleLogger, FileLogger } from '../../automation';
 
 import { setup as setupDataMigrationTests } from './areas/workbench/data-migration.test';
-import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
-import { setup as setupDataPreferencesTests } from './areas/preferences/preferences.test';
-import { setup as setupDataSearchTests } from './areas/search/search.test';
-import { setup as setupDataNotebookTests } from './areas/notebook/notebook.test';
-import { setup as setupDataLanguagesTests } from './areas/languages/languages.test';
-import { setup as setupDataEditorTests } from './areas/editor/editor.test';
-import { setup as setupDataStatusbarTests } from './areas/statusbar/statusbar.test';
-import { setup as setupDataExtensionTests } from './areas/extensions/extensions.test';
-import { setup as setupDataMultirootTests } from './areas/multiroot/multiroot.test';
-import { setup as setupDataLocalizationTests } from './areas/workbench/localization.test';
+import { setup as setupPreferencesTests } from './areas/preferences/preferences.test';
+import { setup as setupSearchTests } from './areas/search/search.test';
+import { setup as setupNotebookTests } from './areas/notebook/notebook.test';
+import { setup as setupLanguagesTests } from './areas/languages/languages.test';
+import { setup as setupEditorTests } from './areas/editor/editor.test';
+import { setup as setupStatusbarTests } from './areas/statusbar/statusbar.test';
+import { setup as setupExtensionTests } from './areas/extensions/extensions.test';
+import { setup as setupMultirootTests } from './areas/multiroot/multiroot.test';
+import { setup as setupLocalizationTests } from './areas/workbench/localization.test';
 import { setup as setupLaunchTests } from './areas/workbench/launch.test';
+import { setup as setupTerminalTests } from './areas/terminal/terminal.test';
+
+try {
+	gracefulify(fs);
+} catch (error) {
+	console.error(`Error enabling graceful-fs: ${error}`);
+}
 
 const testDataPath = path.join(os.tmpdir(), 'vscsmoke');
 if (fs.existsSync(testDataPath)) {
@@ -162,7 +169,11 @@ if (!opts.web) {
 		quality = Quality.Stable;
 	}
 
-	console.log(`Running desktop smoke tests against ${electronPath}`);
+	if (opts.remote) {
+		console.log(`Running desktop remote smoke tests against ${electronPath}`);
+	} else {
+		console.log(`Running desktop smoke tests against ${electronPath}`);
+	}
 }
 
 //
@@ -334,22 +345,17 @@ after(async function () {
 	await new Promise((c, e) => rimraf(testDataPath, { maxBusyTries: 10 }, err => err ? e(err) : c(undefined)));
 });
 
-if (!opts.web && opts['build'] && !opts['remote']) {
-	describe(`Stable vs Insiders Smoke Tests: This test MUST run before releasing`, () => {
-		setupDataMigrationTests(opts, testDataPath);
-	});
-}
-
 describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
-	if (!opts.web) { setupDataLossTests(opts); }
-	if (!opts.web) { setupDataPreferencesTests(opts); }
-	setupDataSearchTests(opts);
-	setupDataNotebookTests(opts);
-	setupDataLanguagesTests(opts);
-	setupDataEditorTests(opts);
-	setupDataStatusbarTests(opts);
-	setupDataExtensionTests(opts);
-	if (!opts.web) { setupDataMultirootTests(opts); }
-	if (!opts.web) { setupDataLocalizationTests(opts); }
-	if (!opts.web) { setupLaunchTests(); }
+	if (!opts.web) { setupDataMigrationTests(opts, testDataPath); }
+	if (!opts.web) { setupPreferencesTests(opts); }
+	setupSearchTests(opts);
+	setupNotebookTests(opts);
+	setupLanguagesTests(opts);
+	setupEditorTests(opts);
+	setupTerminalTests(opts);
+	setupStatusbarTests(opts);
+	setupExtensionTests(opts);
+	if (!opts.web) { setupMultirootTests(opts); }
+	if (!opts.web) { setupLocalizationTests(opts); }
+	if (!opts.web) { setupLaunchTests(opts); }
 });

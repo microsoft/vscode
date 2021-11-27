@@ -3,16 +3,39 @@
 	"injectionSelector": "L:meta.paragraph.markdown - (comment, string, markup.math.inline.markdown, markup.fenced_code.block.markdown)",
 	"patterns": [
 		{
-			"include": "#math_inline"
+			"include": "#math_inline_double"
+		},
+		{
+			"include": "#math_inline_single"
 		},
 		{
 			"include": "#math_inline_block"
 		}
 	],
 	"repository": {
-		"math_inline": {
+		"math_inline_single": {
 			"name": "markup.math.inline.markdown",
-			"match": "(?<=\\s|^)(\\${1,2})(.+?)(\\${1,2})(?=\\s|$)",
+			"match": "(?<=\\s|\\W|^)(?<!\\$)(\\$)(.+?)(\\$)(?!\\$)(?=\\s|\\W|$)",
+			"captures": {
+				"1": {
+					"name": "punctuation.definition.math.begin.markdown"
+				},
+				"2": {
+					"name": "meta.embedded.math.markdown",
+					"patterns": [
+						{
+							"include": "text.html.markdown.math#math"
+						}
+					]
+				},
+				"3": {
+					"name": "punctuation.definition.math.begin.markdown"
+				}
+			}
+		},
+		"math_inline_double": {
+			"name": "markup.math.inline.markdown",
+			"match": "(?<=\\s|\\W|^)(?<!\\$)(\\$\\$)(.+?)(\\$\\$)(?!\\$)(?=\\s|\\W|$)",
 			"captures": {
 				"1": {
 					"name": "punctuation.definition.math.begin.markdown"

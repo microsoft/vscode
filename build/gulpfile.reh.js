@@ -25,7 +25,7 @@ const File = require('vinyl');
 const fs = require('fs');
 const glob = require('glob');
 const { compileBuildTask } = require('./gulpfile.compile');
-const { compileExtensionsBuildTask } = require('./gulpfile.extensions');
+const { compileExtensionsBuildTask, compileExtensionMediaBuildTask } = require('./gulpfile.extensions');
 const { vscodeWebEntryPoints, vscodeWebResourceIncludes, createVSCodeWebFileContentMapper } = require('./gulpfile.vscode.web');
 const cp = require('child_process');
 
@@ -100,10 +100,6 @@ const serverEntryPoints = [
 	},
 	{
 		name: 'vs/server/remoteExtensionHostProcess',
-		exclude: ['vs/css', 'vs/nls']
-	},
-	{
-		name: 'vs/platform/files/node/watcher/unix/watcherApp',
 		exclude: ['vs/css', 'vs/nls']
 	},
 	{
@@ -385,6 +381,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 			const serverTask = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
 				compileBuildTask,
 				compileExtensionsBuildTask,
+				compileExtensionMediaBuildTask,
 				minified ? minifyTask : optimizeTask,
 				serverTaskCI
 			));
@@ -392,33 +389,3 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 		});
 	});
 });
-
-function mixinServer(watch) {
-	const packageJSONPath = path.join(path.dirname(__dirname), 'package.json');
-	function exec(cmdLine) {
-		console.log(cmdLine);
-		cp.execSync(cmdLine, { stdio: 'inherit' });
-	}
-	function checkout() {
-		const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString());
-		exec('git fetch distro');
-		exec(`git checkout ${packageJSON['distro']} -- src/vs/server resources/server`);
-		exec('git reset HEAD src/vs/server resources/server');
-	}
-	checkout();
-	if (watch) {
-		console.log('Enter watch mode (observing package.json)');
-		const watcher = fs.watch(packageJSONPath);
-		watcher.addListener('change', () => {
-			try {
-				checkout();
-			} catch (e) {
-				console.log(e);
-			}
-		});
-	}
-	return Promise.resolve();
-}
-
-gulp.task(task.define('mixin-server', () => mixinServer(false)));
-gulp.task(task.define('mixin-server-watch', () => mixinServer(true)));

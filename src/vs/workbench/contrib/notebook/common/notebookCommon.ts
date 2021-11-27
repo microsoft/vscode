@@ -8,6 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDiffResult, ISequence } from 'vs/base/common/diff/diff';
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
+import { Iterable } from 'vs/base/common/iterator';
 import { Mimes } from 'vs/base/common/mime';
 import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
@@ -32,7 +33,7 @@ export enum CellKind {
 	Code = 2
 }
 
-export const NOTEBOOK_DISPLAY_ORDER = [
+export const NOTEBOOK_DISPLAY_ORDER: readonly string[] = [
 	'application/json',
 	'application/javascript',
 	'text/html',
@@ -44,7 +45,7 @@ export const NOTEBOOK_DISPLAY_ORDER = [
 	Mimes.text
 ];
 
-export const ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER = [
+export const ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER: readonly string[] = [
 	Mimes.latex,
 	Mimes.markdown,
 	'application/json',
@@ -54,6 +55,17 @@ export const ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER = [
 	'image/png',
 	'image/jpeg',
 ];
+
+/**
+ * A mapping of extension IDs who contain renderers, to notebook ids who they
+ * should be treated as the same in the renderer selection logic. This is used
+ * to prefer the 1st party Jupyter renderers even though they're in a separate
+ * extension, for instance. See #136247.
+ */
+export const RENDERER_EQUIVALENT_EXTENSIONS: ReadonlyMap<string, ReadonlySet<string>> = new Map([
+	['ms-toolsai.jupyter', new Set(['jupyter-notebook', 'interactive'])],
+	['ms-toolsai.jupyter-renderers', new Set(['jupyter-notebook', 'interactive'])],
+]);
 
 export const BUILTIN_RENDERER_ID = '_builtin';
 export const RENDERER_NOT_AVAILABLE = '_notAvailable';
@@ -80,9 +92,6 @@ export interface INotebookCellPreviousExecutionResult {
 }
 
 export interface NotebookCellMetadata {
-	inputCollapsed?: boolean;
-	outputCollapsed?: boolean;
-
 	/**
 	 * custom metadata
 	 */
@@ -108,8 +117,6 @@ export interface TransientOptions {
 	transientCellMetadata: TransientCellMetadata;
 	transientDocumentMetadata: TransientDocumentMetadata;
 }
-
-
 
 /** Note: enum values are used for sorting */
 export const enum NotebookRendererMatch {
@@ -514,19 +521,30 @@ export namespace CellUri {
 		};
 	}
 
-	export function parseCellMetadataUri(metadata: URI) {
-		if (metadata.scheme !== Schemas.vscodeNotebookCellMetadata) {
-			return undefined;
+	export function generateCellOutputUri(notebook: URI, handle: number, outputId?: string) {
+		return notebook.with({
+			scheme: Schemas.vscodeNotebookCellOutput,
+			fragment: `ch${handle.toString().padStart(7, '0')},${outputId ?? ''},${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
+		});
+	}
+
+	export function parseCellOutputUri(uri: URI): { notebook: URI, handle: number; outputId?: string } | undefined {
+		if (uri.scheme !== Schemas.vscodeNotebookCellOutput) {
+			return;
 		}
-		const match = _regex.exec(metadata.fragment);
+
+		const match = /^ch(\d{7,})\,([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?\,(.*)$/i.exec(uri.fragment);
 		if (!match) {
 			return undefined;
 		}
 		const handle = Number(match[1]);
+		const outputId = (match[2] && match[2] !== '') ? match[2] : undefined;
+		const scheme = match[3];
 		return {
 			handle,
-			notebook: metadata.with({
-				scheme: metadata.fragment.substr(match[0].length) || Schemas.file,
+			outputId,
+			notebook: uri.with({
+				scheme: scheme || Schemas.file,
 				fragment: null
 			})
 		};
@@ -572,7 +590,6 @@ const _mimeTypeInfo = new Map<string, MimeTypeInfo>([
 	['image/svg+xml', { supportedByCore: true }],
 	['application/json', { alwaysSecure: true, supportedByCore: true }],
 	[Mimes.latex, { alwaysSecure: true, supportedByCore: true }],
-	[Mimes.markdown, { alwaysSecure: true, supportedByCore: true }],
 	[Mimes.text, { alwaysSecure: true, supportedByCore: true }],
 	['text/html', { supportedByCore: true }],
 	['text/x-javascript', { alwaysSecure: true, supportedByCore: true }], // secure because rendered as text, not executed
@@ -593,38 +610,93 @@ export function mimeTypeIsMergeable(mimeType: string): boolean {
 	return _mimeTypeInfo.get(mimeType)?.mergeable ?? false;
 }
 
-function matchGlobUniversal(pattern: string, path: string) {
-	if (isWindows) {
-		pattern = pattern.replace(/\//g, '\\');
-		path = path.replace(/\//g, '\\');
-	}
+const normalizeSlashes = (str: string) => isWindows ? str.replace(/\//g, '\\') : str;
 
-	return glob.match(pattern, path);
+interface IMimeTypeWithMatcher {
+	pattern: string;
+	matches: glob.ParsedPattern;
 }
 
+export class MimeTypeDisplayOrder {
+	private readonly order: IMimeTypeWithMatcher[];
 
-function getMimeTypeOrder(mimeType: string, userDisplayOrder: string[], defaultOrder: string[]) {
-	let order = 0;
-	for (let i = 0; i < userDisplayOrder.length; i++) {
-		if (matchGlobUniversal(userDisplayOrder[i], mimeType)) {
-			return order;
-		}
-		order++;
+	constructor(
+		initialValue: readonly string[] = [],
+		private readonly defaultOrder = NOTEBOOK_DISPLAY_ORDER,
+	) {
+		this.order = [...new Set(initialValue)].map(pattern => ({
+			pattern,
+			matches: glob.parse(normalizeSlashes(pattern))
+		}));
 	}
 
-	for (let i = 0; i < defaultOrder.length; i++) {
-		if (matchGlobUniversal(defaultOrder[i], mimeType)) {
-			return order;
+	/**
+	 * Returns a sorted array of the input mimetypes.
+	 */
+	public sort(mimetypes: Iterable<string>): string[] {
+		const remaining = new Map(Iterable.map(mimetypes, m => [m, normalizeSlashes(m)]));
+		let sorted: string[] = [];
+
+		for (const { matches } of this.order) {
+			for (const [original, normalized] of remaining) {
+				if (matches(normalized)) {
+					sorted.push(original);
+					remaining.delete(original);
+					break;
+				}
+			}
 		}
 
-		order++;
+		if (remaining.size) {
+			sorted = sorted.concat([...remaining.keys()].sort(
+				(a, b) => this.defaultOrder.indexOf(a) - this.defaultOrder.indexOf(b),
+			));
+		}
+
+		return sorted;
 	}
 
-	return order;
-}
+	/**
+	 * Records that the user selected the given mimetype over the other
+	 * possible mimetypes, prioritizing it for future reference.
+	 */
+	public prioritize(chosenMimetype: string, otherMimetypes: readonly string[]) {
+		const chosenIndex = this.findIndex(chosenMimetype);
+		if (chosenIndex === -1) {
+			// always first, nothing more to do
+			this.order.unshift({ pattern: chosenMimetype, matches: glob.parse(normalizeSlashes(chosenMimetype)) });
+			return;
+		}
 
-export function sortMimeTypes(mimeTypes: string[], userDisplayOrder: string[], defaultOrder: string[]) {
-	return mimeTypes.sort((a, b) => getMimeTypeOrder(a, userDisplayOrder, defaultOrder) - getMimeTypeOrder(b, userDisplayOrder, defaultOrder));
+		// Get the other mimetypes that are before the chosenMimetype. Then, move
+		// them after it, retaining order.
+		const uniqueIndicies = new Set(otherMimetypes.map(m => this.findIndex(m, chosenIndex)));
+		uniqueIndicies.delete(-1);
+		const otherIndices = Array.from(uniqueIndicies).sort();
+		this.order.splice(chosenIndex + 1, 0, ...otherIndices.map(i => this.order[i]));
+
+		for (let oi = otherIndices.length - 1; oi >= 0; oi--) {
+			this.order.splice(otherIndices[oi], 1);
+		}
+	}
+
+	/**
+	 * Gets an array of in-order mimetype preferences.
+	 */
+	public toArray() {
+		return this.order.map(o => o.pattern);
+	}
+
+	private findIndex(mimeType: string, maxIndex = this.order.length) {
+		const normalized = normalizeSlashes(mimeType);
+		for (let i = 0; i < maxIndex; i++) {
+			if (this.order[i].matches(normalized)) {
+				return i;
+			}
+		}
+
+		return -1;
+	}
 }
 
 interface IMutableSplice<T> extends ISplice<T> {
@@ -840,26 +912,30 @@ export interface INotebookCellStatusBarItemList {
 	dispose?(): void;
 }
 
-export const DisplayOrderKey = 'notebook.displayOrder';
-export const CellToolbarLocation = 'notebook.cellToolbarLocation';
-export const CellToolbarVisibility = 'notebook.cellToolbarVisibility';
 export type ShowCellStatusBarType = 'hidden' | 'visible' | 'visibleAfterExecute';
-export const ShowCellStatusBar = 'notebook.showCellStatusBar';
-export const NotebookTextDiffEditorPreview = 'notebook.diff.enablePreview';
-export const ExperimentalInsertToolbarAlignment = 'notebook.experimental.insertToolbarAlignment';
-export const CompactView = 'notebook.compactView';
-export const FocusIndicator = 'notebook.cellFocusIndicator';
-export const InsertToolbarLocation = 'notebook.insertToolbarLocation';
-export const GlobalToolbar = 'notebook.globalToolbar';
-export const UndoRedoPerCell = 'notebook.undoRedoPerCell';
-export const ConsolidatedOutputButton = 'notebook.consolidatedOutputButton';
-export const ShowFoldingControls = 'notebook.showFoldingControls';
-export const DragAndDropEnabled = 'notebook.dragAndDropEnabled';
-export const NotebookCellEditorOptionsCustomizations = 'notebook.editorOptionsCustomizations';
-export const ConsolidatedRunButton = 'notebook.consolidatedRunButton';
-export const OpenGettingStarted = 'notebook.experimental.openGettingStarted';
-export const TextOutputLineLimit = 'notebook.output.textLineLimit';
-export const GlobalToolbarShowLabel = 'notebook.globalToolbarShowLabel';
+
+export const NotebookSetting = {
+	displayOrder: 'notebook.displayOrder',
+	cellToolbarLocation: 'notebook.cellToolbarLocation',
+	cellToolbarVisibility: 'notebook.cellToolbarVisibility',
+	showCellStatusBar: 'notebook.showCellStatusBar',
+	textDiffEditorPreview: 'notebook.diff.enablePreview',
+	experimentalInsertToolbarAlignment: 'notebook.experimental.insertToolbarAlignment',
+	compactView: 'notebook.compactView',
+	focusIndicator: 'notebook.cellFocusIndicator',
+	insertToolbarLocation: 'notebook.insertToolbarLocation',
+	globalToolbar: 'notebook.globalToolbar',
+	undoRedoPerCell: 'notebook.undoRedoPerCell',
+	consolidatedOutputButton: 'notebook.consolidatedOutputButton',
+	showFoldingControls: 'notebook.showFoldingControls',
+	dragAndDropEnabled: 'notebook.dragAndDropEnabled',
+	cellEditorOptionsCustomizations: 'notebook.editorOptionsCustomizations',
+	consolidatedRunButton: 'notebook.consolidatedRunButton',
+	openGettingStarted: 'notebook.experimental.openGettingStarted',
+	textOutputLineLimit: 'notebook.output.textLineLimit',
+	globalToolbarShowLabel: 'notebook.globalToolbarShowLabel',
+	markupFontSize: 'notebook.markup.fontSize',
+} as const;
 
 export const enum CellStatusbarAlignment {
 	Left = 1,

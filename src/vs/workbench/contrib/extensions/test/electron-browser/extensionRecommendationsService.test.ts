@@ -218,7 +218,8 @@ suite('ExtensionRecommendationsService Test', () => {
 			onDidUninstallExtension: didUninstallEvent.event,
 			async getInstalled() { return []; },
 			async canInstall() { return true; },
-			async getExtensionsReport() { return []; },
+			async getExtensionsControlManifest() { return { malicious: [] }; },
+			async getTargetPlatform() { return getTargetPlatform(platform, arch); }
 		});
 		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
 			async whenInstalledExtensionsRegistered() { return true; }

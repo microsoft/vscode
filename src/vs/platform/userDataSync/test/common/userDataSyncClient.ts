@@ -16,6 +16,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IHeaders, IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
+import { IUserConfigurationFileService, UserConfigurationFileService } from 'vs/platform/configuration/common/userConfigurationFileService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { DidUninstallExtensionEvent, IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -30,6 +31,8 @@ import { IRequestService } from 'vs/platform/request/common/request';
 import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { ExtensionsStorageSyncService, IExtensionsStorageSyncService } from 'vs/platform/userDataSync/common/extensionsStorageSync';
 import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 import { UserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
@@ -88,6 +91,8 @@ export class UserDataSyncClient extends Disposable {
 		const configurationService = this._register(new ConfigurationService(environmentService.settingsResource, fileService));
 		await configurationService.initialize();
 		this.instantiationService.stub(IConfigurationService, configurationService);
+		this.instantiationService.stub(IUserConfigurationFileService, this.instantiationService.createInstance(UserConfigurationFileService));
+		this.instantiationService.stub(IUriIdentityService, this.instantiationService.createInstance(UriIdentityService));
 
 		this.instantiationService.stub(IRequestService, this.testServer);
 

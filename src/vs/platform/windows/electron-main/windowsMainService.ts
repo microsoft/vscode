@@ -17,10 +17,9 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basename, join, normalize, posix } from 'vs/base/common/path';
 import { getMarks, mark } from 'vs/base/common/performance';
-import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
+import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { cwd } from 'vs/base/common/process';
-import { extUriBiasedIgnorePathCase, normalizePath, originalFSPath, removeTrailingPathSeparator } from 'vs/base/common/resources';
-import { equalsIgnoreCase } from 'vs/base/common/strings';
+import { extUriBiasedIgnorePathCase, isEqualAuthority, normalizePath, originalFSPath, removeTrailingPathSeparator } from 'vs/base/common/resources';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -30,7 +29,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { IFileService } from 'vs/platform/files/common/files';
+import { FileType, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -571,16 +570,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				const remoteAuthority = emptyWindowBackupInfo.remoteAuthority;
 				const filesToOpenInWindow = isEqualAuthority(filesToOpen?.remoteAuthority, remoteAuthority) ? filesToOpen : undefined;
 
-				addUsedWindow(this.openInBrowserWindow({
-					userEnv: openConfig.userEnv,
-					cli: openConfig.cli,
-					initialStartup: openConfig.initialStartup,
-					filesToOpen: filesToOpenInWindow,
-					remoteAuthority,
-					forceNewWindow: true,
-					forceNewTabbedWindow: openConfig.forceNewTabbedWindow,
-					emptyWindowBackupInfo
-				}), !!filesToOpenInWindow);
+				addUsedWindow(this.doOpenEmpty(openConfig, true, remoteAuthority, filesToOpenInWindow, emptyWindowBackupInfo), !!filesToOpenInWindow);
 
 				openFolderInNewWindow = true; // any other folders to open must open in new window then
 			});
@@ -606,7 +596,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	}
 
 	private doOpenFilesInExistingWindow(configuration: IOpenConfiguration, window: ICodeWindow, filesToOpen?: IFilesToOpen): ICodeWindow {
-		this.logService.trace('windowsManager#doOpenFilesInExistingWindow');
+		this.logService.trace('windowsManager#doOpenFilesInExistingWindow', { filesToOpen });
 
 		window.focus(); // make sure window has focus
 
@@ -622,7 +612,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	}
 
 	private doAddFoldersToExistingWindow(window: ICodeWindow, foldersToAdd: URI[]): ICodeWindow {
-		this.logService.trace('windowsManager#doAddFoldersToExistingWindow');
+		this.logService.trace('windowsManager#doAddFoldersToExistingWindow', { foldersToAdd });
 
 		window.focus(); // make sure window has focus
 
@@ -632,8 +622,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return window;
 	}
 
-	private doOpenEmpty(openConfig: IOpenConfiguration, forceNewWindow: boolean, remoteAuthority: string | undefined, filesToOpen: IFilesToOpen | undefined, windowToUse?: ICodeWindow): ICodeWindow {
-		if (!forceNewWindow && !windowToUse && typeof openConfig.contextWindowId === 'number') {
+	private doOpenEmpty(openConfig: IOpenConfiguration, forceNewWindow: boolean, remoteAuthority: string | undefined, filesToOpen: IFilesToOpen | undefined, emptyWindowBackupInfo?: IEmptyWindowBackupInfo): ICodeWindow {
+		this.logService.trace('windowsManager#doOpenEmpty', { restore: !!emptyWindowBackupInfo, remoteAuthority, filesToOpen, forceNewWindow });
+
+		let windowToUse: ICodeWindow | undefined;
+		if (!forceNewWindow && typeof openConfig.contextWindowId === 'number') {
 			windowToUse = this.getWindowById(openConfig.contextWindowId); // fix for https://github.com/microsoft/vscode/issues/97172
 		}
 
@@ -645,11 +638,14 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			forceNewWindow,
 			forceNewTabbedWindow: openConfig.forceNewTabbedWindow,
 			filesToOpen,
-			windowToUse
+			windowToUse,
+			emptyWindowBackupInfo
 		});
 	}
 
 	private doOpenFolderOrWorkspace(openConfig: IOpenConfiguration, folderOrWorkspace: IWorkspacePathToOpen | ISingleFolderWorkspacePathToOpen, forceNewWindow: boolean, filesToOpen: IFilesToOpen | undefined, windowToUse?: ICodeWindow): ICodeWindow {
+		this.logService.trace('windowsManager#doOpenFolderOrWorkspace', { folderOrWorkspace, filesToOpen });
+
 		if (!forceNewWindow && !windowToUse && typeof openConfig.contextWindowId === 'number') {
 			windowToUse = this.getWindowById(openConfig.contextWindowId); // fix for https://github.com/microsoft/vscode/issues/49587
 		}
@@ -974,6 +970,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		try {
 			const pathStat = statSync(path);
+
+			// File
 			if (pathStat.isFile()) {
 
 				// Workspace (unless disabled via flag)
@@ -987,23 +985,43 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 							return undefined;
 						}
 
-						return { workspace: { id: workspace.id, configPath: workspace.configPath }, remoteAuthority: workspace.remoteAuthority, exists: true, transient: workspace.transient };
+						return {
+							workspace: { id: workspace.id, configPath: workspace.configPath },
+							type: FileType.File,
+							exists: true,
+							remoteAuthority: workspace.remoteAuthority,
+							transient: workspace.transient
+						};
 					}
 				}
 
-				// File
 				return {
 					fileUri: URI.file(path),
-					selection: lineNumber ? { startLineNumber: lineNumber, startColumn: columnNumber || 1 } : undefined,
+					type: FileType.File,
+					exists: true,
+					selection: lineNumber ? { startLineNumber: lineNumber, startColumn: columnNumber || 1 } : undefined
+				};
+			}
+
+			// Folder
+			else if (pathStat.isDirectory()) {
+				return {
+					workspace: getSingleFolderWorkspaceIdentifier(URI.file(path), pathStat),
+					type: FileType.Directory,
 					exists: true
 				};
 			}
 
-			// Folder (we check for isDirectory() because e.g. paths like /dev/null
-			// are neither file nor folder but some external tools might pass them
-			// over to us)
-			else if (pathStat.isDirectory()) {
-				return { workspace: getSingleFolderWorkspaceIdentifier(URI.file(path), pathStat), exists: true };
+			// Special device: in POSIX environments, we may get /dev/null passed
+			// in (for example git uses it to signal one side of a diff does not
+			// exist). In that special case, treat it like a file to support this
+			// scenario ()
+			else if (!isWindows && path === '/dev/null') {
+				return {
+					fileUri: URI.file(path),
+					type: FileType.File,
+					exists: true
+				};
 			}
 		} catch (error) {
 			const fileUri = URI.file(path);
@@ -1013,7 +1031,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			// assume this is a file that does not yet exist
 			if (options.ignoreFileNotFound) {
-				return { fileUri, exists: false };
+				return {
+					fileUri,
+					type: FileType.File,
+					exists: false
+				};
 			}
 		}
 
@@ -1182,7 +1204,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				return false;
 			}
 
-			return getRemoteAuthority(uri) === remoteAuthority;
+			return isEqualAuthority(getRemoteAuthority(uri), remoteAuthority);
 		});
 
 		folderUris = folderUris.filter(folderUriStr => {
@@ -1191,7 +1213,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				return false;
 			}
 
-			return folderUri ? getRemoteAuthority(folderUri) === remoteAuthority : false;
+			return folderUri ? isEqualAuthority(getRemoteAuthority(folderUri), remoteAuthority) : false;
 		});
 
 		fileUris = fileUris.filter(fileUriStr => {
@@ -1200,7 +1222,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				return false;
 			}
 
-			return fileUri ? getRemoteAuthority(fileUri) === remoteAuthority : false;
+			return fileUri ? isEqualAuthority(getRemoteAuthority(fileUri), remoteAuthority) : false;
 		});
 
 		openConfig.cli._ = cliArgs;
@@ -1460,8 +1482,4 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		return this.getWindowById(browserWindow.id);
 	}
-}
-
-function isEqualAuthority(a1: string | undefined, a2: string | undefined) {
-	return a1 === a2 || (a1 !== undefined && a2 !== undefined && equalsIgnoreCase(a1, a2));
 }

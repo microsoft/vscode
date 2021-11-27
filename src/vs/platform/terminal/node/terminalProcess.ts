@@ -84,8 +84,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		shellType: undefined,
 		hasChildProcesses: true,
 		resolvedShellLaunchConfig: {},
-		overrideDimensions: undefined,
-		exit: undefined
+		overrideDimensions: undefined
 	};
 	private static _lastKillOrStart = 0;
 	private _exitCode: number | undefined;
@@ -120,6 +119,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	readonly onProcessReady = this._onProcessReady.event;
 	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
+	private readonly _onProcessExit = this._register(new Emitter<number>());
+	readonly onProcessExit = this._onProcessExit.event;
 
 	constructor(
 		readonly shellLaunchConfig: IShellLaunchConfig,
@@ -329,7 +330,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		} catch (ex) {
 			// Swallow, the pty has already been killed
 		}
-		this._onDidChangeProperty.fire({ type: ProcessPropertyType.Exit, value: this._exitCode || 0 });
+		this._onProcessExit.fire(this._exitCode || 0);
 		this.dispose();
 	}
 
@@ -396,7 +397,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this.input(data, true);
 	}
 
-	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
+	async refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]> {
 		switch (type) {
 			case ProcessPropertyType.Cwd:
 				const newCwd = await this.getCwd();
@@ -419,10 +420,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 	}
 
-	async updateProperty<T extends ProcessPropertyType>(type: ProcessPropertyType, value: IProcessPropertyMap[T]): Promise<void> {
-		//TODO: why is the type check necessary?
-		if (type === ProcessPropertyType.FixedDimensions && typeof value !== 'string' && value && ('cols' in value || 'rows' in value)) {
-			this._properties.fixedDimensions = value;
+	async updateProperty<T extends ProcessPropertyType>(type: T, value: IProcessPropertyMap[T]): Promise<void> {
+		if (type === ProcessPropertyType.FixedDimensions) {
+			this._properties.fixedDimensions = value as IProcessPropertyMap[ProcessPropertyType.FixedDimensions];
 		}
 	}
 

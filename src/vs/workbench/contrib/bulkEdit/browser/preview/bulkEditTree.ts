@@ -553,7 +553,7 @@ class TextEditElementTemplate {
 		this._icon = document.createElement('div');
 		container.appendChild(this._icon);
 
-		this._label = new HighlightedLabel(container, false);
+		this._label = new HighlightedLabel(container);
 	}
 
 	dispose(): void {
@@ -582,8 +582,8 @@ class TextEditElementTemplate {
 		value += element.inserting;
 		value += element.suffix;
 
-		let selectHighlight: IHighlight = { start: element.prefix.length, end: element.prefix.length + element.selecting.length, extraClasses: 'remove' };
-		let insertHighlight: IHighlight = { start: selectHighlight.end, end: selectHighlight.end + element.inserting.length, extraClasses: 'insert' };
+		let selectHighlight: IHighlight = { start: element.prefix.length, end: element.prefix.length + element.selecting.length, extraClasses: ['remove'] };
+		let insertHighlight: IHighlight = { start: selectHighlight.end, end: selectHighlight.end + element.inserting.length, extraClasses: ['insert'] };
 
 		let title: string | undefined;
 		let { metadata } = element.edit.textEdit;

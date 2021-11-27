@@ -16,7 +16,7 @@ import { ExceptionBreakpoint, Expression, DataBreakpoint, FunctionBreakpoint, Br
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { TestFileService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { ITextModel } from 'vs/editor/common/model';
 
 const fileService = new TestFileService();

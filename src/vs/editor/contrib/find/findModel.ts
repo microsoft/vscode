@@ -55,6 +55,7 @@ export const TogglePreserveCaseKeybinding: IKeybindings = {
 export const FIND_IDS = {
 	StartFindAction: 'actions.find',
 	StartFindWithSelection: 'actions.findWithSelection',
+	StartFindWithArgs: 'editor.actions.findWithArgs',
 	NextMatchFindAction: 'editor.action.nextMatchFindAction',
 	PreviousMatchFindAction: 'editor.action.previousMatchFindAction',
 	NextSelectionMatchFindAction: 'editor.action.nextSelectionMatchFindAction',

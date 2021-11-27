@@ -12,7 +12,7 @@ import { BuiltinTheme, IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeS
 import { hc_black, vs, vs_dark } from 'vs/editor/standalone/common/themes';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ColorIdentifier, Extensions, IColorRegistry } from 'vs/platform/theme/common/colorRegistry';
+import { asCssVariableName, ColorIdentifier, Extensions, IColorRegistry } from 'vs/platform/theme/common/colorRegistry';
 import { Extensions as ThemingExtensions, ICssStyleCollector, IFileIconTheme, IThemingRegistry, ITokenStyle } from 'vs/platform/theme/common/themeService';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
@@ -131,6 +131,19 @@ class StandaloneTheme implements IStandaloneTheme {
 				if (baseData.encodedTokensColors) {
 					encodedTokensColors = baseData.encodedTokensColors;
 				}
+			}
+			// Pick up default colors from `editor.foreground` and `editor.background` if available
+			const editorForeground = this.themeData.colors['editor.foreground'];
+			const editorBackground = this.themeData.colors['editor.background'];
+			if (editorForeground || editorBackground) {
+				const rule: ITokenThemeRule = { token: '' };
+				if (editorForeground) {
+					rule.foreground = editorForeground;
+				}
+				if (editorBackground) {
+					rule.background = editorBackground;
+				}
+				rules.push(rule);
 			}
 			rules = rules.concat(this.themeData.rules);
 			if (this.themeData.encodedTokensColors) {
@@ -345,6 +358,15 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 			}
 		};
 		themingRegistry.getThemingParticipants().forEach(p => p(this._theme, ruleCollector, this._environment));
+
+		const colorVariables: string[] = [];
+		for (const item of colorRegistry.getColors()) {
+			const color = this._theme.getColor(item.id, true);
+			if (color) {
+				colorVariables.push(`${asCssVariableName(item.id)}: ${color.toString()};`);
+			}
+		}
+		ruleCollector.addRule(`.monaco-editor { ${colorVariables.join('\n')} }`);
 
 		const colorMap = this._colorMapOverride || this._theme.tokenTheme.getColorMap();
 		ruleCollector.addRule(generateTokensCSSForColorMap(colorMap));

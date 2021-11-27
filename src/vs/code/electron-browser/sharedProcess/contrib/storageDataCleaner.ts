@@ -17,6 +17,9 @@ export class StorageDataCleaner extends Disposable {
 	// Workspace/Folder storage names are MD5 hashes (128bits / 4 due to hex presentation)
 	private static readonly NON_EMPTY_WORKSPACE_ID_LENGTH = 128 / 4;
 
+	// Reserved empty window workspace storage name when in extension development
+	private static readonly EXTENSION_DEV_EMPTY_WINDOW_ID = 'ext-dev';
+
 	constructor(
 		private readonly backupWorkspacesPath: string,
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
@@ -42,18 +45,20 @@ export class StorageDataCleaner extends Disposable {
 			const workspaces = JSON.parse(contents) as IBackupWorkspacesFormat;
 			const emptyWorkspaces = workspaces.emptyWorkspaceInfos.map(emptyWorkspace => emptyWorkspace.backupFolder);
 
-			// Read all workspace storage folders that exist
-			const storageFolders = await Promises.readdir(this.environmentService.workspaceStorageHome.fsPath);
-			await Promise.all(storageFolders.map(async storageFolder => {
-				if (storageFolder.length === StorageDataCleaner.NON_EMPTY_WORKSPACE_ID_LENGTH) {
+			// Read all workspace storage folders that exist & cleanup unused
+			const workspaceStorageFolders = await Promises.readdir(this.environmentService.workspaceStorageHome.fsPath);
+			await Promise.all(workspaceStorageFolders.map(async workspaceStorageFolder => {
+				if (
+					workspaceStorageFolder.length === StorageDataCleaner.NON_EMPTY_WORKSPACE_ID_LENGTH || 	// keep non-empty workspaces
+					workspaceStorageFolder === StorageDataCleaner.EXTENSION_DEV_EMPTY_WINDOW_ID ||			// keep empty extension dev workspaces
+					emptyWorkspaces.indexOf(workspaceStorageFolder) >= 0									// keep empty workspaces that are in use
+				) {
 					return;
 				}
 
-				if (emptyWorkspaces.indexOf(storageFolder) === -1) {
-					this.logService.trace(`[storage cleanup]: Deleting storage folder ${storageFolder}.`);
+				this.logService.trace(`[storage cleanup]: Deleting workspace storage folder ${workspaceStorageFolder}.`);
 
-					await Promises.rm(join(this.environmentService.workspaceStorageHome.fsPath, storageFolder));
-				}
+				await Promises.rm(join(this.environmentService.workspaceStorageHome.fsPath, workspaceStorageFolder));
 			}));
 		} catch (error) {
 			onUnexpectedError(error);

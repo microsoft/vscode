@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { createDecorator, IInstantiationService, optional, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
@@ -85,18 +85,7 @@ class TargetWithStaticParam {
 	}
 }
 
-class TargetNotOptional {
-	constructor(@IService1 service1: IService1, @IService2 service2: IService2) {
 
-	}
-}
-class TargetOptional {
-	constructor(@IService1 service1: IService1, @optional(IService2) service2: IService2) {
-		assert.ok(service1);
-		assert.strictEqual(service1.c, 1);
-		assert.ok(service2 === undefined);
-	}
-}
 
 class DependentServiceTarget {
 	constructor(@IDependentService d: IDependentService) {
@@ -181,13 +170,6 @@ suite('Instantiation Service', () => {
 		let service = new InstantiationService(collection);
 		service.createInstance(Service1Consumer);
 
-		// no IService2
-		assert.throws(() => service.createInstance(Target2Dep));
-		service.invokeFunction(function (a) {
-			assert.ok(a.get(IService1));
-			assert.ok(!a.get(IService2, optional));
-		});
-
 		collection.set(IService2, new Service2());
 
 		service.createInstance(Target2Dep);
@@ -195,18 +177,6 @@ suite('Instantiation Service', () => {
 			assert.ok(a.get(IService1));
 			assert.ok(a.get(IService2));
 		});
-	});
-
-	test('@Param - optional', function () {
-		let collection = new ServiceCollection([IService1, new Service1()]);
-		let service = new InstantiationService(collection, true);
-
-		service.createInstance(TargetOptional);
-		assert.throws(() => service.createInstance(TargetNotOptional));
-
-		service = new InstantiationService(collection, false);
-		service.createInstance(TargetOptional);
-		service.createInstance(TargetNotOptional);
 	});
 
 	// we made this a warning
@@ -320,7 +290,6 @@ suite('Instantiation Service', () => {
 		function test(accessor: ServicesAccessor) {
 			assert.ok(accessor.get(IService1) instanceof Service1);
 			assert.throws(() => accessor.get(IService2));
-			assert.strictEqual(accessor.get(IService2, optional), undefined);
 			return true;
 		}
 		assert.strictEqual(service.invokeFunction(test), true);

@@ -268,10 +268,6 @@ export class WalkThroughPart extends EditorPane {
 	}
 
 	override setInput(input: WalkThroughInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		if (this.input instanceof WalkThroughInput) {
-			this.saveTextEditorViewState(this.input);
-		}
-
 		const store = new DisposableStore();
 		this.contentDisposables.push(store);
 
@@ -538,16 +534,16 @@ registerThemingParticipant((theme, collector) => {
 	}
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent a { color: ${link}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent a[href] { color: ${link}; }`);
 	}
 	const activeLink = theme.getColor(textLinkActiveForeground);
 	if (activeLink) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent a:hover,
-			.monaco-workbench .part.editor > .content .walkThroughContent a:active { color: ${activeLink}; }`);
+			.monaco-workbench .part.editor > .content .walkThroughContent a[href]:active { color: ${activeLink}; }`);
 	}
 	const focusColor = theme.getColor(focusBorder);
 	if (focusColor) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent a:focus { outline-color: ${focusColor}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent a[href]:focus { outline-color: ${focusColor}; }`);
 	}
 	const shortcut = theme.getColor(textPreformatForeground);
 	if (shortcut) {

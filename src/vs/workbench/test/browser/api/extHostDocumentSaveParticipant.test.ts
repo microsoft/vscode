@@ -15,7 +15,7 @@ import type * as vscode from 'vscode';
 import { mock } from 'vs/base/test/common/mock';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { timeout } from 'vs/base/common/async';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 
 suite('ExtHostDocumentSaveParticipant', () => {
 
@@ -23,18 +23,6 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	let mainThreadBulkEdits = new class extends mock<MainThreadBulkEditsShape>() { };
 	let documents: ExtHostDocuments;
 	let nullLogService = new NullLogService();
-	let nullExtensionDescription: IExtensionDescription = {
-		identifier: new ExtensionIdentifier('nullExtensionDescription'),
-		name: 'Null Extension Description',
-		publisher: 'vscode',
-		enableProposedApi: false,
-		engines: undefined!,
-		extensionLocation: undefined!,
-		isBuiltin: false,
-		isUserBuiltin: false,
-		isUnderDevelopment: false,
-		version: undefined!
-	};
 
 	setup(() => {
 		const documentsAndEditors = new ExtHostDocumentsAndEditors(SingleProxyRPCProtocol(null), new NullLogService());

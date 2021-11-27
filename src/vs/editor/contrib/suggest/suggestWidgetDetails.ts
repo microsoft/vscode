@@ -262,6 +262,7 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 
 	private _added: boolean = false;
 	private _anchorBox?: dom.IDomNodePagePosition;
+	private _preferAlignAtTop: boolean = true;
 	private _userSize?: dom.Dimension;
 	private _topLeft?: TopLeftPosition;
 
@@ -315,7 +316,7 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 
 		this._disposables.add(this.widget.onDidChangeContents(() => {
 			if (this._anchorBox) {
-				this._placeAtAnchor(this._anchorBox, this._userSize ?? this.widget.size);
+				this._placeAtAnchor(this._anchorBox, this._userSize ?? this.widget.size, this._preferAlignAtTop);
 			}
 		}));
 	}
@@ -361,13 +362,14 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 		}
 	}
 
-	placeAtAnchor(anchor: HTMLElement) {
-		const anchorBox = dom.getDomNodePagePosition(anchor);
+	placeAtAnchor(anchor: HTMLElement, preferAlignAtTop: boolean) {
+		const anchorBox = anchor.getBoundingClientRect();
 		this._anchorBox = anchorBox;
-		this._placeAtAnchor(this._anchorBox, this._userSize ?? this.widget.size);
+		this._preferAlignAtTop = preferAlignAtTop;
+		this._placeAtAnchor(this._anchorBox, this._userSize ?? this.widget.size, preferAlignAtTop);
 	}
 
-	_placeAtAnchor(anchorBox: dom.IDomNodePagePosition, size: dom.Dimension) {
+	_placeAtAnchor(anchorBox: dom.IDomNodePagePosition, size: dom.Dimension, preferAlignAtTop: boolean) {
 		const bodyBox = dom.getClientArea(document.body);
 
 		const info = this.widget.getLayoutInfo();
@@ -416,12 +418,22 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 			height = maxHeight;
 		}
 		let maxSize: dom.Dimension;
-		if (height <= placement.maxSizeTop.height) {
-			alignAtTop = true;
-			maxSize = placement.maxSizeTop;
+		if (preferAlignAtTop) {
+			if (height <= placement.maxSizeTop.height) {
+				alignAtTop = true;
+				maxSize = placement.maxSizeTop;
+			} else {
+				alignAtTop = false;
+				maxSize = placement.maxSizeBottom;
+			}
 		} else {
-			alignAtTop = false;
-			maxSize = placement.maxSizeBottom;
+			if (height <= placement.maxSizeBottom.height) {
+				alignAtTop = false;
+				maxSize = placement.maxSizeBottom;
+			} else {
+				alignAtTop = true;
+				maxSize = placement.maxSizeTop;
+			}
 		}
 
 		this._applyTopLeft({ left: placement.left, top: alignAtTop ? placement.top : bottom - height });

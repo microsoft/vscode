@@ -8,7 +8,7 @@ steps:
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
-      SecretsFilter: 'github-distro-mixin-password,macos-developer-certificate,macos-developer-certificate-key,ticino-storage-key'
+      SecretsFilter: "github-distro-mixin-password,macos-developer-certificate,macos-developer-certificate-key"
 
   - task: DownloadPipelineArtifact@2
     inputs:
@@ -36,12 +36,6 @@ steps:
       git config user.email "vscode@microsoft.com"
       git config user.name "VSCode"
     displayName: Prepare tooling
-
-  - script: |
-      set -e
-      sudo xcode-select -s /Applications/Xcode_12.2.app
-    displayName: Switch to Xcode 12
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'arm64'))
 
   - script: |
       set -e
@@ -84,7 +78,6 @@ steps:
       set -e
       export npm_config_arch=$(VSCODE_ARCH)
       export npm_config_node_gyp=$(which node-gyp)
-      export SDKROOT=/Applications/Xcode_12.2.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.0.sdk
 
       for i in {1..3}; do # try 3 times, for Terrapin
         yarn --frozen-lockfile && break
@@ -181,6 +174,13 @@ steps:
 
   - script: |
       set -e
+      yarn test-node --build
+    displayName: Run unit tests (node.js)
+    timeoutInMinutes: 7
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+  - script: |
+      set -e
       yarn test-browser --build --browser chromium --browser webkit --browser firefox --tfs "Browser Unit Tests"
     displayName: Run unit tests (Browser)
     timeoutInMinutes: 7
@@ -215,7 +215,7 @@ steps:
       INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME/Contents/MacOS/Electron" \
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin" \
       ./resources/server/test/test-remote-integration.sh
-    displayName: Run remote integration tests (Electron)
+    displayName: Run integration tests (Remote)
     timeoutInMinutes: 7
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
@@ -224,7 +224,7 @@ steps:
       APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
       APP_NAME="`ls $APP_ROOT | head -n 1`"
       yarn smoketest-no-compile --build "$APP_ROOT/$APP_NAME" --screenshots $(Build.SourcesDirectory)/.build/logs/smoke-tests
-    timeoutInMinutes: 5
+    timeoutInMinutes: 10
     displayName: Run smoke tests (Electron)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
@@ -233,8 +233,8 @@ steps:
       APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
       APP_NAME="`ls $APP_ROOT | head -n 1`"
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin" \
-      yarn smoketest-no-compile --build "$APP_ROOT/$APP_NAME" --remote --screenshots $(Build.SourcesDirectory)/.build/logs/smoke-tests
-    timeoutInMinutes: 5
+      yarn smoketest-no-compile --build "$APP_ROOT/$APP_NAME" --remote --screenshots $(Build.SourcesDirectory)/.build/logs/smoke-tests-remote
+    timeoutInMinutes: 10
     displayName: Run smoke tests (Remote)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
@@ -242,7 +242,7 @@ steps:
       set -e
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-darwin" \
       yarn smoketest-no-compile --web --headless
-    timeoutInMinutes: 5
+    timeoutInMinutes: 10
     displayName: Run smoke tests (Browser)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
@@ -301,10 +301,25 @@ steps:
     displayName: Publish web server archive
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), ne(variables['VSCODE_PUBLISH'], 'false'))
 
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: "vscode-builds-subscription"
+      scriptType: pscore
+      scriptLocation: inlineScript
+      addSpnToEnvironment: true
+      inlineScript: |
+        Write-Host "##vso[task.setvariable variable=AZURE_TENANT_ID]$env:tenantId"
+        Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$env:servicePrincipalId"
+        Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_SECRET;issecret=true]$env:servicePrincipalKey"
+
   - script: |
-      AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
+      set -e
+      AZURE_STORAGE_ACCOUNT="ticino" \
+      AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
+      AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
+      AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
       VSCODE_ARCH="$(VSCODE_ARCH)" \
-      yarn gulp upload-vscode-configuration
+        node build/azure-pipelines/upload-configuration
     displayName: Upload configuration (for Bing settings search)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), ne(variables['VSCODE_PUBLISH'], 'false'))
     continueOnError: true

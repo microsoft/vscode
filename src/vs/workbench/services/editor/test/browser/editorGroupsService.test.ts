@@ -490,7 +490,8 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group.activeEditor, inputInactive);
 
 		await group.openEditor(input);
-		await group.closeEditor(inputInactive);
+		const closed = await group.closeEditor(inputInactive);
+		assert.strictEqual(closed, true);
 
 		assert.strictEqual(activeEditorChangeCounter, 3);
 		assert.strictEqual(editorCloseCounter, 1);
@@ -553,12 +554,14 @@ suite('EditorGroupsService', () => {
 		await group.openEditor(input);
 
 		accessor.fileDialogService.setConfirmResult(ConfirmResult.CANCEL);
-		await group.closeEditor(input);
+		let closed = await group.closeEditor(input);
+		assert.strictEqual(closed, false);
 
 		assert.ok(!input.gotDisposed);
 
 		accessor.fileDialogService.setConfirmResult(ConfirmResult.DONT_SAVE);
-		await group.closeEditor(input);
+		closed = await group.closeEditor(input);
+		assert.strictEqual(closed, true);
 
 		assert.ok(input.gotDisposed);
 	});
@@ -576,11 +579,13 @@ suite('EditorGroupsService', () => {
 		await group.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]);
 		await rightGroup.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]);
 
-		await rightGroup.closeEditor(input);
+		let closed = await rightGroup.closeEditor(input);
+		assert.strictEqual(closed, true);
 
 		assert.ok(!input.gotDisposed);
 
-		await group.closeEditor(input);
+		closed = await group.closeEditor(input);
+		assert.strictEqual(closed, true);
 
 		assert.ok(input.gotDisposed);
 	});

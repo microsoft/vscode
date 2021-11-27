@@ -12,13 +12,13 @@ import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription, 
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
+import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 
 export const nullExtensionDescription = Object.freeze(<IExtensionDescription>{
 	identifier: new ExtensionIdentifier('nullExtensionDescription'),
 	name: 'Null Extension Description',
 	version: '0.0.0',
 	publisher: 'vscode',
-	enableProposedApi: false,
 	engines: { vscode: '' },
 	extensionLocation: URI.parse('void:location'),
 	isBuiltin: false,
@@ -131,6 +131,19 @@ export interface IExtensionHost {
 	getInspectPort(): number | undefined;
 	enableInspectPort(): Promise<boolean>;
 	dispose(): void;
+}
+
+export function isProposedApiEnabled(extension: IExtensionDescription, proposal: ApiProposalName): boolean {
+	if (!extension.enabledApiProposals) {
+		return false;
+	}
+	return extension.enabledApiProposals.includes(proposal);
+}
+
+export function checkProposedApiEnabled(extension: IExtensionDescription, proposal: ApiProposalName): void {
+	if (!isProposedApiEnabled(extension, proposal)) {
+		throw new Error(`Extension '${extension.identifier.value}' CANNOT use API proposal: ${proposal}.\nIts package.json#enabledApiProposals-property declares: ${extension.enabledApiProposals?.join(', ') ?? '[]'} but NOT ${proposal}.\n The missing proposal MUST be added and you must start in extension development mode or use the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
+	}
 }
 
 
@@ -317,16 +330,6 @@ export interface IExtensionService {
 
 export interface ProfileSession {
 	stop(): Promise<IExtensionHostProfile>;
-}
-
-export function checkProposedApiEnabled(extension: IExtensionDescription): void {
-	if (!extension.enableProposedApi) {
-		throwProposedApiError(extension);
-	}
-}
-
-export function throwProposedApiError(extension: IExtensionDescription): never {
-	throw new Error(`[${extension.identifier.value}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
 }
 
 export function toExtension(extensionDescription: IExtensionDescription): IExtension {

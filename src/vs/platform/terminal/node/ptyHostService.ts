@@ -12,7 +12,7 @@ import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { parsePtyHostPort } from 'vs/platform/environment/common/environmentService';
-import { resolveShellEnv } from 'vs/platform/environment/node/shellEnv';
+import { getResolvedShellEnv } from 'vs/platform/environment/node/shellEnv';
 import { ILogService } from 'vs/platform/log/common/log';
 import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -74,6 +74,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 	readonly onDidRequestDetach = this._onDidRequestDetach.event;
 	private readonly _onDidChangeProperty = this._register(new Emitter<{ id: number, property: IProcessProperty<any> }>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
+	private readonly _onProcessExit = this._register(new Emitter<{ id: number, event: number | undefined }>());
+	readonly onProcessExit = this._onProcessExit.event;
 
 	constructor(
 		private readonly _reconnectConstants: IReconnectConstants,
@@ -122,7 +124,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 		}
 
 		try {
-			return await resolveShellEnv(this._logService, { _: [] }, process.env);
+			return await getResolvedShellEnv(this._logService, { _: [] }, process.env);
 		} catch (error) {
 			this._logService.error('ptyHost was unable to resolve shell environment', error);
 
@@ -191,6 +193,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 		const proxy = ProxyChannel.toService<IPtyService>(client.getChannel(TerminalIpcChannels.PtyHost));
 		this._register(proxy.onProcessData(e => this._onProcessData.fire(e)));
 		this._register(proxy.onProcessReady(e => this._onProcessReady.fire(e)));
+		this._register(proxy.onProcessExit(e => this._onProcessExit.fire(e)));
 		this._register(proxy.onDidChangeProperty(e => this._onDidChangeProperty.fire(e)));
 		this._register(proxy.onProcessReplay(e => this._onProcessReplay.fire(e)));
 		this._register(proxy.onProcessOrphanQuestion(e => this._onProcessOrphanQuestion.fire(e)));
@@ -300,11 +303,11 @@ export class PtyHostService extends Disposable implements IPtyService {
 		return this._proxy.reviveTerminalProcesses(state);
 	}
 
-	async refreshProperty<T extends ProcessPropertyType>(id: number, property: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
+	async refreshProperty<T extends ProcessPropertyType>(id: number, property: T): Promise<IProcessPropertyMap[T]> {
 		return this._proxy.refreshProperty(id, property);
 
 	}
-	async updateProperty<T extends ProcessPropertyType>(id: number, property: ProcessPropertyType, value: any): Promise<void> {
+	async updateProperty<T extends ProcessPropertyType>(id: number, property: T, value: IProcessPropertyMap[T]): Promise<void> {
 		return this._proxy.updateProperty(id, property, value);
 	}
 

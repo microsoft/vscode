@@ -17,7 +17,6 @@ import { Schemas } from 'vs/base/common/network';
 import { distinct } from 'vs/base/common/arrays';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -35,10 +34,14 @@ CommandsRegistry.registerCommand({
 		const configurationService = accessor.get(IConfigurationService);
 		const editorService = accessor.get(IEditorService);
 		const fileService = accessor.get(IFileService);
-		const terminalService: IExternalTerminalService | undefined = accessor.get(IExternalTerminalService, optional);
 		const integratedTerminalService = accessor.get(IIntegratedTerminalService);
 		const remoteAgentService = accessor.get(IRemoteAgentService);
 		const terminalGroupService = accessor.get(ITerminalGroupService);
+		let externalTerminalService: IExternalTerminalService | undefined = undefined;
+		try {
+			externalTerminalService = accessor.get(IExternalTerminalService);
+		} catch {
+		}
 
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService, accessor.get(IExplorerService));
 		return fileService.resolveAll(resources.map(r => ({ resource: r }))).then(async stats => {
@@ -73,9 +76,9 @@ CommandsRegistry.registerCommand({
 						terminalGroupService.showPanel(true);
 					}
 				}
-			} else {
+			} else if (externalTerminalService) {
 				distinct(targets.map(({ stat }) => stat!.isDirectory ? stat!.resource.fsPath : dirname(stat!.resource.fsPath))).forEach(cwd => {
-					terminalService!.openTerminal(config.terminal.external, cwd);
+					externalTerminalService!.openTerminal(config.terminal.external, cwd);
 				});
 			}
 		});

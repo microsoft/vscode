@@ -10,7 +10,7 @@ const vfs = require('vinyl-fs');
 const path = require('path');
 const fs = require('fs');
 const pall = require('p-all');
-const { all, copyrightFilter, indentationFilter, jsHygieneFilter, tsHygieneFilter } = require('./filters');
+const { all, copyrightFilter, unicodeFilter, indentationFilter, jsHygieneFilter, tsHygieneFilter } = require('./filters');
 
 const copyrightHeaderLines = [
 	'/*---------------------------------------------------------------------------------------------',
@@ -36,8 +36,33 @@ function hygiene(some, linting = true) {
 		this.emit('data', file);
 	});
 
-	const indentation = es.through(function (file) {
+	const unicode = es.through(function (file) {
 		const lines = file.contents.toString('utf8').split(/\r\n|\r|\n/);
+		file.__lines = lines;
+
+		let skipNext = false;
+		lines.forEach((line, i) => {
+			if (/allow-any-unicode-next-line/.test(line)) {
+				skipNext = true;
+				return;
+			}
+			if (skipNext) {
+				skipNext = false;
+				return;
+			}
+			// Please do not add symbols that resemble ASCII letters!
+			const m = /([^\t\n\r\x20-\x7E⊃⊇✔︎✓🎯⚠️🛑🔴🚗🚙🚕🎉✨❗⇧⌥⌘×÷¦⋯…↑↓￫→←↔⟷·•●◆▼⟪⟫┌└├⏎↩√φ]+)/g.exec(line);
+			if (m) {
+				console.error(
+					file.relative + `(${i + 1},${m.index + 1}): Unexpected unicode character: "${m[0]}". To suppress, use // allow-any-unicode-next-line`
+				);
+				errorCount++;
+			}
+		});
+	});
+
+	const indentation = es.through(function (file) {
+		const lines = file.__lines || file.contents.toString('utf8').split(/\r\n|\r|\n/);
 		file.__lines = lines;
 
 		lines.forEach((line, i) => {
@@ -121,12 +146,16 @@ function hygiene(some, linting = true) {
 	}
 
 	const productJsonFilter = filter('product.json', { restore: true });
+	const unicodeFilterStream = filter(unicodeFilter, { restore: true });
 
 	const result = input
 		.pipe(filter((f) => !f.stat.isDirectory()))
 		.pipe(productJsonFilter)
 		.pipe(process.env['BUILD_SOURCEVERSION'] ? es.through() : productJson)
 		.pipe(productJsonFilter.restore)
+		.pipe(unicodeFilterStream)
+		.pipe(unicode)
+		.pipe(unicodeFilterStream.restore)
 		.pipe(filter(indentationFilter))
 		.pipe(indentation)
 		.pipe(filter(copyrightFilter))

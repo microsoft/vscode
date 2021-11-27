@@ -12,11 +12,13 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
+import { IUserConfigurationFileService } from 'vs/platform/configuration/common/userConfigurationFileService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult, IFileContent, IFileService } from 'vs/platform/files/common/files';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { AbstractInitializer, AbstractJsonFileSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { edit } from 'vs/platform/userDataSync/common/content';
 import { getIgnoredSettings, isEmpty, merge, updateIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
@@ -62,8 +64,10 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		@IUserDataSyncResourceEnablementService userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IUserConfigurationFileService private readonly userConfigurationFileService: IUserConfigurationFileService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(environmentService.settingsResource, SyncResource.Settings, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncResourceEnablementService, telemetryService, logService, userDataSyncUtilService, configurationService);
+		super(environmentService.settingsResource, SyncResource.Settings, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncResourceEnablementService, telemetryService, logService, userDataSyncUtilService, configurationService, uriIdentityService);
 	}
 
 	async getRemoteUserDataSyncConfiguration(manifest: IUserDataManifest | null): Promise<IUserDataSyncConfiguration> {
@@ -325,6 +329,10 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		return getIgnoredSettings(defaultIgnoredSettings, this.configurationService, content);
 	}
 
+	protected override async writeFileContent(newContent: string, oldContent: IFileContent, force: boolean): Promise<void> {
+		await this.userConfigurationFileService.write(VSBuffer.fromString(newContent), force ? undefined : { etag: oldContent.etag, mtime: oldContent.mtime });
+	}
+
 	private validateContent(content: string): void {
 		if (this.hasErrors(content)) {
 			throw new UserDataSyncError(localize('errorInvalidSettings', "Unable to sync settings as there are errors/warning in settings file."), UserDataSyncErrorCode.LocalInvalidContent, this.resource);
@@ -371,8 +379,9 @@ export class SettingsInitializer extends AbstractInitializer {
 		@IFileService fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(SyncResource.Settings, environmentService, logService, fileService);
+		super(SyncResource.Settings, environmentService, logService, fileService, uriIdentityService);
 	}
 
 	async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {

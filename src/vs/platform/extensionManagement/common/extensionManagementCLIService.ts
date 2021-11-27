@@ -89,7 +89,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 		}
 	}
 
-	public async installExtensions(extensions: (string | URI)[], builtinExtensionIds: string[], isMachineScoped: boolean, force: boolean, output: CLIOutput = console): Promise<void> {
+	public async installExtensions(extensions: (string | URI)[], builtinExtensionIds: string[], installOptions: InstallOptions, force: boolean, output: CLIOutput = console): Promise<void> {
 		const failed: string[] = [];
 		const installedExtensionsManifests: IExtensionManifest[] = [];
 		if (extensions.length) {
@@ -119,21 +119,21 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 			} else {
 				const [id, version] = getIdAndVersion(extension);
 				if (checkIfNotInstalled(id, version)) {
-					installExtensionInfos.push({ id, version, installOptions: { isBuiltin: false, isMachineScoped } });
+					installExtensionInfos.push({ id, version, installOptions: { ...installOptions, isBuiltin: false } });
 				}
 			}
 		}
 		for (const extension of builtinExtensionIds) {
 			const [id, version] = getIdAndVersion(extension);
 			if (checkIfNotInstalled(id, version)) {
-				installExtensionInfos.push({ id, version, installOptions: { isBuiltin: true, isMachineScoped: false } });
+				installExtensionInfos.push({ id, version, installOptions: { ...installOptions, isBuiltin: true } });
 			}
 		}
 
 		if (vsixs.length) {
 			await Promise.all(vsixs.map(async vsix => {
 				try {
-					const manifest = await this.installVSIX(vsix, { isBuiltin: false, isMachineScoped }, force, output);
+					const manifest = await this.installVSIX(vsix, { ...installOptions, isBuiltin: false }, force, output);
 					if (manifest) {
 						installedExtensionsManifests.push(manifest);
 					}
@@ -200,7 +200,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 
 	private async getGalleryExtensions(extensions: InstallExtensionInfo[]): Promise<Map<string, IGalleryExtension>> {
 		const galleryExtensions = new Map<string, IGalleryExtension>();
-		const result = await this.extensionGalleryService.getExtensions(extensions, CancellationToken.None);
+		const result = await this.extensionGalleryService.getExtensions(extensions, extensions.some(e => e.installOptions.installPreReleaseVersion), CancellationToken.None);
 		for (const extension of result) {
 			galleryExtensions.set(extension.identifier.id.toLowerCase(), extension);
 		}

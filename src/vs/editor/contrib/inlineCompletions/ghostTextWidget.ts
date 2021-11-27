@@ -4,31 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { Color, RGBA } from 'vs/base/common/color';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import 'vs/css!./ghostText';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ILanguageIdCodec } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { ghostTextBorder, ghostTextForeground } from 'vs/editor/common/view/editorColorRegistry';
+import { ghostTextBackground, ghostTextBorder, ghostTextForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
 import { GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/ghostText';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
 
@@ -204,10 +199,7 @@ class DecorationsWidget implements IDisposable {
 	private disposableStore: DisposableStore = new DisposableStore();
 
 	constructor(
-		private readonly editor: ICodeEditor,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@IThemeService private readonly themeService: IThemeService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		private readonly editor: ICodeEditor
 	) {
 	}
 
@@ -224,31 +216,10 @@ class DecorationsWidget implements IDisposable {
 	public setParts(lineNumber: number, parts: InsertedInlineText[], hiddenText?: HiddenText): void {
 		this.disposableStore.clear();
 
-		const colorTheme = this.themeService.getColorTheme();
-		const foreground = colorTheme.getColor(ghostTextForeground);
-		let opacity: string | undefined = undefined;
-		let color: string | undefined = undefined;
-		if (foreground) {
-			opacity = String(foreground.rgba.a);
-			color = Color.Format.CSS.format(opaque(foreground))!;
-		}
-
-		const borderColor = colorTheme.getColor(ghostTextBorder);
-		let border: string | undefined = undefined;
-		if (borderColor) {
-			border = `2px dashed ${borderColor}`;
-		}
-
 		const textModel = this.editor.getModel();
 		if (!textModel) {
 			return;
 		}
-
-		const { tabSize } = textModel.getOptions();
-
-		const line = textModel.getLineContent(lineNumber) || '';
-		let lastIndex = 0;
-		let currentLinePrefix = '';
 
 		const hiddenTextDecorations = new Array<IModelDeltaDecoration>();
 		if (hiddenText) {
@@ -261,78 +232,17 @@ class DecorationsWidget implements IDisposable {
 			});
 		}
 
-		const key = this.contextKeyService.getContextKeyValue('config.editor.useInjectedText');
-		const shouldUseInjectedText = key === undefined ? true : !!key;
-
 		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, parts.map<IModelDeltaDecoration>(p => {
-			currentLinePrefix += line.substring(lastIndex, p.column - 1);
-			lastIndex = p.column - 1;
-
-			// To avoid visual confusion, we don't want to render visible whitespace
-			const contentText = shouldUseInjectedText ? p.text : this.renderSingleLineText(p.text, currentLinePrefix, tabSize, false);
-
-			const decorationType = this.disposableStore.add(registerDecorationType(this.codeEditorService, 'ghost-text', '0-ghost-text-', {
-				after: {
-					// TODO: escape?
-					contentText,
-					opacity,
-					color,
-					border,
-					fontWeight: p.preview ? 'bold' : 'normal',
-				},
-			}));
-
 			return ({
 				range: Range.fromPositions(new Position(lineNumber, p.column)),
-				options: shouldUseInjectedText ? {
+				options: {
 					description: 'ghost-text',
-					after: { content: contentText, inlineClassName: p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration' },
+					after: { content: p.text, inlineClassName: p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration' },
 					showIfCollapsed: true,
-				} : {
-					...decorationType.resolve()
 				}
 			});
 		}).concat(hiddenTextDecorations));
 	}
-
-	private renderSingleLineText(text: string, lineStart: string, tabSize: number, renderWhitespace: boolean): string {
-		const newLine = lineStart + text;
-		const visibleColumnsByColumns = CursorColumns.visibleColumnsByColumns(newLine, tabSize);
-
-		let contentText = '';
-		let curCol = lineStart.length + 1;
-		for (const c of text) {
-			if (c === '\t') {
-				const width = visibleColumnsByColumns[curCol + 1] - visibleColumnsByColumns[curCol];
-				if (renderWhitespace) {
-					contentText += '→';
-					for (let i = 1; i < width; i++) {
-						contentText += '\xa0';
-					}
-				} else {
-					for (let i = 0; i < width; i++) {
-						contentText += '\xa0';
-					}
-				}
-			} else if (c === ' ') {
-				if (renderWhitespace) {
-					contentText += '·';
-				} else {
-					contentText += '\xa0';
-				}
-			} else {
-				contentText += c;
-			}
-			curCol += 1;
-		}
-
-		return contentText;
-	}
-}
-
-function opaque(color: Color): Color {
-	const { r, b, g } = color.rgba;
-	return new Color(new RGBA(r, g, b, 255));
 }
 
 class AdditionalLinesWidget implements IDisposable {
@@ -448,21 +358,6 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], o
 	domNode.innerHTML = trustedhtml as string;
 }
 
-let keyCounter = 0;
-
-function registerDecorationType(service: ICodeEditorService, description: string, keyPrefix: string, options: IDecorationRenderOptions) {
-	const key = keyPrefix + (keyCounter++);
-	service.registerDecorationType(description, key, options);
-	return {
-		dispose() {
-			service.removeDecorationType(key);
-		},
-		resolve() {
-			return service.resolveDecorationOptions(key, true);
-		}
-	};
-}
-
 class ViewMoreLinesContentWidget extends Disposable implements IContentWidget {
 	readonly allowEditorOverflow = false;
 	readonly suppressMouseDown = false;
@@ -499,15 +394,18 @@ class ViewMoreLinesContentWidget extends Disposable implements IContentWidget {
 
 registerThemingParticipant((theme, collector) => {
 	const foreground = theme.getColor(ghostTextForeground);
-
 	if (foreground) {
-		const opacity = String(foreground.rgba.a);
-		const color = Color.Format.CSS.format(opaque(foreground))!;
-
 		// `!important` ensures that other decorations don't cause a style conflict (#132017).
-		collector.addRule(`.monaco-editor .ghost-text-decoration { opacity: ${opacity} !important; color: ${color} !important; }`);
+		collector.addRule(`.monaco-editor .ghost-text-decoration { color: ${foreground.toString()} !important; }`);
 		collector.addRule(`.monaco-editor .ghost-text-decoration-preview { color: ${foreground.toString()} !important; }`);
-		collector.addRule(`.monaco-editor .suggest-preview-text .ghost-text { opacity: ${opacity} !important; color: ${color} !important; }`);
+		collector.addRule(`.monaco-editor .suggest-preview-text .ghost-text { color: ${foreground.toString()} !important; }`);
+	}
+
+	const background = theme.getColor(ghostTextBackground);
+	if (background) {
+		collector.addRule(`.monaco-editor .ghost-text-decoration { background-color: ${background.toString()}; }`);
+		collector.addRule(`.monaco-editor .ghost-text-decoration-preview { background-color: ${background.toString()}; }`);
+		collector.addRule(`.monaco-editor .suggest-preview-text .ghost-text { background-color: ${background.toString()}; }`);
 	}
 
 	const border = theme.getColor(ghostTextBorder);

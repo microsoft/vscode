@@ -1021,13 +1021,16 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 
 	private static _redirectCharCode(charCode: number): number {
 		switch (charCode) {
-			case CharCode.U_IDEOGRAPHIC_FULL_STOP: return CharCode.Period; // CJK 。 => .
-			case CharCode.U_LEFT_CORNER_BRACKET: return CharCode.OpenSquareBracket; // CJK 「 => [
-			case CharCode.U_RIGHT_CORNER_BRACKET: return CharCode.CloseSquareBracket; // CJK 」 => ]
-			case CharCode.U_LEFT_BLACK_LENTICULAR_BRACKET: return CharCode.OpenSquareBracket; // CJK 【 => [
-			case CharCode.U_RIGHT_BLACK_LENTICULAR_BRACKET: return CharCode.CloseSquareBracket; // CJK 】 => ]
-			case CharCode.U_FULLWIDTH_SEMICOLON: return CharCode.Semicolon; // CJK ； => ;
-			case CharCode.U_FULLWIDTH_COMMA: return CharCode.Comma; // CJK ， => ,
+			// allow-any-unicode-next-line
+			// CJK: 。 「 」 【 】 ； ，
+			// map: . [ ] [ ] ; ,
+			case CharCode.U_IDEOGRAPHIC_FULL_STOP: return CharCode.Period;
+			case CharCode.U_LEFT_CORNER_BRACKET: return CharCode.OpenSquareBracket;
+			case CharCode.U_RIGHT_CORNER_BRACKET: return CharCode.CloseSquareBracket;
+			case CharCode.U_LEFT_BLACK_LENTICULAR_BRACKET: return CharCode.OpenSquareBracket;
+			case CharCode.U_RIGHT_BLACK_LENTICULAR_BRACKET: return CharCode.CloseSquareBracket;
+			case CharCode.U_FULLWIDTH_SEMICOLON: return CharCode.Semicolon;
+			case CharCode.U_FULLWIDTH_COMMA: return CharCode.Comma;
 		}
 		return charCode;
 	}

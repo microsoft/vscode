@@ -11,9 +11,9 @@ import Severity from 'vs/base/common/severity';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { registerThemingParticipant, ThemeColor, themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { ThemeColor, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { NOTIFICATIONS_BORDER, NOTIFICATIONS_ERROR_ICON_FOREGROUND, NOTIFICATIONS_INFO_ICON_FOREGROUND, STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_ERROR_ITEM_FOREGROUND, STATUS_BAR_WARNING_ITEM_BACKGROUND, STATUS_BAR_WARNING_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
+import { STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_ERROR_ITEM_FOREGROUND, STATUS_BAR_WARNING_ITEM_BACKGROUND, STATUS_BAR_WARNING_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ILanguageStatus, ILanguageStatusService } from 'vs/workbench/services/languageStatus/common/languageStatusService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -160,18 +160,20 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			const showSeverity = first.severity >= Severity.Warning;
 			const text = EditorStatusContribution._severityToComboCodicon(first.severity);
 
+			let isOneBusy = false;
 			const ariaLabels: string[] = [];
 			const element = document.createElement('div');
 			for (const status of model.combined) {
 				element.appendChild(this._renderStatus(status, showSeverity, this._renderDisposables));
 				ariaLabels.push(this._asAriaLabel(status));
+				isOneBusy = isOneBusy || status.busy;
 			}
 			const props: IStatusbarEntry = {
 				name: localize('langStatus.name', "Editor Language Status"),
 				ariaLabel: localize('langStatus.aria', "Editor Language Status: {0}", ariaLabels.join(', next: ')),
 				tooltip: element,
 				command: ShowTooltipCommand,
-				text,
+				text: isOneBusy ? `${text}\u00A0\u00A0$(sync~spin)` : text,
 			};
 			if (!this._combinedEntry) {
 				this._combinedEntry = this._statusBarService.addEntry(props, EditorStatusContribution._id, StatusbarAlignment.RIGHT, { id: 'status.editor.mode', alignment: StatusbarAlignment.LEFT, compact: true });
@@ -219,7 +221,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 
 		const label = document.createElement('span');
 		label.classList.add('label');
-		dom.append(label, ...renderLabelWithIcons(status.label));
+		dom.append(label, ...renderLabelWithIcons(status.busy ? `$(sync~spin)\u00A0\u00A0${status.label}` : status.label));
 		left.appendChild(label);
 
 		const detail = document.createElement('span');
@@ -311,7 +313,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 
 		return {
 			name: localize('name.pattern', '{0} (Language Status)', item.name),
-			text: item.label,
+			text: item.busy ? `${item.label}\u00A0\u00A0$(sync~spin)` : item.label,
 			ariaLabel: item.accessibilityInfo?.label ?? item.label,
 			role: item.accessibilityInfo?.role,
 			tooltip: item.command?.tooltip || new MarkdownString(item.detail, true),
@@ -321,13 +323,5 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		};
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-	collector.addRule(`:root {
-		--code-notifications-border: ${theme.getColor(NOTIFICATIONS_BORDER)};
-		--code-language-status-color2: ${theme.getColor(NOTIFICATIONS_INFO_ICON_FOREGROUND)};
-		--code-language-status-color3: ${theme.getColor(NOTIFICATIONS_ERROR_ICON_FOREGROUND)};
-	}`);
-});
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorStatusContribution, LifecyclePhase.Restored);

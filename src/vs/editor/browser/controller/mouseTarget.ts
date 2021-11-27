@@ -14,11 +14,12 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
 import { HorizontalPosition } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { InjectedText, IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 import * as dom from 'vs/base/browser/dom';
 import { AtomicTabMoveOperations, Direction } from 'vs/editor/common/controller/cursorAtomicMoveOperations';
 import { PositionAffinity } from 'vs/editor/common/model';
+import { InjectedText } from 'vs/editor/common/viewModel/modelLineProjectionData';
 
 export interface IViewZoneData {
 	viewZoneId: string;

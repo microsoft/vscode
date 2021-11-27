@@ -93,7 +93,7 @@ export async function getMachineId(): Promise<string> {
 async function getMacMachineId(): Promise<string | undefined> {
 	try {
 		const crypto = await import('crypto');
-		const macAddress = await getMac();
+		const macAddress = getMac();
 		return crypto.createHash('sha256').update(macAddress, 'utf8').digest('hex');
 	} catch (err) {
 		errors.onUnexpectedError(err);

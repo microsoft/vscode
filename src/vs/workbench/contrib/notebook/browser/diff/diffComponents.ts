@@ -8,13 +8,13 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { DiffElementViewModelBase, getFormatedMetadataJSON, OUTPUT_EDITOR_HEIGHT_MAGIC, PropertyFoldingState, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
+import { DiffElementViewModelBase, getFormatedMetadataJSON, getFormatedOutputJSON, OUTPUT_EDITOR_HEIGHT_MAGIC, PropertyFoldingState, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DiffSide, DIFF_CELL_MARGIN, INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_INPUT, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { CellEditType, CellUri, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellUri, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -23,7 +23,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IAction } from 'vs/base/common/actions';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
+import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellActionView';
 import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { OutputContainer } from 'vs/workbench/contrib/notebook/browser/diff/diffElementOutputs';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
@@ -99,6 +99,7 @@ export const fixedDiffEditorOptions: IDiffEditorConstructionOptions = {
 class PropertyHeader extends Disposable {
 	protected _foldingIndicator!: HTMLElement;
 	protected _statusSpan!: HTMLElement;
+	protected _description!: HTMLElement;
 	protected _toolbar!: ToolBar;
 	protected _menu!: IMenu;
 	protected _propertyExpanded?: IContextKey<boolean>;
@@ -109,7 +110,7 @@ class PropertyHeader extends Disposable {
 		readonly notebookEditor: INotebookTextDiffEditor,
 		readonly accessor: {
 			updateInfoRendering: (renderOutput: boolean) => void;
-			checkIfModified: (cell: DiffElementViewModelBase) => boolean;
+			checkIfModified: (cell: DiffElementViewModelBase) => false | { reason: string | undefined };
 			getFoldingState: (cell: DiffElementViewModelBase) => PropertyFoldingState;
 			updateFoldingState: (cell: DiffElementViewModelBase, newState: PropertyFoldingState) => void;
 			unChangedLabel: string;
@@ -132,14 +133,20 @@ class PropertyHeader extends Disposable {
 		this._foldingIndicator.classList.add(this.accessor.prefix);
 		this._updateFoldingIcon();
 		const metadataStatus = DOM.append(this.propertyHeaderContainer, DOM.$('div.property-status'));
+
 		this._statusSpan = DOM.append(metadataStatus, DOM.$('span'));
+		this._description = DOM.append(metadataStatus, DOM.$('span.property-description'));
 
 		if (metadataChanged) {
 			this._statusSpan.textContent = this.accessor.changedLabel;
 			this._statusSpan.style.fontWeight = 'bold';
+			if (metadataChanged.reason) {
+				this._description.textContent = metadataChanged.reason;
+			}
 			this.propertyHeaderContainer.classList.add('modified');
 		} else {
 			this._statusSpan.textContent = this.accessor.unChangedLabel;
+			this._description.textContent = '';
 			this.propertyHeaderContainer.classList.remove('modified');
 		}
 
@@ -162,7 +169,7 @@ class PropertyHeader extends Disposable {
 		const scopedContextKeyService = this.contextKeyService.createScoped(cellToolbarContainer);
 		this._register(scopedContextKeyService);
 		const propertyChanged = NOTEBOOK_DIFF_CELL_PROPERTY.bindTo(scopedContextKeyService);
-		propertyChanged.set(metadataChanged);
+		propertyChanged.set(!!metadataChanged);
 		this._propertyExpanded = NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED.bindTo(scopedContextKeyService);
 
 		this._menu = this.menuService.createMenu(this.accessor.menuId, scopedContextKeyService);
@@ -224,6 +231,9 @@ class PropertyHeader extends Disposable {
 		if (metadataChanged) {
 			this._statusSpan.textContent = this.accessor.changedLabel;
 			this._statusSpan.style.fontWeight = 'bold';
+			if (metadataChanged.reason) {
+				this._description.textContent = metadataChanged.reason;
+			}
 			this.propertyHeaderContainer.classList.add('modified');
 			const actions: IAction[] = [];
 			createAndFillInActionBarActions(this._menu, undefined, actions);
@@ -231,6 +241,7 @@ class PropertyHeader extends Disposable {
 		} else {
 			this._statusSpan.textContent = this.accessor.unChangedLabel;
 			this._statusSpan.style.fontWeight = 'normal';
+			this._description.textContent = '';
 			this.propertyHeaderContainer.classList.remove('modified');
 			this._toolbar.setActions([]);
 		}
@@ -612,16 +623,12 @@ abstract class AbstractElementRenderer extends Disposable {
 		}
 	}
 
-	private _getFormatedOutputJSON(outputs: IOutputDto[]) {
-		return JSON.stringify(outputs.map(op => ({ outputs: op.outputs })), undefined, '\t');
-	}
-
 	private _buildOutputEditor() {
 		this._outputEditorDisposeStore.clear();
 
 		if ((this.cell.type === 'modified' || this.cell.type === 'unchanged') && !this.notebookEditor.textModel!.transientOptions.transientOutputs) {
-			const originalOutputsSource = this._getFormatedOutputJSON(this.cell.original?.outputs || []);
-			const modifiedOutputsSource = this._getFormatedOutputJSON(this.cell.modified?.outputs || []);
+			const originalOutputsSource = getFormatedOutputJSON(this.cell.original?.outputs || []);
+			const modifiedOutputsSource = getFormatedOutputJSON(this.cell.modified?.outputs || []);
 			if (originalOutputsSource !== modifiedOutputsSource) {
 				const mode = this.modeService.create('json');
 				const originalModel = this.modelService.createModel(originalOutputsSource, mode, undefined, true);
@@ -664,7 +671,7 @@ abstract class AbstractElementRenderer extends Disposable {
 				}));
 
 				this._outputEditorDisposeStore.add(this.cell.modified!.textModel.onDidChangeOutputs(() => {
-					const modifiedOutputsSource = this._getFormatedOutputJSON(this.cell.modified?.outputs || []);
+					const modifiedOutputsSource = getFormatedOutputJSON(this.cell.modified?.outputs || []);
 					modifiedModel.setValue(modifiedOutputsSource);
 					this._outputHeader.refresh();
 				}));
@@ -684,7 +691,7 @@ abstract class AbstractElementRenderer extends Disposable {
 		this._outputEditorDisposeStore.add(this._outputEditor);
 
 		const mode = this.modeService.create('json');
-		const originaloutputSource = this._getFormatedOutputJSON(
+		const originaloutputSource = getFormatedOutputJSON(
 			this.notebookEditor.textModel!.transientOptions.transientOutputs
 				? []
 				: this.cell.type === 'insert'

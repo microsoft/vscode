@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { IDisposable, dispose, DisposableStore, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IProgressService, IProgressOptions, IProgressStep, ProgressLocation, IProgress, Progress, IProgressCompositeOptions, IProgressNotificationOptions, IProgressRunner, IProgressIndicator, IProgressWindowOptions, IProgressDialogOptions } from 'vs/platform/progress/common/progress';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { RunOnceScheduler, timeout } from 'vs/base/common/async';
+import { DeferredPromise, RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService, Severity, INotificationHandle } from 'vs/platform/notification/common/notification';
 import { Action } from 'vs/base/common/actions';
@@ -225,8 +225,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 			// Create a promise that we can resolve as needed
 			// when the outside calls dispose on us
-			let promiseResolve: () => void;
-			const promise = new Promise<void>(resolve => promiseResolve = resolve);
+			const promise = new DeferredPromise<void>();
 
 			this.withWindowProgress({
 				location: ProgressLocation.Window,
@@ -249,16 +248,16 @@ export class ProgressService extends Disposable implements IProgressService {
 
 				// Continue to report progress as it happens
 				const onDidReportListener = progressStateModel.onDidReport(step => reportProgress(step));
-				promise.finally(() => onDidReportListener.dispose());
+				promise.p.finally(() => onDidReportListener.dispose());
 
 				// When the progress model gets disposed, we are done as well
-				Event.once(progressStateModel.onWillDispose)(() => promiseResolve());
+				Event.once(progressStateModel.onWillDispose)(() => promise.complete());
 
-				return promise;
+				return promise.p;
 			});
 
 			// Dispose means completing our promise
-			return toDisposable(() => promiseResolve());
+			return toDisposable(() => promise.complete());
 		};
 
 		const createNotification = (message: string, silent: boolean, increment?: number): INotificationHandle => {

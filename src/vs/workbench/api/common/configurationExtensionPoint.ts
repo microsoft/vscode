@@ -8,13 +8,14 @@ import * as objects from 'vs/base/common/objects';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IConfigurationNode, IConfigurationRegistry, Extensions, resourceLanguageSettingsSchemaId, validateProperty, ConfigurationScope, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationNode, IConfigurationRegistry, Extensions, resourceLanguageSettingsSchemaId, validateProperty, ConfigurationScope, OVERRIDE_PROPERTY_PATTERN, OVERRIDE_PROPERTY_REGEX, windowSettings, resourceSettings, machineOverridableSettings, IConfigurationDefaults } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { workspaceSettingsSchemaId, launchSchemaId, tasksSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { isObject } from 'vs/base/common/types';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IStringDictionary } from 'vs/base/common/collections';
 
+const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 
 const configurationEntrySchema: IJSONSchema = {
@@ -24,6 +25,10 @@ const configurationEntrySchema: IJSONSchema = {
 		title: {
 			description: nls.localize('vscode.extension.contributes.configuration.title', 'A summary of the settings. This label will be used in the settings file as separating comment.'),
 			type: 'string'
+		},
+		order: {
+			description: nls.localize('vscode.extension.contributes.configuration.order', 'When specified, gives the order of this category of settings relative to other categories.'),
+			type: 'integer'
 		},
 		properties: {
 			description: nls.localize('vscode.extension.contributes.configuration.properties', 'Description of the configuration properties.'),
@@ -94,6 +99,10 @@ const configurationEntrySchema: IJSONSchema = {
 								],
 								default: 'singlelineText',
 								description: nls.localize('scope.editPresentation', 'When specified, controls the presentation format of the string setting.')
+							},
+							order: {
+								type: 'integer',
+								description: nls.localize('scope.order', 'When specified, gives the order of this setting relative to other settings within the same category. Settings with an order property will be placed before settings without this property set.')
 							}
 						}
 					}
@@ -103,38 +112,56 @@ const configurationEntrySchema: IJSONSchema = {
 	}
 };
 
+const configurationDefaultsSchemaId = 'vscode://schemas/settings/configurationDefaults';
+const configurationDefaultsSchema: IJSONSchema = {
+	type: 'object',
+	description: nls.localize('configurationDefaults.description', 'Contribute defaults for configurations'),
+	properties: {},
+	patternProperties: {
+		[OVERRIDE_PROPERTY_PATTERN]: {
+			type: 'object',
+			default: {},
+			$ref: resourceLanguageSettingsSchemaId,
+		}
+	},
+	additionalProperties: false
+};
+jsonRegistry.registerSchema(configurationDefaultsSchemaId, configurationDefaultsSchema);
+configurationRegistry.onDidSchemaChange(() => {
+	configurationDefaultsSchema.properties = {
+		...machineOverridableSettings.properties,
+		...windowSettings.properties,
+		...resourceSettings.properties
+	};
+});
+
 // BEGIN VSCode extension point `configurationDefaults`
 const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>({
 	extensionPoint: 'configurationDefaults',
 	jsonSchema: {
-		description: nls.localize('vscode.extension.contributes.defaultConfiguration', 'Contributes default editor configuration settings by language.'),
-		type: 'object',
-		patternProperties: {
-			'^\\[.*\\]$': {
-				type: 'object',
-				default: {},
-				$ref: resourceLanguageSettingsSchemaId,
-			}
-		},
-		errorMessage: nls.localize('config.property.defaultConfiguration.languageExpected', "Language selector expected (e.g. [\"java\"])"),
-		additionalProperties: false
+		$ref: configurationDefaultsSchemaId,
 	}
 });
 defaultConfigurationExtPoint.setHandler((extensions, { added, removed }) => {
 	if (removed.length) {
-		const removedDefaultConfigurations = removed.map<IStringDictionary<any>>(extension => objects.deepClone(extension.value));
+		const removedDefaultConfigurations = removed.map<IConfigurationDefaults>(extension => ({ overrides: objects.deepClone(extension.value), source: { id: extension.description.identifier.value, displayName: extension.description.displayName } }));
 		configurationRegistry.deregisterDefaultConfigurations(removedDefaultConfigurations);
 	}
 	if (added.length) {
-		const addedDefaultConfigurations = added.map<IStringDictionary<any>>(extension => {
-			const defaults: IStringDictionary<any> = objects.deepClone(extension.value);
-			for (const key of Object.keys(defaults)) {
-				if (!OVERRIDE_PROPERTY_PATTERN.test(key) || typeof defaults[key] !== 'object') {
-					extension.collector.warn(nls.localize('config.property.defaultConfiguration.warning', "Cannot register configuration defaults for '{0}'. Only defaults for language specific settings are supported.", key));
-					delete defaults[key];
+		const registeredProperties = configurationRegistry.getConfigurationProperties();
+		const allowedScopes = [ConfigurationScope.MACHINE_OVERRIDABLE, ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE, ConfigurationScope.LANGUAGE_OVERRIDABLE];
+		const addedDefaultConfigurations = added.map<IConfigurationDefaults>(extension => {
+			const overrides: IStringDictionary<any> = objects.deepClone(extension.value);
+			for (const key of Object.keys(overrides)) {
+				if (!OVERRIDE_PROPERTY_REGEX.test(key)) {
+					const registeredPropertyScheme = registeredProperties[key];
+					if (registeredPropertyScheme.scope && !allowedScopes.includes(registeredPropertyScheme.scope)) {
+						extension.collector.warn(nls.localize('config.property.defaultConfiguration.warning', "Cannot register configuration defaults for '{0}'. Only defaults for machine-overridable, window, resource and language overridable scoped settings are supported.", key));
+						delete overrides[key];
+					}
 				}
 			}
-			return defaults;
+			return { overrides, source: { id: extension.description.identifier.value, displayName: extension.description.displayName } };
 		});
 		configurationRegistry.registerDefaultConfigurations(addedDefaultConfigurations);
 	}
@@ -185,7 +212,8 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 		validateProperties(configuration, extension);
 
 		configuration.id = node.id || extension.description.identifier.value;
-		configuration.extensionInfo = { id: extension.description.identifier.value, restrictedConfigurations: extension.description.capabilities?.untrustedWorkspaces?.supported === 'limited' ? extension.description.capabilities?.untrustedWorkspaces.restrictedConfigurations : undefined };
+		configuration.extensionInfo = { id: extension.description.identifier.value, displayName: extension.description.displayName };
+		configuration.restrictedProperties = extension.description.capabilities?.untrustedWorkspaces?.supported === 'limited' ? extension.description.capabilities?.untrustedWorkspaces.restrictedConfigurations : undefined;
 		configuration.title = configuration.title || extension.description.displayName || extension.description.identifier.value;
 		configurations.push(configuration);
 		return configurations;
@@ -265,7 +293,6 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 });
 // END VSCode extension point `configuration`
 
-const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 	allowComments: true,
 	allowTrailingCommas: true,

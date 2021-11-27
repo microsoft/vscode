@@ -425,7 +425,11 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 				formattedModifications.label = this.label;
 			}
 			if (modified('contextValue')) {
-				formattedModifications.contextValue = this.contextValue;
+				/*
+				 * null -> cleared contextValue
+				 * undefined -> no change
+				 */
+				formattedModifications.contextValue = this.contextValue ?? null;
 			}
 			if (modified('comments')) {
 				formattedModifications.comments =

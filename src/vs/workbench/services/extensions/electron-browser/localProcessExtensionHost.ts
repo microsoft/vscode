@@ -47,7 +47,6 @@ import { join } from 'vs/base/common/path';
 import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
 import { IExtensionHostProcessOptions, IExtensionHostStarter } from 'vs/platform/extensions/common/extensionHostStarter';
 import { SerializedError } from 'vs/base/common/errors';
-import { StopWatch } from 'vs/base/common/stopwatch';
 import { removeDangerousEnvVariables } from 'vs/base/node/processes';
 
 export interface ILocalProcessExtensionHostInitData {
@@ -197,30 +196,18 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		this.terminate();
 	}
 
-	private async _createExtensionHost(): Promise<{ id: string; }> {
-		const sw = new StopWatch(false);
-		const result = await this._extensionHostStarter.createExtensionHost();
-		if (sw.elapsed() > 20) {
-			// communicating to the shared process took more than 20ms
-			this._logService.info(`[LocalProcessExtensionHost]: IExtensionHostStarter.createExtensionHost() took ${sw.elapsed()} ms.`);
-		}
-		return result;
-	}
-
 	public start(): Promise<IMessagePassingProtocol> | null {
 		if (this._terminating) {
 			// .terminate() was called
 			return null;
 		}
 
-		const timer = new LocalProcessExtensionHostStartupTimer();
-
 		if (!this._messageProtocol) {
 			this._messageProtocol = Promise.all([
-				spyPromise(this._createExtensionHost(), () => timer.markDidCreateExtensionHost()),
-				spyPromise(this._tryListenOnPipe(), () => timer.markDidListenOnPipe()),
-				spyPromise(this._tryFindDebugPort(), () => timer.markDidFindDebugPort()),
-				spyPromise(this._shellEnvironmentService.getShellEnv(), () => timer.markDidGetShellEnv()),
+				this._extensionHostStarter.createExtensionHost(),
+				this._tryListenOnPipe(),
+				this._tryFindDebugPort(),
+				this._shellEnvironmentService.getShellEnv(),
 			]).then(([extensionHostCreationResult, pipeName, portNumber, processEnv]) => {
 
 				this._extensionHostProcess = new ExtensionHostProcess(extensionHostCreationResult.id, this._extensionHostStarter);
@@ -277,6 +264,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				}
 
 				// On linux crash reporter needs to be started on child node processes explicitly
+				// TODO@bpasero TODO@deepak1556 remove once we updated to Electron 15
 				if (platform.isLinux) {
 					const crashReporterStartOptions: CrashReporterStartOptions = {
 						companyName: this._productService.crashReporter?.companyName || 'Microsoft',
@@ -361,6 +349,8 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				let startupTimeoutHandle: any;
 				if (!this._environmentService.isBuilt && !this._environmentService.remoteAuthority || this._isExtensionDevHost) {
 					startupTimeoutHandle = setTimeout(() => {
+						this._logService.error(`[LocalProcessExtensionHost]: Extension host did not start in 10 seconds (debugBrk: ${this._isExtensionDevDebugBrk})`);
+
 						const msg = this._isExtensionDevDebugBrk
 							? nls.localize('extensionHost.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.")
 							: nls.localize('extensionHost.startupFail', "Extension host did not start in 10 seconds, that might be a problem.");
@@ -376,12 +366,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				}
 
 				// Initialize extension host process with hand shakes
-				return this._tryExtHostHandshake(opts, timer).then((protocol) => {
-					timer.markDidFinishHandhsake();
-
-					const localProcessExtensionHostStartupTimesEvent = timer.toEvent();
-					this._telemetryService.publicLog2<LocalProcessExtensionHostStartupTimesEvent, LocalProcessExtensionHostStartupTimesClassification>('localProcessExtensionHostStartupTimes', localProcessExtensionHostStartupTimesEvent);
-
+				return this._tryExtHostHandshake(opts).then((protocol) => {
 					clearTimeout(startupTimeoutHandle);
 					return protocol;
 				});
@@ -439,7 +424,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		return port || 0;
 	}
 
-	private _tryExtHostHandshake(opts: IExtensionHostProcessOptions, timer: LocalProcessExtensionHostStartupTimer): Promise<PersistentProtocol> {
+	private _tryExtHostHandshake(opts: IExtensionHostProcessOptions): Promise<PersistentProtocol> {
 
 		return new Promise<PersistentProtocol>((resolve, reject) => {
 
@@ -454,7 +439,6 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 			}, 60 * 1000);
 
 			this._namedPipeServer!.on('connection', socket => {
-				timer.markDidReceiveConnection();
 
 				clearTimeout(handle);
 				if (this._namedPipeServer) {
@@ -466,16 +450,11 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				// using a buffered message protocol here because between now
 				// and the first time a `then` executes some messages might be lost
 				// unless we immediately register a listener for `onMessage`.
-				resolve(new PersistentProtocol(new NodeSocket(this._extensionHostConnection)));
+				resolve(new PersistentProtocol(new NodeSocket(this._extensionHostConnection, 'renderer-exthost')));
 			});
 
 			// Now that the named pipe listener is installed, start the ext host process
-			const sw = new StopWatch(false);
 			this._extensionHostProcess!.start(opts).then(() => {
-				sw.stop();
-				timer.markDidStartExtensionHost();
-
-				this._logService.info(`[LocalProcessExtensionHost]: IExtensionHostStarter.start() took ${sw.elapsed()} ms.`);
 			}, (err) => {
 				// Starting the ext host process resulted in an error
 				reject(err);
@@ -503,7 +482,6 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				const disposable = protocol.onMessage(msg => {
 
 					if (isMessageOfType(msg, MessageType.Ready)) {
-						timer.markDidReceiveReady();
 
 						// 1) Extension Host is ready to receive messages, initialize it
 						uninstallTimeoutCheck();
@@ -519,7 +497,6 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 					}
 
 					if (isMessageOfType(msg, MessageType.Initialized)) {
-						timer.markDidReceiveInitialized();
 
 						// 2) Extension Host is initialized
 						uninstallTimeoutCheck();
@@ -738,102 +715,5 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 			this._extensionHostDebugService.terminateSession(this._environmentService.debugExtensionHost.debugId);
 			event.join(timeout(100 /* wait a bit for IPC to get delivered */), 'join.extensionDevelopment');
 		}
-	}
-}
-
-async function spyPromise<T>(p: Promise<T>, whenDone: () => void): Promise<T> {
-	const result = await p;
-	whenDone();
-	return result;
-}
-
-type LocalProcessExtensionHostStartupTimesClassification = {
-	didCreateExtensionHost: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-	didListenOnPipe: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-	didFindDebugPort: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-	didGetShellEnv: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-	didStartExtensionHost: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-	didReceiveConnection: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-	didReceiveReady: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-	didReceiveInitialized: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-	didFinishHandhsake: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-};
-type LocalProcessExtensionHostStartupTimesEvent = {
-	didCreateExtensionHost: number;
-	didListenOnPipe: number;
-	didFindDebugPort: number;
-	didGetShellEnv: number;
-	didStartExtensionHost: number;
-	didReceiveConnection: number;
-	didReceiveReady: number;
-	didReceiveInitialized: number;
-	didFinishHandhsake: number;
-};
-
-class LocalProcessExtensionHostStartupTimer {
-
-	private readonly _sw: StopWatch;
-
-	constructor() {
-		this._sw = new StopWatch(false);
-	}
-
-	public toEvent(): LocalProcessExtensionHostStartupTimesEvent {
-		return {
-			didCreateExtensionHost: this.didCreateExtensionHost,
-			didListenOnPipe: this.didListenOnPipe,
-			didFindDebugPort: this.didFindDebugPort,
-			didGetShellEnv: this.didGetShellEnv,
-			didStartExtensionHost: this.didStartExtensionHost,
-			didReceiveConnection: this.didReceiveConnection,
-			didReceiveReady: this.didReceiveReady,
-			didReceiveInitialized: this.didReceiveInitialized,
-			didFinishHandhsake: this.didFinishHandhsake,
-		};
-	}
-
-	private didCreateExtensionHost = 0;
-	public markDidCreateExtensionHost() {
-		this.didCreateExtensionHost = this._sw.elapsed();
-	}
-
-	private didListenOnPipe = 0;
-	public markDidListenOnPipe() {
-		this.didListenOnPipe = this._sw.elapsed();
-	}
-
-	private didFindDebugPort = 0;
-	public markDidFindDebugPort() {
-		this.didFindDebugPort = this._sw.elapsed();
-	}
-
-	private didGetShellEnv = 0;
-	public markDidGetShellEnv() {
-		this.didGetShellEnv = this._sw.elapsed();
-	}
-
-	private didStartExtensionHost = 0;
-	public markDidStartExtensionHost() {
-		this.didStartExtensionHost = this._sw.elapsed();
-	}
-
-	private didReceiveConnection = 0;
-	public markDidReceiveConnection() {
-		this.didReceiveConnection = this._sw.elapsed();
-	}
-
-	private didReceiveReady = 0;
-	public markDidReceiveReady() {
-		this.didReceiveReady = this._sw.elapsed();
-	}
-
-	private didReceiveInitialized = 0;
-	public markDidReceiveInitialized() {
-		this.didReceiveInitialized = this._sw.elapsed();
-	}
-
-	private didFinishHandhsake = 0;
-	public markDidFinishHandhsake() {
-		this.didFinishHandhsake = this._sw.elapsed();
 	}
 }

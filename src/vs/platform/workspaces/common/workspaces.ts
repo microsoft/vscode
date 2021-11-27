@@ -12,7 +12,7 @@ import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
 import { extname, isAbsolute } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { extname as resourceExtname, extUriBiasedIgnorePathCase, IExtUri } from 'vs/base/common/resources';
+import { extname as resourceExtname, extUriBiasedIgnorePathCase, IExtUri, isEqualAuthority } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -398,7 +398,7 @@ export function rewriteWorkspaceFileForNewLocation(rawWorkspaceContents: string,
 	const edits = jsonEdit.setProperty(rawWorkspaceContents, ['folders'], rewrittenFolders, formattingOptions);
 	let newContent = jsonEdit.applyEdits(rawWorkspaceContents, edits);
 
-	if (storedWorkspace.remoteAuthority === getRemoteAuthority(targetConfigPathURI)) {
+	if (isEqualAuthority(storedWorkspace.remoteAuthority, getRemoteAuthority(targetConfigPathURI))) {
 		// unsaved remote workspaces have the remoteAuthority set. Remove it when no longer nexessary.
 		newContent = jsonEdit.applyEdits(newContent, jsonEdit.removeProperty(newContent, ['remoteAuthority'], formattingOptions));
 	}
@@ -547,6 +547,7 @@ export function toStoreData(recents: IRecentlyOpened): RecentlyOpenedStorageData
 	for (const recent of recents.files) {
 		serialized.entries.push({ fileUri: recent.fileUri.toString(), label: recent.label, remoteAuthority: recent.remoteAuthority });
 	}
+
 	return serialized;
 }
 

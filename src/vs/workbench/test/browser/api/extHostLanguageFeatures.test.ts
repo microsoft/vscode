@@ -24,7 +24,7 @@ import { getDocumentSymbols } from 'vs/editor/contrib/documentSymbols/documentSy
 import * as modes from 'vs/editor/common/modes';
 import { getCodeLensModel } from 'vs/editor/contrib/codelens/codelens';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition, getDeclarationsAtPosition, getReferencesAtPosition } from 'vs/editor/contrib/gotoSymbol/goToSymbol';
-import { getHover } from 'vs/editor/contrib/hover/getHover';
+import { getHoverPromise } from 'vs/editor/contrib/hover/getHover';
 import { getOccurrencesAtPosition } from 'vs/editor/contrib/wordHighlighter/wordHighlighter';
 import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { getWorkspaceSymbols } from 'vs/workbench/contrib/search/common/search';
@@ -374,7 +374,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		getHover(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
+		getHoverPromise(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
 			assert.strictEqual(value.length, 1);
 			let [entry] = value;
 			assert.deepStrictEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 });
@@ -391,7 +391,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		getHover(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
+		getHoverPromise(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
 			assert.strictEqual(value.length, 1);
 			let [entry] = value;
 			assert.deepStrictEqual(entry.range, { startLineNumber: 4, startColumn: 1, endLineNumber: 9, endColumn: 8 });
@@ -414,7 +414,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getHover(model, new EditorPosition(1, 1), CancellationToken.None);
+		const value = await getHoverPromise(model, new EditorPosition(1, 1), CancellationToken.None);
 		assert.strictEqual(value.length, 2);
 		let [first, second] = (value as modes.Hover[]);
 		assert.strictEqual(first.contents[0].value, 'registered second');
@@ -436,7 +436,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		getHover(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
+		getHoverPromise(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
 			assert.strictEqual(value.length, 1);
 		});
 	});
@@ -681,9 +681,41 @@ suite('ExtHostLanguageFeatures', function () {
 		let value = await getWorkspaceSymbols('');
 		assert.strictEqual(value.length, 1);
 		const [first] = value;
-		const [, symbols] = first;
-		assert.strictEqual(symbols.length, 1);
-		assert.strictEqual(symbols[0].name, 'testing');
+		assert.strictEqual(first.symbol.name, 'testing');
+	});
+
+	test('Navigate types, de-duplicate results', async () => {
+		const uri = URI.from({ scheme: 'foo', path: '/some/path' });
+		disposables.push(extHost.registerWorkspaceSymbolProvider(defaultExtension, new class implements vscode.WorkspaceSymbolProvider {
+			provideWorkspaceSymbols(): any {
+				return [new types.SymbolInformation('ONE', types.SymbolKind.Array, undefined, new types.Location(uri, new types.Range(0, 0, 1, 1)))];
+			}
+		}));
+
+		disposables.push(extHost.registerWorkspaceSymbolProvider(defaultExtension, new class implements vscode.WorkspaceSymbolProvider {
+			provideWorkspaceSymbols(): any {
+				return [new types.SymbolInformation('ONE', types.SymbolKind.Array, undefined, new types.Location(uri, new types.Range(0, 0, 1, 1)))]; // get de-duped
+			}
+		}));
+
+		disposables.push(extHost.registerWorkspaceSymbolProvider(defaultExtension, new class implements vscode.WorkspaceSymbolProvider {
+			provideWorkspaceSymbols(): any {
+				return [new types.SymbolInformation('ONE', types.SymbolKind.Array, undefined, new types.Location(uri, undefined!))]; // NO dedupe because of resolve
+			}
+			resolveWorkspaceSymbol(a: vscode.SymbolInformation) {
+				return a;
+			}
+		}));
+
+		disposables.push(extHost.registerWorkspaceSymbolProvider(defaultExtension, new class implements vscode.WorkspaceSymbolProvider {
+			provideWorkspaceSymbols(): any {
+				return [new types.SymbolInformation('ONE', types.SymbolKind.Struct, undefined, new types.Location(uri, new types.Range(0, 0, 1, 1)))]; // NO dedupe because of kind
+			}
+		}));
+
+		await rpcProtocol.sync();
+		let value = await getWorkspaceSymbols('');
+		assert.strictEqual(value.length, 3);
 	});
 
 	// --- rename

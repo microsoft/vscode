@@ -24,8 +24,7 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		shellType: undefined,
 		hasChildProcesses: true,
 		resolvedShellLaunchConfig: {},
-		overrideDimensions: undefined,
-		exit: undefined,
+		overrideDimensions: undefined
 	};
 	private _capabilities: ProcessCapability[] = [];
 	get capabilities(): ProcessCapability[] { return this._capabilities; }
@@ -37,6 +36,8 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	readonly onProcessReady = this._onProcessReady.event;
 	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
+	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
+	readonly onProcessExit = this._onProcessExit.event;
 
 	constructor(
 		readonly id: number,
@@ -79,10 +80,10 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	async getCwd(): Promise<string> {
 		return this._properties.cwd || this._properties.initialCwd;
 	}
-	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
+	async refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]> {
 		return this._localPtyService.refreshProperty(this.id, type);
 	}
-	async updateProperty<T extends ProcessPropertyType>(type: ProcessPropertyType, value: IProcessPropertyMap[T]): Promise<void> {
+	async updateProperty<T extends ProcessPropertyType>(type: T, value: IProcessPropertyMap[T]): Promise<void> {
 		return this._localPtyService.updateProperty(this.id, type, value);
 	}
 	getLatency(): Promise<number> {
@@ -101,6 +102,9 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 
 	handleData(e: string | IProcessDataEvent) {
 		this._onProcessData.fire(e);
+	}
+	handleExit(e: number | undefined) {
+		this._onProcessExit.fire(e);
 	}
 	handleReady(e: IProcessReadyEvent) {
 		this._capabilities = e.capabilities;

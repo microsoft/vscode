@@ -659,7 +659,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 		this._taskService.registerTaskSystem(key, {
 			platform: platform,
 			uriProvider: (path: string): URI => {
-				return URI.parse(`${info.scheme}://${info.authority}${path}`);
+				return URI.from({ scheme: info.scheme, authority: info.authority, path });
 			},
 			context: this._extHostContext,
 			resolveVariables: (workspaceFolder: IWorkspaceFolder, toResolve: ResolveSet, target: ConfigurationTarget): Promise<ResolvedVariables | undefined> => {

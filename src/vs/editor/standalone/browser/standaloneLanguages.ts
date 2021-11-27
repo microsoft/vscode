@@ -49,8 +49,8 @@ export function getEncodedLanguageId(languageId: string): number {
  * @event
  */
 export function onLanguage(languageId: string, callback: () => void): IDisposable {
-	let disposable = StaticServices.modeService.get().onDidEncounterLanguage((languageId) => {
-		if (languageId === languageId) {
+	let disposable = StaticServices.modeService.get().onDidEncounterLanguage((encounteredLanguageId) => {
+		if (encounteredLanguageId === languageId) {
 			// stop listening
 			disposable.dispose();
 			// invoke actual listener

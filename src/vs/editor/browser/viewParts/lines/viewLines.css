@@ -14,6 +14,11 @@
 	100% { background-color: none }
 }*/
 
+.mtkcontrol {
+	color: rgb(255, 255, 255) !important;
+	background: rgb(150, 0, 0) !important;
+}
+
 .monaco-editor.no-user-select .lines-content,
 .monaco-editor.no-user-select .view-line,
 .monaco-editor.no-user-select .view-lines {

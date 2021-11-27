@@ -20,6 +20,8 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	readonly onProcessReady = this._onProcessReady.event;
 	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
+	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
+	readonly onProcessExit = this._onProcessExit.event;
 
 	private _startBarrier: Barrier;
 
@@ -33,8 +35,7 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		shellType: undefined,
 		hasChildProcesses: true,
 		resolvedShellLaunchConfig: {},
-		overrideDimensions: undefined,
-		exit: undefined
+		overrideDimensions: undefined
 	};
 
 	private _capabilities: ProcessCapability[] = [];
@@ -128,16 +129,19 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		return this._properties.cwd || this._properties.initialCwd;
 	}
 
-	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
+	async refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]> {
 		return this._remoteTerminalChannel.refreshProperty(this._id, type);
 	}
 
-	async updateProperty<T extends ProcessPropertyType>(type: ProcessPropertyType, value: IProcessPropertyMap[T]): Promise<any> {
+	async updateProperty<T extends ProcessPropertyType>(type: T, value: IProcessPropertyMap[T]): Promise<void> {
 		return this._remoteTerminalChannel.updateProperty(this._id, type, value);
 	}
 
 	handleData(e: string | IProcessDataEvent) {
 		this._onProcessData.fire(e);
+	}
+	handleExit(e: number | undefined) {
+		this._onProcessExit.fire(e);
 	}
 	processBinary(e: string): Promise<void> {
 		return this._remoteTerminalChannel.processBinary(this._id, e);

@@ -9,7 +9,6 @@
     "vscode": "^1.41.0"
   },
   "icon": "images/icon.png",
-  "enableProposedApi": true,
   "categories": [
     "Other"
   ],
@@ -61,7 +60,7 @@
   "dependencies": {
     "node-fetch": "2.6.1",
     "uuid": "8.1.0",
-    "vscode-extension-telemetry": "0.4.2",
+    "vscode-extension-telemetry": "0.4.3",
     "vscode-nls": "^5.0.0",
     "vscode-tas-client": "^0.1.22"
   },

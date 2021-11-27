@@ -33,8 +33,6 @@ export function activate(context: vscode.ExtensionContext) {
 		transientOutputs: false,
 		transientCellMetadata: {
 			breakpointMargin: true,
-			inputCollapsed: true,
-			outputCollapsed: true,
 			custom: false
 		}
 	}));

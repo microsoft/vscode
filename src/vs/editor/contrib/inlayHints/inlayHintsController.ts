@@ -6,26 +6,26 @@
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { hash } from 'vs/base/common/hash';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache, ResourceMap } from 'vs/base/common/map';
 import { IRange } from 'vs/base/common/range';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { DynamicCssRules } from 'vs/editor/browser/editorDom';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IContentDecorationRenderOptions, IDecorationRenderOptions, IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDeltaDecoration, ITextModel, IWordAtPosition, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IModelDeltaDecoration, InjectedTextOptions, ITextModel, IWordAtPosition, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { InlayHint, InlayHintKind, InlayHintsProvider, InlayHintsProviderRegistry } from 'vs/editor/common/modes';
 import { LanguageFeatureRequestDelays } from 'vs/editor/common/modes/languageFeatureRegistry';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { editorInlayHintBackground, editorInlayHintForeground, editorInlayHintParameterBackground, editorInlayHintParameterForeground, editorInlayHintTypeBackground, editorInlayHintTypeForeground } from 'vs/platform/theme/common/colorRegistry';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { ThemeColor, themeColorFromId } from 'vs/platform/theme/common/themeService';
+
 
 const MAX_DECORATORS = 1500;
 
@@ -110,12 +110,11 @@ export class InlayHintsController implements IEditorContribution {
 	private readonly _sessionDisposables = new DisposableStore();
 	private readonly _getInlayHintsDelays = new LanguageFeatureRequestDelays(InlayHintsProviderRegistry, 25, 500);
 	private readonly _cache = new InlayHintsCache();
-
-	private _decorations = new Map<string, { hint: InlayHint, decorationTypeId: string }>();
+	private readonly _decorationsMetadata = new Map<string, { hint: InlayHint, classNameRef: IDisposable }>();
+	private readonly _ruleFactory = new DynamicCssRules(this._editor);
 
 	constructor(
-		private readonly _editor: ICodeEditor,
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		private readonly _editor: ICodeEditor
 	) {
 		this._disposables.add(InlayHintsProviderRegistry.onDidChange(() => this._update()));
 		this._disposables.add(_editor.onDidChangeModel(() => this._update()));
@@ -168,7 +167,7 @@ export class InlayHintsController implements IEditorContribution {
 				return;
 			}
 			this._updateHintsDecorators(ranges, result);
-			this._cache.set(model, Array.from(this._decorations.values()).map(obj => obj.hint));
+			this._cache.set(model, Array.from(this._decorationsMetadata.values()).map(obj => obj.hint));
 
 		}, this._getInlayHintsDelays.get(model));
 
@@ -176,7 +175,7 @@ export class InlayHintsController implements IEditorContribution {
 
 		// update inline hints when content or scroll position changes
 		this._sessionDisposables.add(this._editor.onDidChangeModelContent(() => scheduler.schedule()));
-		this._disposables.add(this._editor.onDidScrollChange(() => scheduler.schedule()));
+		this._sessionDisposables.add(this._editor.onDidScrollChange(() => scheduler.schedule()));
 		scheduler.schedule();
 
 		// update inline hints when any any provider fires an event
@@ -214,8 +213,7 @@ export class InlayHintsController implements IEditorContribution {
 		const { fontSize, fontFamily } = this._getLayoutInfo();
 		const model = this._editor.getModel()!;
 
-		const newDecorationsTypeIds: string[] = [];
-		const newDecorationsData: IModelDeltaDecoration[] = [];
+		const newDecorationsData: { decoration: IModelDeltaDecoration, classNameRef: IDisposable }[] = [];
 
 		const fontFamilyVar = '--code-editorInlayHintsFontFamily';
 		this._editor.getContainerDomNode().style.setProperty(fontFamilyVar, fontFamily);
@@ -226,36 +224,38 @@ export class InlayHintsController implements IEditorContribution {
 			const marginBefore = whitespaceBefore ? (fontSize / 3) | 0 : 0;
 			const marginAfter = whitespaceAfter ? (fontSize / 3) | 0 : 0;
 
-			const contentOptions: IContentDecorationRenderOptions = {
-				contentText: fixSpace(text),
+			let backgroundColor: ThemeColor;
+			let color: ThemeColor;
+			if (hint.kind === InlayHintKind.Parameter) {
+				backgroundColor = themeColorFromId(editorInlayHintParameterBackground);
+				color = themeColorFromId(editorInlayHintParameterForeground);
+			} else if (hint.kind === InlayHintKind.Type) {
+				backgroundColor = themeColorFromId(editorInlayHintTypeBackground);
+				color = themeColorFromId(editorInlayHintTypeForeground);
+			} else {
+				backgroundColor = themeColorFromId(editorInlayHintBackground);
+				color = themeColorFromId(editorInlayHintForeground);
+			}
+
+			const classNameRef = this._ruleFactory.createClassNameRef({
 				fontSize: `${fontSize}px`,
 				margin: `0px ${marginAfter}px 0px ${marginBefore}px`,
 				fontFamily: `var(${fontFamilyVar}), ${EDITOR_FONT_DEFAULTS.fontFamily}`,
 				padding: `1px ${Math.max(1, fontSize / 4) | 0}px`,
 				borderRadius: `${(fontSize / 4) | 0}px`,
 				verticalAlign: 'middle',
-				backgroundColor: themeColorFromId(editorInlayHintBackground),
-				color: themeColorFromId(editorInlayHintForeground)
-			};
+				backgroundColor,
+				color
+			});
 
-			if (hint.kind === InlayHintKind.Parameter) {
-				contentOptions.backgroundColor = themeColorFromId(editorInlayHintParameterBackground);
-				contentOptions.color = themeColorFromId(editorInlayHintParameterForeground);
-			} else if (hint.kind === InlayHintKind.Type) {
-				contentOptions.backgroundColor = themeColorFromId(editorInlayHintTypeBackground);
-				contentOptions.color = themeColorFromId(editorInlayHintTypeForeground);
-			}
-
-			let renderOptions: IDecorationRenderOptions = { beforeInjectedText: { ...contentOptions, affectsLetterSpacing: true } };
+			let direction: 'before' | 'after' = 'before';
 
 			let range = Range.fromPositions(position);
 			let word = model.getWordAtPosition(position);
 			let usesWordRange = false;
 			if (word) {
 				if (word.endColumn === position.column) {
-					// change decoration to after
-					renderOptions.afterInjectedText = renderOptions.beforeInjectedText;
-					renderOptions.beforeInjectedText = undefined;
+					direction = 'after';
 					usesWordRange = true;
 					range = wordToRange(word, position.lineNumber);
 				} else if (word.startColumn === position.column) {
@@ -264,43 +264,44 @@ export class InlayHintsController implements IEditorContribution {
 				}
 			}
 
-			const key = 'inlayHints-' + hash(renderOptions).toString(16);
-			this._codeEditorService.registerDecorationType('inlay-hints-controller', key, renderOptions, undefined, this._editor);
-
-			// decoration types are ref-counted which means we only need to
-			// call register und remove equally often
-			newDecorationsTypeIds.push(key);
-
-			const newLen = newDecorationsData.push({
-				range,
-				options: {
-					...this._codeEditorService.resolveDecorationOptions(key, true),
-					showIfCollapsed: !usesWordRange,
-					stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
-				}
+			newDecorationsData.push({
+				decoration: {
+					range,
+					options: {
+						[direction]: {
+							content: fixSpace(text),
+							inlineClassNameAffectsLetterSpacing: true,
+							inlineClassName: classNameRef.className,
+						} as InjectedTextOptions,
+						description: 'InlayHint',
+						showIfCollapsed: !usesWordRange,
+						stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+					}
+				},
+				classNameRef
 			});
 
-			if (newLen > MAX_DECORATORS) {
+			if (newDecorationsData.length > MAX_DECORATORS) {
 				break;
 			}
 		}
 
 		// collect all decoration ids that are affected by the ranges
 		// and only update those decorations
-		const decorationIdsToUpdate: string[] = [];
+		const decorationIdsToReplace: string[] = [];
 		for (const range of ranges) {
 			for (const { id } of model.getDecorationsInRange(range, this._decorationOwnerId, true)) {
-				const obj = this._decorations.get(id);
-				if (obj) {
-					decorationIdsToUpdate.push(id);
-					this._codeEditorService.removeDecorationType(obj.decorationTypeId);
-					this._decorations.delete(id);
+				const metadata = this._decorationsMetadata.get(id);
+				if (metadata) {
+					decorationIdsToReplace.push(id);
+					metadata.classNameRef.dispose();
+					this._decorationsMetadata.delete(id);
 				}
 			}
 		}
-		const newDecorationIds = model.deltaDecorations(decorationIdsToUpdate, newDecorationsData, this._decorationOwnerId);
+		const newDecorationIds = model.deltaDecorations(decorationIdsToReplace, newDecorationsData.map(d => d.decoration), this._decorationOwnerId);
 		for (let i = 0; i < newDecorationIds.length; i++) {
-			this._decorations.set(newDecorationIds[i], { hint: hints[i], decorationTypeId: newDecorationsTypeIds[i] });
+			this._decorationsMetadata.set(newDecorationIds[i], { hint: hints[i], classNameRef: newDecorationsData[i].classNameRef });
 		}
 	}
 
@@ -316,11 +317,11 @@ export class InlayHintsController implements IEditorContribution {
 	}
 
 	private _removeAllDecorations(): void {
-		this._editor.deltaDecorations(Array.from(this._decorations.keys()), []);
-		for (let obj of this._decorations.values()) {
-			this._codeEditorService.removeDecorationType(obj.decorationTypeId);
+		this._editor.deltaDecorations(Array.from(this._decorationsMetadata.keys()), []);
+		for (let obj of this._decorationsMetadata.values()) {
+			obj.classNameRef.dispose();
 		}
-		this._decorations.clear();
+		this._decorationsMetadata.clear();
 	}
 }
 
@@ -333,6 +334,7 @@ function wordToRange(word: IWordAtPosition, lineNumber: number): Range {
 	);
 }
 
+// Prevents the view from potentially visible whitespace
 function fixSpace(str: string): string {
 	const noBreakWhitespace = '\xa0';
 	return str.replace(/[ \t]/g, noBreakWhitespace);
@@ -355,3 +357,4 @@ CommandsRegistry.registerCommand('_executeInlayHintProvider', async (accessor, .
 		ref.dispose();
 	}
 });
+

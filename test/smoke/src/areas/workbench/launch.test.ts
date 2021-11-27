@@ -3,36 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import { Application, ApplicationOptions } from '../../../../automation';
+import minimist = require('minimist');
+import { join } from 'path';
+import { Application } from '../../../../automation';
+import { afterSuite, startApp } from '../../utils';
 
-export function setup() {
+export function setup(args: minimist.ParsedArgs) {
 
 	describe('Launch', () => {
 
-		let app: Application;
+		let app: Application | undefined;
 
-		after(async function () {
-			if (app) {
-				await app.stop();
-			}
-		});
-
-		afterEach(async function () {
-			if (app) {
-				if (this.currentTest!.state === 'failed') {
-					const name = this.currentTest!.fullTitle().replace(/[^a-z0-9\-]/ig, '_');
-					await app.captureScreenshot(name);
-				}
-			}
-		});
+		afterSuite(args, () => app);
 
 		it(`verifies that application launches when user data directory has non-ascii characters`, async function () {
-			const defaultOptions = this.defaultOptions as ApplicationOptions;
-			const options: ApplicationOptions = { ...defaultOptions, userDataDir: path.join(defaultOptions.userDataDir, 'abcdø') };
-			app = new Application(options);
-			await app.start();
-		});
+			const massagedOptions = { ...this.defaultOptions, userDataDir: join(this.defaultOptions.userDataDir, 'ø') };
+			app = await startApp(args, massagedOptions);
 
+			await app.stop();
+			app = undefined;
+		});
 	});
 }

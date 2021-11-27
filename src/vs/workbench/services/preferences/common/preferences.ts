@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, EditPresentationTypes, IConfigurationExtensionInfo } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, EditPresentationTypes, IExtensionInfo } from 'vs/platform/configuration/common/configurationRegistry';
 import { EditorResolution, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
@@ -28,7 +28,7 @@ export enum SettingValueType {
 	Integer = 'integer',
 	Number = 'number',
 	Boolean = 'boolean',
-	StringOrEnumArray = 'string-or-enum-array',
+	Array = 'array',
 	Exclude = 'exclude',
 	Complex = 'complex',
 	NullableInteger = 'nullable-integer',
@@ -42,9 +42,9 @@ export interface ISettingsGroup {
 	range: IRange;
 	title: string;
 	titleRange: IRange;
-	order: number;
 	sections: ISettingsSection[];
-	extensionInfo?: IConfigurationExtensionInfo;
+	order?: number;
+	extensionInfo?: IExtensionInfo;
 }
 
 export interface ISettingsSection {
@@ -69,6 +69,7 @@ export interface ISetting {
 
 	scope?: ConfigurationScope;
 	type?: string | string[];
+	order?: number;
 	arrayItemType?: string;
 	objectProperties?: IJSONSchemaMap,
 	objectPatternProperties?: IJSONSchemaMap,
@@ -80,7 +81,7 @@ export interface ISetting {
 	tags?: string[];
 	disallowSyncIgnore?: boolean;
 	restricted?: boolean;
-	extensionInfo?: IConfigurationExtensionInfo;
+	extensionInfo?: IExtensionInfo;
 	validator?: (value: any) => string | null;
 	enumItemLabels?: string[];
 	allKeysAreBoolean?: boolean;

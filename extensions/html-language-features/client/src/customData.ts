@@ -6,6 +6,7 @@
 import { workspace, extensions, Uri, EventEmitter, Disposable } from 'vscode';
 import { resolvePath, joinPath } from './requests';
 
+
 export function getCustomDataSource(toDispose: Disposable[]) {
 	let pathsInWorkspace = getCustomDataPathsInAllWorkspaces();
 	let pathsInExtensions = getCustomDataPathsFromAllExtensions();
@@ -14,7 +15,7 @@ export function getCustomDataSource(toDispose: Disposable[]) {
 
 	toDispose.push(extensions.onDidChange(_ => {
 		const newPathsInExtensions = getCustomDataPathsFromAllExtensions();
-		if (newPathsInExtensions.length !== pathsInExtensions.length || !newPathsInExtensions.every((val, idx) => val === pathsInExtensions[idx])) {
+		if (pathsInExtensions.size !== newPathsInExtensions.size || ![...pathsInExtensions].every(path => newPathsInExtensions.has(path))) {
 			pathsInExtensions = newPathsInExtensions;
 			onChange.fire();
 		}
@@ -26,9 +27,16 @@ export function getCustomDataSource(toDispose: Disposable[]) {
 		}
 	}));
 
+	toDispose.push(workspace.onDidChangeTextDocument(e => {
+		const path = e.document.uri.toString();
+		if (pathsInExtensions.has(path) || pathsInWorkspace.has(path)) {
+			onChange.fire();
+		}
+	}));
+
 	return {
 		get uris() {
-			return pathsInWorkspace.concat(pathsInExtensions);
+			return [...pathsInWorkspace].concat([...pathsInExtensions]);
 		},
 		get onDidChange() {
 			return onChange.event;
@@ -36,21 +44,31 @@ export function getCustomDataSource(toDispose: Disposable[]) {
 	};
 }
 
+function isURI(uriOrPath: string) {
+	return /^(?<scheme>\w[\w\d+.-]*):/.test(uriOrPath);
+}
 
-function getCustomDataPathsInAllWorkspaces(): string[] {
+
+function getCustomDataPathsInAllWorkspaces(): Set<string> {
 	const workspaceFolders = workspace.workspaceFolders;
 
-	const dataPaths: string[] = [];
+	const dataPaths = new Set<string>();
 
 	if (!workspaceFolders) {
 		return dataPaths;
 	}
 
-	const collect = (paths: string[] | undefined, rootFolder: Uri) => {
-		if (Array.isArray(paths)) {
-			for (const path of paths) {
-				if (typeof path === 'string') {
-					dataPaths.push(resolvePath(rootFolder, path).toString());
+	const collect = (uriOrPaths: string[] | undefined, rootFolder: Uri) => {
+		if (Array.isArray(uriOrPaths)) {
+			for (const uriOrPath of uriOrPaths) {
+				if (typeof uriOrPath === 'string') {
+					if (!isURI(uriOrPath)) {
+						// path in the workspace
+						dataPaths.add(resolvePath(rootFolder, uriOrPath).toString());
+					} else {
+						// external uri
+						dataPaths.add(uriOrPath);
+					}
 				}
 			}
 		}
@@ -74,13 +92,20 @@ function getCustomDataPathsInAllWorkspaces(): string[] {
 	return dataPaths;
 }
 
-function getCustomDataPathsFromAllExtensions(): string[] {
-	const dataPaths: string[] = [];
+function getCustomDataPathsFromAllExtensions(): Set<string> {
+	const dataPaths = new Set<string>();
 	for (const extension of extensions.all) {
 		const customData = extension.packageJSON?.contributes?.html?.customData;
 		if (Array.isArray(customData)) {
-			for (const rp of customData) {
-				dataPaths.push(joinPath(extension.extensionUri, rp).toString());
+			for (const uriOrPath of customData) {
+				if (!isURI(uriOrPath)) {
+					// relative path in an extension
+					dataPaths.add(joinPath(extension.extensionUri, uriOrPath).toString());
+				} else {
+					// external uri
+					dataPaths.add(uriOrPath);
+				}
+
 			}
 		}
 	}

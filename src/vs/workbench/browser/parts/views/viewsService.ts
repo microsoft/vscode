@@ -271,6 +271,13 @@ export class ViewsService extends Disposable implements IViewsService {
 						} else if (location === ViewContainerLocation.Panel) {
 							this.paneCompositeService.hideActivePaneComposite(location);
 						}
+
+						// The blur event doesn't fire on WebKit when the focused element is hidden,
+						// so the context key needs to be forced here too otherwise a view may still
+						// think it's showing, breaking toggle commands.
+						if (this.focusedViewContextKey.get() === id) {
+							this.focusedViewContextKey.reset();
+						}
 					} else {
 						view.setExpanded(false);
 					}
@@ -457,9 +464,10 @@ export class ViewsService extends Disposable implements IViewsService {
 	private registerFocusViewAction(viewDescriptor: IViewDescriptor, category?: string | ILocalizedString): IDisposable {
 		return registerAction2(class FocusViewAction extends Action2 {
 			constructor() {
+				const title = localize({ key: 'focus view', comment: ['{0} indicates the name of the view to be focused.'] }, "Focus on {0} View", viewDescriptor.name);
 				super({
 					id: viewDescriptor.focusCommand ? viewDescriptor.focusCommand.id : `${viewDescriptor.id}.focus`,
-					title: { original: `Focus on ${viewDescriptor.name} View`, value: localize({ key: 'focus view', comment: ['{0} indicates the name of the view to be focused.'] }, "Focus on {0} View", viewDescriptor.name) },
+					title: { original: `Focus on ${viewDescriptor.name} View`, value: title },
 					category,
 					menu: [{
 						id: MenuId.CommandPalette,
@@ -473,11 +481,29 @@ export class ViewsService extends Disposable implements IViewsService {
 						linux: viewDescriptor.focusCommand?.keybindings?.linux,
 						mac: viewDescriptor.focusCommand?.keybindings?.mac,
 						win: viewDescriptor.focusCommand?.keybindings?.win
+					},
+					description: {
+						description: title,
+						args: [
+							{
+								name: 'focusOptions',
+								description: 'Focus Options',
+								schema: {
+									type: 'object',
+									properties: {
+										'preserveFocus': {
+											type: 'boolean',
+											default: false
+										}
+									},
+								}
+							}
+						]
 					}
 				});
 			}
-			run(accessor: ServicesAccessor): void {
-				accessor.get(IViewsService).openView(viewDescriptor.id, true);
+			run(accessor: ServicesAccessor, options?: { preserveFocus?: boolean }): void {
+				accessor.get(IViewsService).openView(viewDescriptor.id, !options?.preserveFocus);
 			}
 		});
 	}

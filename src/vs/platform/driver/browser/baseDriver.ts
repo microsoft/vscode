@@ -9,40 +9,6 @@ import { language, locale } from 'vs/base/common/platform';
 import { IElement, ILocaleInfo, ILocalizedStrings, IWindowDriver } from 'vs/platform/driver/common/driver';
 import localizedStrings from 'vs/platform/localizations/common/localizedStrings';
 
-function serializeElement(element: Element, recursive: boolean): IElement {
-	const attributes = Object.create(null);
-
-	for (let j = 0; j < element.attributes.length; j++) {
-		const attr = element.attributes.item(j);
-		if (attr) {
-			attributes[attr.name] = attr.value;
-		}
-	}
-
-	const children: IElement[] = [];
-
-	if (recursive) {
-		for (let i = 0; i < element.children.length; i++) {
-			const child = element.children.item(i);
-			if (child) {
-				children.push(serializeElement(child, true));
-			}
-		}
-	}
-
-	const { left, top } = getTopLeftOffset(element as HTMLElement);
-
-	return {
-		tagName: element.tagName,
-		className: element.className,
-		textContent: element.textContent || '',
-		attributes,
-		children,
-		left,
-		top
-	};
-}
-
 export abstract class BaseWindowDriver implements IWindowDriver {
 
 	abstract click(selector: string, xoffset?: number, yoffset?: number): Promise<void>;
@@ -91,13 +57,46 @@ export abstract class BaseWindowDriver implements IWindowDriver {
 	async getElements(selector: string, recursive: boolean): Promise<IElement[]> {
 		const query = document.querySelectorAll(selector);
 		const result: IElement[] = [];
-
 		for (let i = 0; i < query.length; i++) {
 			const element = query.item(i);
-			result.push(serializeElement(element, recursive));
+			result.push(this.serializeElement(element, recursive));
 		}
 
 		return result;
+	}
+
+	private serializeElement(element: Element, recursive: boolean): IElement {
+		const attributes = Object.create(null);
+
+		for (let j = 0; j < element.attributes.length; j++) {
+			const attr = element.attributes.item(j);
+			if (attr) {
+				attributes[attr.name] = attr.value;
+			}
+		}
+
+		const children: IElement[] = [];
+
+		if (recursive) {
+			for (let i = 0; i < element.children.length; i++) {
+				const child = element.children.item(i);
+				if (child) {
+					children.push(this.serializeElement(child, true));
+				}
+			}
+		}
+
+		const { left, top } = getTopLeftOffset(element as HTMLElement);
+
+		return {
+			tagName: element.tagName,
+			className: element.className,
+			textContent: element.textContent || '',
+			attributes,
+			children,
+			left,
+			top
+		};
 	}
 
 	async getElementXY(selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number; }> {
@@ -139,9 +138,8 @@ export abstract class BaseWindowDriver implements IWindowDriver {
 		}
 
 		const lines: string[] = [];
-
-		for (let i = 0; i < xterm.buffer.length; i++) {
-			lines.push(xterm.buffer.getLine(i)!.translateToString(true));
+		for (let i = 0; i < xterm.buffer.active.length; i++) {
+			lines.push(xterm.buffer.active.getLine(i)!.translateToString(true));
 		}
 
 		return lines;
@@ -160,7 +158,7 @@ export abstract class BaseWindowDriver implements IWindowDriver {
 			throw new Error(`Xterm not found: ${selector}`);
 		}
 
-		xterm._core._coreService.triggerDataEvent(text);
+		xterm._core.coreService.triggerDataEvent(text);
 	}
 
 	getLocaleInfo(): Promise<ILocaleInfo> {

@@ -326,7 +326,7 @@ export interface IPartialEditorMouseEvent {
  */
 export interface IPasteEvent {
 	readonly range: Range;
-	readonly mode: string | null;
+	readonly languageId: string | null;
 }
 
 /**
@@ -899,6 +899,8 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @internal
 	 */
 	hasModel(): this is IActiveCodeEditor;
+
+	setBanner(bannerDomNode: HTMLElement | null, height: number): void;
 }
 
 /**

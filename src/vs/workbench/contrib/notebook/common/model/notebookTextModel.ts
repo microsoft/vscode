@@ -18,7 +18,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { ITextBuffer, ITextModel } from 'vs/editor/common/model';
+import { ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { isDefined } from 'vs/base/common/types';
 
@@ -607,9 +607,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			if (textModel && textModel instanceof TextModel) {
 				cell.textModel = textModel;
 				cell.language = cellDto.language;
-				if (!cell.textModel.equalsTextBuffer(cell.textBuffer as ITextBuffer)) {
-					cell.textModel.setValue(cellDto.source);
-				}
+				cell.textModel.setValue(cellDto.source);
+				cell.resetTextBuffer(cell.textModel.getTextBuffer());
 			}
 			const dirtyStateListener = cell.onDidChangeContent((e) => {
 				this._bindCellContentHandler(cell, e);
@@ -956,53 +955,41 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	private _appendNotebookCellOutputItems(cell: NotebookCellTextModel, outputId: string, items: IOutputItemDto[]) {
-		const outputIndex = cell.outputs.findIndex(output => output.outputId === outputId);
+		if (cell.changeOutputItems(outputId, true, items)) {
+			this._pauseableEmitter.fire({
+				rawEvents: [{
+					kind: NotebookCellsChangeType.OutputItem,
+					index: this._cells.indexOf(cell),
+					outputId: outputId,
+					outputItems: items,
+					append: true,
+					transient: this.transientOptions.transientOutputs
 
-		if (outputIndex < 0) {
-			return;
+				}],
+				versionId: this.versionId,
+				synchronous: true,
+				endSelectionState: undefined
+			});
 		}
-
-		const output = cell.outputs[outputIndex];
-		output.appendData(items);
-		this._pauseableEmitter.fire({
-			rawEvents: [{
-				kind: NotebookCellsChangeType.OutputItem,
-				index: this._cells.indexOf(cell),
-				outputId: output.outputId,
-				outputItems: items,
-				append: true,
-				transient: this.transientOptions.transientOutputs
-
-			}],
-			versionId: this.versionId,
-			synchronous: true,
-			endSelectionState: undefined
-		});
 	}
 
 	private _replaceNotebookCellOutputItems(cell: NotebookCellTextModel, outputId: string, items: IOutputItemDto[]) {
-		const outputIndex = cell.outputs.findIndex(output => output.outputId === outputId);
+		if (cell.changeOutputItems(outputId, false, items)) {
+			this._pauseableEmitter.fire({
+				rawEvents: [{
+					kind: NotebookCellsChangeType.OutputItem,
+					index: this._cells.indexOf(cell),
+					outputId: outputId,
+					outputItems: items,
+					append: false,
+					transient: this.transientOptions.transientOutputs
 
-		if (outputIndex < 0) {
-			return;
+				}],
+				versionId: this.versionId,
+				synchronous: true,
+				endSelectionState: undefined
+			});
 		}
-
-		const output = cell.outputs[outputIndex];
-		output.replaceData(items);
-		this._pauseableEmitter.fire({
-			rawEvents: [{
-				kind: NotebookCellsChangeType.OutputItem,
-				index: this._cells.indexOf(cell),
-				outputId: output.outputId,
-				outputItems: items,
-				append: false,
-				transient: this.transientOptions.transientOutputs
-
-			}],
-			versionId: this.versionId,
-			synchronous: true,
-			endSelectionState: undefined
-		});
 	}
 
 	private _moveCellToIdx(index: number, length: number, newIdx: number, synchronous: boolean, pushedToUndoStack: boolean, beforeSelections: ISelectionState | undefined, endSelections: ISelectionState | undefined): boolean {

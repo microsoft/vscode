@@ -58,7 +58,6 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 			&& !this.environmentService.skipWelcome
 			&& !this.storageService.get(telemetryOptOutStorageKey, StorageScope.GLOBAL)
 		) {
-
 			this.storageService.store(telemetryOptOutStorageKey, true, StorageScope.GLOBAL, StorageTarget.USER);
 			await this.openWelcome(true);
 			return;

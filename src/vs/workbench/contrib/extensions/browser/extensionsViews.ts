@@ -56,7 +56,7 @@ import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { ILogService } from 'vs/platform/log/common/log';
 
 // Extensions that are automatically classified as Programming Language extensions, but should be Feature extensions
-const FORCE_FEATURE_EXTENSIONS = ['vscode.git', 'vscode.search-result'];
+const FORCE_FEATURE_EXTENSIONS = ['vscode.git', 'vscode.git-base', 'vscode.search-result'];
 
 type WorkspaceRecommendationsClassification = {
 	count: { classification: 'SystemMetaData', purpose: 'FeatureInsight', 'isMeasurement': true };
@@ -83,6 +83,7 @@ export interface ExtensionsListViewOptions {
 	server?: IExtensionManagementServer;
 	fixedHeight?: boolean;
 	onDidChangeTitle?: Event<string>;
+	hideBadge?: boolean;
 }
 
 interface IQueryResult {
@@ -155,8 +156,10 @@ export class ExtensionsListView extends ViewPane {
 		container.classList.add('extension-view-header');
 		super.renderHeader(container);
 
-		this.badge = new CountBadge(append(container, $('.count-badge-wrapper')));
-		this._register(attachBadgeStyler(this.badge, this.themeService));
+		if (!this.options.hideBadge) {
+			this.badge = new CountBadge(append(container, $('.count-badge-wrapper')));
+			this._register(attachBadgeStyler(this.badge, this.themeService));
+		}
 	}
 
 	override renderBody(container: HTMLElement): void {
@@ -284,7 +287,7 @@ export class ExtensionsListView extends ViewPane {
 				groups = await manageExtensionAction.getActionGroups(runningExtensions);
 
 			} else if (e.element) {
-				groups = getContextMenuActions(e.element, false, this.instantiationService);
+				groups = getContextMenuActions(e.element, this.contextKeyService, this.instantiationService);
 				groups.forEach(group => group.forEach(extensionAction => {
 					if (extensionAction instanceof ExtensionAction) {
 						extensionAction.extension = e.element!;

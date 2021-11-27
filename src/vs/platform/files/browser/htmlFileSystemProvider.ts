@@ -285,15 +285,19 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 
 	//#region File/Directoy Handle Registry
 
-	private readonly files = new Map<string, FileSystemFileHandle>();
-	private readonly directories = new Map<string, FileSystemDirectoryHandle>();
+	private readonly _files = new Map<string, FileSystemFileHandle>();
+	private readonly _directories = new Map<string, FileSystemDirectoryHandle>();
 
 	registerFileHandle(handle: FileSystemFileHandle): URI {
-		return this.registerHandle(handle, this.files);
+		return this.registerHandle(handle, this._files);
 	}
 
 	registerDirectoryHandle(handle: FileSystemDirectoryHandle): URI {
-		return this.registerHandle(handle, this.directories);
+		return this.registerHandle(handle, this._directories);
+	}
+
+	get directories(): Iterable<FileSystemDirectoryHandle> {
+		return this._directories.values();
 	}
 
 	private registerHandle(handle: FileSystemHandle, map: Map<string, FileSystemHandle>): URI {
@@ -346,7 +350,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 		}
 
 		const handleId = resource.path.replace(/\/$/, ''); // remove potential slash from the end of the path
-		const handle = this.files.get(handleId) ?? this.directories.get(handleId);
+		const handle = this._files.get(handleId) ?? this._directories.get(handleId);
 
 		if (!handle) {
 			throw this.createFileSystemProviderError(resource, 'No file system handle registered', FileSystemProviderErrorCode.Unavailable);

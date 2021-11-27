@@ -8,6 +8,7 @@
 	display: inline-block;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+	color: var(--vscode-editorCodeLens-foreground)
 }
 
 .monaco-editor .codelens-decoration > span,
@@ -25,11 +26,17 @@
 
 .monaco-editor .codelens-decoration > a:hover {
 	cursor: pointer;
+	color: var(--vscoce-editorLink-activeForeground) !important;
+}
+
+.monaco-editor .codelens-decoration > a:hover .codicon {
+	color: var(--vscoce-editorLink-activeForeground) !important;
 }
 
 .monaco-editor .codelens-decoration .codicon {
 	vertical-align: middle;
 	color: currentColor !important;
+	color: var(--vscode-editorCodeLens-foreground);
 }
 
 .monaco-editor .codelens-decoration > a:hover .codicon::before {

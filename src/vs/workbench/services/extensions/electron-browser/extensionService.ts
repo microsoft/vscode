@@ -45,6 +45,7 @@ import { ConfigurationScope } from 'vs/platform/configuration/common/configurati
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { StopWatch } from 'vs/base/common/stopwatch';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -56,7 +57,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@INotificationService notificationService: INotificationService,
-		@IWorkbenchEnvironmentService _environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchExtensionEnablementService extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IFileService fileService: IFileService,
@@ -64,22 +65,22 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
+		@IWebExtensionsScannerService webExtensionsScannerService: IWebExtensionsScannerService,
+		@ILogService logService: ILogService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IWebExtensionsScannerService webExtensionsScannerService: IWebExtensionsScannerService,
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IHostService private readonly _hostService: IHostService,
 		@IRemoteExplorerService private readonly _remoteExplorerService: IRemoteExplorerService,
 		@IExtensionGalleryService private readonly _extensionGalleryService: IExtensionGalleryService,
-		@ILogService private readonly _logService: ILogService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
 		super(
 			instantiationService,
 			notificationService,
-			_environmentService,
+			environmentService,
 			telemetryService,
 			extensionEnablementService,
 			fileService,
@@ -88,7 +89,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			contextService,
 			configurationService,
 			extensionManifestPropertiesService,
-			webExtensionsScannerService
+			webExtensionsScannerService,
+			logService
 		);
 
 		[this._enableLocalWebWorker, this._lazyLocalWebWorker] = this._isLocalWebWorkerEnabled();
@@ -331,10 +333,14 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess)!;
 		this._remoteAuthorityResolverService._clearResolvedAuthority(remoteAuthority);
+		const sw = StopWatch.create(false);
+		this._logService.info(`Invoking resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)})`);
 		try {
 			const result = await localProcessExtensionHost.resolveAuthority(remoteAuthority);
+			this._logService.info(`resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)}) returned '${result.authority.host}:${result.authority.port}' after ${sw.elapsed()} ms`);
 			this._remoteAuthorityResolverService._setResolvedAuthority(result.authority, result.options);
 		} catch (err) {
+			this._logService.error(`resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)}) returned an error after ${sw.elapsed()} ms`, err);
 			this._remoteAuthorityResolverService._setResolvedAuthorityError(remoteAuthority, err);
 		}
 	}
@@ -365,9 +371,13 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			await this._workspaceTrustManagementService.workspaceResolved;
 			let resolverResult: ResolverResult;
 
+			const sw = StopWatch.create(false);
+			this._logService.info(`Invoking resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)})`);
 			try {
 				resolverResult = await localProcessExtensionHost.resolveAuthority(remoteAuthority);
+				this._logService.info(`resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)}) returned '${resolverResult.authority.host}:${resolverResult.authority.port}' after ${sw.elapsed()} ms`);
 			} catch (err) {
+				this._logService.error(`resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)}) returned an error after ${sw.elapsed()} ms`, err);
 				if (RemoteAuthorityResolverError.isNoResolverFound(err)) {
 					err.isHandled = await this._handleNoResolverFound(remoteAuthority);
 				} else {
@@ -548,6 +558,14 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		}
 		return true;
 	}
+}
+
+function getRemoteAuthorityPrefix(remoteAuthority: string): string {
+	const plusIndex = remoteAuthority.indexOf('+');
+	if (plusIndex === -1) {
+		return remoteAuthority;
+	}
+	return remoteAuthority.substring(0, plusIndex);
 }
 
 function filterByRunningLocation(extensions: IExtensionDescription[], runningLocation: Map<string, ExtensionRunningLocation>, desiredRunningLocation: ExtensionRunningLocation): IExtensionDescription[] {

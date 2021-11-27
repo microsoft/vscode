@@ -120,7 +120,9 @@ function isWhitespace(code: number): boolean {
 }
 
 const wordSeparators = new Set<number>();
-'`~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?'
+// These are chosen as natural word separators based on writen text.
+// It is a subset of the word separators used by the monaco editor.
+'()[]{}<>`\'"-/;:,.?!'
 	.split('')
 	.forEach(s => wordSeparators.add(s.charCodeAt(0)));
 

@@ -14,7 +14,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
+import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { ILinkHoverTargetOptions, TerminalHover } from 'vs/workbench/contrib/terminal/browser/widgets/terminalHoverWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { localize } from 'vs/nls';
@@ -29,7 +29,7 @@ export abstract class TerminalLink extends DisposableStore implements ILink {
 	get onInvalidated(): Event<void> { return this._onInvalidated.event; }
 
 	protected get _xterm(): Terminal {
-		return (this._terminal as any)._xterm;
+		return (this._terminal as any).xterm.raw as Terminal;
 	}
 	protected get _widgetManager(): TerminalWidgetManager | undefined {
 		return (this._terminal as any)._widgetManager;
@@ -91,14 +91,14 @@ export abstract class TerminalLink extends DisposableStore implements ILink {
 			return;
 		}
 
-		const core = (this._xterm as any)._core as XTermCore;
+		const core = (this._xterm as any)._core as IXtermCore;
 		const cellDimensions = {
 			width: core._renderService.dimensions.actualCellWidth,
 			height: core._renderService.dimensions.actualCellHeight
 		};
 		const terminalDimensions = {
-			width: this._xterm.cols,
-			height: this._xterm.rows
+			width: this._terminal.cols,
+			height: this._terminal.rows,
 		};
 		const targetOptions: ILinkHoverTargetOptions = {
 			viewportRange: convertBufferRangeToViewport(this.range, this._viewportY),

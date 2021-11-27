@@ -25,6 +25,9 @@ export const enum TerminalSettingId {
 	AutomationShellLinux = 'terminal.integrated.automationShell.linux',
 	AutomationShellMacOs = 'terminal.integrated.automationShell.osx',
 	AutomationShellWindows = 'terminal.integrated.automationShell.windows',
+	AutomationProfileLinux = 'terminal.integrated.automationProfile.linux',
+	AutomationProfileMacOs = 'terminal.integrated.automationProfile.osx',
+	AutomationProfileWindows = 'terminal.integrated.automationProfile.windows',
 	ShellArgsLinux = 'terminal.integrated.shellArgs.linux',
 	ShellArgsMacOs = 'terminal.integrated.shellArgs.osx',
 	ShellArgsWindows = 'terminal.integrated.shellArgs.windows',
@@ -88,6 +91,7 @@ export const enum TerminalSettingId {
 	UnicodeVersion = 'terminal.integrated.unicodeVersion',
 	ExperimentalLinkProvider = 'terminal.integrated.experimentalLinkProvider',
 	LocalEchoLatencyThreshold = 'terminal.integrated.localEchoLatencyThreshold',
+	LocalEchoEnabled = 'terminal.integrated.localEchoEnabled',
 	LocalEchoExcludePrograms = 'terminal.integrated.localEchoExcludePrograms',
 	LocalEchoStyle = 'terminal.integrated.localEchoStyle',
 	EnablePersistentSessions = 'terminal.integrated.enablePersistentSessions',
@@ -186,8 +190,7 @@ export const enum ProcessPropertyType {
 	ShellType = 'shellType',
 	HasChildProcesses = 'hasChildProcesses',
 	ResolvedShellLaunchConfig = 'resolvedShellLaunchConfig',
-	OverrideDimensions = 'overrideDimensions',
-	Exit = 'exit'
+	OverrideDimensions = 'overrideDimensions'
 }
 
 export interface IProcessProperty<T extends ProcessPropertyType> {
@@ -203,8 +206,7 @@ export interface IProcessPropertyMap {
 	[ProcessPropertyType.ShellType]: TerminalShellType | undefined,
 	[ProcessPropertyType.HasChildProcesses]: boolean,
 	[ProcessPropertyType.ResolvedShellLaunchConfig]: IShellLaunchConfig,
-	[ProcessPropertyType.OverrideDimensions]: ITerminalDimensionsOverride | undefined,
-	[ProcessPropertyType.Exit]: number | undefined
+	[ProcessPropertyType.OverrideDimensions]: ITerminalDimensionsOverride | undefined
 }
 
 export interface IFixedTerminalDimensions {
@@ -235,6 +237,7 @@ export interface IPtyService {
 	readonly onProcessOrphanQuestion: Event<{ id: number }>;
 	readonly onDidRequestDetach: Event<{ requestId: number, workspaceId: string, instanceId: number }>;
 	readonly onDidChangeProperty: Event<{ id: number, property: IProcessProperty<any> }>
+	readonly onProcessExit: Event<{ id: number, event: number | undefined }>;
 
 	restartPtyHost?(): Promise<void>;
 	shutdownAll?(): Promise<void>;
@@ -294,8 +297,8 @@ export interface IPtyService {
 	 * flow for restoring terminals after reloading.
 	 */
 	reviveTerminalProcesses(state: string): Promise<void>;
-	refreshProperty(id: number, property: ProcessPropertyType): Promise<any>;
-	updateProperty(id: number, property: ProcessPropertyType, value: any): Promise<void>;
+	refreshProperty<T extends ProcessPropertyType>(id: number, property: T): Promise<IProcessPropertyMap[T]>;
+	updateProperty<T extends ProcessPropertyType>(id: number, property: T, value: IProcessPropertyMap[T]): Promise<void>;
 
 	refreshIgnoreProcessNames?(names: string[]): Promise<void>;
 }
@@ -535,6 +538,7 @@ export interface ITerminalChildProcess {
 	onProcessData: Event<IProcessDataEvent | string>;
 	onProcessReady: Event<IProcessReadyEvent>;
 	onDidChangeProperty: Event<IProcessProperty<any>>;
+	onProcessExit: Event<number | undefined>;
 
 	/**
 	 * Starts the process.
@@ -577,8 +581,8 @@ export interface ITerminalChildProcess {
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
 	getLatency(): Promise<number>;
-	refreshProperty<T extends ProcessPropertyType>(property: ProcessPropertyType): Promise<IProcessPropertyMap[T]>;
-	updateProperty<T extends ProcessPropertyType>(property: ProcessPropertyType, value: IProcessPropertyMap[T]): Promise<void>;
+	refreshProperty<T extends ProcessPropertyType>(property: T): Promise<IProcessPropertyMap[T]>;
+	updateProperty<T extends ProcessPropertyType>(property: T, value: IProcessPropertyMap[T]): Promise<void>;
 }
 
 export interface IReconnectConstants {

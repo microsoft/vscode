@@ -166,6 +166,15 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				data.description = value;
 				_update();
 			},
+			get kind() {
+				checkProposedApiEnabled(extension, 'notebookControllerKind');
+				return data.kind ?? '';
+			},
+			set kind(value) {
+				checkProposedApiEnabled(extension, 'notebookControllerKind');
+				data.kind = value;
+				_update();
+			},
 			get supportedLanguages() {
 				return data.supportedLanguages;
 			},
@@ -225,11 +234,11 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			// --- ipc
 			onDidReceiveMessage: onDidReceiveMessage.event,
 			postMessage(message, editor) {
-				checkProposedApiEnabled(extension);
+				checkProposedApiEnabled(extension, 'notebookMessaging');
 				return that._proxy.$postMessage(handle, editor && that._extHostNotebook.getIdByEditor(editor), message);
 			},
 			asWebviewUri(uri: URI) {
-				checkProposedApiEnabled(extension);
+				checkProposedApiEnabled(extension, 'notebookMessaging');
 				return asWebviewUri(uri, that._initData.remote);
 			},
 		};

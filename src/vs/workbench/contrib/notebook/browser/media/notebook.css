@@ -53,7 +53,7 @@
 }
 
 .monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item:not(.disabled):hover {
-	background-color: var(--code-toolbarHoverBackground);
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item .action-label {
@@ -870,7 +870,7 @@
 }
 
 .output-show-more {
-	padding: 8px 0;
+	padding: 8px 0 0 0;
 }
 
 .cell-contributed-items.cell-contributed-items-left {

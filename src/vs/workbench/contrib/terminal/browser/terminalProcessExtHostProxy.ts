@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalLaunchError, IProcessProperty, ProcessPropertyType, ProcessCapability } from 'vs/platform/terminal/common/terminal';
+import { IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalLaunchError, IProcessProperty, ProcessPropertyType, ProcessCapability, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 
@@ -16,8 +16,6 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	get capabilities(): ProcessCapability[] { return this._capabilities; }
 	private readonly _onProcessData = this._register(new Emitter<string>());
 	readonly onProcessData: Event<string> = this._onProcessData.event;
-	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
-	readonly onProcessExit: Event<number | undefined> = this._onProcessExit.event;
 	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
 	get onProcessReady(): Event<IProcessReadyEvent> { return this._onProcessReady.event; }
 
@@ -41,6 +39,8 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	readonly onRequestLatency: Event<void> = this._onRequestLatency.event;
 	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
+	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
+	readonly onProcessExit: Event<number | undefined> = this._onProcessExit.event;
 
 
 	private _pendingInitialCwdRequests: ((value: string | PromiseLike<string>) => void)[] = [];
@@ -169,17 +169,11 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 		});
 	}
 
-	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<any> {
-		if (type === ProcessPropertyType.Cwd) {
-			return this.getCwd();
-		} else if (type === ProcessPropertyType.InitialCwd) {
-			return this.getInitialCwd();
-		}
+	async refreshProperty<T extends ProcessPropertyType>(type: T): Promise<any> {
+		// throws if called in extHostTerminalService
 	}
 
-	async updateProperty<T extends ProcessPropertyType>(type: ProcessPropertyType, value: any): Promise<void> {
-		if (type === ProcessPropertyType.FixedDimensions) {
-
-		}
+	async updateProperty<T extends ProcessPropertyType>(type: T, value: IProcessPropertyMap[T]): Promise<void> {
+		// throws if called in extHostTerminalService
 	}
 }

@@ -17,7 +17,6 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceInitializationPayload, reviveIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { NativeStorageService } from 'vs/platform/storage/electron-sandbox/storageService';
-import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -31,14 +30,14 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { RemoteFileSystemProvider } from 'vs/workbench/services/remote/common/remoteAgentFileSystemChannel';
-import { ConfigurationCache } from 'vs/workbench/services/configuration/electron-sandbox/configurationCache';
+import { ConfigurationCache } from 'vs/workbench/services/configuration/common/configurationCache';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { basename } from 'vs/base/common/path';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { KeyboardLayoutService } from 'vs/workbench/services/keybinding/electron-sandbox/nativeKeyboardLayout';
 import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
@@ -50,6 +49,8 @@ import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } fr
 import { registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
 import { safeStringify } from 'vs/base/common/objects';
 import { ISharedProcessWorkerWorkbenchService, SharedProcessWorkerWorkbenchService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessWorkerWorkbenchService';
+import { isMacintosh } from 'vs/base/common/platform';
+import { Schemas } from 'vs/base/common/network';
 
 export abstract class SharedDesktopMain extends Disposable {
 
@@ -105,7 +106,7 @@ export abstract class SharedDesktopMain extends Disposable {
 		const [services] = await Promise.all([this.initServices(), domContentLoaded()]);
 
 		// Create Workbench
-		const workbench = new Workbench(document.body, services.serviceCollection, services.logService);
+		const workbench = new Workbench(document.body, { extraClasses: this.getExtraClasses() }, services.serviceCollection, services.logService);
 
 		// Listeners
 		this.registerListeners(workbench, services.storageService);
@@ -123,6 +124,16 @@ export abstract class SharedDesktopMain extends Disposable {
 		if (this.configuration.driver) {
 			instantiationService.invokeFunction(async accessor => this._register(await registerWindowDriver(accessor, this.configuration.windowId)));
 		}
+	}
+
+	private getExtraClasses(): string[] {
+		if (isMacintosh) {
+			if (this.configuration.os.release > '20.0.0') {
+				return ['macos-bigsur-or-newer'];
+			}
+		}
+
+		return [];
 	}
 
 	private registerListeners(workbench: Workbench, storageService: NativeStorageService): void {
@@ -239,12 +250,8 @@ export abstract class SharedDesktopMain extends Disposable {
 		//
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-
-		const connection = remoteAgentService.getConnection();
-		if (connection) {
-			const remoteFileSystemProvider = this._register(new RemoteFileSystemProvider(remoteAgentService));
-			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
-		}
+		// Remote file system
+		this._register(RemoteFileSystemProvider.register(remoteAgentService, fileService, logService));
 
 		const payload = this.resolveWorkspaceInitializationPayload(environmentService);
 
@@ -311,9 +318,11 @@ export abstract class SharedDesktopMain extends Disposable {
 		if (!workspaceInitializationPayload) {
 			let id: string;
 			if (this.configuration.backupPath) {
-				id = basename(this.configuration.backupPath); // we know the backupPath must be a unique path so we leverage its name as workspace ID
+				// we know the backupPath must be a unique path so we leverage its name as workspace ID
+				id = basename(this.configuration.backupPath);
 			} else if (environmentService.isExtensionDevelopment) {
-				id = 'ext-dev'; // extension development window never stores backups and is a singleton
+				// fallback to a reserved identifier when in extension development where backups are not stored
+				id = 'ext-dev';
 			} else {
 				throw new Error('Unexpected window configuration without backupPath');
 			}
@@ -325,7 +334,8 @@ export abstract class SharedDesktopMain extends Disposable {
 	}
 
 	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: INativeWorkbenchEnvironmentService, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, logService: ILogService): Promise<WorkspaceService> {
-		const workspaceService = new WorkspaceService({ remoteAuthority: environmentService.remoteAuthority, configurationCache: new ConfigurationCache(URI.file(environmentService.userDataPath), fileService) }, environmentService, fileService, remoteAgentService, uriIdentityService, logService);
+		const configurationCache = new ConfigurationCache([Schemas.file, Schemas.userData] /* Cache all non native resources */, environmentService, fileService);
+		const workspaceService = new WorkspaceService({ remoteAuthority: environmentService.remoteAuthority, configurationCache }, environmentService, fileService, remoteAgentService, uriIdentityService, logService);
 
 		try {
 			await workspaceService.initialize(payload);

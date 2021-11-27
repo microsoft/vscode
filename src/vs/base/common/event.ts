@@ -198,7 +198,7 @@ export namespace Event {
 	/**
 	 * @deprecated DO NOT use, this leaks memory
 	 */
-	export function buffer<T>(event: Event<T>, nextTick = false, _buffer: T[] = []): Event<T> {
+	export function buffer<T>(event: Event<T>, flushAfterTimeout = false, _buffer: T[] = []): Event<T> {
 		let buffer: T[] | null = _buffer.slice();
 
 		let listener: IDisposable | null = event(e => {
@@ -225,7 +225,7 @@ export namespace Event {
 
 			onFirstListenerDidAdd() {
 				if (buffer) {
-					if (nextTick) {
+					if (flushAfterTimeout) {
 						setTimeout(flush);
 					} else {
 						flush();

@@ -3,16 +3,12 @@ steps:
     inputs:
       versionSpec: "14.x"
 
-  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
-    inputs:
-      versionSpec: "1.x"
-
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
-      SecretsFilter: "github-distro-mixin-password,builds-docdb-key-readwrite,vscode-storage-key,ESRP-PKI,esrp-aad-username,esrp-aad-password"
+      SecretsFilter: "github-distro-mixin-password,ESRP-PKI,esrp-aad-username,esrp-aad-password"
 
   - task: DownloadPipelineArtifact@2
     inputs:
@@ -168,6 +164,13 @@ steps:
 
   - script: |
       set -e
+      yarn test-node --build
+    displayName: Run unit tests (node.js)
+    timeoutInMinutes: 7
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+  - script: |
+      set -e
       yarn test-browser --build --browser chromium --tfs "Browser Unit Tests"
     displayName: Run unit tests (Browser)
     timeoutInMinutes: 7
@@ -204,7 +207,7 @@ steps:
       INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME" \
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)" \
       ./resources/server/test/test-remote-integration.sh
-    displayName: Run remote integration tests (Electron)
+    displayName: Run integration tests (Remote)
     timeoutInMinutes: 7
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
@@ -212,7 +215,7 @@ steps:
       set -e
       APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
       yarn smoketest-no-compile --build "$APP_PATH" --electronArgs="--disable-dev-shm-usage --use-gl=swiftshader" --screenshots $(Build.SourcesDirectory)/.build/logs/smoke-tests
-    timeoutInMinutes: 5
+    timeoutInMinutes: 10
     displayName: Run smoke tests (Electron)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
@@ -220,8 +223,8 @@ steps:
       set -e
       APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)" \
-      yarn smoketest-no-compile --build "$APP_PATH" --remote --electronArgs="--disable-dev-shm-usage --use-gl=swiftshader" --screenshots $(Build.SourcesDirectory)/.build/logs/smoke-tests
-    timeoutInMinutes: 5
+      yarn smoketest-no-compile --build "$APP_PATH" --remote --electronArgs="--disable-dev-shm-usage --use-gl=swiftshader" --screenshots $(Build.SourcesDirectory)/.build/logs/smoke-tests-remote
+    timeoutInMinutes: 10
     displayName: Run smoke tests (Remote)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
@@ -229,7 +232,7 @@ steps:
       set -e
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-linux-$(VSCODE_ARCH)" \
       yarn smoketest-no-compile --web --headless --electronArgs="--disable-dev-shm-usage --use-gl=swiftshader"
-    timeoutInMinutes: 5
+    timeoutInMinutes: 10
     displayName: Run smoke tests (Browser)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
@@ -293,9 +296,6 @@ steps:
 
   - script: |
       set -e
-      AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
-      AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
-      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
       VSCODE_ARCH="$(VSCODE_ARCH)" \
       ./build/azure-pipelines/linux/prepare-publish.sh
     displayName: Prepare for Publish
