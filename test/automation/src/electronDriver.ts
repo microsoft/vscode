@@ -14,64 +14,7 @@ import * as kill from 'tree-kill';
 import { copyExtension } from './extensions';
 import { URI } from 'vscode-uri';
 
-export const connect = connectElectronDriver;
-
 const repoPath = path.join(__dirname, '../../..');
-
-export function getDevElectronPath(): string {
-	const buildPath = path.join(repoPath, '.build');
-	const product = require(path.join(repoPath, 'product.json'));
-
-	switch (process.platform) {
-		case 'darwin':
-			return path.join(buildPath, 'electron', `${product.nameLong}.app`, 'Contents', 'MacOS', 'Electron');
-		case 'linux':
-			return path.join(buildPath, 'electron', `${product.applicationName}`);
-		case 'win32':
-			return path.join(buildPath, 'electron', `${product.nameShort}.exe`);
-		default:
-			throw new Error('Unsupported platform.');
-	}
-}
-
-export function getBuildElectronPath(root: string): string {
-	switch (process.platform) {
-		case 'darwin':
-			return path.join(root, 'Contents', 'MacOS', 'Electron');
-		case 'linux': {
-			const product = require(path.join(root, 'resources', 'app', 'product.json'));
-			return path.join(root, product.applicationName);
-		}
-		case 'win32': {
-			const product = require(path.join(root, 'resources', 'app', 'product.json'));
-			return path.join(root, `${product.nameShort}.exe`);
-		}
-		default:
-			throw new Error('Unsupported platform.');
-	}
-}
-
-export function getDevOutPath(): string {
-	return path.join(repoPath, 'out');
-}
-
-export function getBuildOutPath(root: string): string {
-	switch (process.platform) {
-		case 'darwin':
-			return path.join(root, 'Contents', 'Resources', 'app', 'out');
-		default:
-			return path.join(root, 'resources', 'app', 'out');
-	}
-}
-
-export async function createDriverHandle(): Promise<string> {
-	if ('win32' === os.platform()) {
-		const name = [...Array(15)].map(() => Math.random().toString(36)[3]).join('');
-		return `\\\\.\\pipe\\${name}`;
-	} else {
-		return await new Promise<string>((resolve, reject) => tmpName((err, handlePath) => err ? reject(err) : resolve(handlePath)));
-	}
-}
 
 export async function launch(workspacePath: string, userDataDir: string, codePath: string | undefined, extensionsPath: string, verbose: boolean, remote: boolean, log: string | undefined, extraArgs: string[] | undefined): Promise<{ electronProcess: ChildProcess, client: IDisposable, driver: IDriver }> {
 	const env = { ...process.env };
@@ -170,11 +113,7 @@ export async function launch(workspacePath: string, userDataDir: string, codePat
 	while (true) {
 		try {
 			const { client, driver } = await connectElectronDriver(outPath, driverIPCHandle);
-			return {
-				electronProcess,
-				client,
-				driver
-			};
+			return { electronProcess, client, driver };
 		} catch (err) {
 
 			// give up
@@ -195,8 +134,67 @@ export async function launch(workspacePath: string, userDataDir: string, codePat
 				if ((err as NodeJS.ErrnoException).code !== 'ENOENT' /* ENOENT is expected for as long as the server has not started on the socket */) {
 					console.error(`*** Error connecting driver: ${err}. Attempting to retry...`);
 				}
+
 				await new Promise(resolve => setTimeout(resolve, 1000));
 			}
 		}
 	}
+}
+
+function getDevElectronPath(): string {
+	const buildPath = path.join(repoPath, '.build');
+	const product = require(path.join(repoPath, 'product.json'));
+
+	switch (process.platform) {
+		case 'darwin':
+			return path.join(buildPath, 'electron', `${product.nameLong}.app`, 'Contents', 'MacOS', 'Electron');
+		case 'linux':
+			return path.join(buildPath, 'electron', `${product.applicationName}`);
+		case 'win32':
+			return path.join(buildPath, 'electron', `${product.nameShort}.exe`);
+		default:
+			throw new Error('Unsupported platform.');
+	}
+}
+
+function getBuildElectronPath(root: string): string {
+	switch (process.platform) {
+		case 'darwin':
+			return path.join(root, 'Contents', 'MacOS', 'Electron');
+		case 'linux': {
+			const product = require(path.join(root, 'resources', 'app', 'product.json'));
+			return path.join(root, product.applicationName);
+		}
+		case 'win32': {
+			const product = require(path.join(root, 'resources', 'app', 'product.json'));
+			return path.join(root, `${product.nameShort}.exe`);
+		}
+		default:
+			throw new Error('Unsupported platform.');
+	}
+}
+
+function getDevOutPath(): string {
+	return path.join(repoPath, 'out');
+}
+
+function getBuildOutPath(root: string): string {
+	switch (process.platform) {
+		case 'darwin':
+			return path.join(root, 'Contents', 'Resources', 'app', 'out');
+		default:
+			return path.join(root, 'resources', 'app', 'out');
+	}
+}
+
+async function createDriverHandle(): Promise<string> {
+
+	// Windows
+	if ('win32' === os.platform()) {
+		const name = [...Array(15)].map(() => Math.random().toString(36)[3]).join('');
+		return `\\\\.\\pipe\\${name}`;
+	}
+
+	// Posix
+	return promisify(tmpName)();
 }
