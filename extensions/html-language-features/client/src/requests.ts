@@ -22,12 +22,19 @@ export function serveFileSystemRequests(client: CommonLanguageClient, runtime: R
 	const disposables = [];
 	disposables.push(client.onRequest(FsContentRequest.type, (param: { uri: string; encoding?: string; }) => {
 		const uri = Uri.parse(param.uri);
-		if (uri.scheme === 'file' && runtime.fs) {
-			return runtime.fs.getContent(param.uri);
+		if (uri.scheme === 'file') {
+			if (runtime.fs) {
+				return runtime.fs.getContent(param.uri);
+			}
+			return workspace.fs.readFile(uri).then(buffer => {
+				return new runtime.TextDecoder(param.encoding).decode(buffer);
+			});
+		} else {
+			// needed so custom schemes can be provided via TextDocumentContentProvider API
+			return workspace.openTextDocument(uri).then(doc => {
+				return doc.getText();
+			});
 		}
-		return workspace.fs.readFile(uri).then(buffer => {
-			return new runtime.TextDecoder(param.encoding).decode(buffer);
-		});
 	}));
 	disposables.push(client.onRequest(FsReadDirRequest.type, (uriString: string) => {
 		const uri = Uri.parse(uriString);
