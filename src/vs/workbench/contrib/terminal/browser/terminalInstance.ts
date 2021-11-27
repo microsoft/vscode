@@ -237,6 +237,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get navigationMode(): INavigationMode | undefined { return this._navigationModeAddon; }
 	get isDisconnected(): boolean { return this._processManager.isDisconnected; }
 	get isRemote(): boolean { return this._processManager.remoteAuthority !== undefined; }
+	get remoteAuthority(): string | undefined { return this._processManager.remoteAuthority; }
 	get hasFocus(): boolean { return this._wrapperElement?.contains(document.activeElement) ?? false; }
 	get title(): string { return this._title; }
 	get titleSource(): TitleEventSource { return this._titleSource; }
@@ -249,6 +250,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get workspaceFolder(): string | undefined { return this._workspaceFolder; }
 	get cwd(): string | undefined { return this._cwd; }
 	get initialCwd(): string | undefined { return this._initialCwd; }
+	get os(): OperatingSystem | undefined { return this._processManager.os; }
 	get capabilities(): ProcessCapability[] { return this._capabilities; }
 	get description(): string | undefined { return this._description || this.shellLaunchConfig.description; }
 	get userHome(): string | undefined { return this._userHome; }
@@ -684,11 +686,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._onDidInputData.fire(this);
 		});
 		this._xterm.onBinary(data => this._processManager.processBinary(data));
-		this.processReady.then(async () => {
-			if (this._linkManager) {
-				this._linkManager.processCwd = await this._processManager.getInitialCwd();
-			}
-		});
 		// Init winpty compat and link handler after process creation as they rely on the
 		// underlying process OS
 		this._processManager.onProcessReady((processTraits) => {
@@ -707,7 +704,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					return false;
 				});
 			}
-			this._linkManager = this._instantiationService.createInstance(TerminalLinkManager, xterm, this._processManager!);
+			this._linkManager = this._instantiationService.createInstance(TerminalLinkManager, this);
 			this._areLinksReady = true;
 			this._onLinksReady.fire(this);
 		});
@@ -914,7 +911,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._widgetManager.attachToElement(xterm.element);
 		this._processManager.onProcessReady((e) => {
-			this._linkManager?.setWidgetManager(this._widgetManager);
 			this._capabilities = e.capabilities;
 			this._workspaceFolder = path.basename(e.cwd.toString());
 		});
@@ -1598,9 +1594,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (typeof cwd !== 'string') {
 			throw new Error('cwd is not a string');
 		}
-		if (cwd && this._linkManager) {
-			this._linkManager.processCwd = cwd;
-		}
 		return cwd;
 	}
 
@@ -2198,7 +2191,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this._linkManager) {
 			throw new Error('TerminalInstance.registerLinkProvider before link manager was ready');
 		}
-		return this._linkManager.registerExternalLinkProvider(this, provider);
+		return this._linkManager.registerExternalLinkProvider(provider);
 	}
 
 	async rename(title?: string) {

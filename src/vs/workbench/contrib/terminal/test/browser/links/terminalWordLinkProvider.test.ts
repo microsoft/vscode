@@ -9,6 +9,20 @@ import { TerminalWordLinkProvider } from 'vs/workbench/contrib/terminal/browser/
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { OperatingSystem } from 'vs/base/common/platform';
+
+// Standard link providers use only `_xterm`, `userName`, `cwd`, `remoteAuthority`, `os` from `ITerminalInstance`.
+const createStubTerminalInstance = (xterm?: Terminal, partial?: Partial<ITerminalInstance>) => {
+	const os = partial?.os || OperatingSystem.Linux;
+	return {
+		_xterm: xterm,
+		userHome: os === OperatingSystem.Windows ? 'C:\\Users\\Stub' : '/home/stub',
+		cwd: os === OperatingSystem.Windows ? 'C:\\cwd' : '/cwd',
+		os: os,
+		...partial
+	} as any as ITerminalInstance;
+};
 
 suite('Workbench - TerminalWordLinkProvider', () => {
 
@@ -23,7 +37,8 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 
 	async function assertLink(text: string, expected: { text: string, range: [number, number][] }[]) {
 		const xterm = new Terminal();
-		const provider: TerminalWordLinkProvider = instantiationService.createInstance(TerminalWordLinkProvider, xterm, () => { }, () => { });
+		const terminal = createStubTerminalInstance(xterm);
+		const provider: TerminalWordLinkProvider = instantiationService.createInstance(TerminalWordLinkProvider, terminal);
 
 		// Write the text and wait for the parser to finish
 		await new Promise<void>(r => xterm.write(text, r));

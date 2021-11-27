@@ -21,6 +21,7 @@ import { IEditableData } from 'vs/workbench/common/views';
 import { DeserializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
+import { OperatingSystem } from 'vs/base/common/platform';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
@@ -412,6 +413,7 @@ export interface ITerminalInstance {
 	readonly workspaceFolder?: string;
 	readonly cwd?: string;
 	readonly initialCwd?: string;
+	readonly os?: OperatingSystem;
 	readonly capabilities: ProcessCapability[];
 
 	readonly statusList: ITerminalStatusList;
@@ -444,6 +446,8 @@ export interface ITerminalInstance {
 	 * Whether the terminal's pty is hosted on a remote.
 	 */
 	readonly isRemote: boolean;
+
+	readonly remoteAuthority: string | undefined;
 
 	/**
 	 * Whether an element within this terminal is focused.

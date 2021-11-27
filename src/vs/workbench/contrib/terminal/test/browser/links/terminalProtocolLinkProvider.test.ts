@@ -9,7 +9,21 @@ import { Terminal, ILink } from 'xterm';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { URI } from 'vs/base/common/uri';
+import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { OperatingSystem } from 'vs/base/common/platform';
+import { FileTerminalLink } from 'vs/workbench/contrib/terminal/browser/links/fileTerminalLink';
+
+// Standard link providers use only `_xterm`, `userName`, `cwd`, `remoteAuthority`, `os` from `ITerminalInstance`.
+const createStubTerminalInstance = (xterm?: Terminal, partial?: Partial<ITerminalInstance>) => {
+	const os = partial?.os || OperatingSystem.Linux;
+	return {
+		_xterm: xterm,
+		userHome: os === OperatingSystem.Windows ? 'C:\\Users\\Stub' : '/home/stub',
+		cwd: os === OperatingSystem.Windows ? 'C:\\cwd' : '/cwd',
+		os: os,
+		...partial
+	} as any as ITerminalInstance;
+};
 
 suite('Workbench - TerminalProtocolLinkProvider', () => {
 	let instantiationService: TestInstantiationService;
@@ -21,9 +35,8 @@ suite('Workbench - TerminalProtocolLinkProvider', () => {
 
 	async function assertLink(text: string, expected: { text: string, range: [number, number][] }[]) {
 		const xterm = new Terminal();
-		const provider = instantiationService.createInstance(TerminalProtocolLinkProvider, xterm, () => { }, () => { }, () => { }, (text: string, cb: (result: { uri: URI, isDirectory: boolean } | undefined) => void) => {
-			cb({ uri: URI.parse(text), isDirectory: false });
-		});
+		const terminal = createStubTerminalInstance(xterm);
+		const provider = instantiationService.createInstance(TerminalProtocolLinkProvider, terminal);
 
 		// Write the text and wait for the parser to finish
 		await new Promise<void>(r => xterm.write(text, r));
@@ -31,6 +44,11 @@ suite('Workbench - TerminalProtocolLinkProvider', () => {
 		// Ensure all links are provided
 		const links = (await new Promise<ILink[] | undefined>(r => provider.provideLinks(1, r)))!;
 		assert.strictEqual(links.length, expected.length);
+		for (let i = 0; i < expected.length; i++) {
+			if (expected[i].text.startsWith('file://')) {
+				assert(links[i] instanceof FileTerminalLink);
+			}
+		}
 		const actual = links.map(e => ({
 			text: e.text,
 			range: e.range

@@ -3,21 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IViewportRange, IBufferRange, ILink, ILinkDecorations, Terminal } from 'xterm';
+import type { IBufferRange, ILink, ILinkDecorations, Terminal } from 'xterm';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { convertBufferRangeToViewport } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { isMacintosh } from 'vs/base/common/platform';
-import { localize } from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
+import { ILinkHoverTargetOptions, TerminalHover } from 'vs/workbench/contrib/terminal/browser/widgets/terminalHoverWidget';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { localize } from 'vs/nls';
 
-export const OPEN_FILE_LABEL = localize('openFile', 'Open file in editor');
-export const FOLDER_IN_WORKSPACE_LABEL = localize('focusFolder', 'Focus folder in explorer');
-export const FOLDER_NOT_IN_WORKSPACE_LABEL = localize('openFolder', 'Open folder in new window');
-
-export class TerminalLink extends DisposableStore implements ILink {
+export abstract class TerminalLink extends DisposableStore implements ILink {
 	decorations: ILinkDecorations;
 
 	private _tooltipScheduler: RunOnceScheduler | undefined;
@@ -26,16 +28,21 @@ export class TerminalLink extends DisposableStore implements ILink {
 	private readonly _onInvalidated = new Emitter<void>();
 	get onInvalidated(): Event<void> { return this._onInvalidated.event; }
 
+	protected get _xterm(): Terminal {
+		return (this._terminal as any)._xterm;
+	}
+	protected get _widgetManager(): TerminalWidgetManager | undefined {
+		return (this._terminal as any)._widgetManager;
+	}
+
 	constructor(
-		private readonly _xterm: Terminal,
+		protected readonly _terminal: ITerminalInstance,
 		readonly range: IBufferRange,
 		readonly text: string,
-		private readonly _viewportY: number,
-		private readonly _activateCallback: (event: MouseEvent | undefined, uri: string) => void,
-		private readonly _tooltipCallback: (link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => void,
-		private readonly _isHighConfidenceLink: boolean,
-		readonly label: string | undefined,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		protected readonly _viewportY: number,
+		protected readonly _isHighConfidenceLink: boolean,
+		@IConfigurationService protected readonly _configurationService: IConfigurationService,
+		@IInstantiationService protected readonly _instantiationService: IInstantiationService
 	) {
 		super();
 		this.decorations = {
@@ -52,8 +59,76 @@ export class TerminalLink extends DisposableStore implements ILink {
 		this._tooltipScheduler = undefined;
 	}
 
-	activate(event: MouseEvent | undefined, text: string): void {
-		this._activateCallback(event, text);
+	/**
+	 * Action executed on activation.
+	 * @param source Allow distinguishing activation source.
+	 * @param payload Optional payload passed from activation source,
+	 * usually clicked text or link URL that caused activation.
+	 */
+	abstract action(source: 'terminal' | 'hover', payload?: any): void;
+
+	/**
+	 * Calls when the link is activated from terminal.
+	 * @param event The mouse event triggering the callback.
+	 * @param text The text of the link.
+	 */
+	activate(event: MouseEvent, text: string): void {
+		if (event) {
+			event.preventDefault();
+			if (!this._isModifierDown(event)) {
+				return;
+			}
+		}
+		this.action('terminal', text);
+	}
+
+	showTooltip() {
+		if (!this._widgetManager) {
+			return;
+		}
+		const hoverText = this._getHoverText();
+		if (!hoverText) {
+			return;
+		}
+
+		const core = (this._xterm as any)._core as XTermCore;
+		const cellDimensions = {
+			width: core._renderService.dimensions.actualCellWidth,
+			height: core._renderService.dimensions.actualCellHeight
+		};
+		const terminalDimensions = {
+			width: this._xterm.cols,
+			height: this._xterm.rows
+		};
+		const targetOptions: ILinkHoverTargetOptions = {
+			viewportRange: convertBufferRangeToViewport(this.range, this._viewportY),
+			cellDimensions,
+			terminalDimensions,
+			modifierDownCallback: this._isHighConfidenceLink ? () => this._enableDecorations() : undefined,
+			modifierUpCallback: this._isHighConfidenceLink ? () => this._disableDecorations() : undefined,
+		};
+
+		const widget = this._instantiationService.createInstance(TerminalHover,
+			targetOptions,
+			hoverText,
+			(url: string) => {
+				this.action('hover', url);
+			}
+		);
+		const attached = this._widgetManager.attachWidget(widget);
+		if (attached) {
+			this.onInvalidated(() => attached.dispose());
+		}
+	}
+
+	/**
+	 * Returns hover text to be displayed upon hovering over the link.
+	 * For default `showTooltip` impl., any link in this Markdown string
+	 * will cause default link terminal activation, passing clicked link
+	 * URL as payload to `action`. If null, no hover for default is provided.
+	 */
+	protected _getHoverText(): IMarkdownString | null {
+		return null;
 	}
 
 	hover(event: MouseEvent, text: string): void {
@@ -82,12 +157,7 @@ export class TerminalLink extends DisposableStore implements ILink {
 		// links). Feedback was that this makes using the terminal overly noisy.
 		if (this._isHighConfidenceLink) {
 			this._tooltipScheduler = new RunOnceScheduler(() => {
-				this._tooltipCallback(
-					this,
-					convertBufferRangeToViewport(this.range, this._viewportY),
-					this._isHighConfidenceLink ? () => this._enableDecorations() : undefined,
-					this._isHighConfidenceLink ? () => this._disableDecorations() : undefined
-				);
+				this.showTooltip();
 				// Clear out scheduler until next hover event
 				this._tooltipScheduler?.dispose();
 				this._tooltipScheduler = undefined;
@@ -121,7 +191,7 @@ export class TerminalLink extends DisposableStore implements ILink {
 		this._tooltipScheduler = undefined;
 	}
 
-	private _enableDecorations(): void {
+	protected _enableDecorations(): void {
 		if (!this.decorations.pointerCursor) {
 			this.decorations.pointerCursor = true;
 		}
@@ -130,7 +200,7 @@ export class TerminalLink extends DisposableStore implements ILink {
 		}
 	}
 
-	private _disableDecorations(): void {
+	protected _disableDecorations(): void {
 		if (this.decorations.pointerCursor) {
 			this.decorations.pointerCursor = false;
 		}
@@ -139,11 +209,31 @@ export class TerminalLink extends DisposableStore implements ILink {
 		}
 	}
 
-	private _isModifierDown(event: MouseEvent | KeyboardEvent): boolean {
+	protected _isModifierDown(event: MouseEvent | KeyboardEvent): boolean {
 		const multiCursorModifier = this._configurationService.getValue<'ctrlCmd' | 'alt'>('editor.multiCursorModifier');
 		if (multiCursorModifier === 'ctrlCmd') {
 			return !!event.altKey;
 		}
 		return isMacintosh ? event.metaKey : event.ctrlKey;
+	}
+
+	protected _getClickLabel(): string {
+		const editorConf = this._configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
+		// TODO: Should localization keys be changed?
+		let clickLabel = '';
+		if (editorConf.multiCursorModifier === 'ctrlCmd') {
+			if (isMacintosh) {
+				clickLabel = localize('terminalLinkHandler.followLinkAlt.mac', "option + click");
+			} else {
+				clickLabel = localize('terminalLinkHandler.followLinkAlt', "alt + click");
+			}
+		} else {
+			if (isMacintosh) {
+				clickLabel = localize('terminalLinkHandler.followLinkCmd', "cmd + click");
+			} else {
+				clickLabel = localize('terminalLinkHandler.followLinkCtrl', "ctrl + click");
+			}
+		}
+		return clickLabel;
 	}
 }
