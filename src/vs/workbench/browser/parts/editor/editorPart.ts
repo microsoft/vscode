@@ -518,8 +518,9 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.updateContainer();
 
 		// Maximize if needed
-		if (wasMaximized)
+		if (wasMaximized) {
 			this.gridWidget.maximizeViewSize(newGroupView);
+		}
 
 		// Event
 		this._onDidAddGroup.fire(newGroupView);
@@ -700,8 +701,9 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		}
 
 		// Maximize again
-		if (wasMaximized)
+		if (wasMaximized) {
 			this.gridWidget.maximizeViewSize(this._activeGroup);
+		}
 
 		// Notify group index change given a group was removed
 		this.notifyGroupIndexChange();
