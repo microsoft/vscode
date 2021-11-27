@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import * as mkdirp from 'mkdirp';
 import { tmpName } from 'tmp';
 import { IDriver, connect as connectElectronDriver, IDisposable, IElement, Thenable, ILocalizedStrings, ILocaleInfo } from './driver';
-import { connect as connectPlaywrightDriver, launch } from './playwrightDriver';
+import { connect as connectPlaywrightDriver, launch as launchBrowser } from './playwrightDriver';
 import { Logger } from './logger';
 import { ncp } from 'ncp';
 import { URI } from 'vscode-uri';
@@ -65,43 +65,6 @@ function getBuildOutPath(root: string): string {
 	}
 }
 
-async function connect(connectDriver: typeof connectElectronDriver | typeof connectPlaywrightDriver, child: cp.ChildProcess, outPath: string, handlePath: string, logger: Logger): Promise<Code> {
-	let retries = 0;
-
-	while (true) {
-		try {
-			const { client, driver } = await connectDriver(outPath, handlePath);
-			return new Code(client, driver, logger, child.pid);
-		} catch (err) {
-
-			// give up
-			if (++retries > 10) {
-				console.error(`Error connecting driver: ${err}. Giving up...`);
-
-				try {
-					await promisify(kill)(child.pid);
-				} catch (error) {
-					console.warn(`Error tearing down: ${error}`);
-				}
-
-				throw err;
-			}
-
-			// retry
-			else {
-				if ((err as NodeJS.ErrnoException).code !== 'ENOENT' /* ENOENT is expected for as long as the server has not started on the socket */) {
-					console.error(`Error connecting driver: ${err}. Attempting to retry...`);
-				}
-				await new Promise(resolve => setTimeout(resolve, 1000));
-			}
-		}
-	}
-}
-
-// Kill all running instances, when dead
-const instances = new Set<cp.ChildProcess>();
-process.once('exit', () => instances.forEach(code => code.kill()));
-
 export interface SpawnOptions {
 	codePath?: string;
 	workspacePath: string;
@@ -127,103 +90,139 @@ async function createDriverHandle(): Promise<string> {
 }
 
 export async function spawn(options: SpawnOptions): Promise<Code> {
-	const handle = await createDriverHandle();
-
-	let child: cp.ChildProcess;
-	let connectFunction: typeof connectElectronDriver | typeof connectPlaywrightDriver;
-	let outPath: string;
 
 	copyExtension(options.extensionsPath, 'vscode-notebook-tests');
 
 	// Browser smoke tests
 	if (options.web) {
-		child = await launch(options.userDataDir, options.workspacePath, options.codePath, options.extensionsPath, Boolean(options.verbose));
-		outPath = '';
-
-		connectFunction = connectPlaywrightDriver.bind(connectPlaywrightDriver, options);
+		return spawnBrowser(options);
 	}
 
 	// Electron smoke tests
-	else {
-		const env = { ...process.env };
-		const codePath = options.codePath;
-		const logsPath = path.join(repoPath, '.build', 'logs', options.remote ? 'smoke-tests-remote' : 'smoke-tests');
-		outPath = codePath ? getBuildOutPath(codePath) : getDevOutPath();
+	return spawnElectron(options);
+}
 
-		const args = [
-			options.workspacePath,
-			'--skip-release-notes',
-			'--skip-welcome',
-			'--disable-telemetry',
-			'--no-cached-data',
-			'--disable-updates',
-			'--disable-keytar',
-			'--disable-crash-reporter',
-			'--disable-workspace-trust',
-			`--extensions-dir=${options.extensionsPath}`,
-			`--user-data-dir=${options.userDataDir}`,
-			`--logsPath=${logsPath}`,
-			'--driver', handle
-		];
+async function spawnBrowser(options: SpawnOptions): Promise<Code> {
+	const serverProcess = await launchBrowser(options.userDataDir, options.workspacePath, options.codePath, options.extensionsPath, Boolean(options.verbose));
 
-		if (process.platform === 'linux') {
-			args.push('--disable-gpu'); // Linux has trouble in VMs to render properly with GPU enabled
-		}
+	const { client, driver } = await connectPlaywrightDriver(options);
 
-		if (options.remote) {
-			// Replace workspace path with URI
-			args[0] = `--${options.workspacePath.endsWith('.code-workspace') ? 'file' : 'folder'}-uri=vscode-remote://test+test/${URI.file(options.workspacePath).path}`;
+	return new Code(client, driver, options.logger, serverProcess.pid);
+}
 
-			if (codePath) {
-				// running against a build: copy the test resolver extension
-				copyExtension(options.extensionsPath, 'vscode-test-resolver');
-			}
-			args.push('--enable-proposed-api=vscode.vscode-test-resolver');
-			const remoteDataDir = `${options.userDataDir}-server`;
-			mkdirp.sync(remoteDataDir);
+async function spawnElectron(options: SpawnOptions): Promise<Code> {
+	const env = { ...process.env };
+	const codePath = options.codePath;
+	const logsPath = path.join(repoPath, '.build', 'logs', options.remote ? 'smoke-tests-remote' : 'smoke-tests');
+	const outPath = codePath ? getBuildOutPath(codePath) : getDevOutPath();
 
-			if (codePath) {
-				// running against a build: copy the test resolver extension into remote extensions dir
-				const remoteExtensionsDir = path.join(remoteDataDir, 'extensions');
-				mkdirp.sync(remoteExtensionsDir);
-				copyExtension(remoteExtensionsDir, 'vscode-notebook-tests');
-			}
+	const driverIPCHandle = await createDriverHandle();
 
-			env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
-			env['TESTRESOLVER_LOGS_FOLDER'] = path.join(logsPath, 'server');
-		}
+	const args = [
+		options.workspacePath,
+		'--skip-release-notes',
+		'--skip-welcome',
+		'--disable-telemetry',
+		'--no-cached-data',
+		'--disable-updates',
+		'--disable-keytar',
+		'--disable-crash-reporter',
+		'--disable-workspace-trust',
+		`--extensions-dir=${options.extensionsPath}`,
+		`--user-data-dir=${options.userDataDir}`,
+		`--logsPath=${logsPath}`,
+		'--driver', driverIPCHandle
+	];
 
-		const spawnOptions: cp.SpawnOptions = { env };
-
-		args.push('--enable-proposed-api=vscode.vscode-notebook-tests');
-
-		if (!codePath) {
-			args.unshift(repoPath);
-		}
-
-		if (options.verbose) {
-			args.push('--driver-verbose');
-			spawnOptions.stdio = ['ignore', 'inherit', 'inherit'];
-		}
-
-		if (options.log) {
-			args.push('--log', options.log);
-		}
-
-		if (options.extraArgs) {
-			args.push(...options.extraArgs);
-		}
-
-		const electronPath = codePath ? getBuildElectronPath(codePath) : getDevElectronPath();
-		child = cp.spawn(electronPath, args, spawnOptions);
-
-		connectFunction = connectElectronDriver;
+	if (process.platform === 'linux') {
+		args.push('--disable-gpu'); // Linux has trouble in VMs to render properly with GPU enabled
 	}
 
-	instances.add(child);
-	child.once('exit', () => instances.delete(child!));
+	if (options.remote) {
+		// Replace workspace path with URI
+		args[0] = `--${options.workspacePath.endsWith('.code-workspace') ? 'file' : 'folder'}-uri=vscode-remote://test+test/${URI.file(options.workspacePath).path}`;
 
-	return connect(connectFunction, child, outPath, handle, options.logger);
+		if (codePath) {
+			// running against a build: copy the test resolver extension
+			copyExtension(options.extensionsPath, 'vscode-test-resolver');
+		}
+		args.push('--enable-proposed-api=vscode.vscode-test-resolver');
+		const remoteDataDir = `${options.userDataDir}-server`;
+		mkdirp.sync(remoteDataDir);
+
+		if (codePath) {
+			// running against a build: copy the test resolver extension into remote extensions dir
+			const remoteExtensionsDir = path.join(remoteDataDir, 'extensions');
+			mkdirp.sync(remoteExtensionsDir);
+			copyExtension(remoteExtensionsDir, 'vscode-notebook-tests');
+		}
+
+		env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
+		env['TESTRESOLVER_LOGS_FOLDER'] = path.join(logsPath, 'server');
+	}
+
+	const spawnOptions: cp.SpawnOptions = { env };
+
+	args.push('--enable-proposed-api=vscode.vscode-notebook-tests');
+
+	if (!codePath) {
+		args.unshift(repoPath);
+	}
+
+	if (options.verbose) {
+		args.push('--driver-verbose');
+		spawnOptions.stdio = ['ignore', 'inherit', 'inherit'];
+	}
+
+	if (options.log) {
+		args.push('--log', options.log);
+	}
+
+	if (options.extraArgs) {
+		args.push(...options.extraArgs);
+	}
+
+	const electronPath = codePath ? getBuildElectronPath(codePath) : getDevElectronPath();
+	const electronProcess = cp.spawn(electronPath, args, spawnOptions);
+
+	let electronProcessDidExit = false;
+	electronProcess.once('exit', () => electronProcessDidExit = true);
+	process.once('exit', () => {
+		if (!electronProcessDidExit) {
+			electronProcess.kill();
+		}
+	});
+
+	let retries = 0;
+
+	while (true) {
+		try {
+			const { client, driver } = await connectElectronDriver(outPath, driverIPCHandle);
+			return new Code(client, driver, options.logger, electronProcess.pid);
+		} catch (err) {
+
+			// give up
+			if (++retries > 30) {
+				console.error(`Error connecting driver: ${err}. Giving up...`);
+
+				try {
+					await promisify(kill)(electronProcess.pid);
+				} catch (error) {
+					console.warn(`Error tearing down: ${error}`);
+				}
+
+				throw err;
+			}
+
+			// retry
+			else {
+				if ((err as NodeJS.ErrnoException).code !== 'ENOENT' /* ENOENT is expected for as long as the server has not started on the socket */) {
+					console.error(`Error connecting driver: ${err}. Attempting to retry...`);
+				}
+				await new Promise(resolve => setTimeout(resolve, 1000));
+			}
+		}
+	}
 }
 
 async function copyExtension(extensionsPath: string, extId: string): Promise<void> {
@@ -327,11 +326,11 @@ export class Code {
 
 			// Await the exit of the application
 			(async () => {
-				let killCounter = 0;
+				let retries = 0;
 				while (!done) {
-					killCounter++;
+					retries++;
 
-					if (killCounter > 40) {
+					if (retries > 40) {
 						done = true;
 						reject(new Error('Smoke test exit call did not terminate process after 20s, giving up'));
 					}
