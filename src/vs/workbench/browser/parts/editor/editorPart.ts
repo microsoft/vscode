@@ -503,6 +503,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	}
 
 	private doAddGroup(locationView: IEditorGroupView, direction: GroupDirection, groupToCopy?: IEditorGroupView): IEditorGroupView {
+		const wasMaximized = this.isGroupMaximized(this._activeGroup);
 		const newGroupView = this.doCreateGroupView(groupToCopy);
 
 		// Add to grid widget
@@ -515,6 +516,10 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		// Update container
 		this.updateContainer();
+
+		// Maximize if needed
+		if (wasMaximized)
+			this.gridWidget.maximizeViewSize(newGroupView);
 
 		// Event
 		this._onDidAddGroup.fire(newGroupView);
@@ -681,6 +686,9 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 			this.activateGroup(nextActiveGroup);
 		}
 
+		// Check if the active group is maximized
+		const wasMaximized = this.isGroupMaximized(this._activeGroup);
+
 		// Remove from grid widget & dispose
 		this.gridWidget.removeView(groupView, this.getSplitSizingStyle());
 		groupView.dispose();
@@ -690,6 +698,10 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		if (restoreFocus) {
 			this._activeGroup.focus();
 		}
+
+		// Maximize again
+		if (wasMaximized)
+			this.gridWidget.maximizeViewSize(this._activeGroup);
 
 		// Notify group index change given a group was removed
 		this.notifyGroupIndexChange();
