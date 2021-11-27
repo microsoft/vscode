@@ -91,7 +91,7 @@ async function createDriverHandle(): Promise<string> {
 
 export async function spawn(options: SpawnOptions): Promise<Code> {
 
-	copyExtension(options.extensionsPath, 'vscode-notebook-tests');
+	await copyExtension(options.extensionsPath, 'vscode-notebook-tests');
 
 	// Browser smoke tests
 	if (options.web) {
@@ -144,7 +144,7 @@ async function spawnElectron(options: SpawnOptions): Promise<Code> {
 
 		if (codePath) {
 			// running against a build: copy the test resolver extension
-			copyExtension(options.extensionsPath, 'vscode-test-resolver');
+			await copyExtension(options.extensionsPath, 'vscode-test-resolver');
 		}
 		args.push('--enable-proposed-api=vscode.vscode-test-resolver');
 		const remoteDataDir = `${options.userDataDir}-server`;
@@ -154,7 +154,7 @@ async function spawnElectron(options: SpawnOptions): Promise<Code> {
 			// running against a build: copy the test resolver extension into remote extensions dir
 			const remoteExtensionsDir = path.join(remoteDataDir, 'extensions');
 			mkdirp.sync(remoteExtensionsDir);
-			copyExtension(remoteExtensionsDir, 'vscode-notebook-tests');
+			await copyExtension(remoteExtensionsDir, 'vscode-notebook-tests');
 		}
 
 		env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
