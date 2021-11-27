@@ -104,6 +104,7 @@ export class Application {
 			if (this.options.log) {
 				this.logger.log('*** Screenshot recorded:', screenshotPath);
 			}
+
 			fs.writeFileSync(screenshotPath, buffer);
 		}
 	}

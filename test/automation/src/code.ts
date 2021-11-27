@@ -66,7 +66,7 @@ function getBuildOutPath(root: string): string {
 }
 
 async function connect(connectDriver: typeof connectElectronDriver | typeof connectPlaywrightDriver, child: cp.ChildProcess, outPath: string, handlePath: string, logger: Logger): Promise<Code> {
-	let errCount = 0;
+	let retries = 0;
 
 	while (true) {
 		try {
@@ -75,7 +75,7 @@ async function connect(connectDriver: typeof connectElectronDriver | typeof conn
 		} catch (err) {
 
 			// give up
-			if (++errCount > 50) {
+			if (++retries > 10) {
 				console.error(`Error connecting driver: ${err}. Giving up...`);
 
 				try {
@@ -90,7 +90,7 @@ async function connect(connectDriver: typeof connectElectronDriver | typeof conn
 			// retry
 			else {
 				console.error(`Error connecting driver: ${err}. Attempting to retry...`);
-				await new Promise(resolve => setTimeout(resolve, 100));
+				await new Promise(resolve => setTimeout(resolve, 1000));
 			}
 		}
 	}
