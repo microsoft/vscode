@@ -8,9 +8,9 @@ import * as cp from 'child_process';
 import * as os from 'os';
 import * as fs from 'fs';
 import * as mkdirp from 'mkdirp';
-import { tmpName } from 'tmp';
-import { IDriver, connect as connectElectronDriver, IDisposable, IElement, Thenable, ILocalizedStrings, ILocaleInfo } from './driver';
-import { connect as connectPlaywrightDriver, launch as launchBrowser } from './playwrightDriver';
+import { IDriver, IDisposable, IElement, Thenable, ILocalizedStrings, ILocaleInfo } from './driver';
+import { connect as connectElectronDriver, createDriverHandle, getBuildElectronPath, getBuildOutPath, getDevElectronPath, getDevOutPath } from './electronDriver';
+import { launch as launchPlaywright } from './playwrightDriver';
 import { Logger } from './logger';
 import { ncp } from 'ncp';
 import { URI } from 'vscode-uri';
@@ -18,52 +18,6 @@ import * as kill from 'tree-kill';
 import { promisify } from 'util';
 
 const repoPath = path.join(__dirname, '../../..');
-
-function getDevElectronPath(): string {
-	const buildPath = path.join(repoPath, '.build');
-	const product = require(path.join(repoPath, 'product.json'));
-
-	switch (process.platform) {
-		case 'darwin':
-			return path.join(buildPath, 'electron', `${product.nameLong}.app`, 'Contents', 'MacOS', 'Electron');
-		case 'linux':
-			return path.join(buildPath, 'electron', `${product.applicationName}`);
-		case 'win32':
-			return path.join(buildPath, 'electron', `${product.nameShort}.exe`);
-		default:
-			throw new Error('Unsupported platform.');
-	}
-}
-
-function getBuildElectronPath(root: string): string {
-	switch (process.platform) {
-		case 'darwin':
-			return path.join(root, 'Contents', 'MacOS', 'Electron');
-		case 'linux': {
-			const product = require(path.join(root, 'resources', 'app', 'product.json'));
-			return path.join(root, product.applicationName);
-		}
-		case 'win32': {
-			const product = require(path.join(root, 'resources', 'app', 'product.json'));
-			return path.join(root, `${product.nameShort}.exe`);
-		}
-		default:
-			throw new Error('Unsupported platform.');
-	}
-}
-
-function getDevOutPath(): string {
-	return path.join(repoPath, 'out');
-}
-
-function getBuildOutPath(root: string): string {
-	switch (process.platform) {
-		case 'darwin':
-			return path.join(root, 'Contents', 'Resources', 'app', 'out');
-		default:
-			return path.join(root, 'resources', 'app', 'out');
-	}
-}
 
 export interface SpawnOptions {
 	codePath?: string;
@@ -80,15 +34,6 @@ export interface SpawnOptions {
 	browser?: 'chromium' | 'webkit' | 'firefox';
 }
 
-async function createDriverHandle(): Promise<string> {
-	if ('win32' === os.platform()) {
-		const name = [...Array(15)].map(() => Math.random().toString(36)[3]).join('');
-		return `\\\\.\\pipe\\${name}`;
-	} else {
-		return await new Promise<string>((resolve, reject) => tmpName((err, handlePath) => err ? reject(err) : resolve(handlePath)));
-	}
-}
-
 export async function spawn(options: SpawnOptions): Promise<Code> {
 
 	await copyExtension(options.extensionsPath, 'vscode-notebook-tests');
@@ -103,9 +48,10 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 }
 
 async function spawnBrowser(options: SpawnOptions): Promise<Code> {
-	const serverProcess = await launchBrowser(options.userDataDir, options.workspacePath, options.codePath, options.extensionsPath, Boolean(options.verbose));
+	const { serverProcess, client, driver } = await launchPlaywright(options.workspacePath, options.userDataDir, options.codePath, options.extensionsPath, Boolean(options.verbose), options);
 
-	const { client, driver } = await connectPlaywrightDriver(options);
+	console.info(`*** Started server for browser smoke tests (pid: ${serverProcess.pid})`);
+	serverProcess.once('exit', (code, signal) => console.info(`*** Server for browser smoke tests terminated (pid: ${serverProcess.pid}, code: ${code}, signal: ${signal})`));
 
 	return new Code(client, driver, options.logger, serverProcess.pid);
 }
@@ -185,8 +131,14 @@ async function spawnElectron(options: SpawnOptions): Promise<Code> {
 	const electronPath = codePath ? getBuildElectronPath(codePath) : getDevElectronPath();
 	const electronProcess = cp.spawn(electronPath, args, spawnOptions);
 
+	console.info(`*** Started electron for desktop smoke tests on pid ${electronProcess.pid}`);
+
 	let electronProcessDidExit = false;
-	electronProcess.once('exit', () => electronProcessDidExit = true);
+	electronProcess.once('exit', (code, signal) => {
+		console.info(`*** Electron for desktop smoke tests terminated (pid: ${electronProcess.pid}, code: ${code}, signal: ${signal})`);
+		electronProcessDidExit = true;
+	});
+
 	process.once('exit', () => {
 		if (!electronProcessDidExit) {
 			electronProcess.kill();
@@ -203,12 +155,12 @@ async function spawnElectron(options: SpawnOptions): Promise<Code> {
 
 			// give up
 			if (++retries > 30) {
-				console.error(`Error connecting driver: ${err}. Giving up...`);
+				console.error(`*** Error connecting driver: ${err}. Giving up...`);
 
 				try {
 					await promisify(kill)(electronProcess.pid);
 				} catch (error) {
-					console.warn(`Error tearing down: ${error}`);
+					console.warn(`*** Error tearing down: ${error}`);
 				}
 
 				throw err;
@@ -217,7 +169,7 @@ async function spawnElectron(options: SpawnOptions): Promise<Code> {
 			// retry
 			else {
 				if ((err as NodeJS.ErrnoException).code !== 'ENOENT' /* ENOENT is expected for as long as the server has not started on the socket */) {
-					console.error(`Error connecting driver: ${err}. Attempting to retry...`);
+					console.error(`*** Error connecting driver: ${err}. Attempting to retry...`);
 				}
 				await new Promise(resolve => setTimeout(resolve, 1000));
 			}
@@ -247,7 +199,7 @@ async function poll<T>(
 		if (trial > retryCount) {
 			console.error('** Timeout!');
 			console.error(lastError);
-			console.error(`Timeout: ${timeoutMessage} after ${(retryCount * retryInterval) / 1000} seconds.`);
+			console.error(`*** Timeout: ${timeoutMessage} after ${(retryCount * retryInterval) / 1000} seconds.`);
 			throw new Error(`Timeout: ${timeoutMessage} after ${(retryCount * retryInterval) / 1000} seconds.`);
 		}
 
@@ -277,7 +229,7 @@ export class Code {
 		private client: IDisposable,
 		driver: IDriver,
 		readonly logger: Logger,
-		private readonly pid: number
+		private readonly mainProcessId: number
 	) {
 		this.driver = new Proxy(driver, {
 			get(target, prop, receiver) {
@@ -336,7 +288,7 @@ export class Code {
 					}
 
 					try {
-						process.kill(this.pid, 0); // throws an exception if the process doesn't exist anymore.
+						process.kill(this.mainProcessId, 0); // throws an exception if the process doesn't exist anymore.
 						await new Promise(resolve => setTimeout(resolve, 500));
 					} catch (error) {
 						done = true;

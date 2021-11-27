@@ -24,24 +24,19 @@ export interface ApplicationOptions extends SpawnOptions {
 
 export class Application {
 
-	private _code: Code | undefined;
-	private _workbench: Workbench | undefined;
-
 	constructor(private options: ApplicationOptions) {
 		this._userDataPath = options.userDataDir;
 		this._workspacePathOrFolder = options.workspacePath;
 	}
 
+	private _code: Code | undefined;
+	get code(): Code { return this._code!; }
+
+	private _workbench: Workbench | undefined;
+	get workbench(): Workbench { return this._workbench!; }
+
 	get quality(): Quality {
 		return this.options.quality;
-	}
-
-	get code(): Code {
-		return this._code!;
-	}
-
-	get workbench(): Workbench {
-		return this._workbench!;
 	}
 
 	get logger(): Logger {
