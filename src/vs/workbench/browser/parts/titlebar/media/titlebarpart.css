@@ -134,7 +134,7 @@
 
 .monaco-workbench.mac:not(web) .part.titlebar > .window-controls-container {
 	position: absolute;
-	right: 0px;
+	right: 8px;
 	width: 28px;
 	display: none;
 }
