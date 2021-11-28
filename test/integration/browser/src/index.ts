@@ -12,6 +12,7 @@ import * as rimraf from 'rimraf';
 import { URI } from 'vscode-uri';
 import * as kill from 'tree-kill';
 import * as optimistLib from 'optimist';
+import { promisify } from 'util';
 
 const optimist = optimistLib
 	.describe('workspacePath', 'path to the workspace (folder or *.code-workspace file) to open in the test').string('workspacePath')
@@ -84,7 +85,7 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 		}
 
 		try {
-			await pkill(server.pid);
+			await promisify(kill)(server.pid!);
 		} catch (error) {
 			console.error(`Error when killing server process tree: ${error}`);
 		}
@@ -93,7 +94,7 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 	});
 }
 
-function consoleLogFn(msg) {
+function consoleLogFn(msg: playwright.ConsoleMessage) {
 	const type = msg.type();
 	const candidate = console[type];
 	if (candidate) {
@@ -105,12 +106,6 @@ function consoleLogFn(msg) {
 	}
 
 	return console.log;
-}
-
-function pkill(pid: number): Promise<void> {
-	return new Promise((c, e) => {
-		kill(pid, error => error ? e(error) : c());
-	});
 }
 
 async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.UrlWithStringQuery, server: cp.ChildProcess }> {

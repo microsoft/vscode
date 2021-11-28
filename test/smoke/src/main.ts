@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
+import { timeout } from './utils';
+import { promisify } from 'util';
 import { gracefulify } from 'graceful-fs';
 import * as cp from 'child_process';
 import * as path from 'path';
@@ -334,15 +336,15 @@ before(async function () {
 });
 
 after(async function () {
-	await new Promise(c => setTimeout(c, 500)); // wait for shutdown
+	await timeout(500); // wait for shutdown
 
 	if (opts.log) {
 		const logsDir = path.join(userDataDir, 'logs');
 		const destLogsDir = path.join(path.dirname(opts.log), 'logs');
-		await new Promise((c, e) => ncp(logsDir, destLogsDir, err => err ? e(err) : c(undefined)));
+		await promisify(ncp)(logsDir, destLogsDir);
 	}
 
-	await new Promise((c, e) => rimraf(testDataPath, { maxBusyTries: 10 }, err => err ? e(err) : c(undefined)));
+	await new Promise<void>((resolve, reject) => rimraf(testDataPath, { maxBusyTries: 50 }, error => error ? reject(error) : resolve()));
 });
 
 describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
