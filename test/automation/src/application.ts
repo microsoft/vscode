@@ -24,24 +24,19 @@ export interface ApplicationOptions extends SpawnOptions {
 
 export class Application {
 
-	private _code: Code | undefined;
-	private _workbench: Workbench | undefined;
-
 	constructor(private options: ApplicationOptions) {
 		this._userDataPath = options.userDataDir;
 		this._workspacePathOrFolder = options.workspacePath;
 	}
 
+	private _code: Code | undefined;
+	get code(): Code { return this._code!; }
+
+	private _workbench: Workbench | undefined;
+	get workbench(): Workbench { return this._workbench!; }
+
 	get quality(): Quality {
 		return this.options.quality;
-	}
-
-	get code(): Code {
-		return this._code!;
-	}
-
-	get workbench(): Workbench {
-		return this._workbench!;
 	}
 
 	get logger(): Logger {
@@ -88,9 +83,11 @@ export class Application {
 
 	async stop(): Promise<any> {
 		if (this._code) {
-			await this._code.exit();
-			this._code.dispose();
-			this._code = undefined;
+			try {
+				await this._code.exit();
+			} finally {
+				this._code = undefined;
+			}
 		}
 	}
 
@@ -102,6 +99,7 @@ export class Application {
 			if (this.options.log) {
 				this.logger.log('*** Screenshot recorded:', screenshotPath);
 			}
+
 			fs.writeFileSync(screenshotPath, buffer);
 		}
 	}

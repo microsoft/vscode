@@ -4,89 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
-import * as cp from 'child_process';
 import * as os from 'os';
-import * as fs from 'fs';
-import * as mkdirp from 'mkdirp';
-import { tmpName } from 'tmp';
-import { IDriver, connect as connectElectronDriver, IDisposable, IElement, Thenable, ILocalizedStrings, ILocaleInfo } from './driver';
-import { connect as connectPlaywrightDriver, launch } from './playwrightDriver';
+import * as cp from 'child_process';
+import { IDriver, IDisposable, IElement, Thenable, ILocalizedStrings, ILocaleInfo } from './driver';
+import { launch as launchElectron } from './electronDriver';
+import { launch as launchPlaywright } from './playwrightDriver';
 import { Logger } from './logger';
-import { ncp } from 'ncp';
-import { URI } from 'vscode-uri';
+import { copyExtension } from './extensions';
 
 const repoPath = path.join(__dirname, '../../..');
-
-function getDevElectronPath(): string {
-	const buildPath = path.join(repoPath, '.build');
-	const product = require(path.join(repoPath, 'product.json'));
-
-	switch (process.platform) {
-		case 'darwin':
-			return path.join(buildPath, 'electron', `${product.nameLong}.app`, 'Contents', 'MacOS', 'Electron');
-		case 'linux':
-			return path.join(buildPath, 'electron', `${product.applicationName}`);
-		case 'win32':
-			return path.join(buildPath, 'electron', `${product.nameShort}.exe`);
-		default:
-			throw new Error('Unsupported platform.');
-	}
-}
-
-function getBuildElectronPath(root: string): string {
-	switch (process.platform) {
-		case 'darwin':
-			return path.join(root, 'Contents', 'MacOS', 'Electron');
-		case 'linux': {
-			const product = require(path.join(root, 'resources', 'app', 'product.json'));
-			return path.join(root, product.applicationName);
-		}
-		case 'win32': {
-			const product = require(path.join(root, 'resources', 'app', 'product.json'));
-			return path.join(root, `${product.nameShort}.exe`);
-		}
-		default:
-			throw new Error('Unsupported platform.');
-	}
-}
-
-function getDevOutPath(): string {
-	return path.join(repoPath, 'out');
-}
-
-function getBuildOutPath(root: string): string {
-	switch (process.platform) {
-		case 'darwin':
-			return path.join(root, 'Contents', 'Resources', 'app', 'out');
-		default:
-			return path.join(root, 'resources', 'app', 'out');
-	}
-}
-
-async function connect(connectDriver: typeof connectElectronDriver | typeof connectPlaywrightDriver, child: cp.ChildProcess | undefined, outPath: string, handlePath: string, logger: Logger): Promise<Code> {
-	let errCount = 0;
-
-	while (true) {
-		try {
-			const { client, driver } = await connectDriver(outPath, handlePath);
-			return new Code(client, driver, logger, child?.pid);
-		} catch (err) {
-			if (++errCount > 50) {
-				if (child) {
-					child.kill();
-				}
-				throw err;
-			}
-
-			// retry
-			await new Promise(resolve => setTimeout(resolve, 100));
-		}
-	}
-}
-
-// Kill all running instances, when dead
-const instances = new Set<cp.ChildProcess>();
-process.once('exit', () => instances.forEach(code => code.kill()));
 
 export interface SpawnOptions {
 	codePath?: string;
@@ -103,109 +29,29 @@ export interface SpawnOptions {
 	browser?: 'chromium' | 'webkit' | 'firefox';
 }
 
-async function createDriverHandle(): Promise<string> {
-	if ('win32' === os.platform()) {
-		const name = [...Array(15)].map(() => Math.random().toString(36)[3]).join('');
-		return `\\\\.\\pipe\\${name}`;
-	} else {
-		return await new Promise<string>((c, e) => tmpName((err, handlePath) => err ? e(err) : c(handlePath)));
-	}
-}
-
 export async function spawn(options: SpawnOptions): Promise<Code> {
-	const handle = await createDriverHandle();
 
-	let child: cp.ChildProcess | undefined;
+	await copyExtension(repoPath, options.extensionsPath, 'vscode-notebook-tests');
 
-	copyExtension(options.extensionsPath, 'vscode-notebook-tests');
-
+	// Browser smoke tests
 	if (options.web) {
-		await launch(options.userDataDir, options.workspacePath, options.codePath, options.extensionsPath, Boolean(options.verbose));
-		return connect(connectPlaywrightDriver.bind(connectPlaywrightDriver, options), child, '', handle, options.logger);
+		return spawnBrowser(options);
 	}
 
-	const env = { ...process.env };
-	const codePath = options.codePath;
-	const logsPath = path.join(repoPath, '.build', 'logs', options.remote ? 'smoke-tests-remote' : 'smoke-tests');
-	const outPath = codePath ? getBuildOutPath(codePath) : getDevOutPath();
-
-	const args = [
-		options.workspacePath,
-		'--skip-release-notes',
-		'--skip-welcome',
-		'--disable-telemetry',
-		'--no-cached-data',
-		'--disable-updates',
-		'--disable-keytar',
-		'--disable-crash-reporter',
-		'--disable-workspace-trust',
-		`--extensions-dir=${options.extensionsPath}`,
-		`--user-data-dir=${options.userDataDir}`,
-		`--logsPath=${logsPath}`,
-		'--driver', handle
-	];
-
-	if (process.platform === 'linux') {
-		args.push('--disable-gpu'); // Linux has trouble in VMs to render properly with GPU enabled
-	}
-
-	if (options.remote) {
-		// Replace workspace path with URI
-		args[0] = `--${options.workspacePath.endsWith('.code-workspace') ? 'file' : 'folder'}-uri=vscode-remote://test+test/${URI.file(options.workspacePath).path}`;
-
-		if (codePath) {
-			// running against a build: copy the test resolver extension
-			copyExtension(options.extensionsPath, 'vscode-test-resolver');
-		}
-		args.push('--enable-proposed-api=vscode.vscode-test-resolver');
-		const remoteDataDir = `${options.userDataDir}-server`;
-		mkdirp.sync(remoteDataDir);
-
-		if (codePath) {
-			// running against a build: copy the test resolver extension into remote extensions dir
-			const remoteExtensionsDir = path.join(remoteDataDir, 'extensions');
-			mkdirp.sync(remoteExtensionsDir);
-			copyExtension(remoteExtensionsDir, 'vscode-notebook-tests');
-		}
-
-		env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
-		env['TESTRESOLVER_LOGS_FOLDER'] = path.join(logsPath, 'server');
-	}
-
-	const spawnOptions: cp.SpawnOptions = { env };
-
-	args.push('--enable-proposed-api=vscode.vscode-notebook-tests');
-
-	if (!codePath) {
-		args.unshift(repoPath);
-	}
-
-	if (options.verbose) {
-		args.push('--driver-verbose');
-		spawnOptions.stdio = ['ignore', 'inherit', 'inherit'];
-	}
-
-	if (options.log) {
-		args.push('--log', options.log);
-	}
-
-	if (options.extraArgs) {
-		args.push(...options.extraArgs);
-	}
-
-	const electronPath = codePath ? getBuildElectronPath(codePath) : getDevElectronPath();
-	child = cp.spawn(electronPath, args, spawnOptions);
-	instances.add(child);
-	child.once('exit', () => instances.delete(child!));
-	return connect(connectElectronDriver, child, outPath, handle, options.logger);
+	// Electron smoke tests
+	return spawnElectron(options);
 }
 
-async function copyExtension(extensionsPath: string, extId: string): Promise<void> {
-	const dest = path.join(extensionsPath, extId);
-	if (!fs.existsSync(dest)) {
-		const orig = path.join(repoPath, 'extensions', extId);
-		await new Promise<void>((c, e) => ncp(orig, dest, err => err ? e(err) : c()));
-	}
+async function spawnBrowser(options: SpawnOptions): Promise<Code> {
+	const { serverProcess, client, driver } = await launchPlaywright(options.codePath, options.userDataDir, options.extensionsPath, options.workspacePath, Boolean(options.verbose), options);
+
+	return new Code(client, driver, options.logger, serverProcess);
+}
+
+async function spawnElectron(options: SpawnOptions): Promise<Code> {
+	const { electronProcess, client, driver } = await launchElectron(options.codePath, options.userDataDir, options.extensionsPath, options.workspacePath, Boolean(options.verbose), Boolean(options.remote), options.log, options.extraArgs);
+
+	return new Code(client, driver, options.logger, electronProcess);
 }
 
 async function poll<T>(
@@ -222,7 +68,7 @@ async function poll<T>(
 		if (trial > retryCount) {
 			console.error('** Timeout!');
 			console.error(lastError);
-			console.error(`Timeout: ${timeoutMessage} after ${(retryCount * retryInterval) / 1000} seconds.`);
+			console.error(`*** Timeout: ${timeoutMessage} after ${(retryCount * retryInterval) / 1000} seconds.`);
 			throw new Error(`Timeout: ${timeoutMessage} after ${(retryCount * retryInterval) / 1000} seconds.`);
 		}
 
@@ -252,7 +98,7 @@ export class Code {
 		private client: IDisposable,
 		driver: IDriver,
 		readonly logger: Logger,
-		private readonly pid: number | undefined
+		private readonly mainProcess: cp.ChildProcess
 	) {
 		this.driver = new Proxy(driver, {
 			get(target, prop, receiver) {
@@ -292,49 +138,35 @@ export class Code {
 			let done = false;
 
 			// Start the exit flow via driver
-			const exitPromise = this.driver.exitApplication().then(veto => {
+			this.driver.exitApplication().then(veto => {
 				if (veto) {
 					done = true;
 					reject(new Error('Smoke test exit call resulted in unexpected veto'));
 				}
 			});
 
-			// If we know the `pid` of the smoke tested application
-			// use that as way to detect the exit of the application
-			const pid = this.pid;
-			if (typeof pid === 'number') {
-				(async () => {
-					let killCounter = 0;
-					while (!done) {
-						killCounter++;
+			// Await the exit of the application
+			(async () => {
+				let retries = 0;
+				while (!done) {
+					retries++;
 
-						if (killCounter > 40) {
-							done = true;
-							reject(new Error('Smoke test exit call did not terminate main process after 20s, giving up'));
-						}
-
-						try {
-							process.kill(pid, 0); // throws an exception if the main process doesn't exist anymore.
-							await new Promise(resolve => setTimeout(resolve, 500));
-						} catch (error) {
-							done = true;
-							resolve();
-						}
+					if (retries > 40) {
+						done = true;
+						reject(new Error('Smoke test exit call did not terminate process after 20s, giving up'));
 					}
-				})();
-			}
 
-			// Otherwise await the exit promise (web).
-			else {
-				(async () => {
 					try {
-						await exitPromise;
-						resolve();
+						process.kill(this.mainProcess.pid!, 0); // throws an exception if the process doesn't exist anymore.
+						await new Promise(resolve => setTimeout(resolve, 500));
 					} catch (error) {
-						reject(new Error(`Smoke test exit call resulted in error: ${error}`));
+						done = true;
+						resolve();
 					}
-				})();
-			}
+				}
+			})();
+		}).finally(() => {
+			this.dispose();
 		});
 	}
 
