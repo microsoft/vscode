@@ -25,7 +25,7 @@ export const emptyOutputController = () => new LiveOutputController(
 	() => Promise.resolve(bufferToStream(VSBuffer.alloc(0))),
 );
 
-suite('Workbench - Test Results Service', () => {
+((isNative && !isElectron) ? test.skip /* TODO@connor4312 https://github.com/microsoft/vscode/issues/137853 */ : test)('Workbench - Test Results Service', () => {
 	const getLabelsIn = (it: Iterable<TestResultItem>) => [...it].map(t => t.item.label).sort();
 	const getChangeSummary = () => [...changed]
 		.map(c => ({ reason: c.reason, label: c.item.item.label }))
@@ -312,7 +312,7 @@ suite('Workbench - Test Results Service', () => {
 		});
 	});
 
-	((isNative && !isElectron) ? test.skip /* TODO@connor4312 https://github.com/microsoft/vscode/issues/137853 */ : test)('resultItemParents', function () {
+	test('resultItemParents', function () {
 		assert.deepStrictEqual([...resultItemParents(r, r.getStateById(new TestId(['ctrlId', 'id-a', 'id-aa']).toString())!)], [
 			r.getStateById(new TestId(['ctrlId', 'id-a', 'id-aa']).toString()),
 			r.getStateById(new TestId(['ctrlId', 'id-a']).toString()),
