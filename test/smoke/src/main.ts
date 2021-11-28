@@ -344,7 +344,7 @@ after(async function () {
 		await promisify(ncp)(logsDir, destLogsDir);
 	}
 
-	await promisify(rimraf)(testDataPath, { maxBusyTries: 10 });
+	await promisify(rimraf)(testDataPath, { maxBusyTries: 50 });
 });
 
 describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {

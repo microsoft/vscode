@@ -164,7 +164,7 @@ class PlaywrightDriver implements IDriver {
 	}
 
 	private timeout(ms: number): Promise<void> {
-		return new Promise<void>(r => setTimeout(r, ms));
+		return new Promise<void>(resolve => setTimeout(resolve, ms));
 	}
 
 	// TODO: Cache
@@ -180,13 +180,10 @@ export interface PlaywrightOptions {
 	readonly headless?: boolean;
 }
 
-export async function launch(workspacePath: string, userDataDir: string, codeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH, extensionsPath: string, verbose: boolean, options: PlaywrightOptions = {}): Promise<{ serverProcess: ChildProcess, client: IDisposable, driver: IDriver }> {
+export async function launch(codeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH, userDataDir: string, extensionsPath: string, workspacePath: string, verbose: boolean, options: PlaywrightOptions = {}): Promise<{ serverProcess: ChildProcess, client: IDisposable, driver: IDriver }> {
 
 	// Launch server
 	const { serverProcess, endpoint } = await launchServer(userDataDir, codeServerPath, extensionsPath, verbose);
-
-	console.info(`*** Started server for browser smoke tests (pid: ${serverProcess.pid})`);
-	serverProcess.once('exit', (code, signal) => console.info(`*** Server for browser smoke tests terminated (pid: ${serverProcess.pid}, code: ${code}, signal: ${signal})`));
 
 	// Launch browser
 	const { browser, context, page } = await launchBrowser(options, endpoint, workspacePath);
@@ -237,6 +234,9 @@ async function launchServer(userDataDir: string, codeServerPath: string | undefi
 	);
 
 	if (verbose) {
+		console.info(`*** Started server for browser smoke tests (pid: ${serverProcess.pid})`);
+		serverProcess.once('exit', (code, signal) => console.info(`*** Server for browser smoke tests terminated (pid: ${serverProcess.pid}, code: ${code}, signal: ${signal})`));
+
 		serverProcess.stderr?.on('data', error => console.log(`Server stderr: ${error}`));
 		serverProcess.stdout?.on('data', data => console.log(`Server stdout: ${data}`));
 	}
@@ -284,7 +284,9 @@ async function teardown(server: ChildProcess): Promise<void> {
 		retries++;
 
 		try {
-			await promisify(kill)(server.pid);
+			if (typeof server.pid === 'number') {
+				await promisify(kill)(server.pid);
+			}
 
 			return;
 		} catch (error) {
@@ -296,11 +298,11 @@ async function teardown(server: ChildProcess): Promise<void> {
 }
 
 function waitForEndpoint(server: ChildProcess): Promise<string> {
-	return new Promise<string>(r => {
+	return new Promise<string>(resolve => {
 		server.stdout?.on('data', (d: Buffer) => {
 			const matches = d.toString('ascii').match(/Web UI available at (.+)/);
 			if (matches !== null) {
-				r(matches[1]);
+				resolve(matches[1]);
 			}
 		});
 	});

@@ -5,6 +5,7 @@
 
 import * as path from 'path';
 import * as os from 'os';
+import * as cp from 'child_process';
 import { IDriver, IDisposable, IElement, Thenable, ILocalizedStrings, ILocaleInfo } from './driver';
 import { launch as launchElectron } from './electronDriver';
 import { launch as launchPlaywright } from './playwrightDriver';
@@ -42,15 +43,15 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 }
 
 async function spawnBrowser(options: SpawnOptions): Promise<Code> {
-	const { serverProcess, client, driver } = await launchPlaywright(options.workspacePath, options.userDataDir, options.codePath, options.extensionsPath, Boolean(options.verbose), options);
+	const { serverProcess, client, driver } = await launchPlaywright(options.codePath, options.userDataDir, options.extensionsPath, options.workspacePath, Boolean(options.verbose), options);
 
-	return new Code(client, driver, options.logger, serverProcess.pid);
+	return new Code(client, driver, options.logger, serverProcess);
 }
 
 async function spawnElectron(options: SpawnOptions): Promise<Code> {
-	const { electronProcess, client, driver } = await launchElectron(options.workspacePath, options.userDataDir, options.codePath, options.extensionsPath, Boolean(options.verbose), Boolean(options.remote), options.log, options.extraArgs);
+	const { electronProcess, client, driver } = await launchElectron(options.codePath, options.userDataDir, options.extensionsPath, options.workspacePath, Boolean(options.verbose), Boolean(options.remote), options.log, options.extraArgs);
 
-	return new Code(client, driver, options.logger, electronProcess.pid);
+	return new Code(client, driver, options.logger, electronProcess);
 }
 
 async function poll<T>(
@@ -97,7 +98,7 @@ export class Code {
 		private client: IDisposable,
 		driver: IDriver,
 		readonly logger: Logger,
-		private readonly mainProcessId: number
+		private readonly mainProcess: cp.ChildProcess
 	) {
 		this.driver = new Proxy(driver, {
 			get(target, prop, receiver) {
@@ -156,7 +157,7 @@ export class Code {
 					}
 
 					try {
-						process.kill(this.mainProcessId, 0); // throws an exception if the process doesn't exist anymore.
+						process.kill(this.mainProcess.pid!, 0); // throws an exception if the process doesn't exist anymore.
 						await new Promise(resolve => setTimeout(resolve, 500));
 					} catch (error) {
 						done = true;

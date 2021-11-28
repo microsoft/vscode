@@ -16,7 +16,7 @@ import { URI } from 'vscode-uri';
 
 const repoPath = path.join(__dirname, '../../..');
 
-export async function launch(workspacePath: string, userDataDir: string, codePath: string | undefined, extensionsPath: string, verbose: boolean, remote: boolean, log: string | undefined, extraArgs: string[] | undefined): Promise<{ electronProcess: ChildProcess, client: IDisposable, driver: IDriver }> {
+export async function launch(codePath: string | undefined, userDataDir: string, extensionsPath: string, workspacePath: string, verbose: boolean, remote: boolean, log: string | undefined, extraArgs: string[] | undefined): Promise<{ electronProcess: ChildProcess, client: IDisposable, driver: IDriver }> {
 	const env = { ...process.env };
 	const logsPath = path.join(repoPath, '.build', 'logs', remote ? 'smoke-tests-remote' : 'smoke-tests');
 	const outPath = codePath ? getBuildOutPath(codePath) : getDevOutPath();
@@ -121,7 +121,7 @@ export async function launch(workspacePath: string, userDataDir: string, codePat
 				console.error(`*** Error connecting driver: ${err}. Giving up...`);
 
 				try {
-					await promisify(kill)(electronProcess.pid);
+					await promisify(kill)(electronProcess.pid!);
 				} catch (error) {
 					console.warn(`*** Error tearing down: ${error}`);
 				}
