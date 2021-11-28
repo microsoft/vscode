@@ -160,6 +160,10 @@
 	display: inline-block;
 }
 
+.monaco-workbench .part.titlebar > .window-controls-container.show-layout-control > .layout-dropdown-container .codicon {
+	color: inherit;
+}
+
 .monaco-workbench .part.titlebar > .window-controls-container > .window-icon {
 	display: inline-block;
 	line-height: 30px;
