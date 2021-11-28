@@ -353,8 +353,13 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 	}
 
 	private async checkAndGetCompatibleVersion(extension: IGalleryExtension, fetchCompatibleVersion: boolean, installPreRelease: boolean): Promise<{ extension: IGalleryExtension, manifest: IExtensionManifest }> {
-		if (await this.isMalicious(extension)) {
+		const report = await this.getExtensionsControlManifest();
+		if (getMaliciousExtensionsSet(report).has(extension.identifier.id)) {
 			throw new ExtensionManagementError(nls.localize('malicious extension', "Can't install '{0}' extension since it was reported to be problematic.", extension.identifier.id), ExtensionManagementErrorCode.Malicious);
+		}
+
+		if (!!report.unsupportedPreReleaseExtensions && !!report.unsupportedPreReleaseExtensions[extension.identifier.id]) {
+			throw new ExtensionManagementError(nls.localize('unsupported prerelease extension', "Can't install '{0}' extension because it is no longer supported. It is now part of the '{1}' extension as a pre-release version.", extension.identifier.id, report.unsupportedPreReleaseExtensions[extension.identifier.id].displayName), ExtensionManagementErrorCode.UnsupportedPreRelease);
 		}
 
 		if (!await this.canInstall(extension)) {
@@ -400,11 +405,6 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		}
 
 		return compatibleExtension;
-	}
-
-	private async isMalicious(extension: IGalleryExtension): Promise<boolean> {
-		const report = await this.getExtensionsControlManifest();
-		return getMaliciousExtensionsSet(report).has(extension.identifier.id);
 	}
 
 	private async unininstallExtension(extension: ILocalExtension, options: UninstallOptions): Promise<void> {

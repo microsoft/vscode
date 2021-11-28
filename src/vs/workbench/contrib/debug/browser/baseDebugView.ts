@@ -22,7 +22,7 @@ import { once } from 'vs/base/common/functional';
 
 export const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 export const twistiePixels = 20;
-const booleanRegex = /^true|false$/i;
+const booleanRegex = /^(true|false)$/i;
 const stringRegex = /^(['"]).*\1$/;
 const $ = dom.$;
 

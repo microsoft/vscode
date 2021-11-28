@@ -899,6 +899,8 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @internal
 	 */
 	hasModel(): this is IActiveCodeEditor;
+
+	setBanner(bannerDomNode: HTMLElement | null, height: number): void;
 }
 
 /**

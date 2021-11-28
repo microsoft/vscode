@@ -365,6 +365,7 @@ export interface DidUninstallExtensionEvent {
 
 export enum ExtensionManagementErrorCode {
 	Unsupported = 'Unsupported',
+	UnsupportedPreRelease = 'UnsupportedPreRelease',
 	Malicious = 'Malicious',
 	Incompatible = 'Incompatible',
 	IncompatiblePreRelease = 'IncompatiblePreRelease',

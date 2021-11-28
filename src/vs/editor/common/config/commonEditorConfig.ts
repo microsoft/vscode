@@ -313,6 +313,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements IC
 	private _rawOptions: IEditorOptions;
 	private _readOptions: RawEditorOptions;
 	protected _validatedOptions: ValidatedEditorOptions;
+	private _reservedHeight: number = 0;
 
 	constructor(isSimpleWidget: boolean, _options: Readonly<IEditorOptions>) {
 		super();
@@ -367,7 +368,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements IC
 		const env: IEnvironmentalOptions = {
 			memory: this._computeOptionsMemory,
 			outerWidth: partialEnv.outerWidth,
-			outerHeight: partialEnv.outerHeight,
+			outerHeight: partialEnv.outerHeight - this._reservedHeight,
 			fontInfo: this.readConfiguration(bareFontInfo),
 			extraEditorClassName: partialEnv.extraEditorClassName,
 			isDominatedByLongLines: this._isDominatedByLongLines,
@@ -458,6 +459,10 @@ export abstract class CommonEditorConfiguration extends Disposable implements IC
 
 	protected abstract readConfiguration(styling: BareFontInfo): FontInfo;
 
+	public reserveHeight(height: number) {
+		this._reservedHeight = height;
+		this._recomputeOptions();
+	}
 }
 
 export const editorConfigurationBaseNode = Object.freeze<IConfigurationNode>({

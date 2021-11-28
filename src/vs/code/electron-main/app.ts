@@ -41,7 +41,7 @@ import { EncryptionMainService, IEncryptionMainService } from 'vs/platform/encry
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
-import { resolveShellEnv } from 'vs/platform/environment/node/shellEnv';
+import { getResolvedShellEnv } from 'vs/platform/environment/node/shellEnv';
 import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
 import { ExtensionUrlTrustService } from 'vs/platform/extensionManagement/node/extensionUrlTrustService';
 import { IExtensionHostStarter, ipcExtensionHostStarterChannelName } from 'vs/platform/extensions/common/extensionHostStarter';
@@ -1033,7 +1033,7 @@ export class CodeApplication extends Disposable {
 
 	private async resolveShellEnvironment(args: NativeParsedArgs, env: IProcessEnvironment, notifyOnError: boolean): Promise<typeof process.env> {
 		try {
-			return await resolveShellEnv(this.logService, args, env);
+			return await getResolvedShellEnv(this.logService, args, env);
 		} catch (error) {
 			const errorMessage = toErrorMessage(error);
 			if (notifyOnError) {

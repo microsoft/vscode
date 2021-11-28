@@ -12,7 +12,7 @@ import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { parsePtyHostPort } from 'vs/platform/environment/common/environmentService';
-import { resolveShellEnv } from 'vs/platform/environment/node/shellEnv';
+import { getResolvedShellEnv } from 'vs/platform/environment/node/shellEnv';
 import { ILogService } from 'vs/platform/log/common/log';
 import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -124,7 +124,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 		}
 
 		try {
-			return await resolveShellEnv(this._logService, { _: [] }, process.env);
+			return await getResolvedShellEnv(this._logService, { _: [] }, process.env);
 		} catch (error) {
 			this._logService.error('ptyHost was unable to resolve shell environment', error);
 
