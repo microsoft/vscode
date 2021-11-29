@@ -29,7 +29,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 */
 export class TerminalProfileService implements ITerminalProfileService {
 	private _ifNoProfilesTryAgain: boolean = true;
-	private _platformConfigNotInitialized: boolean = true;
+	private _platformConfigInitialized: boolean = false;
 	private _webExtensionContributedProfileContextKey: IContextKey<boolean>;
 	private _profilesReadyBarrier: AutoOpenBarrier;
 	private _availableProfiles: ITerminalProfile[] | undefined;
@@ -114,9 +114,9 @@ export class TerminalProfileService implements ITerminalProfileService {
 			this._updateWebContextKey();
 			refreshTerminalActions(profiles);
 		}
-		if (this._platformConfigNotInitialized) {
+		if (!this._platformConfigInitialized) {
 			await this._refreshPlatformConfig(this._availableProfiles!);
-			this._platformConfigNotInitialized = false;
+			this._platformConfigInitialized = true;
 		}
 	}
 
