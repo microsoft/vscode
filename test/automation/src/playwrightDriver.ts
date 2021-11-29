@@ -279,18 +279,24 @@ async function launchBrowser(options: PlaywrightOptions, endpoint: string, works
 }
 
 async function teardown(server: ChildProcess): Promise<void> {
+	const serverPid = server.pid;
+	if (typeof serverPid !== 'number') {
+		return;
+	}
+
 	let retries = 0;
 	while (retries < 3) {
 		retries++;
 
 		try {
-			if (typeof server.pid === 'number') {
-				await promisify(kill)(server.pid);
-			}
-
-			return;
+			return await promisify(kill)(serverPid);
 		} catch (error) {
-			console.warn(`Error tearing down server (pid: ${server.pid}, attempt: ${retries}): ${error}`);
+			try {
+				process.kill(serverPid, 0); // throws an exception if the process doesn't exist anymore
+				console.warn(`Error tearing down server (pid: ${serverPid}, attempt: ${retries}): ${error}`);
+			} catch (error) {
+				return; // Expected when process is gone
+			}
 		}
 	}
 

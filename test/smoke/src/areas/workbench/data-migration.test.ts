@@ -164,6 +164,9 @@ export function setup(opts: ParsedArgs) {
 			const backupsHome = join(userDataDir, 'Backups');
 			console.log('Printing backup contents (after stable app stopped):');
 			for await (const entry of readdirp(backupsHome)) {
+				if (entry.path === 'workspaces.json') {
+					continue;
+				}
 				try {
 					const contents = readFileSync(join(backupsHome, entry.path)).toString();
 					const firstLine = contents.substring(0, contents.indexOf('\n'));
@@ -186,6 +189,9 @@ export function setup(opts: ParsedArgs) {
 
 			console.log('Printing backup contents (after insiders app started):');
 			for await (const entry of readdirp(backupsHome)) {
+				if (entry.path === 'workspaces.json') {
+					continue;
+				}
 				try {
 					const contents = readFileSync(join(backupsHome, entry.path)).toString();
 					const firstLine = contents.substring(0, contents.indexOf('\n'));
