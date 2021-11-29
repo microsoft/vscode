@@ -20,6 +20,7 @@ import { ICredentialsProvider } from 'vs/workbench/services/credentials/common/c
 import { TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { DeferredPromise } from 'vs/base/common/async';
+import { asArray } from 'vs/base/common/arrays';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
@@ -138,6 +139,18 @@ interface IShowPortCandidate {
 	(host: string, port: number, detail: string): Promise<boolean>;
 }
 
+enum Menu {
+	CommandPalette,
+	StatusBarWindowIndicatorMenu,
+}
+
+function asMenuId(menu: Menu): MenuId {
+	switch (menu) {
+		case Menu.CommandPalette: return MenuId.CommandPalette;
+		case Menu.StatusBarWindowIndicatorMenu: return MenuId.StatusBarWindowIndicatorMenu;
+	}
+}
+
 interface ICommand {
 
 	/**
@@ -151,6 +164,13 @@ interface ICommand {
 	 * in the command palette.
 	 */
 	label?: string,
+
+	/**
+	 * The optional menus to append this command to. Only valid if `label` is
+	 * provided as well.
+	 * @default Menu.CommandPalette
+	 */
+	menu?: Menu | Menu[],
 
 	/**
 	 * A function that is being executed with any arguments passed over. The
@@ -645,7 +665,9 @@ function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions)
 
 			// Commands with labels appear in the command palette
 			if (command.label) {
-				MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: command.id, title: command.label } });
+				for (const menu of asArray(command.menu ?? Menu.CommandPalette)) {
+					MenuRegistry.appendMenuItem(asMenuId(menu), { command: { id: command.id, title: command.label } });
+				}
 			}
 		}
 	}
@@ -789,6 +811,7 @@ export {
 	// Commands
 	ICommand,
 	commands,
+	Menu,
 
 	// Branding
 	IHomeIndicator,
