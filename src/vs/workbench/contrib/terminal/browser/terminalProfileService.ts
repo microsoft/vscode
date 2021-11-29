@@ -34,6 +34,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 	private _availableProfiles: ITerminalProfile[] | undefined;
 	private _contributedProfiles: IExtensionTerminalProfile[] = [];
 	private _defaultProfileName?: string;
+	private _lastWasDefault = false;
 	private readonly _profileProviders: Map</*ext id*/string, Map</*provider id*/string, ITerminalProfileProvider>> = new Map();
 
 	private readonly _onDidChangeAvailableProfiles = new Emitter<ITerminalProfile[]>();
@@ -41,6 +42,9 @@ export class TerminalProfileService implements ITerminalProfileService {
 
 	get profilesReady(): Promise<void> { return this._profilesReadyBarrier.wait().then(() => { }); }
 	get availableProfiles(): ITerminalProfile[] {
+		if (!this._lastWasDefault) {
+			this.refreshAvailableProfiles();
+		}
 		return this._availableProfiles || [];
 	}
 	get contributedProfiles(): IExtensionTerminalProfile[] {
@@ -80,6 +84,9 @@ export class TerminalProfileService implements ITerminalProfileService {
 					// when _refreshPlatformConfig is called within refreshAvailableProfiles
 					// on did change configuration is fired. this can lead to an infinite recursion
 					this.refreshAvailableProfiles();
+					this._lastWasDefault = false;
+				} else {
+					this._lastWasDefault = true;
 				}
 			}
 		});
