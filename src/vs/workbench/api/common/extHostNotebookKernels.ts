@@ -366,9 +366,6 @@ enum NotebookCellExecutionTaskState {
 }
 
 class NotebookCellExecutionTask extends Disposable {
-	private static HANDLE = 0;
-	private _handle = NotebookCellExecutionTask.HANDLE++;
-
 	private _onDidChangeState = new Emitter<void>();
 	readonly onDidChangeState = this._onDidChangeState.event;
 
@@ -391,7 +388,7 @@ class NotebookCellExecutionTask extends Disposable {
 		this._collector = new TimeoutBasedCollector(10, updates => this.update(updates));
 
 		this._executionOrder = _cell.internalMetadata.executionOrder;
-		this._proxy.$addExecution(this._handle, this._cell.notebook.uri, this._cell.handle);
+		this._proxy.$addExecution(this._cell.notebook.uri, this._cell.handle);
 	}
 
 	cancel(): void {
@@ -448,7 +445,7 @@ class NotebookCellExecutionTask extends Disposable {
 		return this.updateSoon(
 			{
 				editType: CellExecutionUpdateType.Output,
-				executionHandle: this._handle,
+				uri: this._document.uri,
 				cellHandle: handle,
 				append,
 				outputs: outputDtos
@@ -459,7 +456,8 @@ class NotebookCellExecutionTask extends Disposable {
 		items = NotebookCellOutput.ensureUniqueMimeTypes(asArray(items), true);
 		return this.updateSoon({
 			editType: CellExecutionUpdateType.OutputItems,
-			executionHandle: this._handle,
+			uri: this._document.uri,
+			cellHandle: this._cell.handle,
 			items: items.map(extHostTypeConverters.NotebookCellOutputItem.from),
 			outputId: output.id,
 			append
@@ -476,7 +474,8 @@ class NotebookCellExecutionTask extends Disposable {
 				that._executionOrder = v;
 				that.update([{
 					editType: CellExecutionUpdateType.ExecutionState,
-					executionHandle: that._handle,
+					uri: that._document.uri,
+					cellHandle: that._cell.handle,
 					executionOrder: that._executionOrder
 				}]);
 			},
@@ -491,7 +490,8 @@ class NotebookCellExecutionTask extends Disposable {
 
 				that.update({
 					editType: CellExecutionUpdateType.ExecutionState,
-					executionHandle: that._handle,
+					uri: that._document.uri,
+					cellHandle: that._cell.handle,
 					runStartTime: startTime
 				});
 			},
@@ -504,18 +504,16 @@ class NotebookCellExecutionTask extends Disposable {
 				that._state = NotebookCellExecutionTaskState.Resolved;
 				that._onDidChangeState.fire();
 
-				that.updateSoon({
-					editType: CellExecutionUpdateType.Complete,
-					executionHandle: that._handle,
-					runEndTime: endTime,
-					lastRunSuccess: success
-				});
-
 				// The last update needs to be ordered correctly and applied immediately,
 				// so we use updateSoon and immediately flush.
 				that._collector.flush();
 
-				that._proxy.$removeExecution(that._handle);
+				that._proxy.$completeExecution(that._document.uri, that._cell.handle, new SerializableObjectWithBuffers({
+					uri: that._document.uri,
+					cellHandle: that._cell.handle,
+					runEndTime: endTime,
+					lastRunSuccess: success
+				}));
 			},
 
 			clearOutput(cell?: vscode.NotebookCell): Thenable<void> {
