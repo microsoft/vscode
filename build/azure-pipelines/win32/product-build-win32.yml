@@ -238,6 +238,8 @@ steps:
       . build/azure-pipelines/win32/exec.ps1
       exec {.\build\azure-pipelines\win32\listprocesses.bat }
     displayName: List tasks after smoke test run
+    continueOnError: true
+    condition: succeededOrFailed()
 
   - task: PublishPipelineArtifact@0
     inputs:
