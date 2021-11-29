@@ -5,7 +5,7 @@
 
 import { IWordAtPosition } from 'vs/editor/common/model';
 
-export const USUAL_WORD_SEPARATORS = '`~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?';
+export const USUAL_WORD_SEPARATORS = '`~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?_';
 
 /**
  * Create a word definition regular expression based on default word separators.
