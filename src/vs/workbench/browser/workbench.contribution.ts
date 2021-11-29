@@ -363,7 +363,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.experimental.layoutControl.enabled': {
 				'type': 'boolean',
-				'default': product.quality !== 'stable',
+				'tags': ['experimental'],
+				'default': product.quality !== 'stable ',
 				'description': localize('layoutControlEnabled', "Controls whether the layout control button in the custom title bar is enabled."),
 			},
 			'workbench.experimental.sidePanel.enabled': {
