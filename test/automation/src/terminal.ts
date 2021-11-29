@@ -80,8 +80,6 @@ export class Terminal {
 
 	async runCommandInTerminal(commandText: string): Promise<void> {
 		await this.code.writeInTerminal(Selector.Xterm, commandText);
-		// hold your horses
-		await new Promise(c => setTimeout(c, 500));
 		await this.code.dispatchKeybinding('enter');
 	}
 
