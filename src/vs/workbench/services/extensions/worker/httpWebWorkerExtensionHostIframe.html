@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 	<head>
-		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; child-src 'self' data: blob:; script-src 'unsafe-eval' 'sha256-K1g7FCERTTCfRLLmc8iHekkF33UnX2QZNtYpH4uQo0E=' http: https:; connect-src http: https: ws: wss:" />
+		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; child-src 'self' data: blob:; script-src 'unsafe-eval' 'sha256-AP+gj0d1iSVAToqLVFR2WlQ7mpa5plNk+C9suFFFJgM=' http: https:; connect-src http: https: ws: wss:" />
 	</head>
 	<body>
 	<script>
@@ -42,12 +42,16 @@
 					nestedWorkers.get(id).terminate();
 					nestedWorkers.delete(id);
 				}
-			} else {
+
+			} else if (data?.type === '_workerInitialized') {
+				window.parent.postMessage({ vscodeWebWorkerExtHostId, type: '_workerInitialized' }, '*');
+
+			} else if (data?.type === '_workerReady') {
 				worker.onerror = console.error.bind(console);
-				window.parent.postMessage({
-					vscodeWebWorkerExtHostId,
-					data
-				}, '*');
+				window.parent.postMessage({ vscodeWebWorkerExtHostId, type: '_workerReady' }, '*');
+
+			} else {
+				window.parent.postMessage({ vscodeWebWorkerExtHostId, data }, '*');
 			}
 		};
 

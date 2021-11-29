@@ -215,7 +215,25 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 
 let onTerminate = (reason: string) => nativeClose();
 
+/**
+ * In order for an extension host worker to properly start-up, the following
+ * steps need to happen:
+ *
+ * 1. The worker gets spawned by the main thread. This can happen directly via
+ *    `new Worker()` or indirectly via an iframe. In either case, a message passing
+ *    primitive is available but should not be used for protocol communication.
+ *    Instead, a MessagePort instance needs to be received and then used for protocol
+ *    communication.
+ * 2. The worker first sends a `WorkerMessageType.Initialized` message, letting
+ *    the main thread know that it expects the MessagePort instance.
+ * 3. The main thread sends over the MessagePort instance.
+ * 4. The worker sends back a `WorkerMessageType.Ready` message, letting the main
+ *    thread know that it will start using the MessagePort instance from now on
+ *    to use the protocol.
+ */
 export function create(): { onmessage: (message: any) => void } {
+	nativePostMessage({ type: WorkerMessageType.Initialized });
+
 	performance.mark(`code/extHost/willConnectToRenderer`);
 	return {
 		onmessage(port: MessagePort) {

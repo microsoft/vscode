@@ -4,9 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 export const enum WorkerMessageType {
+	Initialized = '_workerInitialized',
 	Ready = '_workerReady',
 	NewWorker = '_newWorker',
 	TerminateWorker = '_terminateWorker'
+}
+
+export interface WorkerInitializedMessage {
+	type: WorkerMessageType.Initialized;
 }
 
 export interface WorkerReadyMessage {
@@ -26,4 +31,4 @@ export interface TerminateWorkerMessage {
 	id: string;
 }
 
-export type WorkerMessage = WorkerReadyMessage | NewWorkerMessage | TerminateWorkerMessage;
+export type WorkerMessage = WorkerInitializedMessage | WorkerReadyMessage | NewWorkerMessage | TerminateWorkerMessage;

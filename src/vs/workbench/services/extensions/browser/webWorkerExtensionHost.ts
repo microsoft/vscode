@@ -150,7 +150,8 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 
 	private async _startInsideIframe(webWorkerExtensionHostIframeSrc: string): Promise<IMessagePassingProtocol> {
 		const { port1, port2 } = new MessageChannel();
-		const barrier = new Barrier();
+		const workerInitializedBarrier = new Barrier();
+		const workerReadyBarrier = new Barrier();
 
 		const iframe = document.createElement('iframe');
 		iframe.setAttribute('class', 'web-worker-ext-host-iframe');
@@ -160,7 +161,6 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		const vscodeWebWorkerExtHostId = generateUuid();
 		iframe.setAttribute('src', `${webWorkerExtensionHostIframeSrc}&vscodeWebWorkerExtHostId=${vscodeWebWorkerExtHostId}`);
 
-		const iframeLoaded = new Promise(c => iframe.onload = c);
 		this._layoutService.container.appendChild(iframe);
 		this._register(toDisposable(() => iframe.remove()));
 
@@ -168,18 +168,18 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		let barrierHasError = false;
 		let startTimeout: any = null;
 
-		const rejectBarrier = (exitCode: number, error: Error) => {
+		const rejectWorkerReadyBarrier = (exitCode: number, error: Error) => {
 			barrierError = error;
 			barrierHasError = true;
 			onUnexpectedError(barrierError);
 			clearTimeout(startTimeout);
 			this._onDidExit.fire([ExtensionHostExitCode.UnexpectedError, barrierError.message]);
-			barrier.open();
+			workerReadyBarrier.open();
 		};
 
-		const resolveBarrier = () => {
+		const resolveWorkerReadyBarrier = () => {
 			clearTimeout(startTimeout);
-			barrier.open();
+			workerReadyBarrier.open();
 		};
 
 		startTimeout = setTimeout(() => {
@@ -191,37 +191,40 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				return;
 			}
 
-			if (event.data.vscodeWebWorkerExtHostId !== vscodeWebWorkerExtHostId) {
+			if (event.data?.vscodeWebWorkerExtHostId !== vscodeWebWorkerExtHostId) {
 				return;
 			}
 
-			if (event.data.error) {
+			if (event.data?.error) {
 				const { name, message, stack } = event.data.error;
 				const err = new Error();
 				err.message = message;
 				err.name = name;
 				err.stack = stack;
-				return rejectBarrier(ExtensionHostExitCode.UnexpectedError, err);
+				return rejectWorkerReadyBarrier(ExtensionHostExitCode.UnexpectedError, err);
 			}
 
-			if (barrier.isOpen()) {
+			if (workerReadyBarrier.isOpen()) {
 				console.warn('UNEXPECTED message after worker ready', event);
 				return;
 			}
 
-			if (event.data.data.type === WorkerMessageType.Ready) {
-				resolveBarrier();
-				return;
-			}
+			if (event.data?.type === WorkerMessageType.Initialized) {
+				workerInitializedBarrier.open();
 
-			console.warn('UNEXPECTED message', event);
-			const err = new Error('UNEXPECTED message');
-			return rejectBarrier(ExtensionHostExitCode.UnexpectedError, err);
+			} else if (event.data?.type === WorkerMessageType.Ready) {
+				resolveWorkerReadyBarrier();
+
+			} else {
+				console.warn('UNEXPECTED message', event);
+				const err = new Error('UNEXPECTED message');
+				return rejectWorkerReadyBarrier(ExtensionHostExitCode.UnexpectedError, err);
+			}
 		}));
 
-		await iframeLoaded;
+		await workerInitializedBarrier.wait();
 		iframe.contentWindow!.postMessage(port2, '*', [port2]);
-		await barrier.wait();
+		await workerReadyBarrier.wait();
 
 		if (barrierHasError) {
 			throw barrierError;
@@ -252,15 +255,19 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 
 	private async _startOutsideIframe(): Promise<IMessagePassingProtocol> {
 		const { port1, port2 } = new MessageChannel();
-		const barrier = new Barrier();
+		const workerInitializedBarrier = new Barrier();
+		const workerReadyBarrier = new Barrier();
 		const nestedWorker = new Map<string, Worker>();
 
 		const name = this._environmentService.debugRenderer && this._environmentService.debugExtensionHost ? 'DebugWorkerExtensionHost' : 'WorkerExtensionHost';
 		const worker = this._register(new DefaultWorkerFactory(name).create(
 			'vs/workbench/services/extensions/worker/extensionHostWorker',
 			(data: WorkerMessage | any /* this `any` is a hack */) => {
-				if (data?.type === WorkerMessageType.Ready) {
-					barrier.open();
+				if (data?.type === WorkerMessageType.Initialized) {
+					workerInitializedBarrier.open();
+
+				} else if (data?.type === WorkerMessageType.Ready) {
+					workerReadyBarrier.open();
 
 				} else if (data?.type === WorkerMessageType.NewWorker) {
 					// receiving a message to create a new nested/child worker
@@ -285,7 +292,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			(event: any) => {
 				console.error(event.message, event.error);
 
-				if (!barrier.isOpen()) {
+				if (!workerReadyBarrier.isOpen()) {
 					// Only terminate the web worker extension host when an error occurs during handshake
 					// and setup. All other errors can be normal uncaught exceptions
 					this._onDidExit.fire([ExtensionHostExitCode.UnexpectedError, event.message || event.error]);
@@ -293,8 +300,9 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			}
 		));
 
+		await workerInitializedBarrier.wait();
 		worker.postMessage(port2 as any /* this `any` is a hack */, [port2 as any /* this `any` is a hack */]);
-		await barrier.wait();
+		await workerReadyBarrier.wait();
 
 		const emitter = this._register(new Emitter<VSBuffer>());
 
