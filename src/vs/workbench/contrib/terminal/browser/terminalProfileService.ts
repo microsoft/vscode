@@ -116,6 +116,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 		}
 		if (this._platformConfigNotInitialized) {
 			await this._refreshPlatformConfig(this._availableProfiles!);
+			this._platformConfigNotInitialized = false;
 		}
 	}
 
