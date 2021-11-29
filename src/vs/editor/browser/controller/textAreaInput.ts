@@ -352,6 +352,10 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(this._textArea.onInput((e) => {
+			if (_debugComposition) {
+				console.log(`[input]`, e);
+			}
+
 			// Pretend here we touched the text area, as the `input` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._textArea.setIgnoreSelectionChangeTime('received input event');
@@ -369,12 +373,18 @@ export class TextAreaInput extends Disposable {
 			}
 
 			this._textAreaState = newState;
+			const typeInputIsNoOp = (
+				typeInput.text === ''
+				&& typeInput.replacePrevCharCnt === 0
+				&& typeInput.replaceNextCharCnt === 0
+				&& typeInput.positionDelta === 0
+			);
 			if (this._nextCommand === ReadFromTextArea.Type) {
-				if (typeInput.text !== '' || typeInput.replacePrevCharCnt !== 0) {
+				if (!typeInputIsNoOp) {
 					this._onType.fire(typeInput);
 				}
 			} else {
-				if (typeInput.text !== '' || typeInput.replacePrevCharCnt !== 0) {
+				if (!typeInputIsNoOp) {
 					this._firePaste(typeInput.text, null);
 				}
 				this._nextCommand = ReadFromTextArea.Type;
