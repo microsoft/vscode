@@ -5,7 +5,10 @@
 
 import { Application, ApplicationOptions, Quality } from '../../../../automation';
 import { ParsedArgs } from 'minimist';
+import * as readdirp from 'readdirp';
 import { afterSuite, getRandomUserDataDir, startApp } from '../../utils';
+import { join } from 'path';
+import { readFileSync } from 'fs';
 
 export function setup(opts: ParsedArgs) {
 
@@ -158,11 +161,32 @@ export function setup(opts: ParsedArgs) {
 			await stableApp.stop();
 			stableApp = undefined;
 
+			const backupsHome = join(userDataDir, 'Backups');
+			console.log('Printing backup contents (after stable app stopped):');
+			for await (const entry of readdirp(backupsHome)) {
+				try {
+					const contents = readFileSync(join(backupsHome, entry.path)).toString();
+					console.log(`${entry.path}: ${contents.substring(0, contents.indexOf('\n'))}`);
+				} catch (error) {
+					console.log(`${entry.path}: Error reading file: ${error}`);
+				}
+			}
+
 			const insiderOptions: ApplicationOptions = Object.assign({}, this.defaultOptions);
 			insiderOptions.userDataDir = userDataDir;
 
 			insidersApp = new Application(insiderOptions);
 			await insidersApp.start();
+
+			console.log('Printing backup contents (after insiders app started):');
+			for await (const entry of readdirp(backupsHome)) {
+				try {
+					const contents = readFileSync(join(backupsHome, entry.path)).toString();
+					console.log(`${entry.path}: ${contents.substring(0, contents.indexOf('\n'))}`);
+				} catch (error) {
+					console.log(`${entry.path}: Error reading file: ${error}`);
+				}
+			}
 
 			await insidersApp.workbench.editors.waitForTab(readmeMd, true);
 			await insidersApp.workbench.quickaccess.openFile(readmeMd);
