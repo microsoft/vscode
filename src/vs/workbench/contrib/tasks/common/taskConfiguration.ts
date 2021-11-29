@@ -1393,7 +1393,7 @@ namespace ConfiguringTask {
 		}
 		let typeDeclaration = type ? TaskDefinitionRegistry.get(type) : undefined;
 		if (!typeDeclaration) {
-			let message = nls.localize('ConfigurationParser.noTypeDefinition', 'Error: there is no registered task type \'{0}\'. Did you miss to install an extension that provides a corresponding task provider?', type);
+			let message = nls.localize('ConfigurationParser.noTypeDefinition', 'Error: there is no registered task type \'{0}\'. Did you miss installing an extension that provides a corresponding task provider?', type);
 			context.problemReporter.error(message);
 			return undefined;
 		}
