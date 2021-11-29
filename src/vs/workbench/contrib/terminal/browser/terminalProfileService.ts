@@ -41,7 +41,6 @@ export class TerminalProfileService implements ITerminalProfileService {
 
 	get profilesReady(): Promise<void> { return this._profilesReadyBarrier.wait().then(() => { }); }
 	get availableProfiles(): ITerminalProfile[] {
-		this.refreshAvailableProfiles();
 		return this._availableProfiles || [];
 	}
 	get contributedProfiles(): IExtensionTerminalProfile[] {
@@ -60,14 +59,6 @@ export class TerminalProfileService implements ITerminalProfileService {
 		// that contributes a profile
 		this._extensionService.onDidChangeExtensions(() => this.refreshAvailableProfiles());
 
-		this._configurationService.onDidChangeConfiguration(async e => {
-			const platformKey = await this.getPlatformKey();
-			if (e.affectsConfiguration(TerminalSettingPrefix.DefaultProfile + platformKey) ||
-				e.affectsConfiguration(TerminalSettingPrefix.Profiles + platformKey) ||
-				e.affectsConfiguration(TerminalSettingId.UseWslProfiles)) {
-				this.refreshAvailableProfiles();
-			}
-		});
 		this._webExtensionContributedProfileContextKey = TerminalContextKeys.webExtensionContributedProfile.bindTo(this._contextKeyService);
 		this._updateWebContextKey();
 		// Wait up to 5 seconds for profiles to be ready so it's assured that we know the actual
@@ -75,6 +66,18 @@ export class TerminalProfileService implements ITerminalProfileService {
 		// this long.
 		this._profilesReadyBarrier = new AutoOpenBarrier(5000);
 		this.refreshAvailableProfiles();
+		this._setupConfigListener();
+	}
+
+	private async _setupConfigListener(): Promise<void> {
+		const platformKey = await this.getPlatformKey();
+		this._configurationService.onDidChangeConfiguration(async e => {
+			if (e.affectedKeys[0] === (TerminalSettingPrefix.DefaultProfile + platformKey) ||
+				e.affectedKeys[0] === (TerminalSettingPrefix.Profiles + platformKey) ||
+				e.affectedKeys[0] === (TerminalSettingId.UseWslProfiles)) {
+				this.refreshAvailableProfiles();
+			}
+		});
 	}
 
 	_serviceBrand: undefined;
