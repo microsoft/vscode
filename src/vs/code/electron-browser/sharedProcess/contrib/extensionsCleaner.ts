@@ -7,19 +7,13 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 
-export class DeprecatedExtensionsCleaner extends Disposable {
+export class ExtensionsCleaner extends Disposable {
 
 	constructor(
-		@IExtensionManagementService private readonly extensionManagementService: ExtensionManagementService
+		@IExtensionManagementService extensionManagementService: ExtensionManagementService,
 	) {
 		super();
-
-		this._register(extensionManagementService); // TODO@sandy081 this seems fishy
-
-		this.cleanUpDeprecatedExtensions();
-	}
-
-	private cleanUpDeprecatedExtensions(): void {
-		this.extensionManagementService.removeDeprecatedExtensions();
+		extensionManagementService.removeDeprecatedExtensions();
+		extensionManagementService.migrateUnsupportedExtensions();
 	}
 }

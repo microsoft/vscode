@@ -317,9 +317,10 @@ export interface IExtensionsControlManifest {
 }
 
 export const enum InstallOperation {
-	None = 0,
+	None = 1,
 	Install,
-	Update
+	Update,
+	Migrate,
 }
 
 export interface ITranslation {

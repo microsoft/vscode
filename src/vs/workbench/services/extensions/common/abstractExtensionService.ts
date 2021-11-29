@@ -25,7 +25,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionActivationHost as IWorkspaceContainsActivationHost, checkGlobFileExists, checkActivateWorkspaceContainsExtension } from 'vs/workbench/api/common/shared/workspaceContains';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -238,8 +238,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		this._register(this._extensionManagementService.onDidInstallExtensions((result) => {
 			const extensions: IExtension[] = [];
-			for (const { local } of result) {
-				if (local && this._safeInvokeIsEnabled(local)) {
+			for (const { local, operation } of result) {
+				if (local && operation !== InstallOperation.Migrate && this._safeInvokeIsEnabled(local)) {
 					extensions.push(local);
 				}
 			}
