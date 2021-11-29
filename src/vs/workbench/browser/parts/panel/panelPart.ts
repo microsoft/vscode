@@ -398,7 +398,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 			const viewContainer = this.getViewContainer(panelDescriptor.id);
 			if (viewContainer?.hideIfEmpty) {
 				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-				if (viewContainerModel.activeViewDescriptors.length === 0 && this.compositeBar.getPinnedComposites().length > 1) {
+				if (viewContainerModel.activeViewDescriptors.length === 0) {
 					this.hideComposite(panelDescriptor.id); // Update the composite bar by hiding
 				}
 			}
