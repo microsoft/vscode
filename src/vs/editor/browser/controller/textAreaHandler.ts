@@ -293,6 +293,11 @@ export class TextAreaHandler extends ViewPart {
 					visibleRange.left,
 					canUseZeroSizeTextarea ? 0 : 1
 				);
+				// The textarea might contain more than just the currently composed text
+				// so we will scroll the textarea as much as possible to the left, which
+				// means that the browser will perfectly center the currently composed text
+				// when it scrolls to the right to reveal the textarea cursor.
+				this.textArea.domNode.scrollLeft = 0;
 				this._render();
 			}
 
@@ -309,6 +314,11 @@ export class TextAreaHandler extends ViewPart {
 			}
 			// adjust width by its size
 			this._visibleTextArea = this._visibleTextArea.setWidth(measureText(e.data, this._fontInfo));
+			// The textarea might contain more than just the currently composed text
+			// so we will scroll the textarea as much as possible to the left, which
+			// means that the browser will perfectly center the currently composed text
+			// when it scrolls to the right to reveal the textarea cursor.
+			this.textArea.domNode.scrollLeft = 0;
 			this._render();
 		}));
 

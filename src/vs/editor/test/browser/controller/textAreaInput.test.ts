@@ -86,6 +86,7 @@ suite('TextAreaInput', () => {
 			readonly onSyntheticTap = Event.None;
 
 			private _state: IRecordedTextareaState;
+			private _currDispatchingEvent: IRecordedEvent | null;
 
 			constructor() {
 				super();
@@ -95,6 +96,7 @@ suite('TextAreaInput', () => {
 					selectionStart: 0,
 					value: ''
 				};
+				this._currDispatchingEvent = null;
 			}
 
 			public _initialize(state: IRecordedTextareaState): void {
@@ -104,6 +106,7 @@ suite('TextAreaInput', () => {
 			}
 
 			public _dispatchRecordedEvent(event: IRecordedEvent): void {
+				this._currDispatchingEvent = event;
 				this._state.value = event.state.value;
 				this._state.selectionStart = event.state.selectionStart;
 				this._state.selectionEnd = event.state.selectionEnd;
@@ -161,12 +164,16 @@ suite('TextAreaInput', () => {
 				} else {
 					throw new Error(`Not Implemented`);
 				}
+				this._currDispatchingEvent = null;
 			}
 
 			getValue(): string {
 				return this._state.value;
 			}
 			setValue(reason: string, value: string): void {
+				if (this._currDispatchingEvent?.type === 'compositionstart') {
+					assert.fail('should not change the state of the textarea in a compositionstart');
+				}
 				this._state.value = value;
 			}
 			getSelectionStart(): number {
@@ -176,6 +183,9 @@ suite('TextAreaInput', () => {
 				return this._state.selectionDirection === 'backward' ? this._state.selectionStart : this._state.selectionEnd;
 			}
 			setSelectionRange(reason: string, selectionStart: number, selectionEnd: number): void {
+				if (this._currDispatchingEvent?.type === 'compositionstart') {
+					assert.fail('should not change the state of the textarea in a compositionstart');
+				}
 				this._state.selectionStart = selectionStart;
 				this._state.selectionEnd = selectionEnd;
 				this._state.selectionDirection = (selectionStart !== selectionEnd ? 'forward' : 'none');

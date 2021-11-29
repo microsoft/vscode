@@ -289,7 +289,6 @@ export class TextAreaInput extends Disposable {
 				return;
 			}
 
-			this._setAndWriteTextAreaState('compositionstart', TextAreaState.EMPTY);
 			this._onCompositionStart.fire({ revealDeltaColumns: 0 });
 		}));
 
