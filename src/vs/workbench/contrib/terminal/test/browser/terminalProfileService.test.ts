@@ -283,7 +283,6 @@ suite('TerminalProfileService', () => {
 				}
 			}
 		});
-		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true, source: ConfigurationTarget.USER } as any);
 		await terminalProfileService.hasRefreshedProfiles;
 		deepStrictEqual(calls, [
 			[powershellProfile]
