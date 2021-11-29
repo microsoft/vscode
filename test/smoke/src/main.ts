@@ -17,7 +17,6 @@ import { ncp } from 'ncp';
 import * as vscodetest from 'vscode-test';
 import fetch from 'node-fetch';
 import { Quality, ApplicationOptions, MultiLogger, Logger, ConsoleLogger, FileLogger } from '../../automation';
-import { tasklist } from 'tasklist';
 
 import { setup as setupDataMigrationTests } from './areas/workbench/data-migration.test';
 import { setup as setupPreferencesTests } from './areas/preferences/preferences.test';
@@ -345,17 +344,7 @@ after(async function () {
 		await promisify(ncp)(logsDir, destLogsDir);
 	}
 
-	try {
-		await new Promise<void>((resolve, reject) => rimraf(testDataPath, { maxBusyTries: 10 }, error => error ? reject(error) : resolve()));
-	} catch (error) {
-		console.error(`Unable to delete smoke test workspace: ${error}`);
-
-		if (process.platform === 'win32' && error.code === 'EPERM') {
-			console.log(await tasklist());
-		}
-
-		throw error;
-	}
+	await new Promise<void>((resolve, reject) => rimraf(testDataPath, { maxBusyTries: 50 }, error => error ? reject(error) : resolve()));
 });
 
 describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
