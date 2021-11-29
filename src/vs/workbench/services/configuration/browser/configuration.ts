@@ -30,7 +30,7 @@ import { isObject } from 'vs/base/common/types';
 
 export class DefaultConfiguration extends Disposable {
 
-	private static DEFAULT_OVERRIDES_CACHE_EXISTS_KEY = 'DefaultOverridesCacheExists';
+	static readonly DEFAULT_OVERRIDES_CACHE_EXISTS_KEY = 'DefaultOverridesCacheExists';
 
 	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	private cachedConfigurationDefaultsOverrides: IStringDictionary<any> = {};
@@ -38,6 +38,8 @@ export class DefaultConfiguration extends Disposable {
 
 	private readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
 	readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
+
+	private updateCache: boolean = false;
 
 	constructor(
 		private readonly configurationCache: IConfigurationCache,
@@ -60,11 +62,12 @@ export class DefaultConfiguration extends Disposable {
 	async initialize(): Promise<ConfigurationModel> {
 		await this.initializeCachedConfigurationDefaultsOverrides();
 		this._configurationModel = undefined;
-		this._register(this.configurationRegistry.onDidUpdateConfiguration(() => this.onDidUpdateConfiguration()));
+		this._register(this.configurationRegistry.onDidUpdateConfiguration(({ defaultsOverrides }) => this.onDidUpdateConfiguration(defaultsOverrides)));
 		return this.configurationModel;
 	}
 
 	reload(): ConfigurationModel {
+		this.updateCache = true;
 		this.cachedConfigurationDefaultsOverrides = {};
 		this._configurationModel = undefined;
 		this.updateCachedConfigurationDefaultsOverrides();
@@ -90,12 +93,18 @@ export class DefaultConfiguration extends Disposable {
 		return this.initiaizeCachedConfigurationDefaultsOverridesPromise;
 	}
 
-	private onDidUpdateConfiguration(): void {
+	private onDidUpdateConfiguration(defaultsOverrides?: boolean): void {
 		this._configurationModel = undefined;
 		this._onDidChangeConfiguration.fire(this.configurationModel);
+		if (defaultsOverrides) {
+			this.updateCachedConfigurationDefaultsOverrides();
+		}
 	}
 
 	private async updateCachedConfigurationDefaultsOverrides(): Promise<void> {
+		if (!this.updateCache) {
+			return;
+		}
 		const cachedConfigurationDefaultsOverrides: IStringDictionary<any> = {};
 		const configurationDefaultsOverrides = this.configurationRegistry.getConfigurationDefaultsOverrides();
 		for (const [key, value] of configurationDefaultsOverrides) {
