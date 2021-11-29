@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Application, ApplicationOptions, Quality } from '../../../../automation';
-import { join } from 'path';
 import { ParsedArgs } from 'minimist';
-import { afterSuite, startApp } from '../../utils';
+import { afterSuite, getRandomUserDataDir, startApp } from '../../utils';
 
-export function setup(opts: ParsedArgs, testDataPath: string) {
+export function setup(opts: ParsedArgs) {
 
 	describe('Data Migration (insiders -> insiders)', () => {
 
@@ -90,7 +89,7 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 				this.retries(2);
 			}
 
-			const userDataDir = join(testDataPath, 'd2'); // different data dir from the other tests
+			const userDataDir = getRandomUserDataDir(this.defaultOptions);
 
 			const stableOptions: ApplicationOptions = Object.assign({}, this.defaultOptions);
 			stableOptions.codePath = stableCodePath;
@@ -133,7 +132,7 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 				this.skip();
 			}
 
-			const userDataDir = join(testDataPath, 'd3'); // different data dir from the other tests
+			const userDataDir = getRandomUserDataDir(this.defaultOptions);
 
 			const stableOptions: ApplicationOptions = Object.assign({}, this.defaultOptions);
 			stableOptions.codePath = stableCodePath;

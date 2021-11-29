@@ -353,7 +353,7 @@ after(async function () {
 });
 
 describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
-	if (!opts.web) { setupDataMigrationTests(opts, testDataPath); }
+	if (!opts.web) { setupDataMigrationTests(opts); }
 	if (!opts.web) { setupPreferencesTests(opts); }
 	setupSearchTests(opts);
 	setupNotebookTests(opts);
