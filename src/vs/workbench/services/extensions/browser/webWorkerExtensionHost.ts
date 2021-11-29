@@ -219,6 +219,10 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			throw barrierError;
 		}
 
+		// Send over message ports for extension API
+		const messagePorts = this._environmentService.options?.messagePorts ?? new Map();
+		iframe.contentWindow!.postMessage(messagePorts, '*', [...messagePorts.values()]);
+
 		port.onmessage = (event) => {
 			const { data } = event;
 			if (!(data instanceof ArrayBuffer)) {
@@ -295,12 +299,13 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			}
 		);
 
-		const messagePorts = this._environmentService.options?.messagePorts ?? new Map();
-		worker.postMessage(messagePorts as any, [...messagePorts.values()]);
-
 		// await MessagePort and use it to directly communicate
 		// with the worker extension host
 		await barrier.wait();
+
+		// Send over message ports for extension API
+		const messagePorts = this._environmentService.options?.messagePorts ?? new Map();
+		worker.postMessage(messagePorts as any, [...messagePorts.values()]);
 
 		port.onmessage = (event) => {
 			const { data } = event;

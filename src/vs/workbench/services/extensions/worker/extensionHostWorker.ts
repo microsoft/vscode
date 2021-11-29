@@ -221,10 +221,10 @@ let onTerminate = (reason: string) => nativeClose();
 
 export function create(): { onmessage: (message: any) => void } {
 	performance.mark(`code/extHost/willConnectToRenderer`);
+	const res = new ExtensionWorker();
 
 	return {
 		onmessage(messagePorts: ReadonlyMap<string, MessagePort>) {
-			const res = new ExtensionWorker();
 			connectToRenderer(res.protocol).then(data => {
 				performance.mark(`code/extHost/didWaitForInitData`);
 				const extHostMain = new ExtensionHostMain(
