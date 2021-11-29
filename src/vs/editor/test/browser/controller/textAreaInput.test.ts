@@ -224,7 +224,7 @@ suite('TextAreaInput', () => {
 		return outgoingEvents;
 	}
 
-	function interpretTypeEvents(browser: IBrowser, initialState: IRecordedTextareaState, events: OutoingEvent[]): IRecordedTextareaState {
+	function interpretTypeEvents(OS: OperatingSystem, browser: IBrowser, initialState: IRecordedTextareaState, events: OutoingEvent[]): IRecordedTextareaState {
 		let text = initialState.value;
 		let selectionStart = initialState.selectionStart;
 		let selectionEnd = initialState.selectionEnd;
@@ -248,7 +248,7 @@ suite('TextAreaInput', () => {
 			value: text,
 			selectionStart: selectionStart,
 			selectionEnd: selectionEnd,
-			selectionDirection: browser.isFirefox ? 'forward' : 'none'
+			selectionDirection: (browser.isFirefox || OS === OperatingSystem.Windows) ? 'forward' : 'none'
 		};
 	}
 
@@ -309,7 +309,7 @@ suite('TextAreaInput', () => {
 			{ type: 'compositionEnd' }
 		]);
 
-		const actualResultingState = interpretTypeEvents(recorded.env.browser, recorded.initial, actualOutgoingEvents);
+		const actualResultingState = interpretTypeEvents(recorded.env.OS, recorded.env.browser, recorded.initial, actualOutgoingEvents);
 		assert.deepStrictEqual(actualResultingState, recorded.final);
 	});
 
@@ -354,7 +354,7 @@ suite('TextAreaInput', () => {
 			{ type: 'compositionEnd' }
 		]);
 
-		const actualResultingState = interpretTypeEvents(recorded.env.browser, recorded.initial, actualOutgoingEvents);
+		const actualResultingState = interpretTypeEvents(recorded.env.OS, recorded.env.browser, recorded.initial, actualOutgoingEvents);
 		assert.deepStrictEqual(actualResultingState, recorded.final);
 	});
 
@@ -433,7 +433,7 @@ suite('TextAreaInput', () => {
 			{ type: 'compositionEnd' }
 		]);
 
-		const actualResultingState = interpretTypeEvents(recorded.env.browser, recorded.initial, actualOutgoingEvents);
+		const actualResultingState = interpretTypeEvents(recorded.env.OS, recorded.env.browser, recorded.initial, actualOutgoingEvents);
 		assert.deepStrictEqual(actualResultingState, recorded.final);
 	});
 
@@ -477,7 +477,7 @@ suite('TextAreaInput', () => {
 			{ type: 'compositionEnd' }
 		]);
 
-		const actualResultingState = interpretTypeEvents(recorded.env.browser, recorded.initial, actualOutgoingEvents);
+		const actualResultingState = interpretTypeEvents(recorded.env.OS, recorded.env.browser, recorded.initial, actualOutgoingEvents);
 		assert.deepStrictEqual(actualResultingState, recorded.final);
 	});
 
@@ -532,7 +532,7 @@ suite('TextAreaInput', () => {
 			{ type: 'compositionEnd' }
 		]);
 
-		const actualResultingState = interpretTypeEvents(recorded.env.browser, recorded.initial, actualOutgoingEvents);
+		const actualResultingState = interpretTypeEvents(recorded.env.OS, recorded.env.browser, recorded.initial, actualOutgoingEvents);
 		assert.deepStrictEqual(actualResultingState, recorded.final);
 	});
 
@@ -566,7 +566,7 @@ suite('TextAreaInput', () => {
 			{ type: 'type', text: 'è', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 }
 		]);
 
-		const actualResultingState = interpretTypeEvents(recorded.env.browser, recorded.initial, actualOutgoingEvents);
+		const actualResultingState = interpretTypeEvents(recorded.env.OS, recorded.env.browser, recorded.initial, actualOutgoingEvents);
 		assert.deepStrictEqual(actualResultingState, recorded.final);
 	});
 
@@ -588,7 +588,327 @@ suite('TextAreaInput', () => {
 			{ type: 'type', text: '😍', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 }
 		]);
 
-		const actualResultingState = interpretTypeEvents(recorded.env.browser, recorded.initial, actualOutgoingEvents);
+		const actualResultingState = interpretTypeEvents(recorded.env.OS, recorded.env.browser, recorded.initial, actualOutgoingEvents);
 		assert.deepStrictEqual(actualResultingState, recorded.final);
 	});
+
+	test('Windows - Chrome - Japanese using Hiragana', async () => {
+		// Windows, Japanese/Hiragana, type 'sennsei' and Enter
+		const recorded: IRecorded = {
+			env: { OS: OperatingSystem.Windows, browser: { isAndroid: false, isFirefox: false, isChrome: true, isSafari: false } },
+			initial: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'forward' },
+			events: [
+				{ timeStamp: 0.00, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'forward' }, type: 'keydown', altKey: false, charCode: 0, code: 'KeyS', ctrlKey: false, isComposing: false, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 0.80, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'forward' }, type: 'compositionstart', data: '' },
+				{ timeStamp: 0.80, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'forward' }, type: 'beforeinput', data: 'ｓ', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 0.90, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'forward' }, type: 'compositionupdate', data: 'ｓ' },
+				{ timeStamp: 9.30, state: { value: 'aaｓaa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'input', data: 'ｓ', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 97.50, state: { value: 'aaｓaa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyS', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 99.10, state: { value: 'aaｓaa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyS', ctrlKey: false, isComposing: true, key: 's', keyCode: 83, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 615.90, state: { value: 'aaｓaa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'keydown', altKey: false, charCode: 0, code: 'KeyE', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 619.80, state: { value: 'aaｓaa', selectionStart: 2, selectionEnd: 3, selectionDirection: 'forward' }, type: 'beforeinput', data: 'せ', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 619.80, state: { value: 'aaｓaa', selectionStart: 2, selectionEnd: 3, selectionDirection: 'forward' }, type: 'compositionupdate', data: 'せ' },
+				{ timeStamp: 627.70, state: { value: 'aaせaa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'input', data: 'せ', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 719.90, state: { value: 'aaせaa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyE', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 723.60, state: { value: 'aaせaa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyE', ctrlKey: false, isComposing: true, key: 'e', keyCode: 69, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 1816.10, state: { value: 'aaせaa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'keydown', altKey: false, charCode: 0, code: 'KeyN', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 1828.30, state: { value: 'aaせaa', selectionStart: 2, selectionEnd: 3, selectionDirection: 'forward' }, type: 'beforeinput', data: 'せｎ', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 1828.40, state: { value: 'aaせaa', selectionStart: 2, selectionEnd: 3, selectionDirection: 'forward' }, type: 'compositionupdate', data: 'せｎ' },
+				{ timeStamp: 1828.70, state: { value: 'aaせｎaa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'input', data: 'せｎ', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 1903.70, state: { value: 'aaせｎaa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyN', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 1904.70, state: { value: 'aaせｎaa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyN', ctrlKey: false, isComposing: true, key: 'n', keyCode: 78, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 2111.70, state: { value: 'aaせｎaa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'keydown', altKey: false, charCode: 0, code: 'KeyN', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 2123.40, state: { value: 'aaせｎaa', selectionStart: 2, selectionEnd: 4, selectionDirection: 'forward' }, type: 'beforeinput', data: 'せん', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 2123.40, state: { value: 'aaせｎaa', selectionStart: 2, selectionEnd: 4, selectionDirection: 'forward' }, type: 'compositionupdate', data: 'せん' },
+				{ timeStamp: 2123.70, state: { value: 'aaせんaa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'input', data: 'せん', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 2215.80, state: { value: 'aaせんaa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyN', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 2217.10, state: { value: 'aaせんaa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyN', ctrlKey: false, isComposing: true, key: 'n', keyCode: 78, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 2968.00, state: { value: 'aaせんaa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'keydown', altKey: false, charCode: 0, code: 'KeyS', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 2970.00, state: { value: 'aaせんaa', selectionStart: 2, selectionEnd: 4, selectionDirection: 'forward' }, type: 'beforeinput', data: 'せんｓ', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 2970.00, state: { value: 'aaせんaa', selectionStart: 2, selectionEnd: 4, selectionDirection: 'forward' }, type: 'compositionupdate', data: 'せんｓ' },
+				{ timeStamp: 2970.20, state: { value: 'aaせんｓaa', selectionStart: 5, selectionEnd: 5, selectionDirection: 'forward' }, type: 'input', data: 'せんｓ', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 3079.70, state: { value: 'aaせんｓaa', selectionStart: 5, selectionEnd: 5, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyS', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 3080.70, state: { value: 'aaせんｓaa', selectionStart: 5, selectionEnd: 5, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyS', ctrlKey: false, isComposing: true, key: 's', keyCode: 83, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 3295.20, state: { value: 'aaせんｓaa', selectionStart: 5, selectionEnd: 5, selectionDirection: 'forward' }, type: 'keydown', altKey: false, charCode: 0, code: 'KeyE', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 3297.10, state: { value: 'aaせんｓaa', selectionStart: 2, selectionEnd: 5, selectionDirection: 'forward' }, type: 'beforeinput', data: 'せんせ', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 3297.20, state: { value: 'aaせんｓaa', selectionStart: 2, selectionEnd: 5, selectionDirection: 'forward' }, type: 'compositionupdate', data: 'せんせ' },
+				{ timeStamp: 3297.40, state: { value: 'aaせんせaa', selectionStart: 5, selectionEnd: 5, selectionDirection: 'forward' }, type: 'input', data: 'せんせ', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 3408.00, state: { value: 'aaせんせaa', selectionStart: 5, selectionEnd: 5, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyE', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 3409.00, state: { value: 'aaせんせaa', selectionStart: 5, selectionEnd: 5, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyE', ctrlKey: false, isComposing: true, key: 'e', keyCode: 69, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 3880.80, state: { value: 'aaせんせaa', selectionStart: 5, selectionEnd: 5, selectionDirection: 'forward' }, type: 'keydown', altKey: false, charCode: 0, code: 'KeyI', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 3882.80, state: { value: 'aaせんせaa', selectionStart: 2, selectionEnd: 5, selectionDirection: 'forward' }, type: 'beforeinput', data: 'せんせい', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 3882.90, state: { value: 'aaせんせaa', selectionStart: 2, selectionEnd: 5, selectionDirection: 'forward' }, type: 'compositionupdate', data: 'せんせい' },
+				{ timeStamp: 3883.30, state: { value: 'aaせんせいaa', selectionStart: 6, selectionEnd: 6, selectionDirection: 'forward' }, type: 'input', data: 'せんせい', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 3976.30, state: { value: 'aaせんせいaa', selectionStart: 6, selectionEnd: 6, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyI', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 3977.50, state: { value: 'aaせんせいaa', selectionStart: 6, selectionEnd: 6, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyI', ctrlKey: false, isComposing: true, key: 'i', keyCode: 73, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 6364.90, state: { value: 'aaせんせいaa', selectionStart: 6, selectionEnd: 6, selectionDirection: 'forward' }, type: 'keydown', altKey: false, charCode: 0, code: 'Enter', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 6367.40, state: { value: 'aaせんせいaa', selectionStart: 2, selectionEnd: 6, selectionDirection: 'forward' }, type: 'beforeinput', data: 'せんせい', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 6367.40, state: { value: 'aaせんせいaa', selectionStart: 2, selectionEnd: 6, selectionDirection: 'forward' }, type: 'compositionupdate', data: 'せんせい' },
+				{ timeStamp: 6367.60, state: { value: 'aaせんせいaa', selectionStart: 6, selectionEnd: 6, selectionDirection: 'forward' }, type: 'input', data: 'せんせい', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 6367.60, state: { value: 'aaせんせいaa', selectionStart: 6, selectionEnd: 6, selectionDirection: 'forward' }, type: 'compositionend', data: 'せんせい' },
+				{ timeStamp: 6479.60, state: { value: 'aaせんせいaa', selectionStart: 6, selectionEnd: 6, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'Enter', ctrlKey: false, isComposing: false, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false }
+			],
+			final: { value: 'aaせんせいaa', selectionStart: 6, selectionEnd: 6, selectionDirection: 'forward' },
+		};
+
+		const actualOutgoingEvents = await simulateInteraction(recorded);
+		assert.deepStrictEqual(actualOutgoingEvents, [
+			{ type: 'compositionStart', revealDeltaColumns: 0 },
+			{ type: 'type', text: 'ｓ', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: 'ｓ' },
+			{ type: 'type', text: 'せ', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: 'せ' },
+			{ type: 'type', text: 'せｎ', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: 'せｎ' },
+			{ type: 'type', text: 'せん', replacePrevCharCnt: 2, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: 'せん' },
+			{ type: 'type', text: 'せんｓ', replacePrevCharCnt: 2, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: 'せんｓ' },
+			{ type: 'type', text: 'せんせ', replacePrevCharCnt: 3, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: 'せんせ' },
+			{ type: 'type', text: 'せんせい', replacePrevCharCnt: 3, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: 'せんせい' },
+			{ type: 'type', text: 'せんせい', replacePrevCharCnt: 4, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: 'せんせい' },
+			{ type: 'type', text: 'せんせい', replacePrevCharCnt: 4, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionEnd' }
+		]);
+
+		const actualResultingState = interpretTypeEvents(recorded.env.OS, recorded.env.browser, recorded.initial, actualOutgoingEvents);
+		assert.deepStrictEqual(actualResultingState, recorded.final);
+	});
+
+	test('Windows - Chrome - Korean (1)', async () => {
+		// Windows, Korean, type 'dkrk' and click
+		const recorded: IRecorded = {
+			env: { OS: OperatingSystem.Windows, browser: { isAndroid: false, isFirefox: false, isChrome: true, isSafari: false } },
+			initial: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'forward' },
+			events: [
+				{ timeStamp: 0.00, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'forward' }, type: 'keydown', altKey: false, charCode: 0, code: 'KeyD', ctrlKey: false, isComposing: false, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 23.10, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'forward' }, type: 'compositionstart', data: '' },
+				{ timeStamp: 23.10, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'forward' }, type: 'beforeinput', data: 'ㅇ', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 23.20, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'forward' }, type: 'compositionupdate', data: 'ㅇ' },
+				{ timeStamp: 23.60, state: { value: 'aaㅇaa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'input', data: 'ㅇ', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 119.30, state: { value: 'aaㅇaa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyD', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 215.00, state: { value: 'aaㅇaa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'keydown', altKey: false, charCode: 0, code: 'KeyK', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 215.40, state: { value: 'aaㅇaa', selectionStart: 2, selectionEnd: 3, selectionDirection: 'forward' }, type: 'beforeinput', data: '아', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 215.40, state: { value: 'aaㅇaa', selectionStart: 2, selectionEnd: 3, selectionDirection: 'forward' }, type: 'compositionupdate', data: '아' },
+				{ timeStamp: 215.90, state: { value: 'aa아aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'input', data: '아', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 303.20, state: { value: 'aa아aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyK', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 511.10, state: { value: 'aa아aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'keydown', altKey: false, charCode: 0, code: 'KeyR', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 511.70, state: { value: 'aa아aa', selectionStart: 2, selectionEnd: 3, selectionDirection: 'forward' }, type: 'beforeinput', data: '악', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 511.70, state: { value: 'aa아aa', selectionStart: 2, selectionEnd: 3, selectionDirection: 'forward' }, type: 'compositionupdate', data: '악' },
+				{ timeStamp: 512.10, state: { value: 'aa악aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'input', data: '악', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 598.20, state: { value: 'aa악aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyR', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 791.00, state: { value: 'aa악aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'keydown', altKey: false, charCode: 0, code: 'KeyK', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 791.50, state: { value: 'aa악aa', selectionStart: 2, selectionEnd: 3, selectionDirection: 'forward' }, type: 'beforeinput', data: '아', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 791.50, state: { value: 'aa악aa', selectionStart: 2, selectionEnd: 3, selectionDirection: 'forward' }, type: 'compositionupdate', data: '아' },
+				{ timeStamp: 791.80, state: { value: 'aa아aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'input', data: '아', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 791.90, state: { value: 'aa아aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'compositionend', data: '아' },
+				{ timeStamp: 792.00, state: { value: 'aa아aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'compositionstart', data: '' },
+				{ timeStamp: 792.00, state: { value: 'aa아aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'beforeinput', data: '가', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 792.00, state: { value: 'aa아aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'compositionupdate', data: '가' },
+				{ timeStamp: 792.30, state: { value: 'aa아가aa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'input', data: '가', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 919.00, state: { value: 'aa아가aa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyK', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 2721.50, state: { value: 'aa아가aa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'compositionend', data: '가' }
+			],
+			final: { value: 'aa아가aa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' },
+		};
+
+		const actualOutgoingEvents = await simulateInteraction(recorded);
+		assert.deepStrictEqual(actualOutgoingEvents, [
+			{ type: 'compositionStart', revealDeltaColumns: 0 },
+			{ type: 'type', text: 'ㅇ', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: 'ㅇ' },
+			{ type: 'type', text: '아', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: '아' },
+			{ type: 'type', text: '악', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: '악' },
+			{ type: 'type', text: '아', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: '아' },
+			{ type: 'type', text: '아', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionEnd' },
+			{ type: 'compositionStart', revealDeltaColumns: 0 },
+			{ type: 'type', text: '가', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: '가' },
+			{ type: 'type', text: '가', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionEnd' }
+		]);
+
+		const actualResultingState = interpretTypeEvents(recorded.env.OS, recorded.env.browser, recorded.initial, actualOutgoingEvents);
+		assert.deepStrictEqual(actualResultingState, recorded.final);
+	});
+
+	test('Windows - Chrome - Korean (2)', async () => {
+		// Windows, Korean, type 'gksrmf' and Space
+		const recorded: IRecorded = {
+			env: { OS: OperatingSystem.Windows, browser: { isAndroid: false, isFirefox: false, isChrome: true, isSafari: false } },
+			initial: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'forward' },
+			events: [
+				{ timeStamp: 0.00, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'forward' }, type: 'keydown', altKey: false, charCode: 0, code: 'KeyG', ctrlKey: false, isComposing: false, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 23.30, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'forward' }, type: 'compositionstart', data: '' },
+				{ timeStamp: 23.50, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'forward' }, type: 'beforeinput', data: 'ㅎ', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 23.50, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'forward' }, type: 'compositionupdate', data: 'ㅎ' },
+				{ timeStamp: 27.30, state: { value: 'aaㅎaa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'input', data: 'ㅎ', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 111.80, state: { value: 'aaㅎaa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyG', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 606.80, state: { value: 'aaㅎaa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'keydown', altKey: false, charCode: 0, code: 'KeyK', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 607.40, state: { value: 'aaㅎaa', selectionStart: 2, selectionEnd: 3, selectionDirection: 'forward' }, type: 'beforeinput', data: '하', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 607.40, state: { value: 'aaㅎaa', selectionStart: 2, selectionEnd: 3, selectionDirection: 'forward' }, type: 'compositionupdate', data: '하' },
+				{ timeStamp: 607.80, state: { value: 'aa하aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'input', data: '하', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 705.20, state: { value: 'aa하aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyK', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 1455.80, state: { value: 'aa하aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'keydown', altKey: false, charCode: 0, code: 'KeyS', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 1456.40, state: { value: 'aa하aa', selectionStart: 2, selectionEnd: 3, selectionDirection: 'forward' }, type: 'beforeinput', data: '한', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 1456.50, state: { value: 'aa하aa', selectionStart: 2, selectionEnd: 3, selectionDirection: 'forward' }, type: 'compositionupdate', data: '한' },
+				{ timeStamp: 1456.90, state: { value: 'aa한aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'input', data: '한', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 1567.40, state: { value: 'aa한aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyS', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 1963.10, state: { value: 'aa한aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'keydown', altKey: false, charCode: 0, code: 'KeyR', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 1963.70, state: { value: 'aa한aa', selectionStart: 2, selectionEnd: 3, selectionDirection: 'forward' }, type: 'beforeinput', data: '한', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 1963.80, state: { value: 'aa한aa', selectionStart: 2, selectionEnd: 3, selectionDirection: 'forward' }, type: 'compositionupdate', data: '한' },
+				{ timeStamp: 1963.80, state: { value: 'aa한aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'input', data: '한', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 1963.90, state: { value: 'aa한aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'compositionend', data: '한' },
+				{ timeStamp: 1964.10, state: { value: 'aa한aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'compositionstart', data: '' },
+				{ timeStamp: 1964.10, state: { value: 'aa한aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'beforeinput', data: 'ㄱ', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 1964.10, state: { value: 'aa한aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'compositionupdate', data: 'ㄱ' },
+				{ timeStamp: 1964.40, state: { value: 'aa한ㄱaa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'input', data: 'ㄱ', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 2063.60, state: { value: 'aa한ㄱaa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyR', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 2823.60, state: { value: 'aa한ㄱaa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'keydown', altKey: false, charCode: 0, code: 'KeyM', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 2824.00, state: { value: 'aa한ㄱaa', selectionStart: 3, selectionEnd: 4, selectionDirection: 'forward' }, type: 'beforeinput', data: '그', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 2824.10, state: { value: 'aa한ㄱaa', selectionStart: 3, selectionEnd: 4, selectionDirection: 'forward' }, type: 'compositionupdate', data: '그' },
+				{ timeStamp: 2824.40, state: { value: 'aa한그aa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'input', data: '그', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 2935.30, state: { value: 'aa한그aa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyM', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 3187.50, state: { value: 'aa한그aa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'keydown', altKey: false, charCode: 0, code: 'KeyF', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 3188.00, state: { value: 'aa한그aa', selectionStart: 3, selectionEnd: 4, selectionDirection: 'forward' }, type: 'beforeinput', data: '글', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 3188.00, state: { value: 'aa한그aa', selectionStart: 3, selectionEnd: 4, selectionDirection: 'forward' }, type: 'compositionupdate', data: '글' },
+				{ timeStamp: 3188.40, state: { value: 'aa한글aa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'input', data: '글', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 3319.20, state: { value: 'aa한글aa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyF', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 3847.30, state: { value: 'aa한글aa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'keydown', altKey: false, charCode: 0, code: 'Space', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 3847.80, state: { value: 'aa한글aa', selectionStart: 3, selectionEnd: 4, selectionDirection: 'forward' }, type: 'beforeinput', data: '글', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 3847.80, state: { value: 'aa한글aa', selectionStart: 3, selectionEnd: 4, selectionDirection: 'forward' }, type: 'compositionupdate', data: '글' },
+				{ timeStamp: 3847.90, state: { value: 'aa한글aa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'input', data: '글', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 3848.10, state: { value: 'aa한글aa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'compositionend', data: '글' },
+				{ timeStamp: 3847.70, state: { value: 'aa한글aa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'keydown', altKey: false, charCode: 0, code: 'Space', ctrlKey: false, isComposing: false, key: ' ', keyCode: 32, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 3847.80, state: { value: 'aa한글aa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'keypress', altKey: false, charCode: 32, code: 'Space', ctrlKey: false, isComposing: false, key: ' ', keyCode: 32, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 3848.30, state: { value: 'aa한글aa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'beforeinput', data: ' ', inputType: 'insertText', isComposing: false },
+				{ timeStamp: 3848.60, state: { value: 'aa한글 aa', selectionStart: 5, selectionEnd: 5, selectionDirection: 'forward' }, type: 'input', data: ' ', inputType: 'insertText', isComposing: false },
+				{ timeStamp: 3919.20, state: { value: 'aa한글 aa', selectionStart: 5, selectionEnd: 5, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'Space', ctrlKey: false, isComposing: false, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 3919.50, state: { value: 'aa한글 aa', selectionStart: 5, selectionEnd: 5, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'Space', ctrlKey: false, isComposing: false, key: ' ', keyCode: 32, location: 0, metaKey: false, repeat: false, shiftKey: false }
+			],
+			final: { value: 'aa한글 aa', selectionStart: 5, selectionEnd: 5, selectionDirection: 'forward' },
+		};
+
+		const actualOutgoingEvents = await simulateInteraction(recorded);
+		assert.deepStrictEqual(actualOutgoingEvents, [
+			{ type: 'compositionStart', revealDeltaColumns: 0 },
+			{ type: 'type', text: 'ㅎ', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: 'ㅎ' },
+			{ type: 'type', text: '하', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: '하' },
+			{ type: 'type', text: '한', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: '한' },
+			{ type: 'type', text: '한', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: '한' },
+			{ type: 'type', text: '한', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionEnd' },
+			{ type: 'compositionStart', revealDeltaColumns: 0 },
+			{ type: 'type', text: 'ㄱ', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: 'ㄱ' },
+			{ type: 'type', text: '그', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: '그' },
+			{ type: 'type', text: '글', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: '글' },
+			{ type: 'type', text: '글', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: '글' },
+			{ type: 'type', text: '글', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionEnd' },
+			{ type: 'type', text: ' ', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 }
+		]);
+
+		const actualResultingState = interpretTypeEvents(recorded.env.OS, recorded.env.browser, recorded.initial, actualOutgoingEvents);
+		assert.deepStrictEqual(actualResultingState, recorded.final);
+	});
+
+	test('Windows - Chrome - Chinese', async () => {
+		// Windows, Chinese, Type 'ni' press Space and then 'hao' and press Space.
+		const recorded: IRecorded = {
+			env: { OS: OperatingSystem.Windows, browser: { isAndroid: false, isFirefox: false, isChrome: true, isSafari: false } },
+			initial: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'forward' },
+			events: [
+				{ timeStamp: 0.00, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'forward' }, type: 'keydown', altKey: false, charCode: 0, code: 'KeyN', ctrlKey: false, isComposing: false, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 0.80, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'forward' }, type: 'compositionstart', data: '' },
+				{ timeStamp: 0.90, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'forward' }, type: 'beforeinput', data: 'n', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 1.00, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'forward' }, type: 'compositionupdate', data: 'n' },
+				{ timeStamp: 1.20, state: { value: 'aanaa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'input', data: 'n', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 66.80, state: { value: 'aanaa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyN', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 67.90, state: { value: 'aanaa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyN', ctrlKey: false, isComposing: true, key: 'n', keyCode: 78, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 466.70, state: { value: 'aanaa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'keydown', altKey: false, charCode: 0, code: 'KeyI', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 470.10, state: { value: 'aanaa', selectionStart: 2, selectionEnd: 3, selectionDirection: 'forward' }, type: 'beforeinput', data: 'ni', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 470.20, state: { value: 'aanaa', selectionStart: 2, selectionEnd: 3, selectionDirection: 'forward' }, type: 'compositionupdate', data: 'ni' },
+				{ timeStamp: 470.50, state: { value: 'aaniaa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'input', data: 'ni', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 563.20, state: { value: 'aaniaa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyI', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 564.20, state: { value: 'aaniaa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyI', ctrlKey: false, isComposing: true, key: 'i', keyCode: 73, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 1835.00, state: { value: 'aaniaa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'keydown', altKey: false, charCode: 0, code: 'Space', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 1837.20, state: { value: 'aaniaa', selectionStart: 2, selectionEnd: 4, selectionDirection: 'forward' }, type: 'beforeinput', data: '你', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 1837.30, state: { value: 'aaniaa', selectionStart: 2, selectionEnd: 4, selectionDirection: 'forward' }, type: 'compositionupdate', data: '你' },
+				{ timeStamp: 1837.70, state: { value: 'aa你aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'input', data: '你', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 1837.80, state: { value: 'aa你aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'compositionend', data: '你' },
+				{ timeStamp: 1914.90, state: { value: 'aa你aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'Space', ctrlKey: false, isComposing: false, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 1916.10, state: { value: 'aa你aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'Space', ctrlKey: false, isComposing: false, key: ' ', keyCode: 32, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 3000.40, state: { value: 'aa你aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'keydown', altKey: false, charCode: 0, code: 'KeyH', ctrlKey: false, isComposing: false, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 3000.80, state: { value: 'aa你aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'compositionstart', data: '' },
+				{ timeStamp: 3000.80, state: { value: 'aa你aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'beforeinput', data: 'h', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 3000.90, state: { value: 'aa你aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'forward' }, type: 'compositionupdate', data: 'h' },
+				{ timeStamp: 3001.30, state: { value: 'aa你haa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'input', data: 'h', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 3091.60, state: { value: 'aa你haa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyH', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 3092.60, state: { value: 'aa你haa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyH', ctrlKey: false, isComposing: true, key: 'h', keyCode: 72, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 3131.50, state: { value: 'aa你haa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'keydown', altKey: false, charCode: 0, code: 'KeyA', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 3134.80, state: { value: 'aa你haa', selectionStart: 3, selectionEnd: 4, selectionDirection: 'forward' }, type: 'beforeinput', data: 'ha', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 3134.80, state: { value: 'aa你haa', selectionStart: 3, selectionEnd: 4, selectionDirection: 'forward' }, type: 'compositionupdate', data: 'ha' },
+				{ timeStamp: 3135.10, state: { value: 'aa你haaa', selectionStart: 5, selectionEnd: 5, selectionDirection: 'forward' }, type: 'input', data: 'ha', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 3234.90, state: { value: 'aa你haaa', selectionStart: 5, selectionEnd: 5, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyA', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 3236.20, state: { value: 'aa你haaa', selectionStart: 5, selectionEnd: 5, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyA', ctrlKey: false, isComposing: true, key: 'a', keyCode: 65, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 3491.70, state: { value: 'aa你haaa', selectionStart: 5, selectionEnd: 5, selectionDirection: 'forward' }, type: 'keydown', altKey: false, charCode: 0, code: 'KeyO', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 3494.80, state: { value: 'aa你haaa', selectionStart: 3, selectionEnd: 5, selectionDirection: 'forward' }, type: 'beforeinput', data: 'hao', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 3495.00, state: { value: 'aa你haaa', selectionStart: 3, selectionEnd: 5, selectionDirection: 'forward' }, type: 'compositionupdate', data: 'hao' },
+				{ timeStamp: 3495.40, state: { value: 'aa你haoaa', selectionStart: 6, selectionEnd: 6, selectionDirection: 'forward' }, type: 'input', data: 'hao', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 3570.70, state: { value: 'aa你haoaa', selectionStart: 6, selectionEnd: 6, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyO', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 3572.40, state: { value: 'aa你haoaa', selectionStart: 6, selectionEnd: 6, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyO', ctrlKey: false, isComposing: true, key: 'o', keyCode: 79, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 4739.00, state: { value: 'aa你haoaa', selectionStart: 6, selectionEnd: 6, selectionDirection: 'forward' }, type: 'keydown', altKey: false, charCode: 0, code: 'Space', ctrlKey: false, isComposing: true, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 4742.10, state: { value: 'aa你haoaa', selectionStart: 3, selectionEnd: 6, selectionDirection: 'forward' }, type: 'beforeinput', data: '好', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 4742.10, state: { value: 'aa你haoaa', selectionStart: 3, selectionEnd: 6, selectionDirection: 'forward' }, type: 'compositionupdate', data: '好' },
+				{ timeStamp: 4742.50, state: { value: 'aa你好aa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'input', data: '好', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 4742.60, state: { value: 'aa你好aa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'compositionend', data: '好' },
+				{ timeStamp: 4834.70, state: { value: 'aa你好aa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'Space', ctrlKey: false, isComposing: false, key: 'Process', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 4836.00, state: { value: 'aa你好aa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' }, type: 'keyup', altKey: false, charCode: 0, code: 'Space', ctrlKey: false, isComposing: false, key: ' ', keyCode: 32, location: 0, metaKey: false, repeat: false, shiftKey: false }
+			],
+			final: { value: 'aa你好aa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'forward' },
+		};
+
+		const actualOutgoingEvents = await simulateInteraction(recorded);
+		assert.deepStrictEqual(actualOutgoingEvents, [
+			{ type: 'compositionStart', revealDeltaColumns: 0 },
+			{ type: 'type', text: 'n', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: 'n' },
+			{ type: 'type', text: 'ni', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: 'ni' },
+			{ type: 'type', text: '你', replacePrevCharCnt: 2, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: '你' },
+			{ type: 'type', text: '你', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionEnd' },
+			{ type: 'compositionStart', revealDeltaColumns: 0 },
+			{ type: 'type', text: 'h', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: 'h' },
+			{ type: 'type', text: 'ha', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: 'ha' },
+			{ type: 'type', text: 'hao', replacePrevCharCnt: 2, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: 'hao' },
+			{ type: 'type', text: '好', replacePrevCharCnt: 3, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: '好' },
+			{ type: 'type', text: '好', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionEnd' }
+		]);
+
+		const actualResultingState = interpretTypeEvents(recorded.env.OS, recorded.env.browser, recorded.initial, actualOutgoingEvents);
+		assert.deepStrictEqual(actualResultingState, recorded.final);
+	});
+
 });
