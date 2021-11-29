@@ -2244,12 +2244,17 @@ export class ExtensionStatusAction extends ExtensionAction {
 			this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('malicious tooltip', "This extension was reported to be problematic.")) }, true);
 			return;
 		}
+
 		if (this.extension.isUnsupported) {
 			if (isBoolean(this.extension.isUnsupported)) {
 				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('unsupported tooltip', "This extension no longer supported.")) }, true);
 			} else {
 				const link = `[${this.extension.isUnsupported.preReleaseExtension.displayName}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.isUnsupported.preReleaseExtension.id]))}`)})`;
-				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('unsupported prerelease tooltip', "This extension is no longer supported and is now part of the {0} extension as a pre-release version. We recommend that you switch to it.", link)) }, true);
+				if (this.extension.state === ExtensionState.Installed) {
+					this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('unsupported prerelease switch tooltip', "This extension is no longer supported and is now part of the {0} extension as a pre-release version. We recommend that you switch to it.", link)) }, true);
+				} else {
+					this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('unsupported prerelease tooltip', "This extension is no longer supported and is now part of the {0} extension as a pre-release version.", link)) }, true);
+				}
 			}
 			return;
 		}
