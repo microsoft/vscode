@@ -43,6 +43,7 @@ export class RequestService extends Disposable implements IRequestService {
 	private proxyUrl?: string;
 	private strictSSL: boolean | undefined;
 	private authorization?: string;
+	private shellEnvErrorLogged?: boolean;
 
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
@@ -69,7 +70,10 @@ export class RequestService extends Disposable implements IRequestService {
 		try {
 			shellEnv = await getResolvedShellEnv(this.logService, this.environmentService.args, process.env);
 		} catch (error) {
-			this.logService.error('RequestService#request resolving shell environment failed', error);
+			if (!this.shellEnvErrorLogged) {
+				this.shellEnvErrorLogged = true;
+				this.logService.error('RequestService#request resolving shell environment failed', error);
+			}
 		}
 
 		const env = {

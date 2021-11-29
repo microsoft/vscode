@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { workspace, extensions, Uri, EventEmitter, Disposable } from 'vscode';
-import { resolvePath, joinPath } from './requests';
+import { Runtime } from './htmlClient';
+import { Utils } from 'vscode-uri';
 
 
-export function getCustomDataSource(toDispose: Disposable[]) {
+export function getCustomDataSource(runtime: Runtime, toDispose: Disposable[]) {
 	let pathsInWorkspace = getCustomDataPathsInAllWorkspaces();
 	let pathsInExtensions = getCustomDataPathsFromAllExtensions();
 
@@ -40,6 +41,17 @@ export function getCustomDataSource(toDispose: Disposable[]) {
 		},
 		get onDidChange() {
 			return onChange.event;
+		},
+		getContent(uriString: string): Thenable<string> {
+			const uri = Uri.parse(uriString);
+			if (pathsInExtensions.has(uriString)) {
+				return workspace.fs.readFile(uri).then(buffer => {
+					return new runtime.TextDecoder().decode(buffer);
+				});
+			}
+			return workspace.openTextDocument(uri).then(doc => {
+				return doc.getText();
+			});
 		}
 	};
 }
@@ -64,7 +76,7 @@ function getCustomDataPathsInAllWorkspaces(): Set<string> {
 				if (typeof uriOrPath === 'string') {
 					if (!isURI(uriOrPath)) {
 						// path in the workspace
-						dataPaths.add(resolvePath(rootFolder, uriOrPath).toString());
+						dataPaths.add(Utils.resolvePath(rootFolder, uriOrPath).toString());
 					} else {
 						// external uri
 						dataPaths.add(uriOrPath);
@@ -100,7 +112,7 @@ function getCustomDataPathsFromAllExtensions(): Set<string> {
 			for (const uriOrPath of customData) {
 				if (!isURI(uriOrPath)) {
 					// relative path in an extension
-					dataPaths.add(joinPath(extension.extensionUri, uriOrPath).toString());
+					dataPaths.add(Uri.joinPath(extension.extensionUri, uriOrPath).toString());
 				} else {
 					// external uri
 					dataPaths.add(uriOrPath);

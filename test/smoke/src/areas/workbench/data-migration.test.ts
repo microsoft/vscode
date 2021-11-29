@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Application, ApplicationOptions, Quality } from '../../../../automation';
-import { join } from 'path';
 import { ParsedArgs } from 'minimist';
-import { afterSuite, startApp } from '../../utils';
+import * as readdirp from 'readdirp';
+import { afterSuite, getRandomUserDataDir, startApp } from '../../utils';
+import { join } from 'path';
+import { readFileSync, statSync } from 'fs';
 
-export function setup(opts: ParsedArgs, testDataPath: string) {
+export function setup(opts: ParsedArgs) {
 
 	describe('Data Migration (insiders -> insiders)', () => {
 
@@ -90,7 +92,7 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 				this.retries(2);
 			}
 
-			const userDataDir = join(testDataPath, 'd2'); // different data dir from the other tests
+			const userDataDir = getRandomUserDataDir(this.defaultOptions);
 
 			const stableOptions: ApplicationOptions = Object.assign({}, this.defaultOptions);
 			stableOptions.codePath = stableCodePath;
@@ -133,7 +135,7 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 				this.skip();
 			}
 
-			const userDataDir = join(testDataPath, 'd3'); // different data dir from the other tests
+			const userDataDir = getRandomUserDataDir(this.defaultOptions);
 
 			const stableOptions: ApplicationOptions = Object.assign({}, this.defaultOptions);
 			stableOptions.codePath = stableCodePath;
@@ -159,11 +161,44 @@ export function setup(opts: ParsedArgs, testDataPath: string) {
 			await stableApp.stop();
 			stableApp = undefined;
 
+			const backupsHome = join(userDataDir, 'Backups');
+			console.log('Printing backup contents (after stable app stopped):');
+			for await (const entry of readdirp(backupsHome)) {
+				try {
+					const contents = readFileSync(join(backupsHome, entry.path)).toString();
+					const firstLine = contents.substring(0, contents.indexOf('\n'));
+					console.log(`${entry.path}: ${firstLine}`);
+					if (firstLine.length < 3) {
+						const stat = statSync(join(backupsHome, entry.path));
+						console.log(`Unexpected short backup first line, size: ${stat.size}, full contents:`);
+						console.log(contents);
+					}
+				} catch (error) {
+					console.log(`${entry.path}: Error reading file: ${error}`);
+				}
+			}
+
 			const insiderOptions: ApplicationOptions = Object.assign({}, this.defaultOptions);
 			insiderOptions.userDataDir = userDataDir;
 
 			insidersApp = new Application(insiderOptions);
 			await insidersApp.start();
+
+			console.log('Printing backup contents (after insiders app started):');
+			for await (const entry of readdirp(backupsHome)) {
+				try {
+					const contents = readFileSync(join(backupsHome, entry.path)).toString();
+					const firstLine = contents.substring(0, contents.indexOf('\n'));
+					console.log(`${entry.path}: ${firstLine}`);
+					if (firstLine.length < 3) {
+						const stat = statSync(join(backupsHome, entry.path));
+						console.log(`Unexpected short backup first line, size: ${stat.size}, full contents:`);
+						console.log(contents);
+					}
+				} catch (error) {
+					console.log(`${entry.path}: Error reading file: ${error}`);
+				}
+			}
 
 			await insidersApp.workbench.editors.waitForTab(readmeMd, true);
 			await insidersApp.workbench.quickaccess.openFile(readmeMd);

@@ -16,11 +16,15 @@ import {
 	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, TextDocumentIdentifier, RequestType0, Range as LspRange, NotificationType, CommonLanguageClient
 } from 'vscode-languageclient';
 import { activateTagClosing } from './tagClosing';
-import { RequestService, serveFileSystemRequests } from './requests';
+import { FileSystemProvider, serveFileSystemRequests } from './requests';
 import { getCustomDataSource } from './customData';
 
 namespace CustomDataChangedNotification {
 	export const type: NotificationType<string[]> = new NotificationType('html/customDataChanged');
+}
+
+namespace CustomDataContent {
+	export const type: RequestType<string, string, any> = new RequestType('html/customDataContent');
 }
 
 namespace TagCloseRequest {
@@ -56,7 +60,7 @@ export type LanguageClientConstructor = (name: string, description: string, clie
 
 export interface Runtime {
 	TextDecoder: { new(encoding?: string): { decode(buffer: ArrayBuffer): string; } };
-	fs?: RequestService;
+	fileFs?: FileSystemProvider;
 	telemetry?: TelemetryReporter;
 	readonly timer: {
 		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): Disposable;
@@ -72,8 +76,6 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 	let embeddedLanguages = { css: true, javascript: true };
 
 	let rangeFormatting: Disposable | undefined = undefined;
-
-	const customDataSource = getCustomDataSource(context.subscriptions);
 
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
@@ -122,10 +124,14 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 
 		toDispose.push(serveFileSystemRequests(client, runtime));
 
+		const customDataSource = getCustomDataSource(runtime, context.subscriptions);
+
 		client.sendNotification(CustomDataChangedNotification.type, customDataSource.uris);
 		customDataSource.onDidChange(() => {
 			client.sendNotification(CustomDataChangedNotification.type, customDataSource.uris);
 		});
+		client.onRequest(CustomDataContent.type, customDataSource.getContent);
+
 
 		let tagRequestor = (document: TextDocument, position: Position) => {
 			let param = client.code2ProtocolConverter.asTextDocumentPositionParams(document, position);

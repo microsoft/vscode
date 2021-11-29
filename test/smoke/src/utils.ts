@@ -30,11 +30,11 @@ export async function startApp(args: minimist.ParsedArgs, options: ApplicationOp
 		options = await optionsTransform({ ...options });
 	}
 
-	// https://github.com/microsoft/vscode/issues/34988
-	const userDataPathSuffix = [...Array(8)].map(() => Math.random().toString(36)[3]).join('');
-	const userDataDir = options.userDataDir.concat(`-${userDataPathSuffix}`);
+	const app = new Application({
+		...options,
+		userDataDir: getRandomUserDataDir(options)
+	});
 
-	const app = new Application({ ...options, userDataDir });
 	await app.start();
 
 	if (args.log) {
@@ -43,6 +43,16 @@ export async function startApp(args: minimist.ParsedArgs, options: ApplicationOp
 	}
 
 	return app;
+}
+
+export function getRandomUserDataDir(options: ApplicationOptions): string {
+
+	// Pick a random user data dir suffix that is not
+	// too long to not run into max path length issues
+	// https://github.com/microsoft/vscode/issues/34988
+	const userDataPathSuffix = [...Array(8)].map(() => Math.random().toString(36)[3]).join('');
+
+	return options.userDataDir.concat(`-${userDataPathSuffix}`);
 }
 
 export function afterSuite(opts: minimist.ParsedArgs, appFn?: () => Application | undefined, joinFn?: () => Promise<unknown>) {

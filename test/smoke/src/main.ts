@@ -344,11 +344,16 @@ after(async function () {
 		await promisify(ncp)(logsDir, destLogsDir);
 	}
 
-	await new Promise<void>((resolve, reject) => rimraf(testDataPath, { maxBusyTries: 50 }, error => error ? reject(error) : resolve()));
+	try {
+		await new Promise<void>((resolve, reject) => rimraf(testDataPath, { maxBusyTries: 10 }, error => error ? reject(error) : resolve()));
+	} catch (error) {
+		// TODO@tyriar TODO@meganrogge https://github.com/microsoft/vscode/issues/137725
+		console.error(`Unable to delete smoke test workspace: ${error}. This indicates some process is locking the workspace folder.`);
+	}
 });
 
 describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
-	if (!opts.web) { setupDataMigrationTests(opts, testDataPath); }
+	if (!opts.web) { setupDataMigrationTests(opts); }
 	if (!opts.web) { setupPreferencesTests(opts); }
 	setupSearchTests(opts);
 	setupNotebookTests(opts);

@@ -123,7 +123,7 @@ export async function launch(codePath: string | undefined, userDataDir: string, 
 				try {
 					await promisify(kill)(electronProcess.pid!);
 				} catch (error) {
-					console.warn(`*** Error tearing down: ${error}`);
+					console.warn(`*** Error tearing down electron client (pid: ${electronProcess.pid}): ${error}`);
 				}
 
 				throw err;
