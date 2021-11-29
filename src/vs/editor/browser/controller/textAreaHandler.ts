@@ -226,7 +226,7 @@ export class TextAreaHandler extends ViewPart {
 			}
 		};
 
-		const textAreaWrapper = this._register(new TextAreaWrapper(this.textArea));
+		const textAreaWrapper = this._register(new TextAreaWrapper(this.textArea.domNode));
 		this._textAreaInput = this._register(new TextAreaInput(textAreaInputHost, textAreaWrapper));
 
 		this._register(this._textAreaInput.onKeyDown((e: IKeyboardEvent) => {

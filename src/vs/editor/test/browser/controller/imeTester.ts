@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ITextAreaInputHost, TextAreaInput, TextAreaWrapper } from 'vs/editor/browser/controller/textAreaInput';
 import { ISimpleModel, PagedScreenReaderStrategy, TextAreaState } from 'vs/editor/browser/controller/textAreaState';
 import { Position } from 'vs/editor/common/core/position';
@@ -111,7 +110,7 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 		}
 	};
 
-	let handler = new TextAreaInput(textAreaInputHost, new TextAreaWrapper(createFastDomNode(input)));
+	let handler = new TextAreaInput(textAreaInputHost, new TextAreaWrapper(input));
 
 	let output = document.createElement('pre');
 	output.className = 'output';

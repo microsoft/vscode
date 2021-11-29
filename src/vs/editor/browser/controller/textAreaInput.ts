@@ -5,7 +5,6 @@
 
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
-import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -700,18 +699,19 @@ class ClipboardEventUtils {
 
 export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrapper {
 
-	public readonly onKeyDown = this._register(dom.createEventEmitter(this._actual.domNode, 'keydown')).event;
-	public readonly onKeyUp = this._register(dom.createEventEmitter(this._actual.domNode, 'keyup')).event;
-	public readonly onCompositionStart = this._register(dom.createEventEmitter(this._actual.domNode, 'compositionstart')).event;
-	public readonly onCompositionUpdate = this._register(dom.createEventEmitter(this._actual.domNode, 'compositionupdate')).event;
-	public readonly onCompositionEnd = this._register(dom.createEventEmitter(this._actual.domNode, 'compositionend')).event;
-	public readonly onBeforeInput = this._register(dom.createEventEmitter(this._actual.domNode, 'beforeinput')).event;
-	public readonly onInput = <Event<InputEvent>>this._register(dom.createEventEmitter(this._actual.domNode, 'input')).event;
-	public readonly onCut = this._register(dom.createEventEmitter(this._actual.domNode, 'cut')).event;
-	public readonly onCopy = this._register(dom.createEventEmitter(this._actual.domNode, 'copy')).event;
-	public readonly onPaste = this._register(dom.createEventEmitter(this._actual.domNode, 'paste')).event;
-	public readonly onFocus = this._register(dom.createEventEmitter(this._actual.domNode, 'focus')).event;
-	public readonly onBlur = this._register(dom.createEventEmitter(this._actual.domNode, 'blur')).event;
+	public readonly onKeyDown = this._register(dom.createEventEmitter(this._actual, 'keydown')).event;
+	public readonly onKeyPress = this._register(dom.createEventEmitter(this._actual, 'keypress')).event;
+	public readonly onKeyUp = this._register(dom.createEventEmitter(this._actual, 'keyup')).event;
+	public readonly onCompositionStart = this._register(dom.createEventEmitter(this._actual, 'compositionstart')).event;
+	public readonly onCompositionUpdate = this._register(dom.createEventEmitter(this._actual, 'compositionupdate')).event;
+	public readonly onCompositionEnd = this._register(dom.createEventEmitter(this._actual, 'compositionend')).event;
+	public readonly onBeforeInput = this._register(dom.createEventEmitter(this._actual, 'beforeinput')).event;
+	public readonly onInput = <Event<InputEvent>>this._register(dom.createEventEmitter(this._actual, 'input')).event;
+	public readonly onCut = this._register(dom.createEventEmitter(this._actual, 'cut')).event;
+	public readonly onCopy = this._register(dom.createEventEmitter(this._actual, 'copy')).event;
+	public readonly onPaste = this._register(dom.createEventEmitter(this._actual, 'paste')).event;
+	public readonly onFocus = this._register(dom.createEventEmitter(this._actual, 'focus')).event;
+	public readonly onBlur = this._register(dom.createEventEmitter(this._actual, 'blur')).event;
 
 	private _onSyntheticTap = this._register(new Emitter<void>());
 	public readonly onSyntheticTap: Event<void> = this._onSyntheticTap.event;
@@ -719,20 +719,20 @@ export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrap
 	private _ignoreSelectionChangeTime: number;
 
 	constructor(
-		private readonly _actual: FastDomNode<HTMLTextAreaElement>
+		private readonly _actual: HTMLTextAreaElement
 	) {
 		super();
 		this._ignoreSelectionChangeTime = 0;
 
-		this._register(dom.addDisposableListener(this._actual.domNode, TextAreaSyntethicEvents.Tap, () => this._onSyntheticTap.fire()));
+		this._register(dom.addDisposableListener(this._actual, TextAreaSyntethicEvents.Tap, () => this._onSyntheticTap.fire()));
 	}
 
 	public hasFocus(): boolean {
-		const shadowRoot = dom.getShadowRoot(this._actual.domNode);
+		const shadowRoot = dom.getShadowRoot(this._actual);
 		if (shadowRoot) {
-			return shadowRoot.activeElement === this._actual.domNode;
-		} else if (dom.isInDOM(this._actual.domNode)) {
-			return document.activeElement === this._actual.domNode;
+			return shadowRoot.activeElement === this._actual;
+		} else if (dom.isInDOM(this._actual)) {
+			return document.activeElement === this._actual;
 		} else {
 			return false;
 		}
@@ -752,11 +752,11 @@ export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrap
 
 	public getValue(): string {
 		// console.log('current value: ' + this._textArea.value);
-		return this._actual.domNode.value;
+		return this._actual.value;
 	}
 
 	public setValue(reason: string, value: string): void {
-		const textArea = this._actual.domNode;
+		const textArea = this._actual;
 		if (textArea.value === value) {
 			// No change
 			return;
@@ -767,15 +767,15 @@ export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrap
 	}
 
 	public getSelectionStart(): number {
-		return this._actual.domNode.selectionDirection === 'backward' ? this._actual.domNode.selectionEnd : this._actual.domNode.selectionStart;
+		return this._actual.selectionDirection === 'backward' ? this._actual.selectionEnd : this._actual.selectionStart;
 	}
 
 	public getSelectionEnd(): number {
-		return this._actual.domNode.selectionDirection === 'backward' ? this._actual.domNode.selectionStart : this._actual.domNode.selectionEnd;
+		return this._actual.selectionDirection === 'backward' ? this._actual.selectionStart : this._actual.selectionEnd;
 	}
 
 	public setSelectionRange(reason: string, selectionStart: number, selectionEnd: number): void {
-		const textArea = this._actual.domNode;
+		const textArea = this._actual;
 
 		let activeElement: Element | null = null;
 		const shadowRoot = dom.getShadowRoot(textArea);
