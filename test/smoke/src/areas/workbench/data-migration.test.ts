@@ -8,7 +8,7 @@ import { ParsedArgs } from 'minimist';
 import * as readdirp from 'readdirp';
 import { afterSuite, getRandomUserDataDir, startApp } from '../../utils';
 import { join } from 'path';
-import { readFileSync } from 'fs';
+import { readFileSync, statSync } from 'fs';
 
 export function setup(opts: ParsedArgs) {
 
@@ -166,7 +166,13 @@ export function setup(opts: ParsedArgs) {
 			for await (const entry of readdirp(backupsHome)) {
 				try {
 					const contents = readFileSync(join(backupsHome, entry.path)).toString();
-					console.log(`${entry.path}: ${contents.substring(0, contents.indexOf('\n'))}`);
+					const firstLine = contents.substring(0, contents.indexOf('\n'));
+					console.log(`${entry.path}: ${firstLine}`);
+					if (firstLine.length < 3) {
+						const stat = statSync(join(backupsHome, entry.path));
+						console.log(`Unexpected short backup first line, size: ${stat.size}, full contents:`);
+						console.log(contents);
+					}
 				} catch (error) {
 					console.log(`${entry.path}: Error reading file: ${error}`);
 				}
@@ -182,7 +188,13 @@ export function setup(opts: ParsedArgs) {
 			for await (const entry of readdirp(backupsHome)) {
 				try {
 					const contents = readFileSync(join(backupsHome, entry.path)).toString();
-					console.log(`${entry.path}: ${contents.substring(0, contents.indexOf('\n'))}`);
+					const firstLine = contents.substring(0, contents.indexOf('\n'));
+					console.log(`${entry.path}: ${firstLine}`);
+					if (firstLine.length < 3) {
+						const stat = statSync(join(backupsHome, entry.path));
+						console.log(`Unexpected short backup first line, size: ${stat.size}, full contents:`);
+						console.log(contents);
+					}
 				} catch (error) {
 					console.log(`${entry.path}: Error reading file: ${error}`);
 				}
