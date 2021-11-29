@@ -113,11 +113,9 @@ export class Terminal {
 
 	async getTerminalGroups(): Promise<TerminalGroup[]> {
 		const tabCount = (await this.code.waitForElements(Selector.Tabs, true)).length;
-		console.log('tabCount', tabCount);
 		const groups: TerminalGroup[] = [];
 		for (let i = 0; i < tabCount; i++) {
 			const instance = await this.code.waitForElement(`${Selector.Tabs}[data-index="${i}"] ${Selector.TabsEntry}`);
-			console.log('instance', instance);
 			const label: TerminalLabel = {
 				name: instance.textContent.replace(/^[├┌└]\s*/, '')
 			};
@@ -128,7 +126,6 @@ export class Terminal {
 				groups.push([label]);
 			}
 		}
-		console.log('groups', groups);
 		return groups;
 	}
 
