@@ -599,6 +599,49 @@ suite('TextAreaInput', () => {
 		assert.deepStrictEqual(actualResultingState, recorded.final);
 	});
 
+	test('macOS - Safari - Chinese - issue #119469', async () => {
+		const recorded: IRecorded = {
+			env: { 'OS': OperatingSystem.Macintosh, 'browser': { 'isAndroid': false, 'isFirefox': false, 'isChrome': false, 'isSafari': true } },
+			initial: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'none' },
+			events: [
+				{ timeStamp: 0.00, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'none' }, type: 'compositionstart', data: '' },
+				{ timeStamp: 1.00, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'none' }, type: 'compositionupdate', data: 'f' },
+				{ timeStamp: 1.00, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'none' }, type: 'beforeinput', data: 'f', inputType: 'insertCompositionText', isComposing: undefined },
+				{ timeStamp: 2.00, state: { value: 'aafaa', selectionStart: 2, selectionEnd: 3, selectionDirection: 'none' }, type: 'input', data: 'f', inputType: 'insertCompositionText', isComposing: undefined },
+				{ timeStamp: -30.00, state: { value: 'aafaa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'none' }, type: 'keydown', altKey: false, charCode: 0, code: 'KeyF', ctrlKey: false, isComposing: true, key: 'f', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 106.00, state: { value: 'aafaa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'none' }, type: 'keyup', altKey: false, charCode: 0, code: 'KeyF', ctrlKey: false, isComposing: true, key: 'f', keyCode: 70, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 721.00, state: { value: 'aafaa', selectionStart: 2, selectionEnd: 3, selectionDirection: 'none' }, type: 'beforeinput', data: null, inputType: 'deleteCompositionText', isComposing: undefined },
+				{ timeStamp: 723.00, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'none' }, type: 'input', data: null, inputType: 'deleteCompositionText', isComposing: undefined },
+				{ timeStamp: 723.00, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'none' }, type: 'beforeinput', data: 'f', inputType: 'insertFromComposition', isComposing: undefined },
+				{ timeStamp: 723.00, state: { value: 'aafaa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'none' }, type: 'input', data: 'f', inputType: 'insertFromComposition', isComposing: undefined },
+				{ timeStamp: 723.00, state: { value: 'aafaa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'none' }, type: 'compositionend', data: 'f' },
+				{ timeStamp: 698.00, state: { value: 'aafaa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'none' }, type: 'keydown', altKey: false, charCode: 0, code: 'Enter', ctrlKey: false, isComposing: false, key: 'Enter', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 826.00, state: { value: 'aafaa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'none' }, type: 'keyup', altKey: false, charCode: 0, code: 'Enter', ctrlKey: false, isComposing: false, key: 'Enter', keyCode: 13, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 1114.00, state: { value: 'aafaa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'none' }, type: 'keydown', altKey: false, charCode: 0, code: 'Enter', ctrlKey: false, isComposing: false, key: 'Enter', keyCode: 13, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 1114.00, state: { value: 'aafaa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'none' }, type: 'keypress', altKey: false, charCode: 13, code: 'Enter', ctrlKey: false, isComposing: false, key: 'Enter', keyCode: 13, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 1137.00, state: { value: 'aafaa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'none' }, type: 'beforeinput', data: null, inputType: 'insertLineBreak', isComposing: undefined },
+				{ timeStamp: 1138.00, state: { value: 'aaf\naa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'none' }, type: 'input', data: null, inputType: 'insertLineBreak', isComposing: undefined },
+				{ timeStamp: 1250.00, state: { value: 'aaf\naa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'none' }, type: 'keyup', altKey: false, charCode: 0, code: 'Enter', ctrlKey: false, isComposing: false, key: 'Enter', keyCode: 13, location: 0, metaKey: false, repeat: false, shiftKey: false }
+			],
+			final: {
+				value: 'aaf\naa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'none'
+			},
+		};
+
+		const actualOutgoingEvents = await simulateInteraction(recorded);
+		assert.deepStrictEqual(actualOutgoingEvents, ([
+			{ type: 'compositionStart', revealDeltaColumns: 0 },
+			{ type: 'type', text: 'f', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: 'f' },
+			{ type: 'type', text: 'f', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionEnd' },
+			{ type: 'type', text: '\n', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 }
+		]));
+
+		const actualResultingState = interpretTypeEvents(recorded.env.OS, recorded.env.browser, recorded.initial, actualOutgoingEvents);
+		assert.deepStrictEqual(actualResultingState, recorded.final);
+	});
+
 	test('Windows - Chrome - Japanese using Hiragana', async () => {
 		// Windows, Japanese/Hiragana, type 'sennsei' and Enter
 		const recorded: IRecorded = {

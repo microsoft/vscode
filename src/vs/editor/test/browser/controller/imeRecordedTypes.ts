@@ -43,7 +43,7 @@ export interface IRecordedInputEvent {
 	type: 'beforeinput' | 'input';
 	data: string | null;
 	inputType: string;
-	isComposing: boolean;
+	isComposing: boolean | undefined;
 }
 
 export type IRecordedEvent = IRecordedKeyboardEvent | IRecordedCompositionEvent | IRecordedInputEvent;
