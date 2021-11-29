@@ -28,6 +28,8 @@ const excludeGlob = '**/{browser,electron-sandbox,electron-browser,electron-main
 const excludeModules = [
 	'vs/platform/environment/test/node/nativeModules.test.js',
 	'vs/base/parts/storage/test/node/storage.test.js',
+	'vs/workbench/contrib/testing/test/common/testResultStorage.test.js', // TODO@connor4312 https://github.com/microsoft/vscode/issues/137853
+	'vs/workbench/contrib/testing/test/common/testResultService.test.js', // TODO@connor4312 https://github.com/microsoft/vscode/issues/137853
 	'vs/platform/files/test/common/files.test.js' // TODO@bpasero enable once we ship Electron 16
 ]
 
