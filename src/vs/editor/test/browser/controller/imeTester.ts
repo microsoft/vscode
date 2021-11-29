@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ITextAreaInputHost, TextAreaInput } from 'vs/editor/browser/controller/textAreaInput';
+import { ITextAreaInputHost, TextAreaInput, TextAreaWrapper } from 'vs/editor/browser/controller/textAreaInput';
 import { ISimpleModel, PagedScreenReaderStrategy, TextAreaState } from 'vs/editor/browser/controller/textAreaState';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -111,7 +111,7 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 		}
 	};
 
-	let handler = new TextAreaInput(textAreaInputHost, createFastDomNode(input));
+	let handler = new TextAreaInput(textAreaInputHost, new TextAreaWrapper(createFastDomNode(input)));
 
 	let output = document.createElement('pre');
 	output.className = 'output';

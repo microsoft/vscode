@@ -6,7 +6,7 @@
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -61,11 +61,6 @@ export interface ITextAreaInputHost {
 	deduceModelPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
 }
 
-interface CompositionEvent extends UIEvent {
-	readonly data: string;
-	readonly locale: string;
-}
-
 interface InMemoryClipboardMetadata {
 	lastCopiedValue: string;
 	data: ClipboardStoredMetadata;
@@ -101,6 +96,28 @@ export class InMemoryClipboardMetadataManager {
 
 export interface ICompositionStartEvent {
 	revealDeltaColumns: number;
+}
+
+export interface ICompleteTextAreaWrapper extends ITextAreaWrapper {
+	readonly onKeyDown: Event<KeyboardEvent>;
+	readonly onKeyUp: Event<KeyboardEvent>;
+	readonly onCompositionStart: Event<CompositionEvent>;
+	readonly onCompositionUpdate: Event<CompositionEvent>;
+	readonly onCompositionEnd: Event<CompositionEvent>;
+	readonly onBeforeInput: Event<InputEvent>;
+	readonly onInput: Event<InputEvent>;
+	readonly onCut: Event<ClipboardEvent>;
+	readonly onCopy: Event<ClipboardEvent>;
+	readonly onPaste: Event<ClipboardEvent>;
+	readonly onFocus: Event<FocusEvent>;
+	readonly onBlur: Event<FocusEvent>;
+	readonly onSyntheticTap: Event<void>;
+
+	setIgnoreSelectionChangeTime(reason: string): void;
+	getIgnoreSelectionChangeTime(): number;
+	resetSelectionChangeTime(): void;
+
+	hasFocus(): boolean;
 }
 
 /**
@@ -149,7 +166,7 @@ export class TextAreaInput extends Disposable {
 	// ---
 
 	private readonly _host: ITextAreaInputHost;
-	private readonly _textArea: TextAreaWrapper;
+	private readonly _textArea: ICompleteTextAreaWrapper;
 	private readonly _asyncTriggerCut: RunOnceScheduler;
 	private readonly _asyncFocusGainWriteScreenReaderContent: RunOnceScheduler;
 
@@ -160,10 +177,10 @@ export class TextAreaInput extends Disposable {
 	private _isDoingComposition: boolean;
 	private _nextCommand: ReadFromTextArea;
 
-	constructor(host: ITextAreaInputHost, private textArea: FastDomNode<HTMLTextAreaElement>) {
+	constructor(host: ITextAreaInputHost, textArea: ICompleteTextAreaWrapper) {
 		super();
 		this._host = host;
-		this._textArea = this._register(new TextAreaWrapper(textArea));
+		this._textArea = textArea;
 		this._asyncTriggerCut = this._register(new RunOnceScheduler(() => this._onCut.fire(), 0));
 		this._asyncFocusGainWriteScreenReaderContent = this._register(new RunOnceScheduler(() => this.writeScreenReaderContent('asyncFocusGain'), 0));
 
@@ -177,7 +194,8 @@ export class TextAreaInput extends Disposable {
 
 		let lastKeyDown: IKeyboardEvent | null = null;
 
-		this._register(dom.addStandardDisposableListener(textArea.domNode, 'keydown', (e: IKeyboardEvent) => {
+		this._register(this._textArea.onKeyDown((_e) => {
+			const e = new StandardKeyboardEvent(_e);
 			if (e.keyCode === KeyCode.KEY_IN_COMPOSITION
 				|| (this._isDoingComposition && e.keyCode === KeyCode.Backspace)) {
 				// Stop propagation for keyDown events if the IME is processing key input
@@ -194,11 +212,12 @@ export class TextAreaInput extends Disposable {
 			this._onKeyDown.fire(e);
 		}));
 
-		this._register(dom.addStandardDisposableListener(textArea.domNode, 'keyup', (e: IKeyboardEvent) => {
+		this._register(this._textArea.onKeyUp((_e) => {
+			const e = new StandardKeyboardEvent(_e);
 			this._onKeyUp.fire(e);
 		}));
 
-		this._register(dom.addDisposableListener(textArea.domNode, 'compositionstart', (e: CompositionEvent) => {
+		this._register(this._textArea.onCompositionStart((e) => {
 			if (_debugComposition) {
 				console.log(`[compositionstart]`, e);
 			}
@@ -277,7 +296,7 @@ export class TextAreaInput extends Disposable {
 			return [newState, typeInput];
 		};
 
-		this._register(dom.addDisposableListener(textArea.domNode, 'compositionupdate', (e: CompositionEvent) => {
+		this._register(this._textArea.onCompositionUpdate((e) => {
 			if (_debugComposition) {
 				console.log(`[compositionupdate]`, e);
 			}
@@ -298,7 +317,7 @@ export class TextAreaInput extends Disposable {
 			this._onCompositionUpdate.fire(e);
 		}));
 
-		this._register(dom.addDisposableListener(textArea.domNode, 'compositionend', (e: CompositionEvent) => {
+		this._register(this._textArea.onCompositionEnd((e) => {
 			if (_debugComposition) {
 				console.log(`[compositionend]`, e);
 			}
@@ -335,7 +354,7 @@ export class TextAreaInput extends Disposable {
 			this._onCompositionEnd.fire();
 		}));
 
-		this._register(dom.addDisposableListener(textArea.domNode, 'input', () => {
+		this._register(this._textArea.onInput((e) => {
 			// Pretend here we touched the text area, as the `input` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._textArea.setIgnoreSelectionChangeTime('received input event');
@@ -365,7 +384,7 @@ export class TextAreaInput extends Disposable {
 
 		// --- Clipboard operations
 
-		this._register(dom.addDisposableListener(textArea.domNode, 'cut', (e: ClipboardEvent) => {
+		this._register(this._textArea.onCut((e) => {
 			// Pretend here we touched the text area, as the `cut` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._textArea.setIgnoreSelectionChangeTime('received cut event');
@@ -374,11 +393,11 @@ export class TextAreaInput extends Disposable {
 			this._asyncTriggerCut.schedule();
 		}));
 
-		this._register(dom.addDisposableListener(textArea.domNode, 'copy', (e: ClipboardEvent) => {
+		this._register(this._textArea.onCopy((e) => {
 			this._ensureClipboardGetsEditorSelection(e);
 		}));
 
-		this._register(dom.addDisposableListener(textArea.domNode, 'paste', (e: ClipboardEvent) => {
+		this._register(this._textArea.onPaste((e) => {
 			// Pretend here we touched the text area, as the `paste` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._textArea.setIgnoreSelectionChangeTime('received paste event');
@@ -397,7 +416,7 @@ export class TextAreaInput extends Disposable {
 			}
 		}));
 
-		this._register(dom.addDisposableListener(textArea.domNode, 'focus', () => {
+		this._register(this._textArea.onFocus(() => {
 			const hadFocus = this._hasFocus;
 
 			this._setHasFocus(true);
@@ -408,7 +427,7 @@ export class TextAreaInput extends Disposable {
 				this._asyncFocusGainWriteScreenReaderContent.schedule();
 			}
 		}));
-		this._register(dom.addDisposableListener(textArea.domNode, 'blur', () => {
+		this._register(this._textArea.onBlur(() => {
 			if (this._isDoingComposition) {
 				// See https://github.com/microsoft/vscode/issues/112621
 				// where compositionend is not triggered when the editor
@@ -425,7 +444,7 @@ export class TextAreaInput extends Disposable {
 			}
 			this._setHasFocus(false);
 		}));
-		this._register(dom.addDisposableListener(textArea.domNode, TextAreaSyntethicEvents.Tap, () => {
+		this._register(this._textArea.onSyntheticTap(() => {
 			if (browser.isAndroid && this._isDoingComposition) {
 				// on Android, tapping does not cancel the current composition, so the
 				// textarea is stuck showing the old composition
@@ -547,14 +566,7 @@ export class TextAreaInput extends Disposable {
 	}
 
 	public refreshFocusState(): void {
-		const shadowRoot = dom.getShadowRoot(this.textArea.domNode);
-		if (shadowRoot) {
-			this._setHasFocus(shadowRoot.activeElement === this.textArea.domNode);
-		} else if (dom.isInDOM(this.textArea.domNode)) {
-			this._setHasFocus(document.activeElement === this.textArea.domNode);
-		} else {
-			this._setHasFocus(false);
-		}
+		this._setHasFocus(this._textArea.hasFocus());
 	}
 
 	private _setHasFocus(newHasFocus: boolean): void {
@@ -686,15 +698,44 @@ class ClipboardEventUtils {
 	}
 }
 
-class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
+export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrapper {
 
-	private readonly _actual: FastDomNode<HTMLTextAreaElement>;
+	public readonly onKeyDown = this._register(dom.createEventEmitter(this._actual.domNode, 'keydown')).event;
+	public readonly onKeyUp = this._register(dom.createEventEmitter(this._actual.domNode, 'keyup')).event;
+	public readonly onCompositionStart = this._register(dom.createEventEmitter(this._actual.domNode, 'compositionstart')).event;
+	public readonly onCompositionUpdate = this._register(dom.createEventEmitter(this._actual.domNode, 'compositionupdate')).event;
+	public readonly onCompositionEnd = this._register(dom.createEventEmitter(this._actual.domNode, 'compositionend')).event;
+	public readonly onBeforeInput = this._register(dom.createEventEmitter(this._actual.domNode, 'beforeinput')).event;
+	public readonly onInput = <Event<InputEvent>>this._register(dom.createEventEmitter(this._actual.domNode, 'input')).event;
+	public readonly onCut = this._register(dom.createEventEmitter(this._actual.domNode, 'cut')).event;
+	public readonly onCopy = this._register(dom.createEventEmitter(this._actual.domNode, 'copy')).event;
+	public readonly onPaste = this._register(dom.createEventEmitter(this._actual.domNode, 'paste')).event;
+	public readonly onFocus = this._register(dom.createEventEmitter(this._actual.domNode, 'focus')).event;
+	public readonly onBlur = this._register(dom.createEventEmitter(this._actual.domNode, 'blur')).event;
+
+	private _onSyntheticTap = this._register(new Emitter<void>());
+	public readonly onSyntheticTap: Event<void> = this._onSyntheticTap.event;
+
 	private _ignoreSelectionChangeTime: number;
 
-	constructor(_textArea: FastDomNode<HTMLTextAreaElement>) {
+	constructor(
+		private readonly _actual: FastDomNode<HTMLTextAreaElement>
+	) {
 		super();
-		this._actual = _textArea;
 		this._ignoreSelectionChangeTime = 0;
+
+		this._register(dom.addDisposableListener(this._actual.domNode, TextAreaSyntethicEvents.Tap, () => this._onSyntheticTap.fire()));
+	}
+
+	public hasFocus(): boolean {
+		const shadowRoot = dom.getShadowRoot(this._actual.domNode);
+		if (shadowRoot) {
+			return shadowRoot.activeElement === this._actual.domNode;
+		} else if (dom.isInDOM(this._actual.domNode)) {
+			return document.activeElement === this._actual.domNode;
+		} else {
+			return false;
+		}
 	}
 
 	public setIgnoreSelectionChangeTime(reason: string): void {
