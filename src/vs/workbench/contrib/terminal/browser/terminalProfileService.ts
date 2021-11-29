@@ -29,6 +29,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 */
 export class TerminalProfileService implements ITerminalProfileService {
 	private _ifNoProfilesTryAgain: boolean = true;
+	private _platformConfigNotInitialized: boolean = true;
 	private _webExtensionContributedProfileContextKey: IContextKey<boolean>;
 	private _profilesReadyBarrier: AutoOpenBarrier;
 	private _availableProfiles: ITerminalProfile[] | undefined;
@@ -41,6 +42,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 
 	get profilesReady(): Promise<void> { return this._profilesReadyBarrier.wait().then(() => { }); }
 	get availableProfiles(): ITerminalProfile[] {
+		this.refreshAvailableProfiles();
 		return this._availableProfiles || [];
 	}
 	get contributedProfiles(): IExtensionTerminalProfile[] {
@@ -72,9 +74,9 @@ export class TerminalProfileService implements ITerminalProfileService {
 	private async _setupConfigListener(): Promise<void> {
 		const platformKey = await this.getPlatformKey();
 		this._configurationService.onDidChangeConfiguration(async e => {
-			if (e.affectedKeys[0] === (TerminalSettingPrefix.DefaultProfile + platformKey) ||
-				e.affectedKeys[0] === (TerminalSettingPrefix.Profiles + platformKey) ||
-				e.affectedKeys[0] === (TerminalSettingId.UseWslProfiles)) {
+			if (e.affectsConfiguration(TerminalSettingPrefix.DefaultProfile + platformKey) ||
+				e.affectsConfiguration(TerminalSettingPrefix.Profiles + platformKey) ||
+				e.affectsConfiguration(TerminalSettingId.UseWslProfiles)) {
 				this.refreshAvailableProfiles();
 			}
 		});
@@ -110,7 +112,10 @@ export class TerminalProfileService implements ITerminalProfileService {
 			this._onDidChangeAvailableProfiles.fire(this._availableProfiles);
 			this._profilesReadyBarrier.open();
 			this._updateWebContextKey();
-			await this._refreshPlatformConfig(profiles);
+			refreshTerminalActions(profiles);
+		}
+		if (this._platformConfigNotInitialized) {
+			await this._refreshPlatformConfig(this._availableProfiles!);
 		}
 	}
 
@@ -151,7 +156,6 @@ export class TerminalProfileService implements ITerminalProfileService {
 	private async _refreshPlatformConfig(profiles: ITerminalProfile[]) {
 		const env = await this._remoteAgentService.getEnvironment();
 		registerTerminalDefaultProfileConfiguration({ os: env?.os || OS, profiles }, this._contributedProfiles);
-		refreshTerminalActions(profiles);
 	}
 
 	async getPlatformKey(): Promise<string> {
