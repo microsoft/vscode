@@ -99,11 +99,15 @@ registerAction2(class extends Action2 {
 			category: CATEGORIES.View,
 			f1: true,
 			toggled: IsCenteredLayoutContext,
-			menu: {
+			menu: [{
 				id: MenuId.MenubarAppearanceMenu,
 				group: '1_toggle_view',
 				order: 3
-			}
+			}, {
+					id: MenuId.LayoutControlMenu,
+					group: '1_toggle_view',
+					order: 3
+				}]
 		});
 	}
 
@@ -205,11 +209,31 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	order: 2
 });
 
+MenuRegistry.appendMenuItem(MenuId.LayoutControlMenu, {
+	group: '3_workbench_layout_move',
+	command: {
+		id: ToggleSidebarPositionAction.ID,
+		title: localize({ key: 'miMoveSidebarRightNoMnemonic', comment: ['&& denotes a mnemonic'] }, "Move Side Bar Right")
+	},
+	when: ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'),
+	order: 2
+});
+
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '3_workbench_layout_move',
 	command: {
 		id: ToggleSidebarPositionAction.ID,
 		title: localize({ key: 'miMoveSidebarLeft', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Left")
+	},
+	when: ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'),
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.LayoutControlMenu, {
+	group: '3_workbench_layout_move',
+	command: {
+		id: ToggleSidebarPositionAction.ID,
+		title: localize({ key: 'miMoveSidebarLeftNoMnemonic', comment: ['&& denotes a mnemonic'] }, "Move Side Bar Left")
 	},
 	when: ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'),
 	order: 2
@@ -234,11 +258,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.MenubarAppearanceMenu,
 				group: '2_workbench_layout',
 				order: 5
-			}, {
-					id: MenuId.LayoutControlMenu,
-					group: '0_workbench_layout',
-					order: 5
-				}]
+			}]
 		});
 	}
 
