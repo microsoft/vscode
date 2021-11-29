@@ -88,6 +88,10 @@ steps:
         export CXX=$PWD/.build/CR_Clang/bin/clang++
         export CXXFLAGS="-nostdinc++ -D__NO_INLINE__ -isystem$PWD/.build/libcxx_headers -isystem$PWD/.build/libcxx_headers/include -isystem$PWD/.build/libcxxabi_headers/include -fPIC -flto=thin -fsplit-lto-unit"
         export LDFLAGS="-stdlib=libc++ -fuse-ld=lld -flto=thin -fsplit-lto-unit -L$PWD/.build/libcxx-objects -lc++abi"
+      else
+        # Build with -fPIC for vscode-encrypt on arm64, adding it globally here
+        # should be moved to the module binding.gyp eventually.
+        export CFLAGS="-fPIC"
       fi
 
       if [ "$VSCODE_ARCH" == "x64" ]; then
