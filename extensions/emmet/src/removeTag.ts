@@ -25,7 +25,7 @@ export function removeTag() {
 
 	return editor.edit(editBuilder => {
 		finalRangesToRemove.forEach(range => {
-			editBuilder.replace(range, '');
+			editBuilder.delete(range);
 		});
 	});
 }
@@ -77,8 +77,11 @@ function calculateIndentAmountToRemove(document: vscode.TextDocument, openRange:
 
 	let contentIndent: number | undefined;
 	for (let i = startLine + 1; i < endLine; i++) {
-		const lineIndent = document.lineAt(i).firstNonWhitespaceCharacterIndex;
-		contentIndent = !contentIndent ? lineIndent : Math.min(contentIndent, lineIndent);
+		const line = document.lineAt(i);
+		if (!line.isEmptyOrWhitespace) {
+			const lineIndent = line.firstNonWhitespaceCharacterIndex;
+			contentIndent = !contentIndent ? lineIndent : Math.min(contentIndent, lineIndent);
+		}
 	}
 
 	let indentAmount = 0;
