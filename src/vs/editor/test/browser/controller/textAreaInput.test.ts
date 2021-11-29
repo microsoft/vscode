@@ -47,14 +47,7 @@ suite('TextAreaInput', () => {
 				throw new Error('Function not implemented.');
 			},
 			getScreenReaderContent: function (currentState: TextAreaState): TextAreaState {
-				return new TextAreaState(
-					recorded.initial.value,
-					recorded.initial.selectionStart,
-					recorded.initial.selectionEnd,
-					null,
-					null
-				);
-				// return TextAreaState.selectedText('<SCREEN READER CONTENT>');
+				return new TextAreaState('', 0, 0, null, null);
 			},
 			deduceModelPosition: function (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position {
 				throw new Error('Function not implemented.');
@@ -88,10 +81,7 @@ suite('TextAreaInput', () => {
 			readonly onCut = Event.None;
 			readonly onCopy = Event.None;
 			readonly onPaste = Event.None;
-
-			readonly _onFocus = this._register(new Emitter<FocusEvent>());
-			readonly onFocus = this._onFocus.event;
-
+			readonly onFocus = Event.None;
 			readonly onBlur = Event.None;
 			readonly onSyntheticTap = Event.None;
 
@@ -107,7 +97,13 @@ suite('TextAreaInput', () => {
 				};
 			}
 
-			public dispatchRecordedEvent(event: IRecordedEvent): void {
+			public _initialize(state: IRecordedTextareaState): void {
+				this._state.value = state.value;
+				this._state.selectionStart = state.selectionStart;
+				this._state.selectionEnd = state.selectionEnd;
+			}
+
+			public _dispatchRecordedEvent(event: IRecordedEvent): void {
 				this._state.value = event.state.value;
 				this._state.selectionStart = event.state.selectionStart;
 				this._state.selectionEnd = event.state.selectionEnd;
@@ -193,7 +189,8 @@ suite('TextAreaInput', () => {
 		});
 		const input = disposables.add(new TextAreaInput(host, wrapper, recorded.env.OS, recorded.env.browser));
 
-		wrapper._onFocus.fire(null as any);
+		wrapper._initialize(recorded.initial);
+		input._initializeFromTest();
 
 		let outgoingEvents: OutoingEvent[] = [];
 
@@ -217,7 +214,7 @@ suite('TextAreaInput', () => {
 		})));
 
 		for (const event of recorded.events) {
-			wrapper.dispatchRecordedEvent(event);
+			wrapper._dispatchRecordedEvent(event);
 			await yieldNow();
 		}
 

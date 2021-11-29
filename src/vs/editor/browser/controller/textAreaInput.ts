@@ -460,6 +460,11 @@ export class TextAreaInput extends Disposable {
 		}));
 	}
 
+	_initializeFromTest(): void {
+		this._hasFocus = true;
+		this._textAreaState = TextAreaState.readFromTextArea(this._textArea);
+	}
+
 	private _installSelectionChangeListener(): IDisposable {
 		// See https://github.com/microsoft/vscode/issues/27216 and https://github.com/microsoft/vscode/issues/98256
 		// When using a Braille display, it is possible for users to reposition the
