@@ -87,7 +87,7 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 		try {
 			await promisify(kill)(server.pid!);
 		} catch (error) {
-			console.error(`Error when killing server process tree: ${error}`);
+			console.error(`Error when killing server process tree (pid: ${server.pid}): ${error}`);
 		}
 
 		process.exit(code);

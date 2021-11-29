@@ -290,7 +290,7 @@ async function teardown(server: ChildProcess): Promise<void> {
 
 			return;
 		} catch (error) {
-			console.warn(`Error tearing down server: ${error} (attempt: ${retries})`);
+			console.warn(`Error tearing down server (pid: ${server.pid}, attempt: ${retries}): ${error}`);
 		}
 	}
 
