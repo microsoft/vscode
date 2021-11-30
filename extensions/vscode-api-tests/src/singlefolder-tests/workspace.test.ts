@@ -950,7 +950,7 @@ suite('vscode API - workspace', () => {
 		we.insert(file1, new vscode.Position(0, 0), 'import1;');
 
 		const file2Name = basename(file2.fsPath);
-		const file2NewUri = vscode.Uri.parse(file2.toString().replace(file2Name, `new/${file2Name}`));
+		const file2NewUri = vscode.Uri.joinPath(file2, `../new/${file2Name}`);
 		we.renameFile(file2, file2NewUri);
 
 		we.insert(file1, new vscode.Position(0, 0), 'import2;');
@@ -970,7 +970,7 @@ suite('vscode API - workspace', () => {
 		we.insert(file1, new vscode.Position(0, 0), 'import2;');
 
 		const file2Name = basename(file2.fsPath);
-		const file2NewUri = vscode.Uri.parse(file2.toString().replace(file2Name, `new/${file2Name}`));
+		const file2NewUri = vscode.Uri.joinPath(file2, `../new/${file2Name}`);
 		we.renameFile(file2, file2NewUri);
 
 		await vscode.workspace.applyEdit(we);
@@ -1059,7 +1059,8 @@ suite('vscode API - workspace', () => {
 	test('issue #107739 - Redo of rename Java Class name has no effect', async () => {
 		const file = await createRandomFile('hello');
 		const fileName = basename(file.fsPath);
-		const newFile = vscode.Uri.parse(file.toString().replace(fileName, `${fileName}2`));
+
+		const newFile = vscode.Uri.joinPath(file, `../${fileName}2`);
 
 		// apply edit
 		{
