@@ -8,7 +8,7 @@ import { ParsedArgs } from 'minimist';
 import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation/out';
 
 export function setup(opts: ParsedArgs) {
-	describe.only('Terminal Tabs', () => {
+	describe('Terminal Tabs', () => {
 		// Acquire automation API
 		let terminal: Terminal;
 		before(function () {
@@ -60,12 +60,12 @@ export function setup(opts: ParsedArgs) {
 			await terminal.assertSingleTab({ name });
 		});
 
-		// Flaky: https://github.com/microsoft/vscode/issues/137795
-		it.skip('should reset the tab name to the default value when no name is provided', async () => {
+		it('should reset the tab name to the default value when no name is provided', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
 			const defaultName = await terminal.getSingleTabName();
 			const name = 'my terminal name';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.Rename, name);
+			await terminal.assertSingleTab({ name });
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.Rename, undefined);
 			await terminal.assertSingleTab({ name: defaultName });
 		});

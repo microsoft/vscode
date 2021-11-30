@@ -129,7 +129,8 @@ export class Terminal {
 	}
 
 	async getSingleTabName(): Promise<string> {
-		return await (await this.code.waitForElement(Selector.SingleTab, singleTab => !!singleTab && singleTab?.textContent.length > 1)).textContent;
+		const tab = await this.code.waitForElement(Selector.SingleTab, singleTab => !!singleTab && singleTab?.textContent.length > 1);
+		return tab.textContent;
 	}
 
 	private async assertTabExpected(selector?: string, listIndex?: number, nameRegex?: RegExp, icon?: string, color?: string): Promise<void> {
