@@ -16,16 +16,14 @@ export function setup(opts: ParsedArgs) {
 			terminal = app.workbench.terminal;
 		});
 
-		// TODO: This was flaky in CI
-		it.skip('should update color of the tab', async () => {
+		it('should update color of the tab', async () => {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
 			const color = 'Cyan';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeColor, color);
 			await terminal.assertSingleTab({ color }, true);
 		});
 
-		// TODO: Flaky https://github.com/microsoft/vscode/issues/137808
-		it.skip('should update icon of the tab', async () => {
+		it('should update icon of the tab', async () => {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
 			const icon = 'symbol-method';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeIcon, icon);
