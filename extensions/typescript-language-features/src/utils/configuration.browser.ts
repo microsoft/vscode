@@ -8,12 +8,20 @@ import { BaseServiceConfigurationProvider } from './configuration';
 
 export class BrowserServiceConfigurationProvider extends BaseServiceConfigurationProvider {
 
-	// On browsers, we only support using the built-in TS version
-	protected extractGlobalTsdk(_configuration: vscode.WorkspaceConfiguration): string | null {
+	protected extractGlobalTsdk(configuration: vscode.WorkspaceConfiguration): string | null {
+		const inspect = configuration.inspect('typescript.tsdk');
+		if (inspect && typeof inspect.globalValue === 'string') {
+			return inspect.globalValue;
+		}
 		return null;
 	}
 
-	protected extractLocalTsdk(_configuration: vscode.WorkspaceConfiguration): string | null {
+
+	protected extractLocalTsdk(configuration: vscode.WorkspaceConfiguration): string | null {
+		const inspect = configuration.inspect('typescript.tsdk');
+		if (inspect && typeof inspect.workspaceValue === 'string') {
+			return inspect.workspaceValue;
+		}
 		return null;
 	}
 }

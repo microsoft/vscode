@@ -21,20 +21,79 @@ import { PluginManager } from './utils/plugins';
 
 class StaticVersionProvider implements ITypeScriptVersionProvider {
 
+	private configuration?: TypeScriptServiceConfiguration;
+
 	constructor(
-		private readonly _version: TypeScriptVersion
+		private readonly _browserVersion: TypeScriptVersion
 	) { }
 
-	updateConfiguration(_configuration: TypeScriptServiceConfiguration): void {
-		// noop
+	updateConfiguration(configuration: TypeScriptServiceConfiguration): void {
+		this.configuration = configuration;
 	}
 
-	get defaultVersion() { return this._version; }
-	get bundledVersion() { return this._version; }
+	public get defaultVersion(): TypeScriptVersion {
+		return this.globalVersion || this.bundledVersion;
+	}
 
-	readonly globalVersion = undefined;
-	readonly localVersion = undefined;
-	readonly localVersions = [];
+	get bundledVersion() { return this._browserVersion; }
+
+	public get globalVersion(): TypeScriptVersion | undefined {
+		if (this.configuration?.globalTsdk) {
+			const globals = this.loadVersionsFromSetting(TypeScriptVersionSource.UserSetting, this.configuration.globalTsdk);
+			if (globals && globals.length) {
+				return globals[0];
+			}
+		}
+		return undefined;
+	}
+
+	public get localVersion(): TypeScriptVersion | undefined {
+		const tsdkVersions = this.localTsdkVersions;
+		if (tsdkVersions && tsdkVersions.length) {
+			return tsdkVersions[0];
+		}
+
+		const nodeVersions = this.localNodeModulesVersions;
+		if (nodeVersions && nodeVersions.length === 1) {
+			return nodeVersions[0];
+		}
+		return undefined;
+	}
+
+	public get localVersions(): TypeScriptVersion[] {
+		const allVersions = this.localTsdkVersions.concat(this.localNodeModulesVersions);
+		const paths = new Set<string>();
+		return allVersions.filter(x => {
+			if (paths.has(x.path)) {
+				return false;
+			}
+			paths.add(x.path);
+			return true;
+		});
+	}
+
+	private get localTsdkVersions(): TypeScriptVersion[] {
+		const localTsdk = this.configuration?.localTsdk;
+		return localTsdk ? this.loadVersionsFromSetting(TypeScriptVersionSource.WorkspaceSetting, localTsdk) : [];
+	}
+
+	private loadVersionsFromSetting(source: TypeScriptVersionSource, tsdkPathSetting: string): TypeScriptVersion[] {
+		if (tsdkPathSetting.startsWith("https://")) {
+			const serverPath = vscode.Uri.joinPath(vscode.Uri.parse(tsdkPathSetting), 'tsserver.js');
+			return [
+				new TypeScriptVersion(source,
+					serverPath.toString(),
+					/*DiskTypeScriptVersionProvider.getApiVersion(serverPath)*/ API.fromVersionString('4.4.1'), // TODO: Pull version form URL if possible
+					tsdkPathSetting)
+			];
+		}
+
+		return [];
+	}
+
+	private get localNodeModulesVersions(): TypeScriptVersion[] {
+		return [];
+	}
 }
 
 export function activate(
