@@ -3261,8 +3261,8 @@ export const deriveFromWorkspaceTrust: DeriveFromWorkspaceTrust = 'deriveFromWor
  */
 export interface IUnicodeHighlightOptions {
 	nonBasicASCII?: boolean | DeriveFromWorkspaceTrust;
-	invisibleCharacters?: boolean | DeriveFromWorkspaceTrust;
-	ambiguousCharacters?: boolean | DeriveFromWorkspaceTrust;
+	invisibleCharacters?: boolean;
+	ambiguousCharacters?: boolean;
 	includeComments?: boolean | DeriveFromWorkspaceTrust;
 	/**
 	 * A list of allowed code points in a single string.
@@ -3290,8 +3290,8 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 	constructor() {
 		const defaults: InternalUnicodeHighlightOptions = {
 			nonBasicASCII: deriveFromWorkspaceTrust,
-			invisibleCharacters: deriveFromWorkspaceTrust,
-			ambiguousCharacters: deriveFromWorkspaceTrust,
+			invisibleCharacters: true,
+			ambiguousCharacters: true,
 			includeComments: deriveFromWorkspaceTrust,
 			allowedCharacters: '',
 		};
@@ -3308,15 +3308,13 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 				},
 				[unicodeHighlightConfigKeys.invisibleCharacters]: {
 					restricted: true,
-					type: ['boolean', 'string'],
-					enum: [true, false, deriveFromWorkspaceTrust],
+					type: 'boolean',
 					default: defaults.invisibleCharacters,
 					description: nls.localize('unicodeHighlight.invisibleCharacters', "Controls whether characters that just reserve space or have no width at all are highlighted.")
 				},
 				[unicodeHighlightConfigKeys.ambiguousCharacters]: {
 					restricted: true,
-					type: ['boolean', 'string'],
-					enum: [true, false, deriveFromWorkspaceTrust],
+					type: 'boolean',
 					default: defaults.ambiguousCharacters,
 					description: nls.localize('unicodeHighlight.ambiguousCharacters', "Controls whether characters are highlighted that can be confused with basic ASCII characters, except those that are common in the current user locale.")
 				},
@@ -3344,8 +3342,8 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 		const input = _input as IUnicodeHighlightOptions;
 		return {
 			nonBasicASCII: primitiveSet<boolean | DeriveFromWorkspaceTrust>(input.nonBasicASCII, deriveFromWorkspaceTrust, [true, false, deriveFromWorkspaceTrust]),
-			invisibleCharacters: primitiveSet<boolean | DeriveFromWorkspaceTrust>(input.invisibleCharacters, deriveFromWorkspaceTrust, [true, false, deriveFromWorkspaceTrust]),
-			ambiguousCharacters: primitiveSet<boolean | DeriveFromWorkspaceTrust>(input.ambiguousCharacters, deriveFromWorkspaceTrust, [true, false, deriveFromWorkspaceTrust]),
+			invisibleCharacters: boolean(input.invisibleCharacters, this.defaultValue.invisibleCharacters),
+			ambiguousCharacters: boolean(input.ambiguousCharacters, this.defaultValue.ambiguousCharacters),
 			includeComments: primitiveSet<boolean | DeriveFromWorkspaceTrust>(input.includeComments, deriveFromWorkspaceTrust, [true, false, deriveFromWorkspaceTrust]),
 			allowedCharacters: string(input.allowedCharacters, ''),
 		};

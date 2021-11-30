@@ -185,28 +185,11 @@ type RemoveDeriveFromWorkspaceTrust<T> = T extends DeriveFromWorkspaceTrust ? ne
 type ResolvedOptions = { [TKey in keyof InternalUnicodeHighlightOptions]: RemoveDeriveFromWorkspaceTrust<InternalUnicodeHighlightOptions[TKey]> };
 
 function resolveOptions(trusted: boolean, options: InternalUnicodeHighlightOptions): ResolvedOptions {
-	let defaults;
-	if (trusted) {
-		defaults = {
-			nonBasicASCII: false,
-			ambiguousCharacters: true,
-			invisibleCharacters: true,
-			includeComments: false,
-		};
-	} else {
-		defaults = {
-			nonBasicASCII: true,
-			ambiguousCharacters: true,
-			invisibleCharacters: true,
-			includeComments: true,
-		};
-	}
-
 	return {
-		nonBasicASCII: options.nonBasicASCII !== deriveFromWorkspaceTrust ? options.nonBasicASCII : defaults.nonBasicASCII,
-		ambiguousCharacters: options.ambiguousCharacters !== deriveFromWorkspaceTrust ? options.ambiguousCharacters : defaults.ambiguousCharacters,
-		invisibleCharacters: options.invisibleCharacters !== deriveFromWorkspaceTrust ? options.invisibleCharacters : defaults.invisibleCharacters,
-		includeComments: options.includeComments !== deriveFromWorkspaceTrust ? options.includeComments : defaults.includeComments,
+		nonBasicASCII: options.nonBasicASCII !== deriveFromWorkspaceTrust ? options.nonBasicASCII : !trusted,
+		ambiguousCharacters: options.ambiguousCharacters,
+		invisibleCharacters: options.invisibleCharacters,
+		includeComments: options.includeComments !== deriveFromWorkspaceTrust ? options.includeComments : !trusted,
 		allowedCharacters: options.allowedCharacters ?? [],
 	};
 }

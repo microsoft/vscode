@@ -3870,8 +3870,8 @@ declare namespace monaco.editor {
 	 */
 	export interface IUnicodeHighlightOptions {
 		nonBasicASCII?: boolean | DeriveFromWorkspaceTrust;
-		invisibleCharacters?: boolean | DeriveFromWorkspaceTrust;
-		ambiguousCharacters?: boolean | DeriveFromWorkspaceTrust;
+		invisibleCharacters?: boolean;
+		ambiguousCharacters?: boolean;
 		includeComments?: boolean | DeriveFromWorkspaceTrust;
 		/**
 		 * A list of allowed code points in a single string.
