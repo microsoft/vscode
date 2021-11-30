@@ -24,8 +24,18 @@ import { registerAction2, MenuId, Action2 } from 'vs/platform/actions/common/act
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { DisassemblyView } from 'vs/workbench/contrib/debug/browser/disassemblyView';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Extensions, IQuickAccessRegistry, IQuickAccessProvider, DefaultQuickAccessFilterValue } from 'vs/platform/quickinput/common/quickAccess';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IDisposable } from 'vs/workbench/workbench.web.api';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
-class ToggleBreakpointAction extends EditorAction2 {
+class ToggleBreakpointAction extends Action2 {
 	constructor() {
 		super({
 			id: 'editor.debug.action.toggleBreakpoint',
@@ -41,17 +51,50 @@ class ToggleBreakpointAction extends EditorAction2 {
 				primary: KeyCode.F9,
 				weight: KeybindingWeight.EditorContrib
 			},
-			menu: {
-				when: CONTEXT_DEBUGGERS_AVAILABLE,
-				id: MenuId.MenubarDebugMenu,
-				group: '4_new_breakpoint',
-				order: 1
-			}
+			menu: [
+				{
+					when: CONTEXT_DEBUGGERS_AVAILABLE,
+					id: MenuId.MenubarDebugMenu,
+					group: '4_new_breakpoint',
+					order: 1
+				},
+				{
+					id: MenuId.DebugDisassemblyViewContext,
+					group: 'debug',
+					order: 1000,
+				}
+			],
 		});
 	}
 
-	async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]): Promise<void> {
-		// TODO: add disassembly F9
+	async run(accessor: ServicesAccessor, ...args: any[]) {
+		// Find the editor with text focus or active
+		const codeEditorService = accessor.get(ICodeEditorService);
+		const editor = codeEditorService.getFocusedCodeEditor() || codeEditorService.getActiveCodeEditor();
+		if (!editor) {
+			// maybe it is disassemblyView.
+			const editorService = accessor.get(IEditorService);
+			if (editorService.activeEditor?.typeId === DisassemblyViewInput.ID) {
+				const view = editorService.activeEditorPane as DisassemblyView;
+				const selection = view?.getSelection();
+				if (selection && selection?.length > 0) {
+					// set only bp in the first selection
+					const currentElement = selection[0];
+					if (selection[0].allowBreakpoint) {
+						const debugService = accessor.get(IDebugService);
+						if (currentElement.isBreakpointSet) {
+							debugService.removeInstructionBreakpoints(currentElement.instruction.address);
+
+						} else if (currentElement.allowBreakpoint && !currentElement.isBreakpointSet) {
+							debugService.addInstructionBreakpoint(currentElement.instruction.address, 0);
+						}
+					}
+				}
+			}
+
+			return;
+		}
+
 		if (editor.hasModel()) {
 			const debugService = accessor.get(IDebugService);
 			const modelUri = editor.getModel().uri;
@@ -183,15 +226,20 @@ class ToggleDisassemblyViewSourceCodeAction extends Action2 {
 		super({
 			id: ToggleDisassemblyViewSourceCodeAction.ID,
 			title: {
-				value: nls.localize('toggleDisassemblyViewSourceCode', "Toggle Source Code in Disassembly View"),
+				value: nls.localize('toggleDisassemblyViewSourceCode', "Toggle Source Code"),
 				original: 'Toggle Source Code in Disassembly View',
 				mnemonicTitle: nls.localize({ key: 'mitogglesource', comment: ['&& denotes a mnemonic'] }, "&&ToggleSource")
+			},
+			menu: {
+				id: MenuId.DebugDisassemblyViewContext,
+				group: 'debug',
+				order: 1000,
 			},
 			f1: true,
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]): void {
+	run(accessor: ServicesAccessor): void {
 		const configService = accessor.get(IConfigurationService);
 		if (configService) {
 			const value = configService.getValue<IDebugConfiguration>('debug').disassemblyView.showSourceCode;
@@ -199,6 +247,105 @@ class ToggleDisassemblyViewSourceCodeAction extends Action2 {
 		}
 	}
 }
+
+class DisassemblyViewCopySelectionJSONAction extends Action2 {
+	constructor() {
+		super({
+			id: 'debug.action.copySelectionJSON',
+			title: {
+				value: nls.localize('title', "Copy as JSON"),
+				original: 'Copy as JSON'
+			},
+			menu: {
+				id: MenuId.DebugDisassemblyViewContext,
+				group: 'debug',
+				order: 1000,
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: any[]): void {
+		const editorService = accessor.get(IEditorService);
+		if (editorService.activeEditor?.typeId === DisassemblyViewInput.ID) {
+			const view = editorService.activeEditorPane as DisassemblyView;
+			const selection = view?.getSelection();
+
+			if (selection && selection?.length > 0) {
+				const clipboard = accessor.get(IClipboardService);
+				const sb = createStringBuilder(1000);
+
+				selection.forEach((v) => {
+					sb.appendASCIIString(JSON.stringify(v.instruction));
+				});
+
+				clipboard.writeText(sb.build());
+			}
+		}
+	}
+}
+
+class DisassemblyGotoAddressQuickAccessProvider implements IQuickAccessProvider {
+	static PREFIX: string = "##";
+	defaultFilterValue?: string | DefaultQuickAccessFilterValue | undefined = DefaultQuickAccessFilterValue.PRESERVE;
+
+	constructor(@IEditorService private readonly editorService: IEditorService) {
+	}
+
+	provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
+		const disposables = new DisposableStore();
+		if (this.editorService.activeEditor?.typeId === DisassemblyViewInput.ID) {
+			const view = this.editorService.activeEditorPane as DisassemblyView;
+			picker.canSelectMany = false;
+
+			if (view.focusedCurrentInstructionAddress && picker.value === DisassemblyGotoAddressQuickAccessProvider.PREFIX) {
+				const initValueLen = picker.value.length;
+				picker.value = DisassemblyGotoAddressQuickAccessProvider.PREFIX + view.focusedCurrentInstructionAddress;
+				picker.valueSelection = [initValueLen, picker.value.length];
+			}
+
+			disposables.add(picker.onDidAccept((e) => {
+				const item = picker.value; // value=##0x00001
+				if (item && item.length > DisassemblyGotoAddressQuickAccessProvider.PREFIX.length) {
+					const address = item.slice(DisassemblyGotoAddressQuickAccessProvider.PREFIX.length);
+					view.goToAddress(address);
+				}
+			}));
+		}
+		return disposables;
+	}
+}
+
+Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
+	ctor: DisassemblyGotoAddressQuickAccessProvider,
+	prefix: DisassemblyGotoAddressQuickAccessProvider.PREFIX,
+	helpEntries: [{ description: "Go to Disassembly Address...", needsEditor: false }]
+});
+
+class DisassemblyGoToAddress extends Action2 {
+	constructor() {
+		super({
+			id: 'debug.action.disassemblyGoToAddress',
+			title: { value: nls.localize('gotoLine', "Go to Disassembly Address..."), original: 'Go to Disassembly Address...' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.EditorContrib - 1,
+				when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped'), CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST),
+				primary: KeyMod.CtrlCmd | KeyCode.KeyG,
+				mac: { primary: KeyMod.WinCtrl | KeyCode.KeyG }
+			},
+			menu: {
+				id: MenuId.DebugDisassemblyViewContext,
+				group: 'debug',
+				order: 1000,
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		accessor.get(IQuickInputService).quickAccess.show(DisassemblyGotoAddressQuickAccessProvider.PREFIX);
+	}
+}
+
 
 export class RunToCursorAction extends EditorAction {
 
@@ -467,6 +614,8 @@ registerAction2(ConditionalBreakpointAction);
 registerAction2(LogPointAction);
 registerAction2(OpenDisassemblyViewAction);
 registerAction2(ToggleDisassemblyViewSourceCodeAction);
+registerAction2(DisassemblyViewCopySelectionJSONAction);
+registerAction2(DisassemblyGoToAddress);
 registerEditorAction(RunToCursorAction);
 registerEditorAction(StepIntoTargetsAction);
 registerEditorAction(SelectionToReplAction);

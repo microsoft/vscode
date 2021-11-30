@@ -5,7 +5,7 @@
 
 import { getPixelRatio, getZoomLevel, isSafari } from 'vs/base/browser/browser';
 import { Dimension, append, $, addStandardDisposableListener } from 'vs/base/browser/dom';
-import { ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
+import { ITableContextMenuEvent, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -40,8 +40,12 @@ import { URI } from 'vs/base/common/uri';
 import { isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { isAbsolute } from 'vs/base/common/path';
 import { Constants } from 'vs/base/common/uint';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IAction } from 'vs/base/common/actions';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
-interface IDisassembledInstructionEntry {
+export interface IDisassembledInstructionEntry {
 	allowBreakpoint: boolean;
 	isBreakpointSet: boolean;
 	instruction: DebugProtocol.DisassembledInstruction;
@@ -72,8 +76,13 @@ export class DisassemblyView extends EditorPane {
 	private _enableSourceCodeRender: boolean = true;
 	private _loadingLock: boolean = false;
 
+	private _menu: IMenu;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IContextMenuService protected contextMenuService: IContextMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IMenuService menuService: IMenuService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -102,6 +111,9 @@ export class DisassemblyView extends EditorPane {
 				}
 			}
 		}));
+
+		this._menu = menuService.createMenu(MenuId.DebugDisassemblyViewContext, contextKeyService);
+		this._register(this._menu);
 	}
 
 	get fontInfo() { return this._fontInfo; }
@@ -153,8 +165,6 @@ export class DisassemblyView extends EditorPane {
 			}
 		};
 
-		const instructionRenderer = this._register(this._instantiationService.createInstance(InstructionRenderer, this));
-
 		this._disassembledInstructions = this._register(this._instantiationService.createInstance(WorkbenchTable,
 			'DisassemblyView', parent, delegate,
 			[
@@ -177,7 +187,7 @@ export class DisassemblyView extends EditorPane {
 			],
 			[
 				this._instantiationService.createInstance(BreakpointRenderer, this),
-				instructionRenderer,
+				this._instantiationService.createInstance(InstructionRenderer, this),
 			],
 			{
 				identityProvider: { getId: (e: IDisassembledInstructionEntry) => e.instruction.address },
@@ -185,11 +195,11 @@ export class DisassemblyView extends EditorPane {
 				overrideStyles: {
 					listBackground: editorBackground
 				},
-				multipleSelectionSupport: false,
+				multipleSelectionSupport: true,
 				setRowLineHeight: false,
 				openOnSingleClick: false,
 				accessibilityProvider: new AccessibilityProvider(),
-				mouseSupport: false
+				mouseSupport: true
 			}
 		)) as WorkbenchTable<IDisassembledInstructionEntry>;
 
@@ -265,6 +275,30 @@ export class DisassemblyView extends EditorPane {
 			}
 			this._previousDebuggingState = e;
 		}));
+
+		this._register(this._disassembledInstructions.onContextMenu(e => this.onContextMenu(e)));
+	}
+
+	onContextMenu(e: ITableContextMenuEvent<IDisassembledInstructionEntry>): void {
+		if (!e.element) {
+			return;
+		}
+
+		const selection = this._disassembledInstructions?.getSelectedElements();
+		const primary: IAction[] = [];
+		const secondary: IAction[] = [];
+		const result = { primary, secondary };
+		const actionsDisposable = createAndFillInContextMenuActions(this._menu, { arg: { selection: selection }, shouldForwardArgs: true }, result, 'inline');
+
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => e.anchor,
+			getActions: () => result.secondary,
+			onHide: () => dispose(actionsDisposable)
+		});
+	}
+
+	getSelection(): IDisassembledInstructionEntry[] | undefined {
+		return this._disassembledInstructions?.getSelectedElements();
 	}
 
 	layout(dimension: Dimension): void {

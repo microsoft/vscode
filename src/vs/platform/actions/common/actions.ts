@@ -85,6 +85,7 @@ export class MenuId {
 	static readonly CommandPalette = new MenuId('CommandPalette');
 	static readonly DebugBreakpointsContext = new MenuId('DebugBreakpointsContext');
 	static readonly DebugCallStackContext = new MenuId('DebugCallStackContext');
+	static readonly DebugDisassemblyViewContext = new MenuId('DebugDisassemblyViewContext');
 	static readonly DebugConsoleContext = new MenuId('DebugConsoleContext');
 	static readonly DebugVariablesContext = new MenuId('DebugVariablesContext');
 	static readonly DebugWatchContext = new MenuId('DebugWatchContext');
