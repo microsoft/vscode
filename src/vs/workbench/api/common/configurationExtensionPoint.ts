@@ -23,7 +23,7 @@ const configurationEntrySchema: IJSONSchema = {
 	defaultSnippets: [{ body: { title: '', properties: {} } }],
 	properties: {
 		title: {
-			description: nls.localize('vscode.extension.contributes.configuration.title', 'A summary of the settings. This label will be used in the settings file as separating comment.'),
+			description: nls.localize('vscode.extension.contributes.configuration.title', 'A title for the current category of settings. This label will be rendered in the Settings editor as a subheading. If the title is the same as the extension display name, then the category will be grouped under the main extension heading.'),
 			type: 'string'
 		},
 		order: {
