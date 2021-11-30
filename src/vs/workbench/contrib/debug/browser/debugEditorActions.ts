@@ -32,8 +32,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IQuickAccessRegistry, IQuickAccessProvider, DefaultQuickAccessFilterValue } from 'vs/platform/quickinput/common/quickAccess';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IDisposable } from 'vs/workbench/workbench.web.api';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 
 class ToggleBreakpointAction extends Action2 {
 	constructor() {
@@ -285,7 +284,7 @@ class DisassemblyViewCopySelectionJSONAction extends Action2 {
 }
 
 class DisassemblyGotoAddressQuickAccessProvider implements IQuickAccessProvider {
-	static PREFIX: string = "##";
+	static PREFIX: string = '##';
 	defaultFilterValue?: string | DefaultQuickAccessFilterValue | undefined = DefaultQuickAccessFilterValue.PRESERVE;
 
 	constructor(@IEditorService private readonly editorService: IEditorService) {
@@ -318,7 +317,7 @@ class DisassemblyGotoAddressQuickAccessProvider implements IQuickAccessProvider 
 Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
 	ctor: DisassemblyGotoAddressQuickAccessProvider,
 	prefix: DisassemblyGotoAddressQuickAccessProvider.PREFIX,
-	helpEntries: [{ description: "Go to Disassembly Address...", needsEditor: false }]
+	helpEntries: [{ description: nls.localize('gotoLine', "Go to Disassembly Address..."), needsEditor: false }]
 });
 
 class DisassemblyGoToAddress extends Action2 {
@@ -328,7 +327,7 @@ class DisassemblyGoToAddress extends Action2 {
 			title: { value: nls.localize('gotoLine', "Go to Disassembly Address..."), original: 'Go to Disassembly Address...' },
 			f1: true,
 			keybinding: {
-				weight: KeybindingWeight.EditorContrib - 1,
+				weight: 1,
 				when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped'), CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyG,
 				mac: { primary: KeyMod.WinCtrl | KeyCode.KeyG }
