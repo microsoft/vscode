@@ -66,7 +66,7 @@ export class Terminal {
 	}
 
 	async runCommandWithValue(commandId: TerminalCommandIdWithValue, value?: string, altKey?: boolean): Promise<void> {
-		const shouldKeepOpen = !!value || commandId === TerminalCommandIdWithValue.NewWithProfile || commandId === TerminalCommandIdWithValue.Rename;
+		const shouldKeepOpen = !!value || commandId === TerminalCommandIdWithValue.NewWithProfile || commandId === TerminalCommandIdWithValue.Rename || (commandId === TerminalCommandIdWithValue.SelectDefaultProfile && value !== 'PowerShell');
 		await this.quickaccess.runCommand(commandId, shouldKeepOpen);
 		if (value) {
 			await this.code.waitForSetValue(QuickInput.QUICK_INPUT_INPUT, value);
