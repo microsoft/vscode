@@ -26,7 +26,7 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 		} else {
 			name = cssEscape(basenameOrAuthority(resource).toLowerCase());
 			// Directory
-			classes.push(`${cssEscape(paths.basename(paths.dirname(resource.path)))}-name-dir-icon`);
+			classes.push(`${cssEscape(paths.posix.basename(paths.posix.dirname(resource.path)))}-name-dir-icon`);
 		}
 
 		// Folders

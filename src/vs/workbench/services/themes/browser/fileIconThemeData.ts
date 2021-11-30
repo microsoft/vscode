@@ -274,7 +274,7 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 			if (folderNames) {
 				for (let folderName in folderNames) {
 					if (/\//.test(folderName)) {
-						let directoryName = paths.basename(paths.dirname(folderName));
+						let directoryName = paths.posix.basename(paths.posix.dirname(folderName));
 						addSelector(`${qualifier} .${escapeCSS(directoryName.toLowerCase())}-name-dir-icon.${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNames[folderName]);
 					} else {
 						addSelector(`${qualifier} .${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNames[folderName]);
@@ -286,8 +286,8 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 			if (folderNamesExpanded) {
 				for (let folderName in folderNamesExpanded) {
 					if (/\//.test(folderName)) {
-						let directoryName = paths.basename(paths.dirname(folderName));
-						folderName = paths.basename(folderName);
+						let directoryName = paths.posix.basename(paths.posix.dirname(folderName));
+						folderName = paths.posix.basename(folderName);
 						addSelector(`${qualifier} .${escapeCSS(directoryName.toLowerCase())}-name-dir-icon.${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNamesExpanded[folderName]);
 					} else {
 						addSelector(`${qualifier} ${expanded} .${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNamesExpanded[folderName]);
@@ -311,9 +311,9 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 				for (let fileExtension in fileExtensions) {
 					let selectors: string[] = [];
 					if (/\//.test(fileExtension)) {
-						let directoryName = paths.basename(paths.dirname(fileExtension)).toLowerCase();
+						let directoryName = paths.posix.basename(paths.posix.dirname(fileExtension)).toLowerCase();
 						selectors.push(`.${escapeCSS(directoryName)}-name-dir-icon`);
-						fileExtension = paths.basename(fileExtension);
+						fileExtension = paths.posix.basename(fileExtension);
 					}
 					let segments = fileExtension.toLowerCase().split('.');
 					if (segments.length) {
@@ -331,9 +331,9 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 				for (let fileName in fileNames) {
 					let selectors: string[] = [];
 					if (/\//.test(fileName)) {
-						let directoryName = paths.basename(paths.dirname(fileName)).toLowerCase();
+						let directoryName = paths.posix.basename(paths.posix.dirname(fileName)).toLowerCase();
 						selectors.push(`.${escapeCSS(directoryName)}-name-dir-icon`);
-						fileName = paths.basename(fileName);
+						fileName = paths.posix.basename(fileName);
 					}
 					fileName = fileName.toLowerCase();
 					selectors.push(`.${escapeCSS(fileName)}-name-file-icon`);
