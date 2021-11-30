@@ -8,7 +8,7 @@ import * as objects from 'vs/base/common/objects';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IConfigurationNode, IConfigurationRegistry, Extensions, resourceLanguageSettingsSchemaId, validateProperty, ConfigurationScope, OVERRIDE_PROPERTY_PATTERN, OVERRIDE_PROPERTY_REGEX, windowSettings, resourceSettings, machineOverridableSettings, IConfigurationDefaults } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationNode, IConfigurationRegistry, Extensions, validateProperty, ConfigurationScope, OVERRIDE_PROPERTY_REGEX, IConfigurationDefaults, configurationDefaultsSchemaId } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { workspaceSettingsSchemaId, launchSchemaId, tasksSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { isObject } from 'vs/base/common/types';
@@ -111,29 +111,6 @@ const configurationEntrySchema: IJSONSchema = {
 		}
 	}
 };
-
-const configurationDefaultsSchemaId = 'vscode://schemas/settings/configurationDefaults';
-const configurationDefaultsSchema: IJSONSchema = {
-	type: 'object',
-	description: nls.localize('configurationDefaults.description', 'Contribute defaults for configurations'),
-	properties: {},
-	patternProperties: {
-		[OVERRIDE_PROPERTY_PATTERN]: {
-			type: 'object',
-			default: {},
-			$ref: resourceLanguageSettingsSchemaId,
-		}
-	},
-	additionalProperties: false
-};
-jsonRegistry.registerSchema(configurationDefaultsSchemaId, configurationDefaultsSchema);
-configurationRegistry.onDidSchemaChange(() => {
-	configurationDefaultsSchema.properties = {
-		...machineOverridableSettings.properties,
-		...windowSettings.properties,
-		...resourceSettings.properties
-	};
-});
 
 // BEGIN VSCode extension point `configurationDefaults`
 const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>({
