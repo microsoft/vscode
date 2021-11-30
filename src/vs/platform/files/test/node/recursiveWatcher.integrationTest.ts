@@ -115,7 +115,7 @@ flakySuite('Recursive Watcher (parcel)', () => {
 						if (failOnEventReason) {
 							reject(new Error(`Unexpected file event: ${failOnEventReason}`));
 						} else {
-							resolve();
+							setImmediate(() => resolve()); // copied from parcel watcher tests, seems to drop unrelated events on macOS
 						}
 						break;
 					}
@@ -269,6 +269,17 @@ flakySuite('Recursive Watcher (parcel)', () => {
 		// Delete folder
 		changeFuture = awaitEvent(service, copiedFolderpath, FileChangeType.DELETED);
 		await Promises.rmdir(copiedFolderpath);
+		await changeFuture;
+	});
+
+	(isMacintosh /* this test seems not possible with fsevents backend */ ? test.skip : test)('basics (atomic writes)', async function () {
+		await service.watch([{ path: testDir, excludes: [] }]);
+
+		// Delete + Recreate file
+		const newFilePath = join(testDir, 'deep', 'conway.js');
+		let changeFuture: Promise<unknown> = awaitEvent(service, newFilePath, FileChangeType.UPDATED);
+		await Promises.unlink(newFilePath);
+		Promises.writeFile(newFilePath, 'Hello Atomic World');
 		await changeFuture;
 	});
 
