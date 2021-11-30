@@ -25,6 +25,10 @@ const errorReporter: ErrorReporter = {
 
 	onUnknownOption: (id: string) => {
 		console.error(`Ignoring option ${id}: not supported for server.`);
+	},
+
+	onDeprecatedOption: (deprecatedOption: string, actualOption: string) => {
+		console.warn(`Option '${deprecatedOption}' is deprecated, please use '${actualOption}' instead`);
 	}
 };
 

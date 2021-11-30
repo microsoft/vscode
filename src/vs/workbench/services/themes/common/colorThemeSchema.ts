@@ -115,8 +115,8 @@ let textMateScopes = [
 ];
 
 export const textmateColorsSchemaId = 'vscode://schemas/textmate-colors';
-export const textmateColorSettingsSchemaId = `${textmateColorsSchemaId}#definitions/settings`;
-export const textmateColorGroupSchemaId = `${textmateColorsSchemaId}#definitions/colorGroup`;
+export const textmateColorSettingsSchemaId = `${textmateColorsSchemaId}#/definitions/settings`;
+export const textmateColorGroupSchemaId = `${textmateColorsSchemaId}#/definitions/colorGroup`;
 
 const textmateColorSchema: IJSONSchema = {
 	type: 'array',
@@ -129,7 +129,7 @@ const textmateColorSchema: IJSONSchema = {
 					format: 'color-hex'
 				},
 				{
-					$ref: '#definitions/settings'
+					$ref: '#/definitions/settings'
 				}
 			]
 		},
@@ -191,7 +191,7 @@ const textmateColorSchema: IJSONSchema = {
 				]
 			},
 			settings: {
-				$ref: '#definitions/settings'
+				$ref: '#/definitions/settings'
 			}
 		},
 		required: [

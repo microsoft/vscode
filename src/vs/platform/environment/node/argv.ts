@@ -155,11 +155,13 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 export interface ErrorReporter {
 	onUnknownOption(id: string): void;
 	onMultipleValues(id: string, usedValue: string): void;
+	onDeprecatedOption(deprecatedId: string, currentId: string): void;
 }
 
 const ignoringReporter: ErrorReporter = {
 	onUnknownOption: () => { },
-	onMultipleValues: () => { }
+	onMultipleValues: () => { },
+	onDeprecatedOption: () => { }
 };
 
 export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, errorReporter: ErrorReporter = ignoringReporter): T {
@@ -205,6 +207,7 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 		if (o.deprecates && remainingArgs.hasOwnProperty(o.deprecates)) {
 			if (!val) {
 				val = remainingArgs[o.deprecates];
+				errorReporter.onDeprecatedOption(o.deprecates, optionId);
 			}
 			delete remainingArgs[o.deprecates];
 		}

@@ -480,9 +480,9 @@ const schema: IJSONSchema = {
 		bracketPair: {
 			type: 'array',
 			items: [{
-				$ref: '#definitions/openBracket'
+				$ref: '#/definitions/openBracket'
 			}, {
-				$ref: '#definitions/closeBracket'
+				$ref: '#/definitions/closeBracket'
 			}]
 		}
 	},
@@ -517,7 +517,7 @@ const schema: IJSONSchema = {
 			description: nls.localize('schema.brackets', 'Defines the bracket symbols that increase or decrease the indentation.'),
 			type: 'array',
 			items: {
-				$ref: '#definitions/bracketPair'
+				$ref: '#/definitions/bracketPair'
 			}
 		},
 		colorizedBracketPairs: {
@@ -525,7 +525,7 @@ const schema: IJSONSchema = {
 			description: nls.localize('schema.colorizedBracketPairs', 'Defines the bracket pairs that are colorized by their nesting level if bracket pair colorization is enabled.'),
 			type: 'array',
 			items: {
-				$ref: '#definitions/bracketPair'
+				$ref: '#/definitions/bracketPair'
 			}
 		},
 		autoClosingPairs: {
@@ -534,15 +534,15 @@ const schema: IJSONSchema = {
 			type: 'array',
 			items: {
 				oneOf: [{
-					$ref: '#definitions/bracketPair'
+					$ref: '#/definitions/bracketPair'
 				}, {
 					type: 'object',
 					properties: {
 						open: {
-							$ref: '#definitions/openBracket'
+							$ref: '#/definitions/openBracket'
 						},
 						close: {
-							$ref: '#definitions/closeBracket'
+							$ref: '#/definitions/closeBracket'
 						},
 						notIn: {
 							type: 'array',
@@ -566,15 +566,15 @@ const schema: IJSONSchema = {
 			type: 'array',
 			items: {
 				oneOf: [{
-					$ref: '#definitions/bracketPair'
+					$ref: '#/definitions/bracketPair'
 				}, {
 					type: 'object',
 					properties: {
 						open: {
-							$ref: '#definitions/openBracket'
+							$ref: '#/definitions/openBracket'
 						},
 						close: {
-							$ref: '#definitions/closeBracket'
+							$ref: '#/definitions/closeBracket'
 						}
 					}
 				}]

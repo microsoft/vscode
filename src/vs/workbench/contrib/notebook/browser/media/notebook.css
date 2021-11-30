@@ -871,6 +871,7 @@
 
 .output-show-more {
 	padding: 8px 0 0 0;
+	font-style: italic;
 }
 
 .cell-contributed-items.cell-contributed-items-left {

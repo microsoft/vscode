@@ -201,7 +201,7 @@ class Extension implements IExtension {
 	}
 
 	get outdated(): boolean {
-		return !!this.gallery && this.type === ExtensionType.User && semver.gt(this.latestVersion, this.version) && this.local?.isPreReleaseVersion === this.gallery?.properties.isPreReleaseVersion;
+		return !!this.gallery && this.type === ExtensionType.User && semver.gt(this.latestVersion, this.version) && (this.local?.isPreReleaseVersion || !this.gallery?.properties.isPreReleaseVersion);
 	}
 
 	get telemetryData(): any {
