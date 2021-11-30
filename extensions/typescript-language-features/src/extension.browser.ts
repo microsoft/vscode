@@ -78,7 +78,7 @@ class StaticVersionProvider implements ITypeScriptVersionProvider {
 	}
 
 	private loadVersionsFromSetting(source: TypeScriptVersionSource, tsdkPathSetting: string): TypeScriptVersion[] {
-		if (tsdkPathSetting.startsWith("https://")) {
+		if (tsdkPathSetting.startsWith('https://')) {
 			const serverPath = vscode.Uri.joinPath(vscode.Uri.parse(tsdkPathSetting), 'tsserver.js');
 			return [
 				new TypeScriptVersion(source,
