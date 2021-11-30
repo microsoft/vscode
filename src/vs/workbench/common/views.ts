@@ -682,7 +682,7 @@ export interface ITreeView extends IDisposable {
 
 	readonly onDidChangeWelcomeState: Event<void>;
 
-	readonly container: HTMLElement | undefined;
+	readonly container: any | undefined;
 
 	refresh(treeItems?: ITreeItem[]): Promise<void>;
 
