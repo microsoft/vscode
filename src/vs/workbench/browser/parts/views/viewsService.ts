@@ -124,7 +124,7 @@ export class ViewsService extends Disposable implements IViewsService {
 
 	private onDidChangeContainerLocation(viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation): void {
 		this.deregisterPaneComposite(viewContainer, from);
-		setTimeout(() => this.registerPaneComposite(viewContainer, to), 0);
+		this.registerPaneComposite(viewContainer, to);
 	}
 
 	private onViewDescriptorsAdded(views: ReadonlyArray<IViewDescriptor>, container: ViewContainer): void {
