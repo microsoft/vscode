@@ -12,11 +12,14 @@ import { setup as setupTerminalProfileTests } from './terminal-profiles.test';
 import { setup as setupTerminalTabsTests } from './terminal-tabs.test';
 
 export function setup(opts: minimist.ParsedArgs) {
-	describe('Terminal', () => {
+	describe('Terminal', function () {
 		// TODO: Enable terminal tests for non-web when the desktop driver is moved to playwright
 		if (!opts.web) {
 			return;
 		}
+
+		// Retry tests 3 times to minimize build failures due to any flakiness
+		this.retries(3);
 
 		beforeSuite(opts);
 		afterSuite(opts);
