@@ -17,7 +17,7 @@ export function setup(opts: ParsedArgs) {
 
 		describe('detach/attach', () => {
 			// https://github.com/microsoft/vscode/issues/137799
-			it.skip('should support basic reconnection', async () => {
+			it('should support basic reconnection', async () => {
 				await terminal.runCommand(TerminalCommandId.CreateNew);
 				// TODO: Handle passing in an actual regex, not string
 				await terminal.assertTerminalGroups([
