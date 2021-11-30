@@ -191,14 +191,14 @@ function resolveOptions(trusted: boolean, options: InternalUnicodeHighlightOptio
 			nonBasicASCII: false,
 			ambiguousCharacters: true,
 			invisibleCharacters: true,
-			includeComments: true,
+			includeComments: false,
 		};
 	} else {
 		defaults = {
 			nonBasicASCII: true,
 			ambiguousCharacters: true,
 			invisibleCharacters: true,
-			includeComments: false,
+			includeComments: true,
 		};
 	}
 
