@@ -51,7 +51,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { AuxiliaryBarPart, AUXILIARYBAR_ENABLED } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart';
 
-type PanelAlignment = 'left' | 'center' | 'right' | 'justified';
+type PanelAlignment = 'left' | 'center' | 'right' | 'justify';
 
 export enum Settings {
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible',

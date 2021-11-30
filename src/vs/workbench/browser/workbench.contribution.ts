@@ -375,7 +375,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.experimental.panel.alignment': {
 				'type': 'string',
-				'enum': ['left', 'center', 'right', 'justified'],
+				'enum': ['left', 'center', 'right', 'justify'],
 				'default': 'center',
 				'description': localize('panelAlignment', "Controls the alignment of the panel (terminal, debug console, output, problems) and whether or not it spans beneath the side bar and side panel."),
 				'included': product.quality !== 'stable'
