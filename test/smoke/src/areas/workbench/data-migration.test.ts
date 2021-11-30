@@ -5,10 +5,7 @@
 
 import { Application, ApplicationOptions, Quality } from '../../../../automation';
 import { ParsedArgs } from 'minimist';
-import * as readdirp from 'readdirp';
-import { afterSuite, getRandomUserDataDir, startApp } from '../../utils';
-import { join } from 'path';
-import { readFileSync, statSync } from 'fs';
+import { afterSuite, getRandomUserDataDir, startApp, timeout } from '../../utils';
 
 export function setup(opts: ParsedArgs) {
 
@@ -158,53 +155,16 @@ export function setup(opts: ParsedArgs) {
 			await stableApp.workbench.editor.waitForTypeInEditor(readmeMd, textToType);
 			await stableApp.workbench.editors.waitForTab(readmeMd, true);
 
+			await timeout(2000); // TODO@bpasero https://github.com/microsoft/vscode/issues/138055
+
 			await stableApp.stop();
 			stableApp = undefined;
-
-			const backupsHome = join(userDataDir, 'Backups');
-			console.log('Printing backup contents (after stable app stopped):');
-			for await (const entry of readdirp(backupsHome)) {
-				if (entry.path === 'workspaces.json') {
-					continue;
-				}
-				try {
-					const contents = readFileSync(join(backupsHome, entry.path)).toString();
-					const firstLine = contents.substring(0, contents.indexOf('\n'));
-					console.log(`${entry.path}: ${firstLine}`);
-					if (firstLine.length < 3) {
-						const stat = statSync(join(backupsHome, entry.path));
-						console.log(`Unexpected short backup first line, size: ${stat.size}, full contents:`);
-						console.log(contents);
-					}
-				} catch (error) {
-					console.log(`${entry.path}: Error reading file: ${error}`);
-				}
-			}
 
 			const insiderOptions: ApplicationOptions = Object.assign({}, this.defaultOptions);
 			insiderOptions.userDataDir = userDataDir;
 
 			insidersApp = new Application(insiderOptions);
 			await insidersApp.start();
-
-			console.log('Printing backup contents (after insiders app started):');
-			for await (const entry of readdirp(backupsHome)) {
-				if (entry.path === 'workspaces.json') {
-					continue;
-				}
-				try {
-					const contents = readFileSync(join(backupsHome, entry.path)).toString();
-					const firstLine = contents.substring(0, contents.indexOf('\n'));
-					console.log(`${entry.path}: ${firstLine}`);
-					if (firstLine.length < 3) {
-						const stat = statSync(join(backupsHome, entry.path));
-						console.log(`Unexpected short backup first line, size: ${stat.size}, full contents:`);
-						console.log(contents);
-					}
-				} catch (error) {
-					console.log(`${entry.path}: Error reading file: ${error}`);
-				}
-			}
 
 			await insidersApp.workbench.editors.waitForTab(readmeMd, true);
 			await insidersApp.workbench.quickaccess.openFile(readmeMd);
