@@ -37,7 +37,7 @@ export function setup(opts: ParsedArgs) {
 		});
 
 		it('should set the default profile', async () => {
-			await terminal.runCommandWithValue(TerminalCommandIdWithValue.SelectDefaultProfile);
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.SelectDefaultProfile, 'PowerShell');
 			await terminal.runCommand(TerminalCommandId.CreateNew);
 			await terminal.assertSingleTab({ name: ANY_PROFILE_NAME });
 		});
