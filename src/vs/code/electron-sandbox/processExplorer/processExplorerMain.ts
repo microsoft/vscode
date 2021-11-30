@@ -452,9 +452,23 @@ class ProcessExplorer {
 		items.push({
 			label: localize('copy', "Copy"),
 			click: () => {
-				const row = document.getElementById(`pid-${pid}`);
-				if (row) {
-					this.nativeHostService.writeClipboardText(row.innerText);
+				// Collect the selected pids
+				const selectionPids = this.tree?.getSelection()?.map(e => {
+					if (!e || !('pid' in e)) {
+						return undefined;
+					}
+					return e.pid;
+				}).filter(e => !!e) as number[];
+				// If the selection does not contain the right clicked item, copy the right clicked
+				// item only.
+				if (!selectionPids?.includes(pid)) {
+					selectionPids.length = 0;
+					selectionPids.push(pid);
+				}
+				const rows = selectionPids?.map(e => document.getElementById(`pid-${e}`)).filter(e => !!e) as HTMLElement[];
+				if (rows) {
+					const text = rows.map(e => e.innerText).filter(e => !!e) as string[];
+					this.nativeHostService.writeClipboardText(text.join('\n'));
 				}
 			}
 		});
