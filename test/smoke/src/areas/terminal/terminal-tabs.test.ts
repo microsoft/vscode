@@ -8,7 +8,7 @@ import { ParsedArgs } from 'minimist';
 import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation/out';
 
 export function setup(opts: ParsedArgs) {
-	describe('Terminal Tabs', () => {
+	describe.only('Terminal Tabs', () => {
 		// Acquire automation API
 		let terminal: Terminal;
 		before(function () {
@@ -90,10 +90,17 @@ export function setup(opts: ParsedArgs) {
 		it('should do nothing when join tabs is run with only one terminal', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
 			await terminal.runCommand(TerminalCommandId.Join);
-			await terminal.assertSingleTab({});
+			await terminal.assertTerminalGroups([[{}]]);
 		});
 
-		it('should join tabs when more than one terminal', async () => {
+		it('should do nothing when join tabs is run with only split terminals', async () => {
+			await terminal.runCommand(TerminalCommandId.Show);
+			await terminal.runCommand(TerminalCommandId.Split);
+			await terminal.runCommand(TerminalCommandId.Join);
+			await terminal.assertTerminalGroups([[{}], [{}]]);
+		});
+
+		it('should join tabs when more than one non-split terminal', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
 			await terminal.runCommand(TerminalCommandId.CreateNew);
 			await terminal.runCommand(TerminalCommandId.Join);
