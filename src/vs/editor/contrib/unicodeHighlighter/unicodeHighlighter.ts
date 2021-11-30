@@ -522,11 +522,11 @@ interface IDisableUnicodeHighlightAction {
 
 export class DisableHighlightingOfAmbiguousCharactersAction extends EditorAction implements IDisableUnicodeHighlightAction {
 	public static ID = 'editor.action.unicodeHighlight.disableHighlightingOfAmbiguousCharacters';
-	public readonly shortLabel = nls.localize('unicodeHighlight.disableHighlightingOfAmbiguousCharacters.shortLabel', '');
+	public readonly shortLabel = nls.localize('unicodeHighlight.disableHighlightingOfAmbiguousCharacters.shortLabel', 'Disable Ambiguous Highlight');
 	constructor() {
 		super({
 			id: DisableHighlightingOfAmbiguousCharactersAction.ID,
-			label: nls.localize('action.unicodeHighlight.disableHighlightingOfAmbiguousCharacters', 'Disable Ambiguous Highlight'),
+			label: nls.localize('action.unicodeHighlight.disableHighlightingOfAmbiguousCharacters', 'Disable highlighting of ambiguous characters'),
 			alias: 'Disable highlighting of ambiguous characters',
 			precondition: undefined
 		});
@@ -574,7 +574,7 @@ export class DisableHighlightingOfNonBasicAsciiCharactersAction extends EditorAc
 	constructor() {
 		super({
 			id: DisableHighlightingOfNonBasicAsciiCharactersAction.ID,
-			label: nls.localize('action.unicodeHighlight.dhowDisableHighlightingOfNonBasicAsciiCharacters', 'Disable highlighting of non basic ASCII characters'),
+			label: nls.localize('action.unicodeHighlight.disableHighlightingOfNonBasicAsciiCharacters', 'Disable highlighting of non basic ASCII characters'),
 			alias: 'Disable highlighting of non basic ASCII characters',
 			precondition: undefined
 		});
