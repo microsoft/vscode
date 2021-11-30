@@ -32,6 +32,7 @@ import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { basename } from 'vs/base/common/path';
+import { flatten } from 'vs/base/common/arrays';
 
 interface IStoredWebExtension {
 	readonly identifier: IExtensionIdentifier;
@@ -58,7 +59,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	declare readonly _serviceBrand: undefined;
 
 	private readonly builtinExtensionsPromise: Promise<IExtension[]> = Promise.resolve([]);
-	private readonly cutomBuiltinExtensions: (string | URI)[];
+	private readonly cutomBuiltinExtensions: ({ id: string, preRelease?: boolean } | URI)[];
 	private readonly customBuiltinExtensionsPromise: Promise<IExtension[]> = Promise.resolve([]);
 
 	private readonly customBuiltinExtensionsCacheResource: URI | undefined = undefined;
@@ -75,7 +76,9 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		@IExtensionResourceLoaderService private readonly extensionResourceLoaderService: IExtensionResourceLoaderService,
 	) {
 		super();
-		this.cutomBuiltinExtensions = this.environmentService.options && Array.isArray(this.environmentService.options.additionalBuiltinExtensions) ? this.environmentService.options.additionalBuiltinExtensions : [];
+		this.cutomBuiltinExtensions = this.environmentService.options && Array.isArray(this.environmentService.options.additionalBuiltinExtensions)
+			? this.environmentService.options.additionalBuiltinExtensions.map(additionalBuiltinExtension => isString(additionalBuiltinExtension) ? { id: additionalBuiltinExtension } : additionalBuiltinExtension)
+			: [];
 		if (isWeb) {
 			this.installedExtensionsResource = joinPath(environmentService.userRoamingDataHome, 'extensions.json');
 			this.customBuiltinExtensionsCacheResource = joinPath(environmentService.userRoamingDataHome, 'customBuiltinExtensionsCache.json');
@@ -96,12 +99,12 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	 * All extensions defined via `additionalBuiltinExtensions` API
 	 */
 	private async readCustomBuiltinExtensions(): Promise<IExtension[]> {
-		const extensionIds: string[] = [], extensionLocations: URI[] = [], result: IExtension[] = [];
+		const extensions: { id: string, preRelease: boolean }[] = [], extensionLocations: URI[] = [], result: IExtension[] = [];
 		for (const e of this.cutomBuiltinExtensions) {
-			if (isString(e)) {
-				extensionIds.push(e);
-			} else {
+			if (URI.isUri(e)) {
 				extensionLocations.push(URI.revive(e));
+			} else {
+				extensions.push({ id: e.id, preRelease: !!e.preRelease });
 			}
 		}
 
@@ -119,11 +122,11 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 				}
 			})(),
 			(async () => {
-				if (extensionIds.length) {
+				if (extensions.length) {
 					try {
-						result.push(...await this.getCustomBuiltinExtensionsFromGallery(extensionIds));
+						result.push(...await this.getCustomBuiltinExtensionsFromGallery(extensions));
 					} catch (error) {
-						this.logService.info('Ignoring following additional builtin extensions as there is an error while fetching them from gallery', extensionIds, getErrorMessage(error));
+						this.logService.info('Ignoring following additional builtin extensions as there is an error while fetching them from gallery', extensions.map(({ id }) => id), getErrorMessage(error));
 					}
 				} else {
 					await this.writeCustomBuiltinExtensionsCache(() => []);
@@ -134,7 +137,26 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return result;
 	}
 
-	private async getCustomBuiltinExtensionsFromGallery(extensionIds: string[]): Promise<IExtension[]> {
+	private async checkAdditionalBuiltinExtensions(extensions: { id: string, preRelease: boolean }[]): Promise<{ id: string, preRelease: boolean }[]> {
+		const extensionsControlManifest = await this.galleryService.getExtensionsControlManifest();
+		const result: { id: string, preRelease: boolean }[] = [];
+		for (const extension of extensions) {
+			if (extensionsControlManifest.malicious.some(e => areSameExtensions(e, { id: extension.id }))) {
+				this.logService.info(`Checking additional builtin extensions: Ignoring '${extension.id}' because it is reported to be malicious.`);
+				continue;
+			}
+			if (extensionsControlManifest.unsupportedPreReleaseExtensions && extensionsControlManifest.unsupportedPreReleaseExtensions[extension.id.toLowerCase()]) {
+				const preReleaseExtensionId = extensionsControlManifest.unsupportedPreReleaseExtensions[extension.id.toLowerCase()].id;
+				this.logService.info(`Checking additional builtin extensions: '${extension.id}' is no longer supported, instead using '${preReleaseExtensionId}'`);
+				result.push({ id: preReleaseExtensionId, preRelease: true });
+			} else {
+				result.push(extension);
+			}
+		}
+		return result;
+	}
+
+	private async getCustomBuiltinExtensionsFromGallery(extensions: { id: string, preRelease: boolean }[]): Promise<IExtension[]> {
 		if (!this.galleryService.isEnabled()) {
 			this.logService.info('Ignoring fetching additional builtin extensions from gallery as it is disabled.');
 			return [];
@@ -147,26 +169,32 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		cachedStaticWebExtensions = byExtension.map(p => p.sort((a, b) => semver.rcompare(a.version, b.version))[0]);
 
 		const webExtensions: IWebExtension[] = [];
-		extensionIds = extensionIds.map(id => id.toLowerCase());
+		extensions = extensions.map(e => ({ ...e, id: e.id.toLowerCase() }));
 
 		for (const webExtension of cachedStaticWebExtensions) {
-			const index = extensionIds.indexOf(webExtension.identifier.id.toLowerCase());
+			const index = extensions.findIndex(e => e.id === webExtension.identifier.id.toLowerCase() && e.preRelease === webExtension.metadata?.isPreReleaseVersion);
 			if (index !== -1) {
 				webExtensions.push(webExtension);
-				extensionIds.splice(index, 1);
+				extensions.splice(index, 1);
 			}
 		}
 
-		if (extensionIds.length) {
-			const galleryExtensions = await this.galleryService.getExtensions(extensionIds.map(id => ({ id })), CancellationToken.None);
-			const missingExtensions = extensionIds.filter(id => !galleryExtensions.find(({ identifier }) => areSameExtensions(identifier, { id })));
+		if (extensions.length) {
+			extensions = (await this.checkAdditionalBuiltinExtensions(extensions));
+			const preReleaseExtensions = extensions.filter(e => e.preRelease).map(({ id }) => ({ id }));
+			const releaseExtensions = extensions.filter(e => !e.preRelease).map(({ id }) => ({ id }));
+			const galleryExtensions = flatten(await Promise.all([
+				preReleaseExtensions.length ? this.galleryService.getExtensions(preReleaseExtensions, true, CancellationToken.None) : Promise.resolve<IGalleryExtension[]>([]),
+				releaseExtensions.length ? this.galleryService.getExtensions(releaseExtensions, false, CancellationToken.None) : Promise.resolve<IGalleryExtension[]>([]),
+			]));
+			const missingExtensions = extensions.filter(({ id }) => !galleryExtensions.find(({ identifier }) => areSameExtensions(identifier, { id })));
 			if (missingExtensions.length) {
 				this.logService.info('Cannot find static extensions from gallery', missingExtensions);
 			}
 
 			await Promise.all(galleryExtensions.map(async gallery => {
 				try {
-					webExtensions.push(await this.toWebExtensionFromGallery(gallery));
+					webExtensions.push(await this.toWebExtensionFromGallery(gallery, { isPreReleaseVersion: gallery.properties.isPreReleaseVersion, isBuiltin: true }));
 				} catch (error) {
 					this.logService.info(`Ignoring additional builtin extension ${gallery.identifier.id} because there is an error while converting it into web extension`, getErrorMessage(error));
 				}

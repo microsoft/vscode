@@ -32,6 +32,8 @@ interface IResourceUriProvider {
  */
 type ExtensionId = string;
 
+type MarketplaceExtension = ExtensionId | { readonly id: ExtensionId, preRelease?: boolean };
+
 interface ICommonTelemetryPropertiesResolver {
 	(): { [key: string]: any };
 }
@@ -431,12 +433,12 @@ interface IWorkbenchConstructionOptions {
 	readonly credentialsProvider?: ICredentialsProvider;
 
 	/**
-	 * Additional builtin extensions that cannot be uninstalled but only be disabled.
+	 * Additional builtin extensions those cannot be uninstalled but only be disabled.
 	 * It can be one of the following:
-	 * 	- `ExtensionId`: id of the extension that is available in Marketplace
-	 * 	- `UriComponents`: location of the extension where it is hosted.
+	 * 	- an extension in the Marketplace
+	 * 	- location of the extension where it is hosted.
 	 */
-	readonly additionalBuiltinExtensions?: readonly (ExtensionId | UriComponents)[];
+	readonly additionalBuiltinExtensions?: readonly (MarketplaceExtension | UriComponents)[];
 
 	/**
 	 * List of extensions to be enabled if they are installed.

@@ -253,6 +253,9 @@ export class PreReleaseBookmarkWidget extends ExtensionWidget {
 		if (!this.extension) {
 			return;
 		}
+		if (this.extension.isBuiltin) {
+			return;
+		}
 		if (this.extension.hasPreReleaseVersion) {
 			this.element = append(this.parent, $('div.extension-bookmark'));
 			const preRelease = append(this.element, $('.pre-release'));
@@ -578,6 +581,9 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 
 	static getPreReleaseMessage(extension: IExtension): string | undefined {
 		if (!extension.hasPreReleaseVersion) {
+			return undefined;
+		}
+		if (extension.isBuiltin) {
 			return undefined;
 		}
 		if (extension.local?.isPreReleaseVersion || extension.gallery?.properties.isPreReleaseVersion) {
