@@ -99,9 +99,9 @@ class MarketplaceThemesPicker {
 		try {
 			const installedExtensions = await this._installedExtensions;
 
-			const options = { text: `${this.marketplaceQuery} ${value}`, pageSize: 20 };
+			const options = { text: `${this.marketplaceQuery} ${value}`, pageSize: 40 };
 			const pager = await this.extensionGalleryService.query(options, token);
-			for (let i = 0; i < pager.total && i < 2; i++) {
+			for (let i = 0; i < pager.total && i < 1; i++) {
 				if (token.isCancellationRequested) {
 					break;
 				}
