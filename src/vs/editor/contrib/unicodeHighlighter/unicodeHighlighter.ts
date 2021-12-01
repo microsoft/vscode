@@ -603,9 +603,16 @@ export class ShowExcludeOptions extends EditorAction {
 			run(): Promise<void>;
 		}
 
+		function getExcludeCharFromBeingHighlightedLabel(codePoint: number) {
+			if (InvisibleCharacters.isInvisibleCharacter(codePoint)) {
+				return nls.localize('unicodeHighlight.excludeInvisibleCharFromBeingHighlighted', 'Exclude {0} (invisible) from being highlighted', `U+${codePoint.toString(16)}`);
+			}
+			return nls.localize('unicodeHighlight.excludeCharFromBeingHighlighted', 'Exclude {0} from being highlighted', `U+${codePoint.toString(16)} "${char}"`);
+		}
+
 		const options: ExtendedOptions[] = [
 			{
-				label: nls.localize('unicodeHighlight.excludeCharFromBeingHighlighted', 'Exclude {0} from being highlighted', `U+${codePoint.toString(16)} "${char}"`),
+				label: getExcludeCharFromBeingHighlightedLabel(codePoint),
 				run: async () => {
 					const existingValue = configurationService.getValue(unicodeHighlightConfigKeys.allowedCharacters);
 					let value: string;
