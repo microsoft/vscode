@@ -19,7 +19,7 @@ import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { EditorResourceAccessor, Verbosity, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER, WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -47,6 +47,9 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+
+const layoutControlIcon = registerIcon('layout-control', Codicon.editorLayout, localize('layoutControlIcon', "Icon for the layout control menu found in the title bar."));
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -418,7 +421,7 @@ export class TitlebarPart extends Part implements ITitleService {
 					actionViewItemProvider: action => {
 						if (action instanceof SubmenuAction) {
 							return new DropdownMenuActionViewItem(action, action.actions, this.contextMenuService, {
-								classNames: Codicon.editorLayout.classNamesArray,
+								classNames: ThemeIcon.asClassNameArray(layoutControlIcon),
 								anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
 								keybindingProvider: action => this.keybindingService.lookupKeybinding(action.id)
 							});
