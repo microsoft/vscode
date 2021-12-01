@@ -882,19 +882,19 @@
 	flex-direction: row-reverse;
 }
 
-.monaco-workbench .notebookOverlay .output .error::-webkit-scrollbar,
+.monaco-workbench .notebookOverlay .output .error .traceback::-webkit-scrollbar,
 .monaco-workbench .notebookOverlay .output-plaintext::-webkit-scrollbar {
 	width: 10px;               /* width of the entire scrollbar */
 	height: 10px;
 }
 
-.monaco-workbench .notebookOverlay .output .error::-webkit-scrollbar-thumb,
+.monaco-workbench .notebookOverlay .output .error .traceback::-webkit-scrollbar-thumb,
 .monaco-workbench .notebookOverlay .output-plaintext::-webkit-scrollbar-thumb {
 	height: 10px;
 	width: 10px;
 }
 
-.monaco-workbench .notebookOverlay .output .error,
+.monaco-workbench .notebookOverlay .output .error .traceback,
 .monaco-workbench .notebookOverlay .output .output-plaintext {
 	overflow-x: auto;
 }
