@@ -12,7 +12,7 @@ import { InvisibleCharacters } from 'vs/base/common/strings';
 import 'vs/css!./unicodeHighlighter';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { DeriveFromWorkspaceTrust, deriveFromWorkspaceTrust, EditorOption, InternalUnicodeHighlightOptions, unicodeHighlightConfigKeys } from 'vs/editor/common/config/editorOptions';
+import { TrueIfUntrusted, trueIfUntrusted, EditorOption, InternalUnicodeHighlightOptions, unicodeHighlightConfigKeys } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDecoration, IModelDeltaDecoration, ITextModel, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
@@ -181,15 +181,15 @@ export interface UnicodeHighlighterDecorationInfo {
 	reason: UnicodeHighlighterReason;
 }
 
-type RemoveDeriveFromWorkspaceTrust<T> = T extends DeriveFromWorkspaceTrust ? never : T;
-type ResolvedOptions = { [TKey in keyof InternalUnicodeHighlightOptions]: RemoveDeriveFromWorkspaceTrust<InternalUnicodeHighlightOptions[TKey]> };
+type RemoveTrueIfUntrusted<T> = T extends TrueIfUntrusted ? never : T;
+type ResolvedOptions = { [TKey in keyof InternalUnicodeHighlightOptions]: RemoveTrueIfUntrusted<InternalUnicodeHighlightOptions[TKey]> };
 
 function resolveOptions(trusted: boolean, options: InternalUnicodeHighlightOptions): ResolvedOptions {
 	return {
-		nonBasicASCII: options.nonBasicASCII !== deriveFromWorkspaceTrust ? options.nonBasicASCII : !trusted,
+		nonBasicASCII: options.nonBasicASCII === trueIfUntrusted ? !trusted : options.nonBasicASCII,
 		ambiguousCharacters: options.ambiguousCharacters,
 		invisibleCharacters: options.invisibleCharacters,
-		includeComments: options.includeComments !== deriveFromWorkspaceTrust ? options.includeComments : !trusted,
+		includeComments: options.includeComments === trueIfUntrusted ? !trusted : options.includeComments,
 		allowedCharacters: options.allowedCharacters ?? [],
 	};
 }
