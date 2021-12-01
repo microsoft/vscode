@@ -2372,6 +2372,12 @@ export class ExtensionStatusAction extends ExtensionAction {
 	}
 
 	private updateStatus(status: ExtensionStatus | undefined, updateClass: boolean): void {
+		if (this._status === status) {
+			return;
+		}
+		if (this._status && status && this._status.message === status.message && this._status.icon?.id === status.icon?.id) {
+			return;
+		}
 		this._status = status;
 		if (updateClass) {
 			if (this._status?.icon === errorIcon) {

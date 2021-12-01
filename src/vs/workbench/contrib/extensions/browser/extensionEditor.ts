@@ -579,7 +579,7 @@ export class ExtensionEditor extends EditorPane {
 		let preReleaseText: string | undefined;
 		reset(template.preReleaseText);
 		const disposables = this.transientDisposables.add(new DisposableStore());
-		const updatePreReleaseText = () => {
+		const updatePreReleaseText = (layout: boolean) => {
 			const newPreReleaseText = ExtensionHoverWidget.getPreReleaseMessage(extension);
 			if (preReleaseText !== newPreReleaseText) {
 				preReleaseText = newPreReleaseText;
@@ -589,12 +589,15 @@ export class ExtensionEditor extends EditorPane {
 					append(template.preReleaseText, $(`span${ThemeIcon.asCSSSelector(preReleaseIcon)}`));
 					disposables.add(this.renderMarkdownText(preReleaseText, template.preReleaseText));
 				}
+				if (layout && this.dimension) {
+					this.layout(this.dimension);
+				}
 			}
 		};
-		updatePreReleaseText();
+		updatePreReleaseText(false);
 		this.transientDisposables.add(this.extensionsWorkbenchService.onChange(e => {
 			if (e && areSameExtensions(e.identifier, extension.identifier)) {
-				updatePreReleaseText();
+				updatePreReleaseText(true);
 			}
 		}));
 	}
@@ -602,7 +605,7 @@ export class ExtensionEditor extends EditorPane {
 	private setStatus(extension: IExtension, extensionStatus: ExtensionStatusAction, template: IExtensionEditorTemplate): void {
 		const disposables = new DisposableStore();
 		this.transientDisposables.add(disposables);
-		const updateStatus = () => {
+		const updateStatus = (layout: boolean) => {
 			disposables.clear();
 			reset(template.status);
 			const status = extensionStatus.status;
@@ -613,9 +616,12 @@ export class ExtensionEditor extends EditorPane {
 				}
 				disposables.add(this.renderMarkdownText(status.message.value, append(template.status, $('.status-text'))));
 			}
+			if (layout && this.dimension) {
+				this.layout(this.dimension);
+			}
 		};
-		updateStatus();
-		this.transientDisposables.add(extensionStatus.onDidChangeStatus(() => updateStatus()));
+		updateStatus(false);
+		this.transientDisposables.add(extensionStatus.onDidChangeStatus(() => updateStatus(true)));
 
 		const updateActionLayout = () => template.actionsAndStatusContainer.classList.toggle('list-layout', extension.state === ExtensionState.Installed);
 		updateActionLayout();
@@ -623,7 +629,7 @@ export class ExtensionEditor extends EditorPane {
 	}
 
 	private setRecommendationText(extension: IExtension, template: IExtensionEditorTemplate): void {
-		const updateRecommendationText = () => {
+		const updateRecommendationText = (layout: boolean) => {
 			reset(template.recommendation);
 			const extRecommendations = this.extensionRecommendationsService.getAllRecommendationsWithReason();
 			if (extRecommendations[extension.identifier.id.toLowerCase()]) {
@@ -635,9 +641,12 @@ export class ExtensionEditor extends EditorPane {
 			} else if (this.extensionIgnoredRecommendationsService.globalIgnoredRecommendations.indexOf(extension.identifier.id.toLowerCase()) !== -1) {
 				append(template.recommendation, $(`div.recommendation-text`, undefined, localize('recommendationHasBeenIgnored', "You have chosen not to receive recommendations for this extension.")));
 			}
+			if (layout && this.dimension) {
+				this.layout(this.dimension);
+			}
 		};
-		updateRecommendationText();
-		this.transientDisposables.add(this.extensionRecommendationsService.onDidChangeRecommendations(() => updateRecommendationText()));
+		updateRecommendationText(false);
+		this.transientDisposables.add(this.extensionRecommendationsService.onDidChangeRecommendations(() => updateRecommendationText(true)));
 	}
 
 	private renderMarkdownText(markdownText: string, parent: HTMLElement): IDisposable {
