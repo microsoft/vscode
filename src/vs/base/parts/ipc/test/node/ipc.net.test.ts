@@ -9,7 +9,7 @@ import { createServer, Socket } from 'net';
 import { tmpdir } from 'os';
 import { Barrier, timeout } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ILoadEstimator, PersistentProtocol, Protocol, ProtocolConstants, SocketCloseEvent, SocketDiagnosticsEventType } from 'vs/base/parts/ipc/common/ipc.net';
 import { createRandomIPCHandle, createStaticIPCHandle, NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
@@ -423,6 +423,58 @@ suite('PersistentProtocol reconnection', () => {
 				assert.strictEqual(a.unacknowledgedCount, 0);
 				assert.strictEqual(b.unacknowledgedCount, 0);
 
+				aMessages.dispose();
+				bMessages.dispose();
+				a.dispose();
+				b.dispose();
+			}
+		);
+	});
+
+	test('onSocketTimeout is emitted at most once every 20s', async () => {
+		await runWithFakedTimers(
+			{
+				useFakeTimers: true,
+				useSetImmediate: true,
+				maxTaskCount: 1000
+			},
+			async () => {
+
+				const loadEstimator: ILoadEstimator = {
+					hasHighLoad: () => false
+				};
+				const ether = new Ether();
+				const aSocket = new NodeSocket(ether.a);
+				const a = new PersistentProtocol(aSocket, null, loadEstimator);
+				const aMessages = new MessageStream(a);
+				const bSocket = new NodeSocket(ether.b);
+				const b = new PersistentProtocol(bSocket, null, loadEstimator);
+				const bMessages = new MessageStream(b);
+
+				// never receive acks
+				b.pauseSocketWriting();
+
+				// send message a1 to have something unacknowledged
+				a.send(VSBuffer.fromString('a1'));
+
+				// wait for the first timeout to fire
+				await Event.toPromise(a.onSocketTimeout);
+
+				let timeoutFiredAgain = false;
+				const timeoutListener = a.onSocketTimeout(() => {
+					timeoutFiredAgain = true;
+				});
+
+				// send more messages
+				a.send(VSBuffer.fromString('a2'));
+				a.send(VSBuffer.fromString('a3'));
+
+				// wait for 10s
+				await timeout(ProtocolConstants.TimeoutTime / 2);
+
+				assert.strictEqual(timeoutFiredAgain, false);
+
+				timeoutListener.dispose();
 				aMessages.dispose();
 				bMessages.dispose();
 				a.dispose();

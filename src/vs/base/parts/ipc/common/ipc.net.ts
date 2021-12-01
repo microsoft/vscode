@@ -778,6 +778,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	private _incomingAckTimeout: any | null;
 
 	private _lastReplayRequestTime: number;
+	private _lastSocketTimeoutTime: number;
 
 	private _socket: ISocket;
 	private _socketWriter: ProtocolWriter;
@@ -819,6 +820,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		this._incomingAckTimeout = null;
 
 		this._lastReplayRequestTime = 0;
+		this._lastSocketTimeoutTime = Date.now();
 
 		this._socketDisposables = [];
 		this._socket = socket;
@@ -887,6 +889,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		this._socket.dispose();
 
 		this._lastReplayRequestTime = 0;
+		this._lastSocketTimeoutTime = Date.now();
 
 		this._socket = socket;
 		this._socketWriter = new ProtocolWriter(this._socket);
@@ -1063,10 +1066,12 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		const oldestUnacknowledgedMsg = this._outgoingUnackMsg.peek()!;
 		const timeSinceOldestUnacknowledgedMsg = Date.now() - oldestUnacknowledgedMsg.writtenTime;
 		const timeSinceLastReceivedSomeData = Date.now() - this._socketReader.lastReadTime;
+		const timeSinceLastTimeout = Date.now() - this._lastSocketTimeoutTime;
 
 		if (
 			timeSinceOldestUnacknowledgedMsg >= ProtocolConstants.TimeoutTime
 			&& timeSinceLastReceivedSomeData >= ProtocolConstants.TimeoutTime
+			&& timeSinceLastTimeout >= ProtocolConstants.TimeoutTime
 		) {
 			// It's been a long time since our sent message was acknowledged
 			// and a long time since we received some data
@@ -1074,15 +1079,23 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 			// But this might be caused by the event loop being busy and failing to read messages
 			if (!this._loadEstimator.hasHighLoad()) {
 				// Trash the socket
+				this._lastSocketTimeoutTime = Date.now();
 				this._onSocketTimeout.fire(undefined);
 				return;
 			}
 		}
 
+		const minimumTimeUntilTimeout = Math.max(
+			ProtocolConstants.TimeoutTime - timeSinceOldestUnacknowledgedMsg,
+			ProtocolConstants.TimeoutTime - timeSinceLastReceivedSomeData,
+			ProtocolConstants.TimeoutTime - timeSinceLastTimeout,
+			500
+		);
+
 		this._outgoingAckTimeout = setTimeout(() => {
 			this._outgoingAckTimeout = null;
 			this._recvAckCheck();
-		}, Math.max(ProtocolConstants.TimeoutTime - timeSinceOldestUnacknowledgedMsg, 500));
+		}, minimumTimeUntilTimeout);
 	}
 
 	private _sendAck(): void {
