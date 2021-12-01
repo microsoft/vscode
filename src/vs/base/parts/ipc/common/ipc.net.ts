@@ -907,6 +907,11 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 			this._socketWriter.write(toSend[i]);
 		}
 		this._recvAckCheck();
+
+		// After a reconnection, let the other party know (again) which messages have been received.
+		// (perhaps the other party didn't receive a previous ACK)
+		this._incomingAckId = 0;
+		this._sendAckCheck();
 	}
 
 	public acceptDisconnect(): void {

@@ -90,7 +90,9 @@ class Ether {
 		return <any>this._b;
 	}
 
-	constructor() {
+	constructor(
+		private readonly _wireLatency = 0
+	) {
 		this._a = new EtherStream(this, 'a');
 		this._b = new EtherStream(this, 'b');
 		this._ab = [];
@@ -98,13 +100,15 @@ class Ether {
 	}
 
 	public write(from: 'a' | 'b', data: Buffer): void {
-		if (from === 'a') {
-			this._ab.push(data);
-		} else {
-			this._ba.push(data);
-		}
+		setTimeout(() => {
+			if (from === 'a') {
+				this._ab.push(data);
+			} else {
+				this._ba.push(data);
+			}
 
-		setTimeout(() => this._deliver(), 0);
+			setTimeout(() => this._deliver(), 0);
+		}, this._wireLatency);
 	}
 
 	private _deliver(): void {
@@ -357,6 +361,68 @@ suite('PersistentProtocol reconnection', () => {
 				assert.strictEqual(timeoutListenerCalled, false);
 
 				socketTimeoutListener.dispose();
+				aMessages.dispose();
+				bMessages.dispose();
+				a.dispose();
+				b.dispose();
+			}
+		);
+	});
+
+	test('acks are always sent after a reconnection', async () => {
+		await runWithFakedTimers(
+			{
+				useFakeTimers: true,
+				useSetImmediate: true,
+				maxTaskCount: 1000
+			},
+			async () => {
+
+				const loadEstimator: ILoadEstimator = {
+					hasHighLoad: () => false
+				};
+				const wireLatency = 1000;
+				const ether = new Ether(wireLatency);
+				const aSocket = new NodeSocket(ether.a);
+				const a = new PersistentProtocol(aSocket, null, loadEstimator);
+				const aMessages = new MessageStream(a);
+				const bSocket = new NodeSocket(ether.b);
+				const b = new PersistentProtocol(bSocket, null, loadEstimator);
+				const bMessages = new MessageStream(b);
+
+				// send message a1 to have something unacknowledged
+				a.send(VSBuffer.fromString('a1'));
+				assert.strictEqual(a.unacknowledgedCount, 1);
+				assert.strictEqual(b.unacknowledgedCount, 0);
+
+				// read message a1 at B
+				const a1 = await bMessages.waitForOne();
+				assert.strictEqual(a1.toString(), 'a1');
+				assert.strictEqual(a.unacknowledgedCount, 1);
+				assert.strictEqual(b.unacknowledgedCount, 0);
+
+				// wait for B to send an ACK message,
+				// but resume before A receives it
+				await timeout(ProtocolConstants.AcknowledgeTime + wireLatency / 2);
+				assert.strictEqual(a.unacknowledgedCount, 1);
+				assert.strictEqual(b.unacknowledgedCount, 0);
+
+				// simulate complete reconnection
+				aSocket.dispose();
+				bSocket.dispose();
+				const ether2 = new Ether(wireLatency);
+				const aSocket2 = new NodeSocket(ether2.a);
+				const bSocket2 = new NodeSocket(ether2.b);
+				b.beginAcceptReconnection(bSocket2, null);
+				b.endAcceptReconnection();
+				a.beginAcceptReconnection(aSocket2, null);
+				a.endAcceptReconnection();
+
+				// wait for quite some time
+				await timeout(2 * ProtocolConstants.AcknowledgeTime + wireLatency);
+				assert.strictEqual(a.unacknowledgedCount, 0);
+				assert.strictEqual(b.unacknowledgedCount, 0);
+
 				aMessages.dispose();
 				bMessages.dispose();
 				a.dispose();
