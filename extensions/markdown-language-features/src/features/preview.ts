@@ -427,7 +427,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		const root = vscode.Uri.joinPath(this._resource, '../');
 		for (const src of srcs) {
 			const uri = urlToUri(src, root);
-			if (uri && uri.scheme === 'file' && !this._fileWatchersBySrc.has(src)) {
+			if (uri && !this._fileWatchersBySrc.has(src)) {
 				const watcher = vscode.workspace.createFileSystemWatcher(uri.fsPath);
 				watcher.onDidChange(() => {
 					this.refresh(true);
