@@ -254,11 +254,15 @@ export class PreReleaseBookmarkWidget extends ExtensionWidget {
 		if (this.extension.isBuiltin) {
 			return;
 		}
-		if (this.extension.hasPreReleaseVersion) {
-			this.element = append(this.parent, $('div.extension-bookmark'));
-			const preRelease = append(this.element, $('.pre-release'));
-			append(preRelease, $('span' + ThemeIcon.asCSSSelector(preReleaseIcon)));
+		if (!this.extension.hasPreReleaseVersion) {
+			return;
 		}
+		if (this.extension.state === ExtensionState.Installed && this.extension.local?.isPreReleaseVersion) {
+			return;
+		}
+		this.element = append(this.parent, $('div.extension-bookmark'));
+		const preRelease = append(this.element, $('.pre-release'));
+		append(preRelease, $('span' + ThemeIcon.asCSSSelector(preReleaseIcon)));
 	}
 
 }
