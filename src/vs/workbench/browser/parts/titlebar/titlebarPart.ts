@@ -49,7 +49,7 @@ import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
-const layoutControlIcon = registerIcon('layout-control', Codicon.editorLayout, localize('layoutControlIcon', "Icon for the layout control menu found in the title bar."));
+const layoutControlIcon = registerIcon('layout-control', Codicon.layout, localize('layoutControlIcon', "Icon for the layout control menu found in the title bar."));
 
 export class TitlebarPart extends Part implements ITitleService {
 
