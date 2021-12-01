@@ -3249,21 +3249,21 @@ class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, InternalE
 
 //#region UnicodeHighlight
 
-export type TrueIfUntrusted = 'trueIfUntrusted';
+export type InUntrustedWorkspace = 'inUntrustedWorkspace';
 
 /**
  * @internal
 */
-export const trueIfUntrusted: TrueIfUntrusted = 'trueIfUntrusted';
+export const inUntrustedWorkspace: InUntrustedWorkspace = 'inUntrustedWorkspace';
 
 /**
  * Configuration options for unicode highlighting.
  */
 export interface IUnicodeHighlightOptions {
-	nonBasicASCII?: boolean | TrueIfUntrusted;
+	nonBasicASCII?: boolean | InUntrustedWorkspace;
 	invisibleCharacters?: boolean;
 	ambiguousCharacters?: boolean;
-	includeComments?: boolean | TrueIfUntrusted;
+	includeComments?: boolean | InUntrustedWorkspace;
 	/**
 	 * A list of allowed code points in a single string.
 	*/
@@ -3289,10 +3289,10 @@ export const unicodeHighlightConfigKeys = {
 class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting, InternalUnicodeHighlightOptions> {
 	constructor() {
 		const defaults: InternalUnicodeHighlightOptions = {
-			nonBasicASCII: trueIfUntrusted,
+			nonBasicASCII: inUntrustedWorkspace,
 			invisibleCharacters: true,
 			ambiguousCharacters: true,
-			includeComments: trueIfUntrusted,
+			includeComments: inUntrustedWorkspace,
 			allowedCharacters: '',
 		};
 
@@ -3302,7 +3302,7 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 				[unicodeHighlightConfigKeys.nonBasicASCII]: {
 					restricted: true,
 					type: ['boolean', 'string'],
-					enum: [true, false, trueIfUntrusted],
+					enum: [true, false, inUntrustedWorkspace],
 					default: defaults.nonBasicASCII,
 					description: nls.localize('unicodeHighlight.nonBasicASCII', "Controls whether all non-basic ASCII characters are highlighted. Only characters between U+0020 and U+007E, tab, line-feed and carriage-return are considered basic ASCII.")
 				},
@@ -3321,7 +3321,7 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 				[unicodeHighlightConfigKeys.includeComments]: {
 					restricted: true,
 					type: ['boolean', 'string'],
-					enum: [true, false, trueIfUntrusted],
+					enum: [true, false, inUntrustedWorkspace],
 					default: defaults.includeComments,
 					description: nls.localize('unicodeHighlight.includeComments', "Controls whether characters in comments should also be subject to unicode highlighting.")
 				},
@@ -3341,10 +3341,10 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 		}
 		const input = _input as IUnicodeHighlightOptions;
 		return {
-			nonBasicASCII: primitiveSet<boolean | TrueIfUntrusted>(input.nonBasicASCII, trueIfUntrusted, [true, false, trueIfUntrusted]),
+			nonBasicASCII: primitiveSet<boolean | InUntrustedWorkspace>(input.nonBasicASCII, inUntrustedWorkspace, [true, false, inUntrustedWorkspace]),
 			invisibleCharacters: boolean(input.invisibleCharacters, this.defaultValue.invisibleCharacters),
 			ambiguousCharacters: boolean(input.ambiguousCharacters, this.defaultValue.ambiguousCharacters),
-			includeComments: primitiveSet<boolean | TrueIfUntrusted>(input.includeComments, trueIfUntrusted, [true, false, trueIfUntrusted]),
+			includeComments: primitiveSet<boolean | InUntrustedWorkspace>(input.includeComments, inUntrustedWorkspace, [true, false, inUntrustedWorkspace]),
 			allowedCharacters: string(input.allowedCharacters, ''),
 		};
 	}
