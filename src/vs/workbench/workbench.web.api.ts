@@ -412,6 +412,12 @@ interface IWorkbenchConstructionOptions {
 	 */
 	readonly codeExchangeProxyEndpoints?: { [providerId: string]: string }
 
+	/**
+	 * [TEMPORARY]: This will be removed soon.
+	 * Endpoints to be used for proxying repository tarball download calls in the browser.
+	 */
+	readonly tarballProxyEndpoints?: { [providerId: string]: string }
+
 	//#endregion
 
 
