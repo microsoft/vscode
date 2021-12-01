@@ -20,6 +20,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { UnicodeHighlighterOptions, UnicodeHighlighterReason, UnicodeHighlighterReasonKind, UnicodeTextModelHighlighter } from 'vs/editor/common/modes/unicodeTextModelHighlighter';
 import { IEditorWorkerService, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorkerService';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { isModelDecorationVisible } from 'vs/editor/common/viewModel/viewModelDecorations';
 import { HoverAnchor, HoverAnchorType, IEditorHover, IEditorHoverParticipant, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
 import { MarkdownHover, renderMarkdownHovers } from 'vs/editor/contrib/hover/markdownHoverParticipant';
 import { BannerController } from 'vs/editor/contrib/unicodeHighlighter/bannerController';
@@ -255,8 +256,21 @@ class DocumentUnicodeHighlighter extends Disposable {
 		if (!this._decorationIds.has(decorationId)) {
 			return null;
 		}
-		const range = this._editor.getModel().getDecorationRange(decorationId)!;
-		const text = this._editor.getModel().getValueInRange(range);
+		const model = this._editor.getModel();
+		const range = model.getDecorationRange(decorationId)!;
+		if (
+			!isModelDecorationVisible(model, {
+				range: range,
+				options: this._options.includeComments
+					? DECORATION
+					: DECORATION_HIDE_IN_COMMENTS,
+				id: decorationId,
+				ownerId: 0,
+			})
+		) {
+			return null;
+		}
+		const text = model.getValueInRange(range);
 		return {
 			reason: computeReason(text, this._options)!,
 		};
@@ -341,8 +355,21 @@ class ViewportUnicodeHighlighter extends Disposable {
 		if (!this._decorationIds.has(decorationId)) {
 			return null;
 		}
-		const range = this._editor.getModel().getDecorationRange(decorationId)!;
-		const text = this._editor.getModel().getValueInRange(range);
+		const model = this._editor.getModel();
+		const range = model.getDecorationRange(decorationId)!;
+		const text = model.getValueInRange(range);
+		if (
+			!isModelDecorationVisible(model, {
+				range: range,
+				options: this._options.includeComments
+					? DECORATION
+					: DECORATION_HIDE_IN_COMMENTS,
+				id: decorationId,
+				ownerId: 0,
+			})
+		) {
+			return null;
+		}
 		return {
 			reason: computeReason(text, this._options)!,
 		};

@@ -122,16 +122,8 @@ export class ViewModelDecorations implements IDisposable {
 			let modelDecoration = modelDecorations[i];
 			let decorationOptions = modelDecoration.options;
 
-			if (decorationOptions.hideInCommentTokens) {
-				let allTokensComments = testTokensInRange(
-					this.model,
-					modelDecoration.range,
-					(tokenType) => tokenType === StandardTokenType.Comment
-				);
-
-				if (allTokensComments) {
-					continue;
-				}
+			if (!isModelDecorationVisible(this.model, modelDecoration)) {
+				continue;
 			}
 
 			let viewModelDecoration = this._getOrCreateViewModelDecoration(modelDecoration);
@@ -174,6 +166,21 @@ export class ViewModelDecorations implements IDisposable {
 			inlineDecorations: inlineDecorations
 		};
 	}
+}
+
+export function isModelDecorationVisible(model: ITextModel, decoration: IModelDecoration): boolean {
+	if (decoration.options.hideInCommentTokens) {
+		const allTokensAreComments = testTokensInRange(
+			model,
+			decoration.range,
+			(tokenType) => tokenType === StandardTokenType.Comment
+		);
+		if (allTokensAreComments) {
+			return false;
+		}
+	}
+
+	return true;
 }
 
 /**
