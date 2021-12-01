@@ -38,9 +38,9 @@ interface ConfigFilePatterns {
 	relativePathPattern?: RegExp;
 }
 
-interface RootFilePatterns {
+interface RootFileMatcher {
 	tag: string;
-	rootPathPattern: RegExp;
+	matcher: (path: string) => boolean;
 }
 
 export async function collectWorkspaceStats(folder: string, filter: string[]): Promise<WorkspaceStats> {
@@ -66,14 +66,133 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 		{ tag: 'dockerfile', filePattern: /^(dockerfile|docker\-compose\.ya?ml)$/i }
 	];
 
-	const rootPathPatterns: RootFilePatterns[] = [
-		{ tag: 'gdrive', rootPathPattern: /(\/|\\)(my drive|shared drives)(\/|\\)/i },
-		{ tag: 'dropbox', rootPathPattern: /(\/|\\)dropbox( \([\w\s]+\))?(\/|\\)/i },
-		{ tag: 'gdrive', rootPathPattern: /(\/|\\)onedrive( - [\w\s]+)?(\/|\\)/i },
-		{ tag: 'box', rootPathPattern: /(\/|\\)box(\/|\\)/i },
-		{ tag: 'nextcloud', rootPathPattern: /(\/|\\)nextcloud(\/|\\)/i },
-		{ tag: 'owncloud', rootPathPattern: /(\/|\\)owncloud(\/|\\)/i },
-	];
+	let rootFileMatchers: RootFileMatcher[];
+
+	// Linux is omitted because few cloud sync clients support it, and for those who are available on Linux, there are multiple clients and they can be configured differently
+	switch (process.platform) {
+		case 'darwin':
+			const homeDir = osLib.homedir().toLowerCase();
+			rootFileMatchers = [
+				{
+					tag: 'gdrive', matcher: (path) => {
+						path = path.toLowerCase();
+						// File Streaming mode
+						if (path.match(/^[a-z]:\\(my drive|shared drives)\\/)) {
+							return true;
+						}
+						// Mirror Files mode
+						if (path.startsWith(homeDir + '\\my drive\\')) {
+							return true;
+						}
+						return false;
+					}
+				},
+				{
+					tag: 'dropbox', matcher: (path) => {
+						return path
+							.toLowerCase()
+							.startsWith(homeDir + '\\dropbox'); // Ending in *
+					}
+				},
+				{
+					tag: 'onedrive', matcher: (path) => {
+						return path
+							.toLowerCase()
+							.startsWith(homeDir + '\\onedrive'); // Ending in *
+					}
+				},
+				{
+					tag: 'box', matcher: (path) => {
+						return path
+							.toLowerCase()
+							.startsWith(homeDir + '\\box\\');
+					}
+				},
+				{
+					tag: 'nextcloud', matcher: (path) => {
+						return path
+							.toLowerCase()
+							.startsWith(homeDir + '\\nextcloud\\');
+					}
+				},
+				{
+					tag: 'owncloud', matcher: (path) => {
+						return path
+							.toLowerCase()
+							.startsWith(homeDir + '\\owncloud\\');
+					}
+				},
+			];
+			break;
+
+		case 'win32':
+			rootFileMatchers = [
+				{
+					tag: 'gdrive', matcher: (path) => {
+						path = path.toLowerCase();
+						// File Streaming mode
+						if (path.startsWith('/volumes/googledrive/')) {
+							return true;
+						}
+						// Mirror Files mode
+						if (path.startsWith(homeDir + '/my drive/')) {
+							return true;
+						}
+						return false;
+					}
+				},
+				{
+					tag: 'dropbox', matcher: (path) => {
+						return path
+							.toLowerCase()
+							.startsWith(homeDir + '/dropbox'); // Ending in *
+					}
+				},
+				{
+					tag: 'onedrive', matcher: (path) => {
+						path = path.toLowerCase();
+						// Old client
+						if (path.startsWith(homeDir + '/onedrive')) { // Ending in *
+							return true;
+						}
+						// New client
+						if (path.startsWith(homeDir + '/library/cloudstorage/onedrive')) { // Ending in *
+							return true;
+						}
+						return false;
+					}
+				},
+				{
+					tag: 'icloud', matcher: (path) => {
+						return path
+							.toLowerCase()
+							.startsWith(homeDir + '/library/mobile documents/');
+					}
+				},
+				{
+					tag: 'box', matcher: (path) => {
+						return path
+							.toLowerCase()
+							.startsWith(homeDir + '/box/');
+					}
+				},
+				{
+					tag: 'nextcloud', matcher: (path) => {
+						return path
+							.toLowerCase()
+							.startsWith(homeDir + '/nextcloud/');
+					}
+				},
+				{
+					tag: 'owncloud', matcher: (path) => {
+						return path
+							.toLowerCase()
+							.startsWith(homeDir + '/owncloud/');
+					}
+				},
+			];
+			break;
+	}
 
 	const fileTypes = new Map<string, number>();
 	const configFiles = new Map<string, number>();
@@ -81,8 +200,8 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 	const MAX_FILES = 20000;
 
 	function collect(root: string, dir: string, filter: string[], token: { count: number, maxReached: boolean }): Promise<void> {
-		for (const rootPath of rootPathPatterns) {
-			if (rootPath.rootPathPattern?.test(root) !== false) {
+		for (const rootPath of rootFileMatchers) {
+			if (rootPath.matcher(root)) {
 				configFiles.set(rootPath.tag, 1);
 			}
 		}
