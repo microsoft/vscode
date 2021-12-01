@@ -37,6 +37,8 @@ import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensi
 import { ApiProposalName, allApiProposals } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 import { forEach } from 'vs/base/common/collections';
 import { ILogService } from 'vs/platform/log/common/log';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
@@ -852,12 +854,15 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		const messageHandler = (msg: IMessage) => this._handleExtensionPointMessage(msg);
 		const availableExtensions = this._registry.getAllExtensionDescriptions();
 		const extensionPoints = ExtensionsRegistry.getExtensionPoints();
+
 		perf.mark('code/willHandleExtensionPoints');
-		for (const extensionPoint of extensionPoints) {
-			if (affectedExtensionPoints[extensionPoint.name]) {
-				AbstractExtensionService._handleExtensionPoint(extensionPoint, availableExtensions, messageHandler);
+		Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).withBufferedEvents(() => {
+			for (const extensionPoint of extensionPoints) {
+				if (affectedExtensionPoints[extensionPoint.name]) {
+					AbstractExtensionService._handleExtensionPoint(extensionPoint, availableExtensions, messageHandler);
+				}
 			}
-		}
+		});
 		perf.mark('code/didHandleExtensionPoints');
 	}
 

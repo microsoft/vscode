@@ -5,7 +5,7 @@
 
 import { distinct } from 'vs/base/common/arrays';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Event, PauseableEmitter } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as types from 'vs/base/common/types';
 import * as nls from 'vs/nls';
@@ -97,6 +97,12 @@ export interface IConfigurationRegistry {
 	 * Register the identifiers for editor configurations
 	 */
 	registerOverrideIdentifiers(identifiers: string[]): void;
+
+	/**
+	 *
+	 * @param callback
+	 */
+	withBufferedEvents<R = any>(callback: () => R): R;
 }
 
 export const enum ConfigurationScope {
@@ -229,10 +235,24 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	private readonly resourceLanguageSettingsSchema: IJSONSchema;
 	private readonly overrideIdentifiers = new Set<string>();
 
-	private readonly _onDidSchemaChange = new Emitter<void>();
+	private readonly _onDidSchemaChange = new PauseableEmitter<void>({ merge: () => { /* empty merge is important! */ } });
 	readonly onDidSchemaChange: Event<void> = this._onDidSchemaChange.event;
 
-	private readonly _onDidUpdateConfiguration = new Emitter<{ properties: string[], defaultsOverrides?: boolean }>();
+	private readonly _onDidUpdateConfiguration = new PauseableEmitter<{ properties: string[], defaultsOverrides?: boolean }>({
+		merge: array => {
+
+			const allProperties: string[][] = [];
+			let defaultsOverrides: boolean | undefined = undefined;
+			for (let e of array) {
+				allProperties.push(e.properties);
+				defaultsOverrides = defaultsOverrides || e.defaultsOverrides;
+			}
+			return {
+				properties: distinct(allProperties.flat()),
+				defaultsOverrides
+			};
+		}
+	});
 	readonly onDidUpdateConfiguration = this._onDidUpdateConfiguration.event;
 
 	constructor() {
@@ -249,6 +269,17 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 
 		contributionRegistry.registerSchema(resourceLanguageSettingsSchemaId, this.resourceLanguageSettingsSchema);
 		this.registerOverridePropertyPatternKey();
+	}
+
+	public withBufferedEvents<R = any>(callback: () => R): R {
+		this._onDidSchemaChange.pause();
+		this._onDidUpdateConfiguration.pause();
+		try {
+			return callback();
+		} finally {
+			this._onDidSchemaChange.resume();
+			this._onDidUpdateConfiguration.resume();
+		}
 	}
 
 	public registerConfiguration(configuration: IConfigurationNode, validate: boolean = true): void {
