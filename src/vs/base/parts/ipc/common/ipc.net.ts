@@ -901,17 +901,18 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	public endAcceptReconnection(): void {
 		this._isReconnecting = false;
 
+		// After a reconnection, let the other party know (again) which messages have been received.
+		// (perhaps the other party didn't receive a previous ACK)
+		this._incomingAckId = this._incomingMsgId;
+		const msg = new ProtocolMessage(ProtocolMessageType.Ack, 0, this._incomingAckId, getEmptyBuffer());
+		this._socketWriter.write(msg);
+
 		// Send again all unacknowledged messages
 		const toSend = this._outgoingUnackMsg.toArray();
 		for (let i = 0, len = toSend.length; i < len; i++) {
 			this._socketWriter.write(toSend[i]);
 		}
 		this._recvAckCheck();
-
-		// After a reconnection, let the other party know (again) which messages have been received.
-		// (perhaps the other party didn't receive a previous ACK)
-		this._incomingAckId = 0;
-		this._sendAckCheck();
 	}
 
 	public acceptDisconnect(): void {
