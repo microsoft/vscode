@@ -448,7 +448,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 30,
 		},
 		[TerminalSettingId.LocalEchoEnabled]: {
-			description: localize('terminal.integrated.localEchoEnabled', "When local echo should be enabled. This will override `terminal.integrated.localEchoLatencyThreshold`"),
+			markdownDescription: localize('terminal.integrated.localEchoEnabled', "When local echo should be enabled. This will override `#terminal.integrated.localEchoLatencyThreshold#`"),
 			type: 'string',
 			enum: ['on', 'off', 'auto'],
 			enumDescriptions: [
