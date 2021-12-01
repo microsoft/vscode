@@ -55,12 +55,13 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 
 	private addWorkspaceToRecentlyOpened(): void {
 		const workspace = this.workspaceService.getWorkspace();
+		const remoteAuthority = this.environmentService.remoteAuthority;
 		switch (this.workspaceService.getWorkbenchState()) {
 			case WorkbenchState.FOLDER:
-				this.addRecentlyOpened([{ folderUri: workspace.folders[0].uri }]);
+				this.addRecentlyOpened([{ folderUri: workspace.folders[0].uri, remoteAuthority }]);
 				break;
 			case WorkbenchState.WORKSPACE:
-				this.addRecentlyOpened([{ workspace: { id: workspace.id, configPath: workspace.configuration! } }]);
+				this.addRecentlyOpened([{ workspace: { id: workspace.id, configPath: workspace.configuration! }, remoteAuthority }]);
 				break;
 		}
 	}
