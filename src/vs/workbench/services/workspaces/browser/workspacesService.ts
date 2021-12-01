@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkspacesService, IWorkspaceFolderCreationData, IWorkspaceIdentifier, IEnterWorkspaceResult, IRecentlyOpened, restoreRecentlyOpened, IRecent, isRecentFile, isRecentFolder, toStoreData, IStoredWorkspaceFolder, getStoredWorkspaceFolder, WORKSPACE_EXTENSION, IStoredWorkspace } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesService, IWorkspaceFolderCreationData, IWorkspaceIdentifier, IEnterWorkspaceResult, IRecentlyOpened, restoreRecentlyOpened, IRecent, isRecentFile, isRecentFolder, toStoreData, IStoredWorkspaceFolder, getStoredWorkspaceFolder, WORKSPACE_EXTENSION, IStoredWorkspace, IFolderBackupInfo, IWorkspaceBackupInfo } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -167,7 +167,7 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 
 	//#region Dirty Workspaces
 
-	async getDirtyWorkspaces(): Promise<Array<IWorkspaceIdentifier | URI>> {
+	async getDirtyWorkspaces(): Promise<Array<IWorkspaceBackupInfo | IFolderBackupInfo>> {
 		return []; // Currently not supported in web
 	}
 
