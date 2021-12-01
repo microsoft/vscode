@@ -121,6 +121,14 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			'anyOf': [
 				{ type: 'null' },
 				terminalProfileSchema
+			],
+			defaultSnippets: [
+				{
+					body: {
+						path: '${1}',
+						icon: '${2}'
+					}
+				}
 			]
 		},
 		[TerminalSettingId.AutomationProfileMacOs]: {
@@ -131,6 +139,14 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			'anyOf': [
 				{ type: 'null' },
 				terminalProfileSchema
+			],
+			defaultSnippets: [
+				{
+					body: {
+						path: '${1}',
+						icon: '${2}'
+					}
+				}
 			]
 		},
 		[TerminalSettingId.AutomationProfileWindows]: {
@@ -141,6 +157,14 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			'anyOf': [
 				{ type: 'null' },
 				terminalProfileSchema
+			],
+			defaultSnippets: [
+				{
+					body: {
+						path: '${1}',
+						icon: '${2}'
+					}
+				}
 			]
 		},
 		[TerminalSettingId.ShellLinux]: {
