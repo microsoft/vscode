@@ -38,6 +38,11 @@ interface ConfigFilePatterns {
 	relativePathPattern?: RegExp;
 }
 
+interface RootFilePatterns {
+	tag: string;
+	rootPathPattern: RegExp;
+}
+
 export async function collectWorkspaceStats(folder: string, filter: string[]): Promise<WorkspaceStats> {
 	const configFilePatterns: ConfigFilePatterns[] = [
 		{ tag: 'grunt.js', filePattern: /^gruntfile\.js$/i },
@@ -61,12 +66,27 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 		{ tag: 'dockerfile', filePattern: /^(dockerfile|docker\-compose\.ya?ml)$/i }
 	];
 
+	const rootPathPatterns: RootFilePatterns[] = [
+		{ tag: 'gdrive', rootPathPattern: /(\/|\\)(my drive|shared drives)(\/|\\)/i },
+		{ tag: 'dropbox', rootPathPattern: /(\/|\\)dropbox( \([\w\s]+\))?(\/|\\)/i },
+		{ tag: 'gdrive', rootPathPattern: /(\/|\\)onedrive( - [\w\s]+)?(\/|\\)/i },
+		{ tag: 'box', rootPathPattern: /(\/|\\)box(\/|\\)/i },
+		{ tag: 'nextcloud', rootPathPattern: /(\/|\\)nextcloud(\/|\\)/i },
+		{ tag: 'owncloud', rootPathPattern: /(\/|\\)owncloud(\/|\\)/i },
+	];
+
 	const fileTypes = new Map<string, number>();
 	const configFiles = new Map<string, number>();
 
 	const MAX_FILES = 20000;
 
 	function collect(root: string, dir: string, filter: string[], token: { count: number, maxReached: boolean }): Promise<void> {
+		for (const rootPath of rootPathPatterns) {
+			if (rootPath.rootPathPattern?.test(root) !== false) {
+				configFiles.set(rootPath.tag, 1);
+			}
+		}
+
 		const relativePath = dir.substring(root.length + 1);
 
 		return Promises.withAsyncBody(async resolve => {
