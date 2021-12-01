@@ -17,7 +17,7 @@ import { Dto } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { RenderLineNumbersType, TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence, ISingleEditOperation } from 'vs/editor/common/model';
@@ -1441,6 +1441,21 @@ export const enum ISuggestDataDtoField {
 	kindModifier = 'n',
 }
 
+export namespace RangeSuggestDataDto {
+	export type ISuggestRangeDto = [number, number, number, number];
+	export function to(range: IRange): ISuggestRangeDto {
+		return [range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn];
+	}
+	export function from(range: ISuggestRangeDto | { insert: IRange; replace: IRange } | undefined): IRange | { insert: IRange, replace: IRange } {
+		return (Array.isArray(range) && range.length === 4) ? Range.lift({
+			startLineNumber: range[0],
+			startColumn: range[1],
+			endLineNumber: range[2],
+			endColumn: range[3],
+		}) : range as { insert: IRange, replace: IRange };
+	}
+}
+
 export interface ISuggestDataDto {
 	[ISuggestDataDtoField.label]: string | modes.CompletionItemLabel;
 	[ISuggestDataDtoField.kind]?: modes.CompletionItemKind;
@@ -1451,7 +1466,7 @@ export interface ISuggestDataDto {
 	[ISuggestDataDtoField.preselect]?: true;
 	[ISuggestDataDtoField.insertText]?: string;
 	[ISuggestDataDtoField.insertTextRules]?: modes.CompletionItemInsertTextRule;
-	[ISuggestDataDtoField.range]?: IRange | { insert: IRange, replace: IRange; };
+	[ISuggestDataDtoField.range]?: RangeSuggestDataDto.ISuggestRangeDto | { insert: IRange, replace: IRange; };
 	[ISuggestDataDtoField.commitCharacters]?: string[];
 	[ISuggestDataDtoField.additionalTextEdits]?: ISingleEditOperation[];
 	[ISuggestDataDtoField.command]?: modes.Command;

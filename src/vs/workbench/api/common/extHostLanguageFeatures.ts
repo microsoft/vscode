@@ -1009,7 +1009,7 @@ class SuggestAdapter {
 
 		if (Range.isRange(range)) {
 			// "old" range
-			result[extHostProtocol.ISuggestDataDtoField.range] = typeConvert.Range.from(range);
+			result[extHostProtocol.ISuggestDataDtoField.range] = extHostProtocol.RangeSuggestDataDto.to(typeConvert.Range.from(range));
 
 		} else if (range && (!defaultInsertRange?.isEqual(range.inserting) || !defaultReplaceRange?.isEqual(range.replacing))) {
 			// ONLY send range when it's different from the default ranges (safe bandwidth)
