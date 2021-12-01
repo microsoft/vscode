@@ -96,6 +96,7 @@ export function getLocalExtensionTelemetryData(extension: ILocalExtension): any 
 		"publisherId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"publisherName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"publisherDisplayName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"isPreReleaseVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"dependencies": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 		"${include}": [
 			"${GalleryExtensionTelemetryData2}"
@@ -110,6 +111,7 @@ export function getGalleryExtensionTelemetryData(extension: IGalleryExtension): 
 		publisherId: extension.publisherId,
 		publisherName: extension.publisher,
 		publisherDisplayName: extension.publisherDisplayName,
+		isPreReleaseVersion: extension.properties.isPreReleaseVersion,
 		dependencies: !!(extension.properties.dependencies && extension.properties.dependencies.length > 0),
 		...extension.telemetryData
 	};
