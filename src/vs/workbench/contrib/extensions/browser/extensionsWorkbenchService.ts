@@ -222,6 +222,10 @@ class Extension implements IExtension {
 		return !!this.gallery?.hasPreReleaseVersion;
 	}
 
+	get hasReleaseVersion(): boolean {
+		return !!this.gallery?.hasReleaseVersion;
+	}
+
 	private getLocal(preRelease: boolean): ILocalExtension | undefined {
 		return this.local && !this.outdated && this.local.isPreReleaseVersion === preRelease ? this.local : undefined;
 	}

@@ -257,6 +257,7 @@ export interface IGalleryExtension {
 	lastUpdated: number;
 	preview: boolean;
 	hasPreReleaseVersion: boolean;
+	hasReleaseVersion: boolean;
 	allTargetPlatforms: TargetPlatform[];
 	assets: IGalleryExtensionAssets;
 	properties: IGalleryExtensionProperties;
