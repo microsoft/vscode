@@ -2343,6 +2343,7 @@ function aGalleryExtension(name: string, properties: any = {}, galleryExtensionP
 	galleryExtension.properties = { ...galleryExtension.properties, dependencies: [], targetPlatform, ...galleryExtensionProperties };
 	galleryExtension.assets = { ...galleryExtension.assets, ...assets };
 	galleryExtension.identifier = { id: getGalleryExtensionId(galleryExtension.publisher, galleryExtension.name), uuid: generateUuid() };
+	galleryExtension.hasReleaseVersion = true;
 	return <IGalleryExtension>galleryExtension;
 }
 
