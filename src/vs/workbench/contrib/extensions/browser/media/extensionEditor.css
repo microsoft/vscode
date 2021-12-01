@@ -88,8 +88,7 @@
 	margin-left: 10px;
 }
 
-.extension-editor > .header > .details > .title > .pre-release:not(:empty) {
-	display: flex;
+.extension-editor > .header > .details > .title > .pre-release {
 	font-size: 10px;
 	margin-left: 10px;
 	padding: 0px 4px;

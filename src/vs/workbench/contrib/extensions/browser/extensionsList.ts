@@ -138,7 +138,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			extensionPackBadgeWidget,
 			headerRemoteBadgeWidget,
 			extensionHoverWidget,
-			this.instantiationService.createInstance(PreReleaseIndicatorWidget, preRelease, { icon: true, label: false, enableOnlyForInstalled: true }),
+			this.instantiationService.createInstance(PreReleaseIndicatorWidget, preRelease),
 			this.instantiationService.createInstance(SyncIgnoredWidget, syncIgnore),
 			this.instantiationService.createInstance(ExtensionActivationStatusWidget, activationStatus, true),
 			this.instantiationService.createInstance(InstallCountWidget, installCount, true),

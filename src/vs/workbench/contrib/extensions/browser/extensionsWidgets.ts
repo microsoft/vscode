@@ -162,7 +162,6 @@ export class PreReleaseIndicatorWidget extends ExtensionWidget {
 
 	constructor(
 		private readonly container: HTMLElement,
-		private readonly options: { label: boolean, icon: boolean, enableOnlyForInstalled: boolean },
 	) {
 		super();
 		container.classList.add('extension-pre-release');
@@ -180,16 +179,11 @@ export class PreReleaseIndicatorWidget extends ExtensionWidget {
 			return;
 		}
 
-		if (this.options.enableOnlyForInstalled && this.extension.state !== ExtensionState.Installed) {
+		if (this.extension.state !== ExtensionState.Installed) {
 			return;
 		}
 
-		if (this.options?.icon) {
-			append(this.container, $('span' + ThemeIcon.asCSSSelector(preReleaseIcon)));
-		}
-		if (this.options?.label) {
-			append(this.container, $('span.pre-releaselabel', undefined, localize('pre-release-label', "Pre-Release")));
-		}
+		append(this.container, $('span' + ThemeIcon.asCSSSelector(preReleaseIcon)));
 	}
 }
 
@@ -593,8 +587,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		if (extension.local?.isPreReleaseVersion || extension.gallery?.properties.isPreReleaseVersion) {
 			return undefined;
 		}
-		const preReleaseVersionLink = `[${localize('Show prerelease version', "Pre-Release version")}](${URI.parse(`command:workbench.extensions.action.showPreReleaseVersion?${encodeURIComponent(JSON.stringify([extension.identifier.id]))}`)})`;
-		return localize('has prerelease', "This extension has a {0} available", preReleaseVersionLink);
+		return localize('has prerelease', "This extension has a Pre-Release version available");
 	}
 
 }
