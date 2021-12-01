@@ -99,8 +99,7 @@ export interface IConfigurationRegistry {
 	registerOverrideIdentifiers(identifiers: string[]): void;
 
 	/**
-	 *
-	 * @param callback
+	 * Invokes `callback`, pauses events while it runs, and sends composite events after that.
 	 */
 	withBufferedEvents<R = any>(callback: () => R): R;
 }
@@ -239,13 +238,12 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	readonly onDidSchemaChange: Event<void> = this._onDidSchemaChange.event;
 
 	private readonly _onDidUpdateConfiguration = new PauseableEmitter<{ properties: string[], defaultsOverrides?: boolean }>({
-		merge: array => {
-
+		merge: all => {
 			const allProperties: string[][] = [];
 			let defaultsOverrides: boolean | undefined = undefined;
-			for (let e of array) {
-				allProperties.push(e.properties);
-				defaultsOverrides = defaultsOverrides || e.defaultsOverrides;
+			for (const event of all) {
+				allProperties.push(event.properties);
+				defaultsOverrides = defaultsOverrides || event.defaultsOverrides;
 			}
 			return {
 				properties: distinct(allProperties.flat()),
