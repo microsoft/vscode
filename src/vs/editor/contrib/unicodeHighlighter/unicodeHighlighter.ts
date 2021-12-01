@@ -605,7 +605,7 @@ export class ShowExcludeOptions extends EditorAction {
 
 		function getExcludeCharFromBeingHighlightedLabel(codePoint: number) {
 			if (InvisibleCharacters.isInvisibleCharacter(codePoint)) {
-				return nls.localize('unicodeHighlight.excludeInvisibleCharFromBeingHighlighted', 'Exclude {0} (invisible) from being highlighted', `U+${codePoint.toString(16)}`);
+				return nls.localize('unicodeHighlight.excludeInvisibleCharFromBeingHighlighted', 'Exclude {0} (invisible character) from being highlighted', `U+${codePoint.toString(16)}`);
 			}
 			return nls.localize('unicodeHighlight.excludeCharFromBeingHighlighted', 'Exclude {0} from being highlighted', `U+${codePoint.toString(16)} "${char}"`);
 		}
