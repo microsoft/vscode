@@ -429,7 +429,7 @@ export class ExtensionEditor extends EditorPane {
 		}
 
 		const widgets = [
-			this.instantiationService.createInstance(PreReleaseIndicatorWidget, template.preRelease, { label: true, icon: false }),
+			this.instantiationService.createInstance(PreReleaseIndicatorWidget, template.preRelease, { label: true, icon: false, enableOnlyForInstalled: false }),
 			remoteBadge,
 			this.instantiationService.createInstance(InstallCountWidget, template.installCount, false),
 			this.instantiationService.createInstance(RatingsWidget, template.rating, false)

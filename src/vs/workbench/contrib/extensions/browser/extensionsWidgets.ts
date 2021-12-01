@@ -162,7 +162,7 @@ export class PreReleaseIndicatorWidget extends ExtensionWidget {
 
 	constructor(
 		private readonly container: HTMLElement,
-		private readonly options: { label: boolean, icon: boolean },
+		private readonly options: { label: boolean, icon: boolean, enableOnlyForInstalled: boolean },
 	) {
 		super();
 		container.classList.add('extension-pre-release');
@@ -177,6 +177,10 @@ export class PreReleaseIndicatorWidget extends ExtensionWidget {
 		}
 
 		if (!this.extension.local?.isPreReleaseVersion && !this.extension.gallery?.properties.isPreReleaseVersion) {
+			return;
+		}
+
+		if (this.options.enableOnlyForInstalled && this.extension.state !== ExtensionState.Installed) {
 			return;
 		}
 
