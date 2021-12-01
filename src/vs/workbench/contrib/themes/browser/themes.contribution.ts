@@ -312,7 +312,7 @@ class InstalledThemesPicker {
 					quickpick.hide();
 					s();
 				});
-				quickpick.onDidChangeActive(themes => selectTheme(themes[0].theme, false));
+				quickpick.onDidChangeActive(themes => selectTheme(themes[0]?.theme, false));
 				quickpick.onDidHide(() => {
 					if (!isCompleted) {
 						selectTheme(currentTheme, true);
