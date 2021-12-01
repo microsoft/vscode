@@ -652,12 +652,12 @@
 			"patterns": [
 				{
 					"comment": "control flow keywords",
-					"name": "keyword.control.rust",
+					"name": "keyword.control.$1.rust",
 					"match": "\\b(await|break|continue|do|else|for|if|loop|match|return|try|while|yield)\\b"
 				},
 				{
 					"comment": "storage keywords",
-					"name": "keyword.other.rust storage.type.rust",
+					"name": "keyword.other.$1.rust storage.type.rust",
 					"match": "\\b(extern|let|macro|mod)\\b"
 				},
 				{
@@ -692,7 +692,7 @@
 				},
 				{
 					"comment": "other keywords",
-					"name": "keyword.other.rust",
+					"name": "keyword.other.$1.rust",
 					"match": "\\b(as|async|become|box|dyn|move|final|impl|in|override|priv|pub|ref|typeof|union|unsafe|unsized|use|virtual|where)\\b"
 				},
 				{
