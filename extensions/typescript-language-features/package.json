@@ -63,6 +63,7 @@
     "onCommand:javascript.goToProjectConfig",
     "onCommand:typescript.goToProjectConfig",
     "onCommand:typescript.openTsServerLog",
+    "onCommand:typescript.tsserverRequest",
     "onCommand:workbench.action.tasks.runTask",
     "onCommand:_typescript.configurePlugin",
     "onCommand:_typescript.learnMoreAboutRefactorings",
