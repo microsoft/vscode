@@ -70,7 +70,7 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 
 	// Linux is omitted because few cloud sync clients support it, and for those who are available on Linux, there are multiple clients and they can be configured differently
 	switch (process.platform) {
-		case 'darwin':
+		case 'win32':
 			const homeDir = osLib.homedir().toLowerCase();
 			rootFileMatchers = [
 				{
@@ -125,7 +125,7 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 			];
 			break;
 
-		case 'win32':
+		case 'darwin':
 			rootFileMatchers = [
 				{
 					tag: 'gdrive', matcher: (path) => {
