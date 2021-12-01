@@ -75,15 +75,8 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 			rootFileMatchers = [
 				{
 					tag: 'gdrive', matcher: (path) => {
-						// File Streaming mode
-						if (path.match(/^[a-z]:\\(my drive|shared drives)\\/)) {
-							return true;
-						}
-						// Mirror Files mode
-						if (path.startsWith(homeDir + '\\my drive\\')) {
-							return true;
-						}
-						return false;
+						// File Streaming or Mirror Files mode
+						return /^[a-z]:\\(my drive|shared drives)\\/.test(path) || path.startsWith(homeDir + '\\my drive\\');
 					}
 				},
 				{
@@ -109,14 +102,7 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 				{
 					tag: 'gdrive', matcher: (path) => {
 						// File Streaming mode
-						if (path.startsWith('/volumes/googledrive/')) {
-							return true;
-						}
-						// Mirror Files mode
-						if (path.startsWith(homeDir + '/my drive/')) {
-							return true;
-						}
-						return false;
+						return path.startsWith('/volumes/googledrive/') || path.startsWith(homeDir + '/my drive/');
 					}
 				},
 				{
@@ -124,15 +110,8 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 				},
 				{
 					tag: 'onedrive', matcher: (path) => {
-						// Old client
-						if (path.startsWith(homeDir + '/onedrive')) { // Ending in *
-							return true;
-						}
-						// New client
-						if (path.startsWith(homeDir + '/library/cloudstorage/onedrive')) { // Ending in *
-							return true;
-						}
-						return false;
+						// Old vs new client
+						return path.startsWith(homeDir + '/onedrive') || path.startsWith(homeDir + '/library/cloudstorage/onedrive');
 					}
 				},
 				{
