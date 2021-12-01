@@ -19,7 +19,6 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 
 	private ignoreBeforeUnload = false;
 
-	private didBeforeUnload = false;
 	private didUnload = false;
 
 	constructor(
@@ -33,9 +32,6 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 
 	private registerListeners(): void {
 
-		// Listen to `pageshow` to handle unsupported `persisted: true` cases
-		this._register(addDisposableListener(window, EventType.PAGE_SHOW, (e: PageTransitionEvent) => this.onLoad(e)));
-
 		// Listen to `beforeUnload` to support to veto
 		this.beforeUnloadListener = addDisposableListener(window, EventType.BEFORE_UNLOAD, (e: BeforeUnloadEvent) => this.onBeforeUnload(e));
 
@@ -45,37 +41,6 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 		// We currently do not handle the `persisted` property
 		// (https://github.com/microsoft/vscode/issues/136216)
 		this.unloadListener = addDisposableListener(window, EventType.PAGE_HIDE, () => this.onUnload());
-	}
-
-	private onLoad(event: PageTransitionEvent): void {
-
-		// We only really care about page-show events
-		// where the browser indicates to us that the
-		// page was restored from cache and not freshly
-		// loaded.
-		const wasRestoredFromCache = event.persisted;
-		if (!wasRestoredFromCache) {
-			return;
-		}
-
-		// We only really care about `persisted` page-show
-		// events if there is a chance that we were unloaded
-		// before and now potentially have a disposed workbench
-		// that is non-functional.
-		// To be on the safe side, we ignore this event in any
-		// other cases to not accidentally reload the workbench.
-		const handleLoadEvent = this.didBeforeUnload;
-		if (!handleLoadEvent) {
-			return;
-		}
-
-		// At this point, we know that the page was restored from
-		// cache even though it was potentially unloaded before,
-		// so in order to get back to a functional workbench, we
-		// currently can only reload the window
-		// Docs: https://web.dev/bfcache/#optimize-your-pages-for-bfcache
-		// Refs: https://github.com/microsoft/vscode/issues/136035
-		this.withExpectedShutdown({ disableShutdownHandling: true }, () => window.location.reload());
 	}
 
 	private onBeforeUnload(event: BeforeUnloadEvent): void {
@@ -141,8 +106,6 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 	private doShutdown(vetoShutdown?: () => void): void {
 		const logService = this.logService;
 
-		this.didBeforeUnload = true;
-
 		// Optimistically trigger a UI state flush
 		// without waiting for it. The browser does
 		// not guarantee that this is being executed
@@ -188,9 +151,11 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 
 		this.didUnload = true;
 
-		const logService = this.logService;
+		// Register a late `pageshow` listener specifically on unload
+		this._register(addDisposableListener(window, EventType.PAGE_SHOW, (e: PageTransitionEvent) => this.onLoadAfterUnload(e)));
 
 		// First indicate will-shutdown
+		const logService = this.logService;
 		this._onWillShutdown.fire({
 			join(promise, id) {
 				logService.error(`[lifecycle] Long running operations during shutdown are unsupported in the web (id: ${id})`);
@@ -200,6 +165,26 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 
 		// Finally end with did-shutdown
 		this._onDidShutdown.fire();
+	}
+
+	private onLoadAfterUnload(event: PageTransitionEvent): void {
+
+		// We only really care about page-show events
+		// where the browser indicates to us that the
+		// page was restored from cache and not freshly
+		// loaded.
+		const wasRestoredFromCache = event.persisted;
+		if (!wasRestoredFromCache) {
+			return;
+		}
+
+		// At this point, we know that the page was restored from
+		// cache even though it was unloaded before,
+		// so in order to get back to a functional workbench, we
+		// currently can only reload the window
+		// Docs: https://web.dev/bfcache/#optimize-your-pages-for-bfcache
+		// Refs: https://github.com/microsoft/vscode/issues/136035
+		this.withExpectedShutdown({ disableShutdownHandling: true }, () => window.location.reload());
 	}
 }
 
