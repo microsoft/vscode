@@ -69,13 +69,12 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 	let rootFileMatchers: RootFileMatcher[];
 
 	// Linux is omitted because few cloud sync clients support it, and for those who are available on Linux, there are multiple clients and they can be configured differently
+	const homeDir = osLib.homedir().toLowerCase();
 	switch (process.platform) {
 		case 'win32':
-			const homeDir = osLib.homedir().toLowerCase();
 			rootFileMatchers = [
 				{
 					tag: 'gdrive', matcher: (path) => {
-						path = path.toLowerCase();
 						// File Streaming mode
 						if (path.match(/^[a-z]:\\(my drive|shared drives)\\/)) {
 							return true;
@@ -88,39 +87,19 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 					}
 				},
 				{
-					tag: 'dropbox', matcher: (path) => {
-						return path
-							.toLowerCase()
-							.startsWith(homeDir + '\\dropbox'); // Ending in *
-					}
+					tag: 'dropbox', matcher: path => path.startsWith(homeDir + '\\dropbox') // Ending in *
 				},
 				{
-					tag: 'onedrive', matcher: (path) => {
-						return path
-							.toLowerCase()
-							.startsWith(homeDir + '\\onedrive'); // Ending in *
-					}
+					tag: 'onedrive', matcher: path => path.startsWith(homeDir + '\\onedrive') // Ending in *
 				},
 				{
-					tag: 'box', matcher: (path) => {
-						return path
-							.toLowerCase()
-							.startsWith(homeDir + '\\box\\');
-					}
+					tag: 'box', matcher: path => path.startsWith(homeDir + '\\box\\')
 				},
 				{
-					tag: 'nextcloud', matcher: (path) => {
-						return path
-							.toLowerCase()
-							.startsWith(homeDir + '\\nextcloud\\');
-					}
+					tag: 'nextcloud', matcher: path => path.startsWith(homeDir + '\\nextcloud\\')
 				},
 				{
-					tag: 'owncloud', matcher: (path) => {
-						return path
-							.toLowerCase()
-							.startsWith(homeDir + '\\owncloud\\');
-					}
+					tag: 'owncloud', matcher: path => path.startsWith(homeDir + '\\owncloud\\')
 				},
 			];
 			break;
@@ -129,7 +108,6 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 			rootFileMatchers = [
 				{
 					tag: 'gdrive', matcher: (path) => {
-						path = path.toLowerCase();
 						// File Streaming mode
 						if (path.startsWith('/volumes/googledrive/')) {
 							return true;
@@ -142,15 +120,10 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 					}
 				},
 				{
-					tag: 'dropbox', matcher: (path) => {
-						return path
-							.toLowerCase()
-							.startsWith(homeDir + '/dropbox'); // Ending in *
-					}
+					tag: 'dropbox', matcher: path => path.startsWith(homeDir + '/dropbox') // Ending in *
 				},
 				{
 					tag: 'onedrive', matcher: (path) => {
-						path = path.toLowerCase();
 						// Old client
 						if (path.startsWith(homeDir + '/onedrive')) { // Ending in *
 							return true;
@@ -163,32 +136,16 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 					}
 				},
 				{
-					tag: 'icloud', matcher: (path) => {
-						return path
-							.toLowerCase()
-							.startsWith(homeDir + '/library/mobile documents/');
-					}
+					tag: 'icloud', matcher: path => path.startsWith(homeDir + '/library/mobile documents/')
 				},
 				{
-					tag: 'box', matcher: (path) => {
-						return path
-							.toLowerCase()
-							.startsWith(homeDir + '/box/');
-					}
+					tag: 'box', matcher: path => path.startsWith(homeDir + '/box/')
 				},
 				{
-					tag: 'nextcloud', matcher: (path) => {
-						return path
-							.toLowerCase()
-							.startsWith(homeDir + '/nextcloud/');
-					}
+					tag: 'nextcloud', matcher: path => path.startsWith(homeDir + '/nextcloud/')
 				},
 				{
-					tag: 'owncloud', matcher: (path) => {
-						return path
-							.toLowerCase()
-							.startsWith(homeDir + '/owncloud/');
-					}
+					tag: 'owncloud', matcher: path => path.startsWith(homeDir + '/owncloud/')
 				},
 			];
 			break;
@@ -201,7 +158,8 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 
 	function collect(root: string, dir: string, filter: string[], token: { count: number, maxReached: boolean }): Promise<void> {
 		for (const rootPath of rootFileMatchers) {
-			if (rootPath.matcher(root)) {
+			const lowercaseRoot = root.toLowerCase();
+			if (rootPath.matcher(lowercaseRoot)) {
 				configFiles.set(rootPath.tag, 1);
 			}
 		}
