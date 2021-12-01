@@ -41,7 +41,7 @@ export function setup(opts: ParsedArgs) {
 				]);
 			});
 
-			it('should persist buffer content', async () => {
+			it.skip('should persist buffer content', async () => {
 				await terminal.runCommand(TerminalCommandId.CreateNew);
 				// TODO: Handle passing in an actual regex, not string
 				await terminal.assertTerminalGroups([
