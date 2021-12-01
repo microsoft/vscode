@@ -573,7 +573,7 @@ export abstract class PersistentConnection extends Disposable {
 		}));
 		this._register(protocol.onSocketTimeout(() => {
 			const logPrefix = commonLogPrefix(this._connectionType, this.reconnectionToken, true);
-			this._options.logService.trace(`${logPrefix} received socket timeout event.`);
+			this._options.logService.info(`${logPrefix} received socket timeout event.`);
 			this._beginReconnecting();
 		}));
 
