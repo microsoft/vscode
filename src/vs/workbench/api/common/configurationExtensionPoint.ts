@@ -132,7 +132,7 @@ defaultConfigurationExtPoint.setHandler((extensions, { added, removed }) => {
 			for (const key of Object.keys(overrides)) {
 				if (!OVERRIDE_PROPERTY_REGEX.test(key)) {
 					const registeredPropertyScheme = registeredProperties[key];
-					if (registeredPropertyScheme.scope && !allowedScopes.includes(registeredPropertyScheme.scope)) {
+					if (registeredPropertyScheme?.scope && !allowedScopes.includes(registeredPropertyScheme.scope)) {
 						extension.collector.warn(nls.localize('config.property.defaultConfiguration.warning', "Cannot register configuration defaults for '{0}'. Only defaults for machine-overridable, window, resource and language overridable scoped settings are supported.", key));
 						delete overrides[key];
 					}

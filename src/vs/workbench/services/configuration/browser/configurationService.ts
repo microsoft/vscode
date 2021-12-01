@@ -1155,7 +1155,7 @@ class UpdateExperimentalSettingsDefaults extends Disposable implements IWorkbenc
 		const allProperties = this.configurationRegistry.getConfigurationProperties();
 		for (const property of properties) {
 			const schema = allProperties[property];
-			if (!schema.tags?.includes('experimental')) {
+			if (!schema?.tags?.includes('experimental')) {
 				continue;
 			}
 			if (this.processedExperimentalSettings.has(property)) {
