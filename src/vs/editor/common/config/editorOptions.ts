@@ -12,6 +12,8 @@ import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import * as arrays from 'vs/base/common/arrays';
+import * as objects from 'vs/base/common/objects';
 
 //#region typed options
 
@@ -806,6 +808,11 @@ export interface IEditorOption<K1 extends EditorOption, V> {
 	 * @internal
 	 */
 	compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: V): V;
+
+	/**
+	 * Might modify `value`.
+	*/
+	applyUpdate(value: V, update: V): ApplyUpdateResult<V>;
 }
 
 type PossibleKeyName0<V> = { [K in keyof IEditorOptions]: IEditorOptions[K] extends V | undefined ? K : never }[keyof IEditorOptions];
@@ -828,11 +835,43 @@ abstract class BaseEditorOption<K1 extends EditorOption, V> implements IEditorOp
 		this.schema = schema;
 	}
 
+	public applyUpdate(value: V, update: V): ApplyUpdateResult<V> {
+		return applyUpdate(value, update);
+	}
+
 	public abstract validate(input: any): V;
 
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: V): V {
 		return value;
 	}
+}
+
+export class ApplyUpdateResult<T> {
+	constructor(
+		public readonly newValue: T,
+		public readonly didChange: boolean
+	) { }
+}
+
+function applyUpdate<T>(value: T, update: T): ApplyUpdateResult<T> {
+	if (typeof value !== 'object' || typeof update !== 'object') {
+		return new ApplyUpdateResult(update, value === update);
+	}
+	if (Array.isArray(value) || Array.isArray(update)) {
+		const arrayEquals = Array.isArray(value) && Array.isArray(update) && arrays.equals(value, update);
+		return new ApplyUpdateResult(update, arrayEquals);
+	}
+	let didChange = false;
+	for (let key in update) {
+		if ((value as T & object).hasOwnProperty(key)) {
+			const result = applyUpdate(value[key], update[key]);
+			if (result.didChange) {
+				value[key] = result.newValue;
+				didChange = true;
+			}
+		}
+	}
+	return new ApplyUpdateResult(value, didChange);
 }
 
 /**
@@ -851,6 +890,10 @@ abstract class ComputedEditorOption<K1 extends EditorOption, V> implements IEdit
 		this.name = '_never_';
 		this.defaultValue = <any>undefined;
 		this.deps = deps;
+	}
+
+	public applyUpdate(value: V, update: V): ApplyUpdateResult<V> {
+		return applyUpdate(value, update);
 	}
 
 	public validate(input: any): V {
@@ -872,6 +915,10 @@ class SimpleEditorOption<K1 extends EditorOption, V> implements IEditorOption<K1
 		this.name = name;
 		this.defaultValue = defaultValue;
 		this.schema = schema;
+	}
+
+	public applyUpdate(value: V, update: V): ApplyUpdateResult<V> {
+		return applyUpdate(value, update);
 	}
 
 	public validate(input: any): V {

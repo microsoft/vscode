@@ -3378,6 +3378,16 @@ declare namespace monaco.editor {
 		readonly id: K1;
 		readonly name: string;
 		defaultValue: V;
+		/**
+		 * Might modify `value`.
+		*/
+		applyUpdate(value: V, update: V): ApplyUpdateResult<V>;
+	}
+
+	export class ApplyUpdateResult<T> {
+		readonly newValue: T;
+		readonly didChange: boolean;
+		constructor(newValue: T, didChange: boolean);
 	}
 
 	/**
