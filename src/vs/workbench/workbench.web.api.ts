@@ -416,7 +416,7 @@ interface IWorkbenchConstructionOptions {
 	 * [TEMPORARY]: This will be removed soon.
 	 * Endpoints to be used for proxying repository tarball download calls in the browser.
 	 */
-	readonly tarballProxyEndpoints?: { [providerId: string]: string }
+	readonly _tarballProxyEndpoints?: { [providerId: string]: string }
 
 	//#endregion
 
@@ -680,7 +680,7 @@ function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions)
 		}
 	}
 
-	CommandsRegistry.registerCommand('_workbench.getTarballProxyEndpoints', () => (options.tarballProxyEndpoints ?? {}));
+	CommandsRegistry.registerCommand('_workbench.getTarballProxyEndpoints', () => (options._tarballProxyEndpoints ?? {}));
 
 	// Startup workbench and resolve waiters
 	let instantiatedWorkbench: IWorkbench | undefined = undefined;
