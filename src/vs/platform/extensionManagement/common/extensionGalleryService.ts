@@ -198,6 +198,16 @@ type GalleryServiceQueryEvent = QueryTelemetryData & {
 	readonly count?: string;
 };
 
+type GalleryServicePreReleaseQueryClassification = {
+	readonly duration: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', 'isMeasurement': true };
+	readonly count: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+};
+
+type GalleryServicePreReleasesQueryEvent = {
+	readonly duration: number;
+	readonly count: number;
+};
+
 class Query {
 
 	constructor(private state = DefaultQueryState) { }
@@ -687,12 +697,17 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		}
 
 		if (preReleaseVersions.size) {
+			const startTime = new Date().getTime();
 			const query = new Query()
 				.withFlags(Flags.IncludeVersions, Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeCategoryAndTags, Flags.IncludeFiles, Flags.IncludeVersionProperties)
 				.withPage(1, preReleaseVersions.size)
 				.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
 				.withFilter(FilterType.ExtensionId, ...preReleaseVersions.keys());
 			const { galleryExtensions } = await this.queryGallery(query, targetPlatform, token);
+			this.telemetryService.publicLog2<GalleryServicePreReleasesQueryEvent, GalleryServicePreReleaseQueryClassification>('galleryService:preReleasesQuery', {
+				duration: new Date().getTime() - startTime,
+				count: preReleaseVersions.size
+			});
 			if (galleryExtensions.length !== preReleaseVersions.size) {
 				throw new Error('Not all extensions with latest versions are returned');
 			}
