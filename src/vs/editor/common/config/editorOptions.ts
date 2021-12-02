@@ -854,8 +854,8 @@ export class ApplyUpdateResult<T> {
 }
 
 function applyUpdate<T>(value: T, update: T): ApplyUpdateResult<T> {
-	if (typeof value !== 'object' || typeof update !== 'object') {
-		return new ApplyUpdateResult(update, value === update);
+	if (typeof value !== 'object' || typeof update !== 'object' || !value || !update) {
+		return new ApplyUpdateResult(update, value !== update);
 	}
 	if (Array.isArray(value) || Array.isArray(update)) {
 		const arrayEquals = Array.isArray(value) && Array.isArray(update) && arrays.equals(value, update);
@@ -863,7 +863,7 @@ function applyUpdate<T>(value: T, update: T): ApplyUpdateResult<T> {
 	}
 	let didChange = false;
 	for (let key in update) {
-		if ((value as T & object).hasOwnProperty(key)) {
+		if ((update as T & object).hasOwnProperty(key)) {
 			const result = applyUpdate(value[key], update[key]);
 			if (result.didChange) {
 				value[key] = result.newValue;
