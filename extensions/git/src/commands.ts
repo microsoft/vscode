@@ -687,9 +687,9 @@ export class CommandCenter {
 
 		const activeTextEditor = window.activeTextEditor;
 		// Must extract these now because opening a new document will change the activeTextEditor reference
-		const previousVisibleRange = activeTextEditor && activeTextEditor.visibleRanges[0];
-		const previousURI = activeTextEditor && activeTextEditor.document.uri;
-		const previousSelection = activeTextEditor && activeTextEditor.selection;
+		const previousVisibleRange = activeTextEditor?.visibleRanges[0];
+		const previousURI = activeTextEditor?.document.uri;
+		const previousSelection = activeTextEditor?.selection;
 
 		for (const uri of uris) {
 			const opts: TextDocumentShowOptions = {
