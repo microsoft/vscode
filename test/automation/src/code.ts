@@ -66,7 +66,7 @@ async function poll<T>(
 	fn: () => Thenable<T>,
 	acceptFn: (result: T) => boolean,
 	timeoutMessage: string,
-	retryCount: number = 400,
+	retryCount: number = 200,
 	retryInterval: number = 100 // millis
 ): Promise<T> {
 	let trial = 1;
