@@ -167,15 +167,13 @@ interface ScmCommand {
 
 const Commands: ScmCommand[] = [];
 
-function command(commandId: string | string[], options: ScmCommandOptions = {}): Function {
+function command(commandId: string, options: ScmCommandOptions = {}): Function {
 	return (_target: any, key: string, descriptor: any) => {
 		if (!(typeof descriptor.value === 'function')) {
 			throw new Error('not supported');
 		}
 
-		for (const id of Array.isArray(commandId) ? commandId : [commandId]) {
-			Commands.push({ commandId: id, key, method: descriptor.value, options });
-		}
+		Commands.push({ commandId, key, method: descriptor.value, options });
 	};
 }
 
@@ -758,7 +756,8 @@ export class CommandCenter {
 		return await commands.executeCommand<void>('vscode.open', HEAD, opts, title);
 	}
 
-	@command(['git.openChange', 'git.openChangeEditor'])
+	@command('git.openChange')
+	@command('git.openChangeEditor')
 	async openChange(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		let resources: Resource[] | undefined = undefined;
 
