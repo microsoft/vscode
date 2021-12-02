@@ -3312,9 +3312,9 @@ export interface IUnicodeHighlightOptions {
 	ambiguousCharacters?: boolean;
 	includeComments?: boolean | InUntrustedWorkspace;
 	/**
-	 * A list of allowed code points in a single string.
+	 * A map of allowed characters (true: allowed).
 	*/
-	allowedCharacters?: string;
+	allowedCharacters?: Record<string, true>;
 }
 
 /**
@@ -3340,7 +3340,7 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 			invisibleCharacters: true,
 			ambiguousCharacters: true,
 			includeComments: inUntrustedWorkspace,
-			allowedCharacters: '',
+			allowedCharacters: {},
 		};
 
 		super(
@@ -3374,12 +3374,32 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 				},
 				[unicodeHighlightConfigKeys.allowedCharacters]: {
 					restricted: true,
-					type: 'string',
+					type: 'object',
 					default: defaults.allowedCharacters,
-					description: nls.localize('unicodeHighlight.allowedCharacters', "Defines allowed characters that are not being highlighted.")
+					description: nls.localize('unicodeHighlight.allowedCharacters', "Defines allowed characters that are not being highlighted."),
+					additionalProperties: {
+						type: 'boolean'
+					}
 				},
 			}
 		);
+	}
+
+	public override applyUpdate(value: Required<Readonly<IUnicodeHighlightOptions>>, update: Required<Readonly<IUnicodeHighlightOptions>>): ApplyUpdateResult<Required<Readonly<IUnicodeHighlightOptions>>> {
+		let didChange = false;
+		if (update.allowedCharacters) {
+			// Treat allowedCharacters atomically
+			if (!objects.equals(value.allowedCharacters, update.allowedCharacters)) {
+				value = { ...value, allowedCharacters: update.allowedCharacters };
+				didChange = true;
+			}
+		}
+
+		const result = super.applyUpdate(value, update);
+		if (didChange) {
+			return new ApplyUpdateResult(result.newValue, true);
+		}
+		return result;
 	}
 
 	public validate(_input: any): InternalUnicodeHighlightOptions {
@@ -3392,16 +3412,22 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 			invisibleCharacters: boolean(input.invisibleCharacters, this.defaultValue.invisibleCharacters),
 			ambiguousCharacters: boolean(input.ambiguousCharacters, this.defaultValue.ambiguousCharacters),
 			includeComments: primitiveSet<boolean | InUntrustedWorkspace>(input.includeComments, inUntrustedWorkspace, [true, false, inUntrustedWorkspace]),
-			allowedCharacters: string(input.allowedCharacters, ''),
+			allowedCharacters: this.validateAllowedCharacters(_input.allowedCharacters, this.defaultValue.allowedCharacters),
 		};
 	}
-}
 
-function string(value: unknown, defaultValue: string): string {
-	if (typeof value !== 'string') {
-		return defaultValue;
+	private validateAllowedCharacters(map: unknown, defaultValue: Record<string, true>): Record<string, true> {
+		if ((typeof map !== 'object') || !map) {
+			return defaultValue;
+		}
+		const result: Record<string, true> = {};
+		for (const [key, value] of Object.entries(map)) {
+			if (value === true) {
+				result[key] = true;
+			}
+		}
+		return result;
 	}
-	return value;
 }
 
 //#endregion

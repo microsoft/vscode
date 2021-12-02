@@ -3884,9 +3884,9 @@ declare namespace monaco.editor {
 		ambiguousCharacters?: boolean;
 		includeComments?: boolean | InUntrustedWorkspace;
 		/**
-		 * A list of allowed code points in a single string.
+		 * A map of allowed characters (true: allowed).
 		*/
-		allowedCharacters?: string;
+		allowedCharacters?: Record<string, true>;
 	}
 
 	export interface IInlineSuggestOptions {
