@@ -10387,10 +10387,10 @@ vm-browserify@^1.0.1:
   resolved "https://registry.yarnpkg.com/vm-browserify/-/vm-browserify-1.1.2.tgz#78641c488b8e6ca91a75f511e7a3b32a86e5dda0"
   integrity sha512-2ham8XPWTONajOR0ohOKOHXkm3+gaBmGut3SRuu75xLd/RRaY6vqgh8NBYYk7+RW3u5AtzPQZG8F10LHkl0lAQ==
 
-vscode-debugprotocol@1.50.0:
-  version "1.50.0"
-  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.50.0.tgz#6f3e1204d3f4439afb4a5dc9d5396ecef0a94245"
-  integrity sha512-kPC8LC0rwkKMjWnbDmffoNKKhoNt40ZaeJGXFBAT/KmBX38M71EG5J5uosaqvHTIWkucKXAw1azh8doydxwyZw==
+vscode-debugprotocol@1.51.0:
+  version "1.51.0"
+  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.51.0.tgz#c03168dac778b6c24ce17b3511cb61e89c11b2df"
+  integrity sha512-dzKWTMMyebIMPF1VYMuuQj7gGFq7guR8AFya0mKacu+ayptJfaRuM0mdHCqiOth4FnRP8mPhEroFPx6Ift8wHA==
 
 vscode-nls-dev@^3.3.1:
   version "3.3.1"
