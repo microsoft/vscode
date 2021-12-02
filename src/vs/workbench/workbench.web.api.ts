@@ -680,6 +680,8 @@ function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions)
 		}
 	}
 
+	CommandsRegistry.registerCommand('_workbench.getTarballProxyEndpoints', () => (options.tarballProxyEndpoints ?? {}));
+
 	// Startup workbench and resolve waiters
 	let instantiatedWorkbench: IWorkbench | undefined = undefined;
 	main(domElement, options).then(workbench => {

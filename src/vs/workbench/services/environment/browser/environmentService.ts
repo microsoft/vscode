@@ -18,16 +18,13 @@ import { parseLineAndColumnAware } from 'vs/base/common/extpath';
 import { LogLevelToString } from 'vs/platform/log/common/log';
 import { ExtensionKind } from 'vs/platform/extensions/common/extensions';
 import { isUndefined } from 'vs/base/common/types';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 class BrowserWorkbenchConfiguration implements IWindowConfiguration {
 
 	constructor(
 		private readonly options: IBrowserWorkbenchOptions,
 		private readonly payload: Map<string, string> | undefined
-	) {
-		CommandsRegistry.registerCommand('workbench.getTarballProxyEndpoints', () => (this.options.tarballProxyEndpoints ?? {}));
-	}
+	) { }
 
 	@memoize
 	get sessionId(): string { return generateUuid(); }
