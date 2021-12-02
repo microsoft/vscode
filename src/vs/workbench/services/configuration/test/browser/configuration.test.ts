@@ -116,7 +116,7 @@ suite('DefaultConfiguration', () => {
 			}
 		});
 
-		const actual = await promise;
+		const { defaults: actual } = await promise;
 		assert.deepStrictEqual(actual.getValue('test.configurationDefaultsOverride'), 'overrideValue');
 	});
 

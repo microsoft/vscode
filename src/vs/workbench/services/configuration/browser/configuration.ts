@@ -36,8 +36,8 @@ export class DefaultConfiguration extends Disposable {
 	private cachedConfigurationDefaultsOverrides: IStringDictionary<any> = {};
 	private readonly cacheKey: ConfigurationKey = { type: 'defaults', key: 'configurationDefaultsOverrides' };
 
-	private readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
-	readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
+	private readonly _onDidChangeConfiguration = this._register(new Emitter<{ defaults: ConfigurationModel, properties: string[] }>());
+	readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 
 	private updateCache: boolean = false;
 
@@ -62,7 +62,7 @@ export class DefaultConfiguration extends Disposable {
 	async initialize(): Promise<ConfigurationModel> {
 		await this.initializeCachedConfigurationDefaultsOverrides();
 		this._configurationModel = undefined;
-		this._register(this.configurationRegistry.onDidUpdateConfiguration(({ defaultsOverrides }) => this.onDidUpdateConfiguration(defaultsOverrides)));
+		this._register(this.configurationRegistry.onDidUpdateConfiguration(({ properties, defaultsOverrides }) => this.onDidUpdateConfiguration(properties, defaultsOverrides)));
 		return this.configurationModel;
 	}
 
@@ -93,9 +93,9 @@ export class DefaultConfiguration extends Disposable {
 		return this.initiaizeCachedConfigurationDefaultsOverridesPromise;
 	}
 
-	private onDidUpdateConfiguration(defaultsOverrides?: boolean): void {
+	private onDidUpdateConfiguration(properties: string[], defaultsOverrides?: boolean): void {
 		this._configurationModel = undefined;
-		this._onDidChangeConfiguration.fire(this.configurationModel);
+		this._onDidChangeConfiguration.fire({ defaults: this.configurationModel, properties });
 		if (defaultsOverrides) {
 			this.updateCachedConfigurationDefaultsOverrides();
 		}

@@ -375,9 +375,15 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.experimental.panel.alignment': {
 				'type': 'string',
-				'enum': ['left', 'center', 'right', 'justified'],
+				'enum': ['left', 'center', 'right', 'justify'],
+				'enumDescriptions': [
+					localize('panel.alignment.left', "The panel spans from the far left of the window to the right side of the editor area."),
+					localize('panel.alignment.center', "The panel spans beneath the editor area."),
+					localize('panel.alignment.right', "The panel spans from the left side of the editor area to the far right of the window."),
+					localize('panel.alignment.justify', "The panel spans the full width of the window."),
+				],
 				'default': 'center',
-				'description': localize('panelAlignment', "Controls the alignment of the panel (terminal, debug console, output, problems) and whether or not it spans beneath the side bar and side panel."),
+				'description': localize('panelAlignment', "Controls the alignment of the panel (terminal, debug console, output, problems) and whether or not it spans beneath the side bar and side panel. Note that this setting only takes effect when the panel is positioned at the bottom of the screen."),
 				'included': product.quality !== 'stable'
 			},
 		}

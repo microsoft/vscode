@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { timeout } from './utils';
 import { promisify } from 'util';
 import { gracefulify } from 'graceful-fs';
 import * as cp from 'child_process';
@@ -336,8 +335,6 @@ before(async function () {
 });
 
 after(async function () {
-	await timeout(500); // wait for shutdown
-
 	if (opts.log) {
 		const logsDir = path.join(userDataDir, 'logs');
 		const destLogsDir = path.join(path.dirname(opts.log), 'logs');

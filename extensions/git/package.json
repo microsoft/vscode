@@ -84,6 +84,12 @@
         "command": "git.openChange",
         "title": "%command.openChange%",
         "category": "Git",
+        "icon": "$(compare-changes)"
+      },
+      {
+        "command": "git.openChangeEditor",
+        "title": "%command.openChange%",
+        "category": "Git",
         "icon": "$(compare-changes)",
         "enablement": "scmActiveResourceHasChanges"
       },
@@ -602,6 +608,10 @@
         },
         {
           "command": "git.openChange",
+          "when": "false"
+        },
+        {
+          "command": "git.openChangeEditor",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
@@ -1359,7 +1369,7 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInNotebookTextDiffEditor && resourceScheme =~ /^git$|^file$/"
         },
         {
-          "command": "git.openChange",
+          "command": "git.openChangeEditor",
           "group": "navigation",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && resourceScheme == file"
         },

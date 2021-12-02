@@ -31,6 +31,7 @@ import { listenStream } from 'vs/base/common/stream';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { once } from 'vs/base/common/functional';
 import { coalesce } from 'vs/base/common/arrays';
+import { canceled } from 'vs/base/common/errors';
 
 //#region Browser File Upload (drag and drop, input element)
 
@@ -687,7 +688,7 @@ export class FileDownload {
 
 			disposables.add(once(token.onCancellationRequested)(() => {
 				disposables.dispose();
-				reject();
+				reject(canceled());
 			}));
 
 			listenStream(sourceStream, {

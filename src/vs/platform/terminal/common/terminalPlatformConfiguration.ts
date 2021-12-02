@@ -70,6 +70,21 @@ const terminalProfileSchema: IJSONSchema = {
 	}
 };
 
+const terminalAutomationProfileSchema: IJSONSchema = {
+	type: 'object',
+	required: ['path'],
+	properties: {
+		path: {
+			description: localize('terminalAutomationProfile.path', 'A single path to a shell executable.'),
+			type: ['string'],
+			items: {
+				type: 'string'
+			}
+		},
+		...terminalProfileBaseProperties
+	}
+};
+
 const shellDeprecationMessageLinux = localize('terminal.integrated.shell.linux.deprecation', "This is deprecated, the new recommended way to configure your default shell is by creating a terminal profile in {0} and setting its profile name as the default in {1}. This will currently take priority over the new profiles settings but that will change in the future.", '`#terminal.integrated.profiles.linux#`', '`#terminal.integrated.defaultProfile.linux#`');
 const shellDeprecationMessageOsx = localize('terminal.integrated.shell.osx.deprecation', "This is deprecated, the new recommended way to configure your default shell is by creating a terminal profile in {0} and setting its profile name as the default in {1}. This will currently take priority over the new profiles settings but that will change in the future.", '`#terminal.integrated.profiles.osx#`', '`#terminal.integrated.defaultProfile.osx#`');
 const shellDeprecationMessageWindows = localize('terminal.integrated.shell.windows.deprecation', "This is deprecated, the new recommended way to configure your default shell is by creating a terminal profile in {0} and setting its profile name as the default in {1}. This will currently take priority over the new profiles settings but that will change in the future.", '`#terminal.integrated.profiles.windows#`', '`#terminal.integrated.defaultProfile.windows#`');
@@ -120,7 +135,15 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			default: null,
 			'anyOf': [
 				{ type: 'null' },
-				terminalProfileSchema
+				terminalAutomationProfileSchema
+			],
+			defaultSnippets: [
+				{
+					body: {
+						path: '${1}',
+						icon: '${2}'
+					}
+				}
 			]
 		},
 		[TerminalSettingId.AutomationProfileMacOs]: {
@@ -130,7 +153,15 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			default: null,
 			'anyOf': [
 				{ type: 'null' },
-				terminalProfileSchema
+				terminalAutomationProfileSchema
+			],
+			defaultSnippets: [
+				{
+					body: {
+						path: '${1}',
+						icon: '${2}'
+					}
+				}
 			]
 		},
 		[TerminalSettingId.AutomationProfileWindows]: {
@@ -140,7 +171,15 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			default: null,
 			'anyOf': [
 				{ type: 'null' },
-				terminalProfileSchema
+				terminalAutomationProfileSchema
+			],
+			defaultSnippets: [
+				{
+					body: {
+						path: '${1}',
+						icon: '${2}'
+					}
+				}
 			]
 		},
 		[TerminalSettingId.ShellLinux]: {

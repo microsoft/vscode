@@ -8,7 +8,7 @@ import * as objects from 'vs/base/common/objects';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IConfigurationNode, IConfigurationRegistry, Extensions, resourceLanguageSettingsSchemaId, validateProperty, ConfigurationScope, OVERRIDE_PROPERTY_PATTERN, OVERRIDE_PROPERTY_REGEX, windowSettings, resourceSettings, machineOverridableSettings, IConfigurationDefaults } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationNode, IConfigurationRegistry, Extensions, validateProperty, ConfigurationScope, OVERRIDE_PROPERTY_REGEX, IConfigurationDefaults, configurationDefaultsSchemaId } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { workspaceSettingsSchemaId, launchSchemaId, tasksSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { isObject } from 'vs/base/common/types';
@@ -23,7 +23,7 @@ const configurationEntrySchema: IJSONSchema = {
 	defaultSnippets: [{ body: { title: '', properties: {} } }],
 	properties: {
 		title: {
-			description: nls.localize('vscode.extension.contributes.configuration.title', 'A summary of the settings. This label will be used in the settings file as separating comment.'),
+			description: nls.localize('vscode.extension.contributes.configuration.title', 'A title for the current category of settings. This label will be rendered in the Settings editor as a subheading. If the title is the same as the extension display name, then the category will be grouped under the main extension heading.'),
 			type: 'string'
 		},
 		order: {
@@ -112,29 +112,6 @@ const configurationEntrySchema: IJSONSchema = {
 	}
 };
 
-const configurationDefaultsSchemaId = 'vscode://schemas/settings/configurationDefaults';
-const configurationDefaultsSchema: IJSONSchema = {
-	type: 'object',
-	description: nls.localize('configurationDefaults.description', 'Contribute defaults for configurations'),
-	properties: {},
-	patternProperties: {
-		[OVERRIDE_PROPERTY_PATTERN]: {
-			type: 'object',
-			default: {},
-			$ref: resourceLanguageSettingsSchemaId,
-		}
-	},
-	additionalProperties: false
-};
-jsonRegistry.registerSchema(configurationDefaultsSchemaId, configurationDefaultsSchema);
-configurationRegistry.onDidSchemaChange(() => {
-	configurationDefaultsSchema.properties = {
-		...machineOverridableSettings.properties,
-		...windowSettings.properties,
-		...resourceSettings.properties
-	};
-});
-
 // BEGIN VSCode extension point `configurationDefaults`
 const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>({
 	extensionPoint: 'configurationDefaults',
@@ -155,7 +132,7 @@ defaultConfigurationExtPoint.setHandler((extensions, { added, removed }) => {
 			for (const key of Object.keys(overrides)) {
 				if (!OVERRIDE_PROPERTY_REGEX.test(key)) {
 					const registeredPropertyScheme = registeredProperties[key];
-					if (registeredPropertyScheme.scope && !allowedScopes.includes(registeredPropertyScheme.scope)) {
+					if (registeredPropertyScheme?.scope && !allowedScopes.includes(registeredPropertyScheme.scope)) {
 						extension.collector.warn(nls.localize('config.property.defaultConfiguration.warning', "Cannot register configuration defaults for '{0}'. Only defaults for machine-overridable, window, resource and language overridable scoped settings are supported.", key));
 						delete overrides[key];
 					}

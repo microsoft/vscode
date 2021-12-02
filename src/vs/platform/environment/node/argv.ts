@@ -207,7 +207,9 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 		if (o.deprecates && remainingArgs.hasOwnProperty(o.deprecates)) {
 			if (!val) {
 				val = remainingArgs[o.deprecates];
-				errorReporter.onDeprecatedOption(o.deprecates, optionId);
+				if (val) {
+					errorReporter.onDeprecatedOption(o.deprecates, optionId);
+				}
 			}
 			delete remainingArgs[o.deprecates];
 		}

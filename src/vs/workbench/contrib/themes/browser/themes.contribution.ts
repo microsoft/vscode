@@ -18,7 +18,7 @@ import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { colorThemeSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { DEFAULT_PRODUCT_ICON_THEME_ID } from 'vs/workbench/services/themes/browser/productIconThemeData';
+import { DEFAULT_PRODUCT_ICON_THEME_ID, ProductIconThemeData } from 'vs/workbench/services/themes/browser/productIconThemeData';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { ThrottledDelayer } from 'vs/base/common/async';
@@ -33,6 +33,7 @@ import { IExtensionResourceLoaderService } from 'vs/workbench/services/extension
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { FileIconThemeData } from 'vs/workbench/services/themes/browser/fileIconThemeData';
 
 export const manageExtensionIcon = registerIcon('theme-selection-manage-extension', Codicon.gear, localize('manageExtensionIcon', 'Icon for the \'Manage\' action in the theme selection quick pick.'));
 
@@ -98,9 +99,9 @@ class MarketplaceThemesPicker {
 		try {
 			const installedExtensions = await this._installedExtensions;
 
-			const options = { text: `${this.marketplaceQuery} ${value}`, pageSize: 20 };
+			const options = { text: `${this.marketplaceQuery} ${value}`, pageSize: 40 };
 			const pager = await this.extensionGalleryService.query(options, token);
-			for (let i = 0; i < pager.total && i < 2; i++) {
+			for (let i = 0; i < pager.total && i < 1; i++) {
 				if (token.isCancellationRequested) {
 					break;
 				}
@@ -311,7 +312,7 @@ class InstalledThemesPicker {
 					quickpick.hide();
 					s();
 				});
-				quickpick.onDidChangeActive(themes => selectTheme(themes[0].theme, false));
+				quickpick.onDidChangeActive(themes => selectTheme(themes[0]?.theme, false));
 				quickpick.onDidHide(() => {
 					if (!isCompleted) {
 						selectTheme(currentTheme, true);
@@ -409,7 +410,7 @@ registerAction2(class extends Action2 {
 
 		const picks: QuickPickInput<ThemeItem>[] = [
 			{ type: 'separator', label: localize('fileIconThemeCategory', 'file icon themes') },
-			{ id: '', label: localize('noIconThemeLabel', 'None'), description: localize('noIconThemeDesc', 'Disable File Icons') },
+			{ id: '', theme: FileIconThemeData.noIconTheme, label: localize('noIconThemeLabel', 'None'), description: localize('noIconThemeDesc', 'Disable File Icons') },
 			...toEntries(await themeService.getFileIconThemes()),
 		];
 
@@ -445,7 +446,7 @@ registerAction2(class extends Action2 {
 
 		const picks: QuickPickInput<ThemeItem>[] = [
 			{ type: 'separator', label: localize('productIconThemeCategory', 'product icon themes') },
-			{ id: DEFAULT_PRODUCT_ICON_THEME_ID, label: localize('defaultProductIconThemeLabel', 'Default') },
+			{ id: DEFAULT_PRODUCT_ICON_THEME_ID, theme: ProductIconThemeData.defaultTheme, label: localize('defaultProductIconThemeLabel', 'Default') },
 			...toEntries(await themeService.getProductIconThemes()),
 		];
 

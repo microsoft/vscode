@@ -17,10 +17,10 @@ jsonc-parser@^3.0.0:
   resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-3.0.0.tgz#abdd785701c7e7eaca8a9ec8cf070ca51a745a22"
   integrity sha512-fQzRfAbIBnR0IQvftw9FJveWiHp72Fg20giDrHz6TdfB12UH/uue0D3hm57UB5KgAVuniLMCaS8P1IMj9NR7cA==
 
-request-light@^0.5.4:
-  version "0.5.4"
-  resolved "https://registry.yarnpkg.com/request-light/-/request-light-0.5.4.tgz#497a98c6d8ae49536417a5e2d7f383b934f3e38c"
-  integrity sha512-t3566CMweOFlUk7Y1DJMu5OrtpoZEb6aSTsLQVT3wtrIEJ5NhcY9G/Oqxvjllzl4a15zXfFlcr9q40LbLVQJqw==
+request-light@^0.5.5:
+  version "0.5.5"
+  resolved "https://registry.yarnpkg.com/request-light/-/request-light-0.5.5.tgz#254ab0b38a1db2192170b599b05181934e14932b"
+  integrity sha512-AvjfJuhyT6dYfhtIBF+IpTPQco+Td1QJ6PsIJ5xui110vQ5p9HxHk+m1XJqXazLQT6CxxSx9eNv6R/+fu4bZig==
 
 vscode-json-languageservice@^4.2.0-next.2:
   version "4.2.0-next.2"

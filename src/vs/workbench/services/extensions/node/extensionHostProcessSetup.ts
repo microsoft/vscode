@@ -120,6 +120,10 @@ function _createExtHostProtocol(): Promise<PersistentProtocol> {
 
 			process.on('message', (msg: IExtHostSocketMessage | IExtHostReduceGraceTimeMessage, handle: net.Socket) => {
 				if (msg && msg.type === 'VSCODE_EXTHOST_IPC_SOCKET') {
+					// Disable Nagle's algorithm. We also do this on the server process,
+					// but nodejs doesn't document if this option is transferred with the socket
+					handle.setNoDelay(true);
+
 					const initialDataChunk = VSBuffer.wrap(Buffer.from(msg.initialDataChunk, 'base64'));
 					let socket: NodeSocket | WebSocketNodeSocket;
 					if (msg.skipWebSocketFrames) {

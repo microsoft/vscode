@@ -3249,21 +3249,21 @@ class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, InternalE
 
 //#region UnicodeHighlight
 
-export type DeriveFromWorkspaceTrust = 'deriveFromWorkspaceTrust';
+export type InUntrustedWorkspace = 'inUntrustedWorkspace';
 
 /**
  * @internal
 */
-export const deriveFromWorkspaceTrust: DeriveFromWorkspaceTrust = 'deriveFromWorkspaceTrust';
+export const inUntrustedWorkspace: InUntrustedWorkspace = 'inUntrustedWorkspace';
 
 /**
  * Configuration options for unicode highlighting.
  */
 export interface IUnicodeHighlightOptions {
-	nonBasicASCII?: boolean | DeriveFromWorkspaceTrust;
-	invisibleCharacters?: boolean | DeriveFromWorkspaceTrust;
-	ambiguousCharacters?: boolean | DeriveFromWorkspaceTrust;
-	includeComments?: boolean | DeriveFromWorkspaceTrust;
+	nonBasicASCII?: boolean | InUntrustedWorkspace;
+	invisibleCharacters?: boolean;
+	ambiguousCharacters?: boolean;
+	includeComments?: boolean | InUntrustedWorkspace;
 	/**
 	 * A list of allowed code points in a single string.
 	*/
@@ -3289,10 +3289,10 @@ export const unicodeHighlightConfigKeys = {
 class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting, InternalUnicodeHighlightOptions> {
 	constructor() {
 		const defaults: InternalUnicodeHighlightOptions = {
-			nonBasicASCII: deriveFromWorkspaceTrust,
-			invisibleCharacters: deriveFromWorkspaceTrust,
-			ambiguousCharacters: deriveFromWorkspaceTrust,
-			includeComments: deriveFromWorkspaceTrust,
+			nonBasicASCII: inUntrustedWorkspace,
+			invisibleCharacters: true,
+			ambiguousCharacters: true,
+			includeComments: inUntrustedWorkspace,
 			allowedCharacters: '',
 		};
 
@@ -3302,28 +3302,26 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 				[unicodeHighlightConfigKeys.nonBasicASCII]: {
 					restricted: true,
 					type: ['boolean', 'string'],
-					enum: [true, false, deriveFromWorkspaceTrust],
+					enum: [true, false, inUntrustedWorkspace],
 					default: defaults.nonBasicASCII,
 					description: nls.localize('unicodeHighlight.nonBasicASCII', "Controls whether all non-basic ASCII characters are highlighted. Only characters between U+0020 and U+007E, tab, line-feed and carriage-return are considered basic ASCII.")
 				},
 				[unicodeHighlightConfigKeys.invisibleCharacters]: {
 					restricted: true,
-					type: ['boolean', 'string'],
-					enum: [true, false, deriveFromWorkspaceTrust],
+					type: 'boolean',
 					default: defaults.invisibleCharacters,
 					description: nls.localize('unicodeHighlight.invisibleCharacters', "Controls whether characters that just reserve space or have no width at all are highlighted.")
 				},
 				[unicodeHighlightConfigKeys.ambiguousCharacters]: {
 					restricted: true,
-					type: ['boolean', 'string'],
-					enum: [true, false, deriveFromWorkspaceTrust],
+					type: 'boolean',
 					default: defaults.ambiguousCharacters,
 					description: nls.localize('unicodeHighlight.ambiguousCharacters', "Controls whether characters are highlighted that can be confused with basic ASCII characters, except those that are common in the current user locale.")
 				},
 				[unicodeHighlightConfigKeys.includeComments]: {
 					restricted: true,
 					type: ['boolean', 'string'],
-					enum: [true, false, deriveFromWorkspaceTrust],
+					enum: [true, false, inUntrustedWorkspace],
 					default: defaults.includeComments,
 					description: nls.localize('unicodeHighlight.includeComments', "Controls whether characters in comments should also be subject to unicode highlighting.")
 				},
@@ -3343,10 +3341,10 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 		}
 		const input = _input as IUnicodeHighlightOptions;
 		return {
-			nonBasicASCII: primitiveSet<boolean | DeriveFromWorkspaceTrust>(input.nonBasicASCII, deriveFromWorkspaceTrust, [true, false, deriveFromWorkspaceTrust]),
-			invisibleCharacters: primitiveSet<boolean | DeriveFromWorkspaceTrust>(input.invisibleCharacters, deriveFromWorkspaceTrust, [true, false, deriveFromWorkspaceTrust]),
-			ambiguousCharacters: primitiveSet<boolean | DeriveFromWorkspaceTrust>(input.ambiguousCharacters, deriveFromWorkspaceTrust, [true, false, deriveFromWorkspaceTrust]),
-			includeComments: primitiveSet<boolean | DeriveFromWorkspaceTrust>(input.includeComments, deriveFromWorkspaceTrust, [true, false, deriveFromWorkspaceTrust]),
+			nonBasicASCII: primitiveSet<boolean | InUntrustedWorkspace>(input.nonBasicASCII, inUntrustedWorkspace, [true, false, inUntrustedWorkspace]),
+			invisibleCharacters: boolean(input.invisibleCharacters, this.defaultValue.invisibleCharacters),
+			ambiguousCharacters: boolean(input.ambiguousCharacters, this.defaultValue.ambiguousCharacters),
+			includeComments: primitiveSet<boolean | InUntrustedWorkspace>(input.includeComments, inUntrustedWorkspace, [true, false, inUntrustedWorkspace]),
 			allowedCharacters: string(input.allowedCharacters, ''),
 		};
 	}

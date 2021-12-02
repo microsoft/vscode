@@ -1172,7 +1172,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				id: MenuId.ExtensionContext,
 				group: '0_install',
 				order: 0,
-				when: ContextKeyExpr.and(ContextKeyExpr.has('inExtensionEditor'), ContextKeyExpr.has('extensionHasPreReleaseVersion'), ContextKeyExpr.not('showPreReleaseVersion'))
+				when: ContextKeyExpr.and(ContextKeyExpr.has('inExtensionEditor'), ContextKeyExpr.has('extensionHasPreReleaseVersion'), ContextKeyExpr.not('showPreReleaseVersion'), ContextKeyExpr.not('isBuiltinExtension'))
 			},
 			run: async (accessor: ServicesAccessor, extensionId: string) => {
 				const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
@@ -1187,7 +1187,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				id: MenuId.ExtensionContext,
 				group: '0_install',
 				order: 1,
-				when: ContextKeyExpr.and(ContextKeyExpr.has('inExtensionEditor'), ContextKeyExpr.has('extensionHasPreReleaseVersion'), ContextKeyExpr.has('showPreReleaseVersion'))
+				when: ContextKeyExpr.and(ContextKeyExpr.has('inExtensionEditor'), ContextKeyExpr.has('extensionHasPreReleaseVersion'), ContextKeyExpr.has('extensionHasReleaseVersion'), ContextKeyExpr.has('showPreReleaseVersion'), ContextKeyExpr.not('isBuiltinExtension'))
 			},
 			run: async (accessor: ServicesAccessor, extensionId: string) => {
 				const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
@@ -1202,12 +1202,13 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				id: MenuId.ExtensionContext,
 				group: '0_install',
 				order: 2,
-				when: ContextKeyExpr.and(ContextKeyExpr.not('installedExtensionIsPreReleaseVersion'), ContextKeyExpr.has('extensionHasPreReleaseVersion'), ContextKeyExpr.not('inExtensionEditor'), ContextKeyExpr.equals('extensionStatus', 'installed'))
+				when: ContextKeyExpr.and(ContextKeyExpr.not('installedExtensionIsPreReleaseVersion'), ContextKeyExpr.has('extensionHasPreReleaseVersion'), ContextKeyExpr.not('inExtensionEditor'), ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.not('isBuiltinExtension'))
 			},
 			run: async (accessor: ServicesAccessor, id: string) => {
 				const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 				const extension = extensionWorkbenchService.local.find(e => areSameExtensions(e.identifier, { id }));
 				if (extension) {
+					extensionWorkbenchService.open(extension, { showPreReleaseVersion: true });
 					await extensionWorkbenchService.install(extension, { installPreReleaseVersion: true });
 				}
 			}
@@ -1219,12 +1220,13 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				id: MenuId.ExtensionContext,
 				group: '0_install',
 				order: 3,
-				when: ContextKeyExpr.and(ContextKeyExpr.has('installedExtensionIsPreReleaseVersion'), ContextKeyExpr.has('extensionHasPreReleaseVersion'), ContextKeyExpr.not('inExtensionEditor'), ContextKeyExpr.equals('extensionStatus', 'installed'))
+				when: ContextKeyExpr.and(ContextKeyExpr.has('installedExtensionIsPreReleaseVersion'), ContextKeyExpr.has('extensionHasPreReleaseVersion'), ContextKeyExpr.has('extensionHasReleaseVersion'), ContextKeyExpr.not('inExtensionEditor'), ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.not('isBuiltinExtension'))
 			},
 			run: async (accessor: ServicesAccessor, id: string) => {
 				const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 				const extension = extensionWorkbenchService.local.find(e => areSameExtensions(e.identifier, { id }));
 				if (extension) {
+					extensionWorkbenchService.open(extension, { showPreReleaseVersion: false });
 					await extensionWorkbenchService.install(extension, { installPreReleaseVersion: false });
 				}
 			}

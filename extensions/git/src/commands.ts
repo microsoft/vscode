@@ -686,6 +686,10 @@ export class CommandCenter {
 		}
 
 		const activeTextEditor = window.activeTextEditor;
+		// Must extract these now because opening a new document will change the activeTextEditor reference
+		const previousVisibleRange = activeTextEditor?.visibleRanges[0];
+		const previousURI = activeTextEditor?.document.uri;
+		const previousSelection = activeTextEditor?.selection;
 
 		for (const uri of uris) {
 			const opts: TextDocumentShowOptions = {
@@ -702,18 +706,21 @@ export class CommandCenter {
 			const document = window.activeTextEditor?.document;
 
 			// If the document doesn't match what we opened then don't attempt to select the range
-			if (document?.uri.toString() !== uri.toString()) {
+			// Additioanlly if there was no previous document we don't have information to select a range
+			if (document?.uri.toString() !== uri.toString() || !activeTextEditor || !previousURI || !previousSelection) {
 				continue;
 			}
 
 			// Check if active text editor has same path as other editor. we cannot compare via
 			// URI.toString() here because the schemas can be different. Instead we just go by path.
-			if (activeTextEditor && activeTextEditor.document.uri.path === uri.path && document) {
+			if (previousURI.path === uri.path && document) {
 				// preserve not only selection but also visible range
-				opts.selection = activeTextEditor.selection;
-				const previousVisibleRanges = activeTextEditor.visibleRanges;
+				opts.selection = previousSelection;
 				const editor = await window.showTextDocument(document, opts);
-				editor.revealRange(previousVisibleRanges[0]);
+				// This should always be defined but just in case
+				if (previousVisibleRange) {
+					editor.revealRange(previousVisibleRange);
+				}
 			}
 		}
 	}
@@ -757,6 +764,7 @@ export class CommandCenter {
 	}
 
 	@command('git.openChange')
+	@command('git.openChangeEditor')
 	async openChange(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		let resources: Resource[] | undefined = undefined;
 

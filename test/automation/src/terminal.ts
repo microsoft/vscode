@@ -15,7 +15,6 @@ export enum Selector {
 	PlusButton = '.codicon-plus',
 	EditorGroups = '.editor .split-view-view',
 	EditorTab = '.terminal-tab',
-	EditorTabIcon = '.terminal-tab.codicon-',
 	SingleTab = '.single-terminal-tab',
 	Tabs = '.tabs-list .monaco-list-row',
 	SplitButton = '.editor .codicon-split-horizontal'
@@ -66,7 +65,7 @@ export class Terminal {
 	}
 
 	async runCommandWithValue(commandId: TerminalCommandIdWithValue, value?: string, altKey?: boolean): Promise<void> {
-		const shouldKeepOpen = !!value || commandId === TerminalCommandIdWithValue.SelectDefaultProfile || commandId === TerminalCommandIdWithValue.NewWithProfile || commandId === TerminalCommandIdWithValue.Rename;
+		const shouldKeepOpen = !!value || commandId === TerminalCommandIdWithValue.NewWithProfile || commandId === TerminalCommandIdWithValue.Rename || (commandId === TerminalCommandIdWithValue.SelectDefaultProfile && value !== 'PowerShell');
 		await this.quickaccess.runCommand(commandId, shouldKeepOpen);
 		if (value) {
 			await this.code.waitForSetValue(QuickInput.QUICK_INPUT_INPUT, value);
@@ -115,7 +114,7 @@ export class Terminal {
 		const tabCount = (await this.code.waitForElements(Selector.Tabs, true)).length;
 		const groups: TerminalGroup[] = [];
 		for (let i = 0; i < tabCount; i++) {
-			const instance = await this.code.waitForElement(`${Selector.Tabs}[data-index="${i}"] ${Selector.TabsEntry}`);
+			const instance = await this.code.waitForElement(`${Selector.Tabs}[data-index="${i}"] ${Selector.TabsEntry}`, e => e?.textContent?.length ? e?.textContent?.length > 1 : false);
 			const label: TerminalLabel = {
 				name: instance.textContent.replace(/^[├┌└]\s*/, '')
 			};
@@ -130,7 +129,8 @@ export class Terminal {
 	}
 
 	async getSingleTabName(): Promise<string> {
-		return await (await this.code.waitForElement(Selector.SingleTab, singleTab => !!singleTab && singleTab?.textContent.length > 1)).textContent;
+		const tab = await this.code.waitForElement(Selector.SingleTab, singleTab => !!singleTab && singleTab?.textContent.length > 1);
+		return tab.textContent;
 	}
 
 	private async assertTabExpected(selector?: string, listIndex?: number, nameRegex?: RegExp, icon?: string, color?: string): Promise<void> {
@@ -149,10 +149,11 @@ export class Terminal {
 				await this.code.waitForElement(`${selector}`, singleTab => !!singleTab && !!singleTab?.textContent.match(nameRegex));
 			}
 			if (color) {
-				await this.code.waitForElement(`${selector}.terminal-icon-terminal_ansi${color}`);
+				await this.code.waitForElement(`${selector}`, singleTab => !!singleTab && !!singleTab.className.includes(`terminal-icon-terminal_ansi${color}`));
 			}
 			if (icon) {
-				await this.code.waitForElement(selector === Selector.EditorTab ? `${Selector.EditorTabIcon}${icon}` : `${selector} .codicon-${icon}`);
+				selector = selector === Selector.EditorTab ? selector : `${selector} .codicon`;
+				await this.code.waitForElement(`${selector}`, singleTab => !!singleTab && !!singleTab.className.includes(icon));
 			}
 		}
 	}

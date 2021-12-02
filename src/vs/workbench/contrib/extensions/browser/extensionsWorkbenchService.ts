@@ -222,6 +222,10 @@ class Extension implements IExtension {
 		return !!this.gallery?.hasPreReleaseVersion;
 	}
 
+	get hasReleaseVersion(): boolean {
+		return !!this.gallery?.hasReleaseVersion;
+	}
+
 	private getLocal(preRelease: boolean): ILocalExtension | undefined {
 		return this.local && !this.outdated && this.local.isPreReleaseVersion === preRelease ? this.local : undefined;
 	}
@@ -433,12 +437,24 @@ class Extensions extends Disposable {
 			hasChanged = true;
 		}
 
-		const compatible = await this.getCompatibleExtension(gallery, !!extension.local?.isPreReleaseVersion);
+		const compatible = await this.getCompatibleExtension(gallery, extension.local.isPreReleaseVersion);
 		if (compatible) {
-			const local = extension.local.identifier.uuid ? extension.local : await this.server.extensionManagementService.updateMetadata(extension.local, { id: compatible.identifier.uuid, publisherDisplayName: compatible.publisherDisplayName, publisherId: compatible.publisherId });
-			extension.local = local;
 			extension.gallery = compatible;
 			hasChanged = true;
+		}
+
+		if (!extension.local.identifier.uuid) {
+			let galleryExtension = !extension.outdated ? extension.gallery : undefined;
+			if (!galleryExtension) {
+				[galleryExtension] = await this.galleryService.getExtensions([{ ...extension.local.identifier, version: extension.version }], CancellationToken.None);
+			}
+			if (!galleryExtension) {
+				[galleryExtension] = await this.galleryService.getExtensions([extension.local.identifier], CancellationToken.None);
+			}
+			if (galleryExtension) {
+				const local = await this.server.extensionManagementService.updateMetadata(extension.local, { id: galleryExtension.identifier.uuid, publisherDisplayName: galleryExtension.publisherDisplayName, publisherId: galleryExtension.publisherId, isPreReleaseVersion: gallery.properties.isPreReleaseVersion });
+				extension.local = local;
+			}
 		}
 
 		const unsupportedPreRelease = extensionsControlManifest.unsupportedPreReleaseExtensions ? extensionsControlManifest.unsupportedPreReleaseExtensions[extension.identifier.id.toLowerCase()] : undefined;

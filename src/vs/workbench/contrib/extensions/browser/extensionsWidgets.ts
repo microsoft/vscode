@@ -162,7 +162,6 @@ export class PreReleaseIndicatorWidget extends ExtensionWidget {
 
 	constructor(
 		private readonly container: HTMLElement,
-		private readonly options: { label: boolean, icon: boolean },
 	) {
 		super();
 		container.classList.add('extension-pre-release');
@@ -180,12 +179,11 @@ export class PreReleaseIndicatorWidget extends ExtensionWidget {
 			return;
 		}
 
-		if (this.options?.icon) {
-			append(this.container, $('span' + ThemeIcon.asCSSSelector(preReleaseIcon)));
+		if (this.extension.state !== ExtensionState.Installed) {
+			return;
 		}
-		if (this.options?.label) {
-			append(this.container, $('span.pre-releaselabel', undefined, localize('pre-release-label', "Pre-Release")));
-		}
+
+		append(this.container, $('span' + ThemeIcon.asCSSSelector(preReleaseIcon)));
 	}
 }
 
@@ -253,11 +251,18 @@ export class PreReleaseBookmarkWidget extends ExtensionWidget {
 		if (!this.extension) {
 			return;
 		}
-		if (this.extension.hasPreReleaseVersion) {
-			this.element = append(this.parent, $('div.extension-bookmark'));
-			const preRelease = append(this.element, $('.pre-release'));
-			append(preRelease, $('span' + ThemeIcon.asCSSSelector(preReleaseIcon)));
+		if (this.extension.isBuiltin) {
+			return;
 		}
+		if (!this.extension.hasPreReleaseVersion) {
+			return;
+		}
+		if (this.extension.state === ExtensionState.Installed && this.extension.local?.isPreReleaseVersion) {
+			return;
+		}
+		this.element = append(this.parent, $('div.extension-bookmark'));
+		const preRelease = append(this.element, $('.pre-release'));
+		append(preRelease, $('span' + ThemeIcon.asCSSSelector(preReleaseIcon)));
 	}
 
 }
@@ -578,6 +583,9 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 
 	static getPreReleaseMessage(extension: IExtension): string | undefined {
 		if (!extension.hasPreReleaseVersion) {
+			return undefined;
+		}
+		if (extension.isBuiltin) {
 			return undefined;
 		}
 		if (extension.local?.isPreReleaseVersion || extension.gallery?.properties.isPreReleaseVersion) {
