@@ -23,7 +23,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { ExtensionsInput, IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, IExtension, ExtensionContainers, ExtensionEditorTab, ExtensionState } from 'vs/workbench/contrib/extensions/common/extensions';
-import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget, ExtensionHoverWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
+import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import {
@@ -68,7 +68,7 @@ import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { attachKeybindingLabelStyler } from 'vs/platform/theme/common/styler';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { errorIcon, infoIcon, preReleaseIcon, starEmptyIcon, verifiedPublisherIcon as verifiedPublisherThemeIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
+import { errorIcon, infoIcon, starEmptyIcon, verifiedPublisherIcon as verifiedPublisherThemeIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
@@ -151,7 +151,6 @@ interface IExtensionEditorTemplate {
 	actionsAndStatusContainer: HTMLElement;
 	extensionActionBar: ActionBar;
 	status: HTMLElement;
-	preReleaseText: HTMLElement;
 	recommendation: HTMLElement;
 	navbar: NavBar;
 	content: HTMLElement;
@@ -303,7 +302,6 @@ export class ExtensionEditor extends EditorPane {
 		}));
 
 		const status = append(actionsAndStatusContainer, $('.status'));
-		const preReleaseText = append(details, $('.pre-release-text'));
 		const recommendation = append(details, $('.recommendation'));
 
 		this._register(Event.chain(extensionActionBar.onDidRun)
@@ -336,7 +334,6 @@ export class ExtensionEditor extends EditorPane {
 			rating,
 			actionsAndStatusContainer,
 			extensionActionBar,
-			preReleaseText,
 			status,
 			recommendation
 		};
@@ -526,7 +523,6 @@ export class ExtensionEditor extends EditorPane {
 			this.transientDisposables.add(disposable);
 		}
 
-		this.setPreReleaseText(extension, template);
 		this.setStatus(extension, extensionStatus, template);
 		this.setRecommendationText(extension, template);
 
@@ -573,33 +569,6 @@ export class ExtensionEditor extends EditorPane {
 		template.navbar.onChange(e => this.onNavbarChange(extension, e, template), this, this.transientDisposables);
 
 		this.editorLoadComplete = true;
-	}
-
-	private setPreReleaseText(extension: IExtension, template: IExtensionEditorTemplate): void {
-		let preReleaseText: string | undefined;
-		reset(template.preReleaseText);
-		const disposables = this.transientDisposables.add(new DisposableStore());
-		const updatePreReleaseText = (layout: boolean) => {
-			const newPreReleaseText = ExtensionHoverWidget.getPreReleaseMessage(extension);
-			if (preReleaseText !== newPreReleaseText) {
-				preReleaseText = newPreReleaseText;
-				disposables.clear();
-				reset(template.preReleaseText);
-				if (preReleaseText) {
-					append(template.preReleaseText, $(`span${ThemeIcon.asCSSSelector(preReleaseIcon)}`));
-					disposables.add(this.renderMarkdownText(preReleaseText, template.preReleaseText));
-				}
-				if (layout && this.dimension) {
-					this.layout(this.dimension);
-				}
-			}
-		};
-		updatePreReleaseText(false);
-		this.transientDisposables.add(this.extensionsWorkbenchService.onChange(e => {
-			if (e && areSameExtensions(e.identifier, extension.identifier)) {
-				updatePreReleaseText(true);
-			}
-		}));
 	}
 
 	private setStatus(extension: IExtension, extensionStatus: ExtensionStatusAction, template: IExtensionEditorTemplate): void {

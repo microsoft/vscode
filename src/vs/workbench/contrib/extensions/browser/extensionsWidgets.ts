@@ -591,7 +591,8 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		if (extension.local?.isPreReleaseVersion || extension.gallery?.properties.isPreReleaseVersion) {
 			return undefined;
 		}
-		return localize('has prerelease', "This extension has a Pre-Release version available");
+		const preReleaseVersionLink = `[${localize('Show prerelease version', "Pre-Release version")}](${URI.parse(`command:workbench.extensions.action.showPreReleaseVersion?${encodeURIComponent(JSON.stringify([extension.identifier.id]))}`)})`;
+		return localize('has prerelease', "This extension has a {0} available", preReleaseVersionLink);
 	}
 
 }
