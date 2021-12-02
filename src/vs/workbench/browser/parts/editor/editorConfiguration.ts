@@ -38,10 +38,16 @@ export class DynamicEditorGroupAutoLockConfiguration extends Disposable implemen
 	) {
 		super();
 
-		extensionService.whenInstalledExtensionsRegistered().then(() => {
+		// Editor configurations are getting updated very aggressively
+		// (atleast 20 times) while the extensions are getting registered.
+		// As such push out the dynamic editor auto lock configuration
+		// until after extensions registered.
+		(async ()=> {
+			await extensionService.whenInstalledExtensionsRegistered();
+
 			this.updateConfiguration();
 			this.registerListeners();
-		});
+		})();
 	}
 
 	private registerListeners(): void {
