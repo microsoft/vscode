@@ -245,18 +245,13 @@ export class TerminalViewPane extends ViewPane {
 				// Only focus the terminal if the activeElement has not changed since focus() was called
 				// TODO hack
 				if (document.activeElement === activeElement) {
-					this._focus();
+					this._terminalGroupService.showPanel(true);
 				}
 			}));
 
 			return;
 		}
-		this._focus();
-	}
-
-	private _focus() {
 		this._terminalGroupService.showPanel(true);
-		this._terminalService.activeInstance?.focusWhenReady();
 	}
 
 	override shouldShowWelcome(): boolean {
