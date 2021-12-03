@@ -1661,8 +1661,10 @@ declare module 'vscode' {
 		detail?: string;
 
 		/**
-		 * Optional flag indicating if this item is picked initially.
-		 * (Only honored when the picker allows multiple selections.)
+		 * Optional flag indicating if this item is picked initially. This is only honored when using
+		 * the {@link window.showQuickPick()} API. To do the same thing with the {@link window.createQuickPick()} API,
+		 * simply set the {@link QuickPick.selectedItems} to the items you want picked initially.
+		 * (*Note:* This is only honored when the picker allows multiple selections.)
 		 *
 		 * @see {@link QuickPickOptions.canPickMany}
 		 */
