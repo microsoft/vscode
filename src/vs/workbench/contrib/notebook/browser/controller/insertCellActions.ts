@@ -323,7 +323,8 @@ MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
 		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
 		ContextKeyExpr.notEquals('config.notebook.insertToolbarLocation', 'betweenCells'),
 		ContextKeyExpr.notEquals('config.notebook.insertToolbarLocation', 'hidden'),
-		ContextKeyExpr.notEquals(`config.${NotebookSetting.globalToolbarShowLabel}`, false)
+		ContextKeyExpr.notEquals(`config.${NotebookSetting.globalToolbarShowLabel}`, false),
+		ContextKeyExpr.notEquals(`config.${NotebookSetting.globalToolbarShowLabel}`, 'never')
 	)
 });
 

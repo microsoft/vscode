@@ -389,6 +389,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		private labels: ResourceLabels,
 		private actionViewItemProvider: IActionViewItemProvider,
 		private actionRunner: ActionRunner,
+		@ILabelService private labelService: ILabelService,
 		@ISCMViewService private scmViewService: ISCMViewService,
 		@IThemeService private themeService: IThemeService
 	) {
@@ -482,14 +483,15 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		const compressed = node.element as ICompressedTreeNode<IResourceNode<ISCMResource, ISCMResourceGroup>>;
 		const folder = compressed.elements[compressed.elements.length - 1];
 
-		const label = compressed.elements.map(e => e.name).join('/');
+		const label = compressed.elements.map(e => e.name);
 		const fileKind = FileKind.FOLDER;
 
 		const matches = createMatches(node.filterData as FuzzyScore | undefined);
 		template.fileLabel.setResource({ resource: folder.uri, name: label }, {
 			fileDecorations: { colors: false, badges: true },
 			fileKind,
-			matches
+			matches,
+			separator: this.labelService.getSeparator(folder.uri.scheme)
 		});
 
 		template.actionBar.clear();
@@ -2121,7 +2123,7 @@ export class SCMViewPane extends ViewPane {
 				sorter,
 				keyboardNavigationLabelProvider,
 				overrideStyles: {
-					listBackground: this.viewDescriptorService.getViewLocationById(this.id) === ViewContainerLocation.Sidebar ? SIDE_BAR_BACKGROUND : PANEL_BACKGROUND
+					listBackground: this.viewDescriptorService.getViewLocationById(this.id) === ViewContainerLocation.Panel ? PANEL_BACKGROUND : SIDE_BAR_BACKGROUND
 				},
 				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider)
 			}) as WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;

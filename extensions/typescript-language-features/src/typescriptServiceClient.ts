@@ -1059,11 +1059,13 @@ function getDignosticsKind(event: Proto.Event) {
 }
 
 class ServerInitializingIndicator extends Disposable {
-	private _task?: { project: string | undefined, resolve: () => void, reject: () => void };
+	private _task?: { project: string | undefined, resolve: () => void, reject: (error: Error) => void };
 
 	public reset(): void {
 		if (this._task) {
-			this._task.reject();
+			const error = new Error('Canceled');
+			error.name = error.message;
+			this._task.reject(error);
 			this._task = undefined;
 		}
 	}

@@ -9,13 +9,13 @@ import * as errors from 'vs/base/common/errors';
 import { Disposable, IDisposable, dispose, toDisposable, MutableDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { FileChangeType, FileChangesEvent, IFileService, whenProviderRegistered, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { ConfigurationModel, ConfigurationModelParser, ConfigurationParseOptions, UserSettings } from 'vs/platform/configuration/common/configurationModels';
+import { ConfigurationModel, ConfigurationModelParser, ConfigurationParseOptions, DefaultConfigurationModel, UserSettings } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
 import { TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, REMOTE_MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
 import { IStoredWorkspaceFolder, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
 import { WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, Extensions, IConfigurationRegistry, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
 import { equals } from 'vs/base/common/objects';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { hash } from 'vs/base/common/hash';
@@ -24,6 +24,106 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { ResourceMap } from 'vs/base/common/map';
 import { joinPath } from 'vs/base/common/resources';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { isObject } from 'vs/base/common/types';
+
+export class DefaultConfiguration extends Disposable {
+
+	static readonly DEFAULT_OVERRIDES_CACHE_EXISTS_KEY = 'DefaultOverridesCacheExists';
+
+	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+	private cachedConfigurationDefaultsOverrides: IStringDictionary<any> = {};
+	private readonly cacheKey: ConfigurationKey = { type: 'defaults', key: 'configurationDefaultsOverrides' };
+
+	private readonly _onDidChangeConfiguration = this._register(new Emitter<{ defaults: ConfigurationModel, properties: string[] }>());
+	readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
+
+	private updateCache: boolean = false;
+
+	constructor(
+		private readonly configurationCache: IConfigurationCache,
+		environmentService: IWorkbenchEnvironmentService,
+	) {
+		super();
+		if (environmentService.options?.configurationDefaults) {
+			this.configurationRegistry.registerDefaultConfigurations([{ overrides: environmentService.options.configurationDefaults }]);
+		}
+	}
+
+	private _configurationModel: ConfigurationModel | undefined;
+	get configurationModel(): ConfigurationModel {
+		if (!this._configurationModel) {
+			this._configurationModel = new DefaultConfigurationModel(this.cachedConfigurationDefaultsOverrides);
+		}
+		return this._configurationModel;
+	}
+
+	async initialize(): Promise<ConfigurationModel> {
+		await this.initializeCachedConfigurationDefaultsOverrides();
+		this._configurationModel = undefined;
+		this._register(this.configurationRegistry.onDidUpdateConfiguration(({ properties, defaultsOverrides }) => this.onDidUpdateConfiguration(properties, defaultsOverrides)));
+		return this.configurationModel;
+	}
+
+	reload(): ConfigurationModel {
+		this.updateCache = true;
+		this.cachedConfigurationDefaultsOverrides = {};
+		this._configurationModel = undefined;
+		this.updateCachedConfigurationDefaultsOverrides();
+		return this.configurationModel;
+	}
+
+	private initiaizeCachedConfigurationDefaultsOverridesPromise: Promise<void> | undefined;
+	private initializeCachedConfigurationDefaultsOverrides(): Promise<void> {
+		if (!this.initiaizeCachedConfigurationDefaultsOverridesPromise) {
+			this.initiaizeCachedConfigurationDefaultsOverridesPromise = (async () => {
+				try {
+					// Read only when the cache exists
+					if (window.localStorage.getItem(DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY)) {
+						const content = await this.configurationCache.read(this.cacheKey);
+						if (content) {
+							this.cachedConfigurationDefaultsOverrides = JSON.parse(content);
+						}
+					}
+				} catch (error) { /* ignore */ }
+				this.cachedConfigurationDefaultsOverrides = isObject(this.cachedConfigurationDefaultsOverrides) ? this.cachedConfigurationDefaultsOverrides : {};
+			})();
+		}
+		return this.initiaizeCachedConfigurationDefaultsOverridesPromise;
+	}
+
+	private onDidUpdateConfiguration(properties: string[], defaultsOverrides?: boolean): void {
+		this._configurationModel = undefined;
+		this._onDidChangeConfiguration.fire({ defaults: this.configurationModel, properties });
+		if (defaultsOverrides) {
+			this.updateCachedConfigurationDefaultsOverrides();
+		}
+	}
+
+	private async updateCachedConfigurationDefaultsOverrides(): Promise<void> {
+		if (!this.updateCache) {
+			return;
+		}
+		const cachedConfigurationDefaultsOverrides: IStringDictionary<any> = {};
+		const configurationDefaultsOverrides = this.configurationRegistry.getConfigurationDefaultsOverrides();
+		for (const [key, value] of configurationDefaultsOverrides) {
+			if (!OVERRIDE_PROPERTY_REGEX.test(key) && value.value !== undefined) {
+				cachedConfigurationDefaultsOverrides[key] = value.value;
+			}
+		}
+		try {
+			if (Object.keys(cachedConfigurationDefaultsOverrides).length) {
+				window.localStorage.setItem(DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY, 'yes');
+				await this.configurationCache.write(this.cacheKey, JSON.stringify(cachedConfigurationDefaultsOverrides));
+			} else {
+				window.localStorage.removeItem(DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY);
+				await this.configurationCache.remove(this.cacheKey);
+			}
+		} catch (error) {/* Ignore error */ }
+	}
+
+}
 
 export class UserConfiguration extends Disposable {
 

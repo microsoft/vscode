@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
+import { promisify } from 'util';
+import { gracefulify } from 'graceful-fs';
 import * as cp from 'child_process';
 import * as path from 'path';
 import * as os from 'os';
@@ -16,7 +18,6 @@ import fetch from 'node-fetch';
 import { Quality, ApplicationOptions, MultiLogger, Logger, ConsoleLogger, FileLogger } from '../../automation';
 
 import { setup as setupDataMigrationTests } from './areas/workbench/data-migration.test';
-import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
 import { setup as setupPreferencesTests } from './areas/preferences/preferences.test';
 import { setup as setupSearchTests } from './areas/search/search.test';
 import { setup as setupNotebookTests } from './areas/notebook/notebook.test';
@@ -27,7 +28,13 @@ import { setup as setupExtensionTests } from './areas/extensions/extensions.test
 import { setup as setupMultirootTests } from './areas/multiroot/multiroot.test';
 import { setup as setupLocalizationTests } from './areas/workbench/localization.test';
 import { setup as setupLaunchTests } from './areas/workbench/launch.test';
-import { setup as setupTerminalProfileTests } from './areas/terminal/terminal-profiles.test';
+import { setup as setupTerminalTests } from './areas/terminal/terminal.test';
+
+try {
+	gracefulify(fs);
+} catch (error) {
+	console.error(`Error enabling graceful-fs: ${error}`);
+}
 
 const testDataPath = path.join(os.tmpdir(), 'vscsmoke');
 if (fs.existsSync(testDataPath)) {
@@ -328,36 +335,31 @@ before(async function () {
 });
 
 after(async function () {
-	await new Promise(c => setTimeout(c, 500)); // wait for shutdown
-
 	if (opts.log) {
 		const logsDir = path.join(userDataDir, 'logs');
 		const destLogsDir = path.join(path.dirname(opts.log), 'logs');
-		await new Promise((c, e) => ncp(logsDir, destLogsDir, err => err ? e(err) : c(undefined)));
+		await promisify(ncp)(logsDir, destLogsDir);
 	}
 
-	await new Promise((c, e) => rimraf(testDataPath, { maxBusyTries: 10 }, err => err ? e(err) : c(undefined)));
+	try {
+		await new Promise<void>((resolve, reject) => rimraf(testDataPath, { maxBusyTries: 10 }, error => error ? reject(error) : resolve()));
+	} catch (error) {
+		// TODO@tyriar TODO@meganrogge https://github.com/microsoft/vscode/issues/137725
+		console.error(`Unable to delete smoke test workspace: ${error}. This indicates some process is locking the workspace folder.`);
+	}
 });
 
-if (!opts.web && opts['build'] && !opts['remote']) {
-	describe(`Stable vs Insiders Smoke Tests: This test MUST run before releasing`, () => {
-		setupDataMigrationTests(opts, testDataPath);
-	});
-}
-
 describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
-	if (!opts.web) { setupDataLossTests(opts); }
+	if (!opts.web) { setupDataMigrationTests(opts); }
 	if (!opts.web) { setupPreferencesTests(opts); }
 	setupSearchTests(opts);
 	setupNotebookTests(opts);
 	setupLanguagesTests(opts);
 	setupEditorTests(opts);
+	setupTerminalTests(opts);
 	setupStatusbarTests(opts);
 	setupExtensionTests(opts);
 	if (!opts.web) { setupMultirootTests(opts); }
 	if (!opts.web) { setupLocalizationTests(opts); }
 	if (!opts.web) { setupLaunchTests(opts); }
-
-	// TODO: Enable terminal tests for non-web
-	if (opts.web) { setupTerminalProfileTests(opts); }
 });

@@ -484,7 +484,13 @@ class TMTokenization extends Disposable {
 	}
 
 	public tokenize2(line: string, state: StackElement): TokenizationResult2 {
-		let textMateResult = this._grammar.tokenizeLine2(line, state);
+		const textMateResult = this._grammar.tokenizeLine2(line, state, 500);
+
+		if (textMateResult.stoppedEarly) {
+			console.warn(`Time limit reached when tokenizing line: ${line.substring(0, 100)}`);
+			// return the state at the beginning of the line
+			return new TokenizationResult2(textMateResult.tokens, state);
+		}
 
 		if (this._containsEmbeddedLanguages) {
 			let seenLanguages = this._seenLanguages;

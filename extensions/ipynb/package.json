@@ -32,7 +32,7 @@
 			{
 				"id": "jupyter",
 				"aliases": [
-					"Jupyter"
+					"Jupyter (JSON)"
 				],
 				"extensions": [
 					".ipynb"

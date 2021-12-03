@@ -43,15 +43,16 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { mark } from 'vs/base/common/performance';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
-import { Promises } from 'vs/base/common/async';
+import { DeferredPromise, Promises } from 'vs/base/common/async';
 import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
 import { getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
 import { Schemas } from 'vs/base/common/network';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { AuxiliaryBarPart, AUXILIARYBAR_ENABLED } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
-type PanelAlignment = 'left' | 'center' | 'right' | 'justified';
+type PanelAlignment = 'left' | 'center' | 'right' | 'justify';
 
 export enum Settings {
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible',
@@ -183,6 +184,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private themeService!: IThemeService;
 	private statusBarService!: IStatusbarService;
 	private logService!: ILogService;
+	private telemetryService!: ITelemetryService;
 
 	protected readonly state = {
 		fullscreen: false,
@@ -268,6 +270,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.themeService = accessor.get(IThemeService);
 		this.extensionService = accessor.get(IExtensionService);
 		this.logService = accessor.get(ILogService);
+		this.telemetryService = accessor.get(ITelemetryService);
 
 		// Parts
 		this.editorService = accessor.get(IEditorService);
@@ -707,11 +710,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return undefined;
 	}
 
-	private whenReadyResolve: (() => void) | undefined;
-	protected readonly whenReady = new Promise<void>(resolve => (this.whenReadyResolve = resolve));
+	private readonly whenReadyPromise = new DeferredPromise<void>();
+	protected readonly whenReady = this.whenReadyPromise.p;
 
-	private whenRestoredResolve: (() => void) | undefined;
-	readonly whenRestored = new Promise<void>(resolve => (this.whenRestoredResolve = resolve));
+	private readonly whenRestoredPromise = new DeferredPromise<void>();
+	readonly whenRestored = this.whenRestoredPromise.p;
 	private restored = false;
 
 	isRestored(): boolean {
@@ -911,11 +914,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Await for promises that we recorded to update
 		// our ready and restored states properly.
 		Promises.settled(layoutReadyPromises).finally(() => {
-			this.whenReadyResolve?.();
+			this.whenReadyPromise.complete();
 
 			Promises.settled(layoutRestoredPromises).finally(() => {
 				this.restored = true;
-				this.whenRestoredResolve?.();
+				this.whenRestoredPromise.complete();
 			});
 		});
 	}
@@ -2165,6 +2168,38 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			width,
 			height
 		};
+
+		type StartupLayoutEvent = {
+			activityBarVisible: boolean;
+			sideBarVisible: boolean;
+			auxiliaryBarVisible: boolean;
+			panelVisible: boolean;
+			statusbarVisible: boolean;
+			sideBarPosition: string;
+			panelPosition: string;
+		};
+
+		type StartupLayoutEventClassification = {
+			activityBarVisible: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+			sideBarVisible: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+			auxiliaryBarVisible: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+			panelVisible: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+			statusbarVisible: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+			sideBarPosition: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+			panelPosition: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+		};
+
+		const layoutDescriptor: StartupLayoutEvent = {
+			activityBarVisible: !this.state.auxiliaryBar.hidden,
+			sideBarVisible: !this.state.sideBar.hidden,
+			auxiliaryBarVisible: !this.state.auxiliaryBar.hidden,
+			panelVisible: !this.state.panel.hidden,
+			statusbarVisible: !this.state.statusBar.hidden,
+			sideBarPosition: positionToString(this.state.sideBar.position),
+			panelPosition: positionToString(this.state.panel.position),
+		};
+
+		this.telemetryService.publicLog2<StartupLayoutEvent, StartupLayoutEventClassification>('startupLayout', layoutDescriptor);
 
 		return result;
 	}

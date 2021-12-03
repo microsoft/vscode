@@ -90,8 +90,7 @@ function getTagDocumentation(
 				if (!doc) {
 					return label;
 				}
-				// allow-any-unicode-next-line
-				return label + (doc.match(/\r\n|\n/g) ? '  \n' + processInlineTags(doc) : ` — ${processInlineTags(doc)}`);
+				return label + (doc.match(/\r\n|\n/g) ? '  \n' + processInlineTags(doc) : ` \u2014 ${processInlineTags(doc)}`);
 			}
 	}
 
@@ -101,8 +100,7 @@ function getTagDocumentation(
 	if (!text) {
 		return label;
 	}
-	// allow-any-unicode-next-line
-	return label + (text.match(/\r\n|\n/g) ? '  \n' + text : ` — ${text}`);
+	return label + (text.match(/\r\n|\n/g) ? '  \n' + text : ` \u2014 ${text}`);
 }
 
 export function plainWithLinks(

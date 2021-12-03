@@ -287,7 +287,7 @@ export function NotImplementedProxy<T>(name: string): { new(): T } {
 	};
 }
 
-export function assertNever(value: never, message = 'Unreachable') {
+export function assertNever(value: never, message = 'Unreachable'): never {
 	throw new Error(message);
 }
 

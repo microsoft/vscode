@@ -15,8 +15,8 @@ import { cellRangesToIndexes, ICellRange } from 'vs/workbench/contrib/notebook/c
 
 const $ = DOM.$;
 
-export const DRAGGING_CLASS = 'cell-dragging';
-export const GLOBAL_DRAG_CLASS = 'global-drag-active';
+const DRAGGING_CLASS = 'cell-dragging';
+const GLOBAL_DRAG_CLASS = 'global-drag-active';
 
 type DragImageProvider = () => HTMLElement;
 
@@ -95,6 +95,14 @@ export class CellDragAndDropController extends Disposable {
 				this.isScrolling = false;
 			});
 		});
+	}
+
+	renderElement(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
+		if (element.dragging) {
+			templateData.container.classList.add(DRAGGING_CLASS);
+		} else {
+			templateData.container.classList.remove(DRAGGING_CLASS);
+		}
 	}
 
 	private setInsertIndicatorVisibility(visible: boolean) {

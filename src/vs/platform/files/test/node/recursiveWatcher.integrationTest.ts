@@ -8,7 +8,7 @@ import { realpathSync } from 'fs';
 import { tmpdir } from 'os';
 import { timeout } from 'vs/base/common/async';
 import { dirname, join, sep } from 'vs/base/common/path';
-import { isLinux, isWindows } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Promises, RimRafMode } from 'vs/base/node/pfs';
 import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileChangeType } from 'vs/platform/files/common/files';
@@ -101,13 +101,13 @@ flakySuite('Recursive Watcher (parcel)', () => {
 		}
 	}
 
-	function awaitEvent(service: TestParcelWatcherService, path: string, type: FileChangeType, failOnEventReason?: string): Promise<void> {
+	async function awaitEvent(service: TestParcelWatcherService, path: string, type: FileChangeType, failOnEventReason?: string): Promise<void> {
 		if (loggingEnabled) {
 			console.log(`Awaiting change type '${toMsg(type)}' on file '${path}'`);
 		}
 
 		// Await the event
-		return new Promise<void>((resolve, reject) => {
+		await new Promise<void>((resolve, reject) => {
 			const disposable = service.onDidChangeFile(events => {
 				for (const event of events) {
 					if (event.path === path && event.type === type) {
@@ -115,13 +115,19 @@ flakySuite('Recursive Watcher (parcel)', () => {
 						if (failOnEventReason) {
 							reject(new Error(`Unexpected file event: ${failOnEventReason}`));
 						} else {
-							resolve();
+							setImmediate(() => resolve()); // copied from parcel watcher tests, seems to drop unrelated events on macOS
 						}
 						break;
 					}
 				}
 			});
 		});
+
+		// Unwind from the event call stack: we have seen crashes in Parcel
+		// when e.g. calling `unsubscribe` directly from the stack of a file
+		// change event
+		// Refs: https://github.com/microsoft/vscode/issues/137430
+		await timeout(1);
 	}
 
 	function awaitMessage(service: TestParcelWatcherService, type: 'trace' | 'warn' | 'error' | 'info' | 'debug'): Promise<void> {
@@ -234,22 +240,26 @@ flakySuite('Recursive Watcher (parcel)', () => {
 		await Promises.writeFile(anotherNewFilePath, 'Hello Another World');
 		await changeFuture;
 
-		await timeout(1500); // ensure the previous added event is flushed by now (can happen on macOS with fsevents)
+		// Skip following asserts on macOS where the fs-events service
+		// does not really give a full guarantee about the correlation
+		// of an event to a change.
+		if (!isMacintosh) {
 
-		// Read file does not emit event
-		changeFuture = awaitEvent(service, anotherNewFilePath, FileChangeType.UPDATED, 'unexpected-event-from-read-file');
-		await Promises.readFile(anotherNewFilePath);
-		await Promise.race([timeout(100), changeFuture]);
+			// Read file does not emit event
+			changeFuture = awaitEvent(service, anotherNewFilePath, FileChangeType.UPDATED, 'unexpected-event-from-read-file');
+			await Promises.readFile(anotherNewFilePath);
+			await Promise.race([timeout(100), changeFuture]);
 
-		// Stat file does not emit event
-		changeFuture = awaitEvent(service, anotherNewFilePath, FileChangeType.UPDATED, 'unexpected-event-from-stat');
-		await Promises.stat(anotherNewFilePath);
-		await Promise.race([timeout(100), changeFuture]);
+			// Stat file does not emit event
+			changeFuture = awaitEvent(service, anotherNewFilePath, FileChangeType.UPDATED, 'unexpected-event-from-stat');
+			await Promises.stat(anotherNewFilePath);
+			await Promise.race([timeout(100), changeFuture]);
 
-		// Stat folder does not emit event
-		changeFuture = awaitEvent(service, copiedFolderpath, FileChangeType.UPDATED, 'unexpected-event-from-stat');
-		await Promises.stat(copiedFolderpath);
-		await Promise.race([timeout(100), changeFuture]);
+			// Stat folder does not emit event
+			changeFuture = awaitEvent(service, copiedFolderpath, FileChangeType.UPDATED, 'unexpected-event-from-stat');
+			await Promises.stat(copiedFolderpath);
+			await Promise.race([timeout(100), changeFuture]);
+		}
 
 		// Delete file
 		changeFuture = awaitEvent(service, copiedFilepath, FileChangeType.DELETED);
@@ -259,6 +269,17 @@ flakySuite('Recursive Watcher (parcel)', () => {
 		// Delete folder
 		changeFuture = awaitEvent(service, copiedFolderpath, FileChangeType.DELETED);
 		await Promises.rmdir(copiedFolderpath);
+		await changeFuture;
+	});
+
+	(isMacintosh /* this test seems not possible with fsevents backend */ ? test.skip : test)('basics (atomic writes)', async function () {
+		await service.watch([{ path: testDir, excludes: [] }]);
+
+		// Delete + Recreate file
+		const newFilePath = join(testDir, 'deep', 'conway.js');
+		let changeFuture: Promise<unknown> = awaitEvent(service, newFilePath, FileChangeType.UPDATED);
+		await Promises.unlink(newFilePath);
+		Promises.writeFile(newFilePath, 'Hello Atomic World');
 		await changeFuture;
 	});
 
@@ -395,8 +416,6 @@ flakySuite('Recursive Watcher (parcel)', () => {
 		changeFuture = awaitEvent(service, newTextFilePath, FileChangeType.ADDED);
 		await Promises.writeFile(newTextFilePath, 'Hello World');
 		await changeFuture;
-
-		return service.stop();
 	});
 
 	test('subsequent watch updates watchers (excludes)', async function () {
@@ -408,8 +427,6 @@ flakySuite('Recursive Watcher (parcel)', () => {
 		let changeFuture: Promise<unknown> = awaitEvent(service, newTextFilePath, FileChangeType.ADDED);
 		await Promises.writeFile(newTextFilePath, 'Hello World');
 		await changeFuture;
-
-		return service.stop();
 	});
 
 	(isWindows /* windows: cannot create file symbolic link without elevated context */ ? test.skip : test)('symlink support (root)', async function () {

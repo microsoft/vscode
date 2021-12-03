@@ -5,7 +5,8 @@
 
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Action, IAction } from 'vs/base/common/actions';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { MarshalledId } from 'vs/base/common/marshalling';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
@@ -17,10 +18,11 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { INotebookEditorDelegate, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { IRunToolbar } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+import { CellViewModelStateChangeEvent, ICellViewModel, INotebookEditorDelegate, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
+import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 
-export class RunToolbar extends Disposable implements IRunToolbar {
+export class RunToolbar extends CellPart {
 	toolbar!: ToolBar;
 
 	constructor(
@@ -45,6 +47,28 @@ export class RunToolbar extends Disposable implements IRunToolbar {
 		updateActions();
 		this._register(menu.onDidChange(updateActions));
 		this._register(this.notebookEditor.notebookOptions.onDidChangeOptions(updateActions));
+	}
+
+	renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
+		this.toolbar.context = <INotebookCellActionContext>{
+			ui: true,
+			cell: element,
+			cellTemplate: templateData,
+			notebookEditor: this.notebookEditor,
+			$mid: MarshalledId.NotebookCellActionContext
+		};
+	}
+
+	prepareLayout(): void {
+		// no op
+	}
+
+	updateLayoutNow(element: ICellViewModel): void {
+		// no op
+	}
+
+	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
+		// no op
 	}
 
 	getCellToolbarActions(menu: IMenu): { primary: IAction[], secondary: IAction[]; } {
@@ -97,10 +121,6 @@ export class RunToolbar extends Disposable implements IRunToolbar {
 			},
 			renderDropdownAsChildElement: true
 		}));
-	}
-
-	updateContext(context: INotebookCellActionContext) {
-		this.toolbar.context = context;
 	}
 }
 

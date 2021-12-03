@@ -141,13 +141,8 @@ export class ThemeRegistry<T extends IThemeData> {
 				previousIds[theme.id] = theme;
 			}
 			this.extensionThemes.length = 0;
-			for (let ext of extensions) {
-				let extensionData: ExtensionData = {
-					extensionId: ext.description.identifier.value,
-					extensionPublisher: ext.description.publisher,
-					extensionName: ext.description.name,
-					extensionIsBuiltin: ext.description.isBuiltin
-				};
+			for (const ext of extensions) {
+				const extensionData = ExtensionData.fromName(ext.description.publisher, ext.description.name, ext.description.isBuiltin);
 				this.onThemes(extensionData, ext.description.extensionLocation, ext.value, this.extensionThemes, ext.collector);
 			}
 			for (const theme of this.extensionThemes) {

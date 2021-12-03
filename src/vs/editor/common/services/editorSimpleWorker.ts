@@ -18,11 +18,12 @@ import { ensureValidWordDefinition, getWordAtText } from 'vs/editor/common/model
 import { IInplaceReplaceSupportResult, ILink, TextEdit } from 'vs/editor/common/modes';
 import { ILinkComputerTarget, computeLinks } from 'vs/editor/common/modes/linkComputer';
 import { BasicInplaceReplace } from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
-import { IDiffComputationResult } from 'vs/editor/common/services/editorWorkerService';
+import { IDiffComputationResult, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorkerService';
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
 import * as types from 'vs/base/common/types';
 import { EditorWorkerHost } from 'vs/editor/common/services/editorWorkerServiceImpl';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { UnicodeTextModelHighlighter, UnicodeHighlighterOptions } from 'vs/editor/common/modes/unicodeTextModelHighlighter';
 
 export interface IMirrorModel extends IMirrorTextModel {
 	readonly uri: URI;
@@ -369,6 +370,14 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			return;
 		}
 		delete this._models[strURL];
+	}
+
+	public async computeUnicodeHighlights(url: string, options: UnicodeHighlighterOptions, range?: IRange): Promise<IUnicodeHighlightsResult> {
+		const model = this._getModel(url);
+		if (!model) {
+			return { ranges: [], hasMore: false, ambiguousCharacterCount: 0, invisibleCharacterCount: 0, nonBasicAsciiCharacterCount: 0 };
+		}
+		return UnicodeTextModelHighlighter.computeUnicodeHighlights(model, options, range);
 	}
 
 	// ---- BEGIN diff --------------------------------------------------------------------------

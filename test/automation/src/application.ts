@@ -24,24 +24,19 @@ export interface ApplicationOptions extends SpawnOptions {
 
 export class Application {
 
-	private _code: Code | undefined;
-	private _workbench: Workbench | undefined;
-
 	constructor(private options: ApplicationOptions) {
 		this._userDataPath = options.userDataDir;
 		this._workspacePathOrFolder = options.workspacePath;
 	}
 
+	private _code: Code | undefined;
+	get code(): Code { return this._code!; }
+
+	private _workbench: Workbench | undefined;
+	get workbench(): Workbench { return this._workbench!; }
+
 	get quality(): Quality {
 		return this.options.quality;
-	}
-
-	get code(): Code {
-		return this._code!;
-	}
-
-	get workbench(): Workbench {
-		return this._workbench!;
 	}
 
 	get logger(): Logger {
@@ -75,10 +70,9 @@ export class Application {
 		await this.code.waitForElement('.explorer-folders-view');
 	}
 
-	async restart(options: { workspaceOrFolder?: string, extraArgs?: string[] }): Promise<any> {
+	async restart(options?: { workspaceOrFolder?: string, extraArgs?: string[] }): Promise<any> {
 		await this.stop();
-		await new Promise(c => setTimeout(c, 1000));
-		await this._start(options.workspaceOrFolder, options.extraArgs);
+		await this._start(options?.workspaceOrFolder, options?.extraArgs);
 	}
 
 	private async _start(workspaceOrFolder = this.workspacePathOrFolder, extraArgs: string[] = []): Promise<any> {
@@ -87,20 +81,13 @@ export class Application {
 		await this.checkWindowReady();
 	}
 
-	async reload(): Promise<any> {
-		this.code.reload()
-			.catch(err => null); // ignore the connection drop errors
-
-		// needs to be enough to propagate the 'Reload Window' command
-		await new Promise(c => setTimeout(c, 1500));
-		await this.checkWindowReady();
-	}
-
 	async stop(): Promise<any> {
 		if (this._code) {
-			await this._code.exit();
-			this._code.dispose();
-			this._code = undefined;
+			try {
+				await this._code.exit();
+			} finally {
+				this._code = undefined;
+			}
 		}
 	}
 
@@ -112,6 +99,7 @@ export class Application {
 			if (this.options.log) {
 				this.logger.log('*** Screenshot recorded:', screenshotPath);
 			}
+
 			fs.writeFileSync(screenshotPath, buffer);
 		}
 	}

@@ -120,13 +120,17 @@ function _createExtHostProtocol(): Promise<PersistentProtocol> {
 
 			process.on('message', (msg: IExtHostSocketMessage | IExtHostReduceGraceTimeMessage, handle: net.Socket) => {
 				if (msg && msg.type === 'VSCODE_EXTHOST_IPC_SOCKET') {
+					// Disable Nagle's algorithm. We also do this on the server process,
+					// but nodejs doesn't document if this option is transferred with the socket
+					handle.setNoDelay(true);
+
 					const initialDataChunk = VSBuffer.wrap(Buffer.from(msg.initialDataChunk, 'base64'));
 					let socket: NodeSocket | WebSocketNodeSocket;
 					if (msg.skipWebSocketFrames) {
-						socket = new NodeSocket(handle);
+						socket = new NodeSocket(handle, 'extHost-socket');
 					} else {
 						const inflateBytes = VSBuffer.wrap(Buffer.from(msg.inflateBytes, 'base64'));
-						socket = new WebSocketNodeSocket(new NodeSocket(handle), msg.permessageDeflate, inflateBytes, false);
+						socket = new WebSocketNodeSocket(new NodeSocket(handle, 'extHost-socket'), msg.permessageDeflate, inflateBytes, false);
 					}
 					if (protocol) {
 						// reconnection case
@@ -134,9 +138,11 @@ function _createExtHostProtocol(): Promise<PersistentProtocol> {
 						disconnectRunner2.cancel();
 						protocol.beginAcceptReconnection(socket, initialDataChunk);
 						protocol.endAcceptReconnection();
+						protocol.sendResume();
 					} else {
 						clearTimeout(timer);
 						protocol = new PersistentProtocol(socket, initialDataChunk);
+						protocol.sendResume();
 						protocol.onDidDispose(() => onTerminate('renderer disconnected'));
 						resolve(protocol);
 
@@ -174,7 +180,7 @@ function _createExtHostProtocol(): Promise<PersistentProtocol> {
 
 			const socket = net.createConnection(pipeName, () => {
 				socket.removeListener('error', reject);
-				resolve(new PersistentProtocol(new NodeSocket(socket)));
+				resolve(new PersistentProtocol(new NodeSocket(socket, 'extHost-renderer')));
 			});
 			socket.once('error', reject);
 

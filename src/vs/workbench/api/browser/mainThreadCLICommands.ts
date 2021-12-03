@@ -31,8 +31,11 @@ CommandsRegistry.registerCommand('_remoteCLI.openExternal', function (accessor: 
 	return openerService.open(isString(uri) ? uri : URI.revive(uri), { openExternal: true, allowTunneling: true });
 });
 
-CommandsRegistry.registerCommand('_remoteCLI.windowOpen', function (accessor: ServicesAccessor, toOpen: IWindowOpenable[], options?: IOpenWindowOptions) {
+CommandsRegistry.registerCommand('_remoteCLI.windowOpen', function (accessor: ServicesAccessor, toOpen: IWindowOpenable[], options: IOpenWindowOptions) {
 	const commandService = accessor.get(ICommandService);
+	if (!toOpen.length) {
+		return commandService.executeCommand('_files.newWindow', options);
+	}
 	return commandService.executeCommand('_files.windowOpen', toOpen, options);
 });
 
@@ -68,7 +71,7 @@ CommandsRegistry.registerCommand('_remoteCLI.manageExtensions', async function (
 		const revive = (inputs: (string | UriComponents)[]) => inputs.map(input => isString(input) ? input : URI.revive(input));
 		if (Array.isArray(args.install) && args.install.length) {
 			try {
-				await cliService.installExtensions(revive(args.install), [], true, !!args.force, output);
+				await cliService.installExtensions(revive(args.install), [], { isMachineScoped: true }, !!args.force, output);
 			} catch (e) {
 				lines.push(e.message);
 			}

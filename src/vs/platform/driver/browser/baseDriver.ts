@@ -57,7 +57,6 @@ export abstract class BaseWindowDriver implements IWindowDriver {
 	async getElements(selector: string, recursive: boolean): Promise<IElement[]> {
 		const query = document.querySelectorAll(selector);
 		const result: IElement[] = [];
-
 		for (let i = 0; i < query.length; i++) {
 			const element = query.item(i);
 			result.push(this.serializeElement(element, recursive));
@@ -159,7 +158,7 @@ export abstract class BaseWindowDriver implements IWindowDriver {
 			throw new Error(`Xterm not found: ${selector}`);
 		}
 
-		xterm._core._coreService.triggerDataEvent(text);
+		xterm._core.coreService.triggerDataEvent(text);
 	}
 
 	getLocaleInfo(): Promise<ILocaleInfo> {
