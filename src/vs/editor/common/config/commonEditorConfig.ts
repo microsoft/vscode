@@ -112,11 +112,14 @@ class EditorConfiguration2 {
 	}
 
 	private static _deepEquals<T>(a: T, b: T): boolean {
-		if (typeof a !== 'object' || typeof b !== 'object') {
-			return (a === b);
+		if (typeof a !== 'object' || typeof b !== 'object' || !a || !b) {
+			return a === b;
 		}
 		if (Array.isArray(a) || Array.isArray(b)) {
 			return (Array.isArray(a) && Array.isArray(b) ? arrays.equals(a, b) : false);
+		}
+		if (Object.keys(a).length !== Object.keys(b).length) {
+			return false;
 		}
 		for (let key in a) {
 			if (!EditorConfiguration2._deepEquals(a[key], b[key])) {
@@ -137,6 +140,22 @@ class EditorConfiguration2 {
 			}
 		}
 		return (somethingChanged ? new ConfigurationChangedEvent(result) : null);
+	}
+
+	/**
+	 * Returns true if something changed.
+	 * Modifies `options`.
+	*/
+	public static applyUpdate(options: IEditorOptions, update: Readonly<IEditorOptions>): boolean {
+		let changed = false;
+		for (const editorOption of editorOptionsRegistry) {
+			if (update.hasOwnProperty(editorOption.name)) {
+				const result = editorOption.applyUpdate((options as any)[editorOption.name], (update as any)[editorOption.name]);
+				(options as any)[editorOption.name] = result.newValue;
+				changed = changed || result.didChange;
+			}
+		}
+		return changed;
 	}
 }
 
@@ -382,43 +401,17 @@ export abstract class CommonEditorConfiguration extends Disposable implements IC
 		return EditorConfiguration2.computeOptions(this._validatedOptions, env);
 	}
 
-	private static _subsetEquals(base: { [key: string]: any }, subset: { [key: string]: any }): boolean {
-		for (const key in subset) {
-			if (hasOwnProperty.call(subset, key)) {
-				const subsetValue = subset[key];
-				const baseValue = base[key];
-
-				if (baseValue === subsetValue) {
-					continue;
-				}
-				if (Array.isArray(baseValue) && Array.isArray(subsetValue)) {
-					if (!arrays.equals(baseValue, subsetValue)) {
-						return false;
-					}
-					continue;
-				}
-				if (baseValue && typeof baseValue === 'object' && subsetValue && typeof subsetValue === 'object') {
-					if (!this._subsetEquals(baseValue, subsetValue)) {
-						return false;
-					}
-					continue;
-				}
-
-				return false;
-			}
-		}
-		return true;
-	}
-
 	public updateOptions(_newOptions: Readonly<IEditorOptions>): void {
 		if (typeof _newOptions === 'undefined') {
 			return;
 		}
 		const newOptions = deepCloneAndMigrateOptions(_newOptions);
-		if (CommonEditorConfiguration._subsetEquals(this._rawOptions, newOptions)) {
+
+		const didChange = EditorConfiguration2.applyUpdate(this._rawOptions, newOptions);
+		if (!didChange) {
 			return;
 		}
-		this._rawOptions = objects.mixin(this._rawOptions, newOptions || {});
+
 		this._readOptions = EditorConfiguration2.readOptions(this._rawOptions);
 		this._validatedOptions = EditorConfiguration2.validateOptions(this._readOptions);
 

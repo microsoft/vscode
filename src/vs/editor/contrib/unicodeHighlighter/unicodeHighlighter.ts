@@ -160,7 +160,7 @@ export class UnicodeHighlighter extends Disposable implements IEditorContributio
 			ambiguousCharacters: options.ambiguousCharacters,
 			invisibleCharacters: options.invisibleCharacters,
 			includeComments: options.includeComments,
-			allowedCodePoints: Array.from(options.allowedCharacters).map(c => c.codePointAt(0)!),
+			allowedCodePoints: Object.keys(options.allowedCharacters).map(c => c.codePointAt(0)!),
 		};
 
 		if (this._editorWorkerService.canComputeUnicodeHighlights(this._editor.getModel().uri)) {
@@ -191,7 +191,7 @@ function resolveOptions(trusted: boolean, options: InternalUnicodeHighlightOptio
 		ambiguousCharacters: options.ambiguousCharacters,
 		invisibleCharacters: options.invisibleCharacters,
 		includeComments: options.includeComments === inUntrustedWorkspace ? !trusted : options.includeComments,
-		allowedCharacters: options.allowedCharacters ?? [],
+		allowedCharacters: options.allowedCharacters ?? {},
 	};
 }
 
@@ -640,18 +640,7 @@ export class ShowExcludeOptions extends EditorAction {
 		const options: ExtendedOptions[] = [
 			{
 				label: getExcludeCharFromBeingHighlightedLabel(codePoint),
-				run: async () => {
-					const existingValue = configurationService.getValue(unicodeHighlightConfigKeys.allowedCharacters);
-					let value: string;
-					if (typeof existingValue === 'string') {
-						value = existingValue;
-					} else {
-						value = '';
-					}
-
-					value += char;
-					await configurationService.updateValue(unicodeHighlightConfigKeys.allowedCharacters, value, ConfigurationTarget.USER);
-				}
+				run: () => excludeCharFromBeingHighlighted(configurationService, [codePoint])
 			},
 		];
 
@@ -679,6 +668,23 @@ export class ShowExcludeOptions extends EditorAction {
 			await result.run();
 		}
 	}
+}
+
+async function excludeCharFromBeingHighlighted(configurationService: IConfigurationService, charCodes: number[]) {
+	const existingValue = configurationService.getValue(unicodeHighlightConfigKeys.allowedCharacters);
+
+	let value: Record<string, boolean>;
+	if ((typeof existingValue === 'object') && existingValue) {
+		value = existingValue as any;
+	} else {
+		value = {};
+	}
+
+	for (const charCode of charCodes) {
+		value[String.fromCodePoint(charCode)] = true;
+	}
+
+	await configurationService.updateValue(unicodeHighlightConfigKeys.allowedCharacters, value, ConfigurationTarget.USER);
 }
 
 function expectNever(value: never) {

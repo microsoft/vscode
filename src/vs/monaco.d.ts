@@ -3378,6 +3378,16 @@ declare namespace monaco.editor {
 		readonly id: K1;
 		readonly name: string;
 		defaultValue: V;
+		/**
+		 * Might modify `value`.
+		*/
+		applyUpdate(value: V, update: V): ApplyUpdateResult<V>;
+	}
+
+	export class ApplyUpdateResult<T> {
+		readonly newValue: T;
+		readonly didChange: boolean;
+		constructor(newValue: T, didChange: boolean);
 	}
 
 	/**
@@ -3874,9 +3884,9 @@ declare namespace monaco.editor {
 		ambiguousCharacters?: boolean;
 		includeComments?: boolean | InUntrustedWorkspace;
 		/**
-		 * A list of allowed code points in a single string.
+		 * A map of allowed characters (true: allowed).
 		*/
-		allowedCharacters?: string;
+		allowedCharacters?: Record<string, true>;
 	}
 
 	export interface IInlineSuggestOptions {
