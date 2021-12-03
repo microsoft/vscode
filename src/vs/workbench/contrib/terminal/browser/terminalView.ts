@@ -145,7 +145,10 @@ export class TerminalViewPane extends ViewPane {
 				} else {
 					this._onDidChangeViewWelcomeState.fire();
 				}
-
+				// we don't know here whether or not it should be focused, so
+				// defer focusing the panel to the focus() call
+				// to prevent overriding preserveFocus for extensions
+				this._terminalGroupService.showPanel(false);
 				if (hadTerminals) {
 					this._terminalGroupService.activeGroup?.setVisible(visible);
 				}
