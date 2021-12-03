@@ -825,7 +825,7 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 	}
 
 	private checkForMaliciousExtensions(): Promise<void> {
-		return this.extensionsManagementService.getExtensionsReport().then(report => {
+		return this.extensionsManagementService.getExtensionsControlManifest().then(report => {
 			const maliciousSet = getMaliciousExtensionsSet(report);
 
 			return this.extensionsManagementService.getInstalled(ExtensionType.User).then(installed => {

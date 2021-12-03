@@ -443,6 +443,43 @@ suite('CustomConfigurationModel', () => {
 	});
 });
 
+suite('CustomConfigurationModel', () => {
+
+	test('Default configuration model uses overrides', () => {
+		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+			'id': 'a',
+			'order': 1,
+			'title': 'a',
+			'type': 'object',
+			'properties': {
+				'a': {
+					'description': 'a',
+					'type': 'boolean',
+					'default': false,
+				}
+			}
+		});
+		assert.strictEqual(true, new DefaultConfigurationModel().getValue('a'));
+	});
+
+	test('Default configuration model uses overrides', () => {
+		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+			'id': 'a',
+			'order': 1,
+			'title': 'a',
+			'type': 'object',
+			'properties': {
+				'a': {
+					'description': 'a',
+					'type': 'boolean',
+					'default': false,
+				}
+			}
+		});
+		assert.strictEqual(false, new DefaultConfigurationModel({ a: false }).getValue('a'));
+	});
+});
+
 suite('Configuration', () => {
 
 	test('Test inspect for overrideIdentifiers', () => {

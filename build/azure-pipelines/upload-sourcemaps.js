@@ -10,9 +10,11 @@ const vfs = require("vinyl-fs");
 const util = require("../lib/util");
 // @ts-ignore
 const deps = require("../lib/dependencies");
+const identity_1 = require("@azure/identity");
 const azure = require('gulp-azure-storage');
 const root = path.dirname(path.dirname(__dirname));
 const commit = util.getVersion(root);
+const credential = new identity_1.ClientSecretCredential(process.env['AZURE_TENANT_ID'], process.env['AZURE_CLIENT_ID'], process.env['AZURE_CLIENT_SECRET']);
 // optionally allow to pass in explicit base/maps to upload
 const [, , base, maps] = process.argv;
 function src(base, maps = `${base}/**/*.map`) {
@@ -40,16 +42,23 @@ function main() {
     else {
         sources.push(src(base, maps));
     }
-    return es.merge(...sources)
-        .pipe(es.through(function (data) {
-        console.log('Uploading Sourcemap', data.relative); // debug
-        this.emit('data', data);
-    }))
-        .pipe(azure.upload({
-        account: process.env.AZURE_STORAGE_ACCOUNT,
-        key: process.env.AZURE_STORAGE_ACCESS_KEY,
-        container: 'sourcemaps',
-        prefix: commit + '/'
-    }));
+    return new Promise((c, e) => {
+        es.merge(...sources)
+            .pipe(es.through(function (data) {
+            console.log('Uploading Sourcemap', data.relative); // debug
+            this.emit('data', data);
+        }))
+            .pipe(azure.upload({
+            account: process.env.AZURE_STORAGE_ACCOUNT,
+            credential,
+            container: 'sourcemaps',
+            prefix: commit + '/'
+        }))
+            .on('end', () => c())
+            .on('error', (err) => e(err));
+    });
 }
-main();
+main().catch(err => {
+    console.error(err);
+    process.exit(1);
+});

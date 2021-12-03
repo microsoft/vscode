@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { mock } from 'vs/base/test/common/mock';
 import { NotebookClipboardContribution, runCopyCells, runCutCells } from 'vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard';
 import { CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
+import { withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IActiveNotebookEditor, INotebookEditor, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IVisibleEditorPane } from 'vs/workbench/common/editor';

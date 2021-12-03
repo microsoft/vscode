@@ -864,7 +864,8 @@ interface IEditorPartConfiguration {
 	decorations?: {
 		badges?: boolean;
 		colors?: boolean;
-	}
+	},
+	experimentalDisableClearInputOnSetInput?: boolean;
 }
 
 export interface IEditorPartOptions extends IEditorPartConfiguration {
@@ -1142,7 +1143,7 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 		let type = path.type;
 		if (typeof exists !== 'boolean' || typeof type !== 'number') {
 			try {
-				type = (await fileService.resolve(resource)).isFile ? FileType.File : FileType.Unknown;
+				type = (await fileService.resolve(resource)).isDirectory ? FileType.Directory : FileType.Unknown;
 				exists = true;
 			} catch {
 				exists = false;
@@ -1153,7 +1154,7 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 			return;
 		}
 
-		if (type !== FileType.File) {
+		if (type === FileType.Directory) {
 			return;
 		}
 

@@ -12,7 +12,7 @@ import {
 import { formatError, runSafe, runSafeAsync } from './utils/runner';
 import { TextDocument, JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration, ClientCapabilities, Diagnostic, Range, Position } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
-import { RequestService, basename, resolvePath } from './requests';
+import { Utils, URI } from 'vscode-uri';
 
 type ISchemaAssociations = Record<string, string[]>;
 
@@ -45,10 +45,14 @@ namespace LanguageStatusRequest {
 
 const workspaceContext = {
 	resolveRelativePath: (relativePath: string, resource: string) => {
-		const base = resource.substr(0, resource.lastIndexOf('/') + 1);
-		return resolvePath(base, relativePath);
+		const base = resource.substring(0, resource.lastIndexOf('/') + 1);
+		return Utils.resolvePath(URI.parse(base), relativePath).toString();
 	}
 };
+
+export interface RequestService {
+	getContent(uri: string): Promise<string>;
+}
 
 export interface RuntimeEnvironment {
 	file?: RequestService;
@@ -185,7 +189,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 
 		const showLimitedNotification = (uri: string, resultLimit: number) => {
 			const warning = pendingWarnings[uri];
-			connection.sendNotification(ResultLimitReachedNotification.type, `${basename(uri)}: For performance reasons, ${Object.keys(warning.features).join(' and ')} have been limited to ${resultLimit} items.`);
+			connection.sendNotification(ResultLimitReachedNotification.type, `${Utils.basename(URI.parse(uri))}: For performance reasons, ${Object.keys(warning.features).join(' and ')} have been limited to ${resultLimit} items.`);
 			warning.timeout = undefined;
 		};
 

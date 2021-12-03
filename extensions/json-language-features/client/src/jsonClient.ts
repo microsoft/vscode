@@ -20,7 +20,6 @@ import {
 } from 'vscode-languageclient';
 
 import { hash } from './utils/hash';
-import { joinPath } from './requests';
 import { createLanguageStatusItem } from './languageStatus';
 
 namespace VSCodeContentRequest {
@@ -392,7 +391,7 @@ function getSchemaAssociations(_context: ExtensionContext): ISchemaAssociation[]
 					if (Array.isArray(fileMatch) && typeof url === 'string') {
 						let uri: string = url;
 						if (uri[0] === '.' && uri[1] === '/') {
-							uri = joinPath(extension.extensionUri, uri).toString();
+							uri = Uri.joinPath(extension.extensionUri, uri).toString();
 						}
 						fileMatch = fileMatch.map(fm => {
 							if (fm[0] === '%') {
@@ -513,7 +512,7 @@ function getSchemaId(schema: JSONSchemaSettings, folderUri?: Uri): string | unde
 			url = schema.schema.id || `vscode://schemas/custom/${encodeURIComponent(hash(schema.schema).toString(16))}`;
 		}
 	} else if (folderUri && (url[0] === '.' || url[0] === '/')) {
-		url = joinPath(folderUri, url).toString();
+		url = Uri.joinPath(folderUri, url).toString();
 	}
 	return url;
 }

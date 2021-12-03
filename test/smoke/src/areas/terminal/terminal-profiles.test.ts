@@ -4,25 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ParsedArgs } from 'minimist';
-import { Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation';
-import { afterSuite, beforeSuite } from '../../utils';
+import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation';
 
 const CONTRIBUTED_PROFILE_NAME = `JavaScript Debug Terminal`;
 const ANY_PROFILE_NAME = '^((?!JavaScript Debug Terminal).)*$';
 
 export function setup(opts: ParsedArgs) {
 	describe('Terminal Profiles', () => {
+		// Acquire automation API
 		let terminal: Terminal;
-
-		beforeSuite(opts);
-		afterSuite(opts);
-
 		before(function () {
-			terminal = this.app.workbench.terminal;
-		});
-
-		afterEach(async () => {
-			await terminal.runCommand(TerminalCommandId.KillAll);
+			const app = this.app as Application;
+			terminal = app.workbench.terminal;
 		});
 
 		it('should launch the default profile', async () => {
@@ -43,8 +36,8 @@ export function setup(opts: ParsedArgs) {
 			await terminal.assertTerminalGroups([[{ name: CONTRIBUTED_PROFILE_NAME }, { name: CONTRIBUTED_PROFILE_NAME }]]);
 		});
 
-		it('should set the default profile', async () => {
-			await terminal.runCommandWithValue(TerminalCommandIdWithValue.SelectDefaultProfile);
+		it.skip('should set the default profile', async () => {
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.SelectDefaultProfile, process.platform === 'win32' ? 'PowerShell' : undefined);
 			await terminal.runCommand(TerminalCommandId.CreateNew);
 			await terminal.assertSingleTab({ name: ANY_PROFILE_NAME });
 		});

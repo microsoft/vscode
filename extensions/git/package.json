@@ -24,6 +24,9 @@
     "*",
     "onFileSystem:git"
   ],
+  "extensionDependencies": [
+    "vscode.git-base"
+  ],
   "main": "./out/main",
   "icon": "resources/icons/git.png",
   "scripts": {
@@ -82,6 +85,13 @@
         "title": "%command.openChange%",
         "category": "Git",
         "icon": "$(compare-changes)"
+      },
+      {
+        "command": "git.openChangeEditor",
+        "title": "%command.openChange%",
+        "category": "Git",
+        "icon": "$(compare-changes)",
+        "enablement": "scmActiveResourceHasChanges"
       },
       {
         "command": "git.openAllChanges",
@@ -598,6 +608,10 @@
         },
         {
           "command": "git.openChange",
+          "when": "false"
+        },
+        {
+          "command": "git.openChangeEditor",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
@@ -1355,7 +1369,7 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInNotebookTextDiffEditor && resourceScheme =~ /^git$|^file$/"
         },
         {
-          "command": "git.openChange",
+          "command": "git.openChangeEditor",
           "group": "navigation",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && resourceScheme == file"
         },
@@ -2365,7 +2379,7 @@
   "dependencies": {
     "byline": "^5.0.0",
     "file-type": "^7.2.0",
-    "iconv-lite-umd": "0.6.8",
+    "iconv-lite-umd": "0.6.10",
     "jschardet": "3.0.0",
     "vscode-extension-telemetry": "0.4.3",
     "vscode-nls": "^4.0.0",

@@ -133,6 +133,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 		const editableSetting = this.getSetting(setting);
 		return !!(editableSetting && this.editSettingActionRenderer.activateOnSetting(editableSetting));
 	}
+
 }
 
 export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements IPreferencesRenderer {

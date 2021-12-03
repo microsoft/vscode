@@ -37,6 +37,7 @@ import { UserDataSyncStoreTypeSynchronizer } from 'vs/platform/userDataSync/comm
 
 type UserAccountClassification = {
 	id: { classification: 'EndUserPseudonymizedInformation', purpose: 'BusinessInsight' };
+	providerId: { classification: 'EndUserPseudonymizedInformation', purpose: 'BusinessInsight' };
 };
 
 type FirstTimeSyncClassification = {
@@ -45,6 +46,7 @@ type FirstTimeSyncClassification = {
 
 type UserAccountEvent = {
 	id: string;
+	providerId: string;
 };
 
 type FirstTimeSyncAction = 'pull' | 'push' | 'merge' | 'manual';
@@ -519,18 +521,20 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		if (!result) {
 			return false;
 		}
-		let sessionId: string, accountName: string, accountId: string;
+		let sessionId: string, accountName: string, accountId: string, authenticationProviderId: string;
 		if (isAuthenticationProvider(result)) {
 			const session = await this.authenticationService.createSession(result.id, result.scopes);
 			sessionId = session.id;
 			accountName = session.account.label;
 			accountId = session.account.id;
+			authenticationProviderId = result.id;
 		} else {
 			sessionId = result.sessionId;
 			accountName = result.accountName;
 			accountId = result.accountId;
+			authenticationProviderId = result.authenticationProviderId;
 		}
-		await this.switch(sessionId, accountName, accountId);
+		await this.switch(sessionId, accountName, accountId, authenticationProviderId);
 		return true;
 	}
 
@@ -604,13 +608,13 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		return quickPickItems;
 	}
 
-	private async switch(sessionId: string, accountName: string, accountId: string): Promise<void> {
+	private async switch(sessionId: string, accountName: string, accountId: string, authenticationProviderId: string): Promise<void> {
 		const currentAccount = this.current;
 		if (this.userDataAutoSyncEnablementService.isEnabled() && (currentAccount && currentAccount.accountName !== accountName)) {
 			// accounts are switched while sync is enabled.
 		}
 		this.currentSessionId = sessionId;
-		this.telemetryService.publicLog2<UserAccountEvent, UserAccountClassification>('sync.userAccount', { id: accountId });
+		this.telemetryService.publicLog2<UserAccountEvent, UserAccountClassification>('sync.userAccount', { id: accountId, providerId: authenticationProviderId });
 		await this.update();
 	}
 

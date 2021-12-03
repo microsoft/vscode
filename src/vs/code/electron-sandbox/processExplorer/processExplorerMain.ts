@@ -115,7 +115,7 @@ class ProcessHeaderTreeRenderer implements ITreeRenderer<ProcessInformation, voi
 	}
 	renderElement(node: ITreeNode<ProcessInformation, void>, index: number, templateData: IProcessItemTemplateData, height: number | undefined): void {
 		templateData.name.textContent = localize('name', "Process Name");
-		templateData.CPU.textContent = localize('cpu', "CPU %");
+		templateData.CPU.textContent = localize('cpu', "CPU (%)");
 		templateData.PID.textContent = localize('pid', "PID");
 		templateData.memory.textContent = localize('memory', "Memory (MB)");
 
@@ -181,12 +181,14 @@ class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTe
 			const windowTitle = this.mapPidToWindowTitle.get(element.pid);
 			name = windowTitle !== undefined ? `${name} (${this.mapPidToWindowTitle.get(element.pid)})` : name;
 		}
+		const pid = element.pid.toFixed(0);
 
 		templateData.name.textContent = name;
 		templateData.name.title = element.cmd;
 
 		templateData.CPU.textContent = element.load.toFixed(0);
-		templateData.PID.textContent = element.pid.toFixed(0);
+		templateData.PID.textContent = pid;
+		templateData.PID.parentElement!.id = `pid-${pid}`;
 
 		const memory = this.platform === 'win32' ? element.mem : (this.totalMem * (element.mem / 100));
 		templateData.memory.textContent = (memory / ByteSize.MB).toFixed(0);
@@ -450,9 +452,23 @@ class ProcessExplorer {
 		items.push({
 			label: localize('copy', "Copy"),
 			click: () => {
-				const row = document.getElementById(pid.toString());
-				if (row) {
-					this.nativeHostService.writeClipboardText(row.innerText);
+				// Collect the selected pids
+				const selectionPids = this.tree?.getSelection()?.map(e => {
+					if (!e || !('pid' in e)) {
+						return undefined;
+					}
+					return e.pid;
+				}).filter(e => !!e) as number[];
+				// If the selection does not contain the right clicked item, copy the right clicked
+				// item only.
+				if (!selectionPids?.includes(pid)) {
+					selectionPids.length = 0;
+					selectionPids.push(pid);
+				}
+				const rows = selectionPids?.map(e => document.getElementById(`pid-${e}`)).filter(e => !!e) as HTMLElement[];
+				if (rows) {
+					const text = rows.map(e => e.innerText).filter(e => !!e) as string[];
+					this.nativeHostService.writeClipboardText(text.join('\n'));
 				}
 			}
 		});

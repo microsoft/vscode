@@ -120,6 +120,8 @@ export interface IProductConfiguration {
 	readonly showTelemetryOptOut?: boolean;
 
 	readonly serverGreeting: string[];
+	readonly serverLicense?: string[];
+	readonly serverLicensePrompt?: string;
 
 	readonly npsSurveyUrl?: string;
 	readonly cesSurveyUrl?: string;

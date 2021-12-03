@@ -15,7 +15,6 @@ export enum Selector {
 	PlusButton = '.codicon-plus',
 	EditorGroups = '.editor .split-view-view',
 	EditorTab = '.terminal-tab',
-	EditorTabIcon = '.terminal-tab.codicon-',
 	SingleTab = '.single-terminal-tab',
 	Tabs = '.tabs-list .monaco-list-row',
 	SplitButton = '.editor .codicon-split-horizontal'
@@ -26,7 +25,8 @@ export enum TerminalCommandIdWithValue {
 	ChangeColor = 'workbench.action.terminal.changeColor',
 	ChangeIcon = 'workbench.action.terminal.changeIcon',
 	NewWithProfile = 'workbench.action.terminal.newWithProfile',
-	SelectDefaultProfile = 'workbench.action.terminal.selectDefaultShell'
+	SelectDefaultProfile = 'workbench.action.terminal.selectDefaultShell',
+	AttachToSession = 'workbench.action.terminal.attachToSession',
 }
 
 export enum TerminalCommandId {
@@ -41,7 +41,8 @@ export enum TerminalCommandId {
 	MoveToPanel = 'workbench.action.terminal.moveToTerminalPanel',
 	MoveToEditor = 'workbench.action.terminal.moveToEditor',
 	NewWithProfile = 'workbench.action.terminal.newWithProfile',
-	SelectDefaultProfile = 'workbench.action.terminal.selectDefaultShell'
+	SelectDefaultProfile = 'workbench.action.terminal.selectDefaultShell',
+	DetachSession = 'workbench.action.terminal.detachSession',
 }
 interface TerminalLabel {
 	name?: string,
@@ -64,10 +65,13 @@ export class Terminal {
 	}
 
 	async runCommandWithValue(commandId: TerminalCommandIdWithValue, value?: string, altKey?: boolean): Promise<void> {
-		const shouldKeepOpen = !!value || commandId === TerminalCommandIdWithValue.SelectDefaultProfile || commandId === TerminalCommandIdWithValue.NewWithProfile;
+		const shouldKeepOpen = !!value || commandId === TerminalCommandIdWithValue.NewWithProfile || commandId === TerminalCommandIdWithValue.Rename || (commandId === TerminalCommandIdWithValue.SelectDefaultProfile && value !== 'PowerShell');
 		await this.quickaccess.runCommand(commandId, shouldKeepOpen);
 		if (value) {
 			await this.code.waitForSetValue(QuickInput.QUICK_INPUT_INPUT, value);
+		} else if (commandId === TerminalCommandIdWithValue.Rename) {
+			// Reset
+			await this.code.dispatchKeybinding('Backspace');
 		}
 		await this.code.dispatchKeybinding(altKey ? 'Alt+Enter' : 'enter');
 		await this.quickinput.waitForQuickInputClosed();
@@ -75,8 +79,6 @@ export class Terminal {
 
 	async runCommandInTerminal(commandText: string): Promise<void> {
 		await this.code.writeInTerminal(Selector.Xterm, commandText);
-		// hold your horses
-		await new Promise(c => setTimeout(c, 500));
 		await this.code.dispatchKeybinding('enter');
 	}
 
@@ -108,6 +110,29 @@ export class Terminal {
 		}
 	}
 
+	async getTerminalGroups(): Promise<TerminalGroup[]> {
+		const tabCount = (await this.code.waitForElements(Selector.Tabs, true)).length;
+		const groups: TerminalGroup[] = [];
+		for (let i = 0; i < tabCount; i++) {
+			const instance = await this.code.waitForElement(`${Selector.Tabs}[data-index="${i}"] ${Selector.TabsEntry}`, e => e?.textContent?.length ? e?.textContent?.length > 1 : false);
+			const label: TerminalLabel = {
+				name: instance.textContent.replace(/^[├┌└]\s*/, '')
+			};
+			// It's a new group if the the tab does not start with ├ or └
+			if (instance.textContent.match(/^[├└]/)) {
+				groups[groups.length - 1].push(label);
+			} else {
+				groups.push([label]);
+			}
+		}
+		return groups;
+	}
+
+	async getSingleTabName(): Promise<string> {
+		const tab = await this.code.waitForElement(Selector.SingleTab, singleTab => !!singleTab && singleTab?.textContent.length > 1);
+		return tab.textContent;
+	}
+
 	private async assertTabExpected(selector?: string, listIndex?: number, nameRegex?: RegExp, icon?: string, color?: string): Promise<void> {
 		if (listIndex) {
 			if (nameRegex) {
@@ -124,12 +149,17 @@ export class Terminal {
 				await this.code.waitForElement(`${selector}`, singleTab => !!singleTab && !!singleTab?.textContent.match(nameRegex));
 			}
 			if (color) {
-				await this.code.waitForElement(`${selector}.terminal-icon-terminal_ansi${color}`);
+				await this.code.waitForElement(`${selector}`, singleTab => !!singleTab && !!singleTab.className.includes(`terminal-icon-terminal_ansi${color}`));
 			}
 			if (icon) {
-				await this.code.waitForElement(selector === Selector.EditorTab ? `${Selector.EditorTabIcon}${icon}` : `${selector} .codicon-${icon}`);
+				selector = selector === Selector.EditorTab ? selector : `${selector} .codicon`;
+				await this.code.waitForElement(`${selector}`, singleTab => !!singleTab && !!singleTab.className.includes(icon));
 			}
 		}
+	}
+
+	async assertTerminalViewHidden(): Promise<void> {
+		await this.code.waitForElement(Selector.TerminalView, result => result === undefined);
 	}
 
 	async clickPlusButton(): Promise<void> {

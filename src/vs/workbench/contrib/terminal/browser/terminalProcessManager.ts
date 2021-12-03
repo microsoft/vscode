@@ -194,7 +194,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			} else {
 				this.remoteAuthority = this._workbenchEnvironmentService.remoteAuthority;
 			}
-
 			const backend = this._terminalInstanceService.getBackend(this.remoteAuthority);
 			if (!backend) {
 				throw new Error(`No terminal backend registered for remote authority '${this.remoteAuthority}'`);

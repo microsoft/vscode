@@ -11,7 +11,7 @@ import { Memento } from 'vscode';
 interface CacheEntry {
 	etag: string;
 	fileName: string;
-	accessTime: number;
+	updateTime: number;
 }
 
 interface CacheInfo {
@@ -24,18 +24,34 @@ export class JSONSchemaCache {
 	private readonly cacheInfo: CacheInfo;
 
 	constructor(private readonly schemaCacheLocation: string, private readonly globalState: Memento) {
-		this.cacheInfo = globalState.get<CacheInfo>(MEMENTO_KEY, {});
+		const infos = globalState.get<CacheInfo>(MEMENTO_KEY, {}) as CacheInfo;
+		const validated: CacheInfo = {};
+		for (const schemaUri in infos) {
+			const { etag, fileName, updateTime } = infos[schemaUri];
+			if (typeof etag === 'string' && typeof fileName === 'string' && typeof updateTime === 'number') {
+				validated[schemaUri] = { etag, fileName, updateTime };
+			}
+		}
+		this.cacheInfo = validated;
 	}
 
 	getETag(schemaUri: string): string | undefined {
 		return this.cacheInfo[schemaUri]?.etag;
 	}
 
+	getLastUpdatedInHours(schemaUri: string): number | undefined {
+		const updateTime = this.cacheInfo[schemaUri]?.updateTime;
+		if (updateTime !== undefined) {
+			return (new Date().getTime() - updateTime) / 1000 / 60 / 60;
+		}
+		return undefined;
+	}
+
 	async putSchema(schemaUri: string, etag: string, schemaContent: string): Promise<void> {
 		try {
 			const fileName = getCacheFileName(schemaUri);
 			await fs.writeFile(path.join(this.schemaCacheLocation, fileName), schemaContent);
-			const entry: CacheEntry = { etag, fileName, accessTime: new Date().getTime() };
+			const entry: CacheEntry = { etag, fileName, updateTime: new Date().getTime() };
 			this.cacheInfo[schemaUri] = entry;
 		} catch (e) {
 			delete this.cacheInfo[schemaUri];
@@ -44,19 +60,19 @@ export class JSONSchemaCache {
 		}
 	}
 
-	async getSchemaIfAccessedSince(schemaUri: string, expirationDuration: number): Promise<string | undefined> {
-		const cacheEntry = this.cacheInfo[schemaUri];
-		if (cacheEntry && cacheEntry.accessTime + expirationDuration >= new Date().getTime()) {
-			return this.loadSchemaFile(schemaUri, cacheEntry);
+	async getSchemaIfUpdatedSince(schemaUri: string, expirationDurationInHours: number): Promise<string | undefined> {
+		const lastUpdatedInHours = this.getLastUpdatedInHours(schemaUri);
+		if (lastUpdatedInHours !== undefined && (lastUpdatedInHours < expirationDurationInHours)) {
+			return this.loadSchemaFile(schemaUri, this.cacheInfo[schemaUri], false);
 		}
 		return undefined;
 	}
 
-	async getSchema(schemaUri: string, etag: string): Promise<string | undefined> {
+	async getSchema(schemaUri: string, etag: string, etagValid: boolean): Promise<string | undefined> {
 		const cacheEntry = this.cacheInfo[schemaUri];
 		if (cacheEntry) {
 			if (cacheEntry.etag === etag) {
-				return this.loadSchemaFile(schemaUri, cacheEntry);
+				return this.loadSchemaFile(schemaUri, cacheEntry, etagValid);
 			} else {
 				this.deleteSchemaFile(schemaUri, cacheEntry);
 			}
@@ -64,11 +80,13 @@ export class JSONSchemaCache {
 		return undefined;
 	}
 
-	private async loadSchemaFile(schemaUri: string, cacheEntry: CacheEntry): Promise<string | undefined> {
+	private async loadSchemaFile(schemaUri: string, cacheEntry: CacheEntry, isUpdated: boolean): Promise<string | undefined> {
 		const cacheLocation = path.join(this.schemaCacheLocation, cacheEntry.fileName);
 		try {
 			const content = (await fs.readFile(cacheLocation)).toString();
-			cacheEntry.accessTime = new Date().getTime();
+			if (isUpdated) {
+				cacheEntry.updateTime = new Date().getTime();
+			}
 			return content;
 		} catch (e) {
 			delete this.cacheInfo[schemaUri];

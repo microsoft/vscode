@@ -8,6 +8,7 @@
 const perf = require('../base/common/performance');
 const performance = require('perf_hooks').performance;
 const product = require('../../../product.json');
+const readline = require('readline');
 
 perf.mark('code/server/start');
 // @ts-ignore
@@ -24,14 +25,13 @@ async function start() {
 
 	// Do a quick parse to determine if a server or the cli needs to be started
 	const parsedArgs = minimist(process.argv.slice(2), {
-		boolean: ['start-server', 'list-extensions', 'print-ip-address'],
+		boolean: ['start-server', 'list-extensions', 'print-ip-address', 'help', 'version', 'accept-server-license-terms'],
 		string: ['install-extension', 'install-builtin-extension', 'uninstall-extension', 'locate-extension', 'socket-path', 'host', 'port', 'pick-port']
 	});
 
-	const shouldSpawnCli = (
-		!parsedArgs['start-server'] &&
-		(!!parsedArgs['list-extensions'] || !!parsedArgs['install-extension'] || !!parsedArgs['install-builtin-extension'] || !!parsedArgs['uninstall-extension'] || !!parsedArgs['locate-extension'])
-	);
+	const extensionCliArgs = ['list-extensions', 'install-extension', 'install-builtin-extension', 'uninstall-extension', 'locate-extension'];
+
+	const shouldSpawnCli = parsedArgs.help || parsedArgs.version || !parsedArgs['start-server'] && extensionCliArgs.some(a => !!parsedArgs[a]);
 
 	if (shouldSpawnCli) {
 		loadCode().then((mod) => {
@@ -57,6 +57,21 @@ async function start() {
 
 	const http = require('http');
 	const os = require('os');
+
+	if (Array.isArray(product.serverLicense) && product.serverLicense.length) {
+		console.log(product.serverLicense.join('\n'));
+		if (product.serverLicensePrompt && parsedArgs['accept-server-license-terms'] !== true) {
+			try {
+				const accept = await prompt(product.serverLicensePrompt);
+				if (!accept) {
+					process.exit();
+				}
+			} catch (e) {
+				console.log(e);
+				process.exit();
+			}
+		}
+	}
 
 	let firstRequest = true;
 	let firstWebSocket = true;
@@ -218,5 +233,31 @@ function loadCode() {
 		require('../../bootstrap-amd').load('vs/server/remoteExtensionHostAgent', resolve, reject);
 	});
 }
+
+/**
+ * @param {string} question
+ * @returns { Promise<boolean> }
+ */
+function prompt(question) {
+	const rl = readline.createInterface({
+		input: process.stdin,
+		output: process.stdout
+	});
+	return new Promise((resolve, reject) => {
+		rl.question(question + ' ', async function (data) {
+			rl.close();
+			const str = data.toString().trim().toLowerCase();
+			if (str === '' || str === 'y' || str === 'yes') {
+				resolve(true);
+			} else if (str === 'n' || str === 'no') {
+				resolve(false);
+			} else {
+				process.stdout.write('\nInvalid Response. Answer either yes (y, yes) or no (n, no)\n');
+				resolve(await prompt(question));
+			}
+		});
+	});
+}
+
 
 start();

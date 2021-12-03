@@ -3,31 +3,45 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
+import { AsyncIterableObject } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { registerModelAndPositionCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { Hover, HoverProviderRegistry } from 'vs/editor/common/modes';
+import { Hover, HoverProvider, HoverProviderRegistry } from 'vs/editor/common/modes';
 
-export function getHover(model: ITextModel, position: Position, token: CancellationToken): Promise<Hover[]> {
-
-	const supports = HoverProviderRegistry.ordered(model);
-
-	const promises = supports.map(support => {
-		return Promise.resolve(support.provideHover(model, position, token)).then(hover => {
-			return hover && isValid(hover) ? hover : undefined;
-		}, err => {
-			onUnexpectedExternalError(err);
-			return undefined;
-		});
-	});
-
-	return Promise.all(promises).then(coalesce);
+export class HoverProviderResult {
+	constructor(
+		public readonly provider: HoverProvider,
+		public readonly hover: Hover,
+		public readonly ordinal: number
+	) {}
 }
 
-registerModelAndPositionCommand('_executeHoverProvider', (model, position) => getHover(model, position, CancellationToken.None));
+async function executeProvider(provider: HoverProvider, ordinal: number, model: ITextModel, position: Position, token: CancellationToken): Promise<HoverProviderResult | undefined> {
+	try {
+		const result = await Promise.resolve(provider.provideHover(model, position, token));
+		if (result && isValid(result)) {
+			return new HoverProviderResult(provider, result, ordinal);
+		}
+	} catch (err) {
+		onUnexpectedExternalError(err);
+	}
+	return undefined;
+}
+
+export function getHover(model: ITextModel, position: Position, token: CancellationToken): AsyncIterableObject<HoverProviderResult> {
+	const providers = HoverProviderRegistry.ordered(model);
+	const promises = providers.map((provider, index) => executeProvider(provider, index, model, position, token));
+	return AsyncIterableObject.fromPromises(promises).coalesce();
+}
+
+export function getHoverPromise(model: ITextModel, position: Position, token: CancellationToken): Promise<Hover[]> {
+	return getHover(model, position, token).map(item => item.hover).toPromise();
+}
+
+registerModelAndPositionCommand('_executeHoverProvider', (model, position) => getHoverPromise(model, position, CancellationToken.None));
 
 function isValid(result: Hover) {
 	const hasRange = (typeof result.range !== 'undefined');

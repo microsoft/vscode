@@ -576,7 +576,7 @@ function getStylingSchemeEntry(description?: string, deprecationMessage?: string
 				format: 'color-hex'
 			},
 			{
-				$ref: '#definitions/style'
+				$ref: '#/definitions/style'
 			}
 		]
 	};
