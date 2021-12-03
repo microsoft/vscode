@@ -241,7 +241,7 @@ class MarketplaceThemesPicker {
 class InstalledThemesPicker {
 	constructor(
 		private readonly installMessage: string,
-		private readonly browseMessage: string,
+		private readonly browseMessage: string | undefined,
 		private readonly placeholderMessage: string,
 		private readonly marketplaceTag: string,
 		private readonly setTheme: (theme: IWorkbenchTheme | undefined, settingsTarget: ThemeSettingTarget) => Promise<any>,
@@ -257,7 +257,7 @@ class InstalledThemesPicker {
 	public async openQuickPick(picks: QuickPickInput<ThemeItem>[], currentTheme: IWorkbenchTheme) {
 		let marketplaceThemePicker: MarketplaceThemesPicker | undefined;
 		if (this.extensionGalleryService.isEnabled()) {
-			if (this.extensionResourceLoaderService.supportsExtensionGalleryResources) {
+			if (this.extensionResourceLoaderService.supportsExtensionGalleryResources && this.browseMessage) {
 				marketplaceThemePicker = this.instantiationService.createInstance(MarketplaceThemesPicker, this.getMarketplaceColorThemes.bind(this), this.marketplaceTag);
 				picks = [...configurationEntries(this.browseMessage), ...picks];
 			} else {
@@ -399,14 +399,13 @@ registerAction2(class extends Action2 {
 		const themeService = accessor.get(IWorkbenchThemeService);
 
 		const installMessage = localize('installIconThemes', "Install Additional File Icon Themes...");
-		const browseMessage = '$(plus) ' + localize('browseIconThemes', "Browse Additional File Icon Themes...");
 		const placeholderMessage = localize('themes.selectIconTheme', "Select File Icon Theme (Up/Down Keys to Preview)");
 		const marketplaceTag = 'tag:icon-theme';
 		const setTheme = (theme: IWorkbenchTheme | undefined, settingsTarget: ThemeSettingTarget) => themeService.setFileIconTheme(theme as IWorkbenchFileIconTheme, settingsTarget);
 		const getMarketplaceColorThemes = (publisher: string, name: string, version: string) => themeService.getMarketplaceFileIconThemes(publisher, name, version);
 
 		const instantiationService = accessor.get(IInstantiationService);
-		const picker = instantiationService.createInstance(InstalledThemesPicker, installMessage, browseMessage, placeholderMessage, marketplaceTag, setTheme, getMarketplaceColorThemes);
+		const picker = instantiationService.createInstance(InstalledThemesPicker, installMessage, undefined, placeholderMessage, marketplaceTag, setTheme, getMarketplaceColorThemes);
 
 		const picks: QuickPickInput<ThemeItem>[] = [
 			{ type: 'separator', label: localize('fileIconThemeCategory', 'file icon themes') },
