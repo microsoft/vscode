@@ -145,11 +145,6 @@ export class TerminalViewPane extends ViewPane {
 				} else {
 					this._onDidChangeViewWelcomeState.fire();
 				}
-				if (!this._terminalService.activeInstance?.shellLaunchConfig.extHostTerminalId) {
-					// showPanel is already called with !preserveFocus
-					// when extension host terminals are created
-					this._terminalGroupService.showPanel(true);
-				}
 
 				if (hadTerminals) {
 					this._terminalGroupService.activeGroup?.setVisible(visible);
@@ -257,6 +252,7 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	private _focus() {
+		this._terminalGroupService.showPanel(true);
 		this._terminalService.activeInstance?.focusWhenReady();
 	}
 
