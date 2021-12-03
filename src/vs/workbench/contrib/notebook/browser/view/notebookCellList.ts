@@ -883,6 +883,20 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			return;
 		}
 
+		if (index < this.firstVisibleIndex) {
+			// update element above viewport
+			const oldHeight = this.elementHeight(element);
+			console.log('size update', oldHeight, size);
+			const delta = oldHeight - size;
+			const date = new Date();
+			this.view.updateElementHeight(index, size, null, () => {
+				console.log('update webview top', date.getSeconds(), date.getMilliseconds(), `-${delta}px`);
+				(this.rowsContainer.firstChild as HTMLElement).style.top = `-${delta}px`;
+				// should also extend webview element size
+			});
+			return;
+		}
+
 		const focused = this.getFocus();
 		if (!focused.length) {
 			this.view.updateElementHeight(index, size, null);
