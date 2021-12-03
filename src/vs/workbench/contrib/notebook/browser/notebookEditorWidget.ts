@@ -1332,6 +1332,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}, id, resource, this._notebookOptions.computeWebviewOptions(), this.notebookRendererMessaging.getScoped(this._uuid));
 
 		this._webview.element.style.width = '100%';
+		this._webview.element.style.top = '0';
 
 		// attach the webview container to the DOM tree first
 		this._list.rowsContainer.insertAdjacentElement('afterbegin', this._webview.element);

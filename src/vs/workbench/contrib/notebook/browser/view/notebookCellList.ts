@@ -886,14 +886,13 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		if (index < this.firstVisibleIndex) {
 			// update element above viewport
 			const oldHeight = this.elementHeight(element);
-			console.log('size update', oldHeight, size);
 			const delta = oldHeight - size;
-			const date = new Date();
-			this.view.updateElementHeight(index, size, null, () => {
-				console.log('update webview top', date.getSeconds(), date.getMilliseconds(), `-${delta}px`);
-				(this.rowsContainer.firstChild as HTMLElement).style.top = `-${delta}px`;
-				// should also extend webview element size
+			// const date = new Date();
+			Event.once(this.view.onWillScroll)(() => {
+				const webviewTop = parseInt((this.rowsContainer.firstChild as HTMLElement).style.top, 10);
+				(this.rowsContainer.firstChild as HTMLElement).style.top = `${webviewTop - delta}px`;
 			});
+			this.view.updateElementHeight(index, size, null);
 			return;
 		}
 
