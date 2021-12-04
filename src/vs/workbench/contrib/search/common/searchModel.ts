@@ -1058,7 +1058,14 @@ export class SearchModel extends Disposable {
 		this._searchResult.query = this._searchQuery;
 
 		const progressEmitter = new Emitter<void>();
-		this._replacePattern = new ReplacePattern(this.replaceString, this._searchQuery.contentPattern);
+		try {
+			this._replacePattern = new ReplacePattern(this.replaceString, this._searchQuery.contentPattern);
+		} catch (e) {
+			if (e instanceof SyntaxError) {
+				return Promise.reject(e.message);
+			}
+			throw e;
+		}
 
 		// In search on type case, delay the streaming of results just a bit, so that we don't flash the only "local results" fast path
 		this._startStreamDelay = new Promise(resolve => setTimeout(resolve, this.searchConfig.searchOnType ? 150 : 0));
