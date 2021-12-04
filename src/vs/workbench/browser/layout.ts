@@ -343,39 +343,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private doUpdateLayoutConfiguration(skipLayout?: boolean): void {
 
-		// Sidebar position
-		// const newSidebarPositionValue = this.configurationService.getValue<string>(LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION);
-		// const newSidebarPosition = (newSidebarPositionValue === 'right') ? Position.RIGHT : Position.LEFT;
-		// if (newSidebarPosition !== this.getSideBarPosition()) {
-		// 	this.setSideBarPosition(newSidebarPosition);
-		// }
-
-		// Panel position
-		// this.updatePanelPosition();
-
-
-		// Panel alignment
-		// const newPanelAlignmentValue = this.configurationService.getValue<PanelAlignment>(LegacyWorkbenchLayoutSettings.PANEL_ALIGNMENT) ?? 'center';
-		// if (newPanelAlignmentValue !== this.getPanelAlignment()) {
-		// 	this.setPanelAlignment(newPanelAlignmentValue, skipLayout);
-		// }
-
-
-		// if (!this.state.runtime.workspace.zenMode.active) {
-
-		// 	// Statusbar visibility
-		// 	const newStatusbarHiddenValue = !this.configurationService.getValue(LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE);
-		// 	if (newStatusbarHiddenValue !== this.isVisible(Parts.STATUSBAR_PART)) {
-		// 		this.setStatusBarHidden(newStatusbarHiddenValue, skipLayout);
-		// 	}
-
-		// 	// Activitybar visibility
-		// 	const newActivityBarHiddenValue = !this.configurationService.getValue(LegacyWorkbenchLayoutSettings.ACTIVITYBAR_VISIBLE);
-		// 	if (newActivityBarHiddenValue !== this.isVisible(Parts.ACTIVITYBAR_PART)) {
-		// 		this.setActivityBarHidden(newActivityBarHiddenValue, skipLayout);
-		// 	}
-		// }
-
 		// Menubar visibility
 		this.updateMenubarVisibility(!!skipLayout);
 
@@ -955,7 +922,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				case Parts.PANEL_PART:
 					return !this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN);
 				case Parts.AUXILIARYBAR_PART:
-					return !this.stateModel.getRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN);
+					return !this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN);
 				case Parts.STATUSBAR_PART:
 					return !this.stateModel.getRuntimeValue(LayoutStateKeys.STATUSBAR_HIDDEN);
 				case Parts.ACTIVITYBAR_PART:
@@ -975,7 +942,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			case Parts.PANEL_PART:
 				return !this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN);
 			case Parts.AUXILIARYBAR_PART:
-				return !this.stateModel.getRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN);
+				return !this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN);
 			case Parts.STATUSBAR_PART:
 				return !this.stateModel.getRuntimeValue(LayoutStateKeys.STATUSBAR_HIDDEN);
 			case Parts.ACTIVITYBAR_PART:
@@ -2006,7 +1973,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			type: 'leaf',
 			data: { type: Parts.PANEL_PART },
 			size: panelSize,
-			visible: !this.stateModel.getInitializationValue(LayoutStateKeys.PANEL_SIZE)
+			visible: !this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN)
 		};
 
 
@@ -2074,13 +2041,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		};
 
 		const layoutDescriptor: StartupLayoutEvent = {
-			activityBarVisible: !this.state.auxiliaryBar.hidden,
-			sideBarVisible: !this.state.sideBar.hidden,
-			auxiliaryBarVisible: !this.state.auxiliaryBar.hidden,
-			panelVisible: !this.state.panel.hidden,
-			statusbarVisible: !this.state.statusBar.hidden,
-			sideBarPosition: positionToString(this.state.sideBar.position),
-			panelPosition: positionToString(this.state.panel.position),
+			activityBarVisible: !this.stateModel.getRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN),
+			sideBarVisible: !this.stateModel.getRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN),
+			auxiliaryBarVisible: !this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN),
+			panelVisible: !this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN),
+			statusbarVisible: !this.stateModel.getRuntimeValue(LayoutStateKeys.STATUSBAR_HIDDEN),
+			sideBarPosition: positionToString(this.stateModel.getRuntimeValue(LayoutStateKeys.SIDEBAR_POSITON)),
+			panelPosition: positionToString(this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_POSITION)),
 		};
 
 		this.telemetryService.publicLog2<StartupLayoutEvent, StartupLayoutEventClassification>('startupLayout', layoutDescriptor);

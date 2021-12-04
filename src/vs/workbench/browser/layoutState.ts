@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
-import { PanelAlignment, Position, positionFromString } from 'vs/workbench/services/layout/browser/layoutService';
+import { PanelAlignment, Position, positionFromString, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 
 interface IWorkbenchLayoutStateKey {
 	name: string,
@@ -119,6 +119,18 @@ export class LayoutStateModel extends Disposable {
 		}
 	}
 
+	private updateLegacySettingsFromState<T extends StorageKeyType>(key: RuntimeStateKey<T>, value: T): void {
+		if (key === LayoutStateKeys.ACTIVITYBAR_HIDDEN) {
+			this.configurationService.updateValue(LegacyWorkbenchLayoutSettings.ACTIVITYBAR_VISIBLE, !value);
+		} else if (key === LayoutStateKeys.STATUSBAR_HIDDEN) {
+			this.configurationService.updateValue(LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE, !value);
+		} else if (key === LayoutStateKeys.PANEL_ALIGNMENT) {
+			this.configurationService.updateValue(LegacyWorkbenchLayoutSettings.PANEL_ALIGNMENT, value);
+		} else if (key === LayoutStateKeys.SIDEBAR_POSITON) {
+			this.configurationService.updateValue(LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION, positionToString(value as Position));
+		}
+	}
+
 	load(): void {
 		let key: keyof typeof LayoutStateKeys;
 
@@ -129,7 +141,7 @@ export class LayoutStateModel extends Disposable {
 
 			if (value !== undefined) {
 				switch (typeof stateKey.defaultValue) {
-					case 'boolean': value = !!value; break;
+					case 'boolean': value = value === 'true'; break;
 					case 'number': value = parseInt(value); break;
 					case 'object': value = JSON.parse(value); break;
 				}
@@ -197,6 +209,7 @@ export class LayoutStateModel extends Disposable {
 
 		if (key.scope === StorageScope.GLOBAL) {
 			this.saveKeyToStorage<T>(key);
+			this.updateLegacySettingsFromState(key, value);
 		}
 	}
 
