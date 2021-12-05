@@ -63,8 +63,13 @@ export class ColorPickerModel {
 	}
 
 	guessColorPresentation(color: Color, originalText: string): void {
+		// Normalize and convert 3 digit hex to 6
+		const originalColorNormalized1 = originalText.toLowerCase();
+		const shortHexMatch = /^#[0-9a-f]{3}$/.exec(originalColorNormalized1);
+		const originalColorNormalized2 = shortHexMatch === null ? null : ('#' + originalColorNormalized1[1] + originalColorNormalized1[1] + originalColorNormalized1[2] + originalColorNormalized1[2] + originalColorNormalized1[3] + originalColorNormalized1[3]);
+
 		for (let i = 0; i < this.colorPresentations.length; i++) {
-			if (originalText.toLowerCase() === this.colorPresentations[i].label) {
+			if (originalColorNormalized1 === this.colorPresentations[i].label || originalColorNormalized2 === this.colorPresentations[i].label) {
 				this.presentationIndex = i;
 				this._onDidChangePresentation.fire(this.presentation);
 				break;
