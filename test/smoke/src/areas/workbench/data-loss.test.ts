@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application, ApplicationOptions, Quality } from '../../../../automation';
+import { Application, ApplicationOptions, Quality } from '../../../../automation/out';
 import { ParsedArgs } from 'minimist';
 import { afterSuite, getRandomUserDataDir, startApp, timeout } from '../../utils';
 
 export function setup(opts: ParsedArgs) {
 
-	describe('Data Migration (insiders -> insiders)', () => {
+	describe('Data Loss (insiders -> insiders)', () => {
 
 		let app: Application | undefined = undefined;
 
@@ -46,8 +46,16 @@ export function setup(opts: ParsedArgs) {
 			return testHotExit.call(this, 2000);
 		});
 
-		async function testHotExit(restartDelay: number | undefined) {
+		it('verifies that auto save triggers on shutdown', function () {
+			return testHotExit.call(this, undefined, true);
+		});
+
+		async function testHotExit(restartDelay: number | undefined, autoSave: boolean | undefined) {
 			app = await startApp(opts, this.defaultOptions);
+
+			if (autoSave) {
+				await app.workbench.settingsEditor.addUserSetting('files.autoSave', '"afterDelay"');
+			}
 
 			await app.workbench.editors.newUntitledFile();
 
@@ -60,7 +68,7 @@ export function setup(opts: ParsedArgs) {
 			const textToType = 'Hello, Code';
 			await app.workbench.quickaccess.openFile(readmeMd);
 			await app.workbench.editor.waitForTypeInEditor(readmeMd, textToType);
-			await app.workbench.editors.waitForTab(readmeMd, true);
+			await app.workbench.editors.waitForTab(readmeMd, !autoSave);
 
 			if (typeof restartDelay === 'number') {
 				// this is an OK use of a timeout in a smoke test
@@ -72,7 +80,7 @@ export function setup(opts: ParsedArgs) {
 
 			await app.restart();
 
-			await app.workbench.editors.waitForTab(readmeMd, true);
+			await app.workbench.editors.waitForTab(readmeMd, !autoSave);
 			await app.workbench.quickaccess.openFile(readmeMd);
 			await app.workbench.editor.waitForEditorContents(readmeMd, contents => contents.indexOf(textToType) > -1);
 
@@ -85,7 +93,7 @@ export function setup(opts: ParsedArgs) {
 		}
 	});
 
-	describe('Data Migration (stable -> insiders)', () => {
+	describe('Data Loss (stable -> insiders)', () => {
 
 		let insidersApp: Application | undefined = undefined;
 		let stableApp: Application | undefined = undefined;

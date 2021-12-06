@@ -48,7 +48,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		super(workingCopyBackupService, workingCopyService, logService, lifecycleService, filesConfigurationService, workingCopyEditorService, editorService, editorGroupService);
 	}
 
-	protected onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
+	protected onBeforeShutdown(reason: ShutdownReason): Promise<boolean> {
 
 		// Important: we are about to shutdown and handle dirty working copies
 		// and backups. We do not want any pending backup ops to interfer with

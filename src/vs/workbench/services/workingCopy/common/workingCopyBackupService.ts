@@ -189,6 +189,10 @@ export abstract class WorkingCopyBackupService implements IWorkingCopyBackupServ
 	toBackupResource(identifier: IWorkingCopyIdentifier): URI {
 		return this.impl.toBackupResource(identifier);
 	}
+
+	joinBackups(): Promise<void> {
+		return this.impl.joinBackups();
+	}
 }
 
 class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBackupService {
@@ -540,6 +544,10 @@ class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBac
 	toBackupResource(identifier: IWorkingCopyIdentifier): URI {
 		return joinPath(this.backupWorkspaceHome, identifier.resource.scheme, hashIdentifier(identifier));
 	}
+
+	joinBackups(): Promise<void> {
+		return this.ioOperationQueues.whenDrained();
+	}
 }
 
 export class InMemoryWorkingCopyBackupService implements IWorkingCopyBackupService {
@@ -607,6 +615,10 @@ export class InMemoryWorkingCopyBackupService implements IWorkingCopyBackupServi
 
 	toBackupResource(identifier: IWorkingCopyIdentifier): URI {
 		return URI.from({ scheme: Schemas.inMemory, path: hashIdentifier(identifier) });
+	}
+
+	async joinBackups(): Promise<void> {
+		return;
 	}
 }
 

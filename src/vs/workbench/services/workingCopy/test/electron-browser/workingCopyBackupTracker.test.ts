@@ -354,6 +354,9 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 		const veto = await event.value;
 		assert.ok(veto);
 
+		const finalVeto = await event.finalValue?.();
+		assert.ok(finalVeto); // assert the tracker uses the internal finalVeto API
+
 		await cleanup();
 	});
 
@@ -514,6 +517,7 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 			accessor.lifecycleService.fireBeforeShutdown(event);
 
 			const veto = await event.value;
+			assert.ok(typeof event.finalValue === 'function'); // assert the tracker uses the internal finalVeto API
 			assert.strictEqual(accessor.workingCopyBackupService.discardedBackups.length, 0); // When hot exit is set, backups should never be cleaned since the confirm result is cancel
 			assert.strictEqual(veto, shouldVeto);
 

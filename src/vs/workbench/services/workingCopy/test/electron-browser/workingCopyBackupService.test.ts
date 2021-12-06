@@ -28,7 +28,7 @@ import { NativeWorkingCopyBackupService } from 'vs/workbench/services/workingCop
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { bufferToReadable, bufferToStream, streamToBuffer, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { TestWorkbenchConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
-import { TestProductService, toTypedWorkingCopyId, toUntypedWorkingCopyId } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestLifecycleService, TestProductService, toTypedWorkingCopyId, toUntypedWorkingCopyId } from 'vs/workbench/test/browser/workbenchTestServices';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { consumeStream } from 'vs/base/common/stream';
@@ -55,7 +55,8 @@ export class NodeTestWorkingCopyBackupService extends NativeWorkingCopyBackupSer
 		const environmentService = new TestWorkbenchEnvironmentService(testDir, workspaceBackupPath);
 		const logService = new NullLogService();
 		const fileService = new FileService(logService);
-		super(environmentService, fileService, logService);
+		const lifecycleService = new TestLifecycleService();
+		super(environmentService, fileService, logService, lifecycleService);
 
 		this.diskFileSystemProvider = new DiskFileSystemProvider(logService);
 		fileService.registerProvider(Schemas.file, this.diskFileSystemProvider);
@@ -328,6 +329,30 @@ flakySuite('WorkingCopyBackupService', () => {
 			return `${identifier.resource.toString()} ${JSON.stringify({ ...meta, typeId: identifier.typeId })}\n${content}`;
 		}
 
+		test('joining', async () => {
+			let backupJoined = false;
+			const joinBackupsPromise = service.joinBackups();
+			joinBackupsPromise.then(() => backupJoined = true);
+			await joinBackupsPromise;
+			assert.strictEqual(backupJoined, true);
+
+			backupJoined = false;
+			service.joinBackups().then(() => backupJoined = true);
+
+			const identifier = toUntypedWorkingCopyId(fooFile);
+			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
+
+			const backupPromise = service.backup(identifier);
+			assert.strictEqual(backupJoined, false);
+			await backupPromise;
+			assert.strictEqual(backupJoined, true);
+
+			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'file')).length, 1);
+			assert.strictEqual(existsSync(backupPath), true);
+			assert.strictEqual(readFileSync(backupPath).toString(), toExpectedPreamble(identifier));
+			assert.ok(service.hasBackupSync(identifier));
+		});
+
 		test('no text', async () => {
 			const identifier = toUntypedWorkingCopyId(fooFile);
 			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
@@ -530,6 +555,27 @@ flakySuite('WorkingCopyBackupService', () => {
 	});
 
 	suite('discardBackup', () => {
+
+		test('joining', async () => {
+			const identifier = toUntypedWorkingCopyId(fooFile);
+			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
+
+			await service.backup(identifier, bufferToReadable(VSBuffer.fromString('test')));
+			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'file')).length, 1);
+			assert.ok(service.hasBackupSync(identifier));
+
+			let backupJoined = false;
+			service.joinBackups().then(() => backupJoined = true);
+
+			const discardBackupPromise = service.discardBackup(identifier);
+			assert.strictEqual(backupJoined, false);
+			await discardBackupPromise;
+			assert.strictEqual(backupJoined, true);
+
+			assert.strictEqual(existsSync(backupPath), false);
+			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'file')).length, 0);
+			assert.ok(!service.hasBackupSync(identifier));
+		});
 
 		test('text file', async () => {
 			const identifier = toUntypedWorkingCopyId(fooFile);

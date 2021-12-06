@@ -8,7 +8,7 @@ import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/l
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, IWorkingCopyIdentifier, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ShutdownReason, ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ShutdownReason, ILifecycleService, LifecyclePhase, InternalBeforeShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
@@ -56,11 +56,25 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.onDidChangeDirty(workingCopy)));
 		this._register(this.workingCopyService.onDidChangeContent(workingCopy => this.onDidChangeContent(workingCopy)));
 
-		// Lifecycle (handled in subclasses)
-		this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdown(event.reason), 'veto.backups'));
+		// Lifecycle
+		this.lifecycleService.onBeforeShutdown(event => (event as InternalBeforeShutdownEvent).finalVeto(() => this.onBeforeShutdown(event.reason), 'veto.backups'));
+		this.lifecycleService.onWillShutdown(() => this.onWillShutdown());
 
 		// Once a handler registers, restore backups
 		this._register(this.workingCopyEditorService.onDidRegisterHandler(handler => this.restoreBackups(handler)));
+	}
+
+	private onWillShutdown(): void {
+
+		// Here we know that we will shutdown. Any backup operation that is
+		// already scheduled or being scheduled from this moment on runs
+		// at the risk of corrupting a backup because the backup operation
+		// might terminate at any given time now. As such, we need to disable
+		// this tracker from performing more backups by cancelling pending
+		// operations and disposing our listeners.
+
+		this.cancelBackupOperations();
+		this.dispose();
 	}
 
 
