@@ -120,7 +120,7 @@ suite('Resources', () => {
 
 		assert.strictEqual(
 			joinPath(URI.from({ scheme: 'myScheme', authority: 'authority', path: '/path', query: 'query', fragment: 'fragment' }), '/file.js').toString(),
-			'myScheme://authority/path/file.js?query#fragment');
+			'myscheme://authority/path/file.js?query#fragment');
 	});
 
 	test('normalizePath', () => {

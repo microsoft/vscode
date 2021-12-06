@@ -618,7 +618,7 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 	let res = '';
 	let { scheme, authority, path, query, fragment } = uri;
 	if (scheme) {
-		res += scheme;
+		res += scheme.toLowerCase();
 		res += ':';
 	}
 	if (authority || scheme === 'file') {
