@@ -170,8 +170,8 @@ export abstract class WorkingCopyBackupService implements IWorkingCopyBackupServ
 		return this.impl.backup(identifier, content, versionId, meta, token);
 	}
 
-	discardBackup(identifier: IWorkingCopyIdentifier): Promise<void> {
-		return this.impl.discardBackup(identifier);
+	discardBackup(identifier: IWorkingCopyIdentifier, token?: CancellationToken): Promise<void> {
+		return this.impl.discardBackup(identifier, token);
 	}
 
 	discardBackups(filter?: { except: IWorkingCopyIdentifier[] }): Promise<void> {
@@ -322,7 +322,12 @@ class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBac
 			// Write backup via file service
 			await this.fileService.writeFile(backupResource, backupBuffer);
 
+			//
 			// Update model
+			//
+			// Note: not checking for cancellation here because a successful
+			// write into the backup file should be noted in the model to
+			// prevent the model being out of sync with the backup file
 			model.add(backupResource, versionId, meta);
 		});
 	}
@@ -357,18 +362,32 @@ class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBac
 		}
 	}
 
-	discardBackup(identifier: IWorkingCopyIdentifier): Promise<void> {
+	discardBackup(identifier: IWorkingCopyIdentifier, token?: CancellationToken): Promise<void> {
 		const backupResource = this.toBackupResource(identifier);
 
-		return this.doDiscardBackup(backupResource);
+		return this.doDiscardBackup(backupResource, token);
 	}
 
-	private async doDiscardBackup(backupResource: URI): Promise<void> {
+	private async doDiscardBackup(backupResource: URI, token?: CancellationToken): Promise<void> {
 		const model = await this.ready;
+		if (token?.isCancellationRequested) {
+			return;
+		}
 
 		return this.ioOperationQueues.queueFor(backupResource).queue(async () => {
+			if (token?.isCancellationRequested) {
+				return;
+			}
+
+			// Delete backup file ignoring any file not found errors
 			await this.deleteIgnoreFileNotFound(backupResource);
 
+			//
+			// Update model
+			//
+			// Note: not checking for cancellation here because a successful
+			// delete of the backup file should be noted in the model to
+			// prevent the model being out of sync with the backup file
 			model.remove(backupResource);
 		});
 	}

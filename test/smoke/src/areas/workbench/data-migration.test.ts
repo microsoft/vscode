@@ -15,7 +15,7 @@ export function setup(opts: ParsedArgs) {
 
 		afterSuite(opts, () => app);
 
-		it(`verifies opened editors are restored`, async function () {
+		it('verifies opened editors are restored', async function () {
 			app = await startApp(opts, this.defaultOptions);
 
 			// Open 3 editors and pin 2 of them
@@ -38,7 +38,15 @@ export function setup(opts: ParsedArgs) {
 			app = undefined;
 		});
 
-		it(`verifies that 'hot exit' works for dirty files`, async function () {
+		it('verifies that "hot exit" works for dirty files (without delay)', function () {
+			return testHotExit.call(this, undefined);
+		});
+
+		it('verifies that "hot exit" works for dirty files (with delay)', function () {
+			return testHotExit.call(this, 2000);
+		});
+
+		async function testHotExit(restartDelay: number | undefined) {
 			app = await startApp(opts, this.defaultOptions);
 
 			await app.workbench.editors.newUntitledFile();
@@ -54,19 +62,27 @@ export function setup(opts: ParsedArgs) {
 			await app.workbench.editor.waitForTypeInEditor(readmeMd, textToType);
 			await app.workbench.editors.waitForTab(readmeMd, true);
 
+			if (typeof restartDelay === 'number') {
+				// this is an OK use of a timeout in a smoke test
+				// we want to simulate a user having typed into
+				// the editor and pausing for a moment before
+				// terminating
+				await timeout(restartDelay);
+			}
+
 			await app.restart();
 
 			await app.workbench.editors.waitForTab(readmeMd, true);
 			await app.workbench.quickaccess.openFile(readmeMd);
-			await app.workbench.editor.waitForEditorContents(readmeMd, c => c.indexOf(textToType) > -1);
+			await app.workbench.editor.waitForEditorContents(readmeMd, contents => contents.indexOf(textToType) > -1);
 
 			await app.workbench.editors.waitForTab(untitled, true);
 			await app.workbench.quickaccess.openFile(untitled, textToTypeInUntitled);
-			await app.workbench.editor.waitForEditorContents(untitled, c => c.indexOf(textToTypeInUntitled) > -1);
+			await app.workbench.editor.waitForEditorContents(untitled, contents => contents.indexOf(textToTypeInUntitled) > -1);
 
 			await app.stop();
 			app = undefined;
-		});
+		}
 	});
 
 	describe('Data Migration (stable -> insiders)', () => {
@@ -76,7 +92,7 @@ export function setup(opts: ParsedArgs) {
 
 		afterSuite(opts, () => insidersApp ?? stableApp, async () => stableApp?.stop());
 
-		it(`verifies opened editors are restored`, async function () {
+		it('verifies opened editors are restored', async function () {
 			const stableCodePath = opts['stable-build'];
 			if (!stableCodePath || opts.remote) {
 				this.skip();
@@ -126,7 +142,15 @@ export function setup(opts: ParsedArgs) {
 			insidersApp = undefined;
 		});
 
-		it(`verifies that 'hot exit' works for dirty files`, async function () {
+		it('verifies that "hot exit" works for dirty files (without delay)', async function () {
+			return testHotExit.call(this, undefined);
+		});
+
+		it('verifies that "hot exit" works for dirty files (with delay)', async function () {
+			return testHotExit.call(this, 2000);
+		});
+
+		async function testHotExit(restartDelay: number | undefined) {
 			const stableCodePath = opts['stable-build'];
 			if (!stableCodePath || opts.remote) {
 				this.skip();
@@ -155,7 +179,13 @@ export function setup(opts: ParsedArgs) {
 			await stableApp.workbench.editor.waitForTypeInEditor(readmeMd, textToType);
 			await stableApp.workbench.editors.waitForTab(readmeMd, true);
 
-			await timeout(2000); // TODO@bpasero https://github.com/microsoft/vscode/issues/138055
+			if (typeof restartDelay === 'number') {
+				// this is an OK use of a timeout in a smoke test
+				// we want to simulate a user having typed into
+				// the editor and pausing for a moment before
+				// terminating
+				await timeout(restartDelay);
+			}
 
 			await stableApp.stop();
 			stableApp = undefined;
@@ -168,14 +198,14 @@ export function setup(opts: ParsedArgs) {
 
 			await insidersApp.workbench.editors.waitForTab(readmeMd, true);
 			await insidersApp.workbench.quickaccess.openFile(readmeMd);
-			await insidersApp.workbench.editor.waitForEditorContents(readmeMd, c => c.indexOf(textToType) > -1);
+			await insidersApp.workbench.editor.waitForEditorContents(readmeMd, contents => contents.indexOf(textToType) > -1);
 
 			await insidersApp.workbench.editors.waitForTab(untitled, true);
 			await insidersApp.workbench.quickaccess.openFile(untitled, textToTypeInUntitled);
-			await insidersApp.workbench.editor.waitForEditorContents(untitled, c => c.indexOf(textToTypeInUntitled) > -1);
+			await insidersApp.workbench.editor.waitForEditorContents(untitled, contents => contents.indexOf(textToTypeInUntitled) > -1);
 
 			await insidersApp.stop();
 			insidersApp = undefined;
-		});
+		}
 	});
 }
