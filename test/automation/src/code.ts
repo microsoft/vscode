@@ -27,6 +27,8 @@ export interface SpawnOptions {
 	web?: boolean;
 	headless?: boolean;
 	browser?: 'chromium' | 'webkit' | 'firefox';
+	suiteTitle?: string;
+	testTitle?: string;
 }
 
 let stopped = false;
