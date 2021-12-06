@@ -43,7 +43,8 @@ class PlaywrightDriver implements IDriver {
 		private readonly server: ChildProcess,
 		private readonly browser: playwright.Browser,
 		private readonly context: playwright.BrowserContext,
-		readonly page: playwright.Page
+		private readonly page: playwright.Page,
+		private readonly suiteTitle: string | undefined
 	) {
 	}
 
@@ -61,7 +62,14 @@ class PlaywrightDriver implements IDriver {
 
 	async exitApplication() {
 		try {
-			await this.warnAfter(this.context.tracing.stop({ path: join(logsPath, `playwright-trace-${traceCounter++}.zip`) }), 5000, 'Stopping playwright trace took >5seconds');
+			let traceFileName: string;
+			if (this.suiteTitle) {
+				traceFileName = `playwright-trace-${traceCounter++}-${this.suiteTitle.replace(/\s+/g, '-')}.zip`;
+			} else {
+				traceFileName = `playwright-trace-${traceCounter++}.zip`;
+			}
+
+			await this.warnAfter(this.context.tracing.stop({ path: join(logsPath, traceFileName) }), 5000, 'Stopping playwright trace took >5seconds');
 		} catch (error) {
 			console.warn(`Failed to stop playwright tracing: ${error}`);
 		}
@@ -188,6 +196,7 @@ let port = 9000;
 export interface PlaywrightOptions {
 	readonly browser?: 'chromium' | 'webkit' | 'firefox';
 	readonly headless?: boolean;
+	readonly suiteTitle?: string;
 }
 
 export async function launch(codeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH, userDataDir: string, extensionsPath: string, workspacePath: string, verbose: boolean, options: PlaywrightOptions = {}): Promise<{ serverProcess: ChildProcess, client: IDisposable, driver: IDriver }> {
@@ -203,7 +212,7 @@ export async function launch(codeServerPath = process.env.VSCODE_REMOTE_SERVER_P
 		client: {
 			dispose: () => { /* there is no client to dispose for browser, teardown is triggered via exitApplication call */ }
 		},
-		driver: new PlaywrightDriver(serverProcess, browser, context, page)
+		driver: new PlaywrightDriver(serverProcess, browser, context, page, options.suiteTitle)
 	};
 }
 
@@ -266,7 +275,7 @@ async function launchBrowser(options: PlaywrightOptions, endpoint: string, works
 	const context = await browser.newContext();
 
 	try {
-		await context.tracing.start({ screenshots: true, snapshots: true });
+		await context.tracing.start({ screenshots: true, snapshots: true, sources: true, title: options.suiteTitle });
 	} catch (error) {
 		console.warn(`Failed to start playwright tracing.`); // do not fail the build when this fails
 	}

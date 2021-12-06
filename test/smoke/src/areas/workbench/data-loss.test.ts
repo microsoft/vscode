@@ -150,7 +150,7 @@ export function setup(opts: ParsedArgs) {
 			insidersApp = undefined;
 		});
 
-		it.skip('verifies that "hot exit" works for dirty files (without delay)', async function () { // TODO@bpasero enable test once 1.63 shipped
+		it.skip('verifies that "hot exit" works for dirty files (without delay)', async function () { // TODO@bpasero enable test once 1.64 shipped
 			return testHotExit.call(this, undefined);
 		});
 
