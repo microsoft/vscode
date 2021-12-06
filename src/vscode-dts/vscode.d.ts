@@ -5926,7 +5926,13 @@ declare module 'vscode' {
 	 * The location of the terminal.
 	 */
 	export enum TerminalLocation {
+		/**
+		 * In the terminal view
+		 */
 		Panel = 1,
+		/**
+		 * In the editor area
+		 */
 		Editor = 2,
 	}
 
