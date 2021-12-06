@@ -26,7 +26,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	debug?: { console?: { wordWrap?: boolean } };
 	editor?: { accessibilitySupport?: 'on' | 'off' | 'auto' };
 	security?: { workspace?: { trust?: { enabled?: boolean } } };
-	files?: { legacyWatcher?: string, experimentalSandboxedFileService?: boolean };
+	files?: { legacyWatcher?: string };
 }
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
@@ -39,7 +39,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private accessibilitySupport: 'on' | 'off' | 'auto' | undefined;
 	private workspaceTrustEnabled: boolean | undefined;
 	private legacyFileWatcher: string | undefined = undefined;
-	private experimentalSandboxedFileService: boolean | undefined = undefined;
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
@@ -105,12 +104,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			// Legacy File Watcher
 			if (typeof config.files?.legacyWatcher === 'string' && config.files.legacyWatcher !== this.legacyFileWatcher) {
 				this.legacyFileWatcher = config.files.legacyWatcher;
-				changed = true;
-			}
-
-			// Experimental Sandboxed File Service
-			if (typeof config.files?.experimentalSandboxedFileService === 'boolean' && config.files.experimentalSandboxedFileService !== this.experimentalSandboxedFileService) {
-				this.experimentalSandboxedFileService = config.files.experimentalSandboxedFileService;
 				changed = true;
 			}
 		}

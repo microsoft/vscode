@@ -305,7 +305,6 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	autoDetectHighContrast?: boolean;
 
 	legacyWatcher?: string; // TODO@bpasero remove me once watcher is settled
-	experimentalSandboxedFileService?: boolean; // TODO@bpasero remove me once sandbox is settled
 
 	perfMarks: PerformanceMark[];
 

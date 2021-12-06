@@ -83,7 +83,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 	readonly onDidChangeCapabilities: Event<void> = Event.None;
 
-	protected _capabilities: FileSystemProviderCapabilities | undefined;
+	private _capabilities: FileSystemProviderCapabilities | undefined;
 	get capabilities(): FileSystemProviderCapabilities {
 		if (!this._capabilities) {
 			this._capabilities =
@@ -454,17 +454,13 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		try {
 			const filePath = this.toFilePath(resource);
 
-			await this.doDelete(filePath, opts);
+			if (opts.recursive) {
+				await Promises.rm(filePath, RimRafMode.MOVE);
+			} else {
+				await Promises.unlink(filePath);
+			}
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
-		}
-	}
-
-	protected async doDelete(filePath: string, opts: FileDeleteOptions): Promise<void> {
-		if (opts.recursive) {
-			await Promises.rm(filePath, RimRafMode.MOVE);
-		} else {
-			await Promises.unlink(filePath);
 		}
 	}
 
