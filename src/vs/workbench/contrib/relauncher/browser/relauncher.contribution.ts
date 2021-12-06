@@ -26,7 +26,6 @@ interface IConfiguration extends IWindowsConfiguration {
 	debug?: { console?: { wordWrap?: boolean } };
 	editor?: { accessibilitySupport?: 'on' | 'off' | 'auto' };
 	security?: { workspace?: { trust?: { enabled?: boolean } } };
-	files?: { legacyWatcher?: string };
 }
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
@@ -38,7 +37,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private updateMode: string | undefined;
 	private accessibilitySupport: 'on' | 'off' | 'auto' | undefined;
 	private workspaceTrustEnabled: boolean | undefined;
-	private legacyFileWatcher: string | undefined = undefined;
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
@@ -98,12 +96,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			// Workspace trust
 			if (typeof config?.security?.workspace?.trust?.enabled === 'boolean' && config.security?.workspace.trust.enabled !== this.workspaceTrustEnabled) {
 				this.workspaceTrustEnabled = config.security.workspace.trust.enabled;
-				changed = true;
-			}
-
-			// Legacy File Watcher
-			if (typeof config.files?.legacyWatcher === 'string' && config.files.legacyWatcher !== this.legacyFileWatcher) {
-				this.legacyFileWatcher = config.files.legacyWatcher;
 				changed = true;
 			}
 		}

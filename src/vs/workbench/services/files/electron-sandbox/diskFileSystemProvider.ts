@@ -13,8 +13,8 @@ import { ReadableStreamEvents } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { IPCFileSystemProvider } from 'vs/platform/files/common/ipcFileSystemProvider';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IDiskFileChange, ILogMessage, WatcherService } from 'vs/platform/files/common/watcher';
-import { ParcelFileWatcher } from 'vs/workbench/services/files/electron-sandbox/parcelWatcherService';
+import { IDiskFileChange, ILogMessage, AbstractRecursiveWatcherClient } from 'vs/platform/files/common/watcher';
+import { ParcelWatcherClient } from 'vs/workbench/services/files/electron-sandbox/parcelWatcherClient';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ISharedProcessWorkerWorkbenchService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessWorkerWorkbenchService';
 
@@ -45,7 +45,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 		// Forward events from the embedded provider
 		this.provider.onDidChangeFile(e => this._onDidChangeFile.fire(e));
-		this.provider.onDidErrorOccur(e => this._onDidErrorOccur.fire(e));
+		this.provider.onDidWatchError(e => this._onDidWatchError.fire(e));
 	}
 
 	//#region File Capabilities
@@ -137,8 +137,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		onChange: (changes: IDiskFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
-	): WatcherService {
-		return new ParcelFileWatcher(
+	): AbstractRecursiveWatcherClient {
+		return new ParcelWatcherClient(
 			changes => onChange(changes),
 			msg => onLogMessage(msg),
 			verboseLogging,

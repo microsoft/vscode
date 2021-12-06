@@ -304,8 +304,6 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	colorScheme: IColorScheme;
 	autoDetectHighContrast?: boolean;
 
-	legacyWatcher?: string; // TODO@bpasero remove me once watcher is settled
-
 	perfMarks: PerformanceMark[];
 
 	filesToWait?: IPathsToWaitFor;

@@ -12,11 +12,12 @@ import { CHANGE_BUFFER_DELAY, watchFile, watchFolder } from 'vs/base/node/watche
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { IDiskFileChange, ILogMessage, coalesceEvents } from 'vs/platform/files/common/watcher';
 
-export class FileWatcher extends Disposable {
-	private isDisposed: boolean | undefined;
+export class NodeJSFileWatcher extends Disposable {
 
 	private readonly fileChangesDelayer: ThrottledDelayer<void> = this._register(new ThrottledDelayer<void>(CHANGE_BUFFER_DELAY * 2 /* sync on delay from underlying library */));
 	private fileChangesBuffer: IDiskFileChange[] = [];
+	
+	private isDisposed: boolean | undefined;
 
 	constructor(
 		private path: string,
