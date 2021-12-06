@@ -453,13 +453,6 @@ interface IWorkbenchConstructionOptions {
 	readonly enabledExtensions?: readonly ExtensionId[];
 
 	/**
-	 * [TEMPORARY]: This will be removed soon.
-	 * Enable inlined extensions.
-	 * Defaults to true.
-	 */
-	readonly _enableBuiltinExtensions?: boolean;
-
-	/**
 	 * Additional domains allowed to open from the workbench without the
 	 * link protection popup.
 	 */
