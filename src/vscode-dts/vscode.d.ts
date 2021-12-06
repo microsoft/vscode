@@ -5922,19 +5922,18 @@ declare module 'vscode' {
 		dispose(): void;
 	}
 
-	export interface TerminalOptions {
-		location?: TerminalLocation | TerminalEditorLocationOptions | TerminalSplitLocationOptions;
-	}
-
-	export interface ExtensionTerminalOptions {
-		location?: TerminalLocation | TerminalEditorLocationOptions | TerminalSplitLocationOptions;
-	}
-
+	/**
+	 * The location of the terminal.
+	 */
 	export enum TerminalLocation {
 		Panel = 1,
 		Editor = 2,
 	}
 
+	/**
+	 * Assumes a {@link TerminalLocation} of editor and allows specifying a {@link ViewColumn} and
+	 * {@link preserveFocus} property
+	 */
 	export interface TerminalEditorLocationOptions {
 		/**
 		 * A view column in which the {@link Terminal terminal} should be shown in the editor area.
@@ -5950,6 +5949,9 @@ declare module 'vscode' {
 		preserveFocus?: boolean;
 	}
 
+	/**
+	 * Uses the parent {@link Terminal}'s location for the terminal
+	 */
 	export interface TerminalSplitLocationOptions {
 		/**
 		 * The parent terminal to split this terminal beside. This works whether the parent terminal
@@ -9734,6 +9736,11 @@ declare module 'vscode' {
 		 * recommended for the best contrast and consistency across themes.
 		 */
 		color?: ThemeColor;
+
+		/**
+		* The {@link TerminalLocation} or {@link TerminalEditorLocationOptions} or {@link TerminalSplitLocationOptions} for the terminal.
+		*/
+		location?: TerminalLocation | TerminalEditorLocationOptions | TerminalSplitLocationOptions;
 	}
 
 	/**
@@ -9762,6 +9769,11 @@ declare module 'vscode' {
 		 * recommended for the best contrast and consistency across themes.
 		 */
 		color?: ThemeColor;
+
+		/**
+		 * The {@link TerminalLocation} or {@link TerminalEditorLocationOptions} or {@link TerminalSplitLocationOptions} for the terminal.
+		 */
+		location?: TerminalLocation | TerminalEditorLocationOptions | TerminalSplitLocationOptions;
 	}
 
 	/**
