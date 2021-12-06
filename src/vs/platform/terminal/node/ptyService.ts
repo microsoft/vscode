@@ -145,7 +145,7 @@ export class PtyService extends Disposable implements IPtyService {
 					cwd: state.processDetails.cwd,
 					color: state.processDetails.color,
 					icon: state.processDetails.icon,
-					name: state.processDetails.title,
+					name: state.processDetails.titleSource === TitleEventSource.Api ? state.processDetails.title : undefined,
 					initialText: state.replayEvent.events[0].data + '\x1b[0m\n\n\r\x1b[1;48;5;252;38;5;234m ' + restoreMessage + ' \x1b[K\x1b[0m\n\r'
 				},
 				state.processDetails.cwd,
