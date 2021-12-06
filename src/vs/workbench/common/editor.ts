@@ -864,8 +864,7 @@ interface IEditorPartConfiguration {
 	decorations?: {
 		badges?: boolean;
 		colors?: boolean;
-	},
-	experimentalDisableClearInputOnSetInput?: boolean;
+	}
 }
 
 export interface IEditorPartOptions extends IEditorPartConfiguration {
