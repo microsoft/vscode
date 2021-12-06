@@ -51,7 +51,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/common/decorations';
 import { IDisposable, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IEditorReplacement, IGroupChangeEvent, IFindGroupScope, EditorGroupLayout, ICloseEditorOptions, GroupOrientation, ICloseAllEditorsOptions, ICloseEditorsFilter } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IEditorReplacement, IFindGroupScope, EditorGroupLayout, ICloseEditorOptions, GroupOrientation, ICloseAllEditorsOptions, ICloseEditorsFilter } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, ISaveEditorsOptions, IRevertAllEditorsOptions, PreferredGroup, IEditorsChangeEvent } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
@@ -144,6 +144,7 @@ import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/te
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { DeserializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
+import { IGroupChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
 import { env } from 'vs/base/common/process';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
@@ -817,6 +818,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 
 	onWillDispose: Event<void> = Event.None;
 	onDidGroupChange: Event<IGroupChangeEvent> = Event.None;
+	onDidModelChange: Event<IGroupChangeEvent> = Event.None;
 	onWillCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	onDidOpenEditorFail: Event<EditorInput> = Event.None;
