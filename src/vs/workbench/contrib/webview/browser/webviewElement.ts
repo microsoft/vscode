@@ -95,7 +95,7 @@ namespace WebviewState {
 export class WebviewElement extends Disposable implements IWebview, WebviewFindDelegate {
 
 	public readonly id: string;
-	private readonly iframeId: string;
+	protected readonly iframeId: string;
 
 	protected get platform(): string { return 'browser'; }
 

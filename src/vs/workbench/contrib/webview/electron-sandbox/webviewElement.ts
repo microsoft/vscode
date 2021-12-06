@@ -91,7 +91,7 @@ export class ElectronWebviewElement extends WebviewElement {
 	}
 
 	protected override get webviewContentEndpoint(): string {
-		return `${Schemas.vscodeWebview}://${this.id}`;
+		return `${Schemas.vscodeWebview}://${this.iframeId}`;
 	}
 
 	/**
