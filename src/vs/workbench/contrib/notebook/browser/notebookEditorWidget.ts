@@ -1335,7 +1335,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._webview.element.style.top = '0';
 
 		// attach the webview container to the DOM tree first
-		this._list.rowsContainer.insertAdjacentElement('afterbegin', this._webview.element);
+		this._list.attachWebview(this._webview.element);
 	}
 
 	private async _attachModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined) {
@@ -2383,11 +2383,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				return;
 			}
 
+			if (!this._list.webviewElement) {
+				return;
+			}
+
 			if (output.type === RenderOutputType.Extension) {
 				this.notebookRendererMessaging.prepare(output.renderer.id);
 			}
 
-			const webviewTop = parseInt((this._list.rowsContainer.firstChild as HTMLElement).style.top, 10);
+			const webviewTop = parseInt(this._list.webviewElement.domNode.style.top, 10);
 			const top = !!webviewTop ? (0 - webviewTop) : 0;
 
 			const cellTop = this._list.getAbsoluteTopOfElement(cell) + top;
@@ -2473,10 +2477,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return;
 		}
 
+		if (!this._list.webviewElement) {
+			return;
+		}
+
 		const scrollHeight = this._list.scrollHeight;
 		this._webview!.element.style.height = `${scrollHeight}px`;
 
-		const webviewTop = parseInt((this._list.rowsContainer.firstChild as HTMLElement).style.top, 10);
+		const webviewTop = parseInt(this._list.webviewElement.domNode.style.top, 10);
 		const top = !!webviewTop ? (0 - webviewTop) : 0;
 
 		const updateItems: IDisplayOutputLayoutUpdateRequest[] = [];

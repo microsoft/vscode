@@ -27,6 +27,7 @@ import { clamp } from 'vs/base/common/numbers';
 import { ISplice } from 'vs/base/common/sequence';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { BaseCellRenderTemplate, INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+import { FastDomNode } from 'vs/base/browser/fastDomNode';
 
 export interface IFocusNextPreviousDelegate {
 	onFocusNext(applyFocusNext: () => void): void;
@@ -93,6 +94,12 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	private readonly _focusNextPreviousDelegate: IFocusNextPreviousDelegate;
 
 	private readonly _viewContext: ViewContext;
+
+	private _webviewElement: FastDomNode<HTMLElement> | null = null;
+
+	get webviewElement() {
+		return this._webviewElement;
+	}
 
 	constructor(
 		private listUser: string,
@@ -230,6 +237,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			}
 			updateVisibleRanges();
 		}));
+	}
+
+	attachWebview(element: HTMLElement) {
+		this.rowsContainer.insertAdjacentElement('afterbegin', element);
+		this._webviewElement = new FastDomNode<HTMLElement>(element);
 	}
 
 	elementAt(position: number): ICellViewModel | undefined {
@@ -888,10 +900,12 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			const oldHeight = this.elementHeight(element);
 			const delta = oldHeight - size;
 			// const date = new Date();
-			Event.once(this.view.onWillScroll)(() => {
-				const webviewTop = parseInt((this.rowsContainer.firstChild as HTMLElement).style.top, 10);
-				(this.rowsContainer.firstChild as HTMLElement).style.top = `${webviewTop - delta}px`;
-			});
+			if (this._webviewElement) {
+				Event.once(this.view.onWillScroll)(() => {
+					const webviewTop = parseInt(this._webviewElement!.domNode.style.top, 10);
+					this._webviewElement!.setTop(webviewTop - delta);
+				});
+			}
 			this.view.updateElementHeight(index, size, null);
 			return;
 		}
