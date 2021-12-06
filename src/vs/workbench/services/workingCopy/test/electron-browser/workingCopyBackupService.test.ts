@@ -492,6 +492,23 @@ flakySuite('WorkingCopyBackupService', () => {
 			assert.ok(!service.hasBackupSync(identifier));
 		});
 
+		test('multiple', async () => {
+			const identifier = toUntypedWorkingCopyId(fooFile);
+			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
+
+			await Promise.all([
+				service.backup(identifier),
+				service.backup(identifier),
+				service.backup(identifier),
+				service.backup(identifier)
+			]);
+
+			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'file')).length, 1);
+			assert.strictEqual(existsSync(backupPath), true);
+			assert.strictEqual(readFileSync(backupPath).toString(), toExpectedPreamble(identifier));
+			assert.ok(service.hasBackupSync(identifier));
+		});
+
 		test('multiple same resource, different type id', async () => {
 			const backupId1 = toUntypedWorkingCopyId(fooFile);
 			const backupId2 = toTypedWorkingCopyId(fooFile, 'type1');
@@ -957,6 +974,54 @@ flakySuite('WorkingCopyBackupService', () => {
 			assert.strictEqual(backup.meta, undefined);
 		}
 
+		test('should update metadata from file into model when resolving', async () => {
+			await testShouldUpdateMetaFromFileWhenResolving(toUntypedWorkingCopyId(fooFile));
+			await testShouldUpdateMetaFromFileWhenResolving(toTypedWorkingCopyId(fooFile));
+		});
+
+		async function testShouldUpdateMetaFromFileWhenResolving(identifier: IWorkingCopyIdentifier): Promise<void> {
+			const contents = 'Foo Bar';
+
+			const meta = {
+				etag: 'theEtagForThisMetadataTest',
+				size: 888,
+				mtime: Date.now(),
+				orphaned: false
+			};
+
+			const updatedMeta = {
+				...meta,
+				etag: meta.etag + meta.etag
+			};
+
+			await service.backup(identifier, bufferToReadable(VSBuffer.fromString(contents)), 1, meta);
+
+			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
+
+			// Simulate the condition of the backups model loading initially without
+			// meta data information and then getting the meta data updated on the
+			// first call to resolve the backup. We simulate this by explicitly changing
+			// the meta data in the file and then verifying that the updated meta data
+			// is persisted back into the model (verified via `hasBackupSync`).
+			// This is not really something that would happen in real life because any
+			// backup that is made via backup service will update the model accordingly.
+
+			const originalFileContents = readFileSync(backupPath).toString();
+			writeFileSync(backupPath, originalFileContents.replace(meta.etag, updatedMeta.etag));
+
+			await service.resolve(identifier);
+
+			assert.strictEqual(service.hasBackupSync(identifier, undefined, meta), false);
+			assert.strictEqual(service.hasBackupSync(identifier, undefined, updatedMeta), true);
+
+			writeFileSync(backupPath, originalFileContents);
+
+			await service.getBackups();
+
+			assert.strictEqual(service.hasBackupSync(identifier, undefined, meta), true);
+			assert.strictEqual(service.hasBackupSync(identifier, undefined, updatedMeta), false);
+		}
+
 		test('should ignore invalid backups (empty file)', async () => {
 			const contents = 'test\nand more stuff';
 
@@ -1058,6 +1123,14 @@ flakySuite('WorkingCopyBackupService', () => {
 			assert.strictEqual(model.has(resource4), true);
 			assert.strictEqual(model.has(resource4, undefined, { foo: 'bar' }), true);
 			assert.strictEqual(model.has(resource4, undefined, { bar: 'foo' }), false);
+
+			model.update(resource4, { foo: 'nothing' });
+			assert.strictEqual(model.has(resource4, undefined, { foo: 'nothing' }), true);
+			assert.strictEqual(model.has(resource4, undefined, { foo: 'bar' }), false);
+
+			model.update(resource4);
+			assert.strictEqual(model.has(resource4), true);
+			assert.strictEqual(model.has(resource4, undefined, { foo: 'nothing' }), false);
 
 			const resource5 = URI.file('test4.html');
 			model.move(resource4, resource5);
