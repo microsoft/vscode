@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { IEditorFactoryRegistry, GroupIdentifier, EditorsOrder, EditorExtensions, IUntypedEditorInput, SideBySideEditor, IEditorMoveEvent, IEditorOpenEvent, EditorCloseContext, IEditorCloseEvent } from 'vs/workbench/common/editor';
+import { IEditorFactoryRegistry, GroupIdentifier, EditorsOrder, EditorExtensions, IUntypedEditorInput, SideBySideEditor, IEditorMoveEvent, IEditorOpenEvent, EditorCloseContext, IEditorCloseEvent, IMatchEditorOptions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -51,23 +51,6 @@ export function isSerializedEditorGroupModel(group?: unknown): group is ISeriali
 	const candidate = group as ISerializedEditorGroupModel | undefined;
 
 	return !!(candidate && typeof candidate === 'object' && Array.isArray(candidate.editors) && Array.isArray(candidate.mru));
-}
-
-export interface IMatchOptions {
-
-	/**
-	 * Whether to consider a side by side editor as matching.
-	 * By default, side by side editors will not be considered
-	 * as matching, even if the editor is opened in one of the sides.
-	 */
-	supportSideBySide?: SideBySideEditor.ANY | SideBySideEditor.BOTH;
-
-	/**
-	 * Only consider an editor to match when the
-	 * `candidate === editor` but not when
-	 * `candidate.matches(editor)`.
-	 */
-	strictEquals?: boolean;
 }
 
 export class EditorGroupModel extends Disposable {
@@ -696,7 +679,7 @@ export class EditorGroupModel extends Disposable {
 		}
 	}
 
-	indexOf(candidate: EditorInput | null, editors = this.editors, options?: IMatchOptions): number {
+	indexOf(candidate: EditorInput | null, editors = this.editors, options?: IMatchEditorOptions): number {
 		let index = -1;
 
 		if (candidate) {
@@ -720,7 +703,7 @@ export class EditorGroupModel extends Disposable {
 		return index;
 	}
 
-	private findEditor(candidate: EditorInput | null, options?: IMatchOptions): [EditorInput, number /* index */] | undefined {
+	private findEditor(candidate: EditorInput | null, options?: IMatchEditorOptions): [EditorInput, number /* index */] | undefined {
 		const index = this.indexOf(candidate, this.editors, options);
 		if (index === -1) {
 			return undefined;
@@ -729,7 +712,7 @@ export class EditorGroupModel extends Disposable {
 		return [this.editors[index], index];
 	}
 
-	contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchOptions): boolean {
+	contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions): boolean {
 		for (const editor of this.editors) {
 			if (this.matches(editor, candidate, options)) {
 				return true;
@@ -739,7 +722,7 @@ export class EditorGroupModel extends Disposable {
 		return false;
 	}
 
-	private matches(editor: EditorInput | null, candidate: EditorInput | IUntypedEditorInput | null, options?: IMatchOptions): boolean {
+	private matches(editor: EditorInput | null, candidate: EditorInput | IUntypedEditorInput | null, options?: IMatchEditorOptions): boolean {
 		if (!editor || !candidate) {
 			return false;
 		}
