@@ -6,7 +6,7 @@
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorControllerAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -47,7 +47,7 @@ export class CursorUndoRedoController extends Disposable implements IEditorContr
 
 	public static readonly ID = 'editor.contrib.cursorUndoRedoController';
 
-	public static get(editor: ICodeEditor): CursorUndoRedoController {
+	public static get(editor: ICodeEditor): CursorUndoRedoController | null {
 		return editor.getContribution<CursorUndoRedoController>(CursorUndoRedoController.ID);
 	}
 
@@ -125,7 +125,11 @@ export class CursorUndoRedoController extends Disposable implements IEditorContr
 	}
 }
 
-export class CursorUndo extends EditorAction {
+abstract class CursorUndoRedoControllerAction extends EditorControllerAction<CursorUndoRedoController> {
+	controller = CursorUndoRedoController;
+}
+
+export class CursorUndo extends CursorUndoRedoControllerAction {
 	constructor() {
 		super({
 			id: 'cursorUndo',
@@ -140,12 +144,12 @@ export class CursorUndo extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		CursorUndoRedoController.get(editor).cursorUndo();
+	public runControllerAction(accessor: ServicesAccessor, editor: ICodeEditor, controller: CursorUndoRedoController, args: any): void {
+		controller.cursorUndo();
 	}
 }
 
-export class CursorRedo extends EditorAction {
+export class CursorRedo extends CursorUndoRedoControllerAction {
 	constructor() {
 		super({
 			id: 'cursorRedo',
@@ -155,8 +159,8 @@ export class CursorRedo extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		CursorUndoRedoController.get(editor).cursorRedo();
+	public runControllerAction(accessor: ServicesAccessor, editor: ICodeEditor, controller: CursorUndoRedoController, args: any): void {
+		controller.cursorRedo();
 	}
 }
 

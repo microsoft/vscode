@@ -58,7 +58,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 
 	static readonly MAX_FOLDING_REGIONS = 5000;
 
-	public static get(editor: ICodeEditor): FoldingController {
+	public static get(editor: ICodeEditor): FoldingController | null {
 		return editor.getContribution<FoldingController>(FoldingController.ID);
 	}
 
@@ -511,11 +511,11 @@ abstract class FoldingAction<T> extends EditorAction {
 	abstract invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor, args: T): void;
 
 	public override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: T): void | Promise<void> {
-		let foldingController = FoldingController.get(editor);
+		const foldingController = FoldingController.get(editor);
 		if (!foldingController) {
 			return;
 		}
-		let foldingModelPromise = foldingController.getFoldingModel();
+		const foldingModelPromise = foldingController.getFoldingModel();
 		if (foldingModelPromise) {
 			this.reportTelemetry(accessor, editor);
 			return foldingModelPromise.then(foldingModel => {

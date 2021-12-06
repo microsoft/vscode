@@ -410,7 +410,9 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 		const model = this._editor.getModel();
 
 		const unicodeHighlighter = this._editor.getContribution<UnicodeHighlighter>(UnicodeHighlighter.ID);
-
+		if (!unicodeHighlighter) {
+			return [];
+		}
 
 		const result: MarkdownHover[] = [];
 		let index = 300;

@@ -976,7 +976,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._focusTracker.refreshState();
 	}
 
-	public getContribution<T extends editorCommon.IEditorContribution>(id: string): T {
+	public getContribution<T extends editorCommon.IEditorContribution>(id: string): T | null {
 		return <T>(this._contributions[id] || null);
 	}
 

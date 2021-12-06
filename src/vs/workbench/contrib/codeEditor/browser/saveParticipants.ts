@@ -62,7 +62,7 @@ export class TrimWhitespaceParticipant implements ITextFileSaveParticipant {
 			prevSelection = editor.getSelections();
 			if (isAutoSaved) {
 				cursors = prevSelection.map(s => s.getPosition());
-				const snippetsRange = SnippetController2.get(editor).getSessionEnclosingRange();
+				const snippetsRange = SnippetController2.get(editor)?.getSessionEnclosingRange();
 				if (snippetsRange) {
 					for (let lineNumber = snippetsRange.startLineNumber; lineNumber <= snippetsRange.endLineNumber; lineNumber++) {
 						cursors.push(new Position(lineNumber, model.getLineMaxColumn(lineNumber)));

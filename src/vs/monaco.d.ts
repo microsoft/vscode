@@ -4918,7 +4918,7 @@ declare namespace monaco.editor {
 		 * @id Unique identifier of the contribution.
 		 * @return The contribution or null if contribution not found.
 		 */
-		getContribution<T extends IEditorContribution>(id: string): T;
+		getContribution<T extends IEditorContribution>(id: string): T | null;
 		/**
 		 * Type the getModel() of IEditor.
 		 */

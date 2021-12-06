@@ -458,7 +458,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 	private _session: MultiCursorSession | null;
 	private readonly _sessionDispose = this._register(new DisposableStore());
 
-	public static get(editor: ICodeEditor): MultiCursorSelectionController {
+	public static get(editor: ICodeEditor): MultiCursorSelectionController | null {
 		return editor.getContribution<MultiCursorSelectionController>(MultiCursorSelectionController.ID);
 	}
 
@@ -897,9 +897,12 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 				this.updateSoon.schedule();
 			}
 		}));
-		this._register(CommonFindController.get(editor).getState().onFindReplaceStateChange((e) => {
-			this._update();
-		}));
+		const findController = CommonFindController.get(editor);
+		if (findController) {
+			this._register(findController.getState().onFindReplaceStateChange((e) => {
+				this._update();
+			}));
+		}
 	}
 
 	private _update(): void {

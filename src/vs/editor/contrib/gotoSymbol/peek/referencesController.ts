@@ -43,7 +43,7 @@ export abstract class ReferencesController implements IEditorContribution {
 
 	private readonly _referenceSearchVisible: IContextKey<boolean>;
 
-	static get(editor: ICodeEditor): ReferencesController {
+	static get(editor: ICodeEditor): ReferencesController | null {
 		return editor.getContribution<ReferencesController>(ReferencesController.ID);
 	}
 
@@ -270,7 +270,7 @@ export abstract class ReferencesController implements IEditorContribution {
 				this.closeWidget();
 				openedEditor.focus();
 
-				other.toggleWidget(
+				other?.toggleWidget(
 					range,
 					createCancelablePromise(_ => Promise.resolve(model)),
 					this._peekMode ?? false
@@ -302,7 +302,7 @@ function withController(accessor: ServicesAccessor, fn: (controller: ReferencesC
 	if (!outerEditor) {
 		return;
 	}
-	let controller = ReferencesController.get(outerEditor);
+	const controller = ReferencesController.get(outerEditor);
 	if (controller) {
 		fn(controller);
 	}

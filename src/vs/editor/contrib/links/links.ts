@@ -116,7 +116,7 @@ export class LinkDetector implements IEditorContribution {
 
 	public static readonly ID: string = 'editor.linkDetector';
 
-	public static get(editor: ICodeEditor): LinkDetector {
+	public static get(editor: ICodeEditor): LinkDetector | null {
 		return editor.getContribution<LinkDetector>(LinkDetector.ID);
 	}
 
@@ -404,7 +404,7 @@ class OpenLinkAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let linkDetector = LinkDetector.get(editor);
+		const linkDetector = LinkDetector.get(editor);
 		if (!linkDetector) {
 			return;
 		}

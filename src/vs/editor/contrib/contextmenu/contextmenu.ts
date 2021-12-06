@@ -14,7 +14,7 @@ import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isIOS } from 'vs/base/common/platform';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorControllerAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -30,7 +30,7 @@ export class ContextMenuController implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.contextmenu';
 
-	public static get(editor: ICodeEditor): ContextMenuController {
+	public static get(editor: ICodeEditor): ContextMenuController | null {
 		return editor.getContribution<ContextMenuController>(ContextMenuController.ID);
 	}
 
@@ -264,7 +264,11 @@ export class ContextMenuController implements IEditorContribution {
 	}
 }
 
-class ShowContextMenu extends EditorAction {
+abstract class ContextMenuControllerAction extends EditorControllerAction<ContextMenuController> {
+	controller = ContextMenuController;
+}
+
+class ShowContextMenu extends ContextMenuControllerAction {
 
 	constructor() {
 		super({
@@ -280,9 +284,8 @@ class ShowContextMenu extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let contribution = ContextMenuController.get(editor);
-		contribution.showContextMenu();
+	public runControllerAction(accessor: ServicesAccessor, editor: ICodeEditor, controller: ContextMenuController): void {
+		controller.showContextMenu();
 	}
 }
 

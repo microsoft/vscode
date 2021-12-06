@@ -378,7 +378,7 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		if (this._editor.getOption(EditorOption.suggest).snippetsPreventQuickSuggestions && SnippetController2.get(this._editor).isInSnippet()) {
+		if (this._editor.getOption(EditorOption.suggest).snippetsPreventQuickSuggestions && SnippetController2.get(this._editor)?.isInSnippet()) {
 			// no quick suggestion when in snippet mode
 			return;
 		}

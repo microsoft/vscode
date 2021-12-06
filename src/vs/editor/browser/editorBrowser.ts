@@ -595,7 +595,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @id Unique identifier of the contribution.
 	 * @return The contribution or null if contribution not found.
 	 */
-	getContribution<T extends editorCommon.IEditorContribution>(id: string): T;
+	getContribution<T extends editorCommon.IEditorContribution>(id: string): T | null;
 
 	/**
 	 * Execute `fn` with the editor's services.

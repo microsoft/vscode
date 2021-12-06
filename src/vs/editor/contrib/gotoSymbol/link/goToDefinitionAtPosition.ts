@@ -76,7 +76,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		}));
 	}
 
-	static get(editor: ICodeEditor): GotoDefinitionAtPositionEditorContribution {
+	static get(editor: ICodeEditor): GotoDefinitionAtPositionEditorContribution | null {
 		return editor.getContribution<GotoDefinitionAtPositionEditorContribution>(GotoDefinitionAtPositionEditorContribution.ID);
 	}
 

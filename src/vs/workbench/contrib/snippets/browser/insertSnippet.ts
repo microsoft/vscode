@@ -144,7 +144,7 @@ class InsertSnippetAction extends EditorAction {
 		if (snippet.needsClipboard) {
 			clipboardText = await clipboardService.readText();
 		}
-		SnippetController2.get(editor).insert(snippet.codeSnippet, { clipboardText });
+		SnippetController2.get(editor)?.insert(snippet.codeSnippet, { clipboardText });
 	}
 
 	private async _pickSnippet(snippetService: ISnippetsService, quickInputService: IQuickInputService, languageId: string): Promise<Snippet | undefined> {
