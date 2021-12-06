@@ -125,9 +125,5 @@ export class Application {
 		if (this.remote) {
 			await this.code.waitForTextContent('.monaco-workbench .statusbar-item[id="status.host"]', ' TestResolver', undefined, 2000);
 		}
-
-		// wait a bit, since focus might be stolen off widgets
-		// as soon as they open (e.g. quick access)
-		await new Promise(c => setTimeout(c, 1000));
 	}
 }
