@@ -8,7 +8,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./bracketMatching';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorControllerAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -26,11 +26,7 @@ import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/
 
 const overviewRulerBracketMatchForeground = registerColor('editorOverviewRuler.bracketMatchForeground', { dark: '#A0A0A0', light: '#A0A0A0', hc: '#A0A0A0' }, nls.localize('overviewRulerBracketMatchForeground', 'Overview ruler marker color for matching brackets.'));
 
-abstract class BracketMatchingAction extends EditorControllerAction<BracketMatchingController> {
-	controller = BracketMatchingController;
-}
-
-class JumpToBracketAction extends BracketMatchingAction {
+class JumpToBracketAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.jumpToBracket',
@@ -45,12 +41,12 @@ class JumpToBracketAction extends BracketMatchingAction {
 		});
 	}
 
-	public runControllerAction(accessor: ServicesAccessor, editor: ICodeEditor, controller: BracketMatchingController): void {
-		controller.jumpToBracket();
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		BracketMatchingController.get(editor)?.jumpToBracket();
 	}
 }
 
-class SelectToBracketAction extends BracketMatchingAction {
+class SelectToBracketAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.selectToBracket',
@@ -75,12 +71,12 @@ class SelectToBracketAction extends BracketMatchingAction {
 		});
 	}
 
-	public runControllerAction(accessor: ServicesAccessor, editor: ICodeEditor, controller: BracketMatchingController, args: any): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 		let selectBrackets = true;
 		if (args && args.selectBrackets === false) {
 			selectBrackets = false;
 		}
-		controller.selectToBracket(selectBrackets);
+		BracketMatchingController.get(editor)?.selectToBracket(selectBrackets);
 	}
 }
 

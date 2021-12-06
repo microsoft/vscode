@@ -351,25 +351,6 @@ export abstract class EditorAction extends EditorCommand {
 	public abstract run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void>;
 }
 
-interface IEditorContributionCtorWithGet<T extends IEditorContribution> {
-	get(editor: ICodeEditor): T | null;
-}
-
-export abstract class EditorControllerAction<T extends IEditorContribution> extends EditorAction {
-
-	protected abstract controller: IEditorContributionCtorWithGet<T>;
-
-	run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void> {
-		const controller = this.controller.get(editor);
-		if (!controller) {
-			return;
-		}
-		return this.runControllerAction(accessor, editor, controller, args);
-	}
-
-	abstract runControllerAction(accessor: ServicesAccessor, editor: ICodeEditor, controller: T, args: any): void | Promise<void>;
-}
-
 export type EditorActionImplementation = (accessor: ServicesAccessor, editor: ICodeEditor, args: any) => boolean | Promise<void>;
 
 export class MultiEditorAction extends EditorAction {

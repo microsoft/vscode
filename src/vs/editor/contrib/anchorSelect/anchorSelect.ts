@@ -9,7 +9,7 @@ import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./anchorSelect';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorControllerAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -93,11 +93,7 @@ class SelectionAnchorController implements IEditorContribution {
 	}
 }
 
-abstract class SelectionAnchorAction extends EditorControllerAction<SelectionAnchorController> {
-	controller = SelectionAnchorController;
-}
-
-class SetSelectionAnchor extends SelectionAnchorAction {
+class SetSelectionAnchor extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.setSelectionAnchor',
@@ -112,12 +108,12 @@ class SetSelectionAnchor extends SelectionAnchorAction {
 		});
 	}
 
-	async runControllerAction(_accessor: ServicesAccessor, editor: ICodeEditor, controller: SelectionAnchorController): Promise<void> {
-		controller.setSelectionAnchor();
+	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		SelectionAnchorController.get(editor)?.setSelectionAnchor();
 	}
 }
 
-class GoToSelectionAnchor extends SelectionAnchorAction {
+class GoToSelectionAnchor extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.goToSelectionAnchor',
@@ -127,12 +123,12 @@ class GoToSelectionAnchor extends SelectionAnchorAction {
 		});
 	}
 
-	async runControllerAction(_accessor: ServicesAccessor, editor: ICodeEditor, controller: SelectionAnchorController): Promise<void> {
-		controller.goToSelectionAnchor();
+	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		SelectionAnchorController.get(editor)?.goToSelectionAnchor();
 	}
 }
 
-class SelectFromAnchorToCursor extends SelectionAnchorAction {
+class SelectFromAnchorToCursor extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.selectFromAnchorToCursor',
@@ -147,12 +143,12 @@ class SelectFromAnchorToCursor extends SelectionAnchorAction {
 		});
 	}
 
-	async runControllerAction(_accessor: ServicesAccessor, editor: ICodeEditor, controller: SelectionAnchorController): Promise<void> {
-		controller.selectFromAnchorToCursor();
+	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		SelectionAnchorController.get(editor)?.selectFromAnchorToCursor();
 	}
 }
 
-class CancelSelectionAnchor extends SelectionAnchorAction {
+class CancelSelectionAnchor extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.cancelSelectionAnchor',
@@ -167,8 +163,8 @@ class CancelSelectionAnchor extends SelectionAnchorAction {
 		});
 	}
 
-	async runControllerAction(_accessor: ServicesAccessor, editor: ICodeEditor, controller: SelectionAnchorController): Promise<void> {
-		controller.cancelSelectionAnchor();
+	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		SelectionAnchorController.get(editor)?.cancelSelectionAnchor();
 	}
 }
 

@@ -6,7 +6,7 @@
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorControllerAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -125,11 +125,7 @@ export class CursorUndoRedoController extends Disposable implements IEditorContr
 	}
 }
 
-abstract class CursorUndoRedoControllerAction extends EditorControllerAction<CursorUndoRedoController> {
-	controller = CursorUndoRedoController;
-}
-
-export class CursorUndo extends CursorUndoRedoControllerAction {
+export class CursorUndo extends EditorAction {
 	constructor() {
 		super({
 			id: 'cursorUndo',
@@ -144,12 +140,12 @@ export class CursorUndo extends CursorUndoRedoControllerAction {
 		});
 	}
 
-	public runControllerAction(accessor: ServicesAccessor, editor: ICodeEditor, controller: CursorUndoRedoController, args: any): void {
-		controller.cursorUndo();
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		CursorUndoRedoController.get(editor)?.cursorUndo();
 	}
 }
 
-export class CursorRedo extends CursorUndoRedoControllerAction {
+export class CursorRedo extends EditorAction {
 	constructor() {
 		super({
 			id: 'cursorRedo',
@@ -159,8 +155,8 @@ export class CursorRedo extends CursorUndoRedoControllerAction {
 		});
 	}
 
-	public runControllerAction(accessor: ServicesAccessor, editor: ICodeEditor, controller: CursorUndoRedoController, args: any): void {
-		controller.cursorRedo();
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		CursorUndoRedoController.get(editor)?.cursorRedo();
 	}
 }
 
