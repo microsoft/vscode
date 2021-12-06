@@ -159,9 +159,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		if (from instanceof EditorGroupView) {
 			this.model = this._register(from.model.clone());
 		} else if (isSerializedEditorGroupModel(from)) {
-			this.model = this._register(instantiationService.createInstance(EditorGroupModel, from));
+			this.model = this._register(instantiationService.createInstance(EditorGroupModel, from, this._index));
 		} else {
-			this.model = this._register(instantiationService.createInstance(EditorGroupModel, undefined));
+			this.model = this._register(instantiationService.createInstance(EditorGroupModel, undefined, this._index));
 		}
 
 		//#region create()
@@ -843,8 +843,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		if (this._index !== newIndex) {
 			this._index = newIndex;
 			this._onDidGroupChange.fire({ kind: GroupChangeKind.GROUP_INDEX });
-			// TODO @lramos15 ENRICH THE MODEL TO LEARN ABOUT INDEX CHANGES THIS IS A HACK
-			this._onDidModelChange.fire({ kind: GroupChangeKind.GROUP_INDEX });
+			this.model.setIndex(this._index);
 		}
 	}
 

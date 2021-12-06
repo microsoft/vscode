@@ -192,6 +192,7 @@ export class EditorGroupModel extends Disposable {
 
 	constructor(
 		labelOrSerializedGroup: ISerializedEditorGroupModel | undefined,
+		private index: number,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
@@ -598,6 +599,11 @@ export class EditorGroupModel extends Disposable {
 		});
 	}
 
+	setIndex(index: number) {
+		this.index = index;
+		this._onDidModelChange.fire({ kind: GroupChangeKind.GROUP_INDEX });
+	}
+
 	pin(candidate: EditorInput): EditorInput | undefined {
 		const res = this.findEditor(candidate);
 		if (!res) {
@@ -889,7 +895,7 @@ export class EditorGroupModel extends Disposable {
 	}
 
 	clone(): EditorGroupModel {
-		const clone = this.instantiationService.createInstance(EditorGroupModel, undefined);
+		const clone = this.instantiationService.createInstance(EditorGroupModel, undefined, this.index);
 
 		// Copy over group properties
 		clone.editors = this.editors.slice(0);
