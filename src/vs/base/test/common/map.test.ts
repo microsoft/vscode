@@ -747,6 +747,68 @@ suite('Map', () => {
 		assertTstDfs(trie, ['ad', 1], ['ae', 1], ['af', 1], ['az', 1]);
 	});
 
+	test('TernarySearchTree: Cannot read property \'1\' of undefined #138284', function () {
+
+		const keys = [
+			URI.parse('fake-fs:/C'),
+			URI.parse('fake-fs:/A'),
+			URI.parse('fake-fs:/D'),
+			URI.parse('fake-fs:/B'),
+		];
+
+		const tst = TernarySearchTree.forUris<boolean>();
+
+		for (let item of keys) {
+			tst.set(item, true);
+		}
+
+		assert.ok(tst._isBalanced());
+		tst.delete(keys[0]);
+		assert.ok(tst._isBalanced());
+	});
+
+	test('TernarySearchTree: Cannot read property \'1\' of undefined #138284 (simple)', function () {
+
+		const keys = ['C', 'A', 'D', 'B',];
+		const tst = TernarySearchTree.forStrings<boolean>();
+		for (let item of keys) {
+			tst.set(item, true);
+		}
+		assertTstDfs(tst, ['A', true], ['B', true], ['C', true], ['D', true]);
+
+		tst.delete(keys[0]);
+		assertTstDfs(tst, ['A', true], ['B', true], ['D', true]);
+
+		{
+			const tst = TernarySearchTree.forStrings<boolean>();
+			tst.set('C', true);
+			tst.set('A', true);
+			tst.set('B', true);
+			assertTstDfs(tst, ['A', true], ['B', true], ['C', true]);
+		}
+
+	});
+
+	test('TernarySearchTree: Cannot read property \'1\' of undefined #138284 (random)', function () {
+		for (let round = 10; round >= 0; round--) {
+			const keys: URI[] = [];
+			for (let i = 0; i < 100; i++) {
+				keys.push(URI.from({ scheme: 'fake-fs', path: Math.random().toString(36).replace(/[^a-z]+/g, '').substring(0, 10) }));
+			}
+			const tst = TernarySearchTree.forUris<boolean>();
+
+			for (let item of keys) {
+				tst.set(item, true);
+				assert.ok(tst._isBalanced());
+			}
+
+			for (let item of keys) {
+				tst.delete(item);
+				assert.ok(tst._isBalanced());
+			}
+		}
+	});
+
 	test('TernarySearchTree (PathSegments) - lookup', function () {
 
 		const map = new TernarySearchTree<string, number>(new PathIterator());

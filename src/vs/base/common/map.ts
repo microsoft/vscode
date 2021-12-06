@@ -599,7 +599,7 @@ export class TernarySearchTree<K, V> {
 					stack[i][1] = node.rotateLeft();
 				} else {
 					// right, left -> double rotate
-					node.right = stack[i + 1][1] = stack[i + 1][1].rotateRight();
+					node.right = node.right!.rotateRight();
 					stack[i][1] = node.rotateLeft();
 				}
 
@@ -610,7 +610,7 @@ export class TernarySearchTree<K, V> {
 					stack[i][1] = node.rotateRight();
 				} else {
 					// left, right -> double rotate
-					node.left = stack[i + 1][1] = stack[i + 1][1].rotateLeft();
+					node.left = node.left!.rotateLeft();
 					stack[i][1] = node.rotateRight();
 				}
 			}
