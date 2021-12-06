@@ -5,19 +5,22 @@
 
 import minimist = require('minimist');
 import { Application, Quality } from '../../../../automation';
-import { afterSuite, beforeSuite } from '../../utils';
+import { afterSuite, startApp } from '../../utils';
 
-export function setup(opts: minimist.ParsedArgs) {
+export function setup(args: minimist.ParsedArgs) {
+
 	describe('Localization', () => {
-		beforeSuite(opts);
-		afterSuite(opts);
+
+		let app: Application | undefined = undefined;
+
+		afterSuite(args, () => app);
 
 		it(`starts with 'DE' locale and verifies title and viewlets text is in German`, async function () {
-			const app = this.app as Application;
-
-			if (app.quality === Quality.Dev || app.remote) {
+			if (this.defaultOptions.quality === Quality.Dev || this.defaultOptions.remote) {
 				return this.skip();
 			}
+
+			app = await startApp(args, this.defaultOptions);
 
 			await app.workbench.extensions.openExtensionsViewlet();
 			await app.workbench.extensions.installExtension('ms-ceintl.vscode-language-pack-de', false);
@@ -25,6 +28,9 @@ export function setup(opts: minimist.ParsedArgs) {
 
 			const result = await app.workbench.localization.getLocalizedStrings();
 			const localeInfo = await app.workbench.localization.getLocaleInfo();
+
+			await app.stop();
+			app = undefined;
 
 			if (localeInfo.locale === undefined || localeInfo.locale.toLowerCase() !== 'de') {
 				throw new Error(`The requested locale for VS Code was not German. The received value is: ${localeInfo.locale === undefined ? 'not set' : localeInfo.locale}`);

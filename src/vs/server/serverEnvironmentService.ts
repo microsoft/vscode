@@ -12,9 +12,8 @@ import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/envi
 export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	'port': { type: 'string' },
 	'pick-port': { type: 'string' },
-	'connectionToken': { type: 'string' }, // deprecated in favor of `--connection-token`
-	'connection-token': { type: 'string', description: nls.localize('connection-token', "A secret that must be included by the web client with all requests.") },
-	'connection-secret': { type: 'string', description: nls.localize('connection-secret', "Path to file that contains the connection token. This will require that all incoming connections know the secret.") },
+	'connection-token': { type: 'string', cat: 'o', deprecates: 'connectionToken', description: nls.localize('connection-token', "A secret that must be included by the web client with all requests.") },
+	'connection-secret': { type: 'string', cat: 'o', description: nls.localize('connection-secret', "Path to file that contains the connection token. This will require that all incoming connections know the secret.") },
 	'host': { type: 'string' },
 	'socket-path': { type: 'string' },
 	'driver': { type: 'string' },
@@ -66,10 +65,6 @@ export interface ServerParsedArgs {
 	port?: string;
 	'pick-port'?: string;
 	/**
-	 * @deprecated use `connection-token` instead
-	 */
-	connectionToken?: string;
-	/**
 	 * A secret token that must be provided by the web client with all requests.
 	 * Use only `[0-9A-Za-z\-]`.
 	 *
@@ -120,6 +115,7 @@ export interface ServerParsedArgs {
 
 	force?: boolean; // used by install-extension
 	'do-not-sync'?: boolean; // used by install-extension
+	'pre-release'?: boolean; // used by install-extension
 
 	'user-data-dir'?: string;
 	'builtin-extensions-dir'?: string;

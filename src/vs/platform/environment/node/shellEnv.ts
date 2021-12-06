@@ -27,15 +27,14 @@ const MAX_SHELL_RESOLVE_TIME = 10000;
 let unixShellEnvPromise: Promise<typeof process.env> | undefined = undefined;
 
 /**
- * We need to get the environment from a user's shell.
- * This should only be done when Code itself is not launched
- * from within a shell.
+ * Resolves the shell environment by spawning a shell. This call will cache
+ * the shell spawning so that subsequent invocations use that cached result.
  *
  * Will throw an error if:
  * - we hit a timeout of `MAX_SHELL_RESOLVE_TIME`
  * - any other error from spawning a shell to figure out the environment
  */
-export async function resolveShellEnv(logService: ILogService, args: NativeParsedArgs, env: IProcessEnvironment): Promise<typeof process.env> {
+export async function getResolvedShellEnv(logService: ILogService, args: NativeParsedArgs, env: IProcessEnvironment): Promise<typeof process.env> {
 
 	// Skip if --force-disable-user-env
 	if (args['force-disable-user-env']) {

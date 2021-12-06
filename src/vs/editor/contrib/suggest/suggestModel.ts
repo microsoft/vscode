@@ -185,9 +185,6 @@ export class SuggestModel implements IDisposable {
 			this._updateTriggerCharacters();
 			this._updateActiveSuggestSession();
 		}));
-		this._toDispose.add(this._editor.onDidChangeCursorSelection(e => {
-			this._onCursorChange(e);
-		}));
 
 		let editorIsComposing = false;
 		this._toDispose.add(this._editor.onDidCompositionStart(() => {
@@ -196,6 +193,12 @@ export class SuggestModel implements IDisposable {
 		this._toDispose.add(this._editor.onDidCompositionEnd(() => {
 			editorIsComposing = false;
 			this._onCompositionEnd();
+		}));
+		this._toDispose.add(this._editor.onDidChangeCursorSelection(e => {
+			// only trigger suggest when the editor isn't composing a character
+			if (!editorIsComposing) {
+				this._onCursorChange(e);
+			}
 		}));
 		this._toDispose.add(this._editor.onDidChangeModelContent(() => {
 			// only filter completions when the editor isn't composing a character

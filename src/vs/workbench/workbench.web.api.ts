@@ -20,6 +20,7 @@ import { ICredentialsProvider } from 'vs/workbench/services/credentials/common/c
 import { TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { DeferredPromise } from 'vs/base/common/async';
+import { asArray } from 'vs/base/common/arrays';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
@@ -30,6 +31,8 @@ interface IResourceUriProvider {
  * For example: `vscode.csharp`
  */
 type ExtensionId = string;
+
+type MarketplaceExtension = ExtensionId | { readonly id: ExtensionId, preRelease?: boolean };
 
 interface ICommonTelemetryPropertiesResolver {
 	(): { [key: string]: any };
@@ -138,6 +141,18 @@ interface IShowPortCandidate {
 	(host: string, port: number, detail: string): Promise<boolean>;
 }
 
+enum Menu {
+	CommandPalette,
+	StatusBarWindowIndicatorMenu,
+}
+
+function asMenuId(menu: Menu): MenuId {
+	switch (menu) {
+		case Menu.CommandPalette: return MenuId.CommandPalette;
+		case Menu.StatusBarWindowIndicatorMenu: return MenuId.StatusBarWindowIndicatorMenu;
+	}
+}
+
 interface ICommand {
 
 	/**
@@ -151,6 +166,13 @@ interface ICommand {
 	 * in the command palette.
 	 */
 	label?: string,
+
+	/**
+	 * The optional menus to append this command to. Only valid if `label` is
+	 * provided as well.
+	 * @default Menu.CommandPalette
+	 */
+	menu?: Menu | Menu[],
 
 	/**
 	 * A function that is being executed with any arguments passed over. The
@@ -390,6 +412,12 @@ interface IWorkbenchConstructionOptions {
 	 */
 	readonly codeExchangeProxyEndpoints?: { [providerId: string]: string }
 
+	/**
+	 * [TEMPORARY]: This will be removed soon.
+	 * Endpoints to be used for proxying repository tarball download calls in the browser.
+	 */
+	readonly _tarballProxyEndpoints?: { [providerId: string]: string }
+
 	//#endregion
 
 
@@ -411,12 +439,12 @@ interface IWorkbenchConstructionOptions {
 	readonly credentialsProvider?: ICredentialsProvider;
 
 	/**
-	 * Additional builtin extensions that cannot be uninstalled but only be disabled.
+	 * Additional builtin extensions those cannot be uninstalled but only be disabled.
 	 * It can be one of the following:
-	 * 	- `ExtensionId`: id of the extension that is available in Marketplace
-	 * 	- `UriComponents`: location of the extension where it is hosted.
+	 * 	- an extension in the Marketplace
+	 * 	- location of the extension where it is hosted.
 	 */
-	readonly additionalBuiltinExtensions?: readonly (ExtensionId | UriComponents)[];
+	readonly additionalBuiltinExtensions?: readonly (MarketplaceExtension | UriComponents)[];
 
 	/**
 	 * List of extensions to be enabled if they are installed.
@@ -645,10 +673,14 @@ function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions)
 
 			// Commands with labels appear in the command palette
 			if (command.label) {
-				MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: command.id, title: command.label } });
+				for (const menu of asArray(command.menu ?? Menu.CommandPalette)) {
+					MenuRegistry.appendMenuItem(asMenuId(menu), { command: { id: command.id, title: command.label } });
+				}
 			}
 		}
 	}
+
+	CommandsRegistry.registerCommand('_workbench.getTarballProxyEndpoints', () => (options._tarballProxyEndpoints ?? {}));
 
 	// Startup workbench and resolve waiters
 	let instantiatedWorkbench: IWorkbench | undefined = undefined;
@@ -789,6 +821,7 @@ export {
 	// Commands
 	ICommand,
 	commands,
+	Menu,
 
 	// Branding
 	IHomeIndicator,

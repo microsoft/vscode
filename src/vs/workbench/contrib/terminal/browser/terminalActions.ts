@@ -1599,7 +1599,7 @@ export function registerTerminalActions() {
 			const themeService = accessor.get(IThemeService);
 			const groupService = accessor.get(ITerminalGroupService);
 			const picks: ITerminalQuickPickItem[] = [];
-			if (!groupService.activeInstance || groupService.instances.length === 1) {
+			if (groupService.instances.length === 1) {
 				return;
 			}
 			const otherInstances = groupService.instances.filter(i => i.instanceId !== groupService.activeInstance?.instanceId);
@@ -1623,6 +1623,9 @@ export function registerTerminalActions() {
 						iconClasses
 					});
 				}
+			}
+			if (picks.length === 0) {
+				return;
 			}
 			const result = await accessor.get(IQuickInputService).pick(picks, {});
 			if (result) {

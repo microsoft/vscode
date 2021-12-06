@@ -1807,7 +1807,7 @@ declare namespace monaco.editor {
 		 */
 		getLineLastNonWhitespaceColumn(lineNumber: number): number;
 		/**
-		 * Create a valid position,
+		 * Create a valid position.
 		 */
 		validatePosition(position: IPosition): Position;
 		/**
@@ -1842,7 +1842,7 @@ declare namespace monaco.editor {
 		 */
 		getPositionAt(offset: number): Position;
 		/**
-		 * Get a range covering the entire model
+		 * Get a range covering the entire model.
 		 */
 		getFullModelRange(): Range;
 		/**
@@ -3378,6 +3378,16 @@ declare namespace monaco.editor {
 		readonly id: K1;
 		readonly name: string;
 		defaultValue: V;
+		/**
+		 * Might modify `value`.
+		*/
+		applyUpdate(value: V, update: V): ApplyUpdateResult<V>;
+	}
+
+	export class ApplyUpdateResult<T> {
+		readonly newValue: T;
+		readonly didChange: boolean;
+		constructor(newValue: T, didChange: boolean);
 	}
 
 	/**
@@ -3863,20 +3873,20 @@ declare namespace monaco.editor {
 		readonly scrollByPage: boolean;
 	}
 
-	export type DeriveFromWorkspaceTrust = 'deriveFromWorkspaceTrust';
+	export type InUntrustedWorkspace = 'inUntrustedWorkspace';
 
 	/**
 	 * Configuration options for unicode highlighting.
 	 */
 	export interface IUnicodeHighlightOptions {
-		nonBasicASCII?: boolean | DeriveFromWorkspaceTrust;
-		invisibleCharacters?: boolean | DeriveFromWorkspaceTrust;
-		ambiguousCharacters?: boolean | DeriveFromWorkspaceTrust;
-		includeComments?: boolean | DeriveFromWorkspaceTrust;
+		nonBasicASCII?: boolean | InUntrustedWorkspace;
+		invisibleCharacters?: boolean;
+		ambiguousCharacters?: boolean;
+		includeComments?: boolean | InUntrustedWorkspace;
 		/**
-		 * A list of allowed code points in a single string.
+		 * A map of allowed characters (true: allowed).
 		*/
-		allowedCharacters?: string;
+		allowedCharacters?: Record<string, true>;
 	}
 
 	export interface IInlineSuggestOptions {
@@ -5117,6 +5127,7 @@ declare namespace monaco.editor {
 		 * Apply the same font settings as the editor to `target`.
 		 */
 		applyFontInfo(target: HTMLElement): void;
+		setBanner(bannerDomNode: HTMLElement | null, height: number): void;
 	}
 
 	/**
@@ -5898,11 +5909,10 @@ declare namespace monaco.languages {
 		/**
 		 * A string or snippet that should be inserted in a document when selecting
 		 * this completion.
-		 * is used.
 		 */
 		insertText: string;
 		/**
-		 * Addition rules (as bitmask) that should be applied when inserting
+		 * Additional rules (as bitmask) that should be applied when inserting
 		 * this completion.
 		 */
 		insertTextRules?: CompletionItemInsertTextRule;

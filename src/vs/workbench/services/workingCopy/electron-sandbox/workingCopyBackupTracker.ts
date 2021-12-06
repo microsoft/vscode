@@ -48,7 +48,15 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		super(workingCopyBackupService, workingCopyService, logService, lifecycleService, filesConfigurationService, workingCopyEditorService, editorService, editorGroupService);
 	}
 
-	protected onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
+	protected onBeforeShutdown(reason: ShutdownReason): Promise<boolean> {
+
+		// Important: we are about to shutdown and handle dirty working copies
+		// and backups. We do not want any pending backup ops to interfer with
+		// this because there is a risk of a backup being scheduled after we have
+		// acknowledged to shutdown and then might end up with partial backups
+		// written to disk, or even empty backups or deletes after writes.
+		// (https://github.com/microsoft/vscode/issues/138055)
+		this.cancelBackupOperations();
 
 		// Dirty working copies need treatment on shutdown
 		const dirtyWorkingCopies = this.workingCopyService.dirtyWorkingCopies;
@@ -88,12 +96,13 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 
 	private async handleDirtyBeforeShutdown(dirtyWorkingCopies: readonly IWorkingCopy[], reason: ShutdownReason): Promise<boolean> {
 
-		// Trigger backup if configured
+		// Trigger backup if configured and enabled for shutdown reason
 		let backups: IWorkingCopy[] = [];
 		let backupError: Error | undefined = undefined;
-		if (this.filesConfigurationService.isHotExitEnabled) {
+		const backup = await this.shouldBackupBeforeShutdown(reason);
+		if (backup) {
 			try {
-				const backupResult = await this.backupBeforeShutdown(dirtyWorkingCopies, reason);
+				const backupResult = await this.backupBeforeShutdown(dirtyWorkingCopies);
 				backups = backupResult.backups;
 				backupError = backupResult.error;
 
@@ -137,6 +146,51 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		}
 	}
 
+	private async shouldBackupBeforeShutdown(reason: ShutdownReason): Promise<boolean> {
+		let backup: boolean | undefined;
+		if (!this.filesConfigurationService.isHotExitEnabled) {
+			backup = false; // never backup when hot exit is disabled via settings
+		} else if (this.environmentService.isExtensionDevelopment) {
+			backup = true; // always backup closing extension development window without asking to speed up debugging
+		} else {
+
+			// When quit is requested skip the confirm callback and attempt to backup all workspaces.
+			// When quit is not requested the confirm callback should be shown when the window being
+			// closed is the only VS Code window open, except for on Mac where hot exit is only
+			// ever activated when quit is requested.
+
+			switch (reason) {
+				case ShutdownReason.CLOSE:
+					if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.filesConfigurationService.hotExitConfiguration === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
+						backup = true; // backup if a folder is open and onExitAndWindowClose is configured
+					} else if (await this.nativeHostService.getWindowCount() > 1 || isMacintosh) {
+						backup = false; // do not backup if a window is closed that does not cause quitting of the application
+					} else {
+						backup = true; // backup if last window is closed on win/linux where the application quits right after
+					}
+					break;
+
+				case ShutdownReason.QUIT:
+					backup = true; // backup because next start we restore all backups
+					break;
+
+				case ShutdownReason.RELOAD:
+					backup = true; // backup because after window reload, backups restore
+					break;
+
+				case ShutdownReason.LOAD:
+					if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.filesConfigurationService.hotExitConfiguration === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
+						backup = true; // backup if a folder is open and onExitAndWindowClose is configured
+					} else {
+						backup = false; // do not backup because we are switching contexts
+					}
+					break;
+			}
+		}
+
+		return backup;
+	}
+
 	private showErrorDialog(msg: string, workingCopies: readonly IWorkingCopy[], error?: Error): void {
 		const dirtyWorkingCopies = workingCopies.filter(workingCopy => workingCopy.isDirty());
 
@@ -150,54 +204,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		this.logService.error(error ? `[backup tracker] ${msg}: ${error}` : `[backup tracker] ${msg}`);
 	}
 
-	private async backupBeforeShutdown(dirtyWorkingCopies: readonly IWorkingCopy[], reason: ShutdownReason): Promise<{ backups: IWorkingCopy[], error?: Error }> {
-
-		// When quit is requested skip the confirm callback and attempt to backup all workspaces.
-		// When quit is not requested the confirm callback should be shown when the window being
-		// closed is the only VS Code window open, except for on Mac where hot exit is only
-		// ever activated when quit is requested.
-
-		let doBackup: boolean | undefined;
-		if (this.environmentService.isExtensionDevelopment) {
-			doBackup = true; // always backup closing extension development window without asking to speed up debugging
-		} else {
-			switch (reason) {
-				case ShutdownReason.CLOSE:
-					if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.filesConfigurationService.hotExitConfiguration === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
-						doBackup = true; // backup if a folder is open and onExitAndWindowClose is configured
-					} else if (await this.nativeHostService.getWindowCount() > 1 || isMacintosh) {
-						doBackup = false; // do not backup if a window is closed that does not cause quitting of the application
-					} else {
-						doBackup = true; // backup if last window is closed on win/linux where the application quits right after
-					}
-					break;
-
-				case ShutdownReason.QUIT:
-					doBackup = true; // backup because next start we restore all backups
-					break;
-
-				case ShutdownReason.RELOAD:
-					doBackup = true; // backup because after window reload, backups restore
-					break;
-
-				case ShutdownReason.LOAD:
-					if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.filesConfigurationService.hotExitConfiguration === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
-						doBackup = true; // backup if a folder is open and onExitAndWindowClose is configured
-					} else {
-						doBackup = false; // do not backup because we are switching contexts
-					}
-					break;
-			}
-		}
-
-		if (!doBackup) {
-			return { backups: [] };
-		}
-
-		return this.doBackupBeforeShutdown(dirtyWorkingCopies);
-	}
-
-	private async doBackupBeforeShutdown(dirtyWorkingCopies: readonly IWorkingCopy[]): Promise<{ backups: IWorkingCopy[], error?: Error }> {
+	private async backupBeforeShutdown(dirtyWorkingCopies: readonly IWorkingCopy[]): Promise<{ backups: IWorkingCopy[], error?: Error }> {
 		const backups: IWorkingCopy[] = [];
 		let error: Error | undefined = undefined;
 
@@ -206,9 +213,9 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 			// Perform a backup of all dirty working copies unless a backup already exists
 			try {
 				await Promises.settled(dirtyWorkingCopies.map(async workingCopy => {
-					const contentVersion = this.getContentVersion(workingCopy);
 
 					// Backup exists
+					const contentVersion = this.getContentVersion(workingCopy);
 					if (this.workingCopyBackupService.hasBackupSync(workingCopy, contentVersion)) {
 						backups.push(workingCopy);
 					}
@@ -216,7 +223,14 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 					// Backup does not exist
 					else {
 						const backup = await workingCopy.backup(token);
+						if (token.isCancellationRequested) {
+							return;
+						}
+
 						await this.workingCopyBackupService.backup(workingCopy, backup.content, contentVersion, backup.meta, token);
+						if (token.isCancellationRequested) {
+							return;
+						}
 
 						backups.push(workingCopy);
 					}

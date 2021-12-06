@@ -50,6 +50,7 @@ export interface IExtension {
 	readonly version: string;
 	readonly latestVersion: string;
 	readonly hasPreReleaseVersion: boolean;
+	readonly hasReleaseVersion: boolean;
 	readonly description: string;
 	readonly url?: string;
 	readonly repository?: string;
@@ -76,6 +77,7 @@ export interface IExtension {
 	readonly local?: ILocalExtension;
 	gallery?: IGalleryExtension;
 	readonly isMalicious: boolean;
+	readonly isUnsupported: boolean | { preReleaseExtension: { id: string, displayName: string } };
 }
 
 export const SERVICE_ID = 'extensionsWorkbenchService';

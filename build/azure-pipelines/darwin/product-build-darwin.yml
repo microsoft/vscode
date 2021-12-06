@@ -39,12 +39,6 @@ steps:
 
   - script: |
       set -e
-      sudo xcode-select -s /Applications/Xcode_12.2.app
-    displayName: Switch to Xcode 12
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'arm64'))
-
-  - script: |
-      set -e
       git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
     displayName: Merge distro
 
@@ -84,7 +78,6 @@ steps:
       set -e
       export npm_config_arch=$(VSCODE_ARCH)
       export npm_config_node_gyp=$(which node-gyp)
-      export SDKROOT=/Applications/Xcode_12.2.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.0.sdk
 
       for i in {1..3}; do # try 3 times, for Terrapin
         yarn --frozen-lockfile && break

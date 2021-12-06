@@ -30,12 +30,16 @@ import { isObject } from 'vs/base/common/types';
 
 export class DefaultConfiguration extends Disposable {
 
+	static readonly DEFAULT_OVERRIDES_CACHE_EXISTS_KEY = 'DefaultOverridesCacheExists';
+
 	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	private cachedConfigurationDefaultsOverrides: IStringDictionary<any> = {};
 	private readonly cacheKey: ConfigurationKey = { type: 'defaults', key: 'configurationDefaultsOverrides' };
 
-	private readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
-	readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
+	private readonly _onDidChangeConfiguration = this._register(new Emitter<{ defaults: ConfigurationModel, properties: string[] }>());
+	readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
+
+	private updateCache: boolean = false;
 
 	constructor(
 		private readonly configurationCache: IConfigurationCache,
@@ -43,7 +47,7 @@ export class DefaultConfiguration extends Disposable {
 	) {
 		super();
 		if (environmentService.options?.configurationDefaults) {
-			this.configurationRegistry.registerDefaultConfigurations([environmentService.options.configurationDefaults]);
+			this.configurationRegistry.registerDefaultConfigurations([{ overrides: environmentService.options.configurationDefaults }]);
 		}
 	}
 
@@ -57,11 +61,13 @@ export class DefaultConfiguration extends Disposable {
 
 	async initialize(): Promise<ConfigurationModel> {
 		await this.initializeCachedConfigurationDefaultsOverrides();
-		this._register(this.configurationRegistry.onDidUpdateConfiguration(({ defaultsOverrides }) => this.onDidUpdateConfiguration(defaultsOverrides)));
+		this._configurationModel = undefined;
+		this._register(this.configurationRegistry.onDidUpdateConfiguration(({ properties, defaultsOverrides }) => this.onDidUpdateConfiguration(properties, defaultsOverrides)));
 		return this.configurationModel;
 	}
 
 	reload(): ConfigurationModel {
+		this.updateCache = true;
 		this.cachedConfigurationDefaultsOverrides = {};
 		this._configurationModel = undefined;
 		this.updateCachedConfigurationDefaultsOverrides();
@@ -73,9 +79,12 @@ export class DefaultConfiguration extends Disposable {
 		if (!this.initiaizeCachedConfigurationDefaultsOverridesPromise) {
 			this.initiaizeCachedConfigurationDefaultsOverridesPromise = (async () => {
 				try {
-					const content = await this.configurationCache.read(this.cacheKey);
-					if (content) {
-						this.cachedConfigurationDefaultsOverrides = JSON.parse(content);
+					// Read only when the cache exists
+					if (window.localStorage.getItem(DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY)) {
+						const content = await this.configurationCache.read(this.cacheKey);
+						if (content) {
+							this.cachedConfigurationDefaultsOverrides = JSON.parse(content);
+						}
 					}
 				} catch (error) { /* ignore */ }
 				this.cachedConfigurationDefaultsOverrides = isObject(this.cachedConfigurationDefaultsOverrides) ? this.cachedConfigurationDefaultsOverrides : {};
@@ -84,26 +93,31 @@ export class DefaultConfiguration extends Disposable {
 		return this.initiaizeCachedConfigurationDefaultsOverridesPromise;
 	}
 
-	private onDidUpdateConfiguration(defaultsOverrides?: boolean): void {
+	private onDidUpdateConfiguration(properties: string[], defaultsOverrides?: boolean): void {
 		this._configurationModel = undefined;
-		this._onDidChangeConfiguration.fire(this.configurationModel);
+		this._onDidChangeConfiguration.fire({ defaults: this.configurationModel, properties });
 		if (defaultsOverrides) {
 			this.updateCachedConfigurationDefaultsOverrides();
 		}
 	}
 
 	private async updateCachedConfigurationDefaultsOverrides(): Promise<void> {
+		if (!this.updateCache) {
+			return;
+		}
 		const cachedConfigurationDefaultsOverrides: IStringDictionary<any> = {};
 		const configurationDefaultsOverrides = this.configurationRegistry.getConfigurationDefaultsOverrides();
-		for (const key of Object.keys(configurationDefaultsOverrides)) {
-			if (!OVERRIDE_PROPERTY_REGEX.test(key) && configurationDefaultsOverrides[key] !== undefined) {
-				cachedConfigurationDefaultsOverrides[key] = configurationDefaultsOverrides[key];
+		for (const [key, value] of configurationDefaultsOverrides) {
+			if (!OVERRIDE_PROPERTY_REGEX.test(key) && value.value !== undefined) {
+				cachedConfigurationDefaultsOverrides[key] = value.value;
 			}
 		}
 		try {
 			if (Object.keys(cachedConfigurationDefaultsOverrides).length) {
+				window.localStorage.setItem(DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY, 'yes');
 				await this.configurationCache.write(this.cacheKey, JSON.stringify(cachedConfigurationDefaultsOverrides));
 			} else {
+				window.localStorage.removeItem(DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY);
 				await this.configurationCache.remove(this.cacheKey);
 			}
 		} catch (error) {/* Ignore error */ }

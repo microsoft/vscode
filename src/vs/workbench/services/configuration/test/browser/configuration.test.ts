@@ -44,7 +44,8 @@ suite('DefaultConfiguration', () => {
 
 	teardown(() => {
 		configurationRegistry.deregisterConfigurations(configurationRegistry.getConfigurations());
-		configurationRegistry.deregisterDefaultConfigurations([configurationRegistry.getConfigurationDefaultsOverrides()]);
+		const configurationDefaultsOverrides = configurationRegistry.getConfigurationDefaultsOverrides();
+		configurationRegistry.deregisterDefaultConfigurations([...configurationDefaultsOverrides.keys()].map(key => ({ extensionId: configurationDefaultsOverrides.get(key)?.source, overrides: { [key]: configurationDefaultsOverrides.get(key)?.value } })));
 	});
 
 	test('configuration default overrides are read from environment', async () => {
@@ -54,6 +55,30 @@ suite('DefaultConfiguration', () => {
 	});
 
 	test('configuration default overrides are read from cache', async () => {
+		window.localStorage.setItem(DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY, 'yes');
+		await configurationCache.write(cacheKey, JSON.stringify({ 'test.configurationDefaultsOverride': 'overrideValue' }));
+		const testObject = new DefaultConfiguration(configurationCache, TestEnvironmentService);
+
+		const actual = await testObject.initialize();
+
+		assert.deepStrictEqual(actual.getValue('test.configurationDefaultsOverride'), 'overrideValue');
+	});
+
+	test('configuration default overrides are read from cache when model is read before initialize', async () => {
+		window.localStorage.setItem(DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY, 'yes');
+		await configurationCache.write(cacheKey, JSON.stringify({ 'test.configurationDefaultsOverride': 'overrideValue' }));
+		const testObject = new DefaultConfiguration(configurationCache, TestEnvironmentService);
+
+		assert.deepStrictEqual(testObject.configurationModel.getValue('test.configurationDefaultsOverride'), 'defaultValue');
+
+		const actual = await testObject.initialize();
+
+		assert.deepStrictEqual(actual.getValue('test.configurationDefaultsOverride'), 'overrideValue');
+		assert.deepStrictEqual(testObject.configurationModel.getValue('test.configurationDefaultsOverride'), 'overrideValue');
+	});
+
+	test('configuration default overrides are read from cache', async () => {
+		window.localStorage.setItem(DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY, 'yes');
 		await configurationCache.write(cacheKey, JSON.stringify({ 'test.configurationDefaultsOverride': 'overrideValue' }));
 		const testObject = new DefaultConfiguration(configurationCache, TestEnvironmentService);
 
@@ -64,6 +89,7 @@ suite('DefaultConfiguration', () => {
 
 	test('configuration default overrides read from cache override environment', async () => {
 		const environmentService = new BrowserWorkbenchEnvironmentService({ logsPath: joinPath(URI.file('tests').with({ scheme: 'vscode-tests' }), 'logs'), workspaceId: '', configurationDefaults: { 'test.configurationDefaultsOverride': 'envOverrideValue' } }, TestProductService);
+		window.localStorage.setItem(DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY, 'yes');
 		await configurationCache.write(cacheKey, JSON.stringify({ 'test.configurationDefaultsOverride': 'overrideValue' }));
 		const testObject = new DefaultConfiguration(configurationCache, environmentService);
 
@@ -73,6 +99,7 @@ suite('DefaultConfiguration', () => {
 	});
 
 	test('configuration default overrides are read from cache when default configuration changed', async () => {
+		window.localStorage.setItem(DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY, 'yes');
 		await configurationCache.write(cacheKey, JSON.stringify({ 'test.configurationDefaultsOverride': 'overrideValue' }));
 		const testObject = new DefaultConfiguration(configurationCache, TestEnvironmentService);
 		await testObject.initialize();
@@ -89,11 +116,12 @@ suite('DefaultConfiguration', () => {
 			}
 		});
 
-		const actual = await promise;
+		const { defaults: actual } = await promise;
 		assert.deepStrictEqual(actual.getValue('test.configurationDefaultsOverride'), 'overrideValue');
 	});
 
 	test('configuration default overrides are not read from cache after reload', async () => {
+		window.localStorage.setItem(DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY, 'yes');
 		await configurationCache.write(cacheKey, JSON.stringify({ 'test.configurationDefaultsOverride': 'overrideValue' }));
 		const testObject = new DefaultConfiguration(configurationCache, TestEnvironmentService);
 
@@ -104,6 +132,7 @@ suite('DefaultConfiguration', () => {
 	});
 
 	test('cache is reset after reload', async () => {
+		window.localStorage.setItem(DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY, 'yes');
 		await configurationCache.write(cacheKey, JSON.stringify({ 'test.configurationDefaultsOverride': 'overrideValue' }));
 		const testObject = new DefaultConfiguration(configurationCache, TestEnvironmentService);
 
@@ -116,8 +145,9 @@ suite('DefaultConfiguration', () => {
 	test('configuration default overrides are written in cache', async () => {
 		const testObject = new DefaultConfiguration(configurationCache, TestEnvironmentService);
 		await testObject.initialize();
+		testObject.reload();
 		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
-		configurationRegistry.registerDefaultConfigurations([{ 'test.configurationDefaultsOverride': 'newoverrideValue' }]);
+		configurationRegistry.registerDefaultConfigurations([{ overrides: { 'test.configurationDefaultsOverride': 'newoverrideValue' } }]);
 		await promise;
 
 		const actual = JSON.parse(await configurationCache.read(cacheKey));

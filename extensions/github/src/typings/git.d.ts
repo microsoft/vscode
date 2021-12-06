@@ -216,6 +216,12 @@ export interface RemoteSourceProvider {
 	publishRepository?(repository: Repository): Promise<void>;
 }
 
+export interface RemoteSourcePublisher {
+	readonly name: string;
+	readonly icon?: string; // codicon name
+	publishRepository(repository: Repository): Promise<void>;
+}
+
 export interface Credentials {
 	readonly username: string;
 	readonly password: string;
@@ -243,6 +249,7 @@ export interface API {
 	getRepository(uri: Uri): Repository | null;
 	init(root: Uri): Promise<Repository | null>;
 
+	registerRemoteSourcePublisher(publisher: RemoteSourcePublisher): Disposable;
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable;
 	registerCredentialsProvider(provider: CredentialsProvider): Disposable;
 	registerPushErrorHandler(handler: PushErrorHandler): Disposable;

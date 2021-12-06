@@ -283,9 +283,7 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	private _rerenderTabs() {
-		const hasText = this._tabListElement.clientWidth > TerminalTabsListSizes.MidpointViewWidth;
-		this._tabContainer.classList.toggle('has-text', hasText);
-		this._terminalIsTabsNarrowContextKey.set(!hasText);
+		this._updateHasText();
 		this._tabList.refresh();
 	}
 
@@ -311,6 +309,12 @@ export class TerminalTabbedView extends Disposable {
 		}
 	}
 
+	private _updateHasText() {
+		const hasText = this._tabListElement.clientWidth > TerminalTabsListSizes.MidpointViewWidth;
+		this._tabContainer.classList.toggle('has-text', hasText);
+		this._terminalIsTabsNarrowContextKey.set(!hasText);
+	}
+
 	layout(width: number, height: number): void {
 		this._height = height;
 		this._width = width;
@@ -318,6 +322,7 @@ export class TerminalTabbedView extends Disposable {
 		if (this._shouldShowTabs()) {
 			this._splitView.resizeView(this._tabTreeIndex, this._getLastListWidth());
 		}
+		this._updateHasText();
 	}
 
 	private _updateTheme(theme?: IColorTheme): void {

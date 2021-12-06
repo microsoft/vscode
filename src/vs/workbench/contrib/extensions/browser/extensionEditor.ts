@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/extensionEditor';
 import { localize } from 'vs/nls';
-import { createCancelablePromise } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import * as arrays from 'vs/base/common/arrays';
 import { OS } from 'vs/base/common/platform';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -23,7 +23,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { ExtensionsInput, IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, IExtension, ExtensionContainers, ExtensionEditorTab, ExtensionState } from 'vs/workbench/contrib/extensions/common/extensions';
-import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget, PreReleaseIndicatorWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
+import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import {
@@ -72,6 +72,7 @@ import { errorIcon, infoIcon, starEmptyIcon, verifiedPublisherIcon as verifiedPu
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 class NavBar extends Disposable {
 
@@ -163,6 +164,10 @@ const enum WebviewIndex {
 
 const CONTEXT_SHOW_PRE_RELEASE_VERSION = new RawContextKey<boolean>('showPreReleaseVersion', false);
 
+interface IExtensionEditorWidget extends IDisposable {
+	updateInput(extension: IExtension, gallery: IGalleryExtension | undefined, preserveFocus?: boolean): void;
+}
+
 export class ExtensionEditor extends EditorPane {
 
 	static readonly ID: string = 'workbench.editor.extension';
@@ -188,12 +193,14 @@ export class ExtensionEditor extends EditorPane {
 	private dimension: Dimension | undefined;
 
 	private showPreReleaseVersionContextKey: IContextKey<boolean> | undefined;
+	private readonly extensionEditorWidget: IExtensionEditorWidget;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IThemeService themeService: IThemeService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -212,6 +219,31 @@ export class ExtensionEditor extends EditorPane {
 		this.extensionReadme = null;
 		this.extensionChangelog = null;
 		this.extensionManifest = null;
+		const that = this;
+		this.extensionEditorWidget = this._register(new class extends Disposable implements IExtensionEditorWidget {
+			private gallery: IGalleryExtension | undefined = undefined;
+			private extension: IExtension | undefined = undefined;
+			private updatePromise: CancelablePromise<void> | undefined;
+			constructor() {
+				super();
+				this._register(that.extensionsWorkbenchService.onChange(e => {
+					if (e && this.extension
+						&& areSameExtensions(this.extension.identifier, e?.identifier)
+						&& (!this.extension.server || this.extension.server === e.server)
+						&& this.extension.latestVersion !== e.latestVersion) {
+						this.updateInput(e, this.gallery);
+					}
+				}));
+			}
+			updateInput(extension: IExtension, gallery: IGalleryExtension | undefined, preserveFocus?: boolean): void {
+				this.extension = extension;
+				this.gallery = gallery;
+				if (that.template) {
+					this.updatePromise?.cancel();
+					this.updatePromise = createCancelablePromise(token => that.updateTemplate(this.extension!, this.gallery, that.template!, !!preserveFocus, token));
+				}
+			}
+		}());
 	}
 
 	override get scopedContextKeyService(): IContextKeyService | undefined {
@@ -240,9 +272,10 @@ export class ExtensionEditor extends EditorPane {
 		const preview = append(title, $('span.preview', { title: localize('preview', "Preview") }));
 		preview.textContent = localize('preview', "Preview");
 
+		const preRelease = append(title, $('span.pre-release'));
+		preRelease.textContent = localize('preRelease', "Pre-Release");
 		const builtin = append(title, $('span.builtin'));
 		builtin.textContent = localize('builtin', "Built-in");
-		const preRelease = append(title, $('span.pre-release'));
 
 		const subtitle = append(details, $('.subtitle'));
 		const publisher = append(append(subtitle, $('.subtitle-entry')), $('.publisher.clickable', { title: localize('publisher', "Publisher"), tabIndex: 0 }));
@@ -326,7 +359,8 @@ export class ExtensionEditor extends EditorPane {
 		await super.setInput(input, options, context, token);
 		this.updatePreReleaseVersionContext();
 		if (this.template) {
-			await this.updateTemplate(input.extension, this.template, !!options?.preserveFocus);
+			const gallery = await this.getGallery(input.extension, options?.showPreReleaseVersion);
+			this.extensionEditorWidget.updateInput(input.extension, gallery, options?.preserveFocus);
 		}
 	}
 
@@ -334,9 +368,25 @@ export class ExtensionEditor extends EditorPane {
 		const currentOptions: IExtensionEditorOptions | undefined = this.options;
 		super.setOptions(options);
 		this.updatePreReleaseVersionContext();
-		if (currentOptions?.showPreReleaseVersion !== options?.showPreReleaseVersion) {
-			this.openTab(ExtensionEditorTab.Readme);
+		if (this.input && currentOptions?.showPreReleaseVersion !== options?.showPreReleaseVersion) {
+			this.getGallery((<ExtensionsInput>this.input).extension, !!options?.showPreReleaseVersion).then(gallery => this.extensionEditorWidget.updateInput((<ExtensionsInput>this.input).extension, gallery));
 		}
+	}
+
+	private async getGallery(extension: IExtension, preRelease?: boolean): Promise<IGalleryExtension | undefined> {
+		if (isUndefined(preRelease)) {
+			return undefined;
+		}
+		if (preRelease === extension.gallery?.properties.isPreReleaseVersion) {
+			return undefined;
+		}
+		if (preRelease && !extension.hasPreReleaseVersion) {
+			return undefined;
+		}
+		if (!preRelease && !extension.hasReleaseVersion) {
+			return undefined;
+		}
+		return (await this.extensionGalleryService.query({ includePreRelease: preRelease, names: [extension.identifier.id] }, CancellationToken.None)).firstPage[0];
 	}
 
 	private updatePreReleaseVersionContext(): void {
@@ -360,7 +410,7 @@ export class ExtensionEditor extends EditorPane {
 		}
 	}
 
-	private async updateTemplate(extension: IExtension, template: IExtensionEditorTemplate, preserveFocus: boolean): Promise<void> {
+	private async updateTemplate(extension: IExtension, gallery: IGalleryExtension | undefined, template: IExtensionEditorTemplate, preserveFocus: boolean, token: CancellationToken): Promise<void> {
 		this.activeElement = null;
 		this.editorLoadComplete = false;
 
@@ -371,17 +421,18 @@ export class ExtensionEditor extends EditorPane {
 
 		this.transientDisposables.clear();
 
-		this.extensionReadme = new Cache(() => createCancelablePromise(token => extension.getReadme(!!this.showPreReleaseVersionContextKey?.get(), token)));
-		this.extensionChangelog = new Cache(() => createCancelablePromise(token => extension.getChangelog(!!this.showPreReleaseVersionContextKey?.get(), token)));
-		this.extensionManifest = new Cache(() => createCancelablePromise(token => extension.getManifest(!!this.showPreReleaseVersionContextKey?.get(), token)));
+		this.extensionReadme = new Cache(() => extension.getReadme(!!this.showPreReleaseVersionContextKey?.get(), token));
+		this.extensionChangelog = new Cache(() => extension.getChangelog(!!this.showPreReleaseVersionContextKey?.get(), token));
+		this.extensionManifest = new Cache(() => extension.getManifest(!!this.showPreReleaseVersionContextKey?.get(), token));
 
 		const remoteBadge = this.instantiationService.createInstance(RemoteBadgeWidget, template.iconContainer, true);
 		this.transientDisposables.add(addDisposableListener(template.icon, 'error', () => template.icon.src = extension.iconUrlFallback, { once: true }));
 		template.icon.src = extension.iconUrl;
 
 		template.name.textContent = extension.displayName;
-		template.version.textContent = `v${extension.version}`;
+		template.version.textContent = `v${gallery ? gallery.version : extension.version}`;
 		template.preview.style.display = extension.preview ? 'inherit' : 'none';
+		template.preRelease.style.display = (gallery ? gallery.properties.isPreReleaseVersion : (extension.local?.isPreReleaseVersion || extension.gallery?.properties.isPreReleaseVersion)) ? 'inherit' : 'none';
 		template.builtin.style.display = extension.isBuiltin ? 'inherit' : 'none';
 
 		template.description.textContent = extension.description;
@@ -425,8 +476,16 @@ export class ExtensionEditor extends EditorPane {
 			}));
 		}
 
+		const [colorThemes, fileIconThemes, productIconThemes] = await Promise.all([
+			this.workbenchThemeService.getColorThemes(),
+			this.workbenchThemeService.getFileIconThemes(),
+			this.workbenchThemeService.getProductIconThemes(),
+		]);
+		if (token.isCancellationRequested) {
+			return;
+		}
+
 		const widgets = [
-			this.instantiationService.createInstance(PreReleaseIndicatorWidget, template.preRelease, { label: true, icon: false }),
 			remoteBadge,
 			this.instantiationService.createInstance(InstallCountWidget, template.installCount, false),
 			this.instantiationService.createInstance(RatingsWidget, template.rating, false)
@@ -437,9 +496,9 @@ export class ExtensionEditor extends EditorPane {
 			reloadAction,
 			this.instantiationService.createInstance(ExtensionStatusLabelAction),
 			this.instantiationService.createInstance(UpdateAction),
-			this.instantiationService.createInstance(SetColorThemeAction, await this.workbenchThemeService.getColorThemes()),
-			this.instantiationService.createInstance(SetFileIconThemeAction, await this.workbenchThemeService.getFileIconThemes()),
-			this.instantiationService.createInstance(SetProductIconThemeAction, await this.workbenchThemeService.getProductIconThemes()),
+			this.instantiationService.createInstance(SetColorThemeAction, colorThemes),
+			this.instantiationService.createInstance(SetFileIconThemeAction, fileIconThemes),
+			this.instantiationService.createInstance(SetProductIconThemeAction, productIconThemes),
 
 			this.instantiationService.createInstance(EnableDropDownAction),
 			this.instantiationService.createInstance(DisableDropDownAction),
@@ -487,6 +546,10 @@ export class ExtensionEditor extends EditorPane {
 		}
 
 		const manifest = await this.extensionManifest.get().promise;
+		if (token.isCancellationRequested) {
+			return;
+		}
+
 		if (manifest) {
 			combinedInstallAction.manifest = manifest;
 		}
@@ -526,7 +589,7 @@ export class ExtensionEditor extends EditorPane {
 	private setStatus(extension: IExtension, extensionStatus: ExtensionStatusAction, template: IExtensionEditorTemplate): void {
 		const disposables = new DisposableStore();
 		this.transientDisposables.add(disposables);
-		const updateStatus = () => {
+		const updateStatus = (layout: boolean) => {
 			disposables.clear();
 			reset(template.status);
 			const status = extensionStatus.status;
@@ -535,20 +598,14 @@ export class ExtensionEditor extends EditorPane {
 					const statusIconActionBar = disposables.add(new ActionBar(template.status, { animated: false }));
 					statusIconActionBar.push(extensionStatus, { icon: true, label: false });
 				}
-				const rendered = disposables.add(renderMarkdown(new MarkdownString(status.message.value, { isTrusted: true, supportThemeIcons: true }), {
-					actionHandler: {
-						callback: (content) => {
-							this.openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
-						},
-						disposables: disposables
-					}
-				}));
-				append(append(template.status, $('.status-text')),
-					rendered.element);
+				disposables.add(this.renderMarkdownText(status.message.value, append(template.status, $('.status-text'))));
+			}
+			if (layout && this.dimension) {
+				this.layout(this.dimension);
 			}
 		};
-		updateStatus();
-		this.transientDisposables.add(extensionStatus.onDidChangeStatus(() => updateStatus()));
+		updateStatus(false);
+		this.transientDisposables.add(extensionStatus.onDidChangeStatus(() => updateStatus(true)));
 
 		const updateActionLayout = () => template.actionsAndStatusContainer.classList.toggle('list-layout', extension.state === ExtensionState.Installed);
 		updateActionLayout();
@@ -556,8 +613,7 @@ export class ExtensionEditor extends EditorPane {
 	}
 
 	private setRecommendationText(extension: IExtension, template: IExtensionEditorTemplate): void {
-		const updateRecommendationText = () => {
-			reset(template.recommendation);
+		const updateRecommendationText = (layout: boolean) => {
 			const extRecommendations = this.extensionRecommendationsService.getAllRecommendationsWithReason();
 			if (extRecommendations[extension.identifier.id.toLowerCase()]) {
 				const reasonText = extRecommendations[extension.identifier.id.toLowerCase()].reasonText;
@@ -568,9 +624,30 @@ export class ExtensionEditor extends EditorPane {
 			} else if (this.extensionIgnoredRecommendationsService.globalIgnoredRecommendations.indexOf(extension.identifier.id.toLowerCase()) !== -1) {
 				append(template.recommendation, $(`div.recommendation-text`, undefined, localize('recommendationHasBeenIgnored', "You have chosen not to receive recommendations for this extension.")));
 			}
+			if (layout && this.dimension) {
+				this.layout(this.dimension);
+			}
 		};
-		updateRecommendationText();
-		this.transientDisposables.add(this.extensionRecommendationsService.onDidChangeRecommendations(() => updateRecommendationText()));
+		reset(template.recommendation);
+		if (extension.state === ExtensionState.Installed) {
+			return;
+		}
+		updateRecommendationText(false);
+		this.transientDisposables.add(this.extensionRecommendationsService.onDidChangeRecommendations(() => updateRecommendationText(true)));
+	}
+
+	private renderMarkdownText(markdownText: string, parent: HTMLElement): IDisposable {
+		const disposables = new DisposableStore();
+		const rendered = disposables.add(renderMarkdown(new MarkdownString(markdownText, { isTrusted: true, supportThemeIcons: true }), {
+			actionHandler: {
+				callback: (content) => {
+					this.openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
+				},
+				disposables: disposables
+			}
+		}));
+		append(parent, rendered.element);
+		return disposables;
 	}
 
 	override clearInput(): void {
@@ -1768,7 +1845,6 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	if (link) {
 		collector.addRule(`.monaco-workbench .extension-editor .content .details .additional-details-container .resources-container a { color: ${link}; }`);
 		collector.addRule(`.monaco-workbench .extension-editor .content .feature-contributions a { color: ${link}; }`);
-		collector.addRule(`.monaco-workbench .extension-editor > .header > .details > .actions-status-container > .status > .status-text a { color: ${link}; }`);
 	}
 
 	const activeLink = theme.getColor(textLinkActiveForeground);
@@ -1777,9 +1853,6 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 			.monaco-workbench .extension-editor .content .details .additional-details-container .resources-container a:active { color: ${activeLink}; }`);
 		collector.addRule(`.monaco-workbench .extension-editor .content .feature-contributions a:hover,
 			.monaco-workbench .extension-editor .content .feature-contributions a:active { color: ${activeLink}; }`);
-		collector.addRule(`.monaco-workbench .extension-editor > .header > .details > .actions-status-container > .status > .status-text a:hover,
-			.monaco-workbench .extension-editor > .header > .details > actions-status-container > .status > .status-text a:active { color: ${activeLink}; }`);
-
 	}
 
 	const buttonHoverBackgroundColor = theme.getColor(buttonHoverBackground);

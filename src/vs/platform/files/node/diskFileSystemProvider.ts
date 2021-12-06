@@ -20,10 +20,9 @@ import { IDirent, Promises, RimRafMode, SymlinkSupport } from 'vs/base/node/pfs'
 import { localize } from 'vs/nls';
 import { createFileSystemProviderError, FileDeleteOptions, FileOpenOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat } from 'vs/platform/files/common/files';
 import { readFileIntoStream } from 'vs/platform/files/common/io';
-import { FileWatcher as NodeJSWatcherService } from 'vs/platform/files/node/watcher/nodejs/watcherService';
-import { FileWatcher as NsfwWatcherService } from 'vs/platform/files/node/watcher/nsfw/watcherService';
-import { FileWatcher as ParcelWatcherService } from 'vs/platform/files/node/watcher/parcel/watcherService';
-import { IDiskFileChange, ILogMessage, IWatchRequest, WatcherService } from 'vs/platform/files/common/watcher';
+import { NodeJSFileWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
+import { ParcelWatcherClient } from 'vs/platform/files/node/watcher/parcel/parcelWatcherClient';
+import { AbstractRecursiveWatcherClient, IDiskFileChange, ILogMessage, IWatchRequest } from 'vs/platform/files/common/watcher';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractDiskFileSystemProvider } from 'vs/platform/files/common/diskFileSystemProvider';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -63,7 +62,6 @@ export interface IWatcherOptions {
 
 export interface IDiskFileSystemProviderOptions {
 	watcher?: IWatcherOptions;
-	legacyWatcher?: string;
 }
 
 export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider implements
@@ -83,7 +81,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 	readonly onDidChangeCapabilities: Event<void> = Event.None;
 
-	protected _capabilities: FileSystemProviderCapabilities | undefined;
+	private _capabilities: FileSystemProviderCapabilities | undefined;
 	get capabilities(): FileSystemProviderCapabilities {
 		if (!this._capabilities) {
 			this._capabilities =
@@ -454,17 +452,13 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		try {
 			const filePath = this.toFilePath(resource);
 
-			await this.doDelete(filePath, opts);
+			if (opts.recursive) {
+				await Promises.rm(filePath, RimRafMode.MOVE);
+			} else {
+				await Promises.unlink(filePath);
+			}
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
-		}
-	}
-
-	protected async doDelete(filePath: string, opts: FileDeleteOptions): Promise<void> {
-		if (opts.recursive) {
-			await Promises.rm(filePath, RimRafMode.MOVE);
-		} else {
-			await Promises.unlink(filePath);
 		}
 	}
 
@@ -555,38 +549,15 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		onChange: (changes: IDiskFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
-	): WatcherService {
-		let watcherImpl: {
-			new(
-				onChange: (changes: IDiskFileChange[]) => void,
-				onLogMessage: (msg: ILogMessage) => void,
-				verboseLogging: boolean,
-				watcherOptions?: IWatcherOptions
-			): WatcherService
-		};
-
-		let enableLegacyWatcher = false;
-		if (this.options?.watcher?.usePolling) {
-			enableLegacyWatcher = false; // must use Parcel watcher for when polling is required
-		} else {
-			enableLegacyWatcher = this.options?.legacyWatcher === 'on'; // setting always wins
-		}
-
-		if (enableLegacyWatcher) {
-			watcherImpl = NsfwWatcherService;
-		} else {
-			watcherImpl = ParcelWatcherService;
-		}
-
-		return new watcherImpl(
+	): AbstractRecursiveWatcherClient {
+		return new ParcelWatcherClient(
 			changes => onChange(changes),
 			msg => onLogMessage(msg),
-			verboseLogging,
-			this.options?.watcher
+			verboseLogging
 		);
 	}
 
-	protected override doWatch(watcher: WatcherService, requests: IWatchRequest[]): Promise<void> {
+	protected override doWatch(watcher: AbstractRecursiveWatcherClient, requests: IWatchRequest[]): Promise<void> {
 		const usePolling = this.options?.watcher?.usePolling;
 		if (usePolling === true) {
 			for (const request of requests) {
@@ -609,7 +580,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
 	): IDisposable & { setVerboseLogging: (verboseLogging: boolean) => void } {
-		return new NodeJSWatcherService(
+		return new NodeJSFileWatcher(
 			path,
 			changes => onChange(changes),
 			msg => onLogMessage(msg),

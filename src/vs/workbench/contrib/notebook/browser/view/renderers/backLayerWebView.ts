@@ -131,6 +131,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IModeService private readonly modeService: IModeService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 
@@ -618,11 +619,37 @@ var requirejs = (function() {
 					}
 				case 'clicked-link':
 					{
+						let linkToOpen: URI | string | undefined;
 						if (matchesSomeScheme(data.href, Schemas.http, Schemas.https, Schemas.mailto)) {
-							this.openerService.open(data.href, { fromUserGesture: true });
+							linkToOpen = data.href;
 						} else if (!/^[\w\-]+:/.test(data.href)) {
-							const path = URI.joinPath(dirname(this.documentUri), data.href);
-							this.openerService.open(path, { fromUserGesture: true });
+							if (this.documentUri.scheme === Schemas.untitled) {
+								const folders = this.workspaceContextService.getWorkspace().folders;
+								if (!folders.length) {
+									return;
+								}
+								linkToOpen = URI.joinPath(folders[0].uri, data.href);
+							} else {
+								if (data.href.startsWith('/')) {
+									// Resolve relative to workspace
+									let folder = this.workspaceContextService.getWorkspaceFolder(this.documentUri);
+									if (!folder) {
+										const folders = this.workspaceContextService.getWorkspace().folders;
+										if (!folders.length) {
+											return;
+										}
+										folder = folders[0];
+									}
+									linkToOpen = URI.joinPath(folder.uri, data.href);
+								} else {
+									// Resolve relative to notebook document
+									linkToOpen = URI.joinPath(dirname(this.documentUri), data.href);
+								}
+							}
+						}
+
+						if (linkToOpen) {
+							this.openerService.open(linkToOpen, { fromUserGesture: true });
 						}
 						break;
 					}

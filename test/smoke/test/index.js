@@ -13,7 +13,7 @@ const opts = minimist(args, {
 	string: ['f', 'g']
 });
 
-const suite = opts['web'] ? 'Browser Smoke Tests' : 'Smoke Tests';
+const suite = opts['web'] ? 'Browser Smoke Tests' : 'Desktop Smoke Tests';
 
 const options = {
 	color: true,

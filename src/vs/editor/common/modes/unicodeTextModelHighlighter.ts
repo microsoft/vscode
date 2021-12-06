@@ -6,9 +6,11 @@
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Searcher } from 'vs/editor/common/model/textModelSearch';
 import * as strings from 'vs/base/common/strings';
+import { IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorkerService';
+import { assertNever } from 'vs/base/common/types';
 
 export class UnicodeTextModelHighlighter {
-	public static computeUnicodeHighlights(model: IUnicodeCharacterSearcherTarget, options: UnicodeHighlighterOptions, range?: IRange): Range[] {
+	public static computeUnicodeHighlights(model: IUnicodeCharacterSearcherTarget, options: UnicodeHighlighterOptions, range?: IRange): IUnicodeHighlightsResult {
 		const startLine = range ? range.startLineNumber : 1;
 		const endLine = range ? range.endLineNumber : model.getLineCount();
 
@@ -23,8 +25,15 @@ export class UnicodeTextModelHighlighter {
 		}
 
 		const searcher = new Searcher(null, regex);
-		const result: Range[] = [];
+		const ranges: Range[] = [];
+		let hasMore = false;
 		let m: RegExpExecArray | null;
+
+		let ambiguousCharacterCount = 0;
+		let invisibleCharacterCount = 0;
+		let nonBasicAsciiCharacterCount = 0;
+
+		forLoop:
 		for (let lineNumber = startLine, lineCount = endLine; lineNumber <= lineCount; lineNumber++) {
 			const lineContent = model.getLineContent(lineNumber);
 			const lineLength = lineContent.length;
@@ -51,19 +60,37 @@ export class UnicodeTextModelHighlighter {
 						}
 					}
 					const str = lineContent.substring(startIndex, endIndex);
-					if (codePointHighlighter.shouldHighlightNonBasicASCII(str) !== SimpleHighlightReason.None) {
-						result.push(new Range(lineNumber, startIndex + 1, lineNumber, endIndex + 1));
+					const highlightReason = codePointHighlighter.shouldHighlightNonBasicASCII(str);
 
-						const maxResultLength = 1000;
-						if (result.length > maxResultLength) {
-							// TODO@hediet a message should be shown in this case
-							break;
+					if (highlightReason !== SimpleHighlightReason.None) {
+						if (highlightReason === SimpleHighlightReason.Ambiguous) {
+							ambiguousCharacterCount++;
+						} else if (highlightReason === SimpleHighlightReason.Invisible) {
+							invisibleCharacterCount++;
+						} else if (highlightReason === SimpleHighlightReason.NonBasicASCII) {
+							nonBasicAsciiCharacterCount++;
+						} else {
+							assertNever(highlightReason);
 						}
+
+						const MAX_RESULT_LENGTH = 1000;
+						if (ranges.length >= MAX_RESULT_LENGTH) {
+							hasMore = true;
+							break forLoop;
+						}
+
+						ranges.push(new Range(lineNumber, startIndex + 1, lineNumber, endIndex + 1));
 					}
 				}
 			} while (m);
 		}
-		return result;
+		return {
+			ranges,
+			hasMore,
+			ambiguousCharacterCount,
+			invisibleCharacterCount,
+			nonBasicAsciiCharacterCount
+		};
 	}
 
 	public static computeUnicodeHighlightReason(char: string, options: UnicodeHighlighterOptions): UnicodeHighlighterReason | null {

@@ -10,7 +10,7 @@ import * as _http from 'http';
 import * as _os from 'os';
 import { cwd } from 'vs/base/common/process';
 import { dirname, extname, resolve, join } from 'vs/base/common/path';
-import { parseArgs, buildHelpMessage, buildVersionMessage, OPTIONS, OptionDescriptions } from 'vs/platform/environment/node/argv';
+import { parseArgs, buildHelpMessage, buildVersionMessage, OPTIONS, OptionDescriptions, ErrorReporter } from 'vs/platform/environment/node/argv';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { createWaitMarkerFile } from 'vs/platform/environment/node/wait';
 import { PipeCommand } from 'vs/workbench/api/node/extHostCLIServer';
@@ -105,13 +105,17 @@ export function main(desc: ProductDescription, args: string[]): void {
 		options['openExternal'] = { type: 'boolean' };
 	}
 
-	const errorReporter = {
+	const errorReporter : ErrorReporter = {
 		onMultipleValues: (id: string, usedValue: string) => {
 			console.error(`Option ${id} can only be defined once. Using value ${usedValue}.`);
 		},
 
 		onUnknownOption: (id: string) => {
 			console.error(`Ignoring option ${id}: not supported for ${desc.executableName}.`);
+		},
+
+		onDeprecatedOption: (deprecatedOption: string, actualOption: string) => {
+			console.warn(`Option '${deprecatedOption}' is deprecated, please use '${actualOption}' instead`);
 		}
 	};
 

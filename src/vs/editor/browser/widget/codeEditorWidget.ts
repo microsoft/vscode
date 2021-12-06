@@ -244,6 +244,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private _decorationTypeKeysToIds: { [decorationTypeKey: string]: string[] };
 	private _decorationTypeSubtypes: { [decorationTypeKey: string]: { [subtype: string]: boolean } };
 
+	private _bannerDomNode: HTMLElement | null = null;
+
 	constructor(
 		domElement: HTMLElement,
 		_options: Readonly<editorBrowser.IEditorConstructionOptions>,
@@ -1490,6 +1492,19 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		Configuration.applyFontInfoSlow(target, this._configuration.options.get(EditorOption.fontInfo));
 	}
 
+	public setBanner(domNode: HTMLElement | null, domNodeHeight: number): void {
+		if (this._bannerDomNode && this._domElement.contains(this._bannerDomNode)) {
+			this._domElement.removeChild(this._bannerDomNode);
+		}
+
+		this._bannerDomNode = domNode;
+		this._configuration.reserveHeight(domNode ? domNodeHeight : 0);
+
+		if (this._bannerDomNode) {
+			this._domElement.prepend(this._bannerDomNode);
+		}
+	}
+
 	protected _attachModel(model: ITextModel | null): void {
 		if (!model) {
 			this._modelData = null;
@@ -1702,6 +1717,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._domElement.removeAttribute('data-mode-id');
 		if (removeDomNode && this._domElement.contains(removeDomNode)) {
 			this._domElement.removeChild(removeDomNode);
+		}
+		if (this._bannerDomNode && this._domElement.contains(this._bannerDomNode)) {
+			this._domElement.removeChild(this._bannerDomNode);
 		}
 
 		return model;

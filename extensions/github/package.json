@@ -16,7 +16,7 @@
     "*"
   ],
   "extensionDependencies": [
-    "vscode.git"
+    "vscode.git-base"
   ],
   "main": "./out/extension.js",
   "capabilities": {
@@ -32,6 +32,14 @@
         "title": "Publish to GitHub"
       }
     ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "github.publish",
+          "when": "git-base.gitEnabled"
+        }
+      ]
+    },
     "configuration": [
       {
         "title": "GitHub",

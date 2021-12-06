@@ -19,27 +19,40 @@ export function itRepeat(n: number, description: string, callback: (this: Contex
 	}
 }
 
-export function beforeSuite(opts: minimist.ParsedArgs, optionsTransform?: (opts: ApplicationOptions) => Promise<ApplicationOptions>) {
+export function beforeSuite(args: minimist.ParsedArgs, optionsTransform?: (opts: ApplicationOptions) => Promise<ApplicationOptions>) {
 	before(async function () {
-		let options: ApplicationOptions = { ...this.defaultOptions };
-
-		if (optionsTransform) {
-			options = await optionsTransform(options);
-		}
-
-		// https://github.com/microsoft/vscode/issues/34988
-		const userDataPathSuffix = [...Array(8)].map(() => Math.random().toString(36)[3]).join('');
-		const userDataDir = options.userDataDir.concat(`-${userDataPathSuffix}`);
-
-		const app = new Application({ ...options, userDataDir });
-		await app.start();
-		this.app = app;
-
-		if (opts.log) {
-			const title = this.currentTest!.fullTitle();
-			app.logger.log('*** Test start:', title);
-		}
+		this.app = await startApp(args, this.defaultOptions, optionsTransform);
 	});
+}
+
+export async function startApp(args: minimist.ParsedArgs, options: ApplicationOptions, optionsTransform?: (opts: ApplicationOptions) => Promise<ApplicationOptions>): Promise<Application> {
+	if (optionsTransform) {
+		options = await optionsTransform({ ...options });
+	}
+
+	const app = new Application({
+		...options,
+		userDataDir: getRandomUserDataDir(options)
+	});
+
+	await app.start();
+
+	if (args.log) {
+		const title = this.currentTest!.fullTitle();
+		app.logger.log('*** Test start:', title);
+	}
+
+	return app;
+}
+
+export function getRandomUserDataDir(options: ApplicationOptions): string {
+
+	// Pick a random user data dir suffix that is not
+	// too long to not run into max path length issues
+	// https://github.com/microsoft/vscode/issues/34988
+	const userDataPathSuffix = [...Array(8)].map(() => Math.random().toString(36)[3]).join('');
+
+	return options.userDataDir.concat(`-${userDataPathSuffix}`);
 }
 
 export function afterSuite(opts: minimist.ParsedArgs, appFn?: () => Application | undefined, joinFn?: () => Promise<unknown>) {

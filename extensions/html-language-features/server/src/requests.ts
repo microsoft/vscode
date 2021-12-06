@@ -7,9 +7,6 @@ import { URI } from 'vscode-uri';
 import { RequestType, Connection } from 'vscode-languageserver';
 import { RuntimeEnvironment } from './htmlServer';
 
-export namespace FsContentRequest {
-	export const type: RequestType<{ uri: string; encoding?: string; }, string, any> = new RequestType('fs/content');
-}
 export namespace FsStatRequest {
 	export const type: RequestType<string, FileStat, any> = new RequestType('fs/stat');
 }
@@ -56,45 +53,27 @@ export interface FileStat {
 	size: number;
 }
 
-export interface RequestService {
-	getContent(uri: string, encoding?: string): Promise<string>;
-
+export interface FileSystemProvider {
 	stat(uri: string): Promise<FileStat>;
 	readDirectory(uri: string): Promise<[string, FileType][]>;
 }
 
 
-export function getRequestService(handledSchemas: string[], connection: Connection, runtime: RuntimeEnvironment): RequestService {
-	const builtInHandlers: { [protocol: string]: RequestService | undefined } = {};
-	for (let protocol of handledSchemas) {
-		if (protocol === 'file') {
-			builtInHandlers[protocol] = runtime.file;
-		} else if (protocol === 'http' || protocol === 'https') {
-			builtInHandlers[protocol] = runtime.http;
-		}
-	}
+export function getFileSystemProvider(handledSchemas: string[], connection: Connection, runtime: RuntimeEnvironment): FileSystemProvider {
+	const fileFs = runtime.fileFs && handledSchemas.indexOf('file') !== -1 ? runtime.fileFs : undefined;
 	return {
 		async stat(uri: string): Promise<FileStat> {
-			const handler = builtInHandlers[getScheme(uri)];
-			if (handler) {
-				return handler.stat(uri);
+			if (fileFs && uri.startsWith('file:')) {
+				return fileFs.stat(uri);
 			}
 			const res = await connection.sendRequest(FsStatRequest.type, uri.toString());
 			return res;
 		},
 		readDirectory(uri: string): Promise<[string, FileType][]> {
-			const handler = builtInHandlers[getScheme(uri)];
-			if (handler) {
-				return handler.readDirectory(uri);
+			if (fileFs && uri.startsWith('file:')) {
+				return fileFs.readDirectory(uri);
 			}
 			return connection.sendRequest(FsReadDirRequest.type, uri.toString());
-		},
-		getContent(uri: string, encoding?: string): Promise<string> {
-			const handler = builtInHandlers[getScheme(uri)];
-			if (handler) {
-				return handler.getContent(uri, encoding);
-			}
-			return connection.sendRequest(FsContentRequest.type, { uri: uri.toString(), encoding });
 		}
 	};
 }
