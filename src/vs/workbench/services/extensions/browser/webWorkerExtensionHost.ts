@@ -77,11 +77,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 
 	private _getWebWorkerExtensionHostIframeSrc(): string {
 		const suffix = this._environmentService.debugExtensionHost && this._environmentService.debugRenderer ? '?debugged=1' : '?';
-		const iframeModulePath = (
-			location.protocol === 'http:'
-				? 'vs/workbench/services/extensions/worker/httpWebWorkerExtensionHostIframe.html'
-				: 'vs/workbench/services/extensions/worker/httpsWebWorkerExtensionHostIframe.html'
-		);
+		const iframeModulePath = 'vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html';
 		if (platform.isWeb) {
 			const webEndpointUrlTemplate = this._productService.webEndpointUrlTemplate;
 			const commit = this._productService.commit;
