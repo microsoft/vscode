@@ -27,7 +27,6 @@ export interface SpawnOptions {
 	web?: boolean;
 	headless?: boolean;
 	browser?: 'chromium' | 'webkit' | 'firefox';
-	suiteTitle?: string;
 	testTitle?: string;
 }
 
@@ -132,6 +131,16 @@ export class Code {
 	async capturePage(): Promise<string> {
 		const windowId = await this.getActiveWindowId();
 		return await this.driver.capturePage(windowId);
+	}
+
+	async startTracing(name: string): Promise<void> {
+		const windowId = await this.getActiveWindowId();
+		return await this.driver.startTracing(windowId, name);
+	}
+
+	async stopTracing(name: string): Promise<void> {
+		const windowId = await this.getActiveWindowId();
+		return await this.driver.stopTracing(windowId, name);
 	}
 
 	async waitForWindowIds(fn: (windowIds: number[]) => boolean): Promise<void> {

@@ -22,10 +22,8 @@ export function itRepeat(n: number, description: string, callback: (this: Contex
 export function beforeSuite(args: minimist.ParsedArgs, optionsTransform?: (opts: ApplicationOptions) => Promise<ApplicationOptions>) {
 	before(async function () {
 		const testTitle = this.currentTest?.title;
-		const suiteTitle = this.currentTest?.parent?.title;
 
 		this.app = await startApp(args, this.defaultOptions, async opts => {
-			opts.suiteTitle = suiteTitle;
 			opts.testTitle = testTitle;
 
 			if (optionsTransform) {
@@ -34,6 +32,10 @@ export function beforeSuite(args: minimist.ParsedArgs, optionsTransform?: (opts:
 
 			return opts;
 		});
+	});
+
+	beforeEach(async function () {
+		await this.app.startTracing(this.currentTest?.title);
 	});
 }
 
@@ -86,6 +88,10 @@ export function afterSuite(opts: minimist.ParsedArgs, appFn?: () => Application 
 		if (joinFn) {
 			await joinFn();
 		}
+	});
+
+	afterEach(async function () {
+		await this.app.stopTracing(this.currentTest?.title);
 	});
 }
 

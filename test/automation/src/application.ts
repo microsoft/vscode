@@ -104,6 +104,14 @@ export class Application {
 		}
 	}
 
+	async startTracing(name: string): Promise<void> {
+		await this._code?.startTracing(name);
+	}
+
+	async stopTracing(name: string): Promise<void> {
+		await this._code?.stopTracing(name);
+	}
+
 	private async startApplication(extraArgs: string[] = []): Promise<any> {
 		this._code = await spawn({
 			...this.options,
