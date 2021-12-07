@@ -28,7 +28,7 @@ async function writeP(terminal: TestTerminal, data: string): Promise<void> {
 	});
 }
 
-suite.only('Workbench - TerminalCommandTracker', () => {
+suite('Workbench - TerminalCommandTracker', () => {
 	let xterm: TestTerminal;
 	let commandTracker: CommandTrackerAddon;
 
