@@ -14,6 +14,10 @@ import { asCSSUrl } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 
+const fileIconDirectoryRegex = /([^\/]+(?<!^\.|\/\.))\/([^\/]+)$/;
+
+type FileIconDirectoryRegexMatch = RegExpMatchArray & [string, string, string] | null;
+
 export class FileIconThemeData implements IWorkbenchFileIconTheme {
 
 	static readonly STORAGE_KEY = 'iconThemeData';
@@ -273,8 +277,10 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 			let folderNames = associations.folderNames;
 			if (folderNames) {
 				for (let folderName in folderNames) {
-					if (/\//.test(folderName)) {
-						let directoryName = paths.posix.basename(paths.posix.dirname(folderName));
+					const fileIconDirectoryRegexMatch = folderName.match(fileIconDirectoryRegex) as FileIconDirectoryRegexMatch;
+					if (fileIconDirectoryRegexMatch) {
+						const directoryName = fileIconDirectoryRegexMatch[1];
+						folderName = fileIconDirectoryRegexMatch[2];
 						addSelector(`${qualifier} .${escapeCSS(directoryName.toLowerCase())}-name-dir-icon.${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNames[folderName]);
 					} else {
 						addSelector(`${qualifier} .${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNames[folderName]);
@@ -285,9 +291,10 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 			let folderNamesExpanded = associations.folderNamesExpanded;
 			if (folderNamesExpanded) {
 				for (let folderName in folderNamesExpanded) {
-					if (/\//.test(folderName)) {
-						let directoryName = paths.posix.basename(paths.posix.dirname(folderName));
-						folderName = paths.posix.basename(folderName);
+					const fileIconDirectoryRegexMatch = folderName.match(fileIconDirectoryRegex) as FileIconDirectoryRegexMatch;
+					if (fileIconDirectoryRegexMatch) {
+						const directoryName = fileIconDirectoryRegexMatch[1];
+						folderName = fileIconDirectoryRegexMatch[2];
 						addSelector(`${qualifier} .${escapeCSS(directoryName.toLowerCase())}-name-dir-icon.${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNamesExpanded[folderName]);
 					} else {
 						addSelector(`${qualifier} ${expanded} .${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNamesExpanded[folderName]);
@@ -310,10 +317,11 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 			if (fileExtensions) {
 				for (let fileExtension in fileExtensions) {
 					let selectors: string[] = [];
-					if (/\//.test(fileExtension)) {
-						let directoryName = paths.posix.basename(paths.posix.dirname(fileExtension)).toLowerCase();
-						selectors.push(`.${escapeCSS(directoryName)}-name-dir-icon`);
-						fileExtension = paths.posix.basename(fileExtension);
+					const fileIconDirectoryRegexMatch = fileExtension.match(fileIconDirectoryRegex) as FileIconDirectoryRegexMatch;
+					if (fileIconDirectoryRegexMatch) {
+						const directoryName = fileIconDirectoryRegexMatch[1];
+						selectors.push(`.${escapeCSS(directoryName.toLowerCase())}-name-dir-icon`);
+						fileExtension = fileIconDirectoryRegexMatch[2];
 					}
 					let segments = fileExtension.toLowerCase().split('.');
 					if (segments.length) {
@@ -330,10 +338,11 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 			if (fileNames) {
 				for (let fileName in fileNames) {
 					let selectors: string[] = [];
-					if (/\//.test(fileName)) {
-						let directoryName = paths.posix.basename(paths.posix.dirname(fileName)).toLowerCase();
-						selectors.push(`.${escapeCSS(directoryName)}-name-dir-icon`);
-						fileName = paths.posix.basename(fileName);
+					const fileIconDirectoryRegexMatch = fileName.match(fileIconDirectoryRegex) as FileIconDirectoryRegexMatch;
+					if (fileIconDirectoryRegexMatch) {
+						const directoryName = fileIconDirectoryRegexMatch[1];
+						selectors.push(`.${escapeCSS(directoryName.toLowerCase())}-name-dir-icon`);
+						fileName = fileIconDirectoryRegexMatch[2];
 					}
 					fileName = fileName.toLowerCase();
 					selectors.push(`.${escapeCSS(fileName)}-name-file-icon`);
