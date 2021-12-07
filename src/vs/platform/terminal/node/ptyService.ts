@@ -122,7 +122,7 @@ export class PtyService extends Disposable implements IPtyService {
 		return JSON.stringify(serialized);
 	}
 
-	async reviveTerminalProcesses(state: string) {
+	async reviveTerminalProcesses(state: string, dateTimeFormatLocate: string) {
 		const parsedUnknown = JSON.parse(state);
 		if (!('version' in parsedUnknown) || !('state' in parsedUnknown) || !Array.isArray(parsedUnknown.state)) {
 			this._logService.warn('Could not revive serialized processes, wrong format', parsedUnknown);
@@ -138,14 +138,14 @@ export class PtyService extends Disposable implements IPtyService {
 			const restoreMessage = localize({
 				key: 'terminal-session-restore',
 				comment: ['date the snapshot was taken', 'time the snapshot was taken']
-			}, "Session contents restored from {0} at {1}", new Date(state.timestamp).toLocaleDateString(), new Date(state.timestamp).toLocaleTimeString());
+			}, "Session contents restored from {0} at {1}", new Date(state.timestamp).toLocaleDateString(dateTimeFormatLocate), new Date(state.timestamp).toLocaleTimeString(dateTimeFormatLocate));
 			const newId = await this.createProcess(
 				{
 					...state.shellLaunchConfig,
 					cwd: state.processDetails.cwd,
 					color: state.processDetails.color,
 					icon: state.processDetails.icon,
-					name: state.processDetails.title,
+					name: state.processDetails.titleSource === TitleEventSource.Api ? state.processDetails.title : undefined,
 					initialText: state.replayEvent.events[0].data + '\x1b[0m\n\n\r\x1b[1;48;5;252;38;5;234m ' + restoreMessage + ' \x1b[K\x1b[0m\n\r'
 				},
 				state.processDetails.cwd,

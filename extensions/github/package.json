@@ -64,6 +64,9 @@
         "contents": "%welcome.publishWorkspaceFolder%",
         "when": "config.git.enabled && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0"
       }
+    ],
+    "markdown.previewStyles": [
+      "./markdown.css"
     ]
   },
   "scripts": {

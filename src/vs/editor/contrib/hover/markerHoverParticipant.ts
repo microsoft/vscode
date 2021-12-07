@@ -173,7 +173,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 				commandId: NextMarkerAction.ID,
 				run: () => {
 					this._hover.hide();
-					MarkerController.get(this._editor).showAtMarker(markerHover.marker);
+					MarkerController.get(this._editor)?.showAtMarker(markerHover.marker);
 					this._editor.focus();
 				}
 			});
@@ -225,7 +225,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 						// Hide the hover pre-emptively, otherwise the editor can close the code actions
 						// context menu as well when using keyboard navigation
 						this._hover.hide();
-						controller.showCodeActions(markerCodeActionTrigger, actions, {
+						controller?.showCodeActions(markerCodeActionTrigger, actions, {
 							x: elementPosition.left + 6,
 							y: elementPosition.top + elementPosition.height + 6
 						});

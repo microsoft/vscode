@@ -17,6 +17,13 @@ import 'vs/workbench/workbench.common.main';
 //#endregion
 
 
+//#region --- workbench (desktop main)
+
+import 'vs/workbench/electron-sandbox/desktop.main';
+
+//#endregion
+
+
 //#region --- workbench parts
 
 import 'vs/workbench/electron-sandbox/parts/dialogs/dialog.contribution';

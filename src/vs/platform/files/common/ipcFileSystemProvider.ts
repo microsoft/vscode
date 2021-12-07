@@ -186,8 +186,8 @@ export class IPCFileSystemProvider extends Disposable implements
 	private readonly _onDidChange = this._register(new Emitter<readonly IFileChange[]>());
 	readonly onDidChangeFile = this._onDidChange.event;
 
-	private readonly _onDidErrorOccur = this._register(new Emitter<string>());
-	readonly onDidErrorOccur = this._onDidErrorOccur.event;
+	private readonly _onDidWatchError = this._register(new Emitter<string>());
+	readonly onDidWatchError = this._onDidWatchError.event;
 
 	// The contract for file watching via remote is to identify us
 	// via a unique but readonly session ID. Since the remote is
@@ -208,7 +208,7 @@ export class IPCFileSystemProvider extends Disposable implements
 				this._onDidChange.fire(events.map(event => ({ resource: URI.revive(event.resource), type: event.type })));
 			} else {
 				const error = eventsOrError;
-				this._onDidErrorOccur.fire(error);
+				this._onDidWatchError.fire(error);
 			}
 		}));
 	}

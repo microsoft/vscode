@@ -1164,8 +1164,8 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		}
 	}
 
-	joinState(state: StoredFileWorkingCopyState.PENDING_SAVE): Promise<void> {
-		return this.saveSequentializer.pending ?? Promise.resolve();
+	async joinState(state: StoredFileWorkingCopyState.PENDING_SAVE): Promise<void> {
+		return this.saveSequentializer.pending;
 	}
 
 	//#endregion

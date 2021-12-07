@@ -1661,8 +1661,10 @@ declare module 'vscode' {
 		detail?: string;
 
 		/**
-		 * Optional flag indicating if this item is picked initially.
-		 * (Only honored when the picker allows multiple selections.)
+		 * Optional flag indicating if this item is picked initially. This is only honored when using
+		 * the {@link window.showQuickPick()} API. To do the same thing with the {@link window.createQuickPick()} API,
+		 * simply set the {@link QuickPick.selectedItems} to the items you want picked initially.
+		 * (*Note:* This is only honored when the picker allows multiple selections.)
 		 *
 		 * @see {@link QuickPickOptions.canPickMany}
 		 */
@@ -1675,7 +1677,9 @@ declare module 'vscode' {
 
 		/**
 		 * Optional buttons that will be rendered on this particular item. These buttons will trigger
-		 * an {@link QuickPickItemButtonEvent} when clicked.
+		 * an {@link QuickPickItemButtonEvent} when clicked. Buttons are only rendered when using a quickpick
+		 * created by the {@link window.createQuickPick()} API. Buttons are not rendered when using
+		 * the {@link window.showQuickPick()} API.
 		 */
 		buttons?: readonly QuickInputButton[];
 	}
@@ -5919,6 +5923,50 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The location of the terminal.
+	 */
+	export enum TerminalLocation {
+		/**
+		 * In the terminal view
+		 */
+		Panel = 1,
+		/**
+		 * In the editor area
+		 */
+		Editor = 2,
+	}
+
+	/**
+	 * Assumes a {@link TerminalLocation} of editor and allows specifying a {@link ViewColumn} and
+	 * {@link preserveFocus} property
+	 */
+	export interface TerminalEditorLocationOptions {
+		/**
+		 * A view column in which the {@link Terminal terminal} should be shown in the editor area.
+		 * Use {@link ViewColumn.Active active} to open in the active editor group, other values are
+		 * adjusted to be `Min(column, columnCount + 1)`, the
+		 * {@link ViewColumn.Active active}-column is not adjusted. Use
+		 * {@linkcode ViewColumn.Beside} to open the editor to the side of the currently active one.
+		 */
+		viewColumn: ViewColumn;
+		/**
+		 * An optional flag that when `true` will stop the {@link Terminal} from taking focus.
+		 */
+		preserveFocus?: boolean;
+	}
+
+	/**
+	 * Uses the parent {@link Terminal}'s location for the terminal
+	 */
+	export interface TerminalSplitLocationOptions {
+		/**
+		 * The parent terminal to split this terminal beside. This works whether the parent terminal
+		 * is in the panel or the editor area.
+		 */
+		parentTerminal: Terminal;
+	}
+
+	/**
 	 * Represents the state of a {@link Terminal}.
 	 */
 	export interface TerminalState {
@@ -9694,6 +9742,11 @@ declare module 'vscode' {
 		 * recommended for the best contrast and consistency across themes.
 		 */
 		color?: ThemeColor;
+
+		/**
+		* The {@link TerminalLocation} or {@link TerminalEditorLocationOptions} or {@link TerminalSplitLocationOptions} for the terminal.
+		*/
+		location?: TerminalLocation | TerminalEditorLocationOptions | TerminalSplitLocationOptions;
 	}
 
 	/**
@@ -9722,6 +9775,11 @@ declare module 'vscode' {
 		 * recommended for the best contrast and consistency across themes.
 		 */
 		color?: ThemeColor;
+
+		/**
+		 * The {@link TerminalLocation} or {@link TerminalEditorLocationOptions} or {@link TerminalSplitLocationOptions} for the terminal.
+		 */
+		location?: TerminalLocation | TerminalEditorLocationOptions | TerminalSplitLocationOptions;
 	}
 
 	/**

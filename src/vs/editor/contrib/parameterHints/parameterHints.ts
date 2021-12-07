@@ -22,7 +22,7 @@ class ParameterHintsController extends Disposable implements IEditorContribution
 
 	public static readonly ID = 'editor.controller.parameterHints';
 
-	public static get(editor: ICodeEditor): ParameterHintsController {
+	public static get(editor: ICodeEditor): ParameterHintsController | null {
 		return editor.getContribution<ParameterHintsController>(ParameterHintsController.ID);
 	}
 

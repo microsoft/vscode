@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DeferredPromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { join } from 'vs/base/common/path';
@@ -44,6 +45,12 @@ export interface IStorageMain extends IDisposable {
 	 * Access to all cached items of this storage service.
 	 */
 	readonly items: Map<string, string>;
+
+	/**
+	 * Allows to join on the `init` call having completed
+	 * to be able to safely use the storage.
+	 */
+	readonly whenInit: Promise<void>;
 
 	/**
 	 * Required call to ensure the service can be used.
@@ -90,6 +97,9 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 
 	private initializePromise: Promise<void> | undefined = undefined;
 
+	private readonly whenInitPromise = new DeferredPromise<void>();
+	readonly whenInit = this.whenInitPromise.p;
+
 	constructor(
 		protected readonly logService: ILogService
 	) {
@@ -125,6 +135,8 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 					}
 				} catch (error) {
 					this.logService.error(`StorageMain#initialize(): Unable to init storage due to ${error}`);
+				} finally {
+					this.whenInitPromise.complete();
 				}
 			})();
 		}

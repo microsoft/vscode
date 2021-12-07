@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/extensionEditor';
 import { localize } from 'vs/nls';
-import { createCancelablePromise } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import * as arrays from 'vs/base/common/arrays';
 import { OS } from 'vs/base/common/platform';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -223,6 +223,7 @@ export class ExtensionEditor extends EditorPane {
 		this.extensionEditorWidget = this._register(new class extends Disposable implements IExtensionEditorWidget {
 			private gallery: IGalleryExtension | undefined = undefined;
 			private extension: IExtension | undefined = undefined;
+			private updatePromise: CancelablePromise<void> | undefined;
 			constructor() {
 				super();
 				this._register(that.extensionsWorkbenchService.onChange(e => {
@@ -238,7 +239,8 @@ export class ExtensionEditor extends EditorPane {
 				this.extension = extension;
 				this.gallery = gallery;
 				if (that.template) {
-					that.updateTemplate(this.extension, this.gallery, that.template, !!preserveFocus);
+					this.updatePromise?.cancel();
+					this.updatePromise = createCancelablePromise(token => that.updateTemplate(this.extension!, this.gallery, that.template!, !!preserveFocus, token));
 				}
 			}
 		}());
@@ -408,7 +410,7 @@ export class ExtensionEditor extends EditorPane {
 		}
 	}
 
-	private async updateTemplate(extension: IExtension, gallery: IGalleryExtension | undefined, template: IExtensionEditorTemplate, preserveFocus: boolean): Promise<void> {
+	private async updateTemplate(extension: IExtension, gallery: IGalleryExtension | undefined, template: IExtensionEditorTemplate, preserveFocus: boolean, token: CancellationToken): Promise<void> {
 		this.activeElement = null;
 		this.editorLoadComplete = false;
 
@@ -419,9 +421,9 @@ export class ExtensionEditor extends EditorPane {
 
 		this.transientDisposables.clear();
 
-		this.extensionReadme = new Cache(() => createCancelablePromise(token => extension.getReadme(!!this.showPreReleaseVersionContextKey?.get(), token)));
-		this.extensionChangelog = new Cache(() => createCancelablePromise(token => extension.getChangelog(!!this.showPreReleaseVersionContextKey?.get(), token)));
-		this.extensionManifest = new Cache(() => createCancelablePromise(token => extension.getManifest(!!this.showPreReleaseVersionContextKey?.get(), token)));
+		this.extensionReadme = new Cache(() => extension.getReadme(!!this.showPreReleaseVersionContextKey?.get(), token));
+		this.extensionChangelog = new Cache(() => extension.getChangelog(!!this.showPreReleaseVersionContextKey?.get(), token));
+		this.extensionManifest = new Cache(() => extension.getManifest(!!this.showPreReleaseVersionContextKey?.get(), token));
 
 		const remoteBadge = this.instantiationService.createInstance(RemoteBadgeWidget, template.iconContainer, true);
 		this.transientDisposables.add(addDisposableListener(template.icon, 'error', () => template.icon.src = extension.iconUrlFallback, { once: true }));
@@ -474,6 +476,15 @@ export class ExtensionEditor extends EditorPane {
 			}));
 		}
 
+		const [colorThemes, fileIconThemes, productIconThemes] = await Promise.all([
+			this.workbenchThemeService.getColorThemes(),
+			this.workbenchThemeService.getFileIconThemes(),
+			this.workbenchThemeService.getProductIconThemes(),
+		]);
+		if (token.isCancellationRequested) {
+			return;
+		}
+
 		const widgets = [
 			remoteBadge,
 			this.instantiationService.createInstance(InstallCountWidget, template.installCount, false),
@@ -485,9 +496,9 @@ export class ExtensionEditor extends EditorPane {
 			reloadAction,
 			this.instantiationService.createInstance(ExtensionStatusLabelAction),
 			this.instantiationService.createInstance(UpdateAction),
-			this.instantiationService.createInstance(SetColorThemeAction, await this.workbenchThemeService.getColorThemes()),
-			this.instantiationService.createInstance(SetFileIconThemeAction, await this.workbenchThemeService.getFileIconThemes()),
-			this.instantiationService.createInstance(SetProductIconThemeAction, await this.workbenchThemeService.getProductIconThemes()),
+			this.instantiationService.createInstance(SetColorThemeAction, colorThemes),
+			this.instantiationService.createInstance(SetFileIconThemeAction, fileIconThemes),
+			this.instantiationService.createInstance(SetProductIconThemeAction, productIconThemes),
 
 			this.instantiationService.createInstance(EnableDropDownAction),
 			this.instantiationService.createInstance(DisableDropDownAction),
@@ -535,6 +546,10 @@ export class ExtensionEditor extends EditorPane {
 		}
 
 		const manifest = await this.extensionManifest.get().promise;
+		if (token.isCancellationRequested) {
+			return;
+		}
+
 		if (manifest) {
 			combinedInstallAction.manifest = manifest;
 		}

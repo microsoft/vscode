@@ -1598,8 +1598,10 @@ export function registerTerminalActions() {
 		async run(accessor: ServicesAccessor) {
 			const themeService = accessor.get(IThemeService);
 			const groupService = accessor.get(ITerminalGroupService);
+			const notificationService = accessor.get(INotificationService);
 			const picks: ITerminalQuickPickItem[] = [];
-			if (groupService.instances.length === 1) {
+			if (groupService.instances.length <= 1) {
+				notificationService.warn(localize('workbench.action.terminal.join.insufficientTerminals', 'Insufficient terminals for the join action'));
 				return;
 			}
 			const otherInstances = groupService.instances.filter(i => i.instanceId !== groupService.activeInstance?.instanceId);
@@ -1625,6 +1627,7 @@ export function registerTerminalActions() {
 				}
 			}
 			if (picks.length === 0) {
+				notificationService.warn(localize('workbench.action.terminal.join.onlySplits', 'All terminals are joined already'));
 				return;
 			}
 			const result = await accessor.get(IQuickInputService).pick(picks, {});

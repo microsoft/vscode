@@ -243,7 +243,7 @@ export class CommentController implements IEditorContribution {
 		}
 	}
 
-	public static get(editor: ICodeEditor): CommentController {
+	public static get(editor: ICodeEditor): CommentController | null {
 		return editor.getContribution<CommentController>(ID);
 	}
 

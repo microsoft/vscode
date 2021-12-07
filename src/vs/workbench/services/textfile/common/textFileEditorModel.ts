@@ -969,8 +969,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	joinState(state: TextFileEditorModelState.PENDING_SAVE): Promise<void> {
-		return this.saveSequentializer.pending ?? Promise.resolve();
+	async joinState(state: TextFileEditorModelState.PENDING_SAVE): Promise<void> {
+		return this.saveSequentializer.pending;
 	}
 
 	override getMode(this: IResolvedTextFileEditorModel): string;

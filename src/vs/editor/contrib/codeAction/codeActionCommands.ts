@@ -69,7 +69,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 
 	public static readonly ID = 'editor.contrib.quickFixController';
 
-	public static get(editor: ICodeEditor): QuickFixController {
+	public static get(editor: ICodeEditor): QuickFixController | null {
 		return editor.getContribution<QuickFixController>(QuickFixController.ID);
 	}
 
@@ -122,7 +122,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 			return;
 		}
 
-		MessageController.get(this._editor).closeMessage();
+		MessageController.get(this._editor)?.closeMessage();
 		const triggerPosition = this._editor.getPosition();
 		this._trigger({ type: CodeActionTriggerType.Invoke, filter, autoApply, context: { notAvailableMessage, position: triggerPosition } });
 	}

@@ -44,7 +44,7 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 		className: DECORATION_CLASS_NAME
 	});
 
-	static get(editor: ICodeEditor): LinkedEditingContribution {
+	static get(editor: ICodeEditor): LinkedEditingContribution | null {
 		return editor.getContribution<LinkedEditingContribution>(LinkedEditingContribution.ID);
 	}
 

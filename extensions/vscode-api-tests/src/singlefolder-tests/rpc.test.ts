@@ -105,4 +105,28 @@ suite('vscode', function () {
 		dispo.push(ctrl);
 		assertNoRpcFromEntry([ctrl, 'NotebookController']);
 	});
+
+	test('no rpc, createTerminal(...)', function () {
+		const ctrl = vscode.window.createTerminal({ name: 'termi' });
+		dispo.push(ctrl);
+		assertNoRpcFromEntry([ctrl, 'Terminal']);
+	});
+
+	test('no rpc, createFileSystemWatcher(...)', function () {
+		const item = vscode.workspace.createFileSystemWatcher('**/*.ts');
+		dispo.push(item);
+		assertNoRpcFromEntry([item, 'FileSystemWatcher']);
+	});
+
+	test('no rpc, createTestController(...)', function () {
+		const item = vscode.tests.createTestController('iii', 'lll');
+		dispo.push(item);
+		assertNoRpcFromEntry([item, 'TestController']);
+	});
+
+	test('no rpc, createLanguageStatusItem(...)', function () {
+		const item = vscode.languages.createLanguageStatusItem('i', '*');
+		dispo.push(item);
+		assertNoRpcFromEntry([item, 'LanguageStatusItem']);
+	});
 });

@@ -85,7 +85,17 @@ suite('Workbench - TerminalValidatedLocalLinkProvider', () => {
 
 	async function assertLink(text: string, os: OperatingSystem, expected: { text: string, range: [number, number][] }[]) {
 		const xterm = new Terminal();
-		const provider = instantiationService.createInstance(TerminalValidatedLocalLinkProvider, xterm, os, () => { }, () => { }, () => { }, (_: string, cb: (result: { uri: URI, isDirectory: boolean } | undefined) => void) => { cb({ uri: URI.file('/'), isDirectory: false }); });
+		const provider = instantiationService.createInstance(
+			TerminalValidatedLocalLinkProvider,
+			xterm,
+			os,
+			() => { },
+			() => { },
+			() => { },
+			(linkCandidates: string, cb: (result: { uri: URI, link: string, isDirectory: boolean } | undefined) => void) => {
+				cb({ uri: URI.file('/'), link: linkCandidates[0], isDirectory: false });
+			}
+		);
 
 		// Write the text and wait for the parser to finish
 		await new Promise<void>(r => xterm.write(text, r));

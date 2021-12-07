@@ -16,8 +16,9 @@ import { ncp } from 'ncp';
 import * as vscodetest from 'vscode-test';
 import fetch from 'node-fetch';
 import { Quality, ApplicationOptions, MultiLogger, Logger, ConsoleLogger, FileLogger } from '../../automation';
+import { timeout } from './utils';
 
-import { setup as setupDataMigrationTests } from './areas/workbench/data-migration.test';
+import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
 import { setup as setupPreferencesTests } from './areas/preferences/preferences.test';
 import { setup as setupSearchTests } from './areas/search/search.test';
 import { setup as setupNotebookTests } from './areas/notebook/notebook.test';
@@ -342,15 +343,40 @@ after(async function () {
 	}
 
 	try {
-		await new Promise<void>((resolve, reject) => rimraf(testDataPath, { maxBusyTries: 10 }, error => error ? reject(error) : resolve()));
+		// TODO@tyriar TODO@meganrogge lately deleting the test root
+		// folder results in timeouts of 60s or EPERM issues which
+		// seems to indicate that a process (terminal?) holds onto a
+		// folder within.
+		//
+		// Workarounds pushed for mitigation
+		// - do not end up with mocha timeout errors after 60s by limiting
+		//   this operation to at maximum 30s
+		// - do not end up with a failing `after` call when deletion failed
+		//
+		// Refs: https://github.com/microsoft/vscode/issues/137725
+		let deleted = false;
+		await Promise.race([
+			new Promise<void>((resolve, reject) => rimraf(testDataPath, { maxBusyTries: 10 }, error => {
+				if (error) {
+					reject(error);
+				} else {
+					deleted = true;
+					resolve();
+				}
+			})),
+			timeout(30000).then(() => {
+				if (!deleted) {
+					throw new Error('giving up after 30s');
+				}
+			})
+		]);
 	} catch (error) {
-		// TODO@tyriar TODO@meganrogge https://github.com/microsoft/vscode/issues/137725
 		console.error(`Unable to delete smoke test workspace: ${error}. This indicates some process is locking the workspace folder.`);
 	}
 });
 
 describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
-	if (!opts.web) { setupDataMigrationTests(opts); }
+	if (!opts.web) { setupDataLossTests(opts); }
 	if (!opts.web) { setupPreferencesTests(opts); }
 	setupSearchTests(opts);
 	setupNotebookTests(opts);

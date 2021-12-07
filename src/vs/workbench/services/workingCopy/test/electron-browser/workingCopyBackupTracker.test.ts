@@ -43,6 +43,7 @@ import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/com
 import { TestContextService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { timeout } from 'vs/base/common/async';
 
 flakySuite('WorkingCopyBackupTracker (native)', function () {
 
@@ -75,10 +76,12 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 			return super.whenReady;
 		}
 
+		get pendingBackupOperationCount(): number { return this.pendingBackupOperations.size; }
+
 		override dispose() {
 			super.dispose();
 
-			for (const [_, disposable] of this.pendingBackups) {
+			for (const [_, disposable] of this.pendingBackupOperations) {
 				disposable.dispose();
 			}
 		}
@@ -352,6 +355,43 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 		const veto = await event.value;
 		assert.ok(veto);
 
+		const finalVeto = await event.finalValue?.();
+		assert.ok(finalVeto); // assert the tracker uses the internal finalVeto API
+
+		await cleanup();
+	});
+
+	test('onWillShutdown - pending backup operations canceled and new ones suspended', async function () {
+		const { accessor, tracker, cleanup } = await createTracker();
+
+		const resource = toResource.call(this, '/path/index.txt');
+		await accessor.editorService.openEditor({ resource, options: { pinned: true } });
+
+		const model = accessor.textFileService.files.get(resource);
+
+		await model?.resolve();
+		model?.textEditorModel?.setValue('foo');
+		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
+		assert.strictEqual(tracker.pendingBackupOperationCount, 1);
+
+		const event = new TestBeforeShutdownEvent();
+		const finalVeto = timeout(1).then(() => false);
+		event.finalVeto(() => finalVeto);
+		accessor.lifecycleService.fireBeforeShutdown(event);
+
+		assert.strictEqual(tracker.pendingBackupOperationCount, 0);
+
+		model?.textEditorModel?.setValue('bar');
+		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
+		assert.strictEqual(tracker.pendingBackupOperationCount, 0);
+
+		await finalVeto;
+
+		// Ops are resumed after handling!
+		model?.textEditorModel?.setValue('foo');
+		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
+		assert.strictEqual(tracker.pendingBackupOperationCount, 1);
+
 		await cleanup();
 	});
 
@@ -491,6 +531,7 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 			accessor.lifecycleService.fireBeforeShutdown(event);
 
 			const veto = await event.value;
+			assert.ok(typeof event.finalValue === 'function'); // assert the tracker uses the internal finalVeto API
 			assert.strictEqual(accessor.workingCopyBackupService.discardedBackups.length, 0); // When hot exit is set, backups should never be cleaned since the confirm result is cancel
 			assert.strictEqual(veto, shouldVeto);
 

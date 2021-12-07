@@ -481,6 +481,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				if (settingId !== this.currentColorTheme.settingsId) {
 					await this.internalSetColorTheme(theme.id, undefined);
 				} else if (theme !== this.currentColorTheme) {
+					await theme.ensureLoaded(this.extensionResourceLoaderService);
 					theme.setCustomizations(this.settings);
 					await this.applyTheme(theme, undefined, true);
 				}
@@ -656,6 +657,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				if (settingId !== this.currentFileIconTheme.settingsId) {
 					await this.internalSetFileIconTheme(theme.id, undefined);
 				} else if (theme !== this.currentFileIconTheme) {
+					await theme.ensureLoaded(this.extensionResourceLoaderService);
 					this.applyAndSetFileIconTheme(theme, true);
 				}
 				return true;
@@ -761,6 +763,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				if (settingId !== this.currentProductIconTheme.settingsId) {
 					await this.internalSetProductIconTheme(theme.id, undefined);
 				} else if (theme !== this.currentProductIconTheme) {
+					await theme.ensureLoaded(this.extensionResourceLoaderService, this.logService);
 					this.applyAndSetProductIconTheme(theme, true);
 				}
 				return true;

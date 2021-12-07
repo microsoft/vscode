@@ -12,6 +12,8 @@ import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import * as arrays from 'vs/base/common/arrays';
+import * as objects from 'vs/base/common/objects';
 
 //#region typed options
 
@@ -806,6 +808,11 @@ export interface IEditorOption<K1 extends EditorOption, V> {
 	 * @internal
 	 */
 	compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: V): V;
+
+	/**
+	 * Might modify `value`.
+	*/
+	applyUpdate(value: V, update: V): ApplyUpdateResult<V>;
 }
 
 type PossibleKeyName0<V> = { [K in keyof IEditorOptions]: IEditorOptions[K] extends V | undefined ? K : never }[keyof IEditorOptions];
@@ -828,11 +835,43 @@ abstract class BaseEditorOption<K1 extends EditorOption, V> implements IEditorOp
 		this.schema = schema;
 	}
 
+	public applyUpdate(value: V, update: V): ApplyUpdateResult<V> {
+		return applyUpdate(value, update);
+	}
+
 	public abstract validate(input: any): V;
 
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: V): V {
 		return value;
 	}
+}
+
+export class ApplyUpdateResult<T> {
+	constructor(
+		public readonly newValue: T,
+		public readonly didChange: boolean
+	) { }
+}
+
+function applyUpdate<T>(value: T, update: T): ApplyUpdateResult<T> {
+	if (typeof value !== 'object' || typeof update !== 'object' || !value || !update) {
+		return new ApplyUpdateResult(update, value !== update);
+	}
+	if (Array.isArray(value) || Array.isArray(update)) {
+		const arrayEquals = Array.isArray(value) && Array.isArray(update) && arrays.equals(value, update);
+		return new ApplyUpdateResult(update, arrayEquals);
+	}
+	let didChange = false;
+	for (let key in update) {
+		if ((update as T & object).hasOwnProperty(key)) {
+			const result = applyUpdate(value[key], update[key]);
+			if (result.didChange) {
+				value[key] = result.newValue;
+				didChange = true;
+			}
+		}
+	}
+	return new ApplyUpdateResult(value, didChange);
 }
 
 /**
@@ -851,6 +890,10 @@ abstract class ComputedEditorOption<K1 extends EditorOption, V> implements IEdit
 		this.name = '_never_';
 		this.defaultValue = <any>undefined;
 		this.deps = deps;
+	}
+
+	public applyUpdate(value: V, update: V): ApplyUpdateResult<V> {
+		return applyUpdate(value, update);
 	}
 
 	public validate(input: any): V {
@@ -872,6 +915,10 @@ class SimpleEditorOption<K1 extends EditorOption, V> implements IEditorOption<K1
 		this.name = name;
 		this.defaultValue = defaultValue;
 		this.schema = schema;
+	}
+
+	public applyUpdate(value: V, update: V): ApplyUpdateResult<V> {
+		return applyUpdate(value, update);
 	}
 
 	public validate(input: any): V {
@@ -3265,9 +3312,9 @@ export interface IUnicodeHighlightOptions {
 	ambiguousCharacters?: boolean;
 	includeComments?: boolean | InUntrustedWorkspace;
 	/**
-	 * A list of allowed code points in a single string.
+	 * A map of allowed characters (true: allowed).
 	*/
-	allowedCharacters?: string;
+	allowedCharacters?: Record<string, true>;
 }
 
 /**
@@ -3293,7 +3340,7 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 			invisibleCharacters: true,
 			ambiguousCharacters: true,
 			includeComments: inUntrustedWorkspace,
-			allowedCharacters: '',
+			allowedCharacters: {},
 		};
 
 		super(
@@ -3327,12 +3374,32 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 				},
 				[unicodeHighlightConfigKeys.allowedCharacters]: {
 					restricted: true,
-					type: 'string',
+					type: 'object',
 					default: defaults.allowedCharacters,
-					description: nls.localize('unicodeHighlight.allowedCharacters', "Defines allowed characters that are not being highlighted.")
+					description: nls.localize('unicodeHighlight.allowedCharacters', "Defines allowed characters that are not being highlighted."),
+					additionalProperties: {
+						type: 'boolean'
+					}
 				},
 			}
 		);
+	}
+
+	public override applyUpdate(value: Required<Readonly<IUnicodeHighlightOptions>>, update: Required<Readonly<IUnicodeHighlightOptions>>): ApplyUpdateResult<Required<Readonly<IUnicodeHighlightOptions>>> {
+		let didChange = false;
+		if (update.allowedCharacters) {
+			// Treat allowedCharacters atomically
+			if (!objects.equals(value.allowedCharacters, update.allowedCharacters)) {
+				value = { ...value, allowedCharacters: update.allowedCharacters };
+				didChange = true;
+			}
+		}
+
+		const result = super.applyUpdate(value, update);
+		if (didChange) {
+			return new ApplyUpdateResult(result.newValue, true);
+		}
+		return result;
 	}
 
 	public validate(_input: any): InternalUnicodeHighlightOptions {
@@ -3345,16 +3412,22 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 			invisibleCharacters: boolean(input.invisibleCharacters, this.defaultValue.invisibleCharacters),
 			ambiguousCharacters: boolean(input.ambiguousCharacters, this.defaultValue.ambiguousCharacters),
 			includeComments: primitiveSet<boolean | InUntrustedWorkspace>(input.includeComments, inUntrustedWorkspace, [true, false, inUntrustedWorkspace]),
-			allowedCharacters: string(input.allowedCharacters, ''),
+			allowedCharacters: this.validateAllowedCharacters(_input.allowedCharacters, this.defaultValue.allowedCharacters),
 		};
 	}
-}
 
-function string(value: unknown, defaultValue: string): string {
-	if (typeof value !== 'string') {
-		return defaultValue;
+	private validateAllowedCharacters(map: unknown, defaultValue: Record<string, true>): Record<string, true> {
+		if ((typeof map !== 'object') || !map) {
+			return defaultValue;
+		}
+		const result: Record<string, true> = {};
+		for (const [key, value] of Object.entries(map)) {
+			if (value === true) {
+				result[key] = true;
+			}
+		}
+		return result;
 	}
-	return value;
 }
 
 //#endregion
