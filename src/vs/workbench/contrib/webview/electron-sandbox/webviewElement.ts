@@ -107,7 +107,7 @@ export class ElectronWebviewElement extends WebviewElement {
 		}
 
 		if (!this._findStarted) {
-			this.startFind(value);
+			this.updateFind(value);
 		} else {
 			// continuing the find, so set findNext to false
 			const options: FindInFrameOptions = { forward: !previous, findNext: false, matchCase: false };
@@ -115,7 +115,7 @@ export class ElectronWebviewElement extends WebviewElement {
 		}
 	}
 
-	public override startFind(value: string) {
+	public override updateFind(value: string) {
 		if (!value || !this.element) {
 			return;
 		}

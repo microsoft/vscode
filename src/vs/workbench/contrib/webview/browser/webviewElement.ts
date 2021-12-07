@@ -810,7 +810,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		this._send('find', { value, previous });
 	}
 
-	public startFind(value: string) {
+	public updateFind(value: string) {
 		if (!value || !this.element) {
 			return;
 		}
