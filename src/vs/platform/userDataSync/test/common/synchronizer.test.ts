@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
-import { Change, IRemoteUserData, IResourcePreview as IBaseResourcePreview, IUserDataManifest, IUserDataSyncConfiguration, IUserDataSyncResourceEnablementService, IUserDataSyncStoreService, MergeState, SyncResource, SyncStatus, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
+import { Change, IRemoteUserData, IResourcePreview as IBaseResourcePreview, IUserDataManifest, IUserDataSyncConfiguration, IUserDataSyncEnablementService, IUserDataSyncStoreService, MergeState, SyncResource, SyncStatus, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 
 interface ITestResourcePreview extends IResourcePreview {
@@ -258,7 +258,7 @@ suite('TestSynchronizer - Auto Sync', () => {
 
 	test('sync should not run if disabled', async () => {
 		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		client.instantiationService.get(IUserDataSyncResourceEnablementService).setResourceEnablement(testObject.resource, false);
+		client.instantiationService.get(IUserDataSyncEnablementService).setResourceEnablement(testObject.resource, false);
 
 		const actual: SyncStatus[] = [];
 		disposableStore.add(testObject.onDidChangeStatus(status => actual.push(status)));
