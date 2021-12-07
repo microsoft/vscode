@@ -18,6 +18,7 @@ import { testCommand } from 'vs/editor/test/browser/testCommand';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CommentMode } from 'vs/editor/test/common/commentMode';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 function createTestCommandHelper(commentsConfig: CommentRule, commandFactory: (selection: Selection) => ICommand): (lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection) => void {
 	return (lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection) => {
@@ -32,12 +33,12 @@ suite('Editor Contrib - Line Comment Command', () => {
 
 	const testLineCommentCommand = createTestCommandHelper(
 		{ lineComment: '!@#', blockComment: ['<!@#', '#@!>'] },
-		(sel) => new LineCommentCommand(sel, 4, Type.Toggle, true, true)
+		(sel) => new LineCommentCommand(new TestLanguageConfigurationService(), sel, 4, Type.Toggle, true, true)
 	);
 
 	const testAddLineCommentCommand = createTestCommandHelper(
 		{ lineComment: '!@#', blockComment: ['<!@#', '#@!>'] },
-		(sel) => new LineCommentCommand(sel, 4, Type.ForceAdd, true, true)
+		(sel) => new LineCommentCommand(new TestLanguageConfigurationService(), sel, 4, Type.ForceAdd, true, true)
 	);
 
 	test('comment single line', function () {
@@ -58,7 +59,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 	test('case insensitive', function () {
 		const testLineCommentCommand = createTestCommandHelper(
 			{ lineComment: 'rem' },
-			(sel) => new LineCommentCommand(sel, 4, Type.Toggle, true, true)
+			(sel) => new LineCommentCommand(new TestLanguageConfigurationService(), sel, 4, Type.Toggle, true, true)
 		);
 
 		testLineCommentCommand(
@@ -101,7 +102,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 			'    ',
 			'    c',
 			'\t\td'
-		]), createBasicLinePreflightData(['//', 'rem', '!@#', '!@#']), 1, true, false);
+		]), createBasicLinePreflightData(['//', 'rem', '!@#', '!@#']), 1, true, false, new TestLanguageConfigurationService());
 		if (!r.supported) {
 			throw new Error(`unexpected`);
 		}
@@ -132,7 +133,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 			'    rem ',
 			'    !@# c',
 			'\t\t!@#d'
-		]), createBasicLinePreflightData(['//', 'rem', '!@#', '!@#']), 1, true, false);
+		]), createBasicLinePreflightData(['//', 'rem', '!@#', '!@#']), 1, true, false, new TestLanguageConfigurationService());
 		if (!r.supported) {
 			throw new Error(`unexpected`);
 		}
@@ -641,7 +642,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 	test('insertSpace false', () => {
 		const testLineCommentCommand = createTestCommandHelper(
 			{ lineComment: '!@#' },
-			(sel) => new LineCommentCommand(sel, 4, Type.Toggle, false, true)
+			(sel) => new LineCommentCommand(new TestLanguageConfigurationService(), sel, 4, Type.Toggle, false, true)
 		);
 
 		testLineCommentCommand(
@@ -659,7 +660,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 	test('insertSpace false does not remove space', () => {
 		const testLineCommentCommand = createTestCommandHelper(
 			{ lineComment: '!@#' },
-			(sel) => new LineCommentCommand(sel, 4, Type.Toggle, false, true)
+			(sel) => new LineCommentCommand(new TestLanguageConfigurationService(), sel, 4, Type.Toggle, false, true)
 		);
 
 		testLineCommentCommand(
@@ -678,7 +679,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 
 		const testLineCommentCommand = createTestCommandHelper(
 			{ lineComment: '!@#', blockComment: ['<!@#', '#@!>'] },
-			(sel) => new LineCommentCommand(sel, 4, Type.Toggle, true, false)
+			(sel) => new LineCommentCommand(new TestLanguageConfigurationService(), sel, 4, Type.Toggle, true, false)
 		);
 
 		test('does not ignore whitespace lines', () => {
@@ -770,7 +771,7 @@ suite('Editor Contrib - Line Comment As Block Comment', () => {
 
 	const testLineCommentCommand = createTestCommandHelper(
 		{ lineComment: '', blockComment: ['(', ')'] },
-		(sel) => new LineCommentCommand(sel, 4, Type.Toggle, true, true)
+		(sel) => new LineCommentCommand(new TestLanguageConfigurationService(), sel, 4, Type.Toggle, true, true)
 	);
 
 	test('fall back to block comment command', function () {
@@ -881,7 +882,7 @@ suite('Editor Contrib - Line Comment As Block Comment 2', () => {
 
 	const testLineCommentCommand = createTestCommandHelper(
 		{ lineComment: null, blockComment: ['<!@#', '#@!>'] },
-		(sel) => new LineCommentCommand(sel, 4, Type.Toggle, true, true)
+		(sel) => new LineCommentCommand(new TestLanguageConfigurationService(), sel, 4, Type.Toggle, true, true)
 	);
 
 	test('no selection => uses indentation', function () {
@@ -1130,7 +1131,7 @@ suite('Editor Contrib - Line Comment in mixed modes', () => {
 			lines,
 			OUTER_LANGUAGE_ID,
 			selection,
-			(sel) => new LineCommentCommand(sel, 4, Type.Toggle, true, true),
+			(sel) => new LineCommentCommand(new TestLanguageConfigurationService(), sel, 4, Type.Toggle, true, true),
 			expectedLines,
 			expectedSelection,
 			true,

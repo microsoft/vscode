@@ -10,6 +10,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { ICommand } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { BlockCommentCommand } from 'vs/editor/contrib/comment/blockCommentCommand';
 import { LineCommentCommand, Type } from 'vs/editor/contrib/comment/lineCommentCommand';
 import * as nls from 'vs/nls';
@@ -55,9 +56,11 @@ abstract class CommentLineAction extends EditorAction {
 			}
 		}
 
+		const languageConfigurationService = accessor.get(ILanguageConfigurationService);
 
 		for (const selection of selections) {
 			commands.push(new LineCommentCommand(
+				languageConfigurationService,
 				selection.selection,
 				modelOptions.tabSize,
 				this._type,
@@ -159,8 +162,9 @@ class BlockCommentAction extends EditorAction {
 		const commentsOptions = editor.getOption(EditorOption.comments);
 		const commands: ICommand[] = [];
 		const selections = editor.getSelections();
+		const languageConfigurationService = accessor.get(ILanguageConfigurationService);
 		for (const selection of selections) {
-			commands.push(new BlockCommentCommand(selection, commentsOptions.insertSpace));
+			commands.push(new BlockCommentCommand(selection, commentsOptions.insertSpace, languageConfigurationService));
 		}
 
 		editor.pushUndoStop();
