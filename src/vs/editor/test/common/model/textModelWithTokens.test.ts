@@ -8,7 +8,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { IFoundBracket } from 'vs/editor/common/model/bracketPairs/bracketPairs';
+import { IFoundBracket } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairs';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ITokenizationSupport, MetadataConsts, TokenizationRegistry, StandardTokenType } from 'vs/editor/common/modes';
 import { CharacterPair } from 'vs/editor/common/modes/languageConfiguration';

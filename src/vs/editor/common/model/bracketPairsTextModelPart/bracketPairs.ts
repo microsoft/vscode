@@ -7,7 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 
-export interface IBracketPairs {
+export interface IBracketPairsTextModelPart {
 	/**
 	 * Is fired when bracket pairs change, either due to a text or a settings change.
 	*/

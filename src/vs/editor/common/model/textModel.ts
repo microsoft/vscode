@@ -38,9 +38,9 @@ import { Constants } from 'vs/base/common/uint';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 import { listenStream } from 'vs/base/common/stream';
 import { ArrayQueue, findLast } from 'vs/base/common/arrays';
-import { BracketPairInfo, IBracketPairs } from 'vs/editor/common/model/bracketPairs/bracketPairs';
-import { BracketPairs } from 'vs/editor/common/model/bracketPairs/bracketPairsImpl';
-import { ColorizedBracketPairsDecorationProvider } from 'vs/editor/common/model/bracketPairs/colorizedBracketPairsDecorationProvider';
+import { BracketPairInfo, IBracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairs';
+import { BracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsImpl';
+import { ColorizedBracketPairsDecorationProvider } from 'vs/editor/common/model/bracketPairsTextModelPart/colorizedBracketPairsDecorationProvider';
 import { DecorationProvider } from 'vs/editor/common/model/decorationProvider';
 import { CursorColumns } from 'vs/editor/common/controller/cursorColumns';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -297,8 +297,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private readonly _tokenization: TextModelTokenization;
 	//#endregion
 
-	private readonly _bracketPairColorizer: BracketPairs;
-	public get bracketPairs(): IBracketPairs { return this._bracketPairColorizer; }
+	private readonly _bracketPairColorizer: BracketPairsTextModelPart;
+	public get bracketPairs(): IBracketPairsTextModelPart { return this._bracketPairColorizer; }
 
 	private _backgroundTokenizationState = BackgroundTokenizationState.Uninitialized;
 	public get backgroundTokenizationState(): BackgroundTokenizationState {
@@ -399,7 +399,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._tokens2 = new TokensStore2(this._modeService.languageIdCodec);
 		this._tokenization = new TextModelTokenization(this, this._modeService.languageIdCodec);
 
-		this._bracketPairColorizer = this._register(new BracketPairs(this, this._languageConfigurationService));
+		this._bracketPairColorizer = this._register(new BracketPairsTextModelPart(this, this._languageConfigurationService));
 		this._decorationProvider = this._register(new ColorizedBracketPairsDecorationProvider(this));
 
 		this._register(this._decorationProvider.onDidChange(() => {

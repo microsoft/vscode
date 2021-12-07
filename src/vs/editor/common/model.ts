@@ -18,7 +18,7 @@ import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { MultilineTokens, MultilineTokens2 } from 'vs/editor/common/model/tokensStore';
 import { TextChange } from 'vs/editor/common/model/textChange';
 import { equals } from 'vs/base/common/objects';
-import { IBracketPairs } from 'vs/editor/common/model/bracketPairs/bracketPairs';
+import { IBracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairs';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -1293,7 +1293,7 @@ export interface ITextModel {
 	 * Returns an object that can be used to query brackets.
 	 * @internal
 	*/
-	get bracketPairs(): IBracketPairs;
+	get bracketPairs(): IBracketPairsTextModelPart;
 }
 
 /**
