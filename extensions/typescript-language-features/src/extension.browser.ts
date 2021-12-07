@@ -52,16 +52,11 @@ class StaticVersionProvider implements ITypeScriptVersionProvider {
 		if (tsdkVersions && tsdkVersions.length) {
 			return tsdkVersions[0];
 		}
-
-		const nodeVersions = this.localNodeModulesVersions;
-		if (nodeVersions && nodeVersions.length === 1) {
-			return nodeVersions[0];
-		}
 		return undefined;
 	}
 
 	public get localVersions(): TypeScriptVersion[] {
-		const allVersions = this.localTsdkVersions.concat(this.localNodeModulesVersions);
+		const allVersions = this.localTsdkVersions;
 		const paths = new Set<string>();
 		return allVersions.filter(x => {
 			if (paths.has(x.path)) {
@@ -88,10 +83,6 @@ class StaticVersionProvider implements ITypeScriptVersionProvider {
 			];
 		}
 
-		return [];
-	}
-
-	private get localNodeModulesVersions(): TypeScriptVersion[] {
 		return [];
 	}
 }
