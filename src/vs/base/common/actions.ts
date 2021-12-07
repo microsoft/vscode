@@ -228,7 +228,7 @@ export class SubmenuAction implements IAction {
 	readonly class: string | undefined;
 	readonly tooltip: string = '';
 	readonly enabled: boolean = true;
-	readonly checked: boolean = false;
+	readonly checked: undefined = undefined;
 
 	private readonly _actions: readonly IAction[];
 	get actions(): readonly IAction[] { return this._actions; }

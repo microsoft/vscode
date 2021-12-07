@@ -257,6 +257,7 @@ export interface IGalleryExtension {
 	lastUpdated: number;
 	preview: boolean;
 	hasPreReleaseVersion: boolean;
+	hasReleaseVersion: boolean;
 	allTargetPlatforms: TargetPlatform[];
 	assets: IGalleryExtensionAssets;
 	properties: IGalleryExtensionProperties;
@@ -267,7 +268,10 @@ export interface IGalleryMetadata {
 	id: string;
 	publisherId: string;
 	publisherDisplayName: string;
+	isPreReleaseVersion: boolean, 
 }
+
+export type Metadata = Partial<IGalleryMetadata & { isMachineScoped: boolean; isBuiltin: boolean; preRelease: boolean, installedTimestamp: number }>;
 
 export interface ILocalExtension extends IExtension {
 	isMachineScoped: boolean;
@@ -317,9 +321,10 @@ export interface IExtensionsControlManifest {
 }
 
 export const enum InstallOperation {
-	None = 0,
+	None = 1,
 	Install,
-	Update
+	Update,
+	Migrate,
 }
 
 export interface ITranslation {

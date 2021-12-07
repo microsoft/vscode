@@ -212,7 +212,6 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 			const activePanel = this.getActivePaneComposite();
 			const isActive =
 				activePanel?.getId() === panel.id ||
-				(!activePanel && this.getLastActivePaneCompositeId() === panel.id) ||
 				(this.extensionsRegistered && this.compositeBar.getVisibleComposites().length === 0);
 
 			if (isActive || !this.shouldBeHidden(panel.id, cachedPanel)) {

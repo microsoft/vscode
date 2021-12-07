@@ -12,7 +12,7 @@ import { InvisibleCharacters } from 'vs/base/common/strings';
 import 'vs/css!./unicodeHighlighter';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { DeriveFromWorkspaceTrust, deriveFromWorkspaceTrust, EditorOption, InternalUnicodeHighlightOptions, unicodeHighlightConfigKeys } from 'vs/editor/common/config/editorOptions';
+import { InUntrustedWorkspace, inUntrustedWorkspace, EditorOption, InternalUnicodeHighlightOptions, unicodeHighlightConfigKeys } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDecoration, IModelDeltaDecoration, ITextModel, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
@@ -20,6 +20,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { UnicodeHighlighterOptions, UnicodeHighlighterReason, UnicodeHighlighterReasonKind, UnicodeTextModelHighlighter } from 'vs/editor/common/modes/unicodeTextModelHighlighter';
 import { IEditorWorkerService, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorkerService';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { isModelDecorationVisible } from 'vs/editor/common/viewModel/viewModelDecorations';
 import { HoverAnchor, HoverAnchorType, IEditorHover, IEditorHoverParticipant, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
 import { MarkdownHover, renderMarkdownHovers } from 'vs/editor/contrib/hover/markdownHoverParticipant';
 import { BannerController } from 'vs/editor/contrib/unicodeHighlighter/bannerController';
@@ -159,7 +160,7 @@ export class UnicodeHighlighter extends Disposable implements IEditorContributio
 			ambiguousCharacters: options.ambiguousCharacters,
 			invisibleCharacters: options.invisibleCharacters,
 			includeComments: options.includeComments,
-			allowedCodePoints: Array.from(options.allowedCharacters).map(c => c.codePointAt(0)!),
+			allowedCodePoints: Object.keys(options.allowedCharacters).map(c => c.codePointAt(0)!),
 		};
 
 		if (this._editorWorkerService.canComputeUnicodeHighlights(this._editor.getModel().uri)) {
@@ -181,33 +182,16 @@ export interface UnicodeHighlighterDecorationInfo {
 	reason: UnicodeHighlighterReason;
 }
 
-type RemoveDeriveFromWorkspaceTrust<T> = T extends DeriveFromWorkspaceTrust ? never : T;
-type ResolvedOptions = { [TKey in keyof InternalUnicodeHighlightOptions]: RemoveDeriveFromWorkspaceTrust<InternalUnicodeHighlightOptions[TKey]> };
+type RemoveTrueIfUntrusted<T> = T extends InUntrustedWorkspace ? never : T;
+type ResolvedOptions = { [TKey in keyof InternalUnicodeHighlightOptions]: RemoveTrueIfUntrusted<InternalUnicodeHighlightOptions[TKey]> };
 
 function resolveOptions(trusted: boolean, options: InternalUnicodeHighlightOptions): ResolvedOptions {
-	let defaults;
-	if (trusted) {
-		defaults = {
-			nonBasicASCII: false,
-			ambiguousCharacters: true,
-			invisibleCharacters: true,
-			includeComments: true,
-		};
-	} else {
-		defaults = {
-			nonBasicASCII: true,
-			ambiguousCharacters: true,
-			invisibleCharacters: true,
-			includeComments: false,
-		};
-	}
-
 	return {
-		nonBasicASCII: options.nonBasicASCII !== deriveFromWorkspaceTrust ? options.nonBasicASCII : defaults.nonBasicASCII,
-		ambiguousCharacters: options.ambiguousCharacters !== deriveFromWorkspaceTrust ? options.ambiguousCharacters : defaults.ambiguousCharacters,
-		invisibleCharacters: options.invisibleCharacters !== deriveFromWorkspaceTrust ? options.invisibleCharacters : defaults.invisibleCharacters,
-		includeComments: options.includeComments !== deriveFromWorkspaceTrust ? options.includeComments : defaults.includeComments,
-		allowedCharacters: options.allowedCharacters ?? [],
+		nonBasicASCII: options.nonBasicASCII === inUntrustedWorkspace ? !trusted : options.nonBasicASCII,
+		ambiguousCharacters: options.ambiguousCharacters,
+		invisibleCharacters: options.invisibleCharacters,
+		includeComments: options.includeComments === inUntrustedWorkspace ? !trusted : options.includeComments,
+		allowedCharacters: options.allowedCharacters ?? {},
 	};
 }
 
@@ -272,8 +256,21 @@ class DocumentUnicodeHighlighter extends Disposable {
 		if (!this._decorationIds.has(decorationId)) {
 			return null;
 		}
-		const range = this._editor.getModel().getDecorationRange(decorationId)!;
-		const text = this._editor.getModel().getValueInRange(range);
+		const model = this._editor.getModel();
+		const range = model.getDecorationRange(decorationId)!;
+		if (
+			!isModelDecorationVisible(model, {
+				range: range,
+				options: this._options.includeComments
+					? DECORATION
+					: DECORATION_HIDE_IN_COMMENTS,
+				id: decorationId,
+				ownerId: 0,
+			})
+		) {
+			return null;
+		}
+		const text = model.getValueInRange(range);
 		return {
 			reason: computeReason(text, this._options)!,
 		};
@@ -358,8 +355,21 @@ class ViewportUnicodeHighlighter extends Disposable {
 		if (!this._decorationIds.has(decorationId)) {
 			return null;
 		}
-		const range = this._editor.getModel().getDecorationRange(decorationId)!;
-		const text = this._editor.getModel().getValueInRange(range);
+		const model = this._editor.getModel();
+		const range = model.getDecorationRange(decorationId)!;
+		const text = model.getValueInRange(range);
+		if (
+			!isModelDecorationVisible(model, {
+				range: range,
+				options: this._options.includeComments
+					? DECORATION
+					: DECORATION_HIDE_IN_COMMENTS,
+				id: decorationId,
+				ownerId: 0,
+			})
+		) {
+			return null;
+		}
 		return {
 			reason: computeReason(text, this._options)!,
 		};
@@ -400,7 +410,9 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 		const model = this._editor.getModel();
 
 		const unicodeHighlighter = this._editor.getContribution<UnicodeHighlighter>(UnicodeHighlighter.ID);
-
+		if (!unicodeHighlighter) {
+			return [];
+		}
 
 		const result: MarkdownHover[] = [];
 		let index = 300;
@@ -522,11 +534,11 @@ interface IDisableUnicodeHighlightAction {
 
 export class DisableHighlightingOfAmbiguousCharactersAction extends EditorAction implements IDisableUnicodeHighlightAction {
 	public static ID = 'editor.action.unicodeHighlight.disableHighlightingOfAmbiguousCharacters';
-	public readonly shortLabel = nls.localize('unicodeHighlight.disableHighlightingOfAmbiguousCharacters.shortLabel', '');
+	public readonly shortLabel = nls.localize('unicodeHighlight.disableHighlightingOfAmbiguousCharacters.shortLabel', 'Disable Ambiguous Highlight');
 	constructor() {
 		super({
 			id: DisableHighlightingOfAmbiguousCharactersAction.ID,
-			label: nls.localize('action.unicodeHighlight.disableHighlightingOfAmbiguousCharacters', 'Disable Ambiguous Highlight'),
+			label: nls.localize('action.unicodeHighlight.disableHighlightingOfAmbiguousCharacters', 'Disable highlighting of ambiguous characters'),
 			alias: 'Disable highlighting of ambiguous characters',
 			precondition: undefined
 		});
@@ -574,7 +586,7 @@ export class DisableHighlightingOfNonBasicAsciiCharactersAction extends EditorAc
 	constructor() {
 		super({
 			id: DisableHighlightingOfNonBasicAsciiCharactersAction.ID,
-			label: nls.localize('action.unicodeHighlight.dhowDisableHighlightingOfNonBasicAsciiCharacters', 'Disable highlighting of non basic ASCII characters'),
+			label: nls.localize('action.unicodeHighlight.disableHighlightingOfNonBasicAsciiCharacters', 'Disable highlighting of non basic ASCII characters'),
 			alias: 'Disable highlighting of non basic ASCII characters',
 			precondition: undefined
 		});
@@ -620,21 +632,17 @@ export class ShowExcludeOptions extends EditorAction {
 			run(): Promise<void>;
 		}
 
+		function getExcludeCharFromBeingHighlightedLabel(codePoint: number) {
+			if (InvisibleCharacters.isInvisibleCharacter(codePoint)) {
+				return nls.localize('unicodeHighlight.excludeInvisibleCharFromBeingHighlighted', 'Exclude {0} (invisible character) from being highlighted', `U+${codePoint.toString(16)}`);
+			}
+			return nls.localize('unicodeHighlight.excludeCharFromBeingHighlighted', 'Exclude {0} from being highlighted', `U+${codePoint.toString(16)} "${char}"`);
+		}
+
 		const options: ExtendedOptions[] = [
 			{
-				label: nls.localize('unicodeHighlight.excludeCharFromBeingHighlighted', 'Exclude {0} from being highlighted', `U+${codePoint.toString(16)} "${char}"`),
-				run: async () => {
-					const existingValue = configurationService.getValue(unicodeHighlightConfigKeys.allowedCharacters);
-					let value: string;
-					if (typeof existingValue === 'string') {
-						value = existingValue;
-					} else {
-						value = '';
-					}
-
-					value += char;
-					await configurationService.updateValue(unicodeHighlightConfigKeys.allowedCharacters, value, ConfigurationTarget.USER);
-				}
+				label: getExcludeCharFromBeingHighlightedLabel(codePoint),
+				run: () => excludeCharFromBeingHighlighted(configurationService, [codePoint])
 			},
 		];
 
@@ -662,6 +670,23 @@ export class ShowExcludeOptions extends EditorAction {
 			await result.run();
 		}
 	}
+}
+
+async function excludeCharFromBeingHighlighted(configurationService: IConfigurationService, charCodes: number[]) {
+	const existingValue = configurationService.getValue(unicodeHighlightConfigKeys.allowedCharacters);
+
+	let value: Record<string, boolean>;
+	if ((typeof existingValue === 'object') && existingValue) {
+		value = existingValue as any;
+	} else {
+		value = {};
+	}
+
+	for (const charCode of charCodes) {
+		value[String.fromCodePoint(charCode)] = true;
+	}
+
+	await configurationService.updateValue(unicodeHighlightConfigKeys.allowedCharacters, value, ConfigurationTarget.USER);
 }
 
 function expectNever(value: never) {

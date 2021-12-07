@@ -50,6 +50,7 @@ export interface IExtension {
 	readonly version: string;
 	readonly latestVersion: string;
 	readonly hasPreReleaseVersion: boolean;
+	readonly hasReleaseVersion: boolean;
 	readonly description: string;
 	readonly url?: string;
 	readonly repository?: string;

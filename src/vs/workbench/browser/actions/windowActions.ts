@@ -18,7 +18,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IRecent, isRecentFolder, isRecentWorkspace, IWorkspacesService, IWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IRecent, isRecentFolder, isRecentWorkspace, IWorkspacesService, IWorkspaceIdentifier, isFolderBackupInfo, isWorkspaceBackupInfo } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { FileKind } from 'vs/platform/files/common/files';
@@ -39,6 +39,7 @@ export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
 interface IRecentlyOpenedPick extends IQuickPickItem {
 	resource: URI,
 	openable: IWindowOpenable;
+	remoteAuthority: string | undefined;
 }
 
 const fileCategory = { value: localize('file', "File"), original: 'File' };
@@ -87,10 +88,10 @@ abstract class BaseOpenRecentAction extends Action2 {
 		const dirtyFolders = new ResourceMap<boolean>();
 		const dirtyWorkspaces = new ResourceMap<IWorkspaceIdentifier>();
 		for (const dirtyWorkspace of dirtyWorkspacesAndFolders) {
-			if (URI.isUri(dirtyWorkspace)) {
-				dirtyFolders.set(dirtyWorkspace, true);
+			if (isFolderBackupInfo(dirtyWorkspace)) {
+				dirtyFolders.set(dirtyWorkspace.folderUri, true);
 			} else {
-				dirtyWorkspaces.set(dirtyWorkspace.configPath, dirtyWorkspace);
+				dirtyWorkspaces.set(dirtyWorkspace.workspace.configPath, dirtyWorkspace.workspace);
 				hasWorkspaces = true;
 			}
 		}
@@ -117,10 +118,10 @@ abstract class BaseOpenRecentAction extends Action2 {
 
 		// Fill any backup workspace that is not yet shown at the end
 		for (const dirtyWorkspaceOrFolder of dirtyWorkspacesAndFolders) {
-			if (URI.isUri(dirtyWorkspaceOrFolder) && !recentFolders.has(dirtyWorkspaceOrFolder)) {
-				workspacePicks.push(this.toQuickPick(modelService, modeService, labelService, { folderUri: dirtyWorkspaceOrFolder }, true));
-			} else if (isWorkspaceIdentifier(dirtyWorkspaceOrFolder) && !recentWorkspaces.has(dirtyWorkspaceOrFolder.configPath)) {
-				workspacePicks.push(this.toQuickPick(modelService, modeService, labelService, { workspace: dirtyWorkspaceOrFolder }, true));
+			if (isFolderBackupInfo(dirtyWorkspaceOrFolder) && !recentFolders.has(dirtyWorkspaceOrFolder.folderUri)) {
+				workspacePicks.push(this.toQuickPick(modelService, modeService, labelService, dirtyWorkspaceOrFolder, true));
+			} else if (isWorkspaceBackupInfo(dirtyWorkspaceOrFolder) && !recentWorkspaces.has(dirtyWorkspaceOrFolder.workspace.configPath)) {
+				workspacePicks.push(this.toQuickPick(modelService, modeService, labelService, dirtyWorkspaceOrFolder, true));
 			}
 		}
 
@@ -162,7 +163,10 @@ abstract class BaseOpenRecentAction extends Action2 {
 					});
 
 					if (result.confirmed) {
-						hostService.openWindow([context.item.openable]);
+						hostService.openWindow(
+							[context.item.openable], {
+							remoteAuthority: context.item.remoteAuthority || null // local window if remoteAuthority is not set or can not be deducted from the openable
+						});
 						quickInputService.cancel();
 					}
 				}
@@ -170,7 +174,11 @@ abstract class BaseOpenRecentAction extends Action2 {
 		});
 
 		if (pick) {
-			return hostService.openWindow([pick.openable], { forceNewWindow: keyMods?.ctrlCmd, forceReuseWindow: keyMods?.alt });
+			return hostService.openWindow([pick.openable], {
+				forceNewWindow: keyMods?.ctrlCmd,
+				forceReuseWindow: keyMods?.alt,
+				remoteAuthority: pick.remoteAuthority || null // local window if remoteAuthority is not set or can not be deducted from the openable
+			});
 		}
 	}
 
@@ -215,7 +223,8 @@ abstract class BaseOpenRecentAction extends Action2 {
 			description: parentPath,
 			buttons: isDirty ? [isWorkspace ? this.dirtyRecentlyOpenedWorkspace : this.dirtyRecentlyOpenedFolder] : [this.removeFromRecentlyOpened],
 			openable,
-			resource
+			resource,
+			remoteAuthority: recent.remoteAuthority
 		};
 	}
 }

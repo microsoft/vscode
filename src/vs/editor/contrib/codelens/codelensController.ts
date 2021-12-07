@@ -469,6 +469,9 @@ registerEditorAction(class ShowLensesInCurrentLine extends EditorAction {
 
 		const lineNumber = editor.getSelection().positionLineNumber;
 		const codelensController = editor.getContribution<CodeLensContribution>(CodeLensContribution.ID);
+		if (!codelensController) {
+			return;
+		}
 		const items: { label: string, command: Command }[] = [];
 
 		for (let lens of codelensController.getLenses()) {

@@ -145,12 +145,10 @@ export class TerminalViewPane extends ViewPane {
 				} else {
 					this._onDidChangeViewWelcomeState.fire();
 				}
-				if (!this._terminalService.activeInstance?.shellLaunchConfig.extHostTerminalId) {
-					// showPanel is already called with !preserveFocus
-					// when extension host terminals are created
-					this._terminalGroupService.showPanel(true);
-				}
-
+				// we don't know here whether or not it should be focused, so
+				// defer focusing the panel to the focus() call
+				// to prevent overriding preserveFocus for extensions
+				this._terminalGroupService.showPanel(false);
 				if (hadTerminals) {
 					this._terminalGroupService.activeGroup?.setVisible(visible);
 				}
@@ -247,17 +245,13 @@ export class TerminalViewPane extends ViewPane {
 				// Only focus the terminal if the activeElement has not changed since focus() was called
 				// TODO hack
 				if (document.activeElement === activeElement) {
-					this._focus();
+					this._terminalGroupService.showPanel(true);
 				}
 			}));
 
 			return;
 		}
-		this._focus();
-	}
-
-	private _focus() {
-		this._terminalService.activeInstance?.focusWhenReady();
+		this._terminalGroupService.showPanel(true);
 	}
 
 	override shouldShowWelcome(): boolean {

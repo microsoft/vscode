@@ -8,15 +8,15 @@ import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { BracketPairsTree } from 'vs/editor/common/model/bracketPairs/bracketPairsTree/bracketPairsTree';
-import { BracketInfo, BracketPairInfo, BracketPairWithMinIndentationInfo, IBracketPairs, IFoundBracket } from 'vs/editor/common/model/bracketPairs/bracketPairs';
+import { BracketPairsTree } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/bracketPairsTree';
+import { BracketInfo, BracketPairInfo, BracketPairWithMinIndentationInfo, IBracketPairsTextModelPart, IFoundBracket } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairs';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
 import { RichEditBrackets, BracketsUtils, RichEditBracket } from 'vs/editor/common/modes/supports/richEditBrackets';
 
-export class BracketPairs extends Disposable implements IBracketPairs {
+export class BracketPairsTextModelPart extends Disposable implements IBracketPairsTextModelPart {
 	private readonly bracketPairsTree = this._register(new MutableDisposable<IReference<BracketPairsTree>>());
 
 	private readonly onDidChangeEmitter = new Emitter<void>();

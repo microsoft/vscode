@@ -19,7 +19,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel, IWordAtPosition } from 'vs/editor/common/model';
-import { IFoundBracket } from 'vs/editor/common/model/bracketPairs/bracketPairs';
+import { IFoundBracket } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairs';
 import { DefinitionProviderRegistry, LocationLink } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -76,7 +76,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		}));
 	}
 
-	static get(editor: ICodeEditor): GotoDefinitionAtPositionEditorContribution {
+	static get(editor: ICodeEditor): GotoDefinitionAtPositionEditorContribution | null {
 		return editor.getContribution<GotoDefinitionAtPositionEditorContribution>(GotoDefinitionAtPositionEditorContribution.ID);
 	}
 

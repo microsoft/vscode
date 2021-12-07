@@ -103,11 +103,7 @@ const serverEntryPoints = [
 		exclude: ['vs/css', 'vs/nls']
 	},
 	{
-		name: 'vs/platform/files/node/watcher/nsfw/watcherApp',
-		exclude: ['vs/css', 'vs/nls']
-	},
-	{
-		name: 'vs/platform/files/node/watcher/parcel/watcherApp',
+		name: 'vs/platform/files/node/watcher/parcel/parcelWatcherMain',
 		exclude: ['vs/css', 'vs/nls']
 	},
 	{

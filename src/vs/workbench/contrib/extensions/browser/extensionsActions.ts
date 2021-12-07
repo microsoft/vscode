@@ -14,7 +14,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { dispose } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
-import { IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOptions, InstallOperation, TargetPlatformToString, ExtensionManagementErrorCode, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOptions, InstallOperation, TargetPlatformToString, ExtensionManagementErrorCode } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionRecommendationReason, IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -50,7 +50,7 @@ import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/
 import { IActionViewItemOptions, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { EXTENSIONS_CONFIG, IExtensionsConfigContent } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
-import { IUserDataAutoSyncEnablementService, IUserDataSyncResourceEnablementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncEnablementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { ActionWithDropdownActionViewItem, IActionWithDropdownActionViewItemOptions } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -65,40 +65,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { flatten } from 'vs/base/common/arrays';
 import { isBoolean } from 'vs/base/common/types';
-
-function getRelativeDateLabel(date: Date): string {
-	const delta = new Date().getTime() - date.getTime();
-
-	const year = 365 * 24 * 60 * 60 * 1000;
-	if (delta > year) {
-		const noOfYears = Math.floor(delta / year);
-		return noOfYears > 1 ? localize('noOfYearsAgo', "{0} years ago", noOfYears) : localize('one year ago', "1 year ago");
-	}
-
-	const month = 30 * 24 * 60 * 60 * 1000;
-	if (delta > month) {
-		const noOfMonths = Math.floor(delta / month);
-		return noOfMonths > 1 ? localize('noOfMonthsAgo', "{0} months ago", noOfMonths) : localize('one month ago', "1 month ago");
-	}
-
-	const day = 24 * 60 * 60 * 1000;
-	if (delta > day) {
-		const noOfDays = Math.floor(delta / day);
-		return noOfDays > 1 ? localize('noOfDaysAgo', "{0} days ago", noOfDays) : localize('one day ago', "1 day ago");
-	}
-
-	const hour = 60 * 60 * 1000;
-	if (delta > hour) {
-		const noOfHours = Math.floor(delta / day);
-		return noOfHours > 1 ? localize('noOfHoursAgo', "{0} hours ago", noOfHours) : localize('one hour ago', "1 hour ago");
-	}
-
-	if (delta > 0) {
-		return localize('just now', "Just now");
-	}
-
-	return '';
-}
+import { fromNow } from 'vs/base/common/date';
 
 export class PromptExtensionInstallFailureAction extends Action {
 
@@ -297,7 +264,7 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 		this.enabled = false;
 		if (this.extension && !this.extension.isBuiltin) {
 			if (this.extension.state === ExtensionState.Uninstalled && await this.extensionsWorkbenchService.canInstall(this.extension)) {
-				this.enabled = !this.installPreReleaseVersion || this.extension.hasPreReleaseVersion;
+				this.enabled = this.installPreReleaseVersion ? this.extension.hasPreReleaseVersion : this.extension.hasReleaseVersion;
 				this.updateLabel();
 			}
 		}
@@ -393,15 +360,14 @@ export class InstallAction extends AbstractInstallAction {
 		@ILabelService labelService: ILabelService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IWorkbenchExtensionManagementService private readonly workbenchExtensioManagementService: IWorkbenchExtensionManagementService,
-		@IUserDataAutoSyncEnablementService protected readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
-		@IUserDataSyncResourceEnablementService protected readonly userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
+		@IUserDataSyncEnablementService protected readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 	) {
 		super(`extensions.install`, installPreReleaseVersion, InstallAction.Class,
 			extensionsWorkbenchService, instantiationService, runtimeExtensionService, workbenchThemeService, labelService);
 		this.updateLabel();
 		this._register(labelService.onDidChangeFormatters(() => this.updateLabel(), this));
-		this._register(Event.any(userDataAutoSyncEnablementService.onDidChangeEnablement,
-			Event.filter(userDataSyncResourceEnablementService.onDidChangeResourceEnablement, e => e[0] === SyncResource.Extensions))(() => this.update()));
+		this._register(Event.any(userDataSyncEnablementService.onDidChangeEnablement,
+			Event.filter(userDataSyncEnablementService.onDidChangeResourceEnablement, e => e[0] === SyncResource.Extensions))(() => this.update()));
 	}
 
 	override getLabel(primary?: boolean): string {
@@ -443,7 +409,7 @@ export class InstallAction extends AbstractInstallAction {
 	}
 
 	protected override getInstallOptions(): InstallOptions {
-		return { ...super.getInstallOptions(), isMachineScoped: this.userDataAutoSyncEnablementService.isEnabled() && this.userDataSyncResourceEnablementService.isResourceEnabled(SyncResource.Extensions) };
+		return { ...super.getInstallOptions(), isMachineScoped: this.userDataSyncEnablementService.isEnabled() && this.userDataSyncEnablementService.isResourceEnabled(SyncResource.Extensions) };
 	}
 
 }
@@ -458,20 +424,19 @@ export class InstallAndSyncAction extends AbstractInstallAction {
 		@IWorkbenchThemeService workbenchThemeService: IWorkbenchThemeService,
 		@ILabelService labelService: ILabelService,
 		@IProductService productService: IProductService,
-		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
-		@IUserDataSyncResourceEnablementService private readonly userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
+		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 	) {
 		super('extensions.installAndSync', installPreReleaseVersion, AbstractInstallAction.Class,
 			extensionsWorkbenchService, instantiationService, runtimeExtensionService, workbenchThemeService, labelService);
 		this.tooltip = localize({ key: 'install everywhere tooltip', comment: ['Placeholder is the name of the product. Eg: Visual Studio Code or Visual Studio Code - Insiders'] }, "Install this extension in all your synced {0} instances", productService.nameLong);
-		this._register(Event.any(userDataAutoSyncEnablementService.onDidChangeEnablement,
-			Event.filter(userDataSyncResourceEnablementService.onDidChangeResourceEnablement, e => e[0] === SyncResource.Extensions))(() => this.update()));
+		this._register(Event.any(userDataSyncEnablementService.onDidChangeEnablement,
+			Event.filter(userDataSyncEnablementService.onDidChangeResourceEnablement, e => e[0] === SyncResource.Extensions))(() => this.update()));
 	}
 
 	protected override async computeAndUpdateEnablement(): Promise<void> {
 		await super.computeAndUpdateEnablement();
 		if (this.enabled) {
-			this.enabled = this.userDataAutoSyncEnablementService.isEnabled() && this.userDataSyncResourceEnablementService.isResourceEnabled(SyncResource.Extensions);
+			this.enabled = this.userDataSyncEnablementService.isEnabled() && this.userDataSyncEnablementService.isResourceEnabled(SyncResource.Extensions);
 		}
 	}
 
@@ -909,6 +874,7 @@ function getContextMenuActionsGroups(extension: IExtension | undefined | null, c
 			cksOverlay.push(['installedExtensionIsPreReleaseVersion', !!extension.local?.isPreReleaseVersion]);
 			cksOverlay.push(['galleryExtensionIsPreReleaseVersion', !!extension.gallery?.properties.isPreReleaseVersion]);
 			cksOverlay.push(['extensionHasPreReleaseVersion', extension.hasPreReleaseVersion]);
+			cksOverlay.push(['extensionHasReleaseVersion', extension.hasReleaseVersion]);
 		}
 
 		const menu = menuService.createMenu(MenuId.ExtensionContext, contextKeyService.createOverlay(cksOverlay));
@@ -1089,7 +1055,7 @@ export class SwitchToPreReleaseVersionAction extends ExtensionAction {
 	}
 
 	update(): void {
-		this.enabled = !!this.extension && !this.extension.local?.isPreReleaseVersion && this.extension.hasPreReleaseVersion && this.extension.state === ExtensionState.Installed;
+		this.enabled = !!this.extension && !this.extension.isBuiltin && !this.extension.local?.isPreReleaseVersion && this.extension.hasPreReleaseVersion && this.extension.state === ExtensionState.Installed;
 	}
 
 	override async run(): Promise<any> {
@@ -1115,7 +1081,7 @@ export class SwitchToReleasedVersionAction extends ExtensionAction {
 	}
 
 	update(): void {
-		this.enabled = !!this.extension && this.extension.state === ExtensionState.Installed && !!this.extension.local?.isPreReleaseVersion;
+		this.enabled = !!this.extension && this.extension.state === ExtensionState.Installed && !!this.extension.local?.isPreReleaseVersion && !!this.extension.hasReleaseVersion;
 	}
 
 	override async run(): Promise<any> {
@@ -1123,68 +1089,6 @@ export class SwitchToReleasedVersionAction extends ExtensionAction {
 			return;
 		}
 		return this.commandService.executeCommand(SwitchToReleasedVersionAction.ID, this.extension?.identifier.id);
-	}
-}
-
-export class SwitchUnsupportedExtensionToPreReleaseExtensionAction extends ExtensionAction {
-
-	private static readonly Class = `${ExtensionAction.LABEL_ACTION_CLASS} hide-when-disabled`;
-
-	constructor(
-		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-	) {
-		super('workbench.extensions.action.switchUnsupportedExtensionToPreReleaseExtension', '', SwitchUnsupportedExtensionToPreReleaseExtensionAction.Class);
-	}
-
-	update(): void {
-		this.enabled = false;
-		if (!!this.extension && !!this.extension.local && this.extension.isUnsupported && !isBoolean(this.extension.isUnsupported) && this.extension.state === ExtensionState.Installed) {
-			this.enabled = true;
-			this.label = localize('switchUnsupportedExtensionToPreReleaseExtension', "Switch to '{0}'", this.extension.isUnsupported.preReleaseExtension.displayName);
-		}
-	}
-
-	override async run(): Promise<any> {
-		if (!!this.extension && !!this.extension.local && this.extension.isUnsupported && !isBoolean(this.extension.isUnsupported)) {
-			const gallery = (await this.galleryService.getExtensions([{ id: this.extension.isUnsupported.preReleaseExtension.id }], true, CancellationToken.None))[0];
-			return this.instantiationService.createInstance(SwitchUnsupportedExtensionToPreReleaseExtensionCommandAction, this.extension.local, gallery, false).run();
-		}
-	}
-}
-
-export class SwitchUnsupportedExtensionToPreReleaseExtensionCommandAction extends Action {
-
-	constructor(
-		private readonly local: ILocalExtension,
-		private readonly gallery: IGalleryExtension,
-		private promptReload: boolean,
-		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IProductService private readonly productService: IProductService,
-		@IHostService private readonly hostService: IHostService,
-		@IWorkbenchExtensionEnablementService private readonly workbenchExtensionEnablementService: IWorkbenchExtensionEnablementService,
-		@INotificationService private readonly notificationService: INotificationService,
-	) {
-		super('workbench.extensions.action.switchUnsupportedExtensionToPreReleaseExtensionCommand', localize('switchUnsupportedExtensionToPreReleaseExtension', "Switch to '{0}'", gallery.displayName));
-	}
-
-	override async run(): Promise<any> {
-		await Promise.all([
-			this.extensionManagementService.uninstall(this.local),
-			this.extensionManagementService.installFromGallery(this.gallery, { installPreReleaseVersion: true, isMachineScoped: this.local.isMachineScoped })
-				.then(local => this.workbenchExtensionEnablementService.setEnablement([this.local], EnablementState.EnabledGlobally)),
-		]);
-		if (this.promptReload) {
-			this.notificationService.prompt(
-				Severity.Info,
-				localize('SwitchToAnotherReleaseExtension.successReload', "Please reload {0} to complete switching to the '{1}' extension.", this.productService.nameLong, this.gallery.displayName),
-				[{
-					label: localize('reloadNow', "Reload Now"),
-					run: () => this.hostService.reload()
-				}],
-				{ sticky: true }
-			);
-		}
 	}
 }
 
@@ -1236,7 +1140,7 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 			return {
 				id: v.version,
 				label: v.version,
-				description: `${getRelativeDateLabel(new Date(Date.parse(v.date)))}${v.isPreReleaseVersion ? ` (${localize('pre-release', "pre-release")})` : ''}${v.version === this.extension!.version ? ` (${localize('current', "current")})` : ''}`,
+				description: `${fromNow(new Date(Date.parse(v.date)), true)}${v.isPreReleaseVersion ? ` (${localize('pre-release', "pre-release")})` : ''}${v.version === this.extension!.version ? ` (${localize('current', "current")})` : ''}`,
 				latest: i === 0,
 				ariaLabel: `${v.isPreReleaseVersion ? 'Pre-Release version' : 'Release version'} ${v.version}`,
 				isPreReleaseVersion: v.isPreReleaseVersion
@@ -2155,17 +2059,17 @@ export class ToggleSyncExtensionAction extends ExtensionDropDownAction {
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
+		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super('extensions.sync', '', ToggleSyncExtensionAction.SYNC_CLASS, false, instantiationService);
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectedKeys.includes('settingsSync.ignoredExtensions'))(() => this.update()));
-		this._register(userDataAutoSyncEnablementService.onDidChangeEnablement(() => this.update()));
+		this._register(userDataSyncEnablementService.onDidChangeEnablement(() => this.update()));
 		this.update();
 	}
 
 	update(): void {
-		this.enabled = !!this.extension && this.userDataAutoSyncEnablementService.isEnabled() && this.extension.state === ExtensionState.Installed;
+		this.enabled = !!this.extension && this.userDataSyncEnablementService.isEnabled() && this.extension.state === ExtensionState.Installed;
 		if (this.extension) {
 			const isIgnored = this.extensionsWorkbenchService.isExtensionIgnoredToSync(this.extension);
 			this.class = isIgnored ? ToggleSyncExtensionAction.IGNORED_SYNC_CLASS : ToggleSyncExtensionAction.SYNC_CLASS;
@@ -2250,10 +2154,8 @@ export class ExtensionStatusAction extends ExtensionAction {
 				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('unsupported tooltip', "This extension no longer supported.")) }, true);
 			} else {
 				const link = `[${this.extension.isUnsupported.preReleaseExtension.displayName}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.isUnsupported.preReleaseExtension.id]))}`)})`;
-				if (this.extension.state === ExtensionState.Installed) {
-					this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('unsupported prerelease switch tooltip', "This extension is no longer supported and is now part of the {0} extension as a pre-release version. We recommend that you switch to it.", link)) }, true);
-				} else {
-					this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('unsupported prerelease tooltip', "This extension is no longer supported and is now part of the {0} extension as a pre-release version.", link)) }, true);
+				if (this.extension.state !== ExtensionState.Installed) {
+					this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('unsupported prerelease switch tooltip', "This extension is now part of the {0} extension as a pre-release version.", link)) }, true);
 				}
 			}
 			return;
@@ -2435,6 +2337,12 @@ export class ExtensionStatusAction extends ExtensionAction {
 	}
 
 	private updateStatus(status: ExtensionStatus | undefined, updateClass: boolean): void {
+		if (this._status === status) {
+			return;
+		}
+		if (this._status && status && this._status.message === status.message && this._status.icon?.id === status.icon?.id) {
+			return;
+		}
 		this._status = status;
 		if (updateClass) {
 			if (this._status?.icon === errorIcon) {

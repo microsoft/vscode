@@ -63,6 +63,7 @@ import { Schemas } from 'vs/base/common/network';
 export class TreeViewPane extends ViewPane {
 
 	protected readonly treeView: ITreeView;
+	private _container: HTMLElement | undefined;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -82,7 +83,11 @@ export class TreeViewPane extends ViewPane {
 		this._register(this.treeView.onDidChangeActions(() => this.updateActions(), this));
 		this._register(this.treeView.onDidChangeTitle((newTitle) => this.updateTitle(newTitle)));
 		this._register(this.treeView.onDidChangeDescription((newDescription) => this.updateTitleDescription(newDescription)));
-		this._register(toDisposable(() => this.treeView.setVisibility(false)));
+		this._register(toDisposable(() => {
+			if (this._container && this.treeView.container && (this._container === this.treeView.container)) {
+				this.treeView.setVisibility(false);
+			}
+		}));
 		this._register(this.onDidChangeBodyVisibility(() => this.updateTreeVisibility()));
 		this._register(this.treeView.onDidChangeWelcomeState(() => this._onDidChangeViewWelcomeState.fire()));
 		if (options.title !== this.treeView.title) {
@@ -101,6 +106,7 @@ export class TreeViewPane extends ViewPane {
 	}
 
 	override renderBody(container: HTMLElement): void {
+		this._container = container;
 		super.renderBody(container);
 		this.renderTreeView(container);
 	}
@@ -165,6 +171,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	private tree: Tree | undefined;
 	private treeLabels: ResourceLabels | undefined;
 	private treeViewDnd: CustomTreeViewDragAndDrop;
+	private _container: HTMLElement | undefined;
 
 	private root: ITreeItem;
 	private elementsToRefresh: ITreeItem[] = [];
@@ -466,6 +473,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	}
 
 	show(container: HTMLElement): void {
+		this._container = container;
 		DOM.append(container, this.domNode);
 	}
 
@@ -780,6 +788,10 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			this.treeContainer.classList.remove('hide');
 			this.domNode.removeAttribute('tabindex');
 		}
+	}
+
+	get container(): HTMLElement | undefined {
+		return this._container;
 	}
 }
 

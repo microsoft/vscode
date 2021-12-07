@@ -19,7 +19,7 @@ import { Event } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { activationTimeIcon, errorIcon, infoIcon, installCountIcon, preReleaseIcon, ratingIcon, remoteIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon, verifiedPublisherIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { registerColor, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
@@ -162,7 +162,6 @@ export class PreReleaseIndicatorWidget extends ExtensionWidget {
 
 	constructor(
 		private readonly container: HTMLElement,
-		private readonly options: { label: boolean, icon: boolean },
 	) {
 		super();
 		container.classList.add('extension-pre-release');
@@ -180,12 +179,11 @@ export class PreReleaseIndicatorWidget extends ExtensionWidget {
 			return;
 		}
 
-		if (this.options?.icon) {
-			append(this.container, $('span' + ThemeIcon.asCSSSelector(preReleaseIcon)));
+		if (this.extension.state !== ExtensionState.Installed) {
+			return;
 		}
-		if (this.options?.label) {
-			append(this.container, $('span.pre-releaselabel', undefined, localize('pre-release-label', "Pre-Release")));
-		}
+
+		append(this.container, $('span' + ThemeIcon.asCSSSelector(preReleaseIcon)));
 	}
 }
 
@@ -253,11 +251,18 @@ export class PreReleaseBookmarkWidget extends ExtensionWidget {
 		if (!this.extension) {
 			return;
 		}
-		if (this.extension.hasPreReleaseVersion) {
-			this.element = append(this.parent, $('div.extension-bookmark'));
-			const preRelease = append(this.element, $('.pre-release'));
-			append(preRelease, $('span' + ThemeIcon.asCSSSelector(preReleaseIcon)));
+		if (this.extension.isBuiltin) {
+			return;
 		}
+		if (!this.extension.hasPreReleaseVersion) {
+			return;
+		}
+		if (this.extension.state === ExtensionState.Installed && this.extension.local?.isPreReleaseVersion) {
+			return;
+		}
+		this.element = append(this.parent, $('div.extension-bookmark'));
+		const preRelease = append(this.element, $('.pre-release'));
+		append(preRelease, $('span' + ThemeIcon.asCSSSelector(preReleaseIcon)));
 	}
 
 }
@@ -374,18 +379,18 @@ export class SyncIgnoredWidget extends ExtensionWidget {
 		private readonly container: HTMLElement,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
+		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 	) {
 		super();
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectedKeys.includes('settingsSync.ignoredExtensions'))(() => this.render()));
-		this._register(userDataAutoSyncEnablementService.onDidChangeEnablement(() => this.update()));
+		this._register(userDataSyncEnablementService.onDidChangeEnablement(() => this.update()));
 		this.render();
 	}
 
 	render(): void {
 		this.container.innerText = '';
 
-		if (this.extension && this.extension.state === ExtensionState.Installed && this.userDataAutoSyncEnablementService.isEnabled() && this.extensionsWorkbenchService.isExtensionIgnoredToSync(this.extension)) {
+		if (this.extension && this.extension.state === ExtensionState.Installed && this.userDataSyncEnablementService.isEnabled() && this.extensionsWorkbenchService.isExtensionIgnoredToSync(this.extension)) {
 			const element = append(this.container, $('span.extension-sync-ignored' + ThemeIcon.asCSSSelector(syncIgnoredIcon)));
 			element.title = localize('syncingore.label', "This extension is ignored during sync.");
 			element.classList.add(...ThemeIcon.asClassNameArray(syncIgnoredIcon));
@@ -578,6 +583,9 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 
 	static getPreReleaseMessage(extension: IExtension): string | undefined {
 		if (!extension.hasPreReleaseVersion) {
+			return undefined;
+		}
+		if (extension.isBuiltin) {
 			return undefined;
 		}
 		if (extension.local?.isPreReleaseVersion || extension.gallery?.properties.isPreReleaseVersion) {

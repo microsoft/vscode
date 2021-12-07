@@ -345,14 +345,17 @@ export function acquireWebNodePaths() {
 	const root = path.join(__dirname, '..', '..');
 	const webPackageJSON = path.join(root, '/remote/web', 'package.json');
 	const webPackages = JSON.parse(fs.readFileSync(webPackageJSON, 'utf8')).dependencies;
-	const nodePaths: { [key: string]: string } = { };
+	const nodePaths: { [key: string]: string } = {};
 	for (const key of Object.keys(webPackages)) {
 		const packageJSON = path.join(root, 'node_modules', key, 'package.json');
 		const packageData = JSON.parse(fs.readFileSync(packageJSON, 'utf8'));
 		let entryPoint = packageData.browser ?? packageData.main;
 		// On rare cases a package doesn't have an entrypoint so we assume it has a dist folder with a min.js
 		if (!entryPoint) {
-			console.warn(`No entry point for ${key} assuming dist/${key}.min.js`);
+			// TODO @lramos15 remove this when jschardet adds an entrypoint so we can warn on all packages w/out entrypoint
+			if (key !== 'jschardet') {
+				console.warn(`No entry point for ${key} assuming dist/${key}.min.js`);
+			}
 			entryPoint = `dist/${key}.min.js`;
 		}
 		// Remove any starting path information so it's all relative info

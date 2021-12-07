@@ -25,7 +25,7 @@ export function removeTag() {
 
 	return editor.edit(editBuilder => {
 		finalRangesToRemove.forEach(range => {
-			editBuilder.replace(range, '');
+			editBuilder.delete(range);
 		});
 	});
 }
@@ -51,18 +51,77 @@ function getRangesToRemove(document: vscode.TextDocument, rootNode: HtmlFlatNode
 		closeTagRange = offsetRangeToVsRange(document, nodeToUpdate.close.start, nodeToUpdate.close.end);
 	}
 
+	if (openTagRange && closeTagRange) {
+		const innerCombinedRange = new vscode.Range(
+			openTagRange.end.line,
+			openTagRange.end.character,
+			closeTagRange.start.line,
+			closeTagRange.start.character);
+		const outerCombinedRange = new vscode.Range(
+			openTagRange.start.line,
+			openTagRange.start.character,
+			closeTagRange.end.line,
+			closeTagRange.end.character);
+		// Special case: there is only whitespace in between.
+		if (document.getText(innerCombinedRange).trim() === '' && nodeToUpdate.name !== 'pre') {
+			return [outerCombinedRange];
+		}
+	}
+
 	let rangesToRemove = [];
 	if (openTagRange) {
 		rangesToRemove.push(openTagRange);
 		if (closeTagRange) {
 			const indentAmountToRemove = calculateIndentAmountToRemove(document, openTagRange, closeTagRange);
+			let firstInnerNonEmptyLine: number | undefined;
+			let lastInnerNonEmptyLine: number | undefined;
 			for (let i = openTagRange.start.line + 1; i < closeTagRange.start.line; i++) {
-				rangesToRemove.push(new vscode.Range(i, 0, i, indentAmountToRemove));
+				if (!document.lineAt(i).isEmptyOrWhitespace) {
+					rangesToRemove.push(new vscode.Range(i, 0, i, indentAmountToRemove));
+					if (firstInnerNonEmptyLine === undefined) {
+						// We found the first non-empty inner line.
+						firstInnerNonEmptyLine = i;
+					}
+					lastInnerNonEmptyLine = i;
+				}
 			}
-			rangesToRemove.push(closeTagRange);
+
+			// Remove the entire last line + empty lines preceding it
+			// if it is just the tag, otherwise remove just the tag.
+			if (entireLineIsTag(document, closeTagRange) && lastInnerNonEmptyLine) {
+				rangesToRemove.push(new vscode.Range(
+					lastInnerNonEmptyLine,
+					document.lineAt(lastInnerNonEmptyLine).range.end.character,
+					closeTagRange.end.line,
+					closeTagRange.end.character));
+			} else {
+				rangesToRemove.push(closeTagRange);
+			}
+
+			// Remove the entire first line + empty lines proceding it
+			// if it is just the tag, otherwise keep on removing just the tag.
+			if (entireLineIsTag(document, openTagRange) && firstInnerNonEmptyLine) {
+				rangesToRemove[1] = new vscode.Range(
+					openTagRange.start.line,
+					openTagRange.start.character,
+					firstInnerNonEmptyLine,
+					document.lineAt(firstInnerNonEmptyLine).firstNonWhitespaceCharacterIndex);
+				rangesToRemove.shift();
+			}
 		}
 	}
 	return rangesToRemove;
+}
+
+function entireLineIsTag(document: vscode.TextDocument, range: vscode.Range): boolean {
+	if (range.start.line === range.end.line) {
+		const lineText = document.lineAt(range.start).text;
+		const tagText = document.getText(range);
+		if (lineText.trim() === tagText) {
+			return true;
+		}
+	}
+	return false;
 }
 
 /**
@@ -77,8 +136,11 @@ function calculateIndentAmountToRemove(document: vscode.TextDocument, openRange:
 
 	let contentIndent: number | undefined;
 	for (let i = startLine + 1; i < endLine; i++) {
-		const lineIndent = document.lineAt(i).firstNonWhitespaceCharacterIndex;
-		contentIndent = !contentIndent ? lineIndent : Math.min(contentIndent, lineIndent);
+		const line = document.lineAt(i);
+		if (!line.isEmptyOrWhitespace) {
+			const lineIndent = line.firstNonWhitespaceCharacterIndex;
+			contentIndent = !contentIndent ? lineIndent : Math.min(contentIndent, lineIndent);
+		}
 	}
 
 	let indentAmount = 0;

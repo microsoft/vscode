@@ -103,7 +103,7 @@ export class NotebookEditor extends EditorPane {
 		return this._widget.value?.textModel;
 	}
 
-	override get minimumWidth(): number { return 375; }
+	override get minimumWidth(): number { return 220; }
 	override get maximumWidth(): number { return Number.POSITIVE_INFINITY; }
 
 	// these setters need to exist because this extends from EditorPane

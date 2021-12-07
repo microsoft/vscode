@@ -96,7 +96,7 @@ class BrowserMain extends Disposable {
 		const workbench = new Workbench(this.domElement, undefined, services.serviceCollection, services.logService);
 
 		// Listeners
-		this.registerListeners(workbench, services.storageService, services.logService);
+		this.registerListeners(workbench);
 
 		// Startup
 		const instantiationService = workbench.startup();
@@ -135,14 +135,14 @@ class BrowserMain extends Disposable {
 		});
 	}
 
-	private registerListeners(workbench: Workbench, storageService: BrowserStorageService, logService: ILogService): void {
+	private registerListeners(workbench: Workbench): void {
 
 		// Workbench Lifecycle
 		this._register(workbench.onWillShutdown(() => this.onWillShutdownDisposables.clear()));
 		this._register(workbench.onDidShutdown(() => this.dispose()));
 	}
 
-	private async initServices(): Promise<{ serviceCollection: ServiceCollection, configurationService: IWorkbenchConfigurationService, logService: ILogService, storageService: BrowserStorageService }> {
+	private async initServices(): Promise<{ serviceCollection: ServiceCollection, configurationService: IWorkbenchConfigurationService, logService: ILogService }> {
 		const serviceCollection = new ServiceCollection();
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -245,7 +245,7 @@ class BrowserMain extends Disposable {
 			mark('code/didInitRequiredUserData');
 		}
 
-		return { serviceCollection, configurationService, logService, storageService };
+		return { serviceCollection, configurationService, logService };
 	}
 
 	private async registerFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IFileService, remoteAgentService: IRemoteAgentService, logService: BufferLogService, logsPath: URI): Promise<void> {
@@ -337,7 +337,7 @@ class BrowserMain extends Disposable {
 		});
 	}
 
-	private async createStorageService(payload: IWorkspaceInitializationPayload, logService: ILogService): Promise<BrowserStorageService> {
+	private async createStorageService(payload: IWorkspaceInitializationPayload, logService: ILogService): Promise<IStorageService> {
 		const storageService = new BrowserStorageService(payload, logService);
 
 		try {

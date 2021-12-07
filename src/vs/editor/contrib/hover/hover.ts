@@ -43,7 +43,7 @@ export class ModesHoverController implements IEditorContribution {
 
 	private _hoverVisibleKey: IContextKey<boolean>;
 
-	static get(editor: ICodeEditor): ModesHoverController {
+	static get(editor: ICodeEditor): ModesHoverController | null {
 		return editor.getContribution<ModesHoverController>(ModesHoverController.ID);
 	}
 
@@ -283,7 +283,7 @@ class ShowDefinitionPreviewHoverAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let controller = ModesHoverController.get(editor);
+		const controller = ModesHoverController.get(editor);
 		if (!controller) {
 			return;
 		}
@@ -295,6 +295,9 @@ class ShowDefinitionPreviewHoverAction extends EditorAction {
 
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 		const goto = GotoDefinitionAtPositionEditorContribution.get(editor);
+		if (!goto) {
+			return;
+		}
 		const promise = goto.startFindDefinitionFromCursor(position);
 		promise.then(() => {
 			controller.showContentHover(range, HoverStartMode.Immediate, true);

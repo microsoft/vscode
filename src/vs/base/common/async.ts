@@ -515,11 +515,18 @@ interface ILimitedTaskFactory<T> {
 	e: (error?: unknown) => void;
 }
 
+export interface ILimiter<T> {
+
+	readonly size: number;
+
+	queue(factory: ITask<Promise<T>>): Promise<T>;
+}
+
 /**
  * A helper to queue N promises and run them all with a max degree of parallelism. The helper
  * ensures that at any time no more than M promises are running at the same time.
  */
-export class Limiter<T> {
+export class Limiter<T> implements ILimiter<T>{
 
 	private _size = 0;
 	private runningPromises: number;
@@ -596,7 +603,30 @@ export class ResourceQueue implements IDisposable {
 
 	private readonly queues = new Map<string, Queue<void>>();
 
-	queueFor(resource: URI, extUri: IExtUri = defaultExtUri): Queue<void> {
+	private readonly drainers = new Set<DeferredPromise<void>>();
+
+	async whenDrained(): Promise<void> {
+		if (this.isDrained()) {
+			return;
+		}
+
+		const promise = new DeferredPromise<void>();
+		this.drainers.add(promise);
+
+		return promise.p;
+	}
+
+	private isDrained(): boolean {
+		for (const [, queue] of this.queues) {
+			if (queue.size > 0) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	queueFor(resource: URI, extUri: IExtUri = defaultExtUri): ILimiter<void> {
 		const key = extUri.getComparisonKey(resource);
 
 		let queue = this.queues.get(key);
@@ -605,6 +635,7 @@ export class ResourceQueue implements IDisposable {
 			Event.once(queue.onFinished)(() => {
 				queue?.dispose();
 				this.queues.delete(key);
+				this.onDidQueueFinish();
 			});
 
 			this.queues.set(key, queue);
@@ -613,9 +644,36 @@ export class ResourceQueue implements IDisposable {
 		return queue;
 	}
 
+	private onDidQueueFinish(): void {
+		if (!this.isDrained()) {
+			return; // not done yet
+		}
+
+		this.releaseDrainers();
+	}
+
+	private releaseDrainers(): void {
+		for (const drainer of this.drainers) {
+			drainer.complete();
+		}
+
+		this.drainers.clear();
+	}
+
 	dispose(): void {
-		this.queues.forEach(queue => queue.dispose());
+		for (const [, queue] of this.queues) {
+			queue.dispose();
+		}
+
 		this.queues.clear();
+
+		// Even though we might still have pending
+		// tasks queued, after the queues have been
+		// disposed, we can no longer track them, so
+		// we release drainers to prevent hanging
+		// promises when the resource queue is being
+		// disposed.
+		this.releaseDrainers();
 	}
 }
 
@@ -1408,7 +1466,7 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 	public static merge<T>(iterables: AsyncIterable<T>[]): AsyncIterableObject<T> {
 		return new AsyncIterableObject(async (emitter) => {
 			await Promise.all(iterables.map(async (iterable) => {
-				for await(const item of iterable) {
+				for await (const item of iterable) {
 					emitter.emitOne(item);
 				}
 			}));
@@ -1469,7 +1527,7 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 
 	public static map<T, R>(iterable: AsyncIterable<T>, mapFn: (item: T) => R): AsyncIterableObject<R> {
 		return new AsyncIterableObject<R>(async (emitter) => {
-			for await(const item of iterable) {
+			for await (const item of iterable) {
 				emitter.emitOne(mapFn(item));
 			}
 		});
@@ -1481,7 +1539,7 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 
 	public static filter<T>(iterable: AsyncIterable<T>, filterFn: (item: T) => boolean): AsyncIterableObject<T> {
 		return new AsyncIterableObject<T>(async (emitter) => {
-			for await(const item of iterable) {
+			for await (const item of iterable) {
 				if (filterFn(item)) {
 					emitter.emitOne(item);
 				}

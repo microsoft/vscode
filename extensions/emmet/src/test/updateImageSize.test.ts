@@ -9,7 +9,7 @@ import { Selection } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
 import { updateImageSize } from '../updateImageSize';
 
-suite('Tests for Emmet actions on html tags', () => {
+suite.skip('Tests for Emmet actions on html tags', () => {
 	teardown(closeAllEditors);
 
 	test('update image css with multiple cursors in css file', () => {

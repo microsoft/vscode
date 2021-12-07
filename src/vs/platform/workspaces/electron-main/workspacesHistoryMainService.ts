@@ -80,7 +80,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => this.handleWindowsJumpList());
 
 		// Add to history when entering workspace
-		this._register(this.workspacesManagementMainService.onDidEnterWorkspace(event => this.addRecentlyOpened([{ workspace: event.workspace }])));
+		this._register(this.workspacesManagementMainService.onDidEnterWorkspace(event => this.addRecentlyOpened([{ workspace: event.workspace, remoteAuthority: event.window.remoteAuthority }])));
 	}
 
 	private handleWindowsJumpList(): void {
@@ -246,11 +246,13 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		const files: IRecentFile[] = [];
 
 		// Add current workspace to beginning if set
-		const currentWorkspace = include?.config?.workspace;
-		if (isWorkspaceIdentifier(currentWorkspace) && !this.workspacesManagementMainService.isUntitledWorkspace(currentWorkspace)) {
-			workspaces.push({ workspace: currentWorkspace });
-		} else if (isSingleFolderWorkspaceIdentifier(currentWorkspace)) {
-			workspaces.push({ folderUri: currentWorkspace.uri });
+		if (include) {
+			const currentWorkspace = include.config?.workspace;
+			if (isWorkspaceIdentifier(currentWorkspace) && !this.workspacesManagementMainService.isUntitledWorkspace(currentWorkspace)) {
+				workspaces.push({ workspace: currentWorkspace, remoteAuthority: include.remoteAuthority });
+			} else if (isSingleFolderWorkspaceIdentifier(currentWorkspace)) {
+				workspaces.push({ folderUri: currentWorkspace.uri, remoteAuthority: include.remoteAuthority });
+			}
 		}
 
 		// Add currently files to open to the beginning if any

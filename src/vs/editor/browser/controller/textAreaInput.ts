@@ -11,7 +11,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
-import * as platform from 'vs/base/common/platform';
+import { OperatingSystem } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { ITextAreaWrapper, ITypeData, TextAreaState, _debugComposition } from 'vs/editor/browser/controller/textAreaState';
 import { Position } from 'vs/editor/common/core/position';
@@ -99,6 +99,7 @@ export interface ICompositionStartEvent {
 
 export interface ICompleteTextAreaWrapper extends ITextAreaWrapper {
 	readonly onKeyDown: Event<KeyboardEvent>;
+	readonly onKeyPress: Event<KeyboardEvent>;
 	readonly onKeyUp: Event<KeyboardEvent>;
 	readonly onCompositionStart: Event<CompositionEvent>;
 	readonly onCompositionUpdate: Event<CompositionEvent>;
@@ -117,6 +118,34 @@ export interface ICompleteTextAreaWrapper extends ITextAreaWrapper {
 	resetSelectionChangeTime(): void;
 
 	hasFocus(): boolean;
+}
+
+export interface IBrowser {
+	isAndroid: boolean;
+	isFirefox: boolean;
+	isChrome: boolean;
+	isSafari: boolean;
+}
+
+class CompositionContext {
+
+	private _lastTypeTextLength: number;
+
+	constructor() {
+		this._lastTypeTextLength = 0;
+	}
+
+	public handleCompositionUpdate(text: string | null | undefined): ITypeData {
+		text = text || '';
+		const typeInput: ITypeData = {
+			text: text,
+			replacePrevCharCnt: this._lastTypeTextLength,
+			replaceNextCharCnt: 0,
+			positionDelta: 0
+		};
+		this._lastTypeTextLength = text.length;
+		return typeInput;
+	}
 }
 
 /**
@@ -164,8 +193,6 @@ export class TextAreaInput extends Disposable {
 
 	// ---
 
-	private readonly _host: ITextAreaInputHost;
-	private readonly _textArea: ICompleteTextAreaWrapper;
 	private readonly _asyncTriggerCut: RunOnceScheduler;
 	private readonly _asyncFocusGainWriteScreenReaderContent: RunOnceScheduler;
 
@@ -173,13 +200,16 @@ export class TextAreaInput extends Disposable {
 	private _selectionChangeListener: IDisposable | null;
 
 	private _hasFocus: boolean;
-	private _isDoingComposition: boolean;
+	private _currentComposition: CompositionContext | null;
 	private _nextCommand: ReadFromTextArea;
 
-	constructor(host: ITextAreaInputHost, textArea: ICompleteTextAreaWrapper) {
+	constructor(
+		private readonly _host: ITextAreaInputHost,
+		private readonly _textArea: ICompleteTextAreaWrapper,
+		private readonly _OS: OperatingSystem,
+		private readonly _browser: IBrowser
+	) {
 		super();
-		this._host = host;
-		this._textArea = textArea;
 		this._asyncTriggerCut = this._register(new RunOnceScheduler(() => this._onCut.fire(), 0));
 		this._asyncFocusGainWriteScreenReaderContent = this._register(new RunOnceScheduler(() => this.writeScreenReaderContent('asyncFocusGain'), 0));
 
@@ -188,7 +218,7 @@ export class TextAreaInput extends Disposable {
 		this.writeScreenReaderContent('ctor');
 
 		this._hasFocus = false;
-		this._isDoingComposition = false;
+		this._currentComposition = null;
 		this._nextCommand = ReadFromTextArea.Type;
 
 		let lastKeyDown: IKeyboardEvent | null = null;
@@ -196,7 +226,7 @@ export class TextAreaInput extends Disposable {
 		this._register(this._textArea.onKeyDown((_e) => {
 			const e = new StandardKeyboardEvent(_e);
 			if (e.keyCode === KeyCode.KEY_IN_COMPOSITION
-				|| (this._isDoingComposition && e.keyCode === KeyCode.Backspace)) {
+				|| (this._currentComposition && e.keyCode === KeyCode.Backspace)) {
 				// Stop propagation for keyDown events if the IME is processing key input
 				e.stopPropagation();
 			}
@@ -221,13 +251,16 @@ export class TextAreaInput extends Disposable {
 				console.log(`[compositionstart]`, e);
 			}
 
-			if (this._isDoingComposition) {
+			const currentComposition = new CompositionContext();
+			if (this._currentComposition) {
+				// simply reset the composition context
+				this._currentComposition = currentComposition;
 				return;
 			}
-			this._isDoingComposition = true;
+			this._currentComposition = currentComposition;
 
 			if (
-				platform.isMacintosh
+				this._OS === OperatingSystem.Macintosh
 				&& this._textAreaState.selectionStart === this._textAreaState.selectionEnd
 				&& this._textAreaState.selectionStart > 0
 				&& this._textAreaState.value.substr(this._textAreaState.selectionStart - 1, 1) === e.data
@@ -236,82 +269,52 @@ export class TextAreaInput extends Disposable {
 					lastKeyDown && lastKeyDown.equals(KeyCode.KEY_IN_COMPOSITION)
 					&& (lastKeyDown.code === 'ArrowRight' || lastKeyDown.code === 'ArrowLeft')
 				);
-				if (isArrowKey || browser.isFirefox) {
+				if (isArrowKey || this._browser.isFirefox) {
 					// Handling long press case on Chromium/Safari macOS + arrow key => pretend the character was selected
 					// or long press case on Firefox on macOS
 					if (_debugComposition) {
 						console.log(`[compositionstart] Handling long press case on macOS + arrow key or Firefox`, e);
 					}
-					this._textAreaState = new TextAreaState(
-						this._textAreaState.value,
-						this._textAreaState.selectionStart - 1,
-						this._textAreaState.selectionEnd,
-						this._textAreaState.selectionStartPosition ? new Position(this._textAreaState.selectionStartPosition.lineNumber, this._textAreaState.selectionStartPosition.column - 1) : null,
-						this._textAreaState.selectionEndPosition
-					);
+					// Pretend the previous character was composed (in order to get it removed by subsequent compositionupdate events)
+					currentComposition.handleCompositionUpdate('x');
 					this._onCompositionStart.fire({ revealDeltaColumns: -1 });
 					return;
 				}
 			}
 
-			if (browser.isAndroid) {
+			if (this._browser.isAndroid) {
 				// when tapping on the editor, Android enters composition mode to edit the current word
 				// so we cannot clear the textarea on Android and we must pretend the current word was selected
 				this._onCompositionStart.fire({ revealDeltaColumns: -this._textAreaState.selectionStart });
 				return;
 			}
 
-			this._setAndWriteTextAreaState('compositionstart', TextAreaState.EMPTY);
 			this._onCompositionStart.fire({ revealDeltaColumns: 0 });
 		}));
-
-		/**
-		 * Deduce the typed input from a text area's value and the last observed state.
-		 */
-		const deduceInputFromTextAreaValue = (couldBeEmojiInput: boolean): [TextAreaState, ITypeData] => {
-			const oldState = this._textAreaState;
-			const newState = TextAreaState.readFromTextArea(this._textArea);
-			return [newState, TextAreaState.deduceInput(oldState, newState, couldBeEmojiInput)];
-		};
-
-		const deduceAndroidCompositionInput = (): [TextAreaState, ITypeData] => {
-			const oldState = this._textAreaState;
-			const newState = TextAreaState.readFromTextArea(this._textArea);
-			return [newState, TextAreaState.deduceAndroidCompositionInput(oldState, newState)];
-		};
-
-		/**
-		 * Deduce the composition input from a string.
-		 */
-		const deduceComposition = (text: string): [TextAreaState, ITypeData] => {
-			const oldState = this._textAreaState;
-			const newState = TextAreaState.selectedText(text);
-			const typeInput: ITypeData = {
-				text: newState.value,
-				replacePrevCharCnt: oldState.selectionEnd - oldState.selectionStart,
-				replaceNextCharCnt: 0,
-				positionDelta: 0
-			};
-			return [newState, typeInput];
-		};
 
 		this._register(this._textArea.onCompositionUpdate((e) => {
 			if (_debugComposition) {
 				console.log(`[compositionupdate]`, e);
 			}
-			if (browser.isAndroid) {
+			const currentComposition = this._currentComposition;
+			if (!currentComposition) {
+				// should not be possible to receive a 'compositionupdate' without a 'compositionstart'
+				return;
+			}
+			if (this._browser.isAndroid) {
 				// On Android, the data sent with the composition update event is unusable.
 				// For example, if the cursor is in the middle of a word like Mic|osoft
 				// and Microsoft is chosen from the keyboard's suggestions, the e.data will contain "Microsoft".
 				// This is not really usable because it doesn't tell us where the edit began and where it ended.
-				const [newState, typeInput] = deduceAndroidCompositionInput();
+				const newState = TextAreaState.readFromTextArea(this._textArea);
+				const typeInput = TextAreaState.deduceAndroidCompositionInput(this._textAreaState, newState);
 				this._textAreaState = newState;
 				this._onType.fire(typeInput);
 				this._onCompositionUpdate.fire(e);
 				return;
 			}
-			const [newState, typeInput] = deduceComposition(e.data || '');
-			this._textAreaState = newState;
+			const typeInput = currentComposition.handleCompositionUpdate(e.data);
+			this._textAreaState = TextAreaState.readFromTextArea(this._textArea);
 			this._onType.fire(typeInput);
 			this._onCompositionUpdate.fire(e);
 		}));
@@ -320,61 +323,67 @@ export class TextAreaInput extends Disposable {
 			if (_debugComposition) {
 				console.log(`[compositionend]`, e);
 			}
-			// https://github.com/microsoft/monaco-editor/issues/1663
-			// On iOS 13.2, Chinese system IME randomly trigger an additional compositionend event with empty data
-			if (!this._isDoingComposition) {
+			const currentComposition = this._currentComposition;
+			if (!currentComposition) {
+				// https://github.com/microsoft/monaco-editor/issues/1663
+				// On iOS 13.2, Chinese system IME randomly trigger an additional compositionend event with empty data
 				return;
 			}
-			this._isDoingComposition = false;
+			this._currentComposition = null;
 
-			if (browser.isAndroid) {
+			if (this._browser.isAndroid) {
 				// On Android, the data sent with the composition update event is unusable.
 				// For example, if the cursor is in the middle of a word like Mic|osoft
 				// and Microsoft is chosen from the keyboard's suggestions, the e.data will contain "Microsoft".
 				// This is not really usable because it doesn't tell us where the edit began and where it ended.
-				const [newState, typeInput] = deduceAndroidCompositionInput();
+				const newState = TextAreaState.readFromTextArea(this._textArea);
+				const typeInput = TextAreaState.deduceAndroidCompositionInput(this._textAreaState, newState);
 				this._textAreaState = newState;
 				this._onType.fire(typeInput);
 				this._onCompositionEnd.fire();
 				return;
 			}
 
-			const [newState, typeInput] = deduceComposition(e.data || '');
-			this._textAreaState = newState;
+			const typeInput = currentComposition.handleCompositionUpdate(e.data);
+			this._textAreaState = TextAreaState.readFromTextArea(this._textArea);
 			this._onType.fire(typeInput);
-
-			// isChrome: the textarea is not updated correctly when composition ends
-			// isFirefox: the textarea is not updated correctly after inserting emojis
-			// => we cannot assume the text at the end consists only of the composited text
-			if (browser.isChrome || browser.isFirefox) {
-				this._textAreaState = TextAreaState.readFromTextArea(this._textArea);
-			}
-
 			this._onCompositionEnd.fire();
 		}));
 
 		this._register(this._textArea.onInput((e) => {
+			if (_debugComposition) {
+				console.log(`[input]`, e);
+			}
+
 			// Pretend here we touched the text area, as the `input` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._textArea.setIgnoreSelectionChangeTime('received input event');
 
-			if (this._isDoingComposition) {
+			if (this._currentComposition) {
 				return;
 			}
 
-			const [newState, typeInput] = deduceInputFromTextAreaValue(/*couldBeEmojiInput*/platform.isMacintosh);
+			const newState = TextAreaState.readFromTextArea(this._textArea);
+			const typeInput = TextAreaState.deduceInput(this._textAreaState, newState, /*couldBeEmojiInput*/this._OS === OperatingSystem.Macintosh);
+
 			if (typeInput.replacePrevCharCnt === 0 && typeInput.text.length === 1 && strings.isHighSurrogate(typeInput.text.charCodeAt(0))) {
 				// Ignore invalid input but keep it around for next time
 				return;
 			}
 
 			this._textAreaState = newState;
+			const typeInputIsNoOp = (
+				typeInput.text === ''
+				&& typeInput.replacePrevCharCnt === 0
+				&& typeInput.replaceNextCharCnt === 0
+				&& typeInput.positionDelta === 0
+			);
 			if (this._nextCommand === ReadFromTextArea.Type) {
-				if (typeInput.text !== '' || typeInput.replacePrevCharCnt !== 0) {
+				if (!typeInputIsNoOp) {
 					this._onType.fire(typeInput);
 				}
 			} else {
-				if (typeInput.text !== '' || typeInput.replacePrevCharCnt !== 0) {
+				if (!typeInputIsNoOp) {
 					this._firePaste(typeInput.text, null);
 				}
 				this._nextCommand = ReadFromTextArea.Type;
@@ -420,20 +429,20 @@ export class TextAreaInput extends Disposable {
 
 			this._setHasFocus(true);
 
-			if (browser.isSafari && !hadFocus && this._hasFocus) {
+			if (this._browser.isSafari && !hadFocus && this._hasFocus) {
 				// When "tabbing into" the textarea, immediately after dispatching the 'focus' event,
 				// Safari will always move the selection at offset 0 in the textarea
 				this._asyncFocusGainWriteScreenReaderContent.schedule();
 			}
 		}));
 		this._register(this._textArea.onBlur(() => {
-			if (this._isDoingComposition) {
+			if (this._currentComposition) {
 				// See https://github.com/microsoft/vscode/issues/112621
 				// where compositionend is not triggered when the editor
 				// is taken off-dom during a composition
 
 				// Clear the flag to be able to write to the textarea
-				this._isDoingComposition = false;
+				this._currentComposition = null;
 
 				// Clear the textarea to avoid an unwanted cursor type
 				this.writeScreenReaderContent('blurWithoutCompositionEnd');
@@ -444,12 +453,12 @@ export class TextAreaInput extends Disposable {
 			this._setHasFocus(false);
 		}));
 		this._register(this._textArea.onSyntheticTap(() => {
-			if (browser.isAndroid && this._isDoingComposition) {
+			if (this._browser.isAndroid && this._currentComposition) {
 				// on Android, tapping does not cancel the current composition, so the
 				// textarea is stuck showing the old composition
 
 				// Clear the flag to be able to write to the textarea
-				this._isDoingComposition = false;
+				this._currentComposition = null;
 
 				// Clear the textarea to avoid an unwanted cursor type
 				this.writeScreenReaderContent('tapWithoutCompositionEnd');
@@ -458,6 +467,11 @@ export class TextAreaInput extends Disposable {
 				this._onCompositionEnd.fire();
 			}
 		}));
+	}
+
+	_initializeFromTest(): void {
+		this._hasFocus = true;
+		this._textAreaState = TextAreaState.readFromTextArea(this._textArea);
 	}
 
 	private _installSelectionChangeListener(): IDisposable {
@@ -484,10 +498,10 @@ export class TextAreaInput extends Disposable {
 			if (!this._hasFocus) {
 				return;
 			}
-			if (this._isDoingComposition) {
+			if (this._currentComposition) {
 				return;
 			}
-			if (!browser.isChrome) {
+			if (!this._browser.isChrome) {
 				// Support only for Chrome until testing happens on other browsers
 				return;
 			}
@@ -604,7 +618,7 @@ export class TextAreaInput extends Disposable {
 	}
 
 	public writeScreenReaderContent(reason: string): void {
-		if (this._isDoingComposition) {
+		if (this._currentComposition) {
 			// Do not write to the text area when doing composition
 			return;
 		}
@@ -623,7 +637,7 @@ export class TextAreaInput extends Disposable {
 		InMemoryClipboardMetadataManager.INSTANCE.set(
 			// When writing "LINE\r\n" to the clipboard and then pasting,
 			// Firefox pastes "LINE\n", so let's work around this quirk
-			(browser.isFirefox ? dataToCopy.text.replace(/\r\n/g, '\n') : dataToCopy.text),
+			(this._browser.isFirefox ? dataToCopy.text.replace(/\r\n/g, '\n') : dataToCopy.text),
 			storedMetadata
 		);
 

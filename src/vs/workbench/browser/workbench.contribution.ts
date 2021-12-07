@@ -241,11 +241,6 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': false,
 				'description': localize('perEditorGroup', "Controls if the limit of maximum opened editors should apply per editor group or across all editor groups.")
 			},
-			'workbench.editor.experimentalDisableClearInputOnSetInput': {
-				'type': 'boolean',
-				'default': false,
-				'description': localize('experimentalDisableClearInputOnSetInput', "Experimental setting: do not change unless instructed.")
-			},
 			'workbench.commandPalette.history': {
 				'type': 'number',
 				'description': localize('commandHistory', "Controls the number of recently used commands to keep in history for the command palette. Set to 0 to disable command history."),
@@ -363,7 +358,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.experimental.layoutControl.enabled': {
 				'type': 'boolean',
-				'default': product.quality !== 'stable',
+				'tags': ['experimental'],
+				'default': false,
 				'description': localize('layoutControlEnabled', "Controls whether the layout control button in the custom title bar is enabled."),
 			},
 			'workbench.experimental.sidePanel.enabled': {
@@ -374,9 +370,15 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.experimental.panel.alignment': {
 				'type': 'string',
-				'enum': ['left', 'center', 'right', 'justified'],
+				'enum': ['left', 'center', 'right', 'justify'],
+				'enumDescriptions': [
+					localize('panel.alignment.left', "The panel spans from the far left of the window to the right side of the editor area."),
+					localize('panel.alignment.center', "The panel spans beneath the editor area."),
+					localize('panel.alignment.right', "The panel spans from the left side of the editor area to the far right of the window."),
+					localize('panel.alignment.justify', "The panel spans the full width of the window."),
+				],
 				'default': 'center',
-				'description': localize('panelAlignment', "Controls the alignment of the panel (terminal, debug console, output, problems) and whether or not it spans beneath the side bar and side panel."),
+				'description': localize('panelAlignment', "Controls the alignment of the panel (terminal, debug console, output, problems) and whether or not it spans beneath the side bar and side panel. Note that this setting only takes effect when the panel is positioned at the bottom of the screen."),
 				'included': product.quality !== 'stable'
 			},
 		}

@@ -71,6 +71,7 @@ async function getPackageInfo(context: ExtensionContext): Promise<IPackageInfo> 
 
 interface Log {
 	trace(message: string): void;
+	isTrace(): boolean;
 	dispose(): void;
 }
 
@@ -88,23 +89,34 @@ function getLog(outputChannel: OutputChannel): Log {
 				outputChannel.appendLine(message);
 			}
 		},
+		isTrace() {
+			return trace;
+		},
 		dispose: () => configListener.dispose()
 	};
 }
 
-const retryTimeoutInDays = 2; // 2 days
-const retryTimeoutInMs = retryTimeoutInDays * 24 * 60 * 60 * 1000;
+const retryTimeoutInHours = 2 * 24; // 2 days
 
 async function getSchemaRequestService(context: ExtensionContext, log: Log): Promise<SchemaRequestService> {
 	let cache: JSONSchemaCache | undefined = undefined;
 	const globalStorage = context.globalStorageUri;
+
+	let clearCache: (() => Promise<string[]>) | undefined;
 	if (globalStorage.scheme === 'file') {
 		const schemaCacheLocation = path.join(globalStorage.fsPath, 'json-schema-cache');
 		await fs.mkdir(schemaCacheLocation, { recursive: true });
 
-		cache = new JSONSchemaCache(schemaCacheLocation, context.globalState);
-		log.trace(`[json schema cache] initial state: ${JSON.stringify(cache.getCacheInfo(), null, ' ')}`);
+		const schemaCache = new JSONSchemaCache(schemaCacheLocation, context.globalState);
+		log.trace(`[json schema cache] initial state: ${JSON.stringify(schemaCache.getCacheInfo(), null, ' ')}`);
+		cache = schemaCache;
+		clearCache = async () => {
+			const cachedSchemas = await schemaCache.clearCache();
+			log.trace(`[json schema cache] cache cleared. Previously cached schemas: ${cachedSchemas.join(', ')}`);
+			return cachedSchemas;
+		};
 	}
+
 
 	const isXHRResponse = (error: any): error is XHRResponse => typeof error?.status === 'number';
 
@@ -133,7 +145,7 @@ async function getSchemaRequestService(context: ExtensionContext, log: Log): Pro
 
 					log.trace(`[json schema cache] Response: schema ${uri} unchanged etag ${etag}`);
 
-					const content = await cache.getSchema(uri, etag);
+					const content = await cache.getSchema(uri, etag, true);
 					if (content) {
 						log.trace(`[json schema cache] Get schema ${uri} etag ${etag} from cache`);
 						return content;
@@ -159,13 +171,17 @@ async function getSchemaRequestService(context: ExtensionContext, log: Log): Pro
 	return {
 		getContent: async (uri: string) => {
 			if (cache && /^https?:\/\/json\.schemastore\.org\//.test(uri)) {
-				const content = await cache.getSchemaIfAccessedSince(uri, retryTimeoutInMs);
+				const content = await cache.getSchemaIfUpdatedSince(uri, retryTimeoutInHours);
 				if (content) {
-					log.trace(`[json schema cache] Schema ${uri} from cache without request (last accessed less than ${retryTimeoutInDays} days ago)`);
+					if (log.isTrace()) {
+						log.trace(`[json schema cache] Schema ${uri} from cache without request (last accessed ${cache.getLastUpdatedInHours(uri)} hours ago)`);
+					}
+
 					return content;
 				}
 			}
 			return request(uri, cache?.getETag(uri));
-		}
+		},
+		clearCache
 	};
 }

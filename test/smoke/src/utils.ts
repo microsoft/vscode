@@ -21,7 +21,19 @@ export function itRepeat(n: number, description: string, callback: (this: Contex
 
 export function beforeSuite(args: minimist.ParsedArgs, optionsTransform?: (opts: ApplicationOptions) => Promise<ApplicationOptions>) {
 	before(async function () {
-		this.app = await startApp(args, this.defaultOptions, optionsTransform);
+		const testTitle = this.currentTest?.title;
+		const suiteTitle = this.currentTest?.parent?.title;
+
+		this.app = await startApp(args, this.defaultOptions, async opts => {
+			opts.suiteTitle = suiteTitle;
+			opts.testTitle = testTitle;
+
+			if (optionsTransform) {
+				opts = await optionsTransform(opts);
+			}
+
+			return opts;
+		});
 	});
 }
 
@@ -37,9 +49,8 @@ export async function startApp(args: minimist.ParsedArgs, options: ApplicationOp
 
 	await app.start();
 
-	if (args.log) {
-		const title = this.currentTest!.fullTitle();
-		app.logger.log('*** Test start:', title);
+	if (args.log && options.testTitle) {
+		app.logger.log('*** Test start:', options.testTitle);
 	}
 
 	return app;

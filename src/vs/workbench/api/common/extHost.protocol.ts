@@ -1290,7 +1290,7 @@ export interface ExtHostWorkspaceShape {
 }
 
 export interface ExtHostFileSystemInfoShape {
-	$acceptProviderInfos(scheme: string, capabilities: number | null): void;
+	$acceptProviderInfos(uri: UriComponents, capabilities: number | null): void;
 }
 
 export interface ExtHostFileSystemShape {
