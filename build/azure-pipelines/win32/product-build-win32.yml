@@ -31,7 +31,7 @@ steps:
     inputs:
       archiveFilePatterns: '$(Build.ArtifactStagingDirectory)/compilation.tar.gz'
       # destinationFolder:
-      #cleanDestinationFolder: true
+      cleanDestinationFolder: false
       #overwriteExistingFiles: false
       #pathToSevenZipTool:
   - powershell: |
