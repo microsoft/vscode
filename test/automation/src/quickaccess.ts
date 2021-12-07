@@ -72,7 +72,6 @@ export class QuickAccess {
 			}
 
 			await this.quickInput.closeQuickInput();
-			await new Promise(c => setTimeout(c, 500));
 		}
 
 		if (!fileFound) {
@@ -115,7 +114,6 @@ export class QuickAccess {
 			}
 
 			await this.quickInput.closeQuickInput();
-			await new Promise(c => setTimeout(c, 500));
 		}
 	}
 }
