@@ -28,6 +28,7 @@ import { TerminalHover, ILinkHoverTargetOptions } from 'vs/workbench/contrib/ter
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { TerminalExternalLinkProviderAdapter } from 'vs/workbench/contrib/terminal/browser/links/terminalExternalLinkProviderAdapter';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export type XtermLinkMatcherHandler = (event: MouseEvent | undefined, link: string) => Promise<void>;
 export type XtermLinkMatcherValidationCallback = (uri: string, callback: (isValid: boolean) => void) => void;
@@ -55,7 +56,8 @@ export class TerminalLinkManager extends DisposableStore {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITunnelService private readonly _tunnelService: ITunnelService
+		@ITunnelService private readonly _tunnelService: ITunnelService,
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 
@@ -318,8 +320,9 @@ export class TerminalLinkManager extends DisposableStore {
 				link = this._osPath.join(this._processCwd, link);
 			}
 		}
+		this._logService.info('about to normalize link, ', link);
 		link = this._osPath.normalize(link);
-
+		this._logService.info('normalized link, ', link);
 		return link;
 	}
 
@@ -341,12 +344,14 @@ export class TerminalLinkManager extends DisposableStore {
 		try {
 			let uri: URI;
 			if (this._processManager.remoteAuthority) {
+				this._logService.info('resolving path remote', this._processManager.os);
 				uri = URI.from({
 					scheme: Schemas.vscodeRemote,
 					authority: this._processManager.remoteAuthority,
 					path: linkUrl
 				});
 			} else {
+				this._logService.info('resolving path, no remote', this._processManager.os);
 				uri = URI.file(linkUrl);
 			}
 

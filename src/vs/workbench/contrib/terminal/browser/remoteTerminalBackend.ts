@@ -332,8 +332,10 @@ class RemoteTerminalBackend extends Disposable implements ITerminalBackend {
 	async getWslPath(original: string): Promise<string> {
 		const env = await this._remoteAgentService.getEnvironment();
 		if (env?.os !== OperatingSystem.Windows) {
+			this._logService.info('returning env is windows', env?.os);
 			return original;
 		}
+		this._logService.info('getting wsl path env os:', env?.os);
 		return this._remoteTerminalChannel?.getWslPath(original) || original;
 	}
 

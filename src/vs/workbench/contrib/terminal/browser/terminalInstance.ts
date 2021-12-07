@@ -990,7 +990,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async sendPath(originalPath: string, addNewLine: boolean): Promise<void> {
-		const preparedPath = await preparePathForShell(originalPath, this.shellLaunchConfig.executable, this.title, this.shellType, this._processManager.backend, this._processManager.os);
+		const preparedPath = await preparePathForShell(originalPath, this.shellLaunchConfig.executable, this.title, this.shellType, this._processManager.backend, this._processManager.os, this._logService);
 		return this.sendText(preparedPath, addNewLine);
 	}
 
@@ -2208,7 +2208,8 @@ export function parseExitResult(
  * @param backend The backend for the terminal.
  * @returns An escaped version of the path to be execuded in the terminal.
  */
-async function preparePathForShell(originalPath: string, executable: string | undefined, title: string, shellType: TerminalShellType, backend: ITerminalBackend | undefined, os: OperatingSystem | undefined): Promise<string> {
+async function preparePathForShell(originalPath: string, executable: string | undefined, title: string, shellType: TerminalShellType, backend: ITerminalBackend | undefined, os: OperatingSystem | undefined, logService?: ILogService): Promise<string> {
+	logService?.info('process manager OS', os);
 	return new Promise<string>(c => {
 		if (!executable) {
 			c(originalPath);
@@ -2264,7 +2265,7 @@ async function preparePathForShell(originalPath: string, executable: string | un
 
 			return;
 		}
-
+		logService?.info('escaping non windows path', originalPath);
 		c(escapeNonWindowsPath(originalPath));
 	});
 }
