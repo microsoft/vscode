@@ -1184,7 +1184,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				const extensionDevelopmentPathRemoteAuthority = getRemoteAuthority(url);
 				if (extensionDevelopmentPathRemoteAuthority) {
 					if (remoteAuthority) {
-						if (extensionDevelopmentPathRemoteAuthority !== remoteAuthority) {
+						if (!isEqualAuthority(extensionDevelopmentPathRemoteAuthority, remoteAuthority)) {
 							this.logService.error('more than one extension development path authority');
 						}
 					} else {
@@ -1396,7 +1396,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			if (isWorkspaceIdentifier(configuration.workspace)) {
 				configuration.backupPath = this.backupMainService.registerWorkspaceBackupSync({ workspace: configuration.workspace, remoteAuthority: configuration.remoteAuthority });
 			} else if (isSingleFolderWorkspaceIdentifier(configuration.workspace)) {
-				configuration.backupPath = this.backupMainService.registerFolderBackupSync(configuration.workspace.uri);
+				configuration.backupPath = this.backupMainService.registerFolderBackupSync({ folderUri: configuration.workspace.uri, remoteAuthority: configuration.remoteAuthority });
 			} else {
 				const backupFolder = options.emptyWindowBackupInfo && options.emptyWindowBackupInfo.backupFolder;
 				configuration.backupPath = this.backupMainService.registerEmptyWindowBackupSync(backupFolder, configuration.remoteAuthority);
