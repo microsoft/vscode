@@ -11,7 +11,6 @@ import { URI } from 'vs/base/common/uri';
 import { IFolderQuery, QueryType, IRawFileMatch } from 'vs/workbench/services/search/common/search';
 import { Engine as FileSearchEngine, FileWalker } from 'vs/workbench/services/search/node/fileSearch';
 import { flakySuite, getPathFromAmdModule } from 'vs/base/test/node/testUtils';
-import { readdirSync } from 'fs';
 
 const TEST_FIXTURES = path.normalize(getPathFromAmdModule(require, './fixtures'));
 const EXAMPLES_FIXTURES = URI.file(path.join(TEST_FIXTURES, 'examples'));
