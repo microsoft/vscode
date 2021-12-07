@@ -989,15 +989,21 @@ onDomReady(() => {
 		assertIsDefined(target.contentDocument).execCommand(data);
 	});
 
+	/** @type {string | undefined} */
+	let lastFindValue = undefined;
+
 	hostMessaging.onMessage('find', (_event, data) => {
 		const target = getActiveFrame();
 		if (!target) {
 			return;
 		}
 
-		// Reset selection so we start search after current find result
-		const selection = target.contentWindow.getSelection();
-		selection.collapse(selection.anchorNode);
+		if (!data.previous && lastFindValue !== data.value) {
+			// Reset selection so we start search at the head of the last search
+			const selection = target.contentWindow.getSelection();
+			selection.collapse(selection.anchorNode);
+		}
+		lastFindValue = data.value;
 
 		const didFind = (/** @type {any} */ (target.contentWindow)).find(
 			data.value,
@@ -1015,6 +1021,8 @@ onDomReady(() => {
 		if (!target) {
 			return;
 		}
+
+		lastFindValue = undefined;
 
 		if (!data.clearSelection) {
 			const selection = target.contentWindow.getSelection();
