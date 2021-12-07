@@ -413,12 +413,12 @@ class QuickInput extends Disposable implements IQuickInput {
 			this.ui.message.style.color = styles.foreground ? `${styles.foreground}` : '';
 			this.ui.message.style.backgroundColor = styles.background ? `${styles.background}` : '';
 			this.ui.message.style.border = styles.border ? `1px solid ${styles.border}` : '';
-			this.ui.message.style.paddingBottom = '4px';
+			this.ui.message.style.marginBottom = '-2px';
 		} else {
 			this.ui.message.style.color = '';
 			this.ui.message.style.backgroundColor = '';
 			this.ui.message.style.border = '';
-			this.ui.message.style.paddingBottom = '';
+			this.ui.message.style.marginBottom = '';
 		}
 	}
 
