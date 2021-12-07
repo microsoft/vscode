@@ -27,7 +27,7 @@ export class GhostTextController extends Disposable {
 
 	static ID = 'editor.contrib.ghostTextController';
 
-	public static get(editor: ICodeEditor): GhostTextController {
+	public static get(editor: ICodeEditor): GhostTextController | null {
 		return editor.getContribution<GhostTextController>(GhostTextController.ID);
 	}
 

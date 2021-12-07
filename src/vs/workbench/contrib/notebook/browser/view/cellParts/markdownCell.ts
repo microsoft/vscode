@@ -138,6 +138,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 			if (e.inputCollapsedChanged) {
 				this.updateCollapsedState();
+				this.viewUpdate();
 			}
 
 			if (e.cellLineNumberChanged) {

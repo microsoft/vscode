@@ -89,7 +89,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		return this._editor.getOption(EditorOption.colorDecorators);
 	}
 
-	static get(editor: ICodeEditor): ColorDetector {
+	static get(editor: ICodeEditor): ColorDetector | null {
 		return editor.getContribution<ColorDetector>(this.ID);
 	}
 

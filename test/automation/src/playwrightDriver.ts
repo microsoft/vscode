@@ -61,20 +61,30 @@ class PlaywrightDriver implements IDriver {
 
 	async exitApplication() {
 		try {
-			await this.context.tracing.stop({ path: join(logsPath, `playwright-trace-${traceCounter++}.zip`) });
+			await this.warnAfter(this.context.tracing.stop({ path: join(logsPath, `playwright-trace-${traceCounter++}.zip`) }), 5000, 'Stopping playwright trace took >5seconds');
 		} catch (error) {
 			console.warn(`Failed to stop playwright tracing: ${error}`);
 		}
 
 		try {
-			await this.browser.close();
+			await this.warnAfter(this.browser.close(), 5000, 'Closing playwright browser took >5seconds');
 		} catch (error) {
 			console.warn(`Failed to close browser: ${error}`);
 		}
 
-		await teardown(this.server);
+		await this.warnAfter(teardown(this.server), 5000, 'Tearing down server took >5seconds');
 
 		return false;
+	}
+
+	private async warnAfter(promise: Promise<void>, delay: number, msg: string): Promise<void> {
+		const timeout = setTimeout(() => console.warn(msg), delay);
+
+		try {
+			await promise;
+		} finally {
+			clearTimeout(timeout);
+		}
 	}
 
 	async dispatchKeybinding(windowId: number, keybinding: string) {

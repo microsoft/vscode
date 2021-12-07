@@ -29,7 +29,7 @@ export class BrowserWorkingCopyBackupTracker extends WorkingCopyBackupTracker im
 		super(workingCopyBackupService, workingCopyService, logService, lifecycleService, filesConfigurationService, workingCopyEditorService, editorService, editorGroupService);
 	}
 
-	protected onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
+	protected onBeforeShutdown(reason: ShutdownReason): boolean {
 
 		// Web: we cannot perform long running in the shutdown phase
 		// As such we need to check sync if there are any dirty working

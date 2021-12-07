@@ -1,6 +1,17 @@
 The notebook editor is a virtualized list view rendered in two contexts (mainframe and webview/iframe). It's on top of the builtin list/tree view renderer but its experience is different from traditional list views like File Explorer and Settings Editor. This doc covers the architecture of the notebook editor and layout optimiziations we experimented.
 
-# Archtecture
+* [Architecture](#architecture)
+  * [Notebook model resolution](#notebook-model-resolution)
+  * [Viewport rendering](#viewport-rendering)
+  * [Cell rendering](#cell-rendering)
+  * [Focus tracking](#focus-tracking)
+* [Optimizations](#optimizations)
+  * [Executing code cell followed by markdown cells](#executing-code-cell-followed-by-markdown-cells)
+  * [Re-executing code cell followed by markdown cells](#re-executing-code-cell-followed-by-markdown-cells)
+  * [Scrolling](#scrolling)
+
+
+# Architecture
 
 ## Notebook model resolution
 

@@ -26,7 +26,7 @@ class InPlaceReplaceController implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.inPlaceReplaceController';
 
-	static get(editor: ICodeEditor): InPlaceReplaceController {
+	static get(editor: ICodeEditor): InPlaceReplaceController | null {
 		return editor.getContribution<InPlaceReplaceController>(InPlaceReplaceController.ID);
 	}
 

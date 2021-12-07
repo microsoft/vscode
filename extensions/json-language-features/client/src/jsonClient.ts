@@ -27,7 +27,7 @@ namespace VSCodeContentRequest {
 }
 
 namespace SchemaContentChangeNotification {
-	export const type: NotificationType<string> = new NotificationType('json/schemaContent');
+	export const type: NotificationType<string | string[]> = new NotificationType('json/schemaContent');
 }
 
 namespace ForceValidateRequest {
@@ -101,6 +101,7 @@ export interface Runtime {
 
 export interface SchemaRequestService {
 	getContent(uri: string): Promise<string>;
+	clearCache?(): Promise<string[]>;
 }
 
 export const languageServerDescription = localize('jsonserver.name', 'JSON Language Server');
@@ -111,7 +112,6 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 
 	let rangeFormatting: Disposable | undefined = undefined;
 
-
 	const documentSelector = ['json', 'jsonc'];
 
 	const schemaResolutionErrorStatusBarItem = window.createStatusBarItem('status.json.resolveError', StatusBarAlignment.Right, 0);
@@ -121,6 +121,16 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 
 	const fileSchemaErrors = new Map<string, string>();
 	let schemaDownloadEnabled = true;
+
+	let isClientReady = false;
+
+	commands.registerCommand('json.clearCache', async () => {
+		if (isClientReady && runtime.schemaRequests.clearCache) {
+			const cachedSchemas = await runtime.schemaRequests.clearCache();
+			await client.sendNotification(SchemaContentChangeNotification.type, cachedSchemas);
+		}
+		window.showInformationMessage(localize('json.clearCache.completed', "JSON schema cache cleared."));
+	});
 
 	// Options to control the language client
 	const clientOptions: LanguageClientOptions = {
@@ -209,6 +219,8 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 	const disposable = client.start();
 	toDispose.push(disposable);
 	client.onReady().then(() => {
+		isClientReady = true;
+
 		const schemaDocuments: { [uri: string]: boolean } = {};
 
 		// handle content request

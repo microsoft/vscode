@@ -174,6 +174,36 @@ suite('ExtHostLanguageFeatures', function () {
 		assert.deepStrictEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
 	});
 
+	test('Quick Outline uses a not ideal sorting, #138502', async function () {
+		const symbols = [
+			{ name: 'containers', range: { startLineNumber: 1, startColumn: 1, endLineNumber: 4, endColumn: 26 } },
+			{ name: 'container 0', range: { startLineNumber: 2, startColumn: 5, endLineNumber: 5, endColumn: 1 } },
+			{ name: 'name', range: { startLineNumber: 2, startColumn: 5, endLineNumber: 2, endColumn: 16 } },
+			{ name: 'ports', range: { startLineNumber: 3, startColumn: 5, endLineNumber: 5, endColumn: 1 } },
+			{ name: 'ports 0', range: { startLineNumber: 4, startColumn: 9, endLineNumber: 4, endColumn: 26 } },
+			{ name: 'containerPort', range: { startLineNumber: 4, startColumn: 9, endLineNumber: 4, endColumn: 26 } }
+		];
+
+		extHost.registerDocumentSymbolProvider(defaultExtension, defaultSelector, {
+			provideDocumentSymbols: (doc, token): any => {
+				return symbols.map(s => {
+					return new types.SymbolInformation(
+						s.name,
+						types.SymbolKind.Object,
+						new types.Range(s.range.startLineNumber - 1, s.range.startColumn - 1, s.range.endLineNumber - 1, s.range.endColumn - 1)
+					);
+				});
+			}
+		});
+
+		await rpcProtocol.sync();
+
+		const value = await getDocumentSymbols(model, true, CancellationToken.None);
+
+		assert.strictEqual(value.length, 6);
+		assert.deepStrictEqual(value.map(s => s.name), ['containers', 'container 0', 'name', 'ports', 'ports 0', 'containerPort']);
+	});
+
 	// --- code lens
 
 	test('CodeLens, evil provider', async () => {

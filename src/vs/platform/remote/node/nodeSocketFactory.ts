@@ -21,7 +21,7 @@ export const nodeSocketFactory = new class implements ISocketFactory {
 			}
 			const nonce = buffer.toString('base64');
 
-			let headers = [
+			const headers = [
 				`GET ws://${/:/.test(host) ? `[${host}]` : host}:${port}/?${query}&skipWebSocketFrames=true HTTP/1.1`,
 				`Connection: Upgrade`,
 				`Upgrade: websocket`,
@@ -39,6 +39,8 @@ export const nodeSocketFactory = new class implements ISocketFactory {
 			};
 			socket.on('data', onData);
 		});
+		// Disable Nagle's algorithm.
+		socket.setNoDelay(true);
 		socket.once('error', errorListener);
 	}
 };

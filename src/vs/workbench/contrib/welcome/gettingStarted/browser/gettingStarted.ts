@@ -1050,7 +1050,10 @@ export class GettingStartedPage extends EditorPane {
 			link.setAttribute('aria-label', localize('welcomePage.openFolderWithPath', "Open folder {0} with path {1}", name, parentPath));
 			link.addEventListener('click', e => {
 				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'openRecent', argument: undefined });
-				this.hostService.openWindow([windowOpenable], { forceNewWindow: e.ctrlKey || e.metaKey, remoteAuthority: recent.remoteAuthority });
+				this.hostService.openWindow([windowOpenable], {
+					forceNewWindow: e.ctrlKey || e.metaKey,
+					remoteAuthority: recent.remoteAuthority || null // local window if remoteAuthority is not set or can not be deducted from the openable
+				});
 				e.preventDefault();
 				e.stopPropagation();
 			});

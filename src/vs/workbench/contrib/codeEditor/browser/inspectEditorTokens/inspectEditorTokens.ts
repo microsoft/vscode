@@ -39,7 +39,7 @@ class InspectEditorTokensController extends Disposable implements IEditorContrib
 
 	public static readonly ID = 'editor.contrib.inspectEditorTokens';
 
-	public static get(editor: ICodeEditor): InspectEditorTokensController {
+	public static get(editor: ICodeEditor): InspectEditorTokensController | null {
 		return editor.getContribution<InspectEditorTokensController>(InspectEditorTokensController.ID);
 	}
 
@@ -249,7 +249,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			this._notificationService.warn(err);
 
 			setTimeout(() => {
-				InspectEditorTokensController.get(this._editor).stop();
+				InspectEditorTokensController.get(this._editor)?.stop();
 			});
 		});
 

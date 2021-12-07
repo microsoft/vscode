@@ -47,7 +47,7 @@ export class MarkerList {
 			this._resourceFilter = resourceFilter;
 		}
 
-		const compareOrder = this._configService.getValue<string>('problems.compareOrder');
+		const compareOrder = this._configService.getValue<string>('problems.sortOrder');
 		const compareMarker = (a: IMarker, b: IMarker): number => {
 			let res = compare(a.resource.toString(), b.resource.toString());
 			if (compareOrder === 'position') {

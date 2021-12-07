@@ -29,7 +29,15 @@ export interface SpawnOptions {
 	browser?: 'chromium' | 'webkit' | 'firefox';
 }
 
+let stopped = false;
+process.on('exit', () => stopped = true);
+process.on('SIGINT', () => stopped = true);
+process.on('SIGTERM', () => stopped = true);
+
 export async function spawn(options: SpawnOptions): Promise<Code> {
+	if (stopped) {
+		throw new Error('Smoke test process has terminated, refusing to spawn Code');
+	}
 
 	await copyExtension(repoPath, options.extensionsPath, 'vscode-notebook-tests');
 
@@ -58,7 +66,7 @@ async function poll<T>(
 	fn: () => Thenable<T>,
 	acceptFn: (result: T) => boolean,
 	timeoutMessage: string,
-	retryCount: number = 400,
+	retryCount: number = 200,
 	retryInterval: number = 100 // millis
 ): Promise<T> {
 	let trial = 1;

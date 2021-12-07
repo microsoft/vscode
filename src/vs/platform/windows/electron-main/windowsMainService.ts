@@ -1293,8 +1293,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			os: { release: release(), hostname: hostname() },
 			zoomLevel: typeof windowConfig?.zoomLevel === 'number' ? windowConfig.zoomLevel : undefined,
 
-			legacyWatcher: this.configurationService.getValue('files.legacyWatcher'),
-			experimentalSandboxedFileService: this.configurationService.getValue('files.experimentalSandboxedFileService'),
 			autoDetectHighContrast: windowConfig?.autoDetectHighContrast ?? true,
 			accessibilitySupport: app.accessibilitySupportEnabled,
 			colorScheme: {

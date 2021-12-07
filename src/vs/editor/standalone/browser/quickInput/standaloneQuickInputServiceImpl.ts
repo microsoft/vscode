@@ -36,13 +36,18 @@ export class EditorScopedQuickInputServiceImpl extends QuickInputService {
 
 		// Use the passed in code editor as host for the quick input widget
 		const contribution = QuickInputEditorContribution.get(editor);
-		this.host = {
-			_serviceBrand: undefined,
-			get container() { return contribution.widget.getDomNode(); },
-			get dimension() { return editor.getLayoutInfo(); },
-			get onDidLayout() { return editor.onDidLayoutChange; },
-			focus: () => editor.focus()
-		};
+		if (contribution) {
+			const widget = contribution.widget;
+			this.host = {
+				_serviceBrand: undefined,
+				get container() { return widget.getDomNode(); },
+				get dimension() { return editor.getLayoutInfo(); },
+				get onDidLayout() { return editor.onDidLayoutChange; },
+				focus: () => editor.focus()
+			};
+		} else {
+			this.host = undefined;
+		}
 	}
 
 	protected override createController(): QuickInputController {
@@ -135,7 +140,7 @@ export class QuickInputEditorContribution implements IEditorContribution {
 
 	static readonly ID = 'editor.controller.quickInput';
 
-	static get(editor: ICodeEditor): QuickInputEditorContribution {
+	static get(editor: ICodeEditor): QuickInputEditorContribution | null {
 		return editor.getContribution<QuickInputEditorContribution>(QuickInputEditorContribution.ID);
 	}
 

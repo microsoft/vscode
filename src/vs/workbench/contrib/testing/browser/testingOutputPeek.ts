@@ -224,7 +224,7 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 		}
 
 		this.lastUri = uri;
-		TestingOutputPeekController.get(control).show(buildTestUri(this.lastUri));
+		TestingOutputPeekController.get(control)?.show(buildTestUri(this.lastUri));
 		return true;
 	}
 
@@ -377,7 +377,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 	/**
 	 * Gets the controller associated with the given code editor.
 	 */
-	public static get(editor: ICodeEditor): TestingOutputPeekController {
+	public static get(editor: ICodeEditor): TestingOutputPeekController | null {
 		return editor.getContribution<TestingOutputPeekController>(Testing.OutputPeekContributionId);
 	}
 
@@ -501,8 +501,8 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		}, this.editor);
 
 		if (otherEditor) {
-			TestingOutputPeekController.get(otherEditor).removePeek();
-			return TestingOutputPeekController.get(otherEditor).show(uri);
+			TestingOutputPeekController.get(otherEditor)?.removePeek();
+			return TestingOutputPeekController.get(otherEditor)?.show(uri);
 		}
 	}
 
@@ -1050,7 +1050,7 @@ export class CloseTestPeek extends EditorAction2 {
 
 	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const parent = getOuterEditorFromDiffEditor(accessor);
-		TestingOutputPeekController.get(parent ?? editor).removePeek();
+		TestingOutputPeekController.get(parent ?? editor)?.removePeek();
 	}
 }
 
@@ -1316,7 +1316,7 @@ class OutputPeekTree extends Disposable {
 			if (!dto.revealLocation) {
 				peekController.showInPlace(dto);
 			} else {
-				TestingOutputPeekController.get(editor).openAndShow(dto.messageUri);
+				TestingOutputPeekController.get(editor)?.openAndShow(dto.messageUri);
 			}
 		}));
 
@@ -1584,7 +1584,7 @@ const navWhen = ContextKeyExpr.and(
  * editor is embedded (i.e. inside a peek already).
  */
 const getPeekedEditor = (accessor: ServicesAccessor, editor: ICodeEditor) => {
-	if (TestingOutputPeekController.get(editor).isVisible) {
+	if (TestingOutputPeekController.get(editor)?.isVisible) {
 		return editor;
 	}
 
@@ -1626,7 +1626,7 @@ export class GoToNextMessageAction extends EditorAction2 {
 	}
 
 	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor) {
-		TestingOutputPeekController.get(getPeekedEditor(accessor, editor)).next();
+		TestingOutputPeekController.get(getPeekedEditor(accessor, editor))?.next();
 	}
 }
 
@@ -1656,7 +1656,7 @@ export class GoToPreviousMessageAction extends EditorAction2 {
 	}
 
 	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor) {
-		TestingOutputPeekController.get(getPeekedEditor(accessor, editor)).previous();
+		TestingOutputPeekController.get(getPeekedEditor(accessor, editor))?.previous();
 	}
 }
 
@@ -1674,7 +1674,7 @@ export class OpenMessageInEditorAction extends EditorAction2 {
 	}
 
 	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor) {
-		TestingOutputPeekController.get(getPeekedEditor(accessor, editor)).openCurrentInEditor();
+		TestingOutputPeekController.get(getPeekedEditor(accessor, editor))?.openCurrentInEditor();
 	}
 }
 
@@ -1702,6 +1702,8 @@ export class ToggleTestingPeekHistory extends EditorAction2 {
 
 	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor) {
 		const ctrl = TestingOutputPeekController.get(getPeekedEditor(accessor, editor));
-		ctrl.historyVisible.value = !ctrl.historyVisible.value;
+		if (ctrl) {
+			ctrl.historyVisible.value = !ctrl.historyVisible.value;
+		}
 	}
 }

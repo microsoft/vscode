@@ -62,8 +62,8 @@ export class FileService extends Disposable implements IFileService {
 		const providerDisposables = new DisposableStore();
 		providerDisposables.add(provider.onDidChangeFile(changes => this.onDidChangeFile(changes, this.isPathCaseSensitive(provider))));
 		providerDisposables.add(provider.onDidChangeCapabilities(() => this._onDidChangeFileSystemProviderCapabilities.fire({ provider, scheme })));
-		if (typeof provider.onDidErrorOccur === 'function') {
-			providerDisposables.add(provider.onDidErrorOccur(error => this._onError.fire(new Error(error))));
+		if (typeof provider.onDidWatchError === 'function') {
+			providerDisposables.add(provider.onDidWatchError(error => this._onDidWatchError.fire(new Error(error))));
 		}
 
 		return toDisposable(() => {
@@ -166,11 +166,12 @@ export class FileService extends Disposable implements IFileService {
 
 	//#endregion
 
+	//#region Operation events
+
 	private readonly _onDidRunOperation = this._register(new Emitter<FileOperationEvent>());
 	readonly onDidRunOperation = this._onDidRunOperation.event;
 
-	private readonly _onError = this._register(new Emitter<Error>());
-	readonly onError = this._onError.event;
+	//#endregion
 
 	//#region File Metadata Resolving
 
@@ -992,6 +993,9 @@ export class FileService extends Disposable implements IFileService {
 
 	private readonly _onDidFilesChange = this._register(new Emitter<FileChangesEvent>());
 	readonly onDidFilesChange = this._onDidFilesChange.event;
+
+	private readonly _onDidWatchError = this._register(new Emitter<Error>());
+	readonly onDidWatchError = this._onDidWatchError.event;
 
 	private readonly _onDidChangeFilesRaw = this._register(new Emitter<IRawFileChangesEvent>());
 	readonly onDidChangeFilesRaw = this._onDidChangeFilesRaw.event;

@@ -592,6 +592,8 @@ export class TextAreaHandler extends ViewPart {
 			// In case the textarea contains a word, we're going to try to align the textarea's cursor
 			// with our cursor by scrolling the textarea as much as possible
 			this.textArea.domNode.scrollLeft = this._primaryCursorVisibleRange.left;
+			const lineCount = this._newlinecount(this.textArea.domNode.value.substr(0, this.textArea.domNode.selectionStart));
+			this.textArea.domNode.scrollTop = lineCount * this._lineHeight;
 			return;
 		}
 
@@ -600,6 +602,19 @@ export class TextAreaHandler extends ViewPart {
 			top, left,
 			canUseZeroSizeTextarea ? 0 : 1, canUseZeroSizeTextarea ? 0 : 1
 		);
+	}
+
+	private _newlinecount(text: string): number {
+		let result = 0;
+		let startIndex = -1;
+		do {
+			startIndex = text.indexOf('\n', startIndex + 1);
+			if (startIndex === -1) {
+				break;
+			}
+			result++;
+		} while (true);
+		return result;
 	}
 
 	private _renderInsideEditor(renderedPosition: Position | null, top: number, left: number, width: number, height: number): void {

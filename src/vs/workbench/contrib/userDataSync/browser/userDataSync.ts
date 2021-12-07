@@ -1302,7 +1302,7 @@ class UserDataRemoteContentProvider implements ITextModelContentProvider {
 
 class AcceptChangesContribution extends Disposable implements IEditorContribution {
 
-	static get(editor: ICodeEditor): AcceptChangesContribution {
+	static get(editor: ICodeEditor): AcceptChangesContribution | null {
 		return editor.getContribution<AcceptChangesContribution>(AcceptChangesContribution.ID);
 	}
 

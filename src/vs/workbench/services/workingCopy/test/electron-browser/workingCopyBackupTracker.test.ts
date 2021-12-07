@@ -75,10 +75,12 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 			return super.whenReady;
 		}
 
+		get pendingBackupOperationCount(): number { return this.pendingBackupOperations.size; }
+
 		override dispose() {
 			super.dispose();
 
-			for (const [_, disposable] of this.pendingBackups) {
+			for (const [_, disposable] of this.pendingBackupOperations) {
 				disposable.dispose();
 			}
 		}
@@ -352,6 +354,30 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 		const veto = await event.value;
 		assert.ok(veto);
 
+		const finalVeto = await event.finalValue?.();
+		assert.ok(finalVeto); // assert the tracker uses the internal finalVeto API
+
+		await cleanup();
+	});
+
+	test('onWillShutdown - pending backup operations canceled', async function () {
+		const { accessor, tracker, cleanup } = await createTracker();
+
+		const resource = toResource.call(this, '/path/index.txt');
+		await accessor.editorService.openEditor({ resource, options: { pinned: true } });
+
+		const model = accessor.textFileService.files.get(resource);
+
+		await model?.resolve();
+		model?.textEditorModel?.setValue('foo');
+		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
+		assert.strictEqual(tracker.pendingBackupOperationCount, 1);
+
+		const event = new TestBeforeShutdownEvent();
+		accessor.lifecycleService.fireBeforeShutdown(event);
+
+		assert.strictEqual(tracker.pendingBackupOperationCount, 0);
+
 		await cleanup();
 	});
 
@@ -491,6 +517,7 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 			accessor.lifecycleService.fireBeforeShutdown(event);
 
 			const veto = await event.value;
+			assert.ok(typeof event.finalValue === 'function'); // assert the tracker uses the internal finalVeto API
 			assert.strictEqual(accessor.workingCopyBackupService.discardedBackups.length, 0); // When hot exit is set, backups should never be cleaned since the confirm result is cancel
 			assert.strictEqual(veto, shouldVeto);
 

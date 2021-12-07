@@ -1084,7 +1084,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			let windowsShellArgs: boolean = false;
 			if (platform === Platform.Platform.Windows) {
 				windowsShellArgs = true;
-				let basename = path.posix.basename(URI.file(shellLaunchConfig.executable!).path).toLowerCase();
+				let basename = path.posix.basename((await this.pathService.fileURI(shellLaunchConfig.executable!)).path).toLowerCase();
 				// If we don't have a cwd, then the terminal uses the home dir.
 				const userHome = await this.pathService.userHome();
 				if (basename === 'cmd.exe' && ((options.cwd && isUNC(options.cwd)) || (!options.cwd && isUNC(userHome.fsPath)))) {

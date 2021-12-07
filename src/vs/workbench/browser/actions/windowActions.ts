@@ -39,6 +39,7 @@ export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
 interface IRecentlyOpenedPick extends IQuickPickItem {
 	resource: URI,
 	openable: IWindowOpenable;
+	remoteAuthority: string | undefined;
 }
 
 const fileCategory = { value: localize('file', "File"), original: 'File' };
@@ -162,7 +163,10 @@ abstract class BaseOpenRecentAction extends Action2 {
 					});
 
 					if (result.confirmed) {
-						hostService.openWindow([context.item.openable]);
+						hostService.openWindow(
+							[context.item.openable], {
+							remoteAuthority: context.item.remoteAuthority || null // local window if remoteAuthority is not set or can not be deducted from the openable
+						});
 						quickInputService.cancel();
 					}
 				}
@@ -170,7 +174,11 @@ abstract class BaseOpenRecentAction extends Action2 {
 		});
 
 		if (pick) {
-			return hostService.openWindow([pick.openable], { forceNewWindow: keyMods?.ctrlCmd, forceReuseWindow: keyMods?.alt });
+			return hostService.openWindow([pick.openable], {
+				forceNewWindow: keyMods?.ctrlCmd,
+				forceReuseWindow: keyMods?.alt,
+				remoteAuthority: pick.remoteAuthority || null // local window if remoteAuthority is not set or can not be deducted from the openable
+			});
 		}
 	}
 
@@ -215,7 +223,8 @@ abstract class BaseOpenRecentAction extends Action2 {
 			description: parentPath,
 			buttons: isDirty ? [isWorkspace ? this.dirtyRecentlyOpenedWorkspace : this.dirtyRecentlyOpenedFolder] : [this.removeFromRecentlyOpened],
 			openable,
-			resource
+			resource,
+			remoteAuthority: recent.remoteAuthority
 		};
 	}
 }

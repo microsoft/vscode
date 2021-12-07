@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.63.0",
-  "distro": "d2c899d07c70f2580da86cebee758d8a3ff136d5",
+  "distro": "28dea56425abcfafd4de9d5073e6fadfbf3518f5",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -79,7 +79,6 @@
     "spdlog": "^0.13.0",
     "tas-client-umd": "0.1.4",
     "v8-inspect-profiler": "^0.0.22",
-    "vscode-nsfw": "2.1.8",
     "vscode-oniguruma": "1.6.1",
     "vscode-proxy-agent": "^0.11.0",
     "vscode-regexpp": "^3.1.0",
@@ -203,7 +202,7 @@
     "util": "^0.12.4",
     "vinyl": "^2.0.0",
     "vinyl-fs": "^3.0.0",
-    "vscode-debugprotocol": "1.50.0",
+    "vscode-debugprotocol": "1.51.0",
     "vscode-nls-dev": "^3.3.1",
     "vscode-telemetry-extractor": "^1.9.5",
     "webpack": "^5.42.0",

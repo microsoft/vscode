@@ -29,7 +29,7 @@ class InspectTokensController extends Disposable implements IEditorContribution 
 
 	public static readonly ID = 'editor.contrib.inspectTokens';
 
-	public static get(editor: ICodeEditor): InspectTokensController {
+	public static get(editor: ICodeEditor): InspectTokensController | null {
 		return editor.getContribution<InspectTokensController>(InspectTokensController.ID);
 	}
 

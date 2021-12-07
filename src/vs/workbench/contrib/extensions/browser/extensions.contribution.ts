@@ -1208,6 +1208,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 				const extension = extensionWorkbenchService.local.find(e => areSameExtensions(e.identifier, { id }));
 				if (extension) {
+					extensionWorkbenchService.open(extension, { showPreReleaseVersion: true });
 					await extensionWorkbenchService.install(extension, { installPreReleaseVersion: true });
 				}
 			}
@@ -1225,6 +1226,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 				const extension = extensionWorkbenchService.local.find(e => areSameExtensions(e.identifier, { id }));
 				if (extension) {
+					extensionWorkbenchService.open(extension, { showPreReleaseVersion: false });
 					await extensionWorkbenchService.install(extension, { installPreReleaseVersion: false });
 				}
 			}
