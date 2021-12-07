@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorCommand } from 'vs/editor/browser/editorExtensions';
@@ -870,5 +871,26 @@ suite('WordOperations', () => {
 			deleteInsideWord(editor);
 			assert.strictEqual(model.getValue(), '');
 		});
+	});
+
+	test('deleteWordLeft - brackets', () => {
+		const store = new DisposableStore();
+		try {
+			const mode = 'testMode';
+			store.add(LanguageConfigurationRegistry.register(mode, {
+				brackets: [
+					['{', '}'], ['[', ']'], ['(', ')']
+				]
+			}));
+
+			withTestCodeEditor(null, { model: createTextModel('{ text }', {}, mode) }, (editor, _) => {
+				const model = editor.getModel()!;
+				editor.setPosition(new Position(1, 9));
+				_deleteWordLeft.runEditorCommand(null, editor, { deleteBracketPair: true });
+				assert.strictEqual(model.getValue(), ' text ');
+			});
+		} finally {
+			store.dispose();
+		}
 	});
 });
