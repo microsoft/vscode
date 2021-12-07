@@ -30,6 +30,7 @@ import { canceled, onUnexpectedError } from 'vs/base/common/errors';
 import { Barrier } from 'vs/base/common/async';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { NewWorkerMessage, TerminateWorkerMessage } from 'vs/workbench/services/extensions/common/polyfillNestedWorker.protocol';
+import { FileAccess } from 'vs/base/common/network';
 
 export interface IWebWorkerExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -141,7 +142,8 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 					this._protocolPromise = this._startOutsideIframe();
 				}
 			} else {
-				this._protocolPromise = this._startOutsideIframe();
+				const fileExtensionHostIframeSrc = FileAccess.asBrowserUri('../worker/httpsWebWorkerExtensionHostIframe.html', require);
+				this._protocolPromise = this._startInsideIframe(`${fileExtensionHostIframeSrc.toString(true)}?`);
 			}
 			this._protocolPromise.then(protocol => this._protocol = protocol);
 		}
