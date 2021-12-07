@@ -6,7 +6,7 @@
 import 'vs/css!./media/hover';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorHoverBackground, editorHoverBorder, textLinkForeground, editorHoverForeground, editorHoverStatusBarBackground, textCodeBlockBackground, widgetShadow, textLinkActiveForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorHoverBackground, editorHoverBorder, textLinkForeground, editorHoverForeground, editorHoverStatusBarBackground, textCodeBlockBackground, widgetShadow, textLinkActiveForeground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IHoverService, IHoverOptions, IHoverWidget } from 'vs/workbench/services/hover/browser/hover';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -19,6 +19,12 @@ export class HoverService implements IHoverService {
 	declare readonly _serviceBrand: undefined;
 
 	private _currentHoverOptions: IHoverOptions | undefined;
+	private _currentHover: HoverWidget | undefined;
+
+	/**
+	 * Whether the hover is "locked" by holding the control or command keys. When locked, the hover
+	 * will not hide and can be hovered regardless of whether the `hideOnHover` hover option.
+	 */
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -52,7 +58,14 @@ export class HoverService implements IHoverService {
 		}
 		const focusedElement = <HTMLElement | null>document.activeElement;
 		if (focusedElement) {
-			hoverDisposables.add(addDisposableListener(focusedElement, EventType.KEY_DOWN, () => this.hideHover()));
+			hoverDisposables.add(addDisposableListener(focusedElement, EventType.KEY_DOWN, e => {
+				// TODO: Cmd on mac
+				if (e.key === 'Control') {
+					hover.isLocked = true;
+					return;
+				}
+				this.hideHover();
+			}));
 		}
 
 		if ('IntersectionObserver' in window) {
@@ -62,13 +75,16 @@ export class HoverService implements IHoverService {
 			hoverDisposables.add(toDisposable(() => observer.disconnect()));
 		}
 
+		this._currentHover = hover;
+
 		return hover;
 	}
 
 	hideHover(): void {
-		if (!this._currentHoverOptions) {
+		if (this._currentHover?.isLocked || !this._currentHoverOptions) {
 			return;
 		}
+		this._currentHover = undefined;
 		this._currentHoverOptions = undefined;
 		this._contextViewService.hideContextView();
 	}
@@ -124,12 +140,18 @@ registerThemingParticipant((theme, collector) => {
 	const hoverBorder = theme.getColor(editorHoverBorder);
 	if (hoverBorder) {
 		collector.addRule(`.monaco-workbench .workbench-hover { border: 1px solid ${hoverBorder}; }`);
+		collector.addRule(`.monaco-workbench .workbench-hover-container.locked .workbench-hover { outline: 1px solid ${hoverBorder}; }`);
+
 		collector.addRule(`.monaco-workbench .workbench-hover .hover-row:not(:first-child):not(:empty) { border-top: 1px solid ${hoverBorder.transparent(0.5)}; }`);
 		collector.addRule(`.monaco-workbench .workbench-hover hr { border-top: 1px solid ${hoverBorder.transparent(0.5)}; }`);
 		collector.addRule(`.monaco-workbench .workbench-hover hr { border-bottom: 0px solid ${hoverBorder.transparent(0.5)}; }`);
 
 		collector.addRule(`.monaco-workbench .workbench-hover-pointer:after { border-right: 1px solid ${hoverBorder}; }`);
 		collector.addRule(`.monaco-workbench .workbench-hover-pointer:after { border-bottom: 1px solid ${hoverBorder}; }`);
+	}
+	const focus = theme.getColor(focusBorder);
+	if (focus) {
+		collector.addRule(`.monaco-workbench .workbench-hover-container.locked .workbench-hover:focus { outline-color: ${focus}; }`);
 	}
 	const link = theme.getColor(textLinkForeground);
 	if (link) {

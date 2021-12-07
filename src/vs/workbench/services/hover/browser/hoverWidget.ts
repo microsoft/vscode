@@ -51,6 +51,7 @@ export class HoverWidget extends Widget {
 	private _forcePosition: boolean = false;
 	private _x: number = 0;
 	private _y: number = 0;
+	private _isLocked: boolean = false;
 
 	get isDisposed(): boolean { return this._isDisposed; }
 	get domNode(): HTMLElement { return this._hover.containerDomNode; }
@@ -63,6 +64,12 @@ export class HoverWidget extends Widget {
 	get anchor(): AnchorPosition { return this._hoverPosition === HoverPosition.BELOW ? AnchorPosition.BELOW : AnchorPosition.ABOVE; }
 	get x(): number { return this._x; }
 	get y(): number { return this._y; }
+	get isLocked(): boolean { return this._isLocked; }
+	set isLocked(value: boolean) {
+		this._isLocked = value;
+		this._hoverContainer.classList.toggle('locked', this._isLocked);
+		// TODO: Fire?
+	}
 
 	constructor(
 		options: IHoverOptions,
@@ -183,7 +190,11 @@ export class HoverWidget extends Widget {
 			mouseTrackerTargets.push(this._hoverContainer);
 		}
 		this._mouseTracker = new CompositeMouseTracker(mouseTrackerTargets);
-		this._register(this._mouseTracker.onMouseOut(() => this.dispose()));
+		this._register(this._mouseTracker.onMouseOut(() => {
+			if (!this._isLocked) {
+				this.dispose();
+			}
+		}));
 		this._register(this._mouseTracker);
 	}
 
