@@ -14,7 +14,7 @@ import { asCSSUrl } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 
-const fileIconDirectoryRegex = /([^\/]+(?<!^\.|\/\.))\/([^\/]+)$/;
+const fileIconDirectoryRegex = /(?:\/|^)((?!\.\/)[^\/]+\/)([^\/]+)$/;
 
 type FileIconDirectoryRegexMatch = RegExpMatchArray & [string, string, string] | null;
 

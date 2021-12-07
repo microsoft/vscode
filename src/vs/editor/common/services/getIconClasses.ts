@@ -11,7 +11,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { FileKind } from 'vs/platform/files/common/files';
 
-const fileIconDirectoryRegex = /([^\/]+(?<!^\.|\/\.))\/([^\/]+)$/;
+const fileIconDirectoryRegex = /(?:\/|^)((?!\.\/)[^\/]+\/)([^\/]+)$/;
 
 type FileIconDirectoryRegexMatch = RegExpMatchArray & [string, string, string] | null;
 
