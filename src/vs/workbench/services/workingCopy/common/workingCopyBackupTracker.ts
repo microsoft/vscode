@@ -64,6 +64,8 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		this._register(this.workingCopyEditorService.onDidRegisterHandler(handler => this.restoreBackups(handler)));
 	}
 
+	protected abstract onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean>;
+
 	private onWillShutdown(): void {
 
 		// Here we know that we will shutdown. Any backup operation that is
@@ -80,14 +82,6 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 
 	//#region Backup Creator
 
-	// A map from working copy to a version ID we compute on each content
-	// change. This version ID allows to e.g. ask if a backup for a specific
-	// content has been made before closing.
-	private readonly mapWorkingCopyToContentVersion = new Map<IWorkingCopy, number>();
-
-	// A map of scheduled pending backup operations for working copies
-	protected readonly pendingBackupOperations = new Map<IWorkingCopy, IDisposable>();
-
 	// Delay creation of backups when content changes to avoid too much
 	// load on the backup service when the user is typing into the editor
 	// Since we always schedule a backup, even when auto save is on, we
@@ -102,7 +96,22 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		[AutoSaveMode.AFTER_LONG_DELAY]: 1000
 	};
 
+	// A map from working copy to a version ID we compute on each content
+	// change. This version ID allows to e.g. ask if a backup for a specific
+	// content has been made before closing.
+	private readonly mapWorkingCopyToContentVersion = new Map<IWorkingCopy, number>();
+
+	// A map of scheduled pending backup operations for working copies
+	protected readonly pendingBackupOperations = new Map<IWorkingCopy, IDisposable>();
+
+	private suspended = false;
+
 	private onDidRegister(workingCopy: IWorkingCopy): void {
+		if (this.suspended) {
+			this.logService.warn(`[backup tracker] suspended, ignoring register event`, workingCopy.resource.toString(true), workingCopy.typeId);
+			return;
+		}
+
 		if (workingCopy.isDirty()) {
 			this.scheduleBackup(workingCopy);
 		}
@@ -113,11 +122,22 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		// Remove from content version map
 		this.mapWorkingCopyToContentVersion.delete(workingCopy);
 
+		// Check suspended
+		if (this.suspended) {
+			this.logService.warn(`[backup tracker] suspended, ignoring unregister event`, workingCopy.resource.toString(true), workingCopy.typeId);
+			return;
+		}
+
 		// Discard backup
 		this.discardBackup(workingCopy);
 	}
 
 	private onDidChangeDirty(workingCopy: IWorkingCopy): void {
+		if (this.suspended) {
+			this.logService.warn(`[backup tracker] suspended, ignoring dirty change event`, workingCopy.resource.toString(true), workingCopy.typeId);
+			return;
+		}
+
 		if (workingCopy.isDirty()) {
 			this.scheduleBackup(workingCopy);
 		} else {
@@ -130,6 +150,12 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		// Increment content version ID
 		const contentVersionId = this.getContentVersion(workingCopy);
 		this.mapWorkingCopyToContentVersion.set(workingCopy, contentVersionId + 1);
+
+		// Check suspended
+		if (this.suspended) {
+			this.logService.warn(`[backup tracker] suspended, ignoring content change event`, workingCopy.resource.toString(true), workingCopy.typeId);
+			return;
+		}
 
 		// Schedule backup if dirty
 		if (workingCopy.isDirty()) {
@@ -248,7 +274,11 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		this.pendingBackupOperations.clear();
 	}
 
-	protected abstract onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean>;
+	protected suspendBackupOperations(): { resume: () => void } {
+		this.suspended = true;
+
+		return { resume: () => this.suspended = false };
+	}
 
 	//#endregion
 

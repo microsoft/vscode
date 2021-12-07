@@ -43,6 +43,7 @@ import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/com
 import { TestContextService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { timeout } from 'vs/base/common/async';
 
 flakySuite('WorkingCopyBackupTracker (native)', function () {
 
@@ -360,7 +361,7 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 		await cleanup();
 	});
 
-	test('onWillShutdown - pending backup operations canceled', async function () {
+	test('onWillShutdown - pending backup operations canceled and new ones suspended', async function () {
 		const { accessor, tracker, cleanup } = await createTracker();
 
 		const resource = toResource.call(this, '/path/index.txt');
@@ -374,9 +375,22 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 		assert.strictEqual(tracker.pendingBackupOperationCount, 1);
 
 		const event = new TestBeforeShutdownEvent();
+		const finalVeto = timeout(1).then(() => false);
+		event.finalVeto(() => finalVeto);
 		accessor.lifecycleService.fireBeforeShutdown(event);
 
 		assert.strictEqual(tracker.pendingBackupOperationCount, 0);
+
+		model?.textEditorModel?.setValue('bar');
+		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
+		assert.strictEqual(tracker.pendingBackupOperationCount, 0);
+
+		await finalVeto;
+
+		// Ops are resumed after handling!
+		model?.textEditorModel?.setValue('foo');
+		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
+		assert.strictEqual(tracker.pendingBackupOperationCount, 1);
 
 		await cleanup();
 	});

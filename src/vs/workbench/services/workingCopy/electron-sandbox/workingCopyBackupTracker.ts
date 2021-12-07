@@ -48,7 +48,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		super(workingCopyBackupService, workingCopyService, logService, lifecycleService, filesConfigurationService, workingCopyEditorService, editorService, editorGroupService);
 	}
 
-	protected onBeforeShutdown(reason: ShutdownReason): Promise<boolean> {
+	protected async onBeforeShutdown(reason: ShutdownReason): Promise<boolean> {
 
 		// Important: we are about to shutdown and handle dirty working copies
 		// and backups. We do not want any pending backup ops to interfer with
@@ -58,14 +58,27 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		// (https://github.com/microsoft/vscode/issues/138055)
 		this.cancelBackupOperations();
 
-		// Dirty working copies need treatment on shutdown
-		const dirtyWorkingCopies = this.workingCopyService.dirtyWorkingCopies;
-		if (dirtyWorkingCopies.length) {
-			return this.onBeforeShutdownWithDirty(reason, dirtyWorkingCopies);
-		}
+		// For the duration of the shutdown handling, suspend backup operations
+		// and only resume after we have handled backups. Similar to above, we
+		// do not want to trigger backup tracking during our shutdown handling
+		// but we must resume, in case of a veto afterwards.
+		const { resume } = this.suspendBackupOperations();
 
-		// No dirty working copies
-		return this.onBeforeShutdownWithoutDirty();
+		try {
+
+			// Dirty working copies need treatment on shutdown
+			const dirtyWorkingCopies = this.workingCopyService.dirtyWorkingCopies;
+			if (dirtyWorkingCopies.length) {
+				return await this.onBeforeShutdownWithDirty(reason, dirtyWorkingCopies);
+			}
+
+			// No dirty working copies
+			else {
+				return await this.onBeforeShutdownWithoutDirty();
+			}
+		} finally {
+			resume();
+		}
 	}
 
 	protected async onBeforeShutdownWithDirty(reason: ShutdownReason, dirtyWorkingCopies: readonly IWorkingCopy[]): Promise<boolean> {
