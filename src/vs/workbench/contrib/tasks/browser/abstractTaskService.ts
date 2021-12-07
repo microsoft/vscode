@@ -628,11 +628,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return result;
 	}
 
-	private async _findWorkspaceTasksInGroup(group: TaskGroup): Promise<(ConfiguringTask | Task)[]> {
+	private async _findWorkspaceTasksInGroup(group: TaskGroup, isDefault: boolean): Promise<(ConfiguringTask | Task)[]> {
 		return this._findWorkspaceTasks((task) => {
 			const taskGroup = task.configurationProperties.group;
 			if (taskGroup && typeof taskGroup !== 'string') {
-				return (taskGroup._id === group._id && !!taskGroup.isDefault);
+				return (taskGroup._id === group._id && (!isDefault || !!taskGroup.isDefault));
 			}
 			return false;
 		});
@@ -984,10 +984,26 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this.openerService.open(URI.parse('https://code.visualstudio.com/docs/editor/tasks#_defining-a-problem-matcher'));
 	}
 
+	private async _findSingleWorkspaceTaskOfGroup(group: TaskGroup): Promise<ITaskSummary | undefined> {
+		const tasksOfGroup = await this._findWorkspaceTasksInGroup(group, true);
+		if ((tasksOfGroup.length === 1) && (typeof tasksOfGroup[0].configurationProperties.group !== 'string') && tasksOfGroup[0].configurationProperties.group?.isDefault) {
+			let resolvedTask: Task | undefined;
+			if (ConfiguringTask.is(tasksOfGroup[0])) {
+				resolvedTask = await this.tryResolveTask(tasksOfGroup[0]);
+			} else {
+				resolvedTask = tasksOfGroup[0];
+			}
+			if (resolvedTask) {
+				return this.run(resolvedTask, undefined, TaskRunSource.User);
+			}
+		}
+		return undefined;
+	}
+
 	private async build(): Promise<ITaskSummary> {
-		const buildTasks = await this._findWorkspaceTasksInGroup(TaskGroup.Build);
-		if (buildTasks.length > 0) {
-			// TODO: If a task was found, execute it and return early
+		const tryBuildShortcut = await this._findSingleWorkspaceTaskOfGroup(TaskGroup.Build);
+		if (tryBuildShortcut) {
+			return tryBuildShortcut;
 		}
 
 		return this.getGroupedTasks().then((tasks) => {
@@ -1007,9 +1023,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async runTest(): Promise<ITaskSummary> {
-		const cleanTasks = await this._findWorkspaceTasksInGroup(TaskGroup.Test);
-		if (cleanTasks.length > 0) {
-			// TODO: If a task was found, execute it and return early
+		const tryTestShortcut = await this._findSingleWorkspaceTaskOfGroup(TaskGroup.Test);
+		if (tryTestShortcut) {
+			return tryTestShortcut;
 		}
 
 		return this.getGroupedTasks().then((tasks) => {
@@ -1811,12 +1827,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					}
 				};
 				if (this.isProvideTasksEnabled() && (this.schemaVersion === JsonSchemaVersion.V2_0_0) && (this._providers.size > 0)) {
+					let foundAnyProviders = false;
 					for (const [handle, provider] of this._providers) {
 						const providerType = this._providerTypes.get(handle);
 						if ((type === undefined) || (type === providerType)) {
 							if (providerType && !this.isTaskProviderEnabled(providerType)) {
 								continue;
 							}
+							foundAnyProviders = true;
 							counter++;
 							provider.provideTasks(validTypes).then((taskSet: TaskSet) => {
 								// Check that the tasks provided are of the correct type
@@ -1832,6 +1850,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 								return done(taskSet);
 							}, error);
 						}
+					}
+					if (!foundAnyProviders) {
+						resolve(result);
 					}
 				} else {
 					resolve(result);
@@ -2742,7 +2763,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			title: nls.localize('TaskService.fetchingBuildTasks', 'Fetching build tasks...')
 		};
 		let promise = (async () => {
-			const buildTasks = await this._findWorkspaceTasksInGroup(TaskGroup.Build);
+			const buildTasks = await this._findWorkspaceTasksInGroup(TaskGroup.Build, false);
 
 			async function runSingleBuildTask(task: Task | undefined, problemMatcherOptions: ProblemMatcherRunOptions | undefined, that: AbstractTaskService) {
 				that.run(task, problemMatcherOptions, TaskRunSource.User).then(undefined, reason => {
