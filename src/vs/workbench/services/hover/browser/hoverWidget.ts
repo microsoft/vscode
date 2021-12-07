@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as dom from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -18,6 +18,8 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { isMarkdownString } from 'vs/base/common/htmlContent';
+import { CancelablePromise, timeout } from 'vs/base/common/async';
+import { Codicon } from 'vs/base/common/codicons';
 
 const $ = dom.$;
 type TargetRect = {
@@ -66,8 +68,15 @@ export class HoverWidget extends Widget {
 	get y(): number { return this._y; }
 	get isLocked(): boolean { return this._isLocked; }
 	set isLocked(value: boolean) {
+		if (this._isLocked) {
+			return;
+		}
 		this._isLocked = value;
 		this._hoverContainer.classList.toggle('locked', this._isLocked);
+		const lockElement = document.createElement('button');
+		lockElement.classList.add('workbench-hover-lock');
+		lockElement.classList.add(...Codicon.lockSmall.classNamesArray);
+		this._hoverContainer.append(lockElement);
 		// TODO: Fire?
 	}
 
@@ -196,6 +205,10 @@ export class HoverWidget extends Widget {
 			}
 		}));
 		this._register(this._mouseTracker);
+
+		const autoLockTimeout: CancelablePromise<void> | undefined = timeout(3000);
+		autoLockTimeout.then(() => this.isLocked = true);
+		this._register(toDisposable(() => autoLockTimeout?.cancel()));
 	}
 
 	public render(container: HTMLElement): void {
