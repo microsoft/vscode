@@ -337,6 +337,11 @@ export namespace Event {
 	export function toPromise<T>(event: Event<T>): Promise<T> {
 		return new Promise(resolve => once(event)(resolve));
 	}
+
+	export function runAndSubscribe<T>(event: Event<T>, handler: (e: T | undefined) => any): IDisposable {
+		handler(undefined);
+		return event(e => handler(e));
+	}
 }
 
 export type Listener<T> = [(e: T) => void, any] | ((e: T) => void);
