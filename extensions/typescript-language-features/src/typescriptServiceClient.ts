@@ -231,7 +231,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				ClientCapability.EnhancedSyntax);
 		}
 
-		if (isWeb()) {
+		const hasNotSpecifiedATypeScriptVersion = !(this._configuration.globalTsdk || this._configuration.localTsdk);
+		if (isWeb() && hasNotSpecifiedATypeScriptVersion) {
 			return new ClientCapabilities(
 				ClientCapability.Syntax,
 				ClientCapability.EnhancedSyntax);
