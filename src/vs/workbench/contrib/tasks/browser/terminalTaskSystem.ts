@@ -1080,11 +1080,11 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			}
 			let shellArgs = Array.isArray(shellLaunchConfig.args!) ? <string[]>shellLaunchConfig.args!.slice(0) : [shellLaunchConfig.args!];
 			let toAdd: string[] = [];
-			let commandLine = this.buildShellCommandLine(platform, shellLaunchConfig.executable!, shellOptions, command, originalCommand, args);
+			let basename = path.posix.basename((await this.pathService.fileURI(shellLaunchConfig.executable!)).path).toLowerCase();
+			let commandLine = this.buildShellCommandLine(platform, basename, shellOptions, command, originalCommand, args);
 			let windowsShellArgs: boolean = false;
 			if (platform === Platform.Platform.Windows) {
 				windowsShellArgs = true;
-				let basename = path.posix.basename((await this.pathService.fileURI(shellLaunchConfig.executable!)).path).toLowerCase();
 				// If we don't have a cwd, then the terminal uses the home dir.
 				const userHome = await this.pathService.userHome();
 				if (basename === 'cmd.exe' && ((options.cwd && isUNC(options.cwd)) || (!options.cwd && isUNC(userHome.fsPath)))) {
@@ -1337,8 +1337,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	private buildShellCommandLine(platform: Platform.Platform, shellExecutable: string, shellOptions: ShellConfiguration | undefined, command: CommandString, originalCommand: CommandString | undefined, args: CommandString[]): string {
-		let basename = path.parse(shellExecutable).name.toLowerCase();
-		let shellQuoteOptions = this.getQuotingOptions(basename, shellOptions, platform);
+		let shellQuoteOptions = this.getQuotingOptions(shellExecutable, shellOptions, platform);
 
 		function needsQuotes(value: string): boolean {
 			if (value.length >= 2) {
@@ -1425,9 +1424,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		let commandLine = result.join(' ');
 		// There are special rules quoted command line in cmd.exe
 		if (platform === Platform.Platform.Windows) {
-			if (basename === 'cmd' && commandQuoted && argQuoted) {
+			if (shellExecutable === 'cmd' && commandQuoted && argQuoted) {
 				commandLine = '"' + commandLine + '"';
-			} else if ((basename === 'powershell' || basename === 'pwsh') && commandQuoted) {
+			} else if ((shellExecutable === 'powershell' || shellExecutable === 'pwsh') && commandQuoted) {
 				commandLine = '& ' + commandLine;
 			}
 		}
