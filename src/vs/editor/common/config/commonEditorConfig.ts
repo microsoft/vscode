@@ -64,6 +64,9 @@ const hasOwnProperty = Object.hasOwnProperty;
 export class ComputedEditorOptions implements IComputedEditorOptions {
 	private readonly _values: any[] = [];
 	public _read<T>(id: EditorOption): T {
+		if (id >= this._values.length) {
+			throw new Error('Cannot read uninitialized value');
+		}
 		return this._values[id];
 	}
 	public get<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T> {
