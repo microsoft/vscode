@@ -512,6 +512,7 @@ abstract class FoldingAction<T> extends EditorAction {
 	abstract invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor, args: T, languageConfigurationService: ILanguageConfigurationService): void;
 
 	public override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: T): void | Promise<void> {
+		const languageConfigurationService = accessor.get(ILanguageConfigurationService);
 		const foldingController = FoldingController.get(editor);
 		if (!foldingController) {
 			return;
@@ -521,7 +522,7 @@ abstract class FoldingAction<T> extends EditorAction {
 			this.reportTelemetry(accessor, editor);
 			return foldingModelPromise.then(foldingModel => {
 				if (foldingModel) {
-					this.invoke(foldingController, foldingModel, editor, args, accessor.get(ILanguageConfigurationService));
+					this.invoke(foldingController, foldingModel, editor, args, languageConfigurationService);
 					const selection = editor.getSelection();
 					if (selection) {
 						foldingController.reveal(selection.getStartPosition());
