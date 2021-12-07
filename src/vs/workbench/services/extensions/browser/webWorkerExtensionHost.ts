@@ -142,7 +142,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 					this._protocolPromise = this._startOutsideIframe();
 				}
 			} else {
-				const fileExtensionHostIframeSrc = FileAccess.asBrowserUri('../worker/fileWebWorkerExtensionHostIframe.html', require);
+				const fileExtensionHostIframeSrc = FileAccess.asBrowserUri('../worker/httpsWebWorkerExtensionHostIframe.html', require);
 				this._protocolPromise = this._startInsideIframe(`${fileExtensionHostIframeSrc.toString(true)}?`);
 			}
 			this._protocolPromise.then(protocol => this._protocol = protocol);
@@ -160,7 +160,6 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 
 		const vscodeWebWorkerExtHostId = generateUuid();
 		iframe.setAttribute('src', `${webWorkerExtensionHostIframeSrc}&vscodeWebWorkerExtHostId=${vscodeWebWorkerExtHostId}`);
-		// iframe.setAttribute('src', `${webWorkerExtensionHostIframeSrc}`);
 
 		const barrier = new Barrier();
 		let port!: MessagePort;
