@@ -3,12 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ArrayQueue } from 'vs/base/common/arrays';
+import { VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { CharCode } from 'vs/base/common/charCode';
+import { Color } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { listenStream } from 'vs/base/common/stream';
 import * as strings from 'vs/base/common/strings';
+import { Constants } from 'vs/base/common/uint';
 import { URI } from 'vs/base/common/uri';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
@@ -16,34 +21,29 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as model from 'vs/editor/common/model';
+import { IBracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairs';
+import { BracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsImpl';
+import { ColorizedBracketPairsDecorationProvider } from 'vs/editor/common/model/bracketPairsTextModelPart/colorizedBracketPairsDecorationProvider';
+import { DecorationProvider } from 'vs/editor/common/model/decorationProvider';
 import { EditStack } from 'vs/editor/common/model/editStack';
+import { GuidesTextModelPart, IGuidesTextModelPart } from 'vs/editor/common/model/guidesTextModelPart';
 import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
 import { IntervalNode, IntervalTree, recomputeMaxEnd } from 'vs/editor/common/model/intervalTree';
+import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
+import { TextChange } from 'vs/editor/common/model/textChange';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, LineInjectedText, ModelInjectedTextChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
 import { SearchData, SearchParams, TextModelSearch } from 'vs/editor/common/model/textModelSearch';
 import { TextModelTokenization } from 'vs/editor/common/model/textModelTokens';
+import { countEOL, MultilineTokens, MultilineTokens2, TokensStore, TokensStore2 } from 'vs/editor/common/model/tokensStore';
 import { getWordAtText } from 'vs/editor/common/model/wordHelper';
 import { FormattingOptions, StandardTokenType } from 'vs/editor/common/modes';
 import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
-import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { VSBufferReadableStream, VSBuffer } from 'vs/base/common/buffer';
-import { TokensStore, MultilineTokens, countEOL, MultilineTokens2, TokensStore2 } from 'vs/editor/common/model/tokensStore';
-import { Color } from 'vs/base/common/color';
-import { EditorTheme } from 'vs/editor/common/view/viewContext';
-import { IUndoRedoService, ResourceEditStackSnapshot } from 'vs/platform/undoRedo/common/undoRedo';
-import { TextChange } from 'vs/editor/common/model/textChange';
-import { Constants } from 'vs/base/common/uint';
-import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
-import { listenStream } from 'vs/base/common/stream';
-import { ArrayQueue, findLast } from 'vs/base/common/arrays';
-import { BracketPairInfo, IBracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairs';
-import { BracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsImpl';
-import { ColorizedBracketPairsDecorationProvider } from 'vs/editor/common/model/bracketPairsTextModelPart/colorizedBracketPairsDecorationProvider';
-import { DecorationProvider } from 'vs/editor/common/model/decorationProvider';
-import { CursorColumns } from 'vs/editor/common/controller/cursorColumns';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { EditorTheme } from 'vs/editor/common/view/viewContext';
+import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { IUndoRedoService, ResourceEditStackSnapshot } from 'vs/platform/undoRedo/common/undoRedo';
 
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();
@@ -300,6 +300,9 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private readonly _bracketPairColorizer: BracketPairsTextModelPart;
 	public get bracketPairs(): IBracketPairsTextModelPart { return this._bracketPairColorizer; }
 
+	private readonly _guidesTextModelPart: GuidesTextModelPart;
+	public get guides(): IGuidesTextModelPart { return this._guidesTextModelPart; }
+
 	private _backgroundTokenizationState = BackgroundTokenizationState.Uninitialized;
 	public get backgroundTokenizationState(): BackgroundTokenizationState {
 		return this._backgroundTokenizationState;
@@ -400,6 +403,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._tokenization = new TextModelTokenization(this, this._modeService.languageIdCodec);
 
 		this._bracketPairColorizer = this._register(new BracketPairsTextModelPart(this, this._languageConfigurationService));
+		this._guidesTextModelPart = this._register(new GuidesTextModelPart(this, this._languageConfigurationService));
 		this._decorationProvider = this._register(new ColorizedBracketPairsDecorationProvider(this));
 
 		this._register(this._decorationProvider.onDidChange(() => {
@@ -2210,510 +2214,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		};
 	}
 
-	/**
-	 * Returns:
-	 *  - -1 => the line consists of whitespace
-	 *  - otherwise => the indent level is returned value
-	 */
-	public static computeIndentLevel(line: string, tabSize: number): number {
-		let indent = 0;
-		let i = 0;
-		let len = line.length;
-
-		while (i < len) {
-			let chCode = line.charCodeAt(i);
-			if (chCode === CharCode.Space) {
-				indent++;
-			} else if (chCode === CharCode.Tab) {
-				indent = indent - indent % tabSize + tabSize;
-			} else {
-				break;
-			}
-			i++;
-		}
-
-		if (i === len) {
-			return -1; // line only consists of whitespace
-		}
-
-		return indent;
-	}
-
-	private _computeIndentLevel(lineIndex: number): number {
-		return TextModel.computeIndentLevel(this._buffer.getLineContent(lineIndex + 1), this._options.tabSize);
-	}
-
-	public getActiveIndentGuide(lineNumber: number, minLineNumber: number, maxLineNumber: number): model.IActiveIndentGuideInfo {
-		this._assertNotDisposed();
-		const lineCount = this.getLineCount();
-
-		if (lineNumber < 1 || lineNumber > lineCount) {
-			throw new Error('Illegal value for lineNumber');
-		}
-
-		const foldingRules = this.getLanguageConfiguration(this._languageId).foldingRules;
-		const offSide = Boolean(foldingRules && foldingRules.offSide);
-
-		let up_aboveContentLineIndex = -2; /* -2 is a marker for not having computed it */
-		let up_aboveContentLineIndent = -1;
-		let up_belowContentLineIndex = -2; /* -2 is a marker for not having computed it */
-		let up_belowContentLineIndent = -1;
-		const up_resolveIndents = (lineNumber: number) => {
-			if (up_aboveContentLineIndex !== -1 && (up_aboveContentLineIndex === -2 || up_aboveContentLineIndex > lineNumber - 1)) {
-				up_aboveContentLineIndex = -1;
-				up_aboveContentLineIndent = -1;
-
-				// must find previous line with content
-				for (let lineIndex = lineNumber - 2; lineIndex >= 0; lineIndex--) {
-					let indent = this._computeIndentLevel(lineIndex);
-					if (indent >= 0) {
-						up_aboveContentLineIndex = lineIndex;
-						up_aboveContentLineIndent = indent;
-						break;
-					}
-				}
-			}
-
-			if (up_belowContentLineIndex === -2) {
-				up_belowContentLineIndex = -1;
-				up_belowContentLineIndent = -1;
-
-				// must find next line with content
-				for (let lineIndex = lineNumber; lineIndex < lineCount; lineIndex++) {
-					let indent = this._computeIndentLevel(lineIndex);
-					if (indent >= 0) {
-						up_belowContentLineIndex = lineIndex;
-						up_belowContentLineIndent = indent;
-						break;
-					}
-				}
-			}
-		};
-
-		let down_aboveContentLineIndex = -2; /* -2 is a marker for not having computed it */
-		let down_aboveContentLineIndent = -1;
-		let down_belowContentLineIndex = -2; /* -2 is a marker for not having computed it */
-		let down_belowContentLineIndent = -1;
-		const down_resolveIndents = (lineNumber: number) => {
-			if (down_aboveContentLineIndex === -2) {
-				down_aboveContentLineIndex = -1;
-				down_aboveContentLineIndent = -1;
-
-				// must find previous line with content
-				for (let lineIndex = lineNumber - 2; lineIndex >= 0; lineIndex--) {
-					let indent = this._computeIndentLevel(lineIndex);
-					if (indent >= 0) {
-						down_aboveContentLineIndex = lineIndex;
-						down_aboveContentLineIndent = indent;
-						break;
-					}
-				}
-			}
-
-			if (down_belowContentLineIndex !== -1 && (down_belowContentLineIndex === -2 || down_belowContentLineIndex < lineNumber - 1)) {
-				down_belowContentLineIndex = -1;
-				down_belowContentLineIndent = -1;
-
-				// must find next line with content
-				for (let lineIndex = lineNumber; lineIndex < lineCount; lineIndex++) {
-					let indent = this._computeIndentLevel(lineIndex);
-					if (indent >= 0) {
-						down_belowContentLineIndex = lineIndex;
-						down_belowContentLineIndent = indent;
-						break;
-					}
-				}
-			}
-		};
-
-		let startLineNumber = 0;
-		let goUp = true;
-		let endLineNumber = 0;
-		let goDown = true;
-		let indent = 0;
-
-		let initialIndent = 0;
-
-		for (let distance = 0; goUp || goDown; distance++) {
-			const upLineNumber = lineNumber - distance;
-			const downLineNumber = lineNumber + distance;
-
-			if (distance > 1 && (upLineNumber < 1 || upLineNumber < minLineNumber)) {
-				goUp = false;
-			}
-			if (distance > 1 && (downLineNumber > lineCount || downLineNumber > maxLineNumber)) {
-				goDown = false;
-			}
-			if (distance > 50000) {
-				// stop processing
-				goUp = false;
-				goDown = false;
-			}
-
-			let upLineIndentLevel: number = -1;
-			if (goUp) {
-				// compute indent level going up
-				const currentIndent = this._computeIndentLevel(upLineNumber - 1);
-				if (currentIndent >= 0) {
-					// This line has content (besides whitespace)
-					// Use the line's indent
-					up_belowContentLineIndex = upLineNumber - 1;
-					up_belowContentLineIndent = currentIndent;
-					upLineIndentLevel = Math.ceil(currentIndent / this._options.indentSize);
-				} else {
-					up_resolveIndents(upLineNumber);
-					upLineIndentLevel = this._getIndentLevelForWhitespaceLine(offSide, up_aboveContentLineIndent, up_belowContentLineIndent);
-				}
-			}
-
-			let downLineIndentLevel = -1;
-			if (goDown) {
-				// compute indent level going down
-				const currentIndent = this._computeIndentLevel(downLineNumber - 1);
-				if (currentIndent >= 0) {
-					// This line has content (besides whitespace)
-					// Use the line's indent
-					down_aboveContentLineIndex = downLineNumber - 1;
-					down_aboveContentLineIndent = currentIndent;
-					downLineIndentLevel = Math.ceil(currentIndent / this._options.indentSize);
-				} else {
-					down_resolveIndents(downLineNumber);
-					downLineIndentLevel = this._getIndentLevelForWhitespaceLine(offSide, down_aboveContentLineIndent, down_belowContentLineIndent);
-				}
-			}
-
-			if (distance === 0) {
-				initialIndent = upLineIndentLevel;
-				continue;
-			}
-
-			if (distance === 1) {
-				if (downLineNumber <= lineCount && downLineIndentLevel >= 0 && initialIndent + 1 === downLineIndentLevel) {
-					// This is the beginning of a scope, we have special handling here, since we want the
-					// child scope indent to be active, not the parent scope
-					goUp = false;
-					startLineNumber = downLineNumber;
-					endLineNumber = downLineNumber;
-					indent = downLineIndentLevel;
-					continue;
-				}
-
-				if (upLineNumber >= 1 && upLineIndentLevel >= 0 && upLineIndentLevel - 1 === initialIndent) {
-					// This is the end of a scope, just like above
-					goDown = false;
-					startLineNumber = upLineNumber;
-					endLineNumber = upLineNumber;
-					indent = upLineIndentLevel;
-					continue;
-				}
-
-				startLineNumber = lineNumber;
-				endLineNumber = lineNumber;
-				indent = initialIndent;
-				if (indent === 0) {
-					// No need to continue
-					return { startLineNumber, endLineNumber, indent };
-				}
-			}
-
-			if (goUp) {
-				if (upLineIndentLevel >= indent) {
-					startLineNumber = upLineNumber;
-				} else {
-					goUp = false;
-				}
-			}
-			if (goDown) {
-				if (downLineIndentLevel >= indent) {
-					endLineNumber = downLineNumber;
-				} else {
-					goDown = false;
-				}
-			}
-		}
-
-		return { startLineNumber, endLineNumber, indent };
-	}
-
-	public getLinesBracketGuides(
-		startLineNumber: number,
-		endLineNumber: number,
-		activePosition: IPosition | null,
-		options: model.BracketGuideOptions
-	): model.IndentGuide[][] {
-		const result: model.IndentGuide[][] = [];
-		const bracketPairs =
-			this._bracketPairColorizer.getBracketPairsInRangeWithMinIndentation(
-				new Range(
-					startLineNumber,
-					1,
-					endLineNumber,
-					this.getLineMaxColumn(endLineNumber)
-				)
-			);
-
-		let activeBracketPairRange: Range | undefined = undefined;
-		if (activePosition && bracketPairs.length > 0) {
-			const bracketsContainingActivePosition =
-				(startLineNumber <= activePosition.lineNumber && activePosition.lineNumber <= endLineNumber)
-					// Does active position intersect with the view port? -> Intersect bracket pairs with activePosition
-					? bracketPairs.filter(bp => Range.strictContainsPosition(bp.range, activePosition))
-					: this._bracketPairColorizer.getBracketPairsInRange(
-						Range.fromPositions(activePosition)
-					);
-
-			activeBracketPairRange = findLast(
-				bracketsContainingActivePosition,
-				/* Exclude single line bracket pairs for cases such as
-				 * ```
-				 * function test() {
-				 * 		if (true) { | }
-				 * }
-				 * ```
-				 */
-				(i) => i.range.startLineNumber !== i.range.endLineNumber
-			)?.range;
-		}
-
-		const queue = new ArrayQueue(bracketPairs);
-		/** Indexed by nesting level */
-		const activeGuides = new Array<{
-			nestingLevel: number,
-			guideVisibleColumn: number,
-			start: Position,
-			visibleStartColumn: number,
-			end: Position,
-			visibleEndColumn: number,
-			bracketPair: BracketPairInfo,
-			renderHorizontalEndLineAtTheBottom: boolean
-		} | null>();
-		const nextGuides = new Array<model.IndentGuide>();
-		const colorProvider = new BracketPairGuidesClassNames();
-
-		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			let guides = new Array<model.IndentGuide>();
-			if (nextGuides.length > 0) {
-				guides = guides.concat(nextGuides);
-				nextGuides.length = 0;
-			}
-			result.push(guides);
-
-			// Update activeGuides
-			for (const pair of queue.takeWhile(b => b.openingBracketRange.startLineNumber <= lineNumber) || []) {
-				if (pair.range.startLineNumber === pair.range.endLineNumber) {
-					// ignore single line brackets
-					continue;
-				}
-				const guideVisibleColumn = Math.min(
-					this.getVisibleColumnFromPosition(pair.openingBracketRange.getStartPosition()),
-					this.getVisibleColumnFromPosition(pair.closingBracketRange?.getStartPosition() ?? pair.range.getEndPosition()),
-					pair.minVisibleColumnIndentation + 1
-				);
-				let renderHorizontalEndLineAtTheBottom = false;
-				if (pair.closingBracketRange) {
-					const firstNonWsIndex = strings.firstNonWhitespaceIndex(this.getLineContent(pair.closingBracketRange.startLineNumber));
-					if (firstNonWsIndex < pair.closingBracketRange.startColumn - 1) {
-						renderHorizontalEndLineAtTheBottom = true;
-					}
-				}
-
-				const start = pair.openingBracketRange.getStartPosition();
-				const end = (pair.closingBracketRange?.getStartPosition() ?? pair.range.getEndPosition());
-
-
-				if (pair.closingBracketRange === undefined) {
-					// Don't show guides for bracket pairs that are not balanced.
-					// See #135125.
-					activeGuides[pair.nestingLevel] = null;
-				} else {
-					activeGuides[pair.nestingLevel] = {
-						nestingLevel: pair.nestingLevel,
-						guideVisibleColumn,
-						start,
-						visibleStartColumn: this.getVisibleColumnFromPosition(start),
-						end,
-						visibleEndColumn: this.getVisibleColumnFromPosition(end),
-						bracketPair: pair,
-						renderHorizontalEndLineAtTheBottom
-					};
-				}
-			}
-
-			for (const line of activeGuides) {
-				if (!line) {
-					continue;
-				}
-				const isActive = activeBracketPairRange && line.bracketPair.range.equalsRange(activeBracketPairRange);
-
-				const className =
-					colorProvider.getInlineClassNameOfLevel(line.nestingLevel) +
-					(options.highlightActive && isActive ? ' ' + colorProvider.activeClassName : '');
-
-				if (
-					(isActive && options.horizontalGuides !== model.HorizontalGuidesState.Disabled)
-					|| (options.includeInactive && options.horizontalGuides === model.HorizontalGuidesState.Enabled)
-				) {
-					if (line.start.lineNumber === lineNumber) {
-						if (line.guideVisibleColumn < line.visibleStartColumn) {
-							guides.push(new model.IndentGuide(line.guideVisibleColumn, className,
-								new model.IndentGuideHorizontalLine(false, line.start.column)));
-						}
-					}
-					if (line.end.lineNumber === lineNumber + 1) {
-						// The next line might have horizontal guides.
-						// However, the next line might also have a new bracket pair with the same indentation,
-						// so the current bracket pair might get replaced. That's why we push the guide to nextGuides one line ahead.
-						if (line.guideVisibleColumn < line.visibleEndColumn) {
-							nextGuides.push(new model.IndentGuide(line.guideVisibleColumn, className,
-								new model.IndentGuideHorizontalLine(!line.renderHorizontalEndLineAtTheBottom, line.end.column)));
-						}
-					}
-				}
-			}
-
-			let lastVisibleColumnCount = Number.MAX_SAFE_INTEGER;
-			// Going backwards, so the last guide potentially replaces others
-			for (let i = activeGuides.length - 1; i >= 0; i--) {
-				const line = activeGuides[i];
-				if (!line) {
-					continue;
-				}
-				const isActive = options.highlightActive && activeBracketPairRange &&
-					line.bracketPair.range.equalsRange(activeBracketPairRange);
-
-				const className =
-					colorProvider.getInlineClassNameOfLevel(line.nestingLevel) +
-					(isActive ? ' ' + colorProvider.activeClassName : '');
-
-				if (isActive || options.includeInactive) {
-					if (line.renderHorizontalEndLineAtTheBottom && line.end.lineNumber === lineNumber + 1) {
-						nextGuides.push(new model.IndentGuide(line.guideVisibleColumn, className, null));
-					}
-				}
-
-				if (line.end.lineNumber <= lineNumber
-					|| line.start.lineNumber >= lineNumber) {
-					continue;
-				}
-
-				if (line.guideVisibleColumn >= lastVisibleColumnCount && !isActive) {
-					// Don't render a guide on top of an existing guide, unless it is active.
-					continue;
-				}
-				lastVisibleColumnCount = line.guideVisibleColumn;
-
-
-				if (isActive || options.includeInactive) {
-					guides.push(new model.IndentGuide(line.guideVisibleColumn, className, null));
-				}
-			}
-
-			guides.sort((a, b) => a.visibleColumn - b.visibleColumn);
-		}
-		return result;
-	}
-
-	private getVisibleColumnFromPosition(position: Position): number {
-		return CursorColumns.visibleColumnFromColumn(this.getLineContent(position.lineNumber), position.column, this._options.tabSize) + 1;
-	}
-
-	public getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[] {
-		this._assertNotDisposed();
-		const lineCount = this.getLineCount();
-
-		if (startLineNumber < 1 || startLineNumber > lineCount) {
-			throw new Error('Illegal value for startLineNumber');
-		}
-		if (endLineNumber < 1 || endLineNumber > lineCount) {
-			throw new Error('Illegal value for endLineNumber');
-		}
-
-		const foldingRules = this.getLanguageConfiguration(this._languageId).foldingRules;
-		const offSide = Boolean(foldingRules && foldingRules.offSide);
-
-		let result: number[] = new Array<number>(endLineNumber - startLineNumber + 1);
-
-		let aboveContentLineIndex = -2; /* -2 is a marker for not having computed it */
-		let aboveContentLineIndent = -1;
-
-		let belowContentLineIndex = -2; /* -2 is a marker for not having computed it */
-		let belowContentLineIndent = -1;
-
-		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			let resultIndex = lineNumber - startLineNumber;
-
-			const currentIndent = this._computeIndentLevel(lineNumber - 1);
-			if (currentIndent >= 0) {
-				// This line has content (besides whitespace)
-				// Use the line's indent
-				aboveContentLineIndex = lineNumber - 1;
-				aboveContentLineIndent = currentIndent;
-				result[resultIndex] = Math.ceil(currentIndent / this._options.indentSize);
-				continue;
-			}
-
-			if (aboveContentLineIndex === -2) {
-				aboveContentLineIndex = -1;
-				aboveContentLineIndent = -1;
-
-				// must find previous line with content
-				for (let lineIndex = lineNumber - 2; lineIndex >= 0; lineIndex--) {
-					let indent = this._computeIndentLevel(lineIndex);
-					if (indent >= 0) {
-						aboveContentLineIndex = lineIndex;
-						aboveContentLineIndent = indent;
-						break;
-					}
-				}
-			}
-
-			if (belowContentLineIndex !== -1 && (belowContentLineIndex === -2 || belowContentLineIndex < lineNumber - 1)) {
-				belowContentLineIndex = -1;
-				belowContentLineIndent = -1;
-
-				// must find next line with content
-				for (let lineIndex = lineNumber; lineIndex < lineCount; lineIndex++) {
-					let indent = this._computeIndentLevel(lineIndex);
-					if (indent >= 0) {
-						belowContentLineIndex = lineIndex;
-						belowContentLineIndent = indent;
-						break;
-					}
-				}
-			}
-
-			result[resultIndex] = this._getIndentLevelForWhitespaceLine(offSide, aboveContentLineIndent, belowContentLineIndent);
-
-		}
-		return result;
-	}
-
-	private _getIndentLevelForWhitespaceLine(offSide: boolean, aboveContentLineIndent: number, belowContentLineIndent: number): number {
-		if (aboveContentLineIndent === -1 || belowContentLineIndent === -1) {
-			// At the top or bottom of the file
-			return 0;
-
-		} else if (aboveContentLineIndent < belowContentLineIndent) {
-			// we are inside the region above
-			return (1 + Math.floor(aboveContentLineIndent / this._options.indentSize));
-
-		} else if (aboveContentLineIndent === belowContentLineIndent) {
-			// we are in between two regions
-			return Math.ceil(belowContentLineIndent / this._options.indentSize);
-
-		} else {
-
-			if (offSide) {
-				// same level as region below
-				return Math.ceil(belowContentLineIndent / this._options.indentSize);
-			} else {
-				// we are inside the region that ends below
-				return (1 + Math.floor(belowContentLineIndent / this._options.indentSize));
-			}
-
-		}
-	}
-
 	//#endregion
 	normalizePosition(position: Position, affinity: model.PositionAffinity): Position {
 		return position;
@@ -2739,16 +2239,6 @@ function indentOfLine(line: string): number {
 		}
 	}
 	return indent;
-}
-
-export class BracketPairGuidesClassNames {
-	public readonly activeClassName = 'indent-active';
-
-	getInlineClassNameOfLevel(level: number): string {
-		// To support a dynamic amount of colors up to 6 colors,
-		// we use a number that is a lcm of all numbers from 1 to 6.
-		return `bracket-indent-guide lvl-${level % 30}`;
-	}
 }
 
 //#region Decorations
