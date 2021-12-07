@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/1fa12423de71bcc75f68371ca4debaebdd989c20",
+	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/a93646fe6e552d1984c24fd31b1c07dcb3ce7c21",
 	"name": "Dart",
 	"scopeName": "source.dart",
 	"patterns": [
@@ -230,7 +230,7 @@
 		"class-identifier": {
 			"patterns": [
 				{
-					"match": "(?<![a-zA-Z0-9_$])([_$]*[A-Z][a-zA-Z0-9_$]*(<(?:[a-zA-Z0-9_$<>]|, )+>)?|bool\\b|num\\b|int\\b|double\\b|dynamic\\b|(void)\\b)",
+					"match": "(?<![a-zA-Z0-9_$])([_$]*[A-Z][a-zA-Z0-9_$]*(<(?:[a-zA-Z0-9_$<>?]|,\\s*|\\s+extends\\s+)+>)?|bool\\b|num\\b|int\\b|double\\b|dynamic\\b|(void)\\b)",
 					"captures": {
 						"1": {
 							"name": "support.class.dart"
@@ -252,7 +252,7 @@
 		"function-identifier": {
 			"patterns": [
 				{
-					"match": "([_$]*[a-z][a-zA-Z0-9_$]*)(<(?:[a-zA-Z0-9_$<>]|, )+>)?(\\(|\\s+=>)",
+					"match": "([_$]*[a-z][a-zA-Z0-9_$]*)(<(?:[a-zA-Z0-9_$<>?]|,\\s*|\\s+extends\\s+)+>)?(\\(|\\s+=>)",
 					"captures": {
 						"1": {
 							"name": "entity.name.function.dart"
@@ -286,7 +286,11 @@
 					"include": "#class-identifier"
 				},
 				{
-					"match": "\\s*,\\s*"
+					"match": "[\\s,]+"
+				},
+				{
+					"name": "keyword.declaration.dart",
+					"match": "extends"
 				}
 			]
 		},
