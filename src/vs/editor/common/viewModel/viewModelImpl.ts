@@ -3,38 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ArrayQueue } from 'vs/base/common/arrays';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
-import { ConfigurationChangedEvent, EDITOR_FONT_DEFAULTS, EditorOption, filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, EditorOption, EDITOR_FONT_DEFAULTS, filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
+import { CursorsController } from 'vs/editor/common/controller/cursor';
+import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData, PartialCursorState } from 'vs/editor/common/controller/cursorCommon';
+import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { IPosition, Position } from 'vs/editor/common/core/position';
-import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { IConfiguration, IViewState, ScrollType, ICursorState, ICommand, INewScrollPosition } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, IActiveIndentGuideInfo, ITextModel, TrackedRangeStickiness, TextModelResolvedOptions, IIdentifiedSingleEditOperation, ICursorStateComputer, PositionAffinity, IndentGuide, BracketGuideOptions } from 'vs/editor/common/model';
-import { ModelDecorationOverviewRulerOptions, ModelDecorationMinimapOptions, ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { ISelection, Selection } from 'vs/editor/common/core/selection';
+import { ICommand, IConfiguration, ICursorState, INewScrollPosition, IViewState, ScrollType } from 'vs/editor/common/editorCommon';
+import { EndOfLinePreference, ICursorStateComputer, IIdentifiedSingleEditOperation, ITextModel, PositionAffinity, TextModelResolvedOptions, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IActiveIndentGuideInfo, BracketGuideOptions, IndentGuide } from 'vs/editor/common/model/guidesTextModelPart';
+import { ModelDecorationMinimapOptions, ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { ColorId, TokenizationRegistry } from 'vs/editor/common/modes';
-import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
-import { MinimapTokensColorTracker } from 'vs/editor/common/viewModel/minimapTokensColorTracker';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
-import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from 'vs/editor/common/viewModel/viewModelLines';
-import { ICoordinatesConverter, IViewModel, MinimapLinesRenderingData, ViewLineData, ViewLineRenderingData, ViewModelDecoration, OverviewRulerDecorationsGroup } from 'vs/editor/common/viewModel/viewModel';
-import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import * as platform from 'vs/base/common/platform';
-import { EditorTheme } from 'vs/editor/common/view/viewContext';
-import { CursorsController } from 'vs/editor/common/controller/cursor';
-import { PartialCursorState, CursorState, IColumnSelectData, EditOperationType, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
-import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
-import { IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
-import { ViewModelEventDispatcher, OutgoingViewModelEvent, FocusChangedEvent, ScrollChangedEvent, ViewZonesChangedEvent, ViewModelEventsCollector, ReadOnlyEditAttemptEvent } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
-import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { ArrayQueue } from 'vs/base/common/arrays';
-import { ILineBreaksComputerFactory, ILineBreaksComputer, InjectedText } from 'vs/editor/common/viewModel/modelLineProjectionData';
+import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { EditorTheme } from 'vs/editor/common/view/viewContext';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
+import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
+import { MinimapTokensColorTracker } from 'vs/editor/common/viewModel/minimapTokensColorTracker';
+import { ILineBreaksComputer, ILineBreaksComputerFactory, InjectedText } from 'vs/editor/common/viewModel/modelLineProjectionData';
+import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
+import { ICoordinatesConverter, IViewModel, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
+import { FocusChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
+import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from 'vs/editor/common/viewModel/viewModelLines';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 

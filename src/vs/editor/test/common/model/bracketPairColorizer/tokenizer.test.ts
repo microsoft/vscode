@@ -6,10 +6,10 @@
 import assert = require('assert');
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { LanguageAgnosticBracketTokens } from 'vs/editor/common/model/bracketPairs/bracketPairsTree/brackets';
-import { Length, lengthAdd, lengthsToRange, lengthZero } from 'vs/editor/common/model/bracketPairs/bracketPairsTree/length';
-import { DenseKeyProvider } from 'vs/editor/common/model/bracketPairs/bracketPairsTree/smallImmutableSet';
-import { TextBufferTokenizer, Token, Tokenizer, TokenKind } from 'vs/editor/common/model/bracketPairs/bracketPairsTree/tokenizer';
+import { LanguageAgnosticBracketTokens } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/brackets';
+import { Length, lengthAdd, lengthsToRange, lengthZero } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
+import { DenseKeyProvider } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/smallImmutableSet';
+import { TextBufferTokenizer, Token, Tokenizer, TokenKind } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/tokenizer';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IState, ITokenizationSupport, LanguageId, MetadataConsts, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';

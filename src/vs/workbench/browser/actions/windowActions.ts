@@ -18,7 +18,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IRecent, isRecentFolder, isRecentWorkspace, IWorkspacesService, IWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IRecent, isRecentFolder, isRecentWorkspace, IWorkspacesService, IWorkspaceIdentifier, isFolderBackupInfo, isWorkspaceBackupInfo } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { FileKind } from 'vs/platform/files/common/files';
@@ -88,10 +88,10 @@ abstract class BaseOpenRecentAction extends Action2 {
 		const dirtyFolders = new ResourceMap<boolean>();
 		const dirtyWorkspaces = new ResourceMap<IWorkspaceIdentifier>();
 		for (const dirtyWorkspace of dirtyWorkspacesAndFolders) {
-			if (URI.isUri(dirtyWorkspace)) {
-				dirtyFolders.set(dirtyWorkspace, true);
+			if (isFolderBackupInfo(dirtyWorkspace)) {
+				dirtyFolders.set(dirtyWorkspace.folderUri, true);
 			} else {
-				dirtyWorkspaces.set(dirtyWorkspace.configPath, dirtyWorkspace);
+				dirtyWorkspaces.set(dirtyWorkspace.workspace.configPath, dirtyWorkspace.workspace);
 				hasWorkspaces = true;
 			}
 		}
@@ -118,10 +118,10 @@ abstract class BaseOpenRecentAction extends Action2 {
 
 		// Fill any backup workspace that is not yet shown at the end
 		for (const dirtyWorkspaceOrFolder of dirtyWorkspacesAndFolders) {
-			if (URI.isUri(dirtyWorkspaceOrFolder) && !recentFolders.has(dirtyWorkspaceOrFolder)) {
-				workspacePicks.push(this.toQuickPick(modelService, modeService, labelService, { folderUri: dirtyWorkspaceOrFolder }, true));
-			} else if (isWorkspaceIdentifier(dirtyWorkspaceOrFolder) && !recentWorkspaces.has(dirtyWorkspaceOrFolder.configPath)) {
-				workspacePicks.push(this.toQuickPick(modelService, modeService, labelService, { workspace: dirtyWorkspaceOrFolder }, true));
+			if (isFolderBackupInfo(dirtyWorkspaceOrFolder) && !recentFolders.has(dirtyWorkspaceOrFolder.folderUri)) {
+				workspacePicks.push(this.toQuickPick(modelService, modeService, labelService, dirtyWorkspaceOrFolder, true));
+			} else if (isWorkspaceBackupInfo(dirtyWorkspaceOrFolder) && !recentWorkspaces.has(dirtyWorkspaceOrFolder.workspace.configPath)) {
+				workspacePicks.push(this.toQuickPick(modelService, modeService, labelService, dirtyWorkspaceOrFolder, true));
 			}
 		}
 

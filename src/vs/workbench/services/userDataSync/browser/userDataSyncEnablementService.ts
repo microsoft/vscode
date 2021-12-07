@@ -3,14 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { UserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
-import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncEnablementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { UserDataSyncEnablementService as BaseUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSyncEnablementService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
-export class WebUserDataAutoSyncEnablementService extends UserDataAutoSyncEnablementService {
+export class UserDataSyncEnablementService extends BaseUserDataSyncEnablementService implements IUserDataSyncEnablementService {
 
-	private get workbenchEnvironmentService(): IWorkbenchEnvironmentService { return <IWorkbenchEnvironmentService>this.environmentService; }
+	protected get workbenchEnvironmentService(): IWorkbenchEnvironmentService { return <IWorkbenchEnvironmentService>this.environmentService; }
+
+	override getResourceSyncStateVersion(resource: SyncResource): string | undefined {
+		return resource === SyncResource.Extensions ? this.workbenchEnvironmentService.options?.settingsSyncOptions?.extensionsSyncStateVersion : undefined;
+	}
+
+}
+
+export class WebUserDataSyncEnablementService extends UserDataSyncEnablementService implements IUserDataSyncEnablementService {
+
 	private enabled: boolean | undefined = undefined;
 
 	override canToggleEnablement(): boolean {
@@ -43,9 +51,12 @@ export class WebUserDataAutoSyncEnablementService extends UserDataAutoSyncEnable
 		}
 	}
 
+	override getResourceSyncStateVersion(resource: SyncResource): string | undefined {
+		return resource === SyncResource.Extensions ? this.workbenchEnvironmentService.options?.settingsSyncOptions?.extensionsSyncStateVersion : undefined;
+	}
+
 	private isTrusted(): boolean {
 		return !!this.workbenchEnvironmentService.options?.workspaceProvider?.trusted;
 	}
-}
 
-registerSingleton(IUserDataAutoSyncEnablementService, WebUserDataAutoSyncEnablementService);
+}

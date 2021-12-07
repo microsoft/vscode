@@ -689,7 +689,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				},
 				urisToOpen: workspace ? [workspace] : undefined,
 				forceEmpty,
-				forceNewWindow: true
+				forceNewWindow: true,
+				remoteAuthority: this.remoteAuthority
 			});
 			window.focus();
 		}
