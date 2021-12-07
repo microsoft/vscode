@@ -182,10 +182,16 @@ export class ConfigurationEditingService {
 		try {
 			const formattingOptions = this.getFormattingOptions(reference.object.textEditorModel);
 			const isDirty = this.textFileService.isDirty(resource);
-			if (!isDirty && this.uriIdentityService.extUri.isEqual(resource, this.environmentService.settingsResource)) {
-				await this.userConfigurationFileService.updateSettings({ path: operation.jsonPath, value: operation.value }, formattingOptions);
+			if (isDirty) {
+				// Edit the model with the new setting value, but don't save it.
+				await this.updateConfiguration(operation, reference.object.textEditorModel, formattingOptions, false);
 			} else {
-				await this.updateConfiguration(operation, reference.object.textEditorModel, formattingOptions);
+				// Go through the configuration file service if applicable.
+				if (this.uriIdentityService.extUri.isEqual(resource, this.environmentService.settingsResource)) {
+					await this.userConfigurationFileService.updateSettings({ path: operation.jsonPath, value: operation.value }, formattingOptions);
+				} else {
+					await this.updateConfiguration(operation, reference.object.textEditorModel, formattingOptions, true);
+				}
 			}
 		} catch (error) {
 			if ((<Error>error).message === UserConfigurationErrorCode.ERROR_INVALID_FILE) {
@@ -200,15 +206,14 @@ export class ConfigurationEditingService {
 		}
 	}
 
-	private async updateConfiguration(operation: IConfigurationEditOperation, model: ITextModel, formattingOptions: FormattingOptions): Promise<void> {
+	private async updateConfiguration(operation: IConfigurationEditOperation, model: ITextModel, formattingOptions: FormattingOptions, saveToFile: boolean): Promise<void> {
 		if (this.hasParseErrors(model.getValue(), operation)) {
 			throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION, operation.target, operation);
 		}
 
-		const isDirty = this.textFileService.isDirty(model.uri);
 		const edit = this.getEdits(operation, model.getValue(), formattingOptions)[0];
 		if (edit && this.applyEditsToBuffer(edit, model)) {
-			if (!isDirty) {
+			if (saveToFile) {
 				await this.textFileService.save(model.uri);
 			}
 		}
