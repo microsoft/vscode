@@ -44,7 +44,7 @@ export function setup(opts: minimist.ParsedArgs) {
 			await app.workbench.search.setFilesToIncludeText('*.js');
 			await app.workbench.search.submitSearch();
 
-			await app.workbench.search.waitForResultText('4 results in 1 file');
+			await app.workbench.search.waitForResultText(opts.web ? '5 results in 1 file' : '4 results in 1 file');
 			await app.workbench.search.setFilesToIncludeText('');
 			await app.workbench.search.hideQueryDetails();
 		});
