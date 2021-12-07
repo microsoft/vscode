@@ -44,10 +44,12 @@ export class HoverWidget extends Widget {
 
 	private readonly _hover: BaseHoverWidget;
 	private readonly _hoverPointer: HTMLElement | undefined;
-	private _lockElement: HTMLElement | undefined;
 	private readonly _hoverContainer: HTMLElement;
 	private readonly _target: IHoverTarget;
 	private readonly _linkHandler: (url: string) => any;
+
+	private _lockElement: HTMLElement | undefined;
+	private _autoLockTimeout: CancelablePromise<void> | undefined;
 
 	private _isDisposed: boolean = false;
 	private _hoverPosition: HoverPosition;
@@ -72,6 +74,8 @@ export class HoverWidget extends Widget {
 		if (this._isLocked === value) {
 			return;
 		}
+		this._autoLockTimeout?.cancel();
+		this._autoLockTimeout = undefined;
 		this._isLocked = value;
 		this._hoverContainer.classList.toggle('locked', this._isLocked);
 		if (value) {
@@ -212,9 +216,9 @@ export class HoverWidget extends Widget {
 		}));
 		this._register(this._mouseTracker);
 
-		const autoLockTimeout: CancelablePromise<void> | undefined = timeout(3000);
-		autoLockTimeout.then(() => this.isLocked = true);
-		this._register(toDisposable(() => autoLockTimeout?.cancel()));
+		this._autoLockTimeout = timeout(3000);
+		this._autoLockTimeout.then(() => this.isLocked = true);
+		this._register(toDisposable(() => this._autoLockTimeout?.cancel()));
 	}
 
 	public render(container: HTMLElement): void {
