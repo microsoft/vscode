@@ -20,7 +20,7 @@ async function writeP(terminal: TestTerminal, data: string): Promise<void> {
 	return new Promise<void>(r => terminal.write(data, r));
 }
 
-suite('Workbench - TerminalCommandTracker', () => {
+suite.skip('Workbench - TerminalCommandTracker', () => {
 	let xterm: TestTerminal;
 	let commandTracker: CommandTrackerAddon;
 
