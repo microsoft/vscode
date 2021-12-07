@@ -43,7 +43,7 @@ import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/com
 import { TestContextService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { timeout } from 'vs/base/common/async';
+import { Event, Emitter } from 'vs/base/common/event';
 
 flakySuite('WorkingCopyBackupTracker (native)', function () {
 
@@ -84,6 +84,21 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 			for (const [_, disposable] of this.pendingBackupOperations) {
 				disposable.dispose();
 			}
+		}
+
+		private readonly _onDidResume = this._register(new Emitter<void>());
+		readonly onDidResume = this._onDidResume.event;
+
+		protected override suspendBackupOperations(): { resume: () => void; } {
+			const { resume } = super.suspendBackupOperations();
+
+			return {
+				resume: () => {
+					resume();
+
+					this._onDidResume.fire();
+				}
+			};
 		}
 	}
 
@@ -361,7 +376,7 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 		await cleanup();
 	});
 
-	test('onWillShutdown - pending backup operations canceled and new ones suspended', async function () {
+	test('onWillShutdown - pending backup operations canceled', async function () {
 		const { accessor, tracker, cleanup } = await createTracker();
 
 		const resource = toResource.call(this, '/path/index.txt');
@@ -375,22 +390,21 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 		assert.strictEqual(tracker.pendingBackupOperationCount, 1);
 
 		const event = new TestBeforeShutdownEvent();
-		const finalVeto = timeout(1).then(() => false);
-		event.finalVeto(() => finalVeto);
 		accessor.lifecycleService.fireBeforeShutdown(event);
 
 		assert.strictEqual(tracker.pendingBackupOperationCount, 0);
 
+		// Ops are suspended during shutdown!
 		model?.textEditorModel?.setValue('bar');
 		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
 		assert.strictEqual(tracker.pendingBackupOperationCount, 0);
 
-		await finalVeto;
+		const onResume = Event.toPromise(tracker.onDidResume);
+		await event.value;
 
-		// Ops are resumed after handling!
-		await timeout(1); // needed because resume is called on next loop
+		// Ops are resumed after shutdown!
 		model?.textEditorModel?.setValue('foo');
-		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
+		await onResume;
 		assert.strictEqual(tracker.pendingBackupOperationCount, 1);
 
 		await cleanup();
