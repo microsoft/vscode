@@ -70,7 +70,7 @@ export class ComputedEditorOptions implements IComputedEditorOptions {
 		return this._values[id];
 	}
 	public get<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T> {
-		return this._values[id];
+		return this._read(id);
 	}
 	public _write<T>(id: EditorOption, value: T): void {
 		this._values[id] = value;
