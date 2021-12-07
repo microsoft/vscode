@@ -10,13 +10,15 @@ import { IIconLabelMarkdownString } from 'vs/base/browser/ui/iconLabel/iconLabel
 import { TimeoutTimer } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IMarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
+import { stripIcons } from 'vs/base/common/iconLabels';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { isFunction, isString } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 
 export function setupNativeHover(htmlElement: HTMLElement, tooltip: string | IIconLabelMarkdownString | undefined): void {
 	if (isString(tooltip)) {
-		htmlElement.title = tooltip;
+		// Icons don't render in the native hover so we strip them out
+		htmlElement.title = stripIcons(tooltip);
 	} else if (tooltip?.markdownNotSupportedFallback) {
 		htmlElement.title = tooltip.markdownNotSupportedFallback;
 	} else {

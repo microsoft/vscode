@@ -243,7 +243,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return this._onDidStateChange.event;
 	}
 
-	public log(value: string): void {
+	private log(value: string): void {
 		this.appendOutput(value + '\n');
 	}
 
@@ -1202,6 +1202,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			// Even if an existing terminal is found, the split can fail if the terminal width is too small.
 			for (const terminal of values(this.terminals)) {
 				if (terminal.group === group) {
+					this.logService.trace(`Found terminal to split for group ${group}`);
 					const originalInstance = terminal.terminal;
 					const result = await this.terminalService.createTerminal({ location: { parentTerminal: originalInstance }, config: launchConfigs });
 					if (result) {
@@ -1209,9 +1210,12 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					}
 				}
 			}
+			this.logService.trace(`No terminal found to split for group ${group}`);
 		}
 		// Either no group is used, no terminal with the group exists or splitting an existing terminal failed.
-		return this.terminalService.createTerminal({ location: TerminalLocation.Panel, config: launchConfigs });
+		const createdTerminal = await this.terminalService.createTerminal({ location: TerminalLocation.Panel, config: launchConfigs });
+		this.logService.trace('Created a new task terminal');
+		return createdTerminal;
 	}
 
 	private async createTerminal(task: CustomTask | ContributedTask, resolver: VariableResolver, workspaceFolder: IWorkspaceFolder | undefined): Promise<[ITerminalInstance | undefined, string | undefined, TaskError | undefined]> {

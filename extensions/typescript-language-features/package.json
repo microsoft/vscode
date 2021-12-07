@@ -64,10 +64,10 @@
     "onCommand:typescript.goToProjectConfig",
     "onCommand:typescript.openTsServerLog",
     "onCommand:typescript.tsserverRequest",
-    "onCommand:workbench.action.tasks.runTask",
     "onCommand:_typescript.configurePlugin",
     "onCommand:_typescript.learnMoreAboutRefactorings",
     "onCommand:typescript.fileReferences",
+    "onTaskType:typescript",
     "onLanguage:jsonc"
   ],
   "main": "./out/extension",

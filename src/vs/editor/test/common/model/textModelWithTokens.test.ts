@@ -706,11 +706,11 @@ suite('TextModel.getLineIndentGuide', () => {
 		let model = createTextModel(text);
 		model.updateOptions({ tabSize: tabSize });
 
-		let actualIndents = model.getLinesIndentGuides(1, model.getLineCount());
+		let actualIndents = model.guides.getLinesIndentGuides(1, model.getLineCount());
 
 		let actual: [number, number, number, number, string][] = [];
 		for (let line = 1; line <= model.getLineCount(); line++) {
-			const activeIndentGuide = model.getActiveIndentGuide(line, 1, model.getLineCount());
+			const activeIndentGuide = model.guides.getActiveIndentGuide(line, 1, model.getLineCount());
 			actual[line - 1] = [actualIndents[line - 1], activeIndentGuide.startLineNumber, activeIndentGuide.endLineNumber, activeIndentGuide.indent, model.getLineContent(line)];
 		}
 
@@ -891,7 +891,7 @@ suite('TextModel.getLineIndentGuide', () => {
 			'}',
 		].join('\n'));
 
-		const actual = model.getActiveIndentGuide(2, 4, 9);
+		const actual = model.guides.getActiveIndentGuide(2, 4, 9);
 		assert.deepStrictEqual(actual, { startLineNumber: 2, endLineNumber: 9, indent: 1 });
 		model.dispose();
 	});
