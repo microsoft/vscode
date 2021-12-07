@@ -16,7 +16,7 @@ import { normalize, sep } from 'path';
 
 import * as ts from 'typescript';
 import { getSemanticTokens, getSemanticTokenLegend } from './javascriptSemanticTokens';
-import { RequestService } from '../requests';
+import { FileSystemProvider } from '../requests';
 import { NodeRequestService } from '../node/nodeFs';
 
 const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
@@ -33,7 +33,7 @@ function deschemeURI(uri: string) {
 	// Both \ and / must be escaped in regular expressions
 	newPath = newPath.replace(new RegExp('\\' + sep, 'g'), '/');
 
-	if (process.platform !== 'win32') return newPath;
+	if (process.platform !== 'win32') { return newPath; }
 
 	// Windows URIs come in like '/c%3A/Users/orta/dev/...', we need to switch it to 'c:/Users/orta/dev/...'
 	return newPath.slice(1).replace('%3A', ':');
@@ -104,7 +104,9 @@ function getLanguageServiceHost(scriptKind: ts.ScriptKind, fs: NodeRequestServic
 	return {
 		async getLanguageService(jsDocument: TextDocument, workspace: Workspace): Promise<ts.LanguageService> {
 			currentTextDocument = jsDocument;
-			if (workspace.folders.find(f => f.uri.startsWith('file://'))) currentWorkspace = workspace;
+			if (workspace.folders.find(f => f.uri.startsWith('file://') || f.uri.startsWith('/') || f.uri.startsWith('\\'))) {
+				currentWorkspace = workspace;
+			}
 			return jsLanguageService;
 		},
 		getCompilationSettings() {
@@ -117,7 +119,7 @@ function getLanguageServiceHost(scriptKind: ts.ScriptKind, fs: NodeRequestServic
 }
 
 
-export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>, languageId: 'javascript' | 'typescript', workspace: Workspace, fs: RequestService): LanguageMode {
+export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>, languageId: 'javascript' | 'typescript', workspace: Workspace, fs: FileSystemProvider): LanguageMode {
 	let jsDocuments = getLanguageModelCache<TextDocument>(10, 60, document => documentRegions.get(document).getEmbeddedDocument(languageId));
 
 	const host = getLanguageServiceHost(languageId === 'javascript' ? ts.ScriptKind.JS : ts.ScriptKind.TS, fs as NodeRequestService);

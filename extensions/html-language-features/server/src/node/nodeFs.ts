@@ -18,10 +18,10 @@ export interface NodeRequestService extends FileSystemProvider {
 	statSync(location: string): FileStat
 }
 
-export function getNodeFSRequestService(): NodeRequestService {
+export function getNodeFileFS(): NodeRequestService {
 	function ensureFileUri(location: string) {
-		if (getScheme(location) !== 'file') {
-			throw new Error('fileSystemProvider can only handle file URLs');
+		if (getScheme(location) !== 'file' && getScheme(location) !== '') {
+			throw new Error(`fileSystemProvider can only handle file URLs, got ${getScheme(location)}`);
 		}
 	}
 
