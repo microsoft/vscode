@@ -388,6 +388,7 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 		await finalVeto;
 
 		// Ops are resumed after handling!
+		await timeout(1); // needed because resume is called on next loop
 		model?.textEditorModel?.setValue('foo');
 		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
 		assert.strictEqual(tracker.pendingBackupOperationCount, 1);
