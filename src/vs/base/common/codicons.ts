@@ -402,6 +402,7 @@ export class Codicon implements CSSIcon {
 	public static readonly starHalf = new Codicon('star-half', { fontCharacter: '\\eb5a' });
 	public static readonly symbolClass = new Codicon('symbol-class', { fontCharacter: '\\eb5b' });
 	public static readonly symbolColor = new Codicon('symbol-color', { fontCharacter: '\\eb5c' });
+	public static readonly symbolCustomColor = new Codicon('symbol-customcolor', { fontCharacter: '\\eb5c' });
 	public static readonly symbolConstant = new Codicon('symbol-constant', { fontCharacter: '\\eb5d' });
 	public static readonly symbolEnumMember = new Codicon('symbol-enum-member', { fontCharacter: '\\eb5e' });
 	public static readonly symbolField = new Codicon('symbol-field', { fontCharacter: '\\eb5f' });
