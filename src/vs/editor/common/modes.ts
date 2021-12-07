@@ -18,7 +18,7 @@ import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureR
 import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
-import { iconRegistry, Codicon } from 'vs/base/common/codicons';
+import { iconRegistry, Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 /**
  * Open ended enum at runtime
@@ -1103,84 +1103,43 @@ export const enum SymbolTag {
  */
 export namespace SymbolKinds {
 
-	const byName = new Map<string, SymbolKind>();
-	byName.set('file', SymbolKind.File);
-	byName.set('module', SymbolKind.Module);
-	byName.set('namespace', SymbolKind.Namespace);
-	byName.set('package', SymbolKind.Package);
-	byName.set('class', SymbolKind.Class);
-	byName.set('method', SymbolKind.Method);
-	byName.set('property', SymbolKind.Property);
-	byName.set('field', SymbolKind.Field);
-	byName.set('constructor', SymbolKind.Constructor);
-	byName.set('enum', SymbolKind.Enum);
-	byName.set('interface', SymbolKind.Interface);
-	byName.set('function', SymbolKind.Function);
-	byName.set('variable', SymbolKind.Variable);
-	byName.set('constant', SymbolKind.Constant);
-	byName.set('string', SymbolKind.String);
-	byName.set('number', SymbolKind.Number);
-	byName.set('boolean', SymbolKind.Boolean);
-	byName.set('array', SymbolKind.Array);
-	byName.set('object', SymbolKind.Object);
-	byName.set('key', SymbolKind.Key);
-	byName.set('null', SymbolKind.Null);
-	byName.set('enum-member', SymbolKind.EnumMember);
-	byName.set('struct', SymbolKind.Struct);
-	byName.set('event', SymbolKind.Event);
-	byName.set('operator', SymbolKind.Operator);
-	byName.set('type-parameter', SymbolKind.TypeParameter);
-
-	const byKind = new Map<SymbolKind, string>();
-	byKind.set(SymbolKind.File, 'file');
-	byKind.set(SymbolKind.Module, 'module');
-	byKind.set(SymbolKind.Namespace, 'namespace');
-	byKind.set(SymbolKind.Package, 'package');
-	byKind.set(SymbolKind.Class, 'class');
-	byKind.set(SymbolKind.Method, 'method');
-	byKind.set(SymbolKind.Property, 'property');
-	byKind.set(SymbolKind.Field, 'field');
-	byKind.set(SymbolKind.Constructor, 'constructor');
-	byKind.set(SymbolKind.Enum, 'enum');
-	byKind.set(SymbolKind.Interface, 'interface');
-	byKind.set(SymbolKind.Function, 'function');
-	byKind.set(SymbolKind.Variable, 'variable');
-	byKind.set(SymbolKind.Constant, 'constant');
-	byKind.set(SymbolKind.String, 'string');
-	byKind.set(SymbolKind.Number, 'number');
-	byKind.set(SymbolKind.Boolean, 'boolean');
-	byKind.set(SymbolKind.Array, 'array');
-	byKind.set(SymbolKind.Object, 'object');
-	byKind.set(SymbolKind.Key, 'key');
-	byKind.set(SymbolKind.Null, 'null');
-	byKind.set(SymbolKind.EnumMember, 'enum-member');
-	byKind.set(SymbolKind.Struct, 'struct');
-	byKind.set(SymbolKind.Event, 'event');
-	byKind.set(SymbolKind.Operator, 'operator');
-	byKind.set(SymbolKind.TypeParameter, 'type-parameter');
+	const byKind = new Map<SymbolKind, CSSIcon>();
+	byKind.set(SymbolKind.File, Codicon.symbolFile);
+	byKind.set(SymbolKind.Module, Codicon.symbolModule);
+	byKind.set(SymbolKind.Namespace, Codicon.symbolNamespace);
+	byKind.set(SymbolKind.Package, Codicon.symbolPackage);
+	byKind.set(SymbolKind.Class, Codicon.symbolClass);
+	byKind.set(SymbolKind.Method, Codicon.symbolMethod);
+	byKind.set(SymbolKind.Property, Codicon.symbolProperty);
+	byKind.set(SymbolKind.Field, Codicon.symbolField);
+	byKind.set(SymbolKind.Constructor, Codicon.symbolConstructor);
+	byKind.set(SymbolKind.Enum, Codicon.symbolEnum);
+	byKind.set(SymbolKind.Interface, Codicon.symbolInterface);
+	byKind.set(SymbolKind.Function, Codicon.symbolFunction);
+	byKind.set(SymbolKind.Variable, Codicon.symbolVariable);
+	byKind.set(SymbolKind.Constant, Codicon.symbolConstant);
+	byKind.set(SymbolKind.String, Codicon.symbolString);
+	byKind.set(SymbolKind.Number, Codicon.symbolNumber);
+	byKind.set(SymbolKind.Boolean, Codicon.symbolBoolean);
+	byKind.set(SymbolKind.Array, Codicon.symbolArray);
+	byKind.set(SymbolKind.Object, Codicon.symbolObject);
+	byKind.set(SymbolKind.Key, Codicon.symbolKey);
+	byKind.set(SymbolKind.Null, Codicon.symbolNull);
+	byKind.set(SymbolKind.EnumMember, Codicon.symbolEnumMember);
+	byKind.set(SymbolKind.Struct, Codicon.symbolStruct);
+	byKind.set(SymbolKind.Event, Codicon.symbolEvent);
+	byKind.set(SymbolKind.Operator, Codicon.symbolOperator);
+	byKind.set(SymbolKind.TypeParameter, Codicon.symbolTypeParameter);
 	/**
 	 * @internal
 	 */
-	export function fromString(value: string): SymbolKind | undefined {
-		return byName.get(value);
-	}
-	/**
-	 * @internal
-	 */
-	export function toString(kind: SymbolKind): string | undefined {
-		return byKind.get(kind);
-	}
-	/**
-	 * @internal
-	 */
-	export function toCssClassName(kind: SymbolKind, inline?: boolean): string {
-		const symbolName = byKind.get(kind);
-		let codicon = symbolName && iconRegistry.get('symbol-' + symbolName);
-		if (!codicon) {
+	export function toIcon(kind: SymbolKind): CSSIcon {
+		let icon = byKind.get(kind);
+		if (!icon) {
 			console.info('No codicon found for SymbolKind ' + kind);
-			codicon = Codicon.symbolProperty;
+			icon = Codicon.symbolProperty;
 		}
-		return `${inline ? 'inline' : 'block'} ${codicon.classNames}`;
+		return icon;
 	}
 }
 
