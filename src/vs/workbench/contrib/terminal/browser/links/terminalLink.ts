@@ -38,6 +38,7 @@ export class TerminalLink extends DisposableStore implements ILink {
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
+		console.log('high confidence link', _isHighConfidenceLink, text);
 		this.decorations = {
 			pointerCursor: false,
 			underline: this._isHighConfidenceLink
@@ -53,6 +54,7 @@ export class TerminalLink extends DisposableStore implements ILink {
 	}
 
 	activate(event: MouseEvent | undefined, text: string): void {
+		console.log('activating', text);
 		this._activateCallback(event, text);
 	}
 

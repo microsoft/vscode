@@ -163,4 +163,10 @@ suite('Workbench - TerminalValidatedLocalLinkProvider', () => {
 			{ range: [[7, 1], [11, 1]], text: './bar' }
 		]);
 	});
+
+	test('should support file:/// links', async () => {
+		await assertLink('x = "file:///foo.bar";', OperatingSystem.Windows, [{ range: [[13, 1], [20, 1]], text: '/foo.bar' }]);
+		await assertLink('x = "file:///c:/foo.bar";', OperatingSystem.Windows, [{ range: [[6, 1], [23, 1]], text: 'file:///c:/foo.bar' }]);
+		await assertLink('x = "file:///shäres/foo.bar";', OperatingSystem.Windows, [{ range: [[13, 1], [27, 1]], text: '/shäres/foo.bar' }]);
+	});
 });

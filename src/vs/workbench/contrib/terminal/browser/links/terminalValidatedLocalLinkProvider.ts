@@ -24,9 +24,9 @@ const excludedPathCharactersClause = '[^\\0\\s!`&*()\\[\\]\'":;\\\\]';
 /** A regex that matches paths in the form /foo, ~/foo, ./foo, ../foo, foo/bar */
 export const unixLocalLinkClause = '((' + pathPrefix + '|(' + excludedPathCharactersClause + ')+)?(' + pathSeparatorClause + '(' + excludedPathCharactersClause + ')+)+)';
 
-export const winDrivePrefix = '(?:\\\\\\\\\\?\\\\)?[a-zA-Z]:';
-const winPathPrefix = '(' + winDrivePrefix + '|\\.\\.?|\\~)';
+export const winDrivePrefix = '((?:\\\\\\\\\\?\\\\)?[a-zA-Z]:)?';
 const winPathSeparatorClause = '(\\\\|\\/)';
+const winPathPrefix = '((file:(\\\\|\\/){3})?' + winDrivePrefix + '|\\.\\.?|\\~)';
 const winExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!`&*()\\[\\]\'":;]';
 /** A regex that matches paths in the form \\?\c:\foo c:\foo, ~\foo, .\foo, ..\foo, foo\bar */
 export const winLocalLinkClause = '((' + winPathPrefix + '|(' + winExcludedPathCharactersClause + ')+)?(' + winPathSeparatorClause + '(' + winExcludedPathCharactersClause + ')+)+)';
@@ -139,18 +139,24 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 
 			const validatedLink = await new Promise<TerminalLink | undefined>(r => {
 				this._validationCallback(link, (result) => {
-					if (result) {
-						const label = result.isDirectory
-							? (this._isDirectoryInsideWorkspace(result.uri) ? FOLDER_IN_WORKSPACE_LABEL : FOLDER_NOT_IN_WORKSPACE_LABEL)
-							: OPEN_FILE_LABEL;
-						const activateCallback = this._wrapLinkHandler((event: MouseEvent | undefined, text: string) => {
-							if (result.isDirectory) {
-								this._handleLocalFolderLink(result.uri);
-							} else {
-								this._activateFileCallback(event, text);
-							}
-						});
-						r(this._instantiationService.createInstance(TerminalLink, this._xterm, bufferRange, link, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, true, label));
+					if (link.length > 2) {
+						if (result) {
+							console.log('result', result.uri);
+							const label = result.isDirectory
+								? (this._isDirectoryInsideWorkspace(result.uri) ? FOLDER_IN_WORKSPACE_LABEL : FOLDER_NOT_IN_WORKSPACE_LABEL)
+								: OPEN_FILE_LABEL;
+							const activateCallback = this._wrapLinkHandler((event: MouseEvent | undefined, text: string) => {
+								if (result.isDirectory) {
+									this._handleLocalFolderLink(result.uri);
+								} else {
+									this._activateFileCallback(event, text);
+								}
+							});
+							console.log('validated, creating link', text);
+							r(this._instantiationService.createInstance(TerminalLink, this._xterm, bufferRange, link, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, true, label));
+						} else {
+							r(undefined);
+						}
 					} else {
 						r(undefined);
 					}
