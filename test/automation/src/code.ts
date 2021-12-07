@@ -170,6 +170,10 @@ export class Code {
 				while (!done) {
 					retries++;
 
+					if (retries > 20) {
+						console.warn('Smoke test exit call did not terminate process after 10s, still trying...');
+					}
+
 					if (retries > 40) {
 						done = true;
 						reject(new Error('Smoke test exit call did not terminate process after 20s, giving up'));
