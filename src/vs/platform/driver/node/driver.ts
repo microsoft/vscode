@@ -22,7 +22,7 @@ export class DriverChannel implements IServerChannel {
 			case 'getWindowIds': return this.driver.getWindowIds();
 			case 'capturePage': return this.driver.capturePage(arg);
 			case 'startTracing': return this.driver.startTracing(arg[0], arg[1]);
-			case 'stopTracing': return this.driver.stopTracing(arg[0], arg[1]);
+			case 'stopTracing': return this.driver.stopTracing(arg[0], arg[1], arg[2]);
 			case 'reloadWindow': return this.driver.reloadWindow(arg);
 			case 'exitApplication': return this.driver.exitApplication();
 			case 'dispatchKeybinding': return this.driver.dispatchKeybinding(arg[0], arg[1]);
@@ -62,8 +62,8 @@ export class DriverChannelClient implements IDriver {
 		return this.channel.call('startTracing', [windowId, name]);
 	}
 
-	stopTracing(windowId: number, name: string): Promise<void> {
-		return this.channel.call('stopTracing', [windowId, name]);
+	stopTracing(windowId: number, name: string, persist: boolean): Promise<void> {
+		return this.channel.call('stopTracing', [windowId, name, persist]);
 	}
 
 	reloadWindow(windowId: number): Promise<void> {

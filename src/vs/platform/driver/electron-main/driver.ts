@@ -70,11 +70,11 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 	}
 
 	async startTracing(windowId: number, name: string): Promise<void> {
-		throw new Error('Tracing not implemented.');
+		// ignore - tracing is not implemented yet
 	}
 
-	async stopTracing(windowId: number, name: string): Promise<void> {
-		throw new Error('Tracing not implemented.');
+	async stopTracing(windowId: number, name: string, persist: boolean): Promise<void> {
+		// ignore - tracing is not implemented yet
 	}
 
 	async reloadWindow(windowId: number): Promise<void> {

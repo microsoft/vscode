@@ -91,7 +91,7 @@ export function afterSuite(opts: minimist.ParsedArgs, appFn?: () => Application 
 	});
 
 	afterEach(async function () {
-		await this.app.stopTracing(this.currentTest?.title);
+		await this.app.stopTracing(this.currentTest?.title, this.currentTest?.state === 'failed');
 	});
 }
 

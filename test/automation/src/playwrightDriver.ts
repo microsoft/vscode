@@ -57,15 +57,20 @@ class PlaywrightDriver implements IDriver {
 
 	async startTracing(windowId: number, name: string): Promise<void> {
 		try {
-			await this.warnAfter(this.context.tracing.start({ screenshots: true, snapshots: true, sources: true, title: name }), 5000, 'Starting playwright trace took more than 5 seconds');
+			await this.warnAfter(this.context.tracing.startChunk({ title: name }), 5000, 'Starting playwright trace took more than 5 seconds');
 		} catch (error) {
 			console.warn(`Failed to start playwright tracing.`);
 		}
 	}
 
-	async stopTracing(windowId: number, name: string): Promise<void> {
+	async stopTracing(windowId: number, name: string, persist: boolean): Promise<void> {
 		try {
-			await this.warnAfter(this.context.tracing.stop({ path: join(logsPath, `playwright-trace-${traceCounter++}-${name.replace(/\s+/g, '-')}.zip`) }), 5000, 'Stopping playwright trace took more than 5 seconds');
+			let persistPath: string | undefined = undefined;
+			if (persist) {
+				persistPath = join(logsPath, `playwright-trace-${traceCounter++}-${name.replace(/\s+/g, '-')}.zip`);
+			}
+
+			await this.warnAfter(this.context.tracing.stopChunk({ path: persistPath }), 5000, 'Stopping playwright trace took more than 5 seconds');
 		} catch (error) {
 			console.warn(`Failed to stop playwright tracing: ${error}`);
 		}
@@ -76,6 +81,12 @@ class PlaywrightDriver implements IDriver {
 	}
 
 	async exitApplication() {
+		try {
+			await this.warnAfter(this.context.tracing.stop(), 5000, 'Stopping playwright trace took >5seconds');
+		} catch (error) {
+			console.warn(`Failed to stop playwright tracing: ${error}`);
+		}
+
 		try {
 			await this.warnAfter(this.browser.close(), 5000, 'Closing playwright browser took >5seconds');
 		} catch (error) {
@@ -274,6 +285,12 @@ async function launchServer(userDataDir: string, codeServerPath: string | undefi
 async function launchBrowser(options: PlaywrightOptions, endpoint: string, workspacePath: string) {
 	const browser = await playwright[options.browser ?? 'chromium'].launch({ headless: options.headless ?? false });
 	const context = await browser.newContext();
+
+	try {
+		await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
+	} catch (error) {
+		console.warn(`Failed to start playwright tracing.`); // do not fail the build when this fails
+	}
 
 	const page = await context.newPage();
 	await page.setViewportSize({ width, height });

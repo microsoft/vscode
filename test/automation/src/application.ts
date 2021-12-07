@@ -108,8 +108,8 @@ export class Application {
 		await this._code?.startTracing(name);
 	}
 
-	async stopTracing(name: string): Promise<void> {
-		await this._code?.stopTracing(name);
+	async stopTracing(name: string, persist: boolean): Promise<void> {
+		await this._code?.stopTracing(name, persist);
 	}
 
 	private async startApplication(extraArgs: string[] = []): Promise<any> {

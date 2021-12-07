@@ -138,9 +138,9 @@ export class Code {
 		return await this.driver.startTracing(windowId, name);
 	}
 
-	async stopTracing(name: string): Promise<void> {
+	async stopTracing(name: string, persist: boolean): Promise<void> {
 		const windowId = await this.getActiveWindowId();
-		return await this.driver.stopTracing(windowId, name);
+		return await this.driver.stopTracing(windowId, name, persist);
 	}
 
 	async waitForWindowIds(fn: (windowIds: number[]) => boolean): Promise<void> {
