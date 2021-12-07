@@ -59,7 +59,7 @@ class PlaywrightDriver implements IDriver {
 		try {
 			await this.warnAfter(this.context.tracing.startChunk({ title: name }), 5000, 'Starting playwright trace took more than 5 seconds');
 		} catch (error) {
-			console.warn(`Failed to start playwright tracing.`);
+			console.warn(`Failed to start playwright tracing (chunk): ${error}`);
 		}
 	}
 
@@ -72,7 +72,7 @@ class PlaywrightDriver implements IDriver {
 
 			await this.warnAfter(this.context.tracing.stopChunk({ path: persistPath }), 5000, 'Stopping playwright trace took more than 5 seconds');
 		} catch (error) {
-			console.warn(`Failed to stop playwright tracing: ${error}`);
+			console.warn(`Failed to stop playwright tracing (chunk): ${error}`);
 		}
 	}
 
@@ -289,7 +289,7 @@ async function launchBrowser(options: PlaywrightOptions, endpoint: string, works
 	try {
 		await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
 	} catch (error) {
-		console.warn(`Failed to start playwright tracing.`); // do not fail the build when this fails
+		console.warn(`Failed to start playwright tracing: ${error}`); // do not fail the build when this fails
 	}
 
 	const page = await context.newPage();
