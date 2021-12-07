@@ -19,7 +19,12 @@ export function itRepeat(n: number, description: string, callback: (this: Contex
 	}
 }
 
-export function beforeSuite(args: minimist.ParsedArgs, optionsTransform?: (opts: ApplicationOptions) => Promise<ApplicationOptions>) {
+export function installCommonTestHandlers(args: minimist.ParsedArgs, optionsTransform?: (opts: ApplicationOptions) => Promise<ApplicationOptions>) {
+	installCommonBeforeHandlers(args, optionsTransform);
+	installCommonAfterHandlers(args);
+}
+
+export function installCommonBeforeHandlers(args: minimist.ParsedArgs, optionsTransform?: (opts: ApplicationOptions) => Promise<ApplicationOptions>) {
 	before(async function () {
 		const testTitle = this.currentTest?.title;
 
@@ -35,7 +40,9 @@ export function beforeSuite(args: minimist.ParsedArgs, optionsTransform?: (opts:
 	});
 
 	beforeEach(async function () {
-		await this.app.startTracing(this.currentTest?.title);
+		if (this.app) {
+			await this.app.startTracing(this.currentTest?.title);
+		}
 	});
 }
 
@@ -68,7 +75,7 @@ export function getRandomUserDataDir(options: ApplicationOptions): string {
 	return options.userDataDir.concat(`-${userDataPathSuffix}`);
 }
 
-export function afterSuite(opts: minimist.ParsedArgs, appFn?: () => Application | undefined, joinFn?: () => Promise<unknown>) {
+export function installCommonAfterHandlers(opts: minimist.ParsedArgs, appFn?: () => Application | undefined, joinFn?: () => Promise<unknown>) {
 	after(async function () {
 		const app: Application = appFn?.() ?? this.app;
 
@@ -91,7 +98,9 @@ export function afterSuite(opts: minimist.ParsedArgs, appFn?: () => Application 
 	});
 
 	afterEach(async function () {
-		await this.app.stopTracing(this.currentTest?.title, this.currentTest?.state === 'failed');
+		if (this.app) {
+			await this.app.stopTracing(this.currentTest?.title, this.currentTest?.state === 'failed');
+		}
 	});
 }
 
