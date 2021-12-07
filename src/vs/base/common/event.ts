@@ -605,14 +605,17 @@ export class Emitter<T> {
 
 
 export interface IWaitUntil {
+	token: CancellationToken;
 	waitUntil(thenable: Promise<unknown>): void;
 }
 
+export type IWaitUntilData<T> = Omit<Omit<T, 'waitUntil'>, 'token'>;
+
 export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 
-	private _asyncDeliveryQueue?: LinkedList<[Listener<T>, Omit<T, 'waitUntil'>]>;
+	private _asyncDeliveryQueue?: LinkedList<[Listener<T>, IWaitUntilData<T>]>;
 
-	async fireAsync(data: Omit<T, 'waitUntil'>, token: CancellationToken, promiseJoin?: (p: Promise<unknown>, listener: Function) => Promise<unknown>): Promise<void> {
+	async fireAsync(data: IWaitUntilData<T>, token: CancellationToken, promiseJoin?: (p: Promise<unknown>, listener: Function) => Promise<unknown>): Promise<void> {
 		if (!this._listeners) {
 			return;
 		}
@@ -632,6 +635,7 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 
 			const event = <T>{
 				...data,
+				token,
 				waitUntil: (p: Promise<unknown>): void => {
 					if (Object.isFrozen(thenables)) {
 						throw new Error('waitUntil can NOT be called asynchronous');

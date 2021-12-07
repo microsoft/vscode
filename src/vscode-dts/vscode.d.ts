@@ -10555,6 +10555,11 @@ declare module 'vscode' {
 	export interface FileWillCreateEvent {
 
 		/**
+		 * A cancellation token.
+		 */
+		readonly token: CancellationToken;
+
+		/**
 		 * The files that are going to be created.
 		 */
 		readonly files: readonly Uri[];
@@ -10610,6 +10615,11 @@ declare module 'vscode' {
 	export interface FileWillDeleteEvent {
 
 		/**
+		 * A cancellation token.
+		 */
+		readonly token: CancellationToken;
+
+		/**
 		 * The files that are going to be deleted.
 		 */
 		readonly files: readonly Uri[];
@@ -10663,6 +10673,11 @@ declare module 'vscode' {
 	 * thenable that resolves to a {@link WorkspaceEdit workspace edit}.
 	 */
 	export interface FileWillRenameEvent {
+
+		/**
+		 * A cancellation token.
+		 */
+		readonly token: CancellationToken;
 
 		/**
 		 * The files that are going to be renamed.
