@@ -94,11 +94,18 @@
 
 .monaco-workbench .workbench-hover-lock {
 	position: absolute;
-	right: 1px;
-	top: 1px;
-	opacity: 0.5;
+	right: 2px;
+	top: 2px;
 	z-index: 100;
 	padding: 0;
 	border: 0;
 	background: none;
+}
+.monaco-workbench .workbench-hover-lock::before {
+	opacity: 0.5;
+}
+.monaco-workbench .workbench-hover-lock:hover {
+	/* background-color: red; */
+	border-radius: 5px;
+	cursor: pointer;
 }

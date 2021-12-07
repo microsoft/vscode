@@ -44,6 +44,7 @@ export class HoverWidget extends Widget {
 
 	private readonly _hover: BaseHoverWidget;
 	private readonly _hoverPointer: HTMLElement | undefined;
+	private _lockElement: HTMLElement | undefined;
 	private readonly _hoverContainer: HTMLElement;
 	private readonly _target: IHoverTarget;
 	private readonly _linkHandler: (url: string) => any;
@@ -68,16 +69,21 @@ export class HoverWidget extends Widget {
 	get y(): number { return this._y; }
 	get isLocked(): boolean { return this._isLocked; }
 	set isLocked(value: boolean) {
-		if (this._isLocked) {
+		if (this._isLocked === value) {
 			return;
 		}
 		this._isLocked = value;
 		this._hoverContainer.classList.toggle('locked', this._isLocked);
-		const lockElement = document.createElement('button');
-		lockElement.classList.add('workbench-hover-lock');
-		lockElement.classList.add(...Codicon.lockSmall.classNamesArray);
-		this._hoverContainer.append(lockElement);
-		// TODO: Fire?
+		if (value) {
+			this._lockElement = document.createElement('button');
+			this._lockElement.classList.add('workbench-hover-lock');
+			this._lockElement.classList.add(...Codicon.lockSmall.classNamesArray);
+			this._lockElement.addEventListener('click', () => this.isLocked = false);
+			this._hoverContainer.append(this._lockElement);
+		} else {
+			this._lockElement?.remove();
+			this._lockElement = undefined;
+		}
 	}
 
 	constructor(

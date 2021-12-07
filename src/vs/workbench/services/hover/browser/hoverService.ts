@@ -6,7 +6,7 @@
 import 'vs/css!./media/hover';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorHoverBackground, editorHoverBorder, textLinkForeground, editorHoverForeground, editorHoverStatusBarBackground, textCodeBlockBackground, widgetShadow, textLinkActiveForeground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { editorHoverBackground, editorHoverBorder, textLinkForeground, editorHoverForeground, editorHoverStatusBarBackground, textCodeBlockBackground, widgetShadow, textLinkActiveForeground, focusBorder, toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IHoverService, IHoverOptions, IHoverWidget } from 'vs/workbench/services/hover/browser/hover';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -152,6 +152,11 @@ registerThemingParticipant((theme, collector) => {
 	const focus = theme.getColor(focusBorder);
 	if (focus) {
 		collector.addRule(`.monaco-workbench .workbench-hover-container.locked .workbench-hover:focus { outline-color: ${focus}; }`);
+		collector.addRule(`.monaco-workbench .workbench-hover-lock:focus { outline: 1px solid ${focus}; }`);
+	}
+	const toolbarHoverBackgroundColor = theme.getColor(toolbarHoverBackground);
+	if (toolbarHoverBackgroundColor) {
+		collector.addRule(`.monaco-workbench .workbench-hover-container.locked .workbench-hover-lock:hover { background-color: ${toolbarHoverBackgroundColor}; }`);
 	}
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
