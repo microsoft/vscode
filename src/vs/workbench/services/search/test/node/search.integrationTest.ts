@@ -483,15 +483,6 @@ flakySuite('FileSearchEngine', () => {
 			includePattern: { '**/üm laut汉语/*': true }
 		});
 
-		console.log('log thing');
-		readdirSync(TEST_FIXTURES).forEach(function (fixtureFolder) {
-			console.log('1: ' + fixtureFolder);
-		});
-
-		readdirSync(`${TEST_FIXTURES}\\üm laut汉语`).forEach(function (fixtureFolder) {
-			console.log('2: ' + fixtureFolder);
-		});
-
 		let count = 0;
 		engine.search((result) => {
 			if (result) {
