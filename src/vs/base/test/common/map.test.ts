@@ -877,9 +877,12 @@ suite('Map', () => {
 
 		const map = new TernarySearchTree<URI, number>(new UriIterator(uri => /^https?$/.test(uri.scheme)));
 		map.set(URI.parse('http://foo.bar/user/foo/bar'), 1);
+		assert.strictEqual(map.get(URI.parse('HTTP://foo.bar/user/foo/bar')), 1);
 		assert.strictEqual(map.get(URI.parse('http://foo.bar/USER/foo/bar')), 1);
 
 		map.set(URI.parse('foo://foo.bar/user/foo/bar'), 1);
+		assert.strictEqual(map.get(URI.parse('foo://foo.bar/user/foo/bar')), 1);
+		assert.strictEqual(map.get(URI.parse('FOO://foo.bar/user/foo/bar')), 1);
 		assert.strictEqual(map.get(URI.parse('foo://foo.bar/USER/foo/bar')), undefined);
 	});
 
