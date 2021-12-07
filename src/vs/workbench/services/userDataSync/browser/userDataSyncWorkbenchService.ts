@@ -354,10 +354,6 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private async syncBeforeTurningOn(title: string, manualSyncTask: IManualSyncTask): Promise<void> {
-
-		/* Make sure sync started on clean local state */
-		await this.userDataSyncService.resetLocal();
-
 		try {
 			let action: FirstTimeSyncAction = 'manual';
 
