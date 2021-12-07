@@ -27,6 +27,13 @@ steps:
       exec { tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz }
     displayName: Extract compilation output
 
+  - task: ExtractFiles@1
+    inputs:
+      archiveFilePatterns: '$(Build.ArtifactStagingDirectory)/compilation.tar.gz'
+      # destinationFolder:
+      #cleanDestinationFolder: true
+      #overwriteExistingFiles: false
+      #pathToSevenZipTool:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
