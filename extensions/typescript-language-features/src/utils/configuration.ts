@@ -136,8 +136,21 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 		};
 	}
 
-	protected abstract extractGlobalTsdk(configuration: vscode.WorkspaceConfiguration): string | null;
-	protected abstract extractLocalTsdk(configuration: vscode.WorkspaceConfiguration): string | null;
+	protected extractGlobalTsdk(configuration: vscode.WorkspaceConfiguration): string | null {
+		const inspect = configuration.inspect('typescript.tsdk');
+		if (inspect && typeof inspect.globalValue === 'string') {
+			return inspect.globalValue;
+		}
+		return null;
+	}
+
+	protected extractLocalTsdk(configuration: vscode.WorkspaceConfiguration): string | null {
+		const inspect = configuration.inspect('typescript.tsdk');
+		if (inspect && typeof inspect.workspaceValue === 'string') {
+			return inspect.workspaceValue;
+		}
+		return null;
+	}
 
 	protected readTsServerLogLevel(configuration: vscode.WorkspaceConfiguration): TsServerLogLevel {
 		const setting = configuration.get<string>('typescript.tsserver.log', 'off');
