@@ -26,7 +26,7 @@ export const unixLocalLinkClause = '((' + pathPrefix + '|(' + excludedPathCharac
 
 export const winDrivePrefix = '((?:\\\\\\\\\\?\\\\)?[a-zA-Z]:)?';
 const winPathSeparatorClause = '(\\\\|\\/)';
-const winPathPrefix = '((file:)?' + winPathSeparatorClause + '?' + winPathSeparatorClause + '?' + winDrivePrefix + '|\\.\\.?|\\~)';
+const winPathPrefix = '((file:)?' + winPathSeparatorClause + '?' + winPathSeparatorClause + '?' + winPathSeparatorClause + '?' + winDrivePrefix + '|\\.\\.?|\\~)';
 const winExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!`&*()\\[\\]\'":;]';
 /** A regex that matches paths in the form \\?\c:\foo c:\foo, ~\foo, .\foo, ..\foo, foo\bar */
 export const winLocalLinkClause = '((' + winPathPrefix + '|(' + winExcludedPathCharactersClause + ')+)?(' + winPathSeparatorClause + '(' + winExcludedPathCharactersClause + ')+)+)';
@@ -96,6 +96,7 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 		const rex = new RegExp(this._localLinkRegex, 'g');
 		let match;
 		let stringIndex = -1;
+		console.log(this._localLinkRegex);
 		while ((match = rex.exec(text)) !== null) {
 			// const link = match[typeof matcher.matchIndex !== 'number' ? 0 : matcher.matchIndex];
 			let link = match[0];
@@ -141,7 +142,6 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 				this._validationCallback(link, (result) => {
 					if (link.length > 2) {
 						if (result) {
-							console.log('result', result.uri);
 							const label = result.isDirectory
 								? (this._isDirectoryInsideWorkspace(result.uri) ? FOLDER_IN_WORKSPACE_LABEL : FOLDER_NOT_IN_WORKSPACE_LABEL)
 								: OPEN_FILE_LABEL;
