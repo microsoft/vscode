@@ -58,8 +58,8 @@ export async function startApp(args: minimist.ParsedArgs, options: ApplicationOp
 
 	await app.start();
 
-	if (args.log && options.testTitle) {
-		app.logger.log('*** Test start:', options.testTitle);
+	if (options.testTitle) {
+		app.logger.log('Test start:', options.testTitle);
 	}
 
 	return app;

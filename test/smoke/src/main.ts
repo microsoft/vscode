@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { promisify } from 'util';
 import { gracefulify } from 'graceful-fs';
 import * as cp from 'child_process';
 import * as path from 'path';
@@ -12,7 +11,6 @@ import * as os from 'os';
 import * as minimist from 'minimist';
 import * as rimraf from 'rimraf';
 import * as mkdirp from 'mkdirp';
-import { ncp } from 'ncp';
 import * as vscodetest from 'vscode-test';
 import fetch from 'node-fetch';
 import { Quality, ApplicationOptions, MultiLogger, Logger, ConsoleLogger, FileLogger } from '../../automation';
@@ -59,7 +57,6 @@ const opts = minimist(args, {
 		'wait-time',
 		'test-repo',
 		'screenshots',
-		'log',
 		'electronArgs'
 	],
 	boolean: [
@@ -209,9 +206,9 @@ else {
 
 const userDataDir = path.join(testDataPath, 'd');
 
-async function setupRepository(): Promise<void> {
+async function setupRepository(logger: Logger): Promise<void> {
 	if (opts['test-repo']) {
-		console.log('*** Copying test project repository:', opts['test-repo']);
+		logger.log('Copying test project repository:', opts['test-repo']);
 		rimraf.sync(workspacePath);
 		// not platform friendly
 		if (process.platform === 'win32') {
@@ -222,10 +219,10 @@ async function setupRepository(): Promise<void> {
 
 	} else {
 		if (!fs.existsSync(workspacePath)) {
-			console.log('*** Cloning test project repository...');
+			logger.log('Cloning test project repository...');
 			cp.spawnSync('git', ['clone', testRepoUrl, workspacePath]);
 		} else {
-			console.log('*** Cleaning test project repository...');
+			logger.log('Cleaning test project repository...');
 			cp.spawnSync('git', ['fetch'], { cwd: workspacePath });
 			cp.spawnSync('git', ['reset', '--hard', 'FETCH_HEAD'], { cwd: workspacePath });
 			cp.spawnSync('git', ['clean', '-xdf'], { cwd: workspacePath });
@@ -233,12 +230,12 @@ async function setupRepository(): Promise<void> {
 
 		// None of the current smoke tests have a dependency on the packages.
 		// If new smoke tests are added that need the packages, uncomment this.
-		// console.log('*** Running yarn...');
+		// logger.log('Running yarn...');
 		// cp.execSync('yarn', { cwd: workspacePath, stdio: 'inherit' });
 	}
 }
 
-async function ensureStableCode(): Promise<void> {
+async function ensureStableCode(logger: Logger): Promise<void> {
 	if (opts.web || !opts['build']) {
 		return;
 	}
@@ -261,7 +258,7 @@ async function ensureStableCode(): Promise<void> {
 			throw new Error(`Could not find suitable stable version ${majorMinorVersion}`);
 		}
 
-		console.log(`*** Found VS Code v${version}, downloading previous VS Code version ${previousVersion.version}...`);
+		logger.log(`Found VS Code v${version}, downloading previous VS Code version ${previousVersion.version}...`);
 
 		const stableCodeExecutable = await vscodetest.download({
 			cachePath: path.join(os.tmpdir(), 'vscode-test'),
@@ -281,40 +278,22 @@ async function ensureStableCode(): Promise<void> {
 		throw new Error(`Can't find Stable VSCode at ${stableCodePath}.`);
 	}
 
-	console.log(`*** Using stable build ${stableCodePath} for migration tests`);
+	logger.log(`Using stable build ${stableCodePath} for migration tests`);
 
 	opts['stable-build'] = stableCodePath;
 }
 
-async function setup(): Promise<void> {
-	console.log('*** Test data:', testDataPath);
-	console.log('*** Preparing smoketest setup...');
+async function setup(logger: Logger): Promise<void> {
+	logger.log('Test data:', testDataPath);
+	logger.log('Preparing smoketest setup...');
 
-	await ensureStableCode();
-	await setupRepository();
+	await ensureStableCode(logger);
+	await setupRepository(logger);
 
-	console.log('*** Smoketest setup done!\n');
+	logger.log('Smoketest setup done!\n');
 }
 
 async function createOptions(): Promise<ApplicationOptions> {
-	const loggers: Logger[] = [];
-
-	if (opts.verbose) {
-		loggers.push(new ConsoleLogger());
-	}
-
-	const log: string | undefined = 'trace'; // because smoke tests are flaky
-	let logsPath: string;
-	if (opts.log) {
-		logsPath = opts.log;
-	} else {
-		logsPath = path.join(repoPath, '.build', 'logs', opts.web ? 'smoke-tests-browser' : opts.remote ? 'smoke-tests-remote' : 'smoke-tests', 'smoke-test-runner.log');
-	}
-
-	await mkdirp(path.dirname(logsPath));
-
-	loggers.push(new FileLogger(logsPath));
-
 	return {
 		quality,
 		codePath: opts.build,
@@ -322,9 +301,8 @@ async function createOptions(): Promise<ApplicationOptions> {
 		userDataDir,
 		extensionsPath,
 		waitTime: parseInt(opts['wait-time'] || '0') || 20,
-		logger: new MultiLogger(loggers),
+		logger: await createLogger(),
 		verbose: opts.verbose,
-		log,
 		screenshotsPath,
 		remote: opts.remote,
 		web: opts.web,
@@ -334,19 +312,31 @@ async function createOptions(): Promise<ApplicationOptions> {
 	};
 }
 
+
+async function createLogger(): Promise<Logger> {
+	const loggers: Logger[] = [];
+
+	// Log to console if verbose
+	if (opts.verbose) {
+		loggers.push(new ConsoleLogger());
+	}
+
+	// Always log to log file
+	const logPath = path.join(repoPath, '.build', 'logs', opts.web ? 'smoke-tests-browser' : opts.remote ? 'smoke-tests-remote' : 'smoke-tests');
+	await mkdirp(logPath);
+	loggers.push(new FileLogger(path.join(logPath, 'smoke-test-runner.log')));
+
+	return new MultiLogger(loggers);
+}
+
 before(async function () {
 	this.timeout(2 * 60 * 1000); // allow two minutes for setup
-	await setup();
-	this.defaultOptions = await createOptions();
+	const options = this.defaultOptions = await createOptions();
+
+	await setup(options.logger);
 });
 
 after(async function () {
-	if (opts.log) {
-		const logsDir = path.join(userDataDir, 'logs');
-		const destLogsDir = path.join(path.dirname(opts.log), 'logs');
-		await promisify(ncp)(logsDir, destLogsDir);
-	}
-
 	try {
 		// TODO@tyriar TODO@meganrogge lately deleting the test root
 		// folder results in timeouts of 60s or EPERM issues which
@@ -376,7 +366,7 @@ after(async function () {
 			})
 		]);
 	} catch (error) {
-		console.error(`Unable to delete smoke test workspace: ${error}. This indicates some process is locking the workspace folder.`);
+		this.options.logger(`Unable to delete smoke test workspace: ${error}. This indicates some process is locking the workspace folder.`);
 	}
 });
 
