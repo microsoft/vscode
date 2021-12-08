@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Workbench } from './workbench';
 import { Code, spawn, SpawnOptions } from './code';
-import { Logger } from './logger';
+import { Logger, measureAndLog } from './logger';
 
 export const enum Quality {
 	Dev,
@@ -94,7 +94,7 @@ export class Application {
 
 	async captureScreenshot(name: string): Promise<void> {
 		if (this.options.screenshotsPath) {
-			const raw = await this.code.capturePage();
+			const raw = await measureAndLog(this.code.capturePage(), 'capturePage', this.options.logger);
 			const buffer = Buffer.from(raw, 'base64');
 			const screenshotPath = path.join(this.options.screenshotsPath, `${name}.png`);
 			this.logger.log('Screenshot recorded:', screenshotPath);

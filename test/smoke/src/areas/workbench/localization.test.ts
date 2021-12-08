@@ -5,7 +5,7 @@
 
 import minimist = require('minimist');
 import { Application, Quality } from '../../../../automation';
-import { installCommonAfterHandlers, startApp } from '../../utils';
+import { installCommonAfterHandlers, installCommonBeforeEachHandler, startApp } from '../../utils';
 
 export function setup(args: minimist.ParsedArgs) {
 
@@ -13,6 +13,7 @@ export function setup(args: minimist.ParsedArgs) {
 
 		let app: Application | undefined = undefined;
 
+		installCommonBeforeEachHandler();
 		installCommonAfterHandlers(args, () => app);
 
 		it(`starts with 'DE' locale and verifies title and viewlets text is in German`, async function () {

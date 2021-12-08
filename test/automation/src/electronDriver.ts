@@ -13,7 +13,7 @@ import { promisify } from 'util';
 import * as kill from 'tree-kill';
 import { copyExtension } from './extensions';
 import { URI } from 'vscode-uri';
-import { Logger } from './logger';
+import { Logger, measureAndLog } from './logger';
 
 const repoPath = path.join(__dirname, '../../..');
 
@@ -22,7 +22,7 @@ export async function launch(codePath: string | undefined, userDataDir: string, 
 	const logsPath = path.join(repoPath, '.build', 'logs', remote ? 'smoke-tests-remote' : 'smoke-tests');
 	const outPath = codePath ? getBuildOutPath(codePath) : getDevOutPath();
 
-	const driverIPCHandle = await createDriverHandle();
+	const driverIPCHandle = await measureAndLog(createDriverHandle(), 'createDriverHandle', logger);
 
 	const args = [
 		workspacePath,
@@ -50,7 +50,7 @@ export async function launch(codePath: string | undefined, userDataDir: string, 
 
 		if (codePath) {
 			// running against a build: copy the test resolver extension
-			await copyExtension(repoPath, extensionsPath, 'vscode-test-resolver');
+			await measureAndLog(copyExtension(repoPath, extensionsPath, 'vscode-test-resolver'), 'copyExtension(vscode-test-resolver)', logger);
 		}
 		args.push('--enable-proposed-api=vscode.vscode-test-resolver');
 		const remoteDataDir = `${userDataDir}-server`;
@@ -60,7 +60,7 @@ export async function launch(codePath: string | undefined, userDataDir: string, 
 			// running against a build: copy the test resolver extension into remote extensions dir
 			const remoteExtensionsDir = path.join(remoteDataDir, 'extensions');
 			mkdirp.sync(remoteExtensionsDir);
-			await copyExtension(repoPath, remoteExtensionsDir, 'vscode-notebook-tests');
+			await measureAndLog(copyExtension(repoPath, remoteExtensionsDir, 'vscode-notebook-tests'), 'copyExtension(vscode-notebook-tests)', logger);
 		}
 
 		env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
@@ -109,7 +109,7 @@ export async function launch(codePath: string | undefined, userDataDir: string, 
 
 	while (true) {
 		try {
-			const { client, driver } = await connectElectronDriver(outPath, driverIPCHandle);
+			const { client, driver } = await measureAndLog(connectElectronDriver(outPath, driverIPCHandle), 'connectElectronDriver()', logger);
 			return { electronProcess, client, driver };
 		} catch (err) {
 
@@ -118,7 +118,7 @@ export async function launch(codePath: string | undefined, userDataDir: string, 
 				logger.log(`Error connecting driver: ${err}. Giving up...`);
 
 				try {
-					await promisify(kill)(electronProcess.pid!);
+					await measureAndLog(promisify(kill)(electronProcess.pid!), 'Kill Electron after failing to connect', logger);
 				} catch (error) {
 					logger.log(`Error tearing down electron client (pid: ${electronProcess.pid}): ${error}`);
 				}

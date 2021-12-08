@@ -13,7 +13,7 @@ import * as rimraf from 'rimraf';
 import * as mkdirp from 'mkdirp';
 import * as vscodetest from 'vscode-test';
 import fetch from 'node-fetch';
-import { Quality, ApplicationOptions, MultiLogger, Logger, ConsoleLogger, FileLogger } from '../../automation';
+import { Quality, ApplicationOptions, MultiLogger, Logger, ConsoleLogger, FileLogger, measureAndLog } from '../../automation';
 import { timeout } from './utils';
 
 import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
@@ -216,7 +216,6 @@ async function setupRepository(logger: Logger): Promise<void> {
 		} else {
 			cp.execSync(`cp -R "${opts['test-repo']}" "${workspacePath}"`);
 		}
-
 	} else {
 		if (!fs.existsSync(workspacePath)) {
 			logger.log('Cloning test project repository...');
@@ -244,13 +243,13 @@ async function ensureStableCode(logger: Logger): Promise<void> {
 	if (!stableCodePath) {
 		const { major, minor } = parseVersion(version!);
 		const majorMinorVersion = `${major}.${minor - 1}`;
-		const versionsReq = await fetch('https://update.code.visualstudio.com/api/releases/stable', { headers: { 'x-api-version': '2' } });
+		const versionsReq = await measureAndLog(fetch('https://update.code.visualstudio.com/api/releases/stable', { headers: { 'x-api-version': '2' } }), 'versionReq', logger);
 
 		if (!versionsReq.ok) {
 			throw new Error('Could not fetch releases from update server');
 		}
 
-		const versions: { version: string }[] = await versionsReq.json();
+		const versions: { version: string }[] = await measureAndLog(versionsReq.json(), 'versionReq.json()', logger);
 		const prefix = `${majorMinorVersion}.`;
 		const previousVersion = versions.find(v => v.version.startsWith(prefix));
 
@@ -260,10 +259,10 @@ async function ensureStableCode(logger: Logger): Promise<void> {
 
 		logger.log(`Found VS Code v${version}, downloading previous VS Code version ${previousVersion.version}...`);
 
-		const stableCodeExecutable = await vscodetest.download({
+		const stableCodeExecutable = await measureAndLog(vscodetest.download({
 			cachePath: path.join(os.tmpdir(), 'vscode-test'),
 			version: previousVersion.version
-		});
+		}), 'download stable code', logger);
 
 		if (process.platform === 'darwin') {
 			// Visual Studio Code.app/Contents/MacOS/Electron
@@ -287,8 +286,8 @@ async function setup(logger: Logger): Promise<void> {
 	logger.log('Test data:', testDataPath);
 	logger.log('Preparing smoketest setup...');
 
-	await ensureStableCode(logger);
-	await setupRepository(logger);
+	await measureAndLog(ensureStableCode(logger), 'ensureStableCode', logger);
+	await measureAndLog(setupRepository(logger), 'setupRepository', logger);
 
 	logger.log('Smoketest setup done!\n');
 }
@@ -350,7 +349,7 @@ after(async function () {
 		//
 		// Refs: https://github.com/microsoft/vscode/issues/137725
 		let deleted = false;
-		await Promise.race([
+		await measureAndLog(Promise.race([
 			new Promise<void>((resolve, reject) => rimraf(testDataPath, { maxBusyTries: 10 }, error => {
 				if (error) {
 					reject(error);
@@ -364,9 +363,9 @@ after(async function () {
 					throw new Error('giving up after 30s');
 				}
 			})
-		]);
+		]), 'rimraf(testDataPath)', this.defaultOptions.logger);
 	} catch (error) {
-		this.options.logger(`Unable to delete smoke test workspace: ${error}. This indicates some process is locking the workspace folder.`);
+		this.defaultOptions.logger(`Unable to delete smoke test workspace: ${error}. This indicates some process is locking the workspace folder.`);
 	}
 });
 

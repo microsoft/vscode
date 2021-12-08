@@ -5,13 +5,14 @@
 
 import { Application, ApplicationOptions, Quality } from '../../../../automation/out';
 import { ParsedArgs } from 'minimist';
-import { installCommonAfterHandlers, getRandomUserDataDir, startApp, timeout } from '../../utils';
+import { installCommonAfterHandlers, getRandomUserDataDir, startApp, timeout, installCommonBeforeEachHandler } from '../../utils';
 
 export function setup(opts: ParsedArgs) {
 	describe('Data Loss (insiders -> insiders)', () => {
 
 		let app: Application | undefined = undefined;
 
+		installCommonBeforeEachHandler();
 		installCommonAfterHandlers(opts, () => app);
 
 		it('verifies opened editors are restored', async function () {
@@ -97,6 +98,7 @@ export function setup(opts: ParsedArgs) {
 		let insidersApp: Application | undefined = undefined;
 		let stableApp: Application | undefined = undefined;
 
+		installCommonBeforeEachHandler();
 		installCommonAfterHandlers(opts, () => insidersApp ?? stableApp, async () => stableApp?.stop());
 
 		it('verifies opened editors are restored', async function () {

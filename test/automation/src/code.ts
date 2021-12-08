@@ -9,7 +9,7 @@ import * as cp from 'child_process';
 import { IDriver, IDisposable, IElement, Thenable, ILocalizedStrings, ILocaleInfo } from './driver';
 import { launch as launchElectron } from './electronDriver';
 import { launch as launchPlaywright } from './playwrightDriver';
-import { Logger } from './logger';
+import { Logger, measureAndLog } from './logger';
 import { copyExtension } from './extensions';
 
 const repoPath = path.join(__dirname, '../../..');
@@ -39,7 +39,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		throw new Error('Smoke test process has terminated, refusing to spawn Code');
 	}
 
-	await copyExtension(repoPath, options.extensionsPath, 'vscode-notebook-tests');
+	await measureAndLog(copyExtension(repoPath, options.extensionsPath, 'vscode-notebook-tests'), 'copyExtension(vscode-notebook-tests)', options.logger);
 
 	// Browser smoke tests
 	if (options.web) {
@@ -135,12 +135,16 @@ export class Code {
 
 	async startTracing(name: string): Promise<void> {
 		const windowId = await this.getActiveWindowId();
-		return await this.driver.startTracing(windowId, name);
+		if (typeof this.driver.startTracing === 'function') { // added only in 1.64
+			return await this.driver.startTracing(windowId, name);
+		}
 	}
 
 	async stopTracing(name: string, persist: boolean): Promise<void> {
 		const windowId = await this.getActiveWindowId();
-		return await this.driver.stopTracing(windowId, name, persist);
+		if (typeof this.driver.stopTracing === 'function') { // added only in 1.64
+			return await this.driver.stopTracing(windowId, name, persist);
+		}
 	}
 
 	async waitForWindowIds(fn: (windowIds: number[]) => boolean): Promise<void> {
@@ -153,7 +157,7 @@ export class Code {
 	}
 
 	async exit(): Promise<void> {
-		return new Promise<void>((resolve, reject) => {
+		return measureAndLog(new Promise<void>((resolve, reject) => {
 			let done = false;
 
 			// Start the exit flow via driver
@@ -190,7 +194,7 @@ export class Code {
 			})();
 		}).finally(() => {
 			this.dispose();
-		});
+		}), 'Code#exit()', this.logger);
 	}
 
 	async waitForTextContent(selector: string, textContent?: string, accept?: (result: string) => boolean, retryCount?: number): Promise<string> {

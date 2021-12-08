@@ -12,8 +12,7 @@ import { IDriver, IDisposable, IWindowDriver } from './driver';
 import { URI } from 'vscode-uri';
 import * as kill from 'tree-kill';
 import { PageFunction } from 'playwright-core/types/structs';
-import { Logger } from './logger';
-import { measureAndLog } from '.';
+import { Logger, measureAndLog } from './logger';
 
 const width = 1200;
 const height = 800;
@@ -223,7 +222,7 @@ export async function launch(codeServerPath = process.env.VSCODE_REMOTE_SERVER_P
 
 async function launchServer(userDataDir: string, codeServerPath: string | undefined, extensionsPath: string, verbose: boolean, logger: Logger) {
 	const agentFolder = userDataDir;
-	await promisify(mkdir)(agentFolder);
+	await measureAndLog(promisify(mkdir)(agentFolder), `mkdir(${agentFolder})`, logger);
 	const env = {
 		VSCODE_AGENT_FOLDER: agentFolder,
 		VSCODE_REMOTE_SERVER_PATH: codeServerPath,
@@ -271,22 +270,22 @@ async function launchServer(userDataDir: string, codeServerPath: string | undefi
 
 	return {
 		serverProcess,
-		endpoint: await waitForEndpoint(serverProcess)
+		endpoint: await measureAndLog(waitForEndpoint(serverProcess), 'waitForEndpoint(serverProcess)', logger)
 	};
 }
 
 async function launchBrowser(options: PlaywrightOptions, endpoint: string, workspacePath: string, logger: Logger) {
-	const browser = await playwright[options.browser ?? 'chromium'].launch({ headless: options.headless ?? false });
-	const context = await browser.newContext();
+	const browser = await measureAndLog(playwright[options.browser ?? 'chromium'].launch({ headless: options.headless ?? false }), 'playwright#launch', logger);
+	const context = await measureAndLog(browser.newContext(), 'browser.newContext', logger);
 
 	try {
-		await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
+		await measureAndLog(context.tracing.start({ screenshots: true, snapshots: true, sources: true }), 'context.tracing.start()', logger);
 	} catch (error) {
 		logger.log(`Failed to start playwright tracing: ${error}`); // do not fail the build when this fails
 	}
 
-	const page = await context.newPage();
-	await page.setViewportSize({ width, height });
+	const page = await measureAndLog(context.newPage(), 'context.newPage()', logger);
+	await measureAndLog(page.setViewportSize({ width, height }), 'page.setViewportSize', logger);
 
 	page.on('pageerror', async (error) => logger.log(`Playwright ERROR: page error: ${error}`));
 	page.on('crash', page => logger.log('Playwright ERROR: page crash'));
@@ -297,7 +296,7 @@ async function launchBrowser(options: PlaywrightOptions, endpoint: string, works
 	});
 
 	const payloadParam = `[["enableProposedApi",""],["skipWelcome","true"]]`;
-	await page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${URI.file(workspacePath!).path}&payload=${payloadParam}`);
+	await measureAndLog(page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${URI.file(workspacePath!).path}&payload=${payloadParam}`), 'page.goto()', logger);
 
 	return { browser, context, page };
 }
