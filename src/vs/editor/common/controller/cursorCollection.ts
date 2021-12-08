@@ -160,7 +160,7 @@ export class CursorCollection {
 		if (this.cursors.length === 1) {
 			return;
 		}
-		let cursors = [...this.cursors];
+		let cursors = this.cursors.slice(0);
 
 		interface SortedCursor {
 			index: number;
