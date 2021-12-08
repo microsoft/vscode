@@ -9,6 +9,7 @@ The notebook editor is a virtualized list view rendered in two contexts (mainfra
   * [Executing code cell followed by markdown cells](#executing-code-cell-followed-by-markdown-cells)
   * [Re-executing code cell followed by markdown cells](#re-executing-code-cell-followed-by-markdown-cells)
   * [Scrolling](#scrolling)
+  * [Avoid flickering on resize of cells above current viewport](#avoid-flickering-on-resize-of-cells-above-current-viewport)
 
 
 # Architecture
@@ -130,6 +131,21 @@ Since most elements' positions are absoulte and there is latency between the two
 * Less flickering and forced reflow on scrolling
 
 While we continue optimizing the layout code, we need to make sure that the new optimization won't lead to regression in above three aspects. Here is a list of existing optimziations we already have and we want to make sure they still perform well when updating layout code.
+
+## Avoid flickering on resize of cells above current viewport
+
+We always ensure that elements in current viewport are stable (their visual positions don't change) when cells above current viewport resize. Resizing a cell above viewport will then include following steps as shown in below diagram
+
+![cell resize above viewport](./cell-resize-above-viewport.drawio.svg)
+
+1. Users scroll to the middle of the document, with one markdown cell partially visible (blue box in the green container) and one code cell full visible (blue box in the white container)
+2. The code cell above current viewport grows by 50px. The list view will then push down every cell below it. Thus the code cell in the viewport will move down by 50px. In current tick/frame, the markdown preview elemnets in the webview are not updated yet thus it's still partially visible.
+3. To ensure the code cell's position is stable, we would move the whole list view upwards by 50px. The code cell's position is now fixed but at the same time, the webview also moves up by 50px (as it's a child of the list view scrollable element).
+4. Lastly we sent requests to the webview to fix the visual positions of markdown previews
+
+After the last step, both the code and markdown cells in the viewport stays where they were. However due to the fact that code cells and markdown cells are rendered in two different contexts (UI and iframe), there is always latency between step 3 and 4 so users will notice  annoying flickering of markdown cells easily.
+
+The fix is kidn of "tricky". Instead of adjusting the position of the partially markdown cells, we can actually make it visually stable by adjusting the position of the webview element (step 4'). That would mess up the positions of markdown cells above current viewport, but we can fix them in next frame/tick (step 5) and since they are never in the viewport, users won't notice their position flicker/shift.
 
 ## Executing code cell followed by markdown cells
 
