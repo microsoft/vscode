@@ -624,7 +624,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			if (editor && !created) {
 				const codeEditor = <ICodeEditor>editor.getControl();
 				if (codeEditor) {
-					await codeEditor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).addLaunchConfiguration();
+					await codeEditor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID)?.addLaunchConfiguration();
 				}
 			}
 		}

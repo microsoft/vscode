@@ -32,11 +32,9 @@ declare module 'vscode' {
 		isTrusted?: boolean;
 
 		/**
-		 * When provided, remote server will be initialized with the data synced using given user account.
-		 * **Note:** Initialization happens only when VSCode is opened in Desktop and only extensions are initialized as of now.
+		 * When provided, remote server will be initialized with the extensions synced using the given user account.
 		 */
-		// authenticationSession(ForInitialization|ForInitializingExtensions)?
-		authenticationSession?: AuthenticationSession & { providerId: string };
+		authenticationSessionForInitializingExtensions?: AuthenticationSession & { providerId: string };
 	}
 
 	export interface TunnelPrivacy {

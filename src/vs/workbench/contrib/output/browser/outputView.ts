@@ -211,6 +211,11 @@ export class OutputEditor extends AbstractTextResourceEditor {
 		options.padding = undefined;
 		options.readOnly = true;
 		options.domReadOnly = true;
+		options.unicodeHighlight = {
+			nonBasicASCII: false,
+			invisibleCharacters: false,
+			ambiguousCharacters: false,
+		};
 
 		const outputConfig = this.configurationService.getValue<any>('[Log]');
 		if (outputConfig) {
@@ -271,8 +276,7 @@ export class OutputEditor extends AbstractTextResourceEditor {
 
 class SwitchOutputActionViewItem extends SelectActionViewItem {
 
-	// allow-any-unicode-next-line
-	private static readonly SEPARATOR = '─────────';
+	private static readonly SEPARATOR = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 
 	private outputChannels: IOutputChannelDescriptor[] = [];
 	private logChannels: IOutputChannelDescriptor[] = [];

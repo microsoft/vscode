@@ -47,6 +47,7 @@ import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/pla
 import { basename } from 'vs/base/common/resources';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo } from 'vs/platform/workspace/common/workspaceTrust';
 
 export class SimpleModel implements IResolvedTextEditorModel {
 
@@ -797,4 +798,49 @@ export class SimpleLayoutService implements ILayoutService {
 	}
 
 	constructor(private _codeEditorService: ICodeEditorService, private _container: HTMLElement) { }
+}
+
+export class SimpleWorkspaceTrustManagementService implements IWorkspaceTrustManagementService {
+	_serviceBrand: undefined;
+
+	private _neverEmitter = new Emitter<never>();
+	public readonly onDidChangeTrust: Event<boolean> = this._neverEmitter.event;
+	onDidChangeTrustedFolders: Event<void> = this._neverEmitter.event;
+	public readonly workspaceResolved = Promise.resolve();
+	public readonly workspaceTrustInitialized = Promise.resolve();
+	public readonly acceptsOutOfWorkspaceFiles = true;
+
+	isWorkspaceTrusted(): boolean {
+		return true;
+	}
+	isWorkspaceTrustForced(): boolean {
+		return false;
+	}
+	canSetParentFolderTrust(): boolean {
+		return false;
+	}
+	async setParentFolderTrust(trusted: boolean): Promise<void> {
+		// noop
+	}
+	canSetWorkspaceTrust(): boolean {
+		return false;
+	}
+	async setWorkspaceTrust(trusted: boolean): Promise<void> {
+		// noop
+	}
+	getUriTrustInfo(uri: URI): Promise<IWorkspaceTrustUriInfo> {
+		throw new Error('Method not supported.');
+	}
+	async setUrisTrust(uri: URI[], trusted: boolean): Promise<void> {
+		// noop
+	}
+	getTrustedUris(): URI[] {
+		return [];
+	}
+	async setTrustedUris(uris: URI[]): Promise<void> {
+		// noop
+	}
+	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable {
+		throw new Error('Method not supported.');
+	}
 }

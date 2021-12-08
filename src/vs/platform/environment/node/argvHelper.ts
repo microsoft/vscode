@@ -17,6 +17,9 @@ function parseAndValidate(cmdLineArgs: string[], reportWarnings: boolean): Nativ
 		},
 		onMultipleValues: (id, val) => {
 			console.warn(localize('multipleValues', "Option '{0}' is defined more than once. Using value '{1}.'", id, val));
+		},
+		onDeprecatedOption: (deprecatedOption: string, actualOption: string) => {
+			console.warn(localize('deprecatedArgument', "Option '{0}' is deprecated, please use '{1}' instead", deprecatedOption, actualOption));
 		}
 	};
 

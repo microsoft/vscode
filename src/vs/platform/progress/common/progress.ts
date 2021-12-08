@@ -69,6 +69,7 @@ export interface IProgressNotificationOptions extends IProgressOptions {
 export interface IProgressDialogOptions extends IProgressOptions {
 	readonly delay?: number;
 	readonly detail?: string;
+	readonly sticky?: boolean;
 }
 
 export interface IProgressWindowOptions extends IProgressOptions {

@@ -10,11 +10,12 @@ import { canceled, getErrorMessage } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
+import { isUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import {
 	DidUninstallExtensionEvent, ExtensionManagementError, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementParticipant, IExtensionManagementService, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallExtensionEvent, InstallExtensionResult, InstallOperation, InstallOptions,
-	InstallVSIXOptions, IReportedExtension, StatisticType, UninstallOptions, TargetPlatform, isTargetPlatformCompatible, TargetPlatformToString, ExtensionManagementErrorCode
+	InstallVSIXOptions, IExtensionsControlManifest, StatisticType, UninstallOptions, TargetPlatform, isTargetPlatformCompatible, TargetPlatformToString, ExtensionManagementErrorCode
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, ExtensionIdentifierWithVersion, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
@@ -44,7 +45,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 	declare readonly _serviceBrand: undefined;
 
-	private reportedExtensions: Promise<IReportedExtension[]> | undefined;
+	private extensionsControlManifest: Promise<IExtensionsControlManifest> | undefined;
 	private lastReportTimestamp = 0;
 	private readonly installingExtensions = new Map<string, IInstallExtensionTask>();
 	private readonly uninstallingExtensions = new Map<string, IUninstallExtensionTask>();
@@ -85,11 +86,54 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 	async installFromGallery(extension: IGalleryExtension, options: InstallOptions = {}): Promise<ILocalExtension> {
 		try {
-			return await this.doInstallFromGallery(extension, options);
+			if (!this.galleryService.isEnabled()) {
+				throw new ExtensionManagementError(nls.localize('MarketPlaceDisabled', "Marketplace is not enabled"), ExtensionManagementErrorCode.Internal);
+			}
+			const compatible = await this.checkAndGetCompatibleVersion(extension, !options.installGivenVersion, !!options.installPreReleaseVersion);
+			return await this.installExtension(compatible.manifest, compatible.extension, options);
 		} catch (error) {
+			reportTelemetry(this.telemetryService, 'extensionGallery:install', getGalleryExtensionTelemetryData(extension), undefined, error);
 			this.logService.error(`Failed to install extension.`, extension.identifier.id);
 			this.logService.error(error);
 			throw toExtensionManagementError(error);
+		}
+	}
+
+	async migrateUnsupportedExtensions(): Promise<void> {
+		try {
+			const extensionsControlManifest = await this.getExtensionsControlManifest();
+			if (!extensionsControlManifest.unsupportedPreReleaseExtensions) {
+				return;
+			}
+			const installed = await this.getInstalled(ExtensionType.User);
+			for (const [unsupportedPreReleaseExtensionId, preReleaseExtension] of Object.entries(extensionsControlManifest.unsupportedPreReleaseExtensions)) {
+				const local = installed.find(i => areSameExtensions(i.identifier, { id: unsupportedPreReleaseExtensionId }));
+				if (!local) {
+					continue;
+				}
+				const gallery = await this.galleryService.getCompatibleExtension({ id: preReleaseExtension.id }, true, await this.getTargetPlatform());
+				if (!gallery) {
+					this.logService.info(`Skipping migrating '${local.identifier.id}' extension because, the comaptible target '${preReleaseExtension.id}' extension is not found`);
+					continue;
+				}
+				const manifest = await this.galleryService.getManifest(gallery, CancellationToken.None);
+				if (!manifest) {
+					this.logService.info(`Skipping migrating '${local.identifier.id}' extension because, the manifest for '${preReleaseExtension.id}' extension is not found`);
+					continue;
+				}
+				try {
+					this.logService.info(`Migrating '${local.identifier.id}' extension to '${preReleaseExtension.id}' extension...`);
+					await Promise.allSettled([
+						this.uninstall(local),
+						this.installExtension(manifest, gallery, { installPreReleaseVersion: true, isMachineScoped: local.isMachineScoped, operation: InstallOperation.Migrate })
+					]);
+					this.logService.info(`Migrated '${local.identifier.id}' extension to '${preReleaseExtension.id}' extension.`);
+				} catch (error) {
+					this.logService.error(error);
+				}
+			}
+		} catch (error) {
+			this.logService.error(error);
 		}
 	}
 
@@ -113,57 +157,22 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		await this.installFromGallery(galleryExtension);
 	}
 
-	getExtensionsReport(): Promise<IReportedExtension[]> {
+	getExtensionsControlManifest(): Promise<IExtensionsControlManifest> {
 		const now = new Date().getTime();
 
-		if (!this.reportedExtensions || now - this.lastReportTimestamp > 1000 * 60 * 5) { // 5 minute cache freshness
-			this.reportedExtensions = this.updateReportCache();
+		if (!this.extensionsControlManifest || now - this.lastReportTimestamp > 1000 * 60 * 5) { // 5 minute cache freshness
+			this.extensionsControlManifest = this.updateControlCache();
 			this.lastReportTimestamp = now;
 		}
 
-		return this.reportedExtensions;
+		return this.extensionsControlManifest;
 	}
 
 	registerParticipant(participant: IExtensionManagementParticipant): void {
 		this.participants.push(participant);
 	}
 
-	private async doInstallFromGallery(extension: IGalleryExtension, options: InstallOptions = {}): Promise<ILocalExtension> {
-		if (!this.galleryService.isEnabled()) {
-			throw new ExtensionManagementError(nls.localize('MarketPlaceDisabled', "Marketplace is not enabled"), ExtensionManagementErrorCode.Internal);
-		}
-
-		if (!await this.canInstall(extension)) {
-			const targetPlatform = await this.getTargetPlatform();
-			const error = new ExtensionManagementError(nls.localize('incompatible platform', "The '{0}' extension is not available in {1} for {2}.", extension.identifier.id, this.productService.nameLong, TargetPlatformToString(targetPlatform)), ExtensionManagementErrorCode.Incompatible);
-			reportTelemetry(this.telemetryService, 'extensionGallery:install', getGalleryExtensionTelemetryData(extension), undefined, error);
-			throw error;
-		}
-
-		try {
-			extension = await this.checkAndGetCompatibleVersion(extension, !options.installGivenVersion);
-		} catch (error) {
-			reportTelemetry(this.telemetryService, 'extensionGallery:install', getGalleryExtensionTelemetryData(extension), undefined, error);
-			throw error;
-		}
-
-		const manifest = await this.galleryService.getManifest(extension, CancellationToken.None);
-		if (manifest === null) {
-			const error = new ExtensionManagementError(`Missing manifest for extension ${extension.identifier.id}`, ExtensionManagementErrorCode.Invalid);
-			reportTelemetry(this.telemetryService, 'extensionGallery:install', getGalleryExtensionTelemetryData(extension), undefined, error);
-			throw error;
-		}
-
-		if (manifest.version !== extension.version) {
-			const error = new ExtensionManagementError(`Cannot install '${extension.identifier.id}' extension because of version mismatch in Marketplace`, ExtensionManagementErrorCode.Invalid);
-			reportTelemetry(this.telemetryService, 'extensionGallery:install', getGalleryExtensionTelemetryData(extension), undefined, error);
-			throw error;
-		}
-
-		return this.installExtension(manifest, extension, options);
-	}
-
-	protected async installExtension(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallOptions & InstallVSIXOptions): Promise<ILocalExtension> {
+	protected async installExtension(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallOptions & InstallVSIXOptions & { operation?: InstallOperation }): Promise<ILocalExtension> {
 		// only cache gallery extensions tasks
 		if (!URI.isUri(extension)) {
 			let installExtensionTask = this.installingExtensions.get(new ExtensionIdentifierWithVersion(extension.identifier, extension.version).key());
@@ -190,7 +199,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 				this.logService.info('Installing the extension without checking dependencies and pack', installExtensionTask.identifier.id);
 			} else {
 				try {
-					const allDepsAndPackExtensionsToInstall = await this.getAllDepsAndPackExtensionsToInstall(installExtensionTask.identifier, manifest, !!options.installOnlyNewlyAddedFromExtensionPack);
+					const allDepsAndPackExtensionsToInstall = await this.getAllDepsAndPackExtensionsToInstall(installExtensionTask.identifier, manifest, !!options.installOnlyNewlyAddedFromExtensionPack, !!options.installPreReleaseVersion);
 					for (const { gallery, manifest } of allDepsAndPackExtensionsToInstall) {
 						installExtensionHasDependents = installExtensionHasDependents || !!manifest.extensionDependencies?.some(id => areSameExtensions({ id }, installExtensionTask.identifier));
 						if (this.installingExtensions.has(new ExtensionIdentifierWithVersion(gallery.identifier, gallery.version).key())) {
@@ -240,22 +249,23 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 				// Install extensions in parallel and wait until all extensions are installed / failed
 				await this.joinAllSettled(extensionsToInstall.map(async ({ task }) => {
 					const startTime = new Date().getTime();
+					const operation = isUndefined(options.operation) ? task.operation : options.operation;
 					try {
 						const local = await task.run();
 						await this.joinAllSettled(this.participants.map(participant => participant.postInstall(local, task.source, options, CancellationToken.None)));
 						if (!URI.isUri(task.source)) {
-							reportTelemetry(this.telemetryService, task.operation === InstallOperation.Update ? 'extensionGallery:update' : 'extensionGallery:install', getGalleryExtensionTelemetryData(task.source), new Date().getTime() - startTime, undefined);
+							reportTelemetry(this.telemetryService, operation === InstallOperation.Update ? 'extensionGallery:update' : 'extensionGallery:install', getGalleryExtensionTelemetryData(task.source), new Date().getTime() - startTime, undefined);
 							// In web, report extension install statistics explicitly. In Desktop, statistics are automatically updated while downloading the VSIX.
-							if (isWeb && task.operation === InstallOperation.Install) {
+							if (isWeb && operation !== InstallOperation.Update) {
 								try {
 									await this.galleryService.reportStatistic(local.manifest.publisher, local.manifest.name, local.manifest.version, StatisticType.Install);
 								} catch (error) { /* ignore */ }
 							}
 						}
-						installResults.push({ local, identifier: task.identifier, operation: task.operation, source: task.source });
+						installResults.push({ local, identifier: task.identifier, operation, source: task.source });
 					} catch (error) {
 						if (!URI.isUri(task.source)) {
-							reportTelemetry(this.telemetryService, task.operation === InstallOperation.Update ? 'extensionGallery:update' : 'extensionGallery:install', getGalleryExtensionTelemetryData(task.source), new Date().getTime() - startTime, error);
+							reportTelemetry(this.telemetryService, operation === InstallOperation.Update ? 'extensionGallery:update' : 'extensionGallery:install', getGalleryExtensionTelemetryData(task.source), new Date().getTime() - startTime, error);
 						}
 						this.logService.error('Error while installing the extension:', task.identifier.id);
 						throw error;
@@ -322,7 +332,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		return results;
 	}
 
-	private async getAllDepsAndPackExtensionsToInstall(extensionIdentifier: IExtensionIdentifier, manifest: IExtensionManifest, getOnlyNewlyAddedFromExtensionPack: boolean): Promise<{ gallery: IGalleryExtension, manifest: IExtensionManifest }[]> {
+	private async getAllDepsAndPackExtensionsToInstall(extensionIdentifier: IExtensionIdentifier, manifest: IExtensionManifest, getOnlyNewlyAddedFromExtensionPack: boolean, installPreRelease: boolean): Promise<{ gallery: IGalleryExtension, manifest: IExtensionManifest }[]> {
 		if (!this.galleryService.isEnabled()) {
 			return [];
 		}
@@ -357,17 +367,19 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 							continue;
 						}
 						const isDependency = dependecies.some(id => areSameExtensions({ id }, galleryExtension.identifier));
-						if (!isDependency && !await this.canInstall(galleryExtension)) {
-							this.logService.info('Skipping the packed extension as it cannot be installed', galleryExtension.identifier.id);
-							continue;
+						let compatible;
+						try {
+							compatible = await this.checkAndGetCompatibleVersion(galleryExtension, true, installPreRelease);
+						} catch (error) {
+							if (error instanceof ExtensionManagementError && error.code === ExtensionManagementErrorCode.IncompatibleTargetPlatform && !isDependency) {
+								this.logService.info('Skipping the packed extension as it cannot be installed', galleryExtension.identifier.id);
+								continue;
+							} else {
+								throw error;
+							}
 						}
-						const compatibleExtension = await this.checkAndGetCompatibleVersion(galleryExtension, true);
-						const manifest = await this.galleryService.getManifest(compatibleExtension, CancellationToken.None);
-						if (manifest === null) {
-							throw new ExtensionManagementError(`Missing manifest for extension ${compatibleExtension.identifier.id}`, ExtensionManagementErrorCode.Invalid);
-						}
-						allDependenciesAndPacks.push({ gallery: compatibleExtension, manifest });
-						await collectDependenciesAndPackExtensionsToInstall(compatibleExtension.identifier, manifest);
+						allDependenciesAndPacks.push({ gallery: compatible.extension, manifest: compatible.manifest });
+						await collectDependenciesAndPackExtensionsToInstall(compatible.extension.identifier, manifest);
 					}
 				}
 			}
@@ -378,36 +390,59 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		return allDependenciesAndPacks.filter(e => !installed.some(i => areSameExtensions(i.identifier, e.gallery.identifier)));
 	}
 
-	private async checkAndGetCompatibleVersion(extension: IGalleryExtension, fetchCompatibleVersion: boolean): Promise<IGalleryExtension> {
-		if (await this.isMalicious(extension)) {
+	private async checkAndGetCompatibleVersion(extension: IGalleryExtension, fetchCompatibleVersion: boolean, installPreRelease: boolean): Promise<{ extension: IGalleryExtension, manifest: IExtensionManifest }> {
+		const report = await this.getExtensionsControlManifest();
+		if (getMaliciousExtensionsSet(report).has(extension.identifier.id)) {
 			throw new ExtensionManagementError(nls.localize('malicious extension', "Can't install '{0}' extension since it was reported to be problematic.", extension.identifier.id), ExtensionManagementErrorCode.Malicious);
 		}
 
-		const compatibleExtension = await this.getCompatibleVersion(extension, fetchCompatibleVersion);
-		if (!compatibleExtension) {
+		if (!!report.unsupportedPreReleaseExtensions && !!report.unsupportedPreReleaseExtensions[extension.identifier.id]) {
+			throw new ExtensionManagementError(nls.localize('unsupported prerelease extension', "Can't install '{0}' extension because it is no longer supported. It is now part of the '{1}' extension as a pre-release version.", extension.identifier.id, report.unsupportedPreReleaseExtensions[extension.identifier.id].displayName), ExtensionManagementErrorCode.UnsupportedPreRelease);
+		}
+
+		if (!await this.canInstall(extension)) {
+			const targetPlatform = await this.getTargetPlatform();
+			throw new ExtensionManagementError(nls.localize('incompatible platform', "The '{0}' extension is not available in {1} for {2}.", extension.identifier.id, this.productService.nameLong, TargetPlatformToString(targetPlatform)), ExtensionManagementErrorCode.IncompatibleTargetPlatform);
+		}
+
+		const compatibleExtension = await this.getCompatibleVersion(extension, fetchCompatibleVersion, installPreRelease);
+		if (compatibleExtension) {
+			if (installPreRelease && extension.hasPreReleaseVersion && !compatibleExtension.properties.isPreReleaseVersion) {
+				throw new ExtensionManagementError(nls.localize('notFoundCompatiblePrereleaseDependency', "Can't install pre-release version of '{0}' extension because it is not compatible with the current version of {1} (version {2}).", extension.identifier.id, this.productService.nameLong, this.productService.version), ExtensionManagementErrorCode.IncompatiblePreRelease);
+			}
+		} else {
 			throw new ExtensionManagementError(nls.localize('notFoundCompatibleDependency', "Can't install '{0}' extension because it is not compatible with the current version of {1} (version {2}).", extension.identifier.id, this.productService.nameLong, this.productService.version), ExtensionManagementErrorCode.Incompatible);
 		}
 
-		return compatibleExtension;
+		const manifest = await this.galleryService.getManifest(compatibleExtension, CancellationToken.None);
+		if (manifest === null) {
+			throw new ExtensionManagementError(`Missing manifest for extension ${extension.identifier.id}`, ExtensionManagementErrorCode.Invalid);
+		}
+
+		if (manifest.version !== compatibleExtension.version) {
+			throw new ExtensionManagementError(`Cannot install '${extension.identifier.id}' extension because of version mismatch in Marketplace`, ExtensionManagementErrorCode.Invalid);
+		}
+
+		return { extension: compatibleExtension, manifest };
 	}
 
-	protected async getCompatibleVersion(extension: IGalleryExtension, fetchCompatibleVersion: boolean): Promise<IGalleryExtension | null> {
+	protected async getCompatibleVersion(extension: IGalleryExtension, fetchCompatibleVersion: boolean, includePreRelease: boolean): Promise<IGalleryExtension | null> {
 		const targetPlatform = await this.getTargetPlatform();
 		let compatibleExtension: IGalleryExtension | null = null;
-		if (await this.galleryService.isExtensionCompatible(extension, targetPlatform)) {
+
+		if (fetchCompatibleVersion && extension.hasPreReleaseVersion && extension.properties.isPreReleaseVersion !== includePreRelease) {
+			compatibleExtension = await this.galleryService.getCompatibleExtension(extension.identifier, includePreRelease, targetPlatform);
+		}
+
+		if (!compatibleExtension && await this.galleryService.isExtensionCompatible(extension, includePreRelease, targetPlatform)) {
 			compatibleExtension = extension;
 		}
 
 		if (!compatibleExtension && fetchCompatibleVersion) {
-			compatibleExtension = await this.galleryService.getCompatibleExtension(extension, targetPlatform);
+			compatibleExtension = await this.galleryService.getCompatibleExtension(extension, includePreRelease, targetPlatform);
 		}
 
 		return compatibleExtension;
-	}
-
-	private async isMalicious(extension: IGalleryExtension): Promise<boolean> {
-		const report = await this.getExtensionsReport();
-		return getMaliciousExtensionsSet(report).has(extension.identifier.id);
 	}
 
 	private async unininstallExtension(extension: ILocalExtension, options: UninstallOptions): Promise<void> {
@@ -582,15 +617,15 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		return galleryResult.firstPage[0];
 	}
 
-	private async updateReportCache(): Promise<IReportedExtension[]> {
+	private async updateControlCache(): Promise<IExtensionsControlManifest> {
 		try {
 			this.logService.trace('ExtensionManagementService.refreshReportedCache');
-			const result = await this.galleryService.getExtensionsReport();
-			this.logService.trace(`ExtensionManagementService.refreshReportedCache - got ${result.length} reported extensions from service`);
-			return result;
+			const manifest = await this.galleryService.getExtensionsControlManifest();
+			this.logService.trace(`ExtensionManagementService.refreshControlCache`, manifest);
+			return manifest;
 		} catch (err) {
-			this.logService.trace('ExtensionManagementService.refreshReportedCache - failed to get extension report');
-			return [];
+			this.logService.trace('ExtensionManagementService.refreshControlCache - failed to get extension control manifest');
+			return { malicious: [] };
 		}
 	}
 

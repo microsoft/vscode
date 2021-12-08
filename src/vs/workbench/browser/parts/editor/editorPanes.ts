@@ -268,9 +268,16 @@ export class EditorPanes extends Disposable {
 		// started will cancel the previous one.
 		const operation = this.editorOperation.start(this.layoutService.isRestored() ? 800 : 3200);
 
-		// Set the input to the editor pane
 		let cancelled = false;
 		try {
+
+			// Clear the current input before setting new input
+			// This ensures that a slow loading input will not
+			// be visible for the duration of the new input to
+			// load (https://github.com/microsoft/vscode/issues/34697)
+			editorPane.clearInput();
+
+			// Set the input to the editor pane
 			await editorPane.setInput(editor, options, context, operation.token);
 
 			if (!operation.isCurrent()) {
@@ -309,7 +316,7 @@ export class EditorPanes extends Disposable {
 	}
 
 	closeEditor(editor: EditorInput): void {
-		if (this._activeEditorPane && this._activeEditorPane.input && editor.matches(this._activeEditorPane.input)) {
+		if (this._activeEditorPane?.input && editor.matches(this._activeEditorPane.input)) {
 			this.doHideActiveEditorPane();
 		}
 	}

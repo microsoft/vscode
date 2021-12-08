@@ -1807,7 +1807,7 @@ declare namespace monaco.editor {
 		 */
 		getLineLastNonWhitespaceColumn(lineNumber: number): number;
 		/**
-		 * Create a valid position,
+		 * Create a valid position.
 		 */
 		validatePosition(position: IPosition): Position;
 		/**
@@ -1842,7 +1842,7 @@ declare namespace monaco.editor {
 		 */
 		getPositionAt(offset: number): Position;
 		/**
-		 * Get a range covering the entire model
+		 * Get a range covering the entire model.
 		 */
 		getFullModelRange(): Range;
 		/**
@@ -2036,32 +2036,32 @@ declare namespace monaco.editor {
 		 * An event emitted when decorations of the model have changed.
 		 * @event
 		 */
-		onDidChangeDecorations(listener: (e: IModelDecorationsChangedEvent) => void): IDisposable;
+		readonly onDidChangeDecorations: IEvent<IModelDecorationsChangedEvent>;
 		/**
 		 * An event emitted when the model options have changed.
 		 * @event
 		 */
-		onDidChangeOptions(listener: (e: IModelOptionsChangedEvent) => void): IDisposable;
+		readonly onDidChangeOptions: IEvent<IModelOptionsChangedEvent>;
 		/**
 		 * An event emitted when the language associated with the model has changed.
 		 * @event
 		 */
-		onDidChangeLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
+		readonly onDidChangeLanguage: IEvent<IModelLanguageChangedEvent>;
 		/**
 		 * An event emitted when the language configuration associated with the model has changed.
 		 * @event
 		 */
-		onDidChangeLanguageConfiguration(listener: (e: IModelLanguageConfigurationChangedEvent) => void): IDisposable;
+		readonly onDidChangeLanguageConfiguration: IEvent<IModelLanguageConfigurationChangedEvent>;
 		/**
 		 * An event emitted when the model has been attached to the first editor or detached from the last editor.
 		 * @event
 		 */
-		onDidChangeAttached(listener: () => void): IDisposable;
+		readonly onDidChangeAttached: IEvent<void>;
 		/**
 		 * An event emitted right before disposing the model.
 		 * @event
 		 */
-		onWillDispose(listener: () => void): IDisposable;
+		readonly onWillDispose: IEvent<void>;
 		/**
 		 * Destroy this model.
 		 */
@@ -3299,6 +3299,7 @@ declare namespace monaco.editor {
 		 * Controls the behavior of editor guides.
 		*/
 		guides?: IGuidesOptions;
+		unicodeHighlight?: IUnicodeHighlightOptions;
 	}
 
 	export interface IDiffEditorBaseOptions {
@@ -3377,6 +3378,16 @@ declare namespace monaco.editor {
 		readonly id: K1;
 		readonly name: string;
 		defaultValue: V;
+		/**
+		 * Might modify `value`.
+		*/
+		applyUpdate(value: V, update: V): ApplyUpdateResult<V>;
+	}
+
+	export class ApplyUpdateResult<T> {
+		readonly newValue: T;
+		readonly didChange: boolean;
+		constructor(newValue: T, didChange: boolean);
 	}
 
 	/**
@@ -3862,6 +3873,22 @@ declare namespace monaco.editor {
 		readonly scrollByPage: boolean;
 	}
 
+	export type InUntrustedWorkspace = 'inUntrustedWorkspace';
+
+	/**
+	 * Configuration options for unicode highlighting.
+	 */
+	export interface IUnicodeHighlightOptions {
+		nonBasicASCII?: boolean | InUntrustedWorkspace;
+		invisibleCharacters?: boolean;
+		ambiguousCharacters?: boolean;
+		includeComments?: boolean | InUntrustedWorkspace;
+		/**
+		 * A map of allowed characters (true: allowed).
+		*/
+		allowedCharacters?: Record<string, true>;
+	}
+
 	export interface IInlineSuggestOptions {
 		/**
 		 * Enable or disable the rendering of automatic inline completions.
@@ -4216,25 +4243,26 @@ declare namespace monaco.editor {
 		suggestSelection = 109,
 		tabCompletion = 110,
 		tabIndex = 111,
-		unusualLineTerminators = 112,
-		useShadowDOM = 113,
-		useTabStops = 114,
-		wordSeparators = 115,
-		wordWrap = 116,
-		wordWrapBreakAfterCharacters = 117,
-		wordWrapBreakBeforeCharacters = 118,
-		wordWrapColumn = 119,
-		wordWrapOverride1 = 120,
-		wordWrapOverride2 = 121,
-		wrappingIndent = 122,
-		wrappingStrategy = 123,
-		showDeprecated = 124,
-		inlayHints = 125,
-		editorClassName = 126,
-		pixelRatio = 127,
-		tabFocusMode = 128,
-		layoutInfo = 129,
-		wrappingInfo = 130
+		unicodeHighlighting = 112,
+		unusualLineTerminators = 113,
+		useShadowDOM = 114,
+		useTabStops = 115,
+		wordSeparators = 116,
+		wordWrap = 117,
+		wordWrapBreakAfterCharacters = 118,
+		wordWrapBreakBeforeCharacters = 119,
+		wordWrapColumn = 120,
+		wordWrapOverride1 = 121,
+		wordWrapOverride2 = 122,
+		wrappingIndent = 123,
+		wrappingStrategy = 124,
+		showDeprecated = 125,
+		inlayHints = 126,
+		editorClassName = 127,
+		pixelRatio = 128,
+		tabFocusMode = 129,
+		layoutInfo = 130,
+		wrappingInfo = 131
 	}
 
 	export const EditorOptions: {
@@ -4352,6 +4380,7 @@ declare namespace monaco.editor {
 		suggestSelection: IEditorOption<EditorOption.suggestSelection, 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix'>;
 		tabCompletion: IEditorOption<EditorOption.tabCompletion, 'on' | 'off' | 'onlySnippets'>;
 		tabIndex: IEditorOption<EditorOption.tabIndex, number>;
+		unicodeHighlight: IEditorOption<EditorOption.unicodeHighlighting, Required<Readonly<IUnicodeHighlightOptions>>>;
 		unusualLineTerminators: IEditorOption<EditorOption.unusualLineTerminators, 'auto' | 'off' | 'prompt'>;
 		useShadowDOM: IEditorOption<EditorOption.useShadowDOM, boolean>;
 		useTabStops: IEditorOption<EditorOption.useTabStops, boolean>;
@@ -4738,140 +4767,140 @@ declare namespace monaco.editor {
 		 * An event emitted when the content of the current model has changed.
 		 * @event
 		 */
-		onDidChangeModelContent: IEvent<IModelContentChangedEvent>;
+		readonly onDidChangeModelContent: IEvent<IModelContentChangedEvent>;
 		/**
 		 * An event emitted when the language of the current model has changed.
 		 * @event
 		 */
-		onDidChangeModelLanguage: IEvent<IModelLanguageChangedEvent>;
+		readonly onDidChangeModelLanguage: IEvent<IModelLanguageChangedEvent>;
 		/**
 		 * An event emitted when the language configuration of the current model has changed.
 		 * @event
 		 */
-		onDidChangeModelLanguageConfiguration: IEvent<IModelLanguageConfigurationChangedEvent>;
+		readonly onDidChangeModelLanguageConfiguration: IEvent<IModelLanguageConfigurationChangedEvent>;
 		/**
 		 * An event emitted when the options of the current model has changed.
 		 * @event
 		 */
-		onDidChangeModelOptions: IEvent<IModelOptionsChangedEvent>;
+		readonly onDidChangeModelOptions: IEvent<IModelOptionsChangedEvent>;
 		/**
 		 * An event emitted when the configuration of the editor has changed. (e.g. `editor.updateOptions()`)
 		 * @event
 		 */
-		onDidChangeConfiguration: IEvent<ConfigurationChangedEvent>;
+		readonly onDidChangeConfiguration: IEvent<ConfigurationChangedEvent>;
 		/**
 		 * An event emitted when the cursor position has changed.
 		 * @event
 		 */
-		onDidChangeCursorPosition: IEvent<ICursorPositionChangedEvent>;
+		readonly onDidChangeCursorPosition: IEvent<ICursorPositionChangedEvent>;
 		/**
 		 * An event emitted when the cursor selection has changed.
 		 * @event
 		 */
-		onDidChangeCursorSelection: IEvent<ICursorSelectionChangedEvent>;
+		readonly onDidChangeCursorSelection: IEvent<ICursorSelectionChangedEvent>;
 		/**
 		 * An event emitted when the model of this editor has changed (e.g. `editor.setModel()`).
 		 * @event
 		 */
-		onDidChangeModel: IEvent<IModelChangedEvent>;
+		readonly onDidChangeModel: IEvent<IModelChangedEvent>;
 		/**
 		 * An event emitted when the decorations of the current model have changed.
 		 * @event
 		 */
-		onDidChangeModelDecorations: IEvent<IModelDecorationsChangedEvent>;
+		readonly onDidChangeModelDecorations: IEvent<IModelDecorationsChangedEvent>;
 		/**
 		 * An event emitted when the text inside this editor gained focus (i.e. cursor starts blinking).
 		 * @event
 		 */
-		onDidFocusEditorText(listener: () => void): IDisposable;
+		readonly onDidFocusEditorText: IEvent<void>;
 		/**
 		 * An event emitted when the text inside this editor lost focus (i.e. cursor stops blinking).
 		 * @event
 		 */
-		onDidBlurEditorText(listener: () => void): IDisposable;
+		readonly onDidBlurEditorText: IEvent<void>;
 		/**
 		 * An event emitted when the text inside this editor or an editor widget gained focus.
 		 * @event
 		 */
-		onDidFocusEditorWidget(listener: () => void): IDisposable;
+		readonly onDidFocusEditorWidget: IEvent<void>;
 		/**
 		 * An event emitted when the text inside this editor or an editor widget lost focus.
 		 * @event
 		 */
-		onDidBlurEditorWidget(listener: () => void): IDisposable;
+		readonly onDidBlurEditorWidget: IEvent<void>;
 		/**
 		 * An event emitted after composition has started.
 		 */
-		onDidCompositionStart(listener: () => void): IDisposable;
+		readonly onDidCompositionStart: IEvent<void>;
 		/**
 		 * An event emitted after composition has ended.
 		 */
-		onDidCompositionEnd(listener: () => void): IDisposable;
+		readonly onDidCompositionEnd: IEvent<void>;
 		/**
 		 * An event emitted when editing failed because the editor is read-only.
 		 * @event
 		 */
-		onDidAttemptReadOnlyEdit(listener: () => void): IDisposable;
+		readonly onDidAttemptReadOnlyEdit: IEvent<void>;
 		/**
 		 * An event emitted when users paste text in the editor.
 		 * @event
 		 */
-		onDidPaste: IEvent<IPasteEvent>;
+		readonly onDidPaste: IEvent<IPasteEvent>;
 		/**
 		 * An event emitted on a "mouseup".
 		 * @event
 		 */
-		onMouseUp: IEvent<IEditorMouseEvent>;
+		readonly onMouseUp: IEvent<IEditorMouseEvent>;
 		/**
 		 * An event emitted on a "mousedown".
 		 * @event
 		 */
-		onMouseDown: IEvent<IEditorMouseEvent>;
+		readonly onMouseDown: IEvent<IEditorMouseEvent>;
 		/**
 		 * An event emitted on a "contextmenu".
 		 * @event
 		 */
-		onContextMenu: IEvent<IEditorMouseEvent>;
+		readonly onContextMenu: IEvent<IEditorMouseEvent>;
 		/**
 		 * An event emitted on a "mousemove".
 		 * @event
 		 */
-		onMouseMove: IEvent<IEditorMouseEvent>;
+		readonly onMouseMove: IEvent<IEditorMouseEvent>;
 		/**
 		 * An event emitted on a "mouseleave".
 		 * @event
 		 */
-		onMouseLeave: IEvent<IPartialEditorMouseEvent>;
+		readonly onMouseLeave: IEvent<IPartialEditorMouseEvent>;
 		/**
 		 * An event emitted on a "keyup".
 		 * @event
 		 */
-		onKeyUp: IEvent<IKeyboardEvent>;
+		readonly onKeyUp: IEvent<IKeyboardEvent>;
 		/**
 		 * An event emitted on a "keydown".
 		 * @event
 		 */
-		onKeyDown: IEvent<IKeyboardEvent>;
+		readonly onKeyDown: IEvent<IKeyboardEvent>;
 		/**
 		 * An event emitted when the layout of the editor has changed.
 		 * @event
 		 */
-		onDidLayoutChange: IEvent<EditorLayoutInfo>;
+		readonly onDidLayoutChange: IEvent<EditorLayoutInfo>;
 		/**
 		 * An event emitted when the content width or content height in the editor has changed.
 		 * @event
 		 */
-		onDidContentSizeChange: IEvent<IContentSizeChangedEvent>;
+		readonly onDidContentSizeChange: IEvent<IContentSizeChangedEvent>;
 		/**
 		 * An event emitted when the scroll in the editor has changed.
 		 * @event
 		 */
-		onDidScrollChange: IEvent<IScrollEvent>;
+		readonly onDidScrollChange: IEvent<IScrollEvent>;
 		/**
 		 * An event emitted when hidden areas change in the editor (e.g. due to folding).
 		 * @event
 		 */
-		onDidChangeHiddenAreas: IEvent<void>;
+		readonly onDidChangeHiddenAreas: IEvent<void>;
 		/**
 		 * Saves current view state of the editor in a serializable object.
 		 */
@@ -4889,7 +4918,7 @@ declare namespace monaco.editor {
 		 * @id Unique identifier of the contribution.
 		 * @return The contribution or null if contribution not found.
 		 */
-		getContribution<T extends IEditorContribution>(id: string): T;
+		getContribution<T extends IEditorContribution>(id: string): T | null;
 		/**
 		 * Type the getModel() of IEditor.
 		 */
@@ -5098,6 +5127,7 @@ declare namespace monaco.editor {
 		 * Apply the same font settings as the editor to `target`.
 		 */
 		applyFontInfo(target: HTMLElement): void;
+		setBanner(bannerDomNode: HTMLElement | null, height: number): void;
 	}
 
 	/**
@@ -5119,7 +5149,7 @@ declare namespace monaco.editor {
 		 * An event emitted when the diff information computed by this diff editor has been updated.
 		 * @event
 		 */
-		onDidUpdateDiff(listener: () => void): IDisposable;
+		readonly onDidUpdateDiff: IEvent<void>;
 		/**
 		 * Saves current view state of the editor in a serializable object.
 		 */
@@ -5879,11 +5909,10 @@ declare namespace monaco.languages {
 		/**
 		 * A string or snippet that should be inserted in a document when selecting
 		 * this completion.
-		 * is used.
 		 */
 		insertText: string;
 		/**
-		 * Addition rules (as bitmask) that should be applied when inserting
+		 * Additional rules (as bitmask) that should be applied when inserting
 		 * this completion.
 		 */
 		insertTextRules?: CompletionItemInsertTextRule;
@@ -6000,6 +6029,8 @@ declare namespace monaco.languages {
 	export interface SelectedSuggestionInfo {
 		range: IRange;
 		text: string;
+		isSnippetText: boolean;
+		completionKind: CompletionItemKind;
 	}
 
 	export interface InlineCompletion {

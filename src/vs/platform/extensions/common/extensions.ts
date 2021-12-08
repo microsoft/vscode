@@ -264,8 +264,6 @@ export interface IExtensionManifest {
 	readonly repository?: { url: string; };
 	readonly bugs?: { url: string; };
 	readonly enabledApiProposals?: readonly string[];
-	/** @deprecated */
-	readonly enableProposedApi?: boolean;
 	readonly api?: string;
 	readonly scripts?: { [key: string]: string; };
 	readonly capabilities?: IExtensionCapabilities;
@@ -348,9 +346,6 @@ export interface IExtensionDescription extends IExtensionManifest {
 	readonly isUserBuiltin: boolean;
 	readonly isUnderDevelopment: boolean;
 	readonly extensionLocation: URI;
-
-	/** @deprecated */
-	enableProposedApi?: boolean;
 }
 
 export function isLanguagePackExtension(manifest: IExtensionManifest): boolean {

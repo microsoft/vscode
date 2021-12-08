@@ -27,7 +27,7 @@ import { ShowCurrentReleaseNotesActionId, CheckForVSCodeUpdateActionId } from 'v
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
-import { IUserDataAutoSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, SyncStatus, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, SyncStatus, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { Promises } from 'vs/base/common/async';
 import { IUserDataSyncWorkbenchService } from 'vs/workbench/services/userDataSync/common/userDataSync';
@@ -524,7 +524,7 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 
 				async run(accessor: ServicesAccessor): Promise<void> {
 					const dialogService = accessor.get(IDialogService);
-					const userDataAutoSyncEnablementService = accessor.get(IUserDataAutoSyncEnablementService);
+					const userDataSyncEnablementService = accessor.get(IUserDataSyncEnablementService);
 					const userDataSyncStoreManagementService = accessor.get(IUserDataSyncStoreManagementService);
 					const storageService = accessor.get(IStorageService);
 					const userDataSyncWorkbenchService = accessor.get(IUserDataSyncWorkbenchService);
@@ -535,7 +535,7 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 						const selectSettingsSyncServiceDialogShownKey = 'switchQuality.selectSettingsSyncServiceDialogShown';
 						const userDataSyncStore = userDataSyncStoreManagementService.userDataSyncStore;
 						let userDataSyncStoreType: UserDataSyncStoreType | undefined;
-						if (userDataSyncStore && isSwitchingToInsiders && userDataAutoSyncEnablementService.isEnabled()
+						if (userDataSyncStore && isSwitchingToInsiders && userDataSyncEnablementService.isEnabled()
 							&& !storageService.getBoolean(selectSettingsSyncServiceDialogShownKey, StorageScope.GLOBAL, false)) {
 							userDataSyncStoreType = await this.selectSettingsSyncService(dialogService);
 							if (!userDataSyncStoreType) {

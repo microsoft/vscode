@@ -21,14 +21,14 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IEditorOptions, IResourceEditorInput, IEditorModel, IResourceEditorInputIdentifier, ITextResourceEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ILifecycleService, BeforeShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILifecycleService, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent, BeforeShutdownErrorEvent, InternalBeforeShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { FileOperationEvent, IFileService, IFileStat, IResolveFileResult, FileChangesEvent, IResolveFileOptions, ICreateFileOptions, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions, IReadFileOptions, IFileContent, IFileStreamContent, FileOperationError, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, IReadFileStreamOptions, IFileSystemProviderCapabilitiesChangeEvent, IRawFileChangesEvent } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IResourceEncoding, ITextFileService, IReadTextFileOptions, ITextFileStreamContent, IWriteTextFileOptions, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -51,7 +51,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/common/decorations';
 import { IDisposable, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IEditorReplacement, IGroupChangeEvent, IFindGroupScope, EditorGroupLayout, ICloseEditorOptions, GroupOrientation, ICloseAllEditorsOptions, ICloseEditorsFilter } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IEditorReplacement, IFindGroupScope, EditorGroupLayout, ICloseEditorOptions, GroupOrientation, ICloseAllEditorsOptions, ICloseEditorsFilter } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, ISaveEditorsOptions, IRevertAllEditorsOptions, PreferredGroup, IEditorsChangeEvent } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
@@ -119,20 +119,20 @@ import { TextFileEditor } from 'vs/workbench/contrib/files/browser/editors/textF
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
-import { IEnterWorkspaceResult, IRecent, IRecentlyOpened, IWorkspaceFolderCreationData, IWorkspaceIdentifier, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { IEnterWorkspaceResult, IFolderBackupInfo, IRecent, IRecentlyOpened, IWorkspaceBackupInfo, IWorkspaceFolderCreationData, IWorkspaceIdentifier, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
-import { IShellLaunchConfig, ITerminalProfile, TerminalLocation, TerminalShellType } from 'vs/platform/terminal/common/terminal';
-import { ICreateTerminalOptions, ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IExtensionTerminalProfile, IShellLaunchConfig, ITerminalProfile, TerminalLocation, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { ICreateTerminalOptions, ITerminalEditorService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { assertIsDefined, isArray } from 'vs/base/common/types';
-import { IShellLaunchConfigResolveOptions, ITerminalBackend, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRegisterContributedProfileArgs, IShellLaunchConfigResolveOptions, ITerminalBackend, ITerminalProfileProvider, ITerminalProfileResolverService, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorResolverService } from 'vs/workbench/services/editor/browser/editorResolverService';
 import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IWorkingCopyEditorService, WorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
 import { BrowserElevatedFileService } from 'vs/workbench/services/files/browser/elevatedFileService';
-import { IDiffComputationResult, IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { IDiffComputationResult, IEditorWorkerService, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorkerService';
 import { TextEdit, IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
 import { ResourceMap } from 'vs/base/common/map';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
@@ -141,6 +141,11 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/browser/parts/paneCompositePart';
 import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
+import { FindReplaceState } from 'vs/editor/contrib/find/findState';
+import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
+import { DeserializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
+import { IGroupChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
+import { env } from 'vs/base/common/process';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -225,7 +230,7 @@ export function workbenchInstantiationService(
 	const accessibilityService = new TestAccessibilityService();
 	instantiationService.stub(IAccessibilityService, accessibilityService);
 	instantiationService.stub(IFileDialogService, instantiationService.createInstance(TestFileDialogService));
-	instantiationService.stub(IModeService, disposables.add(instantiationService.createInstance(ModeServiceImpl)));
+	instantiationService.stub(ILanguageService, disposables.add(instantiationService.createInstance(LanguageService)));
 	instantiationService.stub(IHistoryService, new TestHistoryService());
 	instantiationService.stub(ITextResourcePropertiesService, new TestTextResourcePropertiesService(configService));
 	instantiationService.stub(IUndoRedoService, instantiationService.createInstance(UndoRedoService));
@@ -289,7 +294,7 @@ export class TestServiceAccessor {
 		@IPathService public pathService: IPathService,
 		@IEditorGroupsService public editorGroupService: IEditorGroupsService,
 		@IEditorResolverService public editorResolverService: IEditorResolverService,
-		@IModeService public modeService: IModeService,
+		@ILanguageService public languageService: ILanguageService,
 		@ITextModelService public textModelResolverService: ITextModelService,
 		@IUntitledTextEditorService public untitledTextEditorService: UntitledTextEditorService,
 		@IConfigurationService public testConfigurationService: TestConfigurationService,
@@ -330,7 +335,7 @@ export class TestTextFileService extends BrowserTextFileService {
 		@IPathService pathService: IPathService,
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@IModeService modeService: IModeService,
+		@ILanguageService languageService: ILanguageService,
 		@ILogService logService: ILogService,
 		@IElevatedFileService elevatedFileService: IElevatedFileService,
 		@IDecorationsService decorationsService: IDecorationsService
@@ -351,7 +356,7 @@ export class TestTextFileService extends BrowserTextFileService {
 			pathService,
 			workingCopyFileService,
 			uriIdentityService,
-			modeService,
+			languageService,
 			elevatedFileService,
 			logService,
 			decorationsService
@@ -813,6 +818,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 
 	onWillDispose: Event<void> = Event.None;
 	onDidGroupChange: Event<IGroupChangeEvent> = Event.None;
+	onDidModelChange: Event<IGroupChangeEvent> = Event.None;
 	onWillCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	onDidOpenEditorFail: Event<EditorInput> = Event.None;
@@ -1205,14 +1211,17 @@ export class TestLifecycleService implements ILifecycleService {
 	phase!: LifecyclePhase;
 	startupKind!: StartupKind;
 
-	private readonly _onBeforeShutdown = new Emitter<BeforeShutdownEvent>();
-	get onBeforeShutdown(): Event<BeforeShutdownEvent> { return this._onBeforeShutdown.event; }
+	private readonly _onBeforeShutdown = new Emitter<InternalBeforeShutdownEvent>();
+	get onBeforeShutdown(): Event<InternalBeforeShutdownEvent> { return this._onBeforeShutdown.event; }
+
+	private readonly _onBeforeShutdownError = new Emitter<BeforeShutdownErrorEvent>();
+	get onBeforeShutdownError(): Event<BeforeShutdownErrorEvent> { return this._onBeforeShutdownError.event; }
 
 	private readonly _onWillShutdown = new Emitter<WillShutdownEvent>();
 	get onWillShutdown(): Event<WillShutdownEvent> { return this._onWillShutdown.event; }
 
-	private readonly _onShutdown = new Emitter<void>();
-	get onDidShutdown(): Event<void> { return this._onShutdown.event; }
+	private readonly _onDidShutdown = new Emitter<void>();
+	get onDidShutdown(): Event<void> { return this._onDidShutdown.event; }
 
 	async when(): Promise<void> { }
 
@@ -1229,7 +1238,7 @@ export class TestLifecycleService implements ILifecycleService {
 		});
 	}
 
-	fireBeforeShutdown(event: BeforeShutdownEvent): void { this._onBeforeShutdown.fire(event); }
+	fireBeforeShutdown(event: InternalBeforeShutdownEvent): void { this._onBeforeShutdown.fire(event); }
 
 	fireWillShutdown(event: WillShutdownEvent): void { this._onWillShutdown.fire(event); }
 
@@ -1238,13 +1247,19 @@ export class TestLifecycleService implements ILifecycleService {
 	}
 }
 
-export class TestBeforeShutdownEvent implements BeforeShutdownEvent {
+export class TestBeforeShutdownEvent implements InternalBeforeShutdownEvent {
 
 	value: boolean | Promise<boolean> | undefined;
+	finalValue: (() => boolean | Promise<boolean>) | undefined;
 	reason = ShutdownReason.CLOSE;
 
 	veto(value: boolean | Promise<boolean>): void {
 		this.value = value;
+	}
+
+	finalVeto(vetoFn: () => boolean | Promise<boolean>): void {
+		this.value = vetoFn();
+		this.finalValue = vetoFn;
 	}
 }
 
@@ -1714,7 +1729,7 @@ export class TestWorkspacesService implements IWorkspacesService {
 	async removeRecentlyOpened(workspaces: URI[]): Promise<void> { }
 	async clearRecentlyOpened(): Promise<void> { }
 	async getRecentlyOpened(): Promise<IRecentlyOpened> { return { files: [], workspaces: [] }; }
-	async getDirtyWorkspaces(): Promise<(URI | IWorkspaceIdentifier)[]> { return []; }
+	async getDirtyWorkspaces(): Promise<(IFolderBackupInfo | IWorkspaceBackupInfo)[]> { return []; }
 	async enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined> { throw new Error('Method not implemented.'); }
 	async getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier> { throw new Error('Method not implemented.'); }
 }
@@ -1723,13 +1738,92 @@ export class TestTerminalInstanceService implements ITerminalInstanceService {
 	onDidCreateInstance = Event.None;
 	declare readonly _serviceBrand: undefined;
 
-	async getXtermConstructor(): Promise<any> { throw new Error('Method not implemented.'); }
-	async getXtermSearchConstructor(): Promise<any> { throw new Error('Method not implemented.'); }
-	async getXtermUnicode11Constructor(): Promise<any> { throw new Error('Method not implemented.'); }
-	async getXtermWebglConstructor(): Promise<any> { throw new Error('Method not implemented.'); }
+	convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig { throw new Error('Method not implemented.'); }
 	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType, remoteAuthority: string | undefined): Promise<string> { throw new Error('Method not implemented.'); }
 	createInstance(options: ICreateTerminalOptions, target?: TerminalLocation): ITerminalInstance { throw new Error('Method not implemented.'); }
 	getBackend(remoteAuthority?: string): ITerminalBackend | undefined { throw new Error('Method not implemented.'); }
+}
+
+export class TestTerminalEditorService implements ITerminalEditorService {
+	_serviceBrand: undefined;
+	activeInstance: ITerminalInstance | undefined;
+	instances: readonly ITerminalInstance[] = [];
+	onDidDisposeInstance = Event.None;
+	onDidFocusInstance = Event.None;
+	onDidChangeActiveInstance = Event.None;
+	onDidChangeInstances = Event.None;
+	openEditor(instance: ITerminalInstance, editorOptions?: TerminalEditorLocation): Promise<void> { throw new Error('Method not implemented.'); }
+	detachActiveEditorInstance(): ITerminalInstance { throw new Error('Method not implemented.'); }
+	detachInstance(instance: ITerminalInstance): void { throw new Error('Method not implemented.'); }
+	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance { throw new Error('Method not implemented.'); }
+	revealActiveEditor(preserveFocus?: boolean): void { throw new Error('Method not implemented.'); }
+	resolveResource(instance: ITerminalInstance | URI): URI { throw new Error('Method not implemented.'); }
+	reviveInput(deserializedInput: DeserializedTerminalEditorInput): TerminalEditorInput { throw new Error('Method not implemented.'); }
+	getInputFromResource(resource: URI): TerminalEditorInput { throw new Error('Method not implemented.'); }
+	setActiveInstance(instance: ITerminalInstance): void { throw new Error('Method not implemented.'); }
+	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined { throw new Error('Method not implemented.'); }
+	focusFindWidget(): void { throw new Error('Method not implemented.'); }
+	hideFindWidget(): void { throw new Error('Method not implemented.'); }
+	getFindState(): FindReplaceState { throw new Error('Method not implemented.'); }
+	findNext(): void { throw new Error('Method not implemented.'); }
+	findPrevious(): void { throw new Error('Method not implemented.'); }
+}
+
+export class TestTerminalGroupService implements ITerminalGroupService {
+	_serviceBrand: undefined;
+	activeInstance: ITerminalInstance | undefined;
+	instances: readonly ITerminalInstance[] = [];
+	groups: readonly ITerminalGroup[] = [];
+	activeGroup: ITerminalGroup | undefined;
+	activeGroupIndex: number = 0;
+	onDidChangeActiveGroup = Event.None;
+	onDidDisposeGroup = Event.None;
+	onDidChangeGroups = Event.None;
+	onDidChangePanelOrientation = Event.None;
+	onDidDisposeInstance = Event.None;
+	onDidFocusInstance = Event.None;
+	onDidChangeActiveInstance = Event.None;
+	onDidChangeInstances = Event.None;
+	createGroup(instance?: any): ITerminalGroup { throw new Error('Method not implemented.'); }
+	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined { throw new Error('Method not implemented.'); }
+	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void { throw new Error('Method not implemented.'); }
+	moveGroupToEnd(source: ITerminalInstance): void { throw new Error('Method not implemented.'); }
+	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void { throw new Error('Method not implemented.'); }
+	unsplitInstance(instance: ITerminalInstance): void { throw new Error('Method not implemented.'); }
+	joinInstances(instances: ITerminalInstance[]): void { throw new Error('Method not implemented.'); }
+	instanceIsSplit(instance: ITerminalInstance): boolean { throw new Error('Method not implemented.'); }
+	getGroupLabels(): string[] { throw new Error('Method not implemented.'); }
+	setActiveGroupByIndex(index: number): void { throw new Error('Method not implemented.'); }
+	setActiveGroupToNext(): void { throw new Error('Method not implemented.'); }
+	setActiveGroupToPrevious(): void { throw new Error('Method not implemented.'); }
+	setActiveInstanceByIndex(terminalIndex: number): void { throw new Error('Method not implemented.'); }
+	setContainer(container: HTMLElement): void { throw new Error('Method not implemented.'); }
+	showPanel(focus?: boolean): Promise<void> { throw new Error('Method not implemented.'); }
+	hidePanel(): void { throw new Error('Method not implemented.'); }
+	focusTabs(): void { throw new Error('Method not implemented.'); }
+	showTabs(): void { throw new Error('Method not implemented.'); }
+	setActiveInstance(instance: ITerminalInstance): void { throw new Error('Method not implemented.'); }
+	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined { throw new Error('Method not implemented.'); }
+	focusFindWidget(): void { throw new Error('Method not implemented.'); }
+	hideFindWidget(): void { throw new Error('Method not implemented.'); }
+	getFindState(): FindReplaceState { throw new Error('Method not implemented.'); }
+	findNext(): void { throw new Error('Method not implemented.'); }
+	findPrevious(): void { throw new Error('Method not implemented.'); }
+}
+
+export class TestTerminalProfileService implements ITerminalProfileService {
+	_serviceBrand: undefined;
+	availableProfiles: ITerminalProfile[] = [];
+	contributedProfiles: IExtensionTerminalProfile[] = [];
+	profilesReady: Promise<void> = Promise.resolve();
+	onDidChangeAvailableProfiles = Event.None;
+	getPlatformKey(): Promise<string> { throw new Error('Method not implemented.'); }
+	refreshAvailableProfiles(): void { throw new Error('Method not implemented.'); }
+	getDefaultProfileName(): string | undefined { throw new Error('Method not implemented.'); }
+	getContributedDefaultProfile(shellLaunchConfig: IShellLaunchConfig): Promise<IExtensionTerminalProfile | undefined> { throw new Error('Method not implemented.'); }
+	registerContributedProfile(args: IRegisterContributedProfileArgs): Promise<void> { throw new Error('Method not implemented.'); }
+	getContributedProfileProvider(extensionIdentifier: string, id: string): ITerminalProfileProvider | undefined { throw new Error('Method not implemented.'); }
+	registerTerminalProfileProvider(extensionIdentifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable { throw new Error('Method not implemented.'); }
 }
 
 export class TestTerminalProfileResolverService implements ITerminalProfileResolverService {
@@ -1740,7 +1834,7 @@ export class TestTerminalProfileResolverService implements ITerminalProfileResol
 	async getDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> { return { path: '/default', profileName: 'Default', isDefault: true }; }
 	async getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string> { return '/default'; }
 	async getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]> { return []; }
-	async getEnvironment(): Promise<IProcessEnvironment> { return process.env; }
+	async getEnvironment(): Promise<IProcessEnvironment> { return env; }
 	getSafeConfigValue(key: string, os: OperatingSystem): unknown | undefined { return undefined; }
 	getSafeConfigValueFullKey(key: string): unknown | undefined { return undefined; }
 	createProfileFromShellAndShellArgs(shell?: unknown, shellArgs?: unknown): Promise<string | ITerminalProfile> { throw new Error('Method not implemented.'); }
@@ -1782,6 +1876,8 @@ export class TestEditorWorkerService implements IEditorWorkerService {
 
 	declare readonly _serviceBrand: undefined;
 
+	canComputeUnicodeHighlights(uri: URI): boolean { return false; }
+	async computedUnicodeHighlights(uri: URI): Promise<IUnicodeHighlightsResult> { return { ranges: [], hasMore: false, ambiguousCharacterCount: 0, invisibleCharacterCount: 0, nonBasicAsciiCharacterCount: 0 }; }
 	async computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean, maxComputationTime: number): Promise<IDiffComputationResult | null> { return null; }
 	canComputeDirtyDiff(original: URI, modified: URI): boolean { return false; }
 	async computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[] | null> { return null; }

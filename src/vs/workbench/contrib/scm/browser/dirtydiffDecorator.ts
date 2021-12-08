@@ -556,7 +556,7 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 
 	public static readonly ID = 'editor.contrib.dirtydiff';
 
-	static get(editor: ICodeEditor): DirtyDiffController {
+	static get(editor: ICodeEditor): DirtyDiffController | null {
 		return editor.getContribution<DirtyDiffController>(DirtyDiffController.ID);
 	}
 
@@ -1162,7 +1162,7 @@ export class DirtyDiffModel extends Disposable {
 	}
 
 	private diff(): Promise<IChange[] | null> {
-		return this.progressService.withProgress({ location: ProgressLocation.Scm }, async () => {
+		return this.progressService.withProgress({ location: ProgressLocation.Scm, delay: 250 }, async () => {
 			return this.getOriginalURIPromise().then(originalURI => {
 				if (this._disposed || this._model.isDisposed() || !originalURI) {
 					return Promise.resolve([]); // disposed
@@ -1410,7 +1410,9 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 			.map(editor => {
 				const codeEditor = editor as CodeEditorWidget;
 				const controller = DirtyDiffController.get(codeEditor);
-				controller.modelRegistry = this;
+				if (controller) {
+					controller.modelRegistry = this;
+				}
 				return codeEditor.getModel();
 			})
 

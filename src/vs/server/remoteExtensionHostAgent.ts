@@ -25,6 +25,10 @@ const errorReporter: ErrorReporter = {
 
 	onUnknownOption: (id: string) => {
 		console.error(`Ignoring option ${id}: not supported for server.`);
+	},
+
+	onDeprecatedOption: (deprecatedOption: string, actualOption: string) => {
+		console.warn(`Option '${deprecatedOption}' is deprecated, please use '${actualOption}' instead`);
 	}
 };
 
@@ -53,7 +57,7 @@ args['extensions-dir'] = args['extensions-dir'] || join(REMOTE_DATA_FOLDER, 'ext
  * invoked by vs/server/main.js
  */
 export function spawnCli() {
-	runCli(args, REMOTE_DATA_FOLDER);
+	runCli(args, REMOTE_DATA_FOLDER, serverOptions);
 }
 
 /**

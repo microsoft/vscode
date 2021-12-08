@@ -5,8 +5,8 @@
 
 import * as assert from 'assert';
 import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, TestEditorPart, ITestInstantiationService, TestServiceAccessor, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
-import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupChangeKind, GroupLocation, isEditorGroup, IEditorGroupsService, IGroupChangeEvent } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { CloseDirection, IEditorPartOptions, EditorsOrder, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupLocation, isEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { CloseDirection, IEditorPartOptions, EditorsOrder, EditorInputCapabilities, GroupChangeKind } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -15,6 +15,7 @@ import { ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
+import { IGroupChangeEvent, IGroupEditorMoveEvent, IGroupEditorOpenEvent } from 'vs/workbench/common/editor/editorGroupModel';
 
 suite('EditorGroupsService', () => {
 
@@ -454,8 +455,8 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group.count, 2);
 		assert.strictEqual(editorCapabilitiesCounter, 0);
 		assert.strictEqual(editorDidOpenCounter, 2);
-		assert.strictEqual(editorOpenEvents[0].editorIndex, 0);
-		assert.strictEqual(editorOpenEvents[1].editorIndex, 1);
+		assert.strictEqual((editorOpenEvents[0] as IGroupEditorOpenEvent).editorIndex, 0);
+		assert.strictEqual((editorOpenEvents[1] as IGroupEditorOpenEvent).editorIndex, 1);
 		assert.strictEqual(editorOpenEvents[0].editor, input);
 		assert.strictEqual(editorOpenEvents[1].editor, inputInactive);
 		assert.strictEqual(activeEditorChangeCounter, 1);
@@ -495,7 +496,7 @@ suite('EditorGroupsService', () => {
 
 		assert.strictEqual(activeEditorChangeCounter, 3);
 		assert.strictEqual(editorCloseCounter, 1);
-		assert.strictEqual(editorCloseEvents[0].editorIndex, 1);
+		assert.strictEqual((editorCloseEvents[0] as IGroupEditorOpenEvent).editorIndex, 1);
 		assert.strictEqual(editorCloseEvents[0].editor, inputInactive);
 		assert.strictEqual(editorCloseCounter1, 1);
 		assert.strictEqual(editorWillCloseCounter, 1);
@@ -952,16 +953,16 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group.getEditorByIndex(1), inputInactive);
 		group.moveEditor(inputInactive, group, { index: 0 });
 		assert.strictEqual(moveEvents.length, 1);
-		assert.strictEqual(moveEvents[0].editorIndex, 0);
-		assert.strictEqual(moveEvents[0].oldEditorIndex, 1);
+		assert.strictEqual((moveEvents[0] as IGroupEditorOpenEvent).editorIndex, 0);
+		assert.strictEqual((moveEvents[0] as IGroupEditorMoveEvent).oldEditorIndex, 1);
 		assert.strictEqual(moveEvents[0].editor, inputInactive);
 		assert.strictEqual(group.getEditorByIndex(0), inputInactive);
 		assert.strictEqual(group.getEditorByIndex(1), input);
 
 		group.moveEditors([{ editor: inputInactive, options: { index: 1 } }], group);
 		assert.strictEqual(moveEvents.length, 2);
-		assert.strictEqual(moveEvents[1].editorIndex, 1);
-		assert.strictEqual(moveEvents[1].oldEditorIndex, 0);
+		assert.strictEqual((moveEvents[1] as IGroupEditorOpenEvent).editorIndex, 1);
+		assert.strictEqual((moveEvents[1] as IGroupEditorMoveEvent).oldEditorIndex, 0);
 		assert.strictEqual(moveEvents[1].editor, inputInactive);
 		assert.strictEqual(group.getEditorByIndex(0), input);
 		assert.strictEqual(group.getEditorByIndex(1), inputInactive);

@@ -22,14 +22,14 @@ import { INativeEnvironmentService } from 'vs/platform/environment/common/enviro
 import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExtensionTask, IUninstallExtensionTask, joinErrors, UninstallExtensionTaskOptions } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
 import {
 	ExtensionManagementError, ExtensionManagementErrorCode, getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallOperation, InstallOptions,
-	InstallVSIXOptions, TargetPlatform
+	InstallVSIXOptions, Metadata, TargetPlatform
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, ExtensionIdentifierWithVersion, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionsDownloader } from 'vs/platform/extensionManagement/node/extensionDownloader';
 import { ExtensionsLifecycle } from 'vs/platform/extensionManagement/node/extensionLifecycle';
 import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { ExtensionsManifestCache } from 'vs/platform/extensionManagement/node/extensionsManifestCache';
-import { ExtensionsScanner, ILocalExtensionManifest, IMetadata } from 'vs/platform/extensionManagement/node/extensionsScanner';
+import { ExtensionsScanner, ILocalExtensionManifest } from 'vs/platform/extensionManagement/node/extensionsScanner';
 import { ExtensionsWatcher } from 'vs/platform/extensionManagement/node/extensionsWatcher';
 import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
@@ -43,7 +43,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 interface InstallableExtension {
 	zipPath: string;
 	identifierWithVersion: ExtensionIdentifierWithVersion;
-	metadata?: IMetadata;
+	metadata?: Metadata;
 }
 
 export class ExtensionManagementService extends AbstractExtensionManagementService implements IExtensionManagementService {
@@ -148,7 +148,11 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 
 	async updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {
 		this.logService.trace('ExtensionManagementService#updateMetadata', local.identifier.id);
-		local = await this.extensionsScanner.saveMetadataForLocalExtension(local, { ...((<ILocalExtensionManifest>local.manifest).__metadata || {}), ...metadata });
+		const localMetadata: Metadata = { ...((<ILocalExtensionManifest>local.manifest).__metadata || {}), ...metadata };
+		if (metadata.isPreReleaseVersion) {
+			localMetadata.preRelease = true;
+		}
+		local = await this.extensionsScanner.saveMetadataForLocalExtension(local, localMetadata);
 		this.manifestCache.invalidate();
 		return local;
 	}
@@ -226,7 +230,7 @@ abstract class AbstractInstallExtensionTask extends AbstractExtensionTask<ILocal
 		try {
 			const local = await this.unsetUninstalledAndGetLocal(installableExtension.identifierWithVersion);
 			if (local) {
-				return installableExtension.metadata ? this.extensionsScanner.saveMetadataForLocalExtension(local, installableExtension.metadata) : local;
+				return installableExtension.metadata ? this.extensionsScanner.saveMetadataForLocalExtension(local, { ...((<ILocalExtensionManifest>local.manifest).__metadata || {}), ...installableExtension.metadata }) : local;
 			}
 		} catch (e) {
 			if (isMacintosh) {
@@ -287,6 +291,8 @@ class InstallGalleryExtensionTask extends AbstractInstallExtensionTask {
 		const installableExtension = await this.downloadInstallableExtension(this.gallery, this._operation);
 		installableExtension.metadata.isMachineScoped = this.options.isMachineScoped || existingExtension?.isMachineScoped;
 		installableExtension.metadata.isBuiltin = this.options.isBuiltin || existingExtension?.isBuiltin;
+		installableExtension.metadata.isPreReleaseVersion = this.gallery.properties.isPreReleaseVersion;
+		installableExtension.metadata.preRelease = this.gallery.hasPreReleaseVersion ? this.gallery.properties.isPreReleaseVersion : existingExtension?.preRelease;
 
 		try {
 			const local = await this.installExtension(installableExtension, token);
@@ -352,7 +358,7 @@ class InstallVSIXTask extends AbstractInstallExtensionTask {
 		const identifierWithVersion = new ExtensionIdentifierWithVersion(this.identifier, this.manifest.version);
 		const installedExtensions = await this.extensionsScanner.scanExtensions(ExtensionType.User);
 		const existing = installedExtensions.find(i => areSameExtensions(this.identifier, i.identifier));
-		const metadata = await this.getMetadata(this.identifier.id, token);
+		const metadata = await this.getMetadata(this.identifier.id, this.manifest.version, token);
 		metadata.isMachineScoped = this.options.isMachineScoped || existing?.isMachineScoped;
 		metadata.isBuiltin = this.options.isBuiltin || existing?.isBuiltin;
 
@@ -383,11 +389,14 @@ class InstallVSIXTask extends AbstractInstallExtensionTask {
 		return this.installExtension({ zipPath: path.resolve(this.location.fsPath), identifierWithVersion, metadata }, token);
 	}
 
-	private async getMetadata(name: string, token: CancellationToken): Promise<IMetadata> {
+	private async getMetadata(id: string, version: string, token: CancellationToken): Promise<Metadata> {
 		try {
-			const galleryExtension = (await this.galleryService.query({ names: [name], pageSize: 1 }, token)).firstPage[0];
+			let [galleryExtension] = await this.galleryService.getExtensions([{ id, version }], token);
+			if (!galleryExtension) {
+				[galleryExtension] = await this.galleryService.getExtensions([{ id }], token);
+			}
 			if (galleryExtension) {
-				return { id: galleryExtension.identifier.uuid, publisherDisplayName: galleryExtension.publisherDisplayName, publisherId: galleryExtension.publisherId };
+				return { id: galleryExtension.identifier.uuid, publisherDisplayName: galleryExtension.publisherDisplayName, publisherId: galleryExtension.publisherId, isPreReleaseVersion: galleryExtension.properties.isPreReleaseVersion, preRelease: galleryExtension.properties.isPreReleaseVersion };
 			}
 		} catch (error) {
 			/* Ignore Error */

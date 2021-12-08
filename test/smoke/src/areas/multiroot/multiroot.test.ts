@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import minimist = require('minimist');
 import * as path from 'path';
 import { Application } from '../../../../automation';
-import { afterSuite, beforeSuite } from '../../utils';
+import { installCommonTestHandlers } from '../../utils';
 
 function toUri(path: string): string {
 	if (process.platform === 'win32') {
@@ -17,7 +17,7 @@ function toUri(path: string): string {
 	return `${path}`;
 }
 
-async function createWorkspaceFile(workspacePath: string): Promise<string> {
+function createWorkspaceFile(workspacePath: string): string {
 	const workspaceFilePath = path.join(path.dirname(workspacePath), 'smoketest.code-workspace');
 	const workspace = {
 		folders: [
@@ -38,12 +38,12 @@ async function createWorkspaceFile(workspacePath: string): Promise<string> {
 
 export function setup(opts: minimist.ParsedArgs) {
 	describe('Multiroot', () => {
-		beforeSuite(opts, async opts => {
-			const workspacePath = await createWorkspaceFile(opts.workspacePath);
+
+		// Shared before/after handling
+		installCommonTestHandlers(opts, async opts => {
+			const workspacePath = createWorkspaceFile(opts.workspacePath);
 			return { ...opts, workspacePath };
 		});
-
-		afterSuite(opts);
 
 		it('shows results from all folders', async function () {
 			const app = this.app as Application;

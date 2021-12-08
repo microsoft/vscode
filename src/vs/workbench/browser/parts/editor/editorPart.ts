@@ -8,10 +8,10 @@ import { Part } from 'vs/workbench/browser/part';
 import { Dimension, isAncestor, $, EventHelper, addDisposableGenericMouseDownListner } from 'vs/base/browser/dom';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupChangeKind, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorGroupsService, IEditorSideGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorGroupsService, IEditorSideGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
-import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent } from 'vs/workbench/common/editor';
+import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent, GroupChangeKind } from 'vs/workbench/common/editor';
 import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from 'vs/workbench/common/theme';
 import { distinct, coalesce, firstOrDefault } from 'vs/base/common/arrays';
 import { IEditorGroupsAccessor, IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions } from 'vs/workbench/browser/parts/editor/editor';
@@ -30,7 +30,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IBoundarySashes } from 'vs/base/browser/ui/grid/gridview';
 import { CompositeDragAndDropObserver } from 'vs/workbench/browser/dnd';
-import { Promises } from 'vs/base/common/async';
+import { DeferredPromise, Promises } from 'vs/base/common/async';
 import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder';
 import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
@@ -222,11 +222,11 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	private _isReady = false;
 	get isReady(): boolean { return this._isReady; }
 
-	private whenReadyResolve: (() => void) | undefined;
-	readonly whenReady = new Promise<void>(resolve => (this.whenReadyResolve = resolve));
+	private readonly whenReadyPromise = new DeferredPromise<void>();
+	readonly whenReady = this.whenReadyPromise.p;
 
-	private whenRestoredResolve: (() => void) | undefined;
-	readonly whenRestored = new Promise<void>(resolve => (this.whenRestoredResolve = resolve));
+	private readonly whenRestoredPromise = new DeferredPromise<void>();
+	readonly whenRestored = this.whenRestoredPromise.p;
 
 	get hasRestorableState(): boolean {
 		return !!this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
@@ -864,12 +864,12 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.setupDragAndDropSupport(parent, this.container);
 
 		// Signal ready
-		this.whenReadyResolve?.();
+		this.whenReadyPromise.complete();
 		this._isReady = true;
 
 		// Signal restored
 		Promises.settled(this.groups.map(group => group.whenRestored)).finally(() => {
-			this.whenRestoredResolve?.();
+			this.whenRestoredPromise.complete();
 		});
 
 		return this.container;

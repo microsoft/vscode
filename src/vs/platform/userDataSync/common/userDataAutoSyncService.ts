@@ -14,11 +14,10 @@ import { isWeb } from 'vs/base/common/platform';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ISyncTask, IUserDataAutoSyncEnablementService, IUserDataAutoSyncService, IUserDataManifest, IUserDataSyncLogService, IUserDataSyncResourceEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, UserDataAutoSyncError, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
+import { ISyncTask, IUserDataAutoSyncService, IUserDataManifest, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, UserDataAutoSyncError, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 
@@ -26,81 +25,19 @@ type AutoSyncClassification = {
 	sources: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 };
 
-type AutoSyncEnablementClassification = {
-	enabled?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-};
-
 type AutoSyncErrorClassification = {
 	code: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 	service: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 };
 
-const enablementKey = 'sync.enable';
 const disableMachineEventuallyKey = 'sync.disableMachineEventually';
 const sessionIdKey = 'sync.sessionId';
 const storeUrlKey = 'sync.storeUrl';
 const productQualityKey = 'sync.productQuality';
 
-interface _IUserDataAutoSyncEnablementService extends IUserDataAutoSyncEnablementService {
-	canToggleEnablement(): boolean;
-	setEnablement(enabled: boolean): void;
-}
-
-export class UserDataAutoSyncEnablementService extends Disposable implements _IUserDataAutoSyncEnablementService {
-
-	_serviceBrand: any;
-
-	private _onDidChangeEnablement = new Emitter<boolean>();
-	readonly onDidChangeEnablement: Event<boolean> = this._onDidChangeEnablement.event;
-
-	constructor(
-		@IStorageService private readonly storageService: IStorageService,
-		@IEnvironmentService protected readonly environmentService: IEnvironmentService,
-		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
-	) {
-		super();
-		this._register(storageService.onDidChangeValue(e => this.onDidStorageChange(e)));
-	}
-
-	isEnabled(): boolean {
-		switch (this.environmentService.sync) {
-			case 'on':
-				return true;
-			case 'off':
-				return false;
-		}
-		return this.storageService.getBoolean(enablementKey, StorageScope.GLOBAL, false);
-	}
-
-	canToggleEnablement(): boolean {
-		return this.userDataSyncStoreManagementService.userDataSyncStore !== undefined && this.environmentService.sync === undefined;
-	}
-
-	setEnablement(enabled: boolean): void {
-		if (enabled && !this.canToggleEnablement()) {
-			return;
-		}
-		this.storageService.store(enablementKey, enabled, StorageScope.GLOBAL, StorageTarget.MACHINE);
-	}
-
-	private onDidStorageChange(storageChangeEvent: IStorageValueChangeEvent): void {
-		if (storageChangeEvent.scope !== StorageScope.GLOBAL) {
-			return;
-		}
-
-		if (enablementKey === storageChangeEvent.key) {
-			this._onDidChangeEnablement.fire(this.isEnabled());
-			return;
-		}
-	}
-
-}
-
 export class UserDataAutoSyncService extends Disposable implements IUserDataAutoSyncService {
 
 	_serviceBrand: any;
-
-	private readonly userDataAutoSyncEnablementService: _IUserDataAutoSyncEnablementService;
 
 	private readonly autoSync = this._register(new MutableDisposable<AutoSync>());
 	private successiveFailures: number = 0;
@@ -139,17 +76,15 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		@IProductService productService: IProductService,
 		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
-		@IUserDataSyncResourceEnablementService private readonly userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
+		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 		@IUserDataSyncAccountService private readonly userDataSyncAccountService: IUserDataSyncAccountService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IUserDataSyncMachinesService private readonly userDataSyncMachinesService: IUserDataSyncMachinesService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IUserDataAutoSyncEnablementService userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService
 	) {
 		super();
-		this.userDataAutoSyncEnablementService = userDataAutoSyncEnablementService as _IUserDataAutoSyncEnablementService;
 		this.syncTriggerDelayer = this._register(new Delayer<void>(0));
 
 		this.lastSyncUrl = this.syncUrl;
@@ -171,7 +106,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 				}
 			}));
 
-			if (this.userDataAutoSyncEnablementService.isEnabled()) {
+			if (this.userDataSyncEnablementService.isEnabled()) {
 				this.logService.info('Auto Sync is enabled.');
 			} else {
 				this.logService.info('Auto Sync is disabled.');
@@ -185,7 +120,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 			this._register(userDataSyncAccountService.onDidChangeAccount(() => this.updateAutoSync()));
 			this._register(userDataSyncStoreService.onDidChangeDonotMakeRequestsUntil(() => this.updateAutoSync()));
 			this._register(Event.debounce<string, string[]>(userDataSyncService.onDidChangeLocal, (last, source) => last ? [...last, source] : [source], 1000)(sources => this.triggerSync(sources, false, false)));
-			this._register(Event.filter(this.userDataSyncResourceEnablementService.onDidChangeResourceEnablement, ([, enabled]) => enabled)(() => this.triggerSync(['resourceEnablement'], false, false)));
+			this._register(Event.filter(this.userDataSyncEnablementService.onDidChangeResourceEnablement, ([, enabled]) => enabled)(() => this.triggerSync(['resourceEnablement'], false, false)));
 			this._register(this.userDataSyncStoreManagementService.onDidChangeUserDataSyncStore(() => this.triggerSync(['userDataSyncStoreChanged'], false, false)));
 		}
 	}
@@ -211,7 +146,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 			}
 
 			/* log message when auto sync is not disabled by user */
-			else if (message && this.userDataAutoSyncEnablementService.isEnabled()) {
+			else if (message && this.userDataSyncEnablementService.isEnabled()) {
 				this.logService.info(message);
 			}
 		}
@@ -221,7 +156,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 	protected startAutoSync(): boolean { return true; }
 
 	private isAutoSyncEnabled(): { enabled: boolean, message?: string } {
-		if (!this.userDataAutoSyncEnablementService.isEnabled()) {
+		if (!this.userDataSyncEnablementService.isEnabled()) {
 			return { enabled: false, message: 'Auto Sync: Disabled.' };
 		}
 		if (!this.userDataSyncAccountService.account) {
@@ -271,9 +206,8 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 	}
 
 	private updateEnablement(enabled: boolean): void {
-		if (this.userDataAutoSyncEnablementService.isEnabled() !== enabled) {
-			this.telemetryService.publicLog2<{ enabled: boolean }, AutoSyncEnablementClassification>(enablementKey, { enabled });
-			this.userDataAutoSyncEnablementService.setEnablement(enabled);
+		if (this.userDataSyncEnablementService.isEnabled() !== enabled) {
+			this.userDataSyncEnablementService.setEnablement(enabled);
 			this.updateAutoSync();
 		}
 	}
@@ -377,7 +311,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		this.stopDisableMachineEventually();
 
 		// disable only if sync is disabled
-		if (!this.userDataAutoSyncEnablementService.isEnabled() && this.userDataSyncAccountService.account) {
+		if (!this.userDataSyncEnablementService.isEnabled() && this.userDataSyncAccountService.account) {
 			await this.userDataSyncMachinesService.removeCurrentMachine();
 		}
 	}

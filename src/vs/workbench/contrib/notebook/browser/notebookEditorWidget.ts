@@ -44,12 +44,12 @@ import { NotebookEditorToolbar } from 'vs/workbench/contrib/notebook/browser/vie
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { NotebookEditorKernelManager } from 'vs/workbench/contrib/notebook/browser/notebookEditorKernelManager';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
-import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
+import { NotebookCellList, NOTEBOOK_WEBVIEW_BOUNDARY } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { BackLayerWebView, INotebookWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
-import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellContextKeys';
-import { CellDragAndDropController } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellDnd';
-import { CodeCellRenderer, ListTopCellToolbar, MarkupCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
+import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellContextKeys';
+import { CellDragAndDropController } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellDnd';
+import { CodeCellRenderer, MarkupCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
@@ -70,6 +70,7 @@ import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { registerZIndex, ZIndex } from 'vs/platform/layout/browser/zIndexRegistry';
 import { INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { notebookDebug } from 'vs/workbench/contrib/notebook/browser/notebookLogger';
+import { ListTopCellToolbar } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookTopCellToolbar';
 
 const $ = DOM.$;
 
@@ -305,7 +306,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private _listViewInfoAccessor!: ListViewInfoAccessor;
 	private _dndController: CellDragAndDropController | null = null;
 	private _listTopCellToolbar: ListTopCellToolbar | null = null;
-	private _renderedEditors: Map<ICellViewModel, ICodeEditor | undefined> = new Map();
+	private _renderedEditors: Map<ICellViewModel, ICodeEditor> = new Map();
 	private _viewContext: ViewContext;
 	private _notebookViewModel: NotebookViewModel | undefined;
 	private _localStore: DisposableStore = this._register(new DisposableStore());
@@ -759,6 +760,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 			// boder should always show
 			styleSheets.push(`
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-inner-container.cell-output-focus .cell-focus-indicator-left:before,
 			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container .cell-focus-indicator-left:before {
 				border-color: var(--notebook-focused-cell-border-color) !important;
 			}
@@ -1164,7 +1166,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		const focused = this._list.getFocusedElements()[0];
 		if (focused) {
 			if (!this._cellContextKeyManager) {
-				this._cellContextKeyManager = this._localStore.add(new CellContextKeyManager(this.scopedContextKeyService, this, focused as CellViewModel));
+				this._cellContextKeyManager = this._localStore.add(this.instantiationService.createInstance(CellContextKeyManager, this, focused as CellViewModel));
 			}
 
 			this._cellContextKeyManager.updateForElement(focused as CellViewModel);
@@ -1332,7 +1334,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._webview.element.style.width = '100%';
 
 		// attach the webview container to the DOM tree first
-		this._list.rowsContainer.insertAdjacentElement('afterbegin', this._webview.element);
+		this._list.attachWebview(this._webview.element);
 	}
 
 	private async _attachModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined) {
@@ -1763,11 +1765,21 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				if (element && element.focusMode === CellFocusMode.Editor) {
 					element.updateEditState(CellEditState.Editing, 'editorWidget.focus');
 					element.focusMode = CellFocusMode.Editor;
+					this.focusEditor(element);
 					return;
 				}
 			}
 
 			this._list.domFocus();
+		}
+	}
+
+	private focusEditor(activeElement: CellViewModel): void {
+		for (const [element, editor] of this._renderedEditors.entries()) {
+			if (element === activeElement) {
+				editor.focus();
+				return;
+			}
 		}
 	}
 
@@ -2370,11 +2382,20 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				return;
 			}
 
+			if (!this._list.webviewElement) {
+				return;
+			}
+
 			if (output.type === RenderOutputType.Extension) {
 				this.notebookRendererMessaging.prepare(output.renderer.id);
 			}
 
-			const cellTop = this._list.getAbsoluteTopOfElement(cell);
+			const webviewTop = parseInt(this._list.webviewElement.domNode.style.top, 10);
+			const top = !!webviewTop ? (0 - webviewTop) : 0;
+
+			const cellTop = this._list.getAbsoluteTopOfElement(cell) + top;
+
+			// const cellTop = this._list.getAbsoluteTopOfElement(cell);
 			if (!this._webview.insetMapping.has(output.source)) {
 				await this._webview.createOutput({ cellId: cell.id, cellHandle: cell.handle, cellUri: cell.uri }, output, cellTop, offset);
 			} else {
@@ -2455,8 +2476,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return;
 		}
 
+		if (!this._list.webviewElement) {
+			return;
+		}
+
 		const scrollHeight = this._list.scrollHeight;
-		this._webview!.element.style.height = `${scrollHeight}px`;
+		this._webview!.element.style.height = `${scrollHeight + NOTEBOOK_WEBVIEW_BOUNDARY * 2}px`;
+
+		const webviewTop = parseInt(this._list.webviewElement.domNode.style.top, 10);
+		const top = !!webviewTop ? (0 - webviewTop) : 0;
 
 		const updateItems: IDisplayOutputLayoutUpdateRequest[] = [];
 		const removedItems: ICellOutputViewModel[] = [];
@@ -2484,7 +2512,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			updateItems.push({
 				cell,
 				output: key,
-				cellTop,
+				cellTop: cellTop + top,
 				outputOffset,
 				forceDisplay: false,
 			});
@@ -2497,7 +2525,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			const cell = this.viewModel?.viewCells.find(cell => cell.id === cellId);
 			if (cell) {
 				const cellTop = this._list.getAbsoluteTopOfElement(cell);
-				markdownUpdateItems.push({ id: cellId, top: cellTop });
+				// markdownUpdateItems.push({ id: cellId, top: cellTop });
+				markdownUpdateItems.push({ id: cellId, top: cellTop + top });
 			}
 		}
 
@@ -2737,7 +2766,7 @@ export const focusedCellBorder = registerColor('notebook.focusedCellBorder', {
 	dark: focusBorder,
 	light: focusBorder,
 	hc: focusBorder
-}, nls.localize('notebook.focusedCellBorder', "The color of the cell's borders when the cell is focused."));
+}, nls.localize('notebook.focusedCellBorder', "The color of the cell's focus indicator borders when the cell is focused."));
 
 export const inactiveFocusedCellBorder = registerColor('notebook.inactiveFocusedCellBorder', {
 	dark: notebookCellBorder,
@@ -2937,14 +2966,13 @@ registerThemingParticipant((theme, collector) => {
 	const scrollbarSliderBackgroundColor = theme.getColor(listScrollbarSliderBackground);
 	if (scrollbarSliderBackgroundColor) {
 		collector.addRule(` .notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar > .slider { background: ${scrollbarSliderBackgroundColor}; } `);
-		// collector.addRule(` .monaco-workbench .notebookOverlay .output-plaintext::-webkit-scrollbar-track { background: ${scrollbarSliderBackgroundColor}; } `);
 	}
 
 	const scrollbarSliderHoverBackgroundColor = theme.getColor(listScrollbarSliderHoverBackground);
 	if (scrollbarSliderHoverBackgroundColor) {
 		collector.addRule(` .notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar > .slider:hover { background: ${scrollbarSliderHoverBackgroundColor}; } `);
 		collector.addRule(` .monaco-workbench .notebookOverlay .output-plaintext::-webkit-scrollbar-thumb { background: ${scrollbarSliderHoverBackgroundColor}; } `);
-		collector.addRule(` .monaco-workbench .notebookOverlay .output .error::-webkit-scrollbar-thumb { background: ${scrollbarSliderHoverBackgroundColor}; } `);
+		collector.addRule(` .monaco-workbench .notebookOverlay .output .error .traceback::-webkit-scrollbar-thumb { background: ${scrollbarSliderHoverBackgroundColor}; } `);
 	}
 
 	const scrollbarSliderActiveBackgroundColor = theme.getColor(listScrollbarSliderActiveBackground);

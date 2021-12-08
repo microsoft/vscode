@@ -249,9 +249,11 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	readonly model: NotebookCellTextModel;
 	readonly id: string;
 	readonly textBuffer: IReadonlyTextBuffer;
-	readonly layoutInfo: { totalHeight: number; };
+	readonly layoutInfo: { totalHeight: number; bottomToolbarOffset: number; editorWidth: number; };
 	readonly onDidChangeLayout: Event<{ totalHeight?: boolean | number; outerWidth?: number; }>;
 	readonly onDidChangeCellStatusBarItems: Event<void>;
+	readonly onCellDecorationsChanged: Event<{ added: INotebookCellDecorationOptions[], removed: INotebookCellDecorationOptions[] }>;
+	readonly onDidChangeState: Event<CellViewModelStateChangeEvent>;
 	readonly editStateSource: string;
 	readonly editorAttached: boolean;
 	isInputCollapsed: boolean;

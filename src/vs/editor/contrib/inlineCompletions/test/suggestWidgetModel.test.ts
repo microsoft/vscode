@@ -63,7 +63,7 @@ suite('Suggest Widget Model', () => {
 				const suggestController = (editor.getContribution(SuggestController.ID) as SuggestController);
 				suggestController.triggerSuggest();
 				await timeout(1000);
-				assert.deepStrictEqual(history.splice(0), [true]);
+				assert.deepStrictEqual(history.splice(0), [false, true]);
 
 				context.keyboardType('.');
 				await timeout(1000);

@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { extname } from 'vs/base/common/path';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -33,7 +33,7 @@ interface ISnippetPick extends IQuickPickItem {
 	hint?: true;
 }
 
-async function computePicks(snippetService: ISnippetsService, envService: IEnvironmentService, modeService: IModeService) {
+async function computePicks(snippetService: ISnippetsService, envService: IEnvironmentService, languageService: ILanguageService) {
 
 	const existing: ISnippetPick[] = [];
 	const future: ISnippetPick[] = [];
@@ -55,7 +55,7 @@ async function computePicks(snippetService: ISnippetsService, envService: IEnvir
 			const names = new Set<string>();
 			outer: for (const snippet of file.data) {
 				for (const scope of snippet.scopes) {
-					const name = modeService.getLanguageName(scope);
+					const name = languageService.getLanguageName(scope);
 					if (name) {
 						if (names.size >= 4) {
 							names.add(`${name}...`);
@@ -80,7 +80,7 @@ async function computePicks(snippetService: ISnippetsService, envService: IEnvir
 			const mode = basename(file.location).replace(/\.json$/, '');
 			existing.push({
 				label: basename(file.location),
-				description: `(${modeService.getLanguageName(mode)})`,
+				description: `(${languageService.getLanguageName(mode)})`,
 				filepath: file.location
 			});
 			seen.add(mode);
@@ -88,13 +88,13 @@ async function computePicks(snippetService: ISnippetsService, envService: IEnvir
 	}
 
 	const dir = envService.snippetsHome;
-	for (const mode of modeService.getRegisteredModes()) {
-		const label = modeService.getLanguageName(mode);
-		if (label && !seen.has(mode)) {
+	for (const languageId of languageService.getRegisteredLanguageIds()) {
+		const label = languageService.getLanguageName(languageId);
+		if (label && !seen.has(languageId)) {
 			future.push({
-				label: mode,
+				label: languageId,
 				description: `(${label})`,
-				filepath: joinPath(dir, `${mode}.json`),
+				filepath: joinPath(dir, `${languageId}.json`),
 				hint: true
 			});
 		}
@@ -206,13 +206,13 @@ CommandsRegistry.registerCommand(id, async (accessor): Promise<any> => {
 	const snippetService = accessor.get(ISnippetsService);
 	const quickInputService = accessor.get(IQuickInputService);
 	const opener = accessor.get(IOpenerService);
-	const modeService = accessor.get(IModeService);
+	const languageService = accessor.get(ILanguageService);
 	const envService = accessor.get(IEnvironmentService);
 	const workspaceService = accessor.get(IWorkspaceContextService);
 	const fileService = accessor.get(IFileService);
 	const textFileService = accessor.get(ITextFileService);
 
-	const picks = await computePicks(snippetService, envService, modeService);
+	const picks = await computePicks(snippetService, envService, languageService);
 	const existing: QuickPickInput[] = picks.existing;
 
 	type SnippetPick = IQuickPickItem & { uri: URI } & { scope: string };

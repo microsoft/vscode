@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
+import { gracefulify } from 'graceful-fs';
 import * as cp from 'child_process';
 import * as path from 'path';
 import * as os from 'os';
 import * as minimist from 'minimist';
 import * as rimraf from 'rimraf';
 import * as mkdirp from 'mkdirp';
-import { ncp } from 'ncp';
 import * as vscodetest from 'vscode-test';
 import fetch from 'node-fetch';
-import { Quality, ApplicationOptions, MultiLogger, Logger, ConsoleLogger, FileLogger } from '../../automation';
+import { Quality, ApplicationOptions, MultiLogger, Logger, ConsoleLogger, FileLogger, measureAndLog } from '../../automation';
+import { timeout } from './utils';
 
-import { setup as setupDataMigrationTests } from './areas/workbench/data-migration.test';
 import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
 import { setup as setupPreferencesTests } from './areas/preferences/preferences.test';
 import { setup as setupSearchTests } from './areas/search/search.test';
@@ -27,7 +27,13 @@ import { setup as setupExtensionTests } from './areas/extensions/extensions.test
 import { setup as setupMultirootTests } from './areas/multiroot/multiroot.test';
 import { setup as setupLocalizationTests } from './areas/workbench/localization.test';
 import { setup as setupLaunchTests } from './areas/workbench/launch.test';
-import { setup as setupTerminalProfileTests } from './areas/terminal/terminal-profiles.test';
+import { setup as setupTerminalTests } from './areas/terminal/terminal.test';
+
+try {
+	gracefulify(fs);
+} catch (error) {
+	console.error(`Error enabling graceful-fs: ${error}`);
+}
 
 const testDataPath = path.join(os.tmpdir(), 'vscsmoke');
 if (fs.existsSync(testDataPath)) {
@@ -51,7 +57,6 @@ const opts = minimist(args, {
 		'wait-time',
 		'test-repo',
 		'screenshots',
-		'log',
 		'electronArgs'
 	],
 	boolean: [
@@ -201,9 +206,9 @@ else {
 
 const userDataDir = path.join(testDataPath, 'd');
 
-async function setupRepository(): Promise<void> {
+async function setupRepository(logger: Logger): Promise<void> {
 	if (opts['test-repo']) {
-		console.log('*** Copying test project repository:', opts['test-repo']);
+		logger.log('Copying test project repository:', opts['test-repo']);
 		rimraf.sync(workspacePath);
 		// not platform friendly
 		if (process.platform === 'win32') {
@@ -211,13 +216,12 @@ async function setupRepository(): Promise<void> {
 		} else {
 			cp.execSync(`cp -R "${opts['test-repo']}" "${workspacePath}"`);
 		}
-
 	} else {
 		if (!fs.existsSync(workspacePath)) {
-			console.log('*** Cloning test project repository...');
+			logger.log('Cloning test project repository...');
 			cp.spawnSync('git', ['clone', testRepoUrl, workspacePath]);
 		} else {
-			console.log('*** Cleaning test project repository...');
+			logger.log('Cleaning test project repository...');
 			cp.spawnSync('git', ['fetch'], { cwd: workspacePath });
 			cp.spawnSync('git', ['reset', '--hard', 'FETCH_HEAD'], { cwd: workspacePath });
 			cp.spawnSync('git', ['clean', '-xdf'], { cwd: workspacePath });
@@ -225,12 +229,12 @@ async function setupRepository(): Promise<void> {
 
 		// None of the current smoke tests have a dependency on the packages.
 		// If new smoke tests are added that need the packages, uncomment this.
-		// console.log('*** Running yarn...');
+		// logger.log('Running yarn...');
 		// cp.execSync('yarn', { cwd: workspacePath, stdio: 'inherit' });
 	}
 }
 
-async function ensureStableCode(): Promise<void> {
+async function ensureStableCode(logger: Logger): Promise<void> {
 	if (opts.web || !opts['build']) {
 		return;
 	}
@@ -239,13 +243,13 @@ async function ensureStableCode(): Promise<void> {
 	if (!stableCodePath) {
 		const { major, minor } = parseVersion(version!);
 		const majorMinorVersion = `${major}.${minor - 1}`;
-		const versionsReq = await fetch('https://update.code.visualstudio.com/api/releases/stable', { headers: { 'x-api-version': '2' } });
+		const versionsReq = await measureAndLog(fetch('https://update.code.visualstudio.com/api/releases/stable', { headers: { 'x-api-version': '2' } }), 'versionReq', logger);
 
 		if (!versionsReq.ok) {
 			throw new Error('Could not fetch releases from update server');
 		}
 
-		const versions: { version: string }[] = await versionsReq.json();
+		const versions: { version: string }[] = await measureAndLog(versionsReq.json(), 'versionReq.json()', logger);
 		const prefix = `${majorMinorVersion}.`;
 		const previousVersion = versions.find(v => v.version.startsWith(prefix));
 
@@ -253,12 +257,12 @@ async function ensureStableCode(): Promise<void> {
 			throw new Error(`Could not find suitable stable version ${majorMinorVersion}`);
 		}
 
-		console.log(`*** Found VS Code v${version}, downloading previous VS Code version ${previousVersion.version}...`);
+		logger.log(`Found VS Code v${version}, downloading previous VS Code version ${previousVersion.version}...`);
 
-		const stableCodeExecutable = await vscodetest.download({
+		const stableCodeExecutable = await measureAndLog(vscodetest.download({
 			cachePath: path.join(os.tmpdir(), 'vscode-test'),
 			version: previousVersion.version
-		});
+		}), 'download stable code', logger);
 
 		if (process.platform === 'darwin') {
 			// Visual Studio Code.app/Contents/MacOS/Electron
@@ -273,35 +277,22 @@ async function ensureStableCode(): Promise<void> {
 		throw new Error(`Can't find Stable VSCode at ${stableCodePath}.`);
 	}
 
-	console.log(`*** Using stable build ${stableCodePath} for migration tests`);
+	logger.log(`Using stable build ${stableCodePath} for migration tests`);
 
 	opts['stable-build'] = stableCodePath;
 }
 
-async function setup(): Promise<void> {
-	console.log('*** Test data:', testDataPath);
-	console.log('*** Preparing smoketest setup...');
+async function setup(logger: Logger): Promise<void> {
+	logger.log('Test data:', testDataPath);
+	logger.log('Preparing smoketest setup...');
 
-	await ensureStableCode();
-	await setupRepository();
+	await measureAndLog(ensureStableCode(logger), 'ensureStableCode', logger);
+	await measureAndLog(setupRepository(logger), 'setupRepository', logger);
 
-	console.log('*** Smoketest setup done!\n');
+	logger.log('Smoketest setup done!\n');
 }
 
-function createOptions(): ApplicationOptions {
-	const loggers: Logger[] = [];
-
-	if (opts.verbose) {
-		loggers.push(new ConsoleLogger());
-	}
-
-	let log: string | undefined = undefined;
-
-	if (opts.log) {
-		loggers.push(new FileLogger(opts.log));
-		log = 'trace';
-	}
-
+async function createOptions(): Promise<ApplicationOptions> {
 	return {
 		quality,
 		codePath: opts.build,
@@ -309,9 +300,8 @@ function createOptions(): ApplicationOptions {
 		userDataDir,
 		extensionsPath,
 		waitTime: parseInt(opts['wait-time'] || '0') || 20,
-		logger: new MultiLogger(loggers),
+		logger: await createLogger(),
 		verbose: opts.verbose,
-		log,
 		screenshotsPath,
 		remote: opts.remote,
 		web: opts.web,
@@ -321,29 +311,63 @@ function createOptions(): ApplicationOptions {
 	};
 }
 
+
+async function createLogger(): Promise<Logger> {
+	const loggers: Logger[] = [];
+
+	// Log to console if verbose
+	if (opts.verbose) {
+		loggers.push(new ConsoleLogger());
+	}
+
+	// Always log to log file
+	const logPath = path.join(repoPath, '.build', 'logs', opts.web ? 'smoke-tests-browser' : opts.remote ? 'smoke-tests-remote' : 'smoke-tests');
+	await mkdirp(logPath);
+	loggers.push(new FileLogger(path.join(logPath, 'smoke-test-runner.log')));
+
+	return new MultiLogger(loggers);
+}
+
 before(async function () {
 	this.timeout(2 * 60 * 1000); // allow two minutes for setup
-	await setup();
-	this.defaultOptions = createOptions();
+	const options = this.defaultOptions = await createOptions();
+
+	await setup(options.logger);
 });
 
 after(async function () {
-	await new Promise(c => setTimeout(c, 500)); // wait for shutdown
-
-	if (opts.log) {
-		const logsDir = path.join(userDataDir, 'logs');
-		const destLogsDir = path.join(path.dirname(opts.log), 'logs');
-		await new Promise((c, e) => ncp(logsDir, destLogsDir, err => err ? e(err) : c(undefined)));
+	try {
+		// TODO@tyriar TODO@meganrogge lately deleting the test root
+		// folder results in timeouts of 60s or EPERM issues which
+		// seems to indicate that a process (terminal?) holds onto a
+		// folder within.
+		//
+		// Workarounds pushed for mitigation
+		// - do not end up with mocha timeout errors after 60s by limiting
+		//   this operation to at maximum 30s
+		// - do not end up with a failing `after` call when deletion failed
+		//
+		// Refs: https://github.com/microsoft/vscode/issues/137725
+		let deleted = false;
+		await measureAndLog(Promise.race([
+			new Promise<void>((resolve, reject) => rimraf(testDataPath, { maxBusyTries: 10 }, error => {
+				if (error) {
+					reject(error);
+				} else {
+					deleted = true;
+					resolve();
+				}
+			})),
+			timeout(30000).then(() => {
+				if (!deleted) {
+					throw new Error('giving up after 30s');
+				}
+			})
+		]), 'rimraf(testDataPath)', this.defaultOptions.logger);
+	} catch (error) {
+		this.defaultOptions.logger(`Unable to delete smoke test workspace: ${error}. This indicates some process is locking the workspace folder.`);
 	}
-
-	await new Promise((c, e) => rimraf(testDataPath, { maxBusyTries: 10 }, err => err ? e(err) : c(undefined)));
 });
-
-if (!opts.web && opts['build'] && !opts['remote']) {
-	describe(`Stable vs Insiders Smoke Tests: This test MUST run before releasing`, () => {
-		setupDataMigrationTests(opts, testDataPath);
-	});
-}
 
 describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	if (!opts.web) { setupDataLossTests(opts); }
@@ -352,12 +376,10 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	setupNotebookTests(opts);
 	setupLanguagesTests(opts);
 	setupEditorTests(opts);
+	setupTerminalTests(opts);
 	setupStatusbarTests(opts);
 	setupExtensionTests(opts);
 	if (!opts.web) { setupMultirootTests(opts); }
 	if (!opts.web) { setupLocalizationTests(opts); }
 	if (!opts.web) { setupLaunchTests(opts); }
-
-	// TODO: Enable terminal tests for non-web
-	if (opts.web) { setupTerminalProfileTests(opts); }
 });

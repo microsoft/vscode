@@ -9,6 +9,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { extUri as defaultExtUri, IExtUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { setTimeout0 } from 'vs/base/common/platform';
 
 export function isThenable<T>(obj: unknown): obj is Promise<T> {
 	return !!obj && typeof (obj as unknown as Promise<T>).then === 'function';
@@ -514,11 +515,18 @@ interface ILimitedTaskFactory<T> {
 	e: (error?: unknown) => void;
 }
 
+export interface ILimiter<T> {
+
+	readonly size: number;
+
+	queue(factory: ITask<Promise<T>>): Promise<T>;
+}
+
 /**
  * A helper to queue N promises and run them all with a max degree of parallelism. The helper
  * ensures that at any time no more than M promises are running at the same time.
  */
-export class Limiter<T> {
+export class Limiter<T> implements ILimiter<T>{
 
 	private _size = 0;
 	private runningPromises: number;
@@ -595,7 +603,30 @@ export class ResourceQueue implements IDisposable {
 
 	private readonly queues = new Map<string, Queue<void>>();
 
-	queueFor(resource: URI, extUri: IExtUri = defaultExtUri): Queue<void> {
+	private readonly drainers = new Set<DeferredPromise<void>>();
+
+	async whenDrained(): Promise<void> {
+		if (this.isDrained()) {
+			return;
+		}
+
+		const promise = new DeferredPromise<void>();
+		this.drainers.add(promise);
+
+		return promise.p;
+	}
+
+	private isDrained(): boolean {
+		for (const [, queue] of this.queues) {
+			if (queue.size > 0) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	queueFor(resource: URI, extUri: IExtUri = defaultExtUri): ILimiter<void> {
 		const key = extUri.getComparisonKey(resource);
 
 		let queue = this.queues.get(key);
@@ -604,6 +635,7 @@ export class ResourceQueue implements IDisposable {
 			Event.once(queue.onFinished)(() => {
 				queue?.dispose();
 				this.queues.delete(key);
+				this.onDidQueueFinish();
 			});
 
 			this.queues.set(key, queue);
@@ -612,9 +644,36 @@ export class ResourceQueue implements IDisposable {
 		return queue;
 	}
 
+	private onDidQueueFinish(): void {
+		if (!this.isDrained()) {
+			return; // not done yet
+		}
+
+		this.releaseDrainers();
+	}
+
+	private releaseDrainers(): void {
+		for (const drainer of this.drainers) {
+			drainer.complete();
+		}
+
+		this.drainers.clear();
+	}
+
 	dispose(): void {
-		this.queues.forEach(queue => queue.dispose());
+		for (const [, queue] of this.queues) {
+			queue.dispose();
+		}
+
 		this.queues.clear();
+
+		// Even though we might still have pending
+		// tasks queued, after the queues have been
+		// disposed, we can no longer track them, so
+		// we release drainers to prevent hanging
+		// promises when the resource queue is being
+		// disposed.
+		this.releaseDrainers();
 	}
 }
 
@@ -968,6 +1027,7 @@ export interface IdleDeadline {
 	readonly didTimeout: boolean;
 	timeRemaining(): number;
 }
+
 /**
  * Execute the callback the next time the browser is idle
  */
@@ -979,8 +1039,11 @@ declare function cancelIdleCallback(handle: number): void;
 (function () {
 	if (typeof requestIdleCallback !== 'function' || typeof cancelIdleCallback !== 'function') {
 		runWhenIdle = (runner) => {
-			const handle = setTimeout(() => {
-				const end = Date.now() + 15; // one frame at 64fps
+			setTimeout0(() => {
+				if (disposed) {
+					return;
+				}
+				const end = Date.now() + 3; // yield often
 				runner(Object.freeze({
 					didTimeout: true,
 					timeRemaining() {
@@ -995,7 +1058,6 @@ declare function cancelIdleCallback(handle: number): void;
 						return;
 					}
 					disposed = true;
-					clearTimeout(handle);
 				}
 			};
 		};
@@ -1199,10 +1261,10 @@ export class IntervalCounter {
 
 	private value = 0;
 
-	constructor(private readonly interval: number) { }
+	constructor(private readonly interval: number, private readonly nowFn = () => Date.now()) { }
 
 	increment(): number {
-		const now = Date.now();
+		const now = this.nowFn();
 
 		// We are outside of the range of `interval` and as such
 		// start counting from 0 and remember the time
@@ -1330,6 +1392,284 @@ export namespace Promises {
 			}
 		});
 	}
+}
+
+//#endregion
+
+//#region
+
+const enum AsyncIterableSourceState {
+	Initial,
+	DoneOK,
+	DoneError,
+}
+
+/**
+ * An object that allows to emit async values asynchronously or bring the iterable to an error state using `reject()`.
+ * This emitter is valid only for the duration of the executor (until the promise returned by the executor settles).
+ */
+export interface AsyncIterableEmitter<T> {
+	/**
+	 * The value will be appended at the end.
+	 *
+	 * **NOTE** If `reject()` has already been called, this method has no effect.
+	 */
+	emitOne(value: T): void;
+	/**
+	 * The values will be appended at the end.
+	 *
+	 * **NOTE** If `reject()` has already been called, this method has no effect.
+	 */
+	emitMany(values: T[]): void;
+	/**
+	 * Writing an error will permanently invalidate this iterable.
+	 * The current users will receive an error thrown, as will all future users.
+	 *
+	 * **NOTE** If `reject()` have already been called, this method has no effect.
+	 */
+	reject(error: Error): void;
+}
+
+/**
+ * An executor for the `AsyncIterableObject` that has access to an emitter.
+ */
+export interface AyncIterableExecutor<T> {
+	/**
+	 * @param emitter An object that allows to emit async values valid only for the duration of the executor.
+	 */
+	(emitter: AsyncIterableEmitter<T>): void | Promise<void>
+}
+
+/**
+ * A rich implementation for an `AsyncIterable<T>`.
+ */
+export class AsyncIterableObject<T> implements AsyncIterable<T> {
+
+	public static fromArray<T>(items: T[]): AsyncIterableObject<T> {
+		return new AsyncIterableObject<T>((writer) => {
+			writer.emitMany(items);
+		});
+	}
+
+	public static fromPromise<T>(promise: Promise<T[]>): AsyncIterableObject<T> {
+		return new AsyncIterableObject<T>(async (emitter) => {
+			emitter.emitMany(await promise);
+		});
+	}
+
+	public static fromPromises<T>(promises: Promise<T>[]): AsyncIterableObject<T> {
+		return new AsyncIterableObject<T>(async (emitter) => {
+			await Promise.all(promises.map(async (p) => emitter.emitOne(await p)));
+		});
+	}
+
+	public static merge<T>(iterables: AsyncIterable<T>[]): AsyncIterableObject<T> {
+		return new AsyncIterableObject(async (emitter) => {
+			await Promise.all(iterables.map(async (iterable) => {
+				for await (const item of iterable) {
+					emitter.emitOne(item);
+				}
+			}));
+		});
+	}
+
+	public static EMPTY = AsyncIterableObject.fromArray<any>([]);
+
+	private _state: AsyncIterableSourceState;
+	private _results: T[];
+	private _error: Error | null;
+	private readonly _onStateChanged: Emitter<void>;
+
+	constructor(executor: AyncIterableExecutor<T>) {
+		this._state = AsyncIterableSourceState.Initial;
+		this._results = [];
+		this._error = null;
+		this._onStateChanged = new Emitter<void>();
+
+		queueMicrotask(async () => {
+			const writer: AsyncIterableEmitter<T> = {
+				emitOne: (item) => this.emitOne(item),
+				emitMany: (items) => this.emitMany(items),
+				reject: (error) => this.reject(error)
+			};
+			try {
+				await Promise.resolve(executor(writer));
+				this.resolve();
+			} catch (err) {
+				this.reject(err);
+			} finally {
+				writer.emitOne = undefined!;
+				writer.emitMany = undefined!;
+				writer.reject = undefined!;
+			}
+		});
+	}
+
+	[Symbol.asyncIterator](): AsyncIterator<T, undefined, undefined> {
+		let i = 0;
+		return {
+			next: async () => {
+				do {
+					if (this._state === AsyncIterableSourceState.DoneError) {
+						throw this._error;
+					}
+					if (i < this._results.length) {
+						return { done: false, value: this._results[i++] };
+					}
+					if (this._state === AsyncIterableSourceState.DoneOK) {
+						return { done: true, value: undefined };
+					}
+					await Event.toPromise(this._onStateChanged.event);
+				} while (true);
+			}
+		};
+	}
+
+	public static map<T, R>(iterable: AsyncIterable<T>, mapFn: (item: T) => R): AsyncIterableObject<R> {
+		return new AsyncIterableObject<R>(async (emitter) => {
+			for await (const item of iterable) {
+				emitter.emitOne(mapFn(item));
+			}
+		});
+	}
+
+	public map<R>(mapFn: (item: T) => R): AsyncIterableObject<R> {
+		return AsyncIterableObject.map(this, mapFn);
+	}
+
+	public static filter<T>(iterable: AsyncIterable<T>, filterFn: (item: T) => boolean): AsyncIterableObject<T> {
+		return new AsyncIterableObject<T>(async (emitter) => {
+			for await (const item of iterable) {
+				if (filterFn(item)) {
+					emitter.emitOne(item);
+				}
+			}
+		});
+	}
+
+	public filter(filterFn: (item: T) => boolean): AsyncIterableObject<T> {
+		return AsyncIterableObject.filter(this, filterFn);
+	}
+
+	public static coalesce<T>(iterable: AsyncIterable<T | undefined | null>): AsyncIterableObject<T> {
+		return <AsyncIterableObject<T>>AsyncIterableObject.filter(iterable, item => !!item);
+	}
+
+	public coalesce(): AsyncIterableObject<NonNullable<T>> {
+		return AsyncIterableObject.coalesce(this) as AsyncIterableObject<NonNullable<T>>;
+	}
+
+	public static async toPromise<T>(iterable: AsyncIterable<T>): Promise<T[]> {
+		const result: T[] = [];
+		for await (const item of iterable) {
+			result.push(item);
+		}
+		return result;
+	}
+
+	public toPromise(): Promise<T[]> {
+		return AsyncIterableObject.toPromise(this);
+	}
+
+	/**
+	 * The value will be appended at the end.
+	 *
+	 * **NOTE** If `resolve()` or `reject()` have already been called, this method has no effect.
+	 */
+	private emitOne(value: T): void {
+		if (this._state !== AsyncIterableSourceState.Initial) {
+			return;
+		}
+		// it is important to add new values at the end,
+		// as we may have iterators already running on the array
+		this._results.push(value);
+		this._onStateChanged.fire();
+	}
+
+	/**
+	 * The values will be appended at the end.
+	 *
+	 * **NOTE** If `resolve()` or `reject()` have already been called, this method has no effect.
+	 */
+	private emitMany(values: T[]): void {
+		if (this._state !== AsyncIterableSourceState.Initial) {
+			return;
+		}
+		// it is important to add new values at the end,
+		// as we may have iterators already running on the array
+		this._results = this._results.concat(values);
+		this._onStateChanged.fire();
+	}
+
+	/**
+	 * Calling `resolve()` will mark the result array as complete.
+	 *
+	 * **NOTE** `resolve()` must be called, otherwise all consumers of this iterable will hang indefinitely, similar to a non-resolved promise.
+	 * **NOTE** If `resolve()` or `reject()` have already been called, this method has no effect.
+	 */
+	private resolve(): void {
+		if (this._state !== AsyncIterableSourceState.Initial) {
+			return;
+		}
+		this._state = AsyncIterableSourceState.DoneOK;
+		this._onStateChanged.fire();
+	}
+
+	/**
+	 * Writing an error will permanently invalidate this iterable.
+	 * The current users will receive an error thrown, as will all future users.
+	 *
+	 * **NOTE** If `resolve()` or `reject()` have already been called, this method has no effect.
+	 */
+	private reject(error: Error) {
+		if (this._state !== AsyncIterableSourceState.Initial) {
+			return;
+		}
+		this._state = AsyncIterableSourceState.DoneError;
+		this._error = error;
+		this._onStateChanged.fire();
+	}
+}
+
+export class CancelableAsyncIterableObject<T> extends AsyncIterableObject<T> {
+	constructor(
+		private readonly _source: CancellationTokenSource,
+		executor: AyncIterableExecutor<T>
+	) {
+		super(executor);
+	}
+
+	cancel(): void {
+		this._source.cancel();
+	}
+}
+
+export function createCancelableAsyncIterable<T>(callback: (token: CancellationToken) => AsyncIterable<T>): CancelableAsyncIterableObject<T> {
+	const source = new CancellationTokenSource();
+	const innerIterable = callback(source.token);
+
+	return new CancelableAsyncIterableObject<T>(source, async (emitter) => {
+		const subscription = source.token.onCancellationRequested(() => {
+			subscription.dispose();
+			source.dispose();
+			emitter.reject(canceled());
+		});
+		try {
+			for await (const item of innerIterable) {
+				if (source.token.isCancellationRequested) {
+					// canceled in the meantime
+					return;
+				}
+				emitter.emitOne(item);
+			}
+			subscription.dispose();
+			source.dispose();
+		} catch (err) {
+			subscription.dispose();
+			source.dispose();
+			emitter.reject(err);
+		}
+	});
 }
 
 //#endregion

@@ -10,6 +10,7 @@
   "enabledApiProposals": [
     "inlayHints",
     "languageStatus",
+    "quickPickSeparators",
     "resolvers",
     "workspaceTrust"
   ],
@@ -62,10 +63,11 @@
     "onCommand:javascript.goToProjectConfig",
     "onCommand:typescript.goToProjectConfig",
     "onCommand:typescript.openTsServerLog",
-    "onCommand:workbench.action.tasks.runTask",
+    "onCommand:typescript.tsserverRequest",
     "onCommand:_typescript.configurePlugin",
     "onCommand:_typescript.learnMoreAboutRefactorings",
     "onCommand:typescript.fileReferences",
+    "onTaskType:typescript",
     "onLanguage:jsonc"
   ],
   "main": "./out/extension",
@@ -1115,16 +1117,16 @@
           "markdownDescription": "%typescript.workspaceSymbols.scope%",
           "scope": "window"
         },
-        "javascript.suggest.includeCompletionsWithClassMemberSnippets": {
+        "javascript.suggest.classMemberSnippets.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "%configuration.suggest.includeCompletionsWithClassMemberSnippets%",
+          "description": "%configuration.suggest.classMemberSnippets.enabled%",
           "scope": "resource"
         },
-        "typescript.suggest.includeCompletionsWithClassMemberSnippets": {
+        "typescript.suggest.classMemberSnippets.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "%configuration.suggest.includeCompletionsWithClassMemberSnippets%",
+          "description": "%configuration.suggest.classMemberSnippets.enabled%",
           "scope": "resource"
         }
       }

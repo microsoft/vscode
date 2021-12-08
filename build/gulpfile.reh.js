@@ -25,7 +25,7 @@ const File = require('vinyl');
 const fs = require('fs');
 const glob = require('glob');
 const { compileBuildTask } = require('./gulpfile.compile');
-const { compileExtensionsBuildTask } = require('./gulpfile.extensions');
+const { compileExtensionsBuildTask, compileExtensionMediaBuildTask } = require('./gulpfile.extensions');
 const { vscodeWebEntryPoints, vscodeWebResourceIncludes, createVSCodeWebFileContentMapper } = require('./gulpfile.vscode.web');
 const cp = require('child_process');
 
@@ -103,11 +103,7 @@ const serverEntryPoints = [
 		exclude: ['vs/css', 'vs/nls']
 	},
 	{
-		name: 'vs/platform/files/node/watcher/nsfw/watcherApp',
-		exclude: ['vs/css', 'vs/nls']
-	},
-	{
-		name: 'vs/platform/files/node/watcher/parcel/watcherApp',
+		name: 'vs/platform/files/node/watcher/parcel/parcelWatcherMain',
 		exclude: ['vs/css', 'vs/nls']
 	},
 	{
@@ -381,6 +377,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 			const serverTask = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
 				compileBuildTask,
 				compileExtensionsBuildTask,
+				compileExtensionMediaBuildTask,
 				minified ? minifyTask : optimizeTask,
 				serverTaskCI
 			));

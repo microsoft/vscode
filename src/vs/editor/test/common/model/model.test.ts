@@ -16,7 +16,7 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { createModelServices, createTextModel, createTextModel2 } from 'vs/editor/test/common/editorTestUtils';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 
 // --------- utils
 
@@ -384,10 +384,10 @@ suite('Editor Model - Words', () => {
 
 	class OuterMode extends MockMode {
 		constructor(
-			@IModeService modeService: IModeService
+			@ILanguageService languageService: ILanguageService
 		) {
 			super(OUTER_LANGUAGE_ID);
-			const languageIdCodec = modeService.languageIdCodec;
+			const languageIdCodec = languageService.languageIdCodec;
 
 			this._register(LanguageConfigurationRegistry.register(this.languageId, {}));
 

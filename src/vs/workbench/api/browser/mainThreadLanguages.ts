@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { MainThreadLanguagesShape, MainContext, IExtHostContext, ExtHostContext, ExtHostLanguagesShape } from '../common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
@@ -25,16 +25,16 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 
 	constructor(
 		_extHostContext: IExtHostContext,
-		@IModeService private readonly _modeService: IModeService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@IModelService private readonly _modelService: IModelService,
 		@ITextModelService private _resolverService: ITextModelService,
 		@ILanguageStatusService private readonly _languageStatusService: ILanguageStatusService,
 	) {
 		this._proxy = _extHostContext.getProxy(ExtHostContext.ExtHostLanguages);
 
-		this._proxy.$acceptLanguageIds(_modeService.getRegisteredModes());
-		this._disposables.add(_modeService.onLanguagesMaybeChanged(e => {
-			this._proxy.$acceptLanguageIds(_modeService.getRegisteredModes());
+		this._proxy.$acceptLanguageIds(_languageService.getRegisteredLanguageIds());
+		this._disposables.add(_languageService.onLanguagesMaybeChanged(e => {
+			this._proxy.$acceptLanguageIds(_languageService.getRegisteredLanguageIds());
 		}));
 	}
 
@@ -49,7 +49,7 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 
 	async $changeLanguage(resource: UriComponents, languageId: string): Promise<void> {
 
-		const validLanguageId = this._modeService.validateLanguageId(languageId);
+		const validLanguageId = this._languageService.validateLanguageId(languageId);
 		if (!validLanguageId || validLanguageId !== languageId) {
 			return Promise.reject(new Error(`Unknown language id: ${languageId}`));
 		}
@@ -57,7 +57,7 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 		const uri = URI.revive(resource);
 		const ref = await this._resolverService.createModelReference(uri);
 		try {
-			this._modelService.setMode(ref.object.textEditorModel, this._modeService.create(languageId));
+			this._modelService.setMode(ref.object.textEditorModel, this._languageService.createById(languageId));
 		} finally {
 			ref.dispose();
 		}

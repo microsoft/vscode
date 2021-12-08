@@ -87,7 +87,7 @@ class SessionFileWatcher extends Disposable implements ISessionFileWatcher {
 		}));
 
 		this._register(this.fileWatcher.onDidChangeFile(events => localChangeEmitter.fire(events)));
-		this._register(this.fileWatcher.onDidErrorOccur(error => sessionEmitter.fire(error)));
+		this._register(this.fileWatcher.onDidWatchError(error => sessionEmitter.fire(error)));
 	}
 
 	private getWatcherOptions(): IWatcherOptions | undefined {

@@ -435,9 +435,8 @@ export interface IFileSystemProvider {
 	readonly capabilities: FileSystemProviderCapabilities;
 	readonly onDidChangeCapabilities: Event<void>;
 
-	readonly onDidErrorOccur?: Event<string>;
-
 	readonly onDidChangeFile: Event<readonly IFileChange[]>;
+	readonly onDidWatchError?: Event<string>;
 	watch(resource: URI, opts: IWatchOptions): IDisposable;
 
 	stat(resource: URI): Promise<IStat>;

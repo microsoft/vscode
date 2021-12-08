@@ -7,7 +7,7 @@ This project incorporates components from the projects listed below. The origina
 
 1.	atom/language-clojure version 0.22.7 (https://github.com/atom/language-clojure)
 2.	atom/language-coffee-script version 0.49.3 (https://github.com/atom/language-coffee-script)
-3.	atom/language-css version 0.44.6 (https://github.com/atom/language-css)
+3.	atom/language-css version 0.45.0 (https://github.com/atom/language-css)
 4.	atom/language-java version 0.32.1 (https://github.com/atom/language-java)
 5.	atom/language-sass version 0.62.1 (https://github.com/atom/language-sass)
 6.	atom/language-shellscript version 0.26.0 (https://github.com/atom/language-shellscript)
@@ -26,7 +26,7 @@ This project incorporates components from the projects listed below. The origina
 19.	fadeevab/make.tmbundle (https://github.com/fadeevab/make.tmbundle)
 20.	freebroccolo/atom-language-swift (https://github.com/freebroccolo/atom-language-swift)
 21.	HTML 5.1 W3C Working Draft version 08 October 2015 (http://www.w3.org/TR/2015/WD-html51-20151008/)
-22.	Ikuyadeu/vscode-R version 2.1.0 (https://github.com/Ikuyadeu/vscode-R)
+22.	Ikuyadeu/vscode-R version 2.3.2 (https://github.com/Ikuyadeu/vscode-R)
 23.	Ionic documentation version 1.2.4 (https://github.com/ionic-team/ionic-site)
 24.	ionide/ionide-fsgrammar (https://github.com/ionide/ionide-fsgrammar)
 25.	James-Yu/LaTeX-Workshop version 8.19.1 (https://github.com/James-Yu/LaTeX-Workshop)

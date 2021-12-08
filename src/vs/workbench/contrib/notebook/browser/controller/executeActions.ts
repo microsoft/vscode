@@ -6,7 +6,7 @@
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { localize } from 'vs/nls';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -408,7 +408,7 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 		if (typeof idx !== 'number') {
 			return;
 		}
-		const modeService = accessor.get(IModeService);
+		const languageService = accessor.get(ILanguageService);
 
 		if (context.cell.cellKind === CellKind.Markup) {
 			const nextCell = context.notebookEditor.cellAt(idx + 1);
@@ -416,7 +416,7 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 			if (nextCell) {
 				context.notebookEditor.focusNotebookCell(nextCell, 'container');
 			} else {
-				const newCell = insertCell(modeService, context.notebookEditor, idx, CellKind.Markup, 'below');
+				const newCell = insertCell(languageService, context.notebookEditor, idx, CellKind.Markup, 'below');
 
 				if (newCell) {
 					context.notebookEditor.focusNotebookCell(newCell, 'editor');
@@ -429,7 +429,7 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 			if (nextCell) {
 				context.notebookEditor.focusNotebookCell(nextCell, 'container');
 			} else {
-				const newCell = insertCell(modeService, context.notebookEditor, idx, CellKind.Code, 'below');
+				const newCell = insertCell(languageService, context.notebookEditor, idx, CellKind.Code, 'below');
 
 				if (newCell) {
 					context.notebookEditor.focusNotebookCell(newCell, 'editor');
@@ -457,10 +457,10 @@ registerAction2(class ExecuteCellInsertBelow extends NotebookCellAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		const idx = context.notebookEditor.getCellIndex(context.cell);
-		const modeService = accessor.get(IModeService);
+		const languageService = accessor.get(ILanguageService);
 		const newFocusMode = context.cell.focusMode === CellFocusMode.Editor ? 'editor' : 'container';
 
-		const newCell = insertCell(modeService, context.notebookEditor, idx, context.cell.cellKind, 'below');
+		const newCell = insertCell(languageService, context.notebookEditor, idx, context.cell.cellKind, 'below');
 		if (newCell) {
 			context.notebookEditor.focusNotebookCell(newCell, newFocusMode);
 		}

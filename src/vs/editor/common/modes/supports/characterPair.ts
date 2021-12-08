@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAutoClosingPair, StandardAutoClosingPairConditional, LanguageConfiguration, CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
-import { ScopedLineTokens } from 'vs/editor/common/modes/supports';
 
 export class CharacterPairSupport {
 
@@ -56,17 +55,6 @@ export class CharacterPairSupport {
 
 	public getAutoCloseBeforeSet(): string {
 		return this._autoCloseBefore;
-	}
-
-	public static shouldAutoClosePair(autoClosingPair: StandardAutoClosingPairConditional, context: ScopedLineTokens, column: number): boolean {
-		// Always complete on empty line
-		if (context.getTokenCount() === 0) {
-			return true;
-		}
-
-		const tokenIndex = context.findTokenIndexAtOffset(column - 2);
-		const standardTokenType = context.getStandardTokenType(tokenIndex);
-		return autoClosingPair.isOK(standardTokenType);
 	}
 
 	public getSurroundingPairs(): IAutoClosingPair[] {

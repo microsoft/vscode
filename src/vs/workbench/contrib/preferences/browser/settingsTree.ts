@@ -46,7 +46,7 @@ import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSetti
 import { SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
-import { getDefaultIgnoredSettings, IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { getDefaultIgnoredSettings, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { getInvalidTypeError } from 'vs/workbench/services/preferences/common/preferencesValidation';
 import { Codicon } from 'vs/base/common/codicons';
 import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
@@ -435,33 +435,52 @@ export async function resolveExtensionsSettings(extensionService: IExtensionServ
 		addEntryToTree(extensionId, extensionName, childEntry);
 	};
 
-	const processPromises = groups
-		.sort((a, b) => a.title.localeCompare(b.title))
-		.map(g => processGroupEntry(g));
-
+	const processPromises = groups.map(g => processGroupEntry(g));
 	return Promise.all(processPromises).then(() => {
 		const extGroups: ITOCEntry<ISetting>[] = [];
-		for (const value of extGroupTree.values()) {
-			for (const child of value.children!) {
-				// Sort the individual settings
+		for (const extensionRootEntry of extGroupTree.values()) {
+			for (const child of extensionRootEntry.children!) {
+				// Sort the individual settings of the child.
 				child.settings?.sort((a, b) => {
 					return compareNullableIntegers(a.order, b.order);
 				});
 			}
-			if (value.children!.length === 1) {
-				// Push a flattened setting
+
+			if (extensionRootEntry.children!.length === 1) {
+				// There is a single category for this extension.
+				// Push a flattened setting.
 				extGroups.push({
-					id: value.id,
-					label: value.children![0].label,
-					settings: value.children![0].settings
+					id: extensionRootEntry.id,
+					label: extensionRootEntry.children![0].label,
+					settings: extensionRootEntry.children![0].settings
 				});
 			} else {
-				value.children!.sort((a, b) => {
+				// Sort the categories.
+				extensionRootEntry.children!.sort((a, b) => {
 					return compareNullableIntegers(a.order, b.order);
 				});
-				extGroups.push(value);
+
+				// If there is a category that matches the setting name,
+				// add the settings in manually as "ungrouped" settings.
+				// https://github.com/microsoft/vscode/issues/137259
+				const ungroupedChild = extensionRootEntry.children!.find(child => child.label === extensionRootEntry.label);
+				if (ungroupedChild && !ungroupedChild.children) {
+					const groupedChildren = extensionRootEntry.children!.filter(child => child !== ungroupedChild);
+					extGroups.push({
+						id: extensionRootEntry.id,
+						label: extensionRootEntry.label,
+						settings: ungroupedChild.settings,
+						children: groupedChildren
+					});
+				} else {
+					// Push all the groups as-is.
+					extGroups.push(extensionRootEntry);
+				}
 			}
 		}
+
+		// Sort the outermost settings.
+		extGroups.sort((a, b) => a.label.localeCompare(b.label));
 
 		return {
 			id: 'extensions',
@@ -952,7 +971,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 					if (content.startsWith('#')) {
 						const e: ISettingLinkClickEvent = {
 							source: element,
-							targetKey: content.substr(1)
+							targetKey: content.substring(1)
 						};
 						this._onDidClickSettingLink.fire(e);
 					} else {
@@ -1923,7 +1942,7 @@ export class SettingTreeRenderers {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IUserDataAutoSyncEnablementService private readonly _userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
+		@IUserDataSyncEnablementService private readonly _userDataSyncEnablementService: IUserDataSyncEnablementService,
 	) {
 		this.settingActions = [
 			new Action('settings.resetSetting', localize('resetSettingLabel', "Reset Setting"), undefined, undefined, async context => {
@@ -1971,7 +1990,7 @@ export class SettingTreeRenderers {
 	}
 
 	private getActionsForSetting(setting: ISetting): IAction[] {
-		const enableSync = this._userDataAutoSyncEnablementService.isEnabled();
+		const enableSync = this._userDataSyncEnablementService.isEnabled();
 		return enableSync && !setting.disallowSyncIgnore ?
 			[
 				new Separator(),

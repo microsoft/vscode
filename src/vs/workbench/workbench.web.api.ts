@@ -19,6 +19,8 @@ import { mark } from 'vs/base/common/performance';
 import { ICredentialsProvider } from 'vs/workbench/services/credentials/common/credentials';
 import { TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { DeferredPromise } from 'vs/base/common/async';
+import { asArray } from 'vs/base/common/arrays';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
@@ -29,6 +31,8 @@ interface IResourceUriProvider {
  * For example: `vscode.csharp`
  */
 type ExtensionId = string;
+
+type MarketplaceExtension = ExtensionId | { readonly id: ExtensionId, preRelease?: boolean };
 
 interface ICommonTelemetryPropertiesResolver {
 	(): { [key: string]: any };
@@ -137,6 +141,18 @@ interface IShowPortCandidate {
 	(host: string, port: number, detail: string): Promise<boolean>;
 }
 
+enum Menu {
+	CommandPalette,
+	StatusBarWindowIndicatorMenu,
+}
+
+function asMenuId(menu: Menu): MenuId {
+	switch (menu) {
+		case Menu.CommandPalette: return MenuId.CommandPalette;
+		case Menu.StatusBarWindowIndicatorMenu: return MenuId.StatusBarWindowIndicatorMenu;
+	}
+}
+
 interface ICommand {
 
 	/**
@@ -150,6 +166,13 @@ interface ICommand {
 	 * in the command palette.
 	 */
 	label?: string,
+
+	/**
+	 * The optional menus to append this command to. Only valid if `label` is
+	 * provided as well.
+	 * @default Menu.CommandPalette
+	 */
+	menu?: Menu | Menu[],
 
 	/**
 	 * A function that is being executed with any arguments passed over. The
@@ -358,19 +381,6 @@ interface IWorkbenchConstructionOptions {
 	readonly webviewEndpoint?: string;
 
 	/**
-	 * An URL pointing to the web worker extension host <iframe> src.
-	 * @deprecated. This will be removed soon.
-	 */
-	readonly webWorkerExtensionHostIframeSrc?: string;
-
-	/**
-	 * [TEMPORARY]: This will be removed soon.
-	 * Use an unique origin for the web worker extension host.
-	 * Defaults to true.
-	 */
-	readonly __uniqueWebWorkerExtensionHostOrigin?: boolean;
-
-	/**
 	 * A factory for web sockets.
 	 */
 	readonly webSocketFactory?: IWebSocketFactory;
@@ -396,6 +406,12 @@ interface IWorkbenchConstructionOptions {
 	 */
 	readonly codeExchangeProxyEndpoints?: { [providerId: string]: string }
 
+	/**
+	 * [TEMPORARY]: This will be removed soon.
+	 * Endpoints to be used for proxying repository tarball download calls in the browser.
+	 */
+	readonly _tarballProxyEndpoints?: { [providerId: string]: string }
+
 	//#endregion
 
 
@@ -417,25 +433,18 @@ interface IWorkbenchConstructionOptions {
 	readonly credentialsProvider?: ICredentialsProvider;
 
 	/**
-	 * Additional builtin extensions that cannot be uninstalled but only be disabled.
+	 * Additional builtin extensions those cannot be uninstalled but only be disabled.
 	 * It can be one of the following:
-	 * 	- `ExtensionId`: id of the extension that is available in Marketplace
-	 * 	- `UriComponents`: location of the extension where it is hosted.
+	 * 	- an extension in the Marketplace
+	 * 	- location of the extension where it is hosted.
 	 */
-	readonly additionalBuiltinExtensions?: readonly (ExtensionId | UriComponents)[];
+	readonly additionalBuiltinExtensions?: readonly (MarketplaceExtension | UriComponents)[];
 
 	/**
 	 * List of extensions to be enabled if they are installed.
 	 * Note: This will not install extensions if not installed.
 	 */
 	readonly enabledExtensions?: readonly ExtensionId[];
-
-	/**
-	 * [TEMPORARY]: This will be removed soon.
-	 * Enable inlined extensions.
-	 * Defaults to true.
-	 */
-	readonly _enableBuiltinExtensions?: boolean;
 
 	/**
 	 * Additional domains allowed to open from the workbench without the
@@ -624,8 +633,7 @@ interface IWorkbench {
  * @param options for setting up the workbench
  */
 let created = false;
-let workbenchPromiseResolve: Function;
-const workbenchPromise = new Promise<IWorkbench>(resolve => workbenchPromiseResolve = resolve);
+const workbenchPromise = new DeferredPromise<IWorkbench>();
 function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): IDisposable {
 
 	// Mark start of workbench
@@ -652,23 +660,27 @@ function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions)
 
 			// Commands with labels appear in the command palette
 			if (command.label) {
-				MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: command.id, title: command.label } });
+				for (const menu of asArray(command.menu ?? Menu.CommandPalette)) {
+					MenuRegistry.appendMenuItem(asMenuId(menu), { command: { id: command.id, title: command.label } });
+				}
 			}
 		}
 	}
+
+	CommandsRegistry.registerCommand('_workbench.getTarballProxyEndpoints', () => (options._tarballProxyEndpoints ?? {}));
 
 	// Startup workbench and resolve waiters
 	let instantiatedWorkbench: IWorkbench | undefined = undefined;
 	main(domElement, options).then(workbench => {
 		instantiatedWorkbench = workbench;
-		workbenchPromiseResolve(workbench);
+		workbenchPromise.complete(workbench);
 	});
 
 	return toDisposable(() => {
 		if (instantiatedWorkbench) {
 			instantiatedWorkbench.shutdown();
 		} else {
-			workbenchPromise.then(instantiatedWorkbench => instantiatedWorkbench.shutdown());
+			workbenchPromise.p.then(instantiatedWorkbench => instantiatedWorkbench.shutdown());
 		}
 	});
 }
@@ -686,7 +698,7 @@ namespace commands {
 	* @return A promise that resolves to the returned value of the given command.
 	*/
 	export async function executeCommand(command: string, ...args: any[]): Promise<unknown> {
-		const workbench = await workbenchPromise;
+		const workbench = await workbenchPromise.p;
 
 		return workbench.commands.executeCommand(command, ...args);
 	}
@@ -706,7 +718,7 @@ namespace env {
 	 * @returns A promise that resolves to tuples of source and marks.
 	 */
 	export async function retrievePerformanceMarks(): Promise<[string, readonly IPerformanceMark[]][]> {
-		const workbench = await workbenchPromise;
+		const workbench = await workbenchPromise.p;
 
 		return workbench.env.retrievePerformanceMarks();
 	}
@@ -716,7 +728,7 @@ namespace env {
 	 * experience via protocol handler.
 	 */
 	export async function getUriScheme(): Promise<string> {
-		const workbench = await workbenchPromise;
+		const workbench = await workbenchPromise.p;
 
 		return workbench.env.uriScheme;
 	}
@@ -726,7 +738,7 @@ namespace env {
 	 * workbench.
 	 */
 	export async function openUri(target: URI): Promise<boolean> {
-		const workbench = await workbenchPromise;
+		const workbench = await workbenchPromise.p;
 
 		return workbench.env.openUri(target);
 	}
@@ -796,6 +808,7 @@ export {
 	// Commands
 	ICommand,
 	commands,
+	Menu,
 
 	// Branding
 	IHomeIndicator,

@@ -6,19 +6,19 @@
 import * as cp from 'child_process';
 import minimist = require('minimist');
 import { Application } from '../../../../automation';
-import { afterSuite, beforeSuite, retry } from '../../utils';
+import { installCommonTestHandlers, retry } from '../../utils';
 
 export function setup(opts: minimist.ParsedArgs) {
 	describe('Search', () => {
-		beforeSuite(opts);
+
+		// Shared before/after handling
+		installCommonTestHandlers(opts);
 
 		after(function () {
 			const app = this.app as Application;
 			retry(async () => cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder }), 0, 5);
 			retry(async () => cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePathOrFolder }), 0, 5);
 		});
-
-		afterSuite(opts);
 
 		// https://github.com/microsoft/vscode/issues/124146
 		it.skip /* https://github.com/microsoft/vscode/issues/124335 */('has a tooltp with a keybinding', async function () {
@@ -56,7 +56,7 @@ export function setup(opts: minimist.ParsedArgs) {
 			await app.workbench.search.waitForResultText('12 results in 4 files');
 		});
 
-		it('replaces first search result with a replace term', async function () {
+		it.skip('replaces first search result with a replace term', async function () {
 			const app = this.app as Application;
 
 			await app.workbench.search.searchFor('body');
@@ -73,8 +73,9 @@ export function setup(opts: minimist.ParsedArgs) {
 	});
 
 	describe('Quick Access', () => {
-		beforeSuite(opts);
-		afterSuite(opts);
+
+		// Shared before/after handling
+		installCommonTestHandlers(opts);
 
 		it('quick access search produces correct result', async function () {
 			const app = this.app as Application;
@@ -88,7 +89,7 @@ export function setup(opts: minimist.ParsedArgs) {
 				'jsconfig.json'
 			];
 
-			await app.workbench.quickaccess.openQuickAccess('.js');
+			await app.workbench.quickaccess.openQuickAccessAndWait('.js');
 			await app.workbench.quickinput.waitForQuickInputElements(names => expectedNames.every(n => names.some(m => n === m)));
 			await app.code.dispatchKeybinding('escape');
 		});
@@ -101,7 +102,7 @@ export function setup(opts: minimist.ParsedArgs) {
 				'package.json'
 			];
 
-			await app.workbench.quickaccess.openQuickAccess('a.s');
+			await app.workbench.quickaccess.openQuickAccessAndWait('a.s');
 			await app.workbench.quickinput.waitForQuickInputElements(names => expectedNames.every(n => names.some(m => n === m)));
 			await app.code.dispatchKeybinding('escape');
 		});

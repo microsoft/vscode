@@ -646,9 +646,7 @@ export interface ITreeDataTransferItem {
 	asString(): Thenable<string>;
 }
 
-export interface ITreeDataTransfer {
-	items: Map<string, ITreeDataTransferItem>;
-}
+export type ITreeDataTransfer = Map<string, ITreeDataTransferItem>;
 
 export interface ITreeView extends IDisposable {
 
@@ -683,6 +681,8 @@ export interface ITreeView extends IDisposable {
 	readonly onDidChangeDescription: Event<string | undefined>;
 
 	readonly onDidChangeWelcomeState: Event<void>;
+
+	readonly container: any | undefined;
 
 	refresh(treeItems?: ITreeItem[]): Promise<void>;
 
@@ -838,9 +838,9 @@ export interface ITreeViewDataProvider {
 	getChildren(element?: ITreeItem): Promise<ITreeItem[] | undefined>;
 }
 
-export const TREE_ITEM_DATA_TRANSFER_TYPE = 'text/treeitems';
 export interface ITreeViewDragAndDropController {
-	onDrop(elements: ITreeDataTransfer, target: ITreeItem): Promise<void>;
+	readonly supportedMimeTypes: string[];
+	onDrop(elements: ITreeDataTransfer, target: ITreeItem, sourceTreeId?: string, sourceTreeItemHandles?: string[]): Promise<void>;
 }
 
 export interface IEditableData {

@@ -27,9 +27,6 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 	}
 
 	public createLineBreaksComputer(fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent): ILineBreaksComputer {
-		tabSize = tabSize | 0; //@perf
-		wrappingColumn = +wrappingColumn; //@perf
-
 		const requests: string[] = [];
 		const injectedTexts: (LineInjectedText[] | null)[] = [];
 		const previousBreakingData: (ModelLineProjectionData | null)[] = [];
@@ -40,7 +37,7 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 				previousBreakingData.push(previousLineBreakData);
 			},
 			finalize: () => {
-				const columnsForFullWidthChar = fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth; //@perf
+				const columnsForFullWidthChar = fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth;
 				let result: (ModelLineProjectionData | null)[] = [];
 				for (let i = 0, len = requests.length; i < len; i++) {
 					const injectedText = injectedTexts[i];

@@ -69,6 +69,14 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		return image.toPNG().toString('base64');
 	}
 
+	async startTracing(windowId: number, name: string): Promise<void> {
+		// ignore - tracing is not implemented yet
+	}
+
+	async stopTracing(windowId: number, name: string, persist: boolean): Promise<void> {
+		// ignore - tracing is not implemented yet
+	}
+
 	async reloadWindow(windowId: number): Promise<void> {
 		await this.whenUnfrozen(windowId);
 

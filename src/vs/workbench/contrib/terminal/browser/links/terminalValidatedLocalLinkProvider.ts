@@ -58,7 +58,7 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 		private readonly _activateFileCallback: (event: MouseEvent | undefined, link: string) => void,
 		private readonly _wrapLinkHandler: (handler: (event: MouseEvent | undefined, link: string) => void) => XtermLinkMatcherHandler,
 		private readonly _tooltipCallback: (link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => void,
-		private readonly _validationCallback: (link: string, callback: (result: { uri: URI, isDirectory: boolean } | undefined) => void) => void,
+		private readonly _validationCallback: (link: string[], callback: (result: { uri: URI, link: string, isDirectory: boolean } | undefined) => void) => void,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
@@ -138,7 +138,11 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 			}, startLine);
 
 			const validatedLink = await new Promise<TerminalLink | undefined>(r => {
-				this._validationCallback(link, (result) => {
+				const linkCandidates = [link];
+				if (link.match(/^(\.\.[\/\\])+/)) {
+					linkCandidates.push(link.replace(/^(\.\.[\/\\])+/, ''));
+				}
+				this._validationCallback(linkCandidates, (result) => {
 					if (result) {
 						const label = result.isDirectory
 							? (this._isDirectoryInsideWorkspace(result.uri) ? FOLDER_IN_WORKSPACE_LABEL : FOLDER_NOT_IN_WORKSPACE_LABEL)
@@ -150,7 +154,7 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 								this._activateFileCallback(event, text);
 							}
 						});
-						r(this._instantiationService.createInstance(TerminalLink, this._xterm, bufferRange, link, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, true, label));
+						r(this._instantiationService.createInstance(TerminalLink, this._xterm, bufferRange, result.link, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, true, label));
 					} else {
 						r(undefined);
 					}

@@ -23,7 +23,7 @@ import { DisposableStore, IDisposable, toDisposable, MutableDisposable, Disposab
 import { ILabelService } from 'vs/platform/label/common/label';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { localize } from 'vs/nls';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -171,7 +171,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		@IFileService private readonly fileService: IFileService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -896,7 +896,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			label,
 			ariaLabel: isDirty ? localize('filePickAriaLabelDirty', "{0} unsaved changes", labelAndDescription) : labelAndDescription,
 			description,
-			iconClasses: getIconClasses(this.modelService, this.modeService, resource).concat(extraClasses),
+			iconClasses: getIconClasses(this.modelService, this.languageService, resource).concat(extraClasses),
 			buttons: (() => {
 				const openSideBySideDirection = configuration.openSideBySideDirection;
 				const buttons: IQuickInputButton[] = [];

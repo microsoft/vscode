@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchThemeService, IWorkbenchColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -89,7 +89,7 @@ class ThemeDocument {
 class Snapper {
 
 	constructor(
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
 		@ITextMateService private readonly textMateService: ITextMateService
 	) {
@@ -216,7 +216,7 @@ class Snapper {
 	}
 
 	public captureSyntaxTokens(fileName: string, content: string): Promise<IToken[]> {
-		const languageId = this.modeService.getModeIdByFilepathOrFirstLine(URI.file(fileName));
+		const languageId = this.languageService.getLanguageIdByFilepathOrFirstLine(URI.file(fileName));
 		return this.textMateService.createGrammar(languageId!).then((grammar) => {
 			if (!grammar) {
 				return [];

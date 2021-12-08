@@ -96,7 +96,7 @@ class ConditionalBreakpointAction extends EditorAction2 {
 
 		const position = editor.getPosition();
 		if (position && editor.hasModel() && debugService.canSetBreakpointsIn(editor.getModel())) {
-			editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID).showBreakpointWidget(position.lineNumber, undefined, BreakpointWidgetContext.CONDITION);
+			editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID)?.showBreakpointWidget(position.lineNumber, undefined, BreakpointWidgetContext.CONDITION);
 		}
 	}
 }
@@ -127,7 +127,7 @@ class LogPointAction extends EditorAction2 {
 
 		const position = editor.getPosition();
 		if (position && editor.hasModel() && debugService.canSetBreakpointsIn(editor.getModel())) {
-			editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID).showBreakpointWidget(position.lineNumber, position.column, BreakpointWidgetContext.LOG_MESSAGE);
+			editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID)?.showBreakpointWidget(position.lineNumber, position.column, BreakpointWidgetContext.LOG_MESSAGE);
 		}
 	}
 }
@@ -326,7 +326,7 @@ class ShowDebugHoverAction extends EditorAction {
 		}
 
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, word.endColumn);
-		return editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showHover(range, true);
+		return editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID)?.showHover(range, true);
 	}
 }
 
@@ -458,7 +458,7 @@ class CloseExceptionWidgetAction extends EditorAction {
 
 	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const contribution = editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID);
-		contribution.closeExceptionWidget();
+		contribution?.closeExceptionWidget();
 	}
 }
 

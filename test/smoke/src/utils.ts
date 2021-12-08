@@ -19,30 +19,56 @@ export function itRepeat(n: number, description: string, callback: (this: Contex
 	}
 }
 
-export function beforeSuite(opts: minimist.ParsedArgs, optionsTransform?: (opts: ApplicationOptions) => Promise<ApplicationOptions>) {
+export function installCommonTestHandlers(args: minimist.ParsedArgs, optionsTransform?: (opts: ApplicationOptions) => Promise<ApplicationOptions>) {
+	installCommonBeforeHandlers(args, optionsTransform);
+	installCommonAfterHandlers(args);
+}
+
+export function installCommonBeforeHandlers(args: minimist.ParsedArgs, optionsTransform?: (opts: ApplicationOptions) => Promise<ApplicationOptions>) {
 	before(async function () {
-		let options: ApplicationOptions = { ...this.defaultOptions };
+		this.app = await startApp(args, this.defaultOptions, optionsTransform);
+	});
 
-		if (optionsTransform) {
-			options = await optionsTransform(options);
-		}
+	installCommonBeforeEachHandler();
+}
 
-		// https://github.com/microsoft/vscode/issues/34988
-		const userDataPathSuffix = [...Array(8)].map(() => Math.random().toString(36)[3]).join('');
-		const userDataDir = options.userDataDir.concat(`-${userDataPathSuffix}`);
+export function installCommonBeforeEachHandler() {
+	beforeEach(async function () {
+		const testTitle = this.currentTest?.title;
+		this.defaultOptions.logger.log('');
+		this.defaultOptions.logger.log(`>>> Test start: ${testTitle} <<<`);
+		this.defaultOptions.logger.log('');
 
-		const app = new Application({ ...options, userDataDir });
-		await app.start();
-		this.app = app;
-
-		if (opts.log) {
-			const title = this.currentTest!.fullTitle();
-			app.logger.log('*** Test start:', title);
-		}
+		await this.app?.startTracing(testTitle);
 	});
 }
 
-export function afterSuite(opts: minimist.ParsedArgs, appFn?: () => Application | undefined, joinFn?: () => Promise<unknown>) {
+export async function startApp(args: minimist.ParsedArgs, options: ApplicationOptions, optionsTransform?: (opts: ApplicationOptions) => Promise<ApplicationOptions>): Promise<Application> {
+	if (optionsTransform) {
+		options = await optionsTransform({ ...options });
+	}
+
+	const app = new Application({
+		...options,
+		userDataDir: getRandomUserDataDir(options)
+	});
+
+	await app.start();
+
+	return app;
+}
+
+export function getRandomUserDataDir(options: ApplicationOptions): string {
+
+	// Pick a random user data dir suffix that is not
+	// too long to not run into max path length issues
+	// https://github.com/microsoft/vscode/issues/34988
+	const userDataPathSuffix = [...Array(8)].map(() => Math.random().toString(36)[3]).join('');
+
+	return options.userDataDir.concat(`-${userDataPathSuffix}`);
+}
+
+export function installCommonAfterHandlers(opts: minimist.ParsedArgs, appFn?: () => Application | undefined, joinFn?: () => Promise<unknown>) {
 	after(async function () {
 		const app: Application = appFn?.() ?? this.app;
 
@@ -62,6 +88,10 @@ export function afterSuite(opts: minimist.ParsedArgs, appFn?: () => Application 
 		if (joinFn) {
 			await joinFn();
 		}
+	});
+
+	afterEach(async function () {
+		await this.app?.stopTracing(this.currentTest?.title, this.currentTest?.state === 'failed');
 	});
 }
 

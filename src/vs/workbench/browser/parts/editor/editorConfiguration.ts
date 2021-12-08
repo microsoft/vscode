@@ -11,6 +11,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigu
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { IEditorResolverService, RegisteredEditorInfo, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export class DynamicEditorGroupAutoLockConfiguration extends Disposable implements IWorkbenchContribution {
 
@@ -32,12 +33,21 @@ export class DynamicEditorGroupAutoLockConfiguration extends Disposable implemen
 	private configurationNode: IConfigurationNode | undefined;
 
 	constructor(
-		@IEditorResolverService private readonly editorResolverService: IEditorResolverService
+		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
+		@IExtensionService extensionService: IExtensionService,
 	) {
 		super();
 
-		this.updateConfiguration();
-		this.registerListeners();
+		// Editor configurations are getting updated very aggressively
+		// (atleast 20 times) while the extensions are getting registered.
+		// As such push out the dynamic editor auto lock configuration
+		// until after extensions registered.
+		(async ()=> {
+			await extensionService.whenInstalledExtensionsRegistered();
+
+			this.updateConfiguration();
+			this.registerListeners();
+		})();
 	}
 
 	private registerListeners(): void {

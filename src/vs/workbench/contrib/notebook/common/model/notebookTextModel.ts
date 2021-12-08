@@ -17,7 +17,7 @@ import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/commo
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { isDefined } from 'vs/base/common/types';
@@ -209,7 +209,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		options: TransientOptions,
 		@IUndoRedoService private readonly _undoService: IUndoRedoService,
 		@IModelService private readonly _modelService: IModelService,
-		@IModeService private readonly _modeService: IModeService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
 		super();
 		this.transientOptions = options;
@@ -277,7 +277,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		const mainCells = cells.map(cell => {
 			const cellHandle = this._cellhandlePool++;
 			const cellUri = CellUri.generate(this.uri, cellHandle);
-			return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.mime, cell.cellKind, cell.outputs, cell.metadata, cell.internalMetadata, this.transientOptions, this._modeService);
+			return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.mime, cell.cellKind, cell.outputs, cell.metadata, cell.internalMetadata, this.transientOptions, this._languageService);
 		});
 
 		for (let i = 0; i < mainCells.length; i++) {
@@ -601,7 +601,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			const cell = new NotebookCellTextModel(
 				cellUri, cellHandle,
 				cellDto.source, cellDto.language, cellDto.mime, cellDto.cellKind, cellDto.outputs || [], cellDto.metadata, cellDto.internalMetadata, this.transientOptions,
-				this._modeService
+				this._languageService
 			);
 			const textModel = this._modelService.getModel(cellUri);
 			if (textModel && textModel instanceof TextModel) {
@@ -955,53 +955,41 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	private _appendNotebookCellOutputItems(cell: NotebookCellTextModel, outputId: string, items: IOutputItemDto[]) {
-		const outputIndex = cell.outputs.findIndex(output => output.outputId === outputId);
+		if (cell.changeOutputItems(outputId, true, items)) {
+			this._pauseableEmitter.fire({
+				rawEvents: [{
+					kind: NotebookCellsChangeType.OutputItem,
+					index: this._cells.indexOf(cell),
+					outputId: outputId,
+					outputItems: items,
+					append: true,
+					transient: this.transientOptions.transientOutputs
 
-		if (outputIndex < 0) {
-			return;
+				}],
+				versionId: this.versionId,
+				synchronous: true,
+				endSelectionState: undefined
+			});
 		}
-
-		const output = cell.outputs[outputIndex];
-		output.appendData(items);
-		this._pauseableEmitter.fire({
-			rawEvents: [{
-				kind: NotebookCellsChangeType.OutputItem,
-				index: this._cells.indexOf(cell),
-				outputId: output.outputId,
-				outputItems: items,
-				append: true,
-				transient: this.transientOptions.transientOutputs
-
-			}],
-			versionId: this.versionId,
-			synchronous: true,
-			endSelectionState: undefined
-		});
 	}
 
 	private _replaceNotebookCellOutputItems(cell: NotebookCellTextModel, outputId: string, items: IOutputItemDto[]) {
-		const outputIndex = cell.outputs.findIndex(output => output.outputId === outputId);
+		if (cell.changeOutputItems(outputId, false, items)) {
+			this._pauseableEmitter.fire({
+				rawEvents: [{
+					kind: NotebookCellsChangeType.OutputItem,
+					index: this._cells.indexOf(cell),
+					outputId: outputId,
+					outputItems: items,
+					append: false,
+					transient: this.transientOptions.transientOutputs
 
-		if (outputIndex < 0) {
-			return;
+				}],
+				versionId: this.versionId,
+				synchronous: true,
+				endSelectionState: undefined
+			});
 		}
-
-		const output = cell.outputs[outputIndex];
-		output.replaceData(items);
-		this._pauseableEmitter.fire({
-			rawEvents: [{
-				kind: NotebookCellsChangeType.OutputItem,
-				index: this._cells.indexOf(cell),
-				outputId: output.outputId,
-				outputItems: items,
-				append: false,
-				transient: this.transientOptions.transientOutputs
-
-			}],
-			versionId: this.versionId,
-			synchronous: true,
-			endSelectionState: undefined
-		});
 	}
 
 	private _moveCellToIdx(index: number, length: number, newIdx: number, synchronous: boolean, pushedToUndoStack: boolean, beforeSelections: ISelectionState | undefined, endSelections: ISelectionState | undefined): boolean {

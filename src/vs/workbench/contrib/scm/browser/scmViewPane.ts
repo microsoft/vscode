@@ -67,7 +67,7 @@ import { LinkDetector } from 'vs/editor/contrib/links/links';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
@@ -389,6 +389,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		private labels: ResourceLabels,
 		private actionViewItemProvider: IActionViewItemProvider,
 		private actionRunner: ActionRunner,
+		@ILabelService private labelService: ILabelService,
 		@ISCMViewService private scmViewService: ISCMViewService,
 		@IThemeService private themeService: IThemeService
 	) {
@@ -482,14 +483,15 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		const compressed = node.element as ICompressedTreeNode<IResourceNode<ISCMResource, ISCMResourceGroup>>;
 		const folder = compressed.elements[compressed.elements.length - 1];
 
-		const label = compressed.elements.map(e => e.name).join('/');
+		const label = compressed.elements.map(e => e.name);
 		const fileKind = FileKind.FOLDER;
 
 		const matches = createMatches(node.filterData as FuzzyScore | undefined);
 		template.fileLabel.setResource({ resource: folder.uri, name: label }, {
 			fileDecorations: { colors: false, badges: true },
 			fileKind,
-			matches
+			matches,
+			separator: this.labelService.getSeparator(folder.uri.scheme)
 		});
 
 		template.actionBar.clear();
@@ -1647,7 +1649,7 @@ class SCMInputWidget extends Disposable {
 			this.configurationService.updateValue('editor.wordBasedSuggestions', false, { resource: uri }, ConfigurationTarget.MEMORY);
 		}
 
-		const textModel = this.modelService.getModel(uri) ?? this.modelService.createModel('', this.modeService.create('scminput'), uri);
+		const textModel = this.modelService.getModel(uri) ?? this.modelService.createModel('', this.languageService.createById('scminput'), uri);
 		this.inputEditor.setModel(textModel);
 
 		// Validation
@@ -1767,7 +1769,7 @@ class SCMInputWidget extends Disposable {
 		overflowWidgetsDomNode: HTMLElement,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService,
+		@ILanguageService private languageService: ILanguageService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -2121,7 +2123,7 @@ export class SCMViewPane extends ViewPane {
 				sorter,
 				keyboardNavigationLabelProvider,
 				overrideStyles: {
-					listBackground: this.viewDescriptorService.getViewLocationById(this.id) === ViewContainerLocation.Sidebar ? SIDE_BAR_BACKGROUND : PANEL_BACKGROUND
+					listBackground: this.viewDescriptorService.getViewLocationById(this.id) === ViewContainerLocation.Panel ? PANEL_BACKGROUND : SIDE_BAR_BACKGROUND
 				},
 				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider)
 			}) as WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;

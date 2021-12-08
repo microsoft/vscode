@@ -50,7 +50,7 @@ class SmartSelectController implements IEditorContribution {
 
 	static readonly ID = 'editor.contrib.smartSelectController';
 
-	static get(editor: ICodeEditor): SmartSelectController {
+	static get(editor: ICodeEditor): SmartSelectController | null {
 		return editor.getContribution<SmartSelectController>(SmartSelectController.ID);
 	}
 

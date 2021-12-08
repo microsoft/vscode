@@ -26,46 +26,89 @@ declare module 'vscode' {
 		dragAndDropController?: DragAndDropController<T>;
 	}
 
-	export interface TreeDataTransferItem {
+	/**
+	 * A class for encapsulating data transferred during a tree drag and drop event.
+	 *
+	 * If your `DragAndDropController` implements `onWillDrop`, you can extend `TreeDataTransferItem` and return
+	 * an instance of your new class for easy access to the source tree items.
+	 *
+	 * ```ts
+	 * 	class TestViewObjectTransferItem extends vscode.TreeDataTransferItem {
+	 * 		constructor(private _nodes: Node[]) {
+	 * 			super(_nodes);
+	 * 		}
+	 *
+	 * 		asObject(): Node[] {
+	 * 			return this._nodes;
+	 * 		}
+	 * 	}
+	 * ```
+	 */
+	export class TreeDataTransferItem {
 		asString(): Thenable<string>;
+
+		constructor(value: any);
 	}
 
-	export interface TreeDataTransfer {
+	/**
+	 * A map containing a mapping of the mime type of the corresponding transferred data.
+	 * Trees that support drag and drop can implement `DragAndDropController.onWillDrop` to add additional mime types
+	 * when the drop occurs on an item in the same tree.
+	 */
+	export class TreeDataTransfer<T extends TreeDataTransferItem = TreeDataTransferItem> {
 		/**
-		 * A map containing a mapping of the mime type of the corresponding data.
-		 * The type for tree elements is text/treeitem.
-		 * For example, you can reconstruct the your tree elements:
-		 * ```ts
-		 * JSON.parse(await (items.get('text/treeitem')!.asString()))
-		 * ```
+		 * Retrieves the data transfer item for a given mime type.
+		 * @param mimeType The mime type to get the data transfer item for.
 		 */
-		items: { get: (mimeType: string) => TreeDataTransferItem | undefined };
-	}
-
-	export interface DragAndDropController<T> extends Disposable {
-		readonly supportedTypes: string[];
+		get(mimeType: string): T | undefined;
 
 		/**
-		 * todo@API maybe
-		 *
+		 * Sets a mime type to data transfer item mapping.
+		 * @param mimeType The mime type to set the data for.
+		 * @param value The data transfer item for the given mime type.
+		 */
+		set(mimeType: string, value: T): void;
+
+		/**
+		 * Allows iteration through the data transfer items.
+		 * @param callbackfn Callback for iteration through the data transfer items.
+		 */
+		forEach(callbackfn: (value: T, key: string) => void): void;
+	}
+
+	/**
+	 * Provides support for drag and drop in `TreeView`.
+	 */
+	// TODO@api why disposable?
+	export interface DragAndDropController<T> extends Disposable {
+
+		/**
+		 * The mime types that this `DragAndDropController` supports. This could be well-defined, existing, mime types,
+		 * and also mime types defined by the extension that are returned in the `TreeDataTransfer` from `onWillDrop`.
+		 */
+		readonly supportedMimeTypes: string[];
+
+		/**
 		 * When the user drops an item from this DragAndDropController on **another tree item** in **the same tree**,
-		 * `onWillDrop` will be called with the dropped tree item. This is the DragAndDropController's opportunity to
+		 * `onWillDrop` will be called with the dropped tree items. This is the DragAndDropController's opportunity to
 		 * package the data from the dropped tree item into whatever format they want the target tree item to receive.
 		 *
 		 * The returned `TreeDataTransfer` will be merged with the original`TreeDataTransfer` for the operation.
 		 *
-		 * Note for implementation later: This means that the `text/treeItem` mime type will go away.
-		 *
-		 * @param source
+		 * @param source The source items for the drag and drop operation.
 		 */
-		// onWillDrop?(source: T): Thenable<TreeDataTransfer>;
+		// TODO@api I think this can be more generic, tho still constraint, e.g have something that works everywhere within VS Code
+		onWillDrop?(source: T[]): Thenable<TreeDataTransfer>;
 
 		/**
+		 * Called when a drag and drop action results in a drop on the tree that this `DragAndDropController` belongs too.
+		 *
 		 * Extensions should fire `TreeDataProvider.onDidChangeTreeData` for any elements that need to be refreshed.
 		 *
-		 * @param source
-		 * @param target
+		 * @param source The data transfer items of the source of the drag.
+		 * @param target The target tree element that the drop is occuring on.
 		 */
+		// TODO@api NIT - allow to return `Thenable<void> | void`
 		onDrop(source: TreeDataTransfer, target: T): Thenable<void>;
 	}
 }

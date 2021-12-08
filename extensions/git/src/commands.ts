@@ -8,7 +8,7 @@ import * as path from 'path';
 import { Command, commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider } from 'vscode';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
-import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourceProvider } from './api/git';
+import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher } from './api/git';
 import { Git, Stash } from './git';
 import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
@@ -392,7 +392,7 @@ export class CommandCenter {
 
 	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean } = {}): Promise<void> {
 		if (!url || typeof url !== 'string') {
-			url = await pickRemoteSource(this.model, {
+			url = await pickRemoteSource({
 				providerLabel: provider => localize('clonefrom', "Clone from {0}", provider.name),
 				urlLabel: localize('repourl', "Clone from URL")
 			});
@@ -686,6 +686,10 @@ export class CommandCenter {
 		}
 
 		const activeTextEditor = window.activeTextEditor;
+		// Must extract these now because opening a new document will change the activeTextEditor reference
+		const previousVisibleRange = activeTextEditor?.visibleRanges[0];
+		const previousURI = activeTextEditor?.document.uri;
+		const previousSelection = activeTextEditor?.selection;
 
 		for (const uri of uris) {
 			const opts: TextDocumentShowOptions = {
@@ -702,18 +706,21 @@ export class CommandCenter {
 			const document = window.activeTextEditor?.document;
 
 			// If the document doesn't match what we opened then don't attempt to select the range
-			if (document?.uri.toString() !== uri.toString()) {
+			// Additioanlly if there was no previous document we don't have information to select a range
+			if (document?.uri.toString() !== uri.toString() || !activeTextEditor || !previousURI || !previousSelection) {
 				continue;
 			}
 
 			// Check if active text editor has same path as other editor. we cannot compare via
 			// URI.toString() here because the schemas can be different. Instead we just go by path.
-			if (activeTextEditor && activeTextEditor.document.uri.path === uri.path && document) {
+			if (previousURI.path === uri.path && document) {
 				// preserve not only selection but also visible range
-				opts.selection = activeTextEditor.selection;
-				const previousVisibleRanges = activeTextEditor.visibleRanges;
+				opts.selection = previousSelection;
 				const editor = await window.showTextDocument(document, opts);
-				editor.revealRange(previousVisibleRanges[0]);
+				// This should always be defined but just in case
+				if (previousVisibleRange) {
+					editor.revealRange(previousVisibleRange);
+				}
 			}
 		}
 	}
@@ -757,6 +764,7 @@ export class CommandCenter {
 	}
 
 	@command('git.openChange')
+	@command('git.openChangeEditor')
 	async openChange(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		let resources: Resource[] | undefined = undefined;
 
@@ -2215,7 +2223,7 @@ export class CommandCenter {
 
 	@command('git.addRemote', { repository: true })
 	async addRemote(repository: Repository): Promise<string | undefined> {
-		const url = await pickRemoteSource(this.model, {
+		const url = await pickRemoteSource({
 			providerLabel: provider => localize('addfrom', "Add remote from {0}", provider.name),
 			urlLabel: localize('addFrom', "Add remote from URL")
 		});
@@ -2360,19 +2368,19 @@ export class CommandCenter {
 		const remotes = repository.remotes;
 
 		if (remotes.length === 0) {
-			const providers = this.model.getRemoteProviders().filter(p => !!p.publishRepository);
+			const publishers = this.model.getRemoteSourcePublishers();
 
-			if (providers.length === 0) {
+			if (publishers.length === 0) {
 				window.showWarningMessage(localize('no remotes to publish', "Your repository has no remotes configured to publish to."));
 				return;
 			}
 
-			let provider: RemoteSourceProvider;
+			let publisher: RemoteSourcePublisher;
 
-			if (providers.length === 1) {
-				provider = providers[0];
+			if (publishers.length === 1) {
+				publisher = publishers[0];
 			} else {
-				const picks = providers
+				const picks = publishers
 					.map(provider => ({ label: (provider.icon ? `$(${provider.icon}) ` : '') + localize('publish to', "Publish to {0}", provider.name), alwaysShow: true, provider }));
 				const placeHolder = localize('pick provider', "Pick a provider to publish the branch '{0}' to:", branchName);
 				const choice = await window.showQuickPick(picks, { placeHolder });
@@ -2381,10 +2389,10 @@ export class CommandCenter {
 					return;
 				}
 
-				provider = choice.provider;
+				publisher = choice.provider;
 			}
 
-			await provider.publishRepository!(new ApiRepository(repository));
+			await publisher.publishRepository(new ApiRepository(repository));
 			this.model.firePublishEvent(repository, branchName);
 
 			return;

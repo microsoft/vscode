@@ -271,6 +271,13 @@ export class ViewsService extends Disposable implements IViewsService {
 						} else if (location === ViewContainerLocation.Panel) {
 							this.paneCompositeService.hideActivePaneComposite(location);
 						}
+
+						// The blur event doesn't fire on WebKit when the focused element is hidden,
+						// so the context key needs to be forced here too otherwise a view may still
+						// think it's showing, breaking toggle commands.
+						if (this.focusedViewContextKey.get() === id) {
+							this.focusedViewContextKey.reset();
+						}
 					} else {
 						view.setExpanded(false);
 					}

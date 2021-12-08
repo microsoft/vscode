@@ -1042,7 +1042,9 @@ class InlineCompletionAdapter {
 				context.selectedSuggestionInfo
 					? {
 						range: typeConvert.Range.to(context.selectedSuggestionInfo.range),
-						text: context.selectedSuggestionInfo.text
+						text: context.selectedSuggestionInfo.text,
+						isSnippetText: context.selectedSuggestionInfo.isSnippetText,
+						completionKind: typeConvert.CompletionItemKind.to(context.selectedSuggestionInfo.completionKind),
 					}
 					: undefined,
 			triggerKind: context.triggerKind
@@ -1845,7 +1847,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	registerWorkspaceSymbolProvider(extension: IExtensionDescription, provider: vscode.WorkspaceSymbolProvider): vscode.Disposable {
 		const handle = this._addNewAdapter(new NavigateTypeAdapter(provider, this._logService), extension);
-		this._proxy.$registerNavigateTypeSupport(handle);
+		this._proxy.$registerNavigateTypeSupport(handle, typeof provider.resolveWorkspaceSymbol === 'function');
 		return this._createDisposable(handle);
 	}
 
