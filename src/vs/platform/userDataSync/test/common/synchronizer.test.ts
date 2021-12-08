@@ -76,6 +76,10 @@ class TestSynchroniser extends AbstractSynchroniser {
 		}];
 	}
 
+	protected async hasRemoteChanged(lastSyncUserData: IRemoteUserData): Promise<boolean> {
+		return true;
+	}
+
 	protected async getMergeResult(resourcePreview: ITestResourcePreview, token: CancellationToken): Promise<IMergeResult> {
 		return {
 			content: resourcePreview.ref,

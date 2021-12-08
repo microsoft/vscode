@@ -70,6 +70,17 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		return this.getResourcePreviews(mergeResult, local, remoteSnippets || {});
 	}
 
+	protected async hasRemoteChanged(lastSyncUserData: IRemoteUserData): Promise<boolean> {
+		const lastSyncSnippets: IStringDictionary<string> | null = lastSyncUserData.syncData ? this.parseSnippets(lastSyncUserData.syncData) : null;
+		if (lastSyncSnippets === null) {
+			return true;
+		}
+		const local = await this.getSnippetsFileContents();
+		const localSnippets = this.toSnippetsContents(local);
+		const mergeResult = merge(localSnippets, lastSyncSnippets, lastSyncSnippets);
+		return Object.keys(mergeResult.remote.added).length > 0 || Object.keys(mergeResult.remote.updated).length > 0 || mergeResult.remote.removed.length > 0 || mergeResult.conflicts.length > 0;
+	}
+
 	protected async getMergeResult(resourcePreview: ISnippetsResourcePreview, token: CancellationToken): Promise<IMergeResult> {
 		return resourcePreview.previewResult;
 	}

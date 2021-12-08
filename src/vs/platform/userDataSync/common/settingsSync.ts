@@ -136,6 +136,20 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		}];
 	}
 
+	protected async hasRemoteChanged(lastSyncUserData: IRemoteUserData): Promise<boolean> {
+		const lastSettingsSyncContent: ISettingsSyncContent | null = this.getSettingsSyncContent(lastSyncUserData);
+		if (lastSettingsSyncContent === null) {
+			return true;
+		}
+
+		const fileContent = await this.getLocalFileContent();
+		const localContent: string = fileContent ? fileContent.value.toString().trim() : '';
+		const ignoredSettings = await this.getIgnoredSettings();
+		const formattingOptions = await this.getFormattingOptions();
+		const result = merge(localContent || '{}', lastSettingsSyncContent.settings, lastSettingsSyncContent.settings, ignoredSettings, [], formattingOptions);
+		return result.remoteContent !== null;
+	}
+
 	protected async getMergeResult(resourcePreview: ISettingsResourcePreview, token: CancellationToken): Promise<IMergeResult> {
 		const formatUtils = await this.getFormattingOptions();
 		const ignoredSettings = await this.getIgnoredSettings();

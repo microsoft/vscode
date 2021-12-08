@@ -137,6 +137,17 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		}];
 	}
 
+	protected async hasRemoteChanged(lastSyncUserData: IRemoteUserData): Promise<boolean> {
+		const lastSyncGlobalState: IGlobalState | null = lastSyncUserData.syncData ? JSON.parse(lastSyncUserData.syncData.content) : null;
+		if (lastSyncGlobalState === null) {
+			return true;
+		}
+		const localGlobalState = await this.getLocalGlobalState();
+		const storageKeys = this.getStorageKeys(lastSyncGlobalState);
+		const { remote } = merge(localGlobalState.storage, lastSyncGlobalState.storage, lastSyncGlobalState.storage, storageKeys, this.logService);
+		return remote !== null;
+	}
+
 	protected async getMergeResult(resourcePreview: IGlobalStateResourcePreview, token: CancellationToken): Promise<IMergeResult> {
 		return { ...resourcePreview.previewResult, hasConflicts: false };
 	}

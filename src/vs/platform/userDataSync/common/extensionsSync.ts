@@ -158,6 +158,15 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		}];
 	}
 
+	protected async hasRemoteChanged(lastSyncUserData: ILastSyncUserData): Promise<boolean> {
+		const lastSyncExtensions: ISyncExtension[] | null = lastSyncUserData.syncData ? await parseAndMigrateExtensions(lastSyncUserData.syncData, this.extensionManagementService) : null;
+		const installedExtensions = await this.extensionManagementService.getInstalled(undefined, true);
+		const localExtensions = this.getLocalExtensions(installedExtensions);
+		const ignoredExtensions = this.ignoredExtensionsManagementService.getIgnoredExtensions(installedExtensions);
+		const { remote } = merge(localExtensions, lastSyncExtensions, lastSyncExtensions, lastSyncUserData.skippedExtensions || [], ignoredExtensions);
+		return remote !== null;
+	}
+
 	private getPreviewContent(localExtensions: ISyncExtension[], added: ISyncExtension[], updated: ISyncExtension[], removed: IExtensionIdentifier[]): string {
 		const preview: ISyncExtension[] = [...added, ...updated];
 
