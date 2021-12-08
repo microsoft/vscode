@@ -13,7 +13,7 @@ import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common
 import * as modes from 'vs/editor/common/modes';
 import { NULL_MODE_ID, NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { TokenTheme } from 'vs/editor/common/modes/supports/tokenization';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import * as monarchCommon from 'vs/editor/standalone/common/monarch/monarchCommon';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 
@@ -287,15 +287,15 @@ class MonarchClassicTokensCollector implements IMonarchTokensCollector {
 
 class MonarchModernTokensCollector implements IMonarchTokensCollector {
 
-	private readonly _modeService: IModeService;
+	private readonly _languageService: ILanguageService;
 	private readonly _theme: TokenTheme;
 	private _prependTokens: Uint32Array | null;
 	private _tokens: number[];
 	private _currentLanguageId: modes.LanguageId;
 	private _lastTokenMetadata: number;
 
-	constructor(modeService: IModeService, theme: TokenTheme) {
-		this._modeService = modeService;
+	constructor(languageService: ILanguageService, theme: TokenTheme) {
+		this._languageService = languageService;
 		this._theme = theme;
 		this._prependTokens = null;
 		this._tokens = [];
@@ -304,7 +304,7 @@ class MonarchModernTokensCollector implements IMonarchTokensCollector {
 	}
 
 	public enterMode(startOffset: number, languageId: string): void {
-		this._currentLanguageId = this._modeService.languageIdCodec.encodeLanguageId(languageId);
+		this._currentLanguageId = this._languageService.languageIdCodec.encodeLanguageId(languageId);
 	}
 
 	public emit(startOffset: number, type: string): void {
@@ -376,7 +376,7 @@ export type ILoadStatus = { loaded: true; } | { loaded: false; promise: Promise<
 
 export class MonarchTokenizer implements modes.ITokenizationSupport {
 
-	private readonly _modeService: IModeService;
+	private readonly _languageService: ILanguageService;
 	private readonly _standaloneThemeService: IStandaloneThemeService;
 	private readonly _languageId: string;
 	private readonly _lexer: monarchCommon.ILexer;
@@ -384,8 +384,8 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 	public embeddedLoaded: Promise<void>;
 	private readonly _tokenizationRegistryListener: IDisposable;
 
-	constructor(modeService: IModeService, standaloneThemeService: IStandaloneThemeService, languageId: string, lexer: monarchCommon.ILexer) {
-		this._modeService = modeService;
+	constructor(languageService: ILanguageService, standaloneThemeService: IStandaloneThemeService, languageId: string, lexer: monarchCommon.ILexer) {
+		this._languageService = languageService;
 		this._standaloneThemeService = standaloneThemeService;
 		this._languageId = languageId;
 		this._lexer = lexer;
@@ -463,7 +463,7 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 	}
 
 	public tokenize2(line: string, hasEOL: boolean, lineState: modes.IState, offsetDelta: number): TokenizationResult2 {
-		let tokensCollector = new MonarchModernTokensCollector(this._modeService, this._standaloneThemeService.getColorTheme().tokenTheme);
+		let tokensCollector = new MonarchModernTokensCollector(this._languageService, this._standaloneThemeService.getColorTheme().tokenTheme);
 		let endLineState = this._tokenize(line, hasEOL, <MonarchLineState>lineState, offsetDelta, tokensCollector);
 		return tokensCollector.finalize(endLineState);
 	}
@@ -745,9 +745,9 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 
 			const computeNewStateForEmbeddedMode = (enteringEmbeddedMode: string) => {
 				// substitute language alias to known modes to support syntax highlighting
-				let enteringEmbeddedModeId = this._modeService.getModeIdForLanguageName(enteringEmbeddedMode);
-				if (enteringEmbeddedModeId) {
-					enteringEmbeddedMode = enteringEmbeddedModeId;
+				let enteringEmbeddedLanguageId = this._languageService.getLanguageIdForLanguageName(enteringEmbeddedMode);
+				if (enteringEmbeddedLanguageId) {
+					enteringEmbeddedMode = enteringEmbeddedLanguageId;
 				}
 
 				const embeddedModeData = this._getNestedEmbeddedModeData(enteringEmbeddedMode);
@@ -859,7 +859,12 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 	}
 
 	private _locateMode(mimetypeOrModeId: string): string | null {
-		if (!mimetypeOrModeId || !this._modeService.isRegisteredMode(mimetypeOrModeId)) {
+		if (!mimetypeOrModeId) {
+			return null;
+		}
+		const isRegisteredLanguageId = this._languageService.isRegisteredLanguageId(mimetypeOrModeId);
+		const isRegisteredMimeType = this._languageService.isRegisteredMimeType(mimetypeOrModeId);
+		if (!isRegisteredLanguageId && !isRegisteredMimeType) {
 			return null;
 		}
 
@@ -868,11 +873,11 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 			return mimetypeOrModeId;
 		}
 
-		const languageId = this._modeService.getModeId(mimetypeOrModeId);
+		const languageId = this._languageService.getModeId(mimetypeOrModeId);
 
 		if (languageId) {
 			// Fire mode loading event
-			this._modeService.triggerMode(languageId);
+			this._languageService.triggerMode(languageId);
 			this._embeddedModes[languageId] = true;
 		}
 
@@ -902,6 +907,6 @@ function findBracket(lexer: monarchCommon.ILexer, matched: string) {
 	return null;
 }
 
-export function createTokenizationSupport(modeService: IModeService, standaloneThemeService: IStandaloneThemeService, languageId: string, lexer: monarchCommon.ILexer): modes.ITokenizationSupport {
-	return new MonarchTokenizer(modeService, standaloneThemeService, languageId, lexer);
+export function createTokenizationSupport(languageService: ILanguageService, standaloneThemeService: IStandaloneThemeService, languageId: string, lexer: monarchCommon.ILexer): modes.ITokenizationSupport {
+	return new MonarchTokenizer(languageService, standaloneThemeService, languageId, lexer);
 }

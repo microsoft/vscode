@@ -6,19 +6,19 @@
 import * as cp from 'child_process';
 import minimist = require('minimist');
 import { Application } from '../../../../automation';
-import { afterSuite, beforeSuite, retry } from '../../utils';
+import { installCommonTestHandlers, retry } from '../../utils';
 
 export function setup(opts: minimist.ParsedArgs) {
 	describe('Search', () => {
-		beforeSuite(opts);
+
+		// Shared before/after handling
+		installCommonTestHandlers(opts);
 
 		after(function () {
 			const app = this.app as Application;
 			retry(async () => cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder }), 0, 5);
 			retry(async () => cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePathOrFolder }), 0, 5);
 		});
-
-		afterSuite(opts);
 
 		// https://github.com/microsoft/vscode/issues/124146
 		it.skip /* https://github.com/microsoft/vscode/issues/124335 */('has a tooltp with a keybinding', async function () {
@@ -73,8 +73,9 @@ export function setup(opts: minimist.ParsedArgs) {
 	});
 
 	describe('Quick Access', () => {
-		beforeSuite(opts);
-		afterSuite(opts);
+
+		// Shared before/after handling
+		installCommonTestHandlers(opts);
 
 		it('quick access search produces correct result', async function () {
 			const app = this.app as Application;

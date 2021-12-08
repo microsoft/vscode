@@ -16,7 +16,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ILanguageIdCodec } from 'vs/editor/common/modes';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { ghostTextBackground, ghostTextBorder, ghostTextForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
@@ -30,14 +30,14 @@ const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHT
 export class GhostTextWidget extends Disposable {
 	private disposed = false;
 	private readonly partsWidget = this._register(this.instantiationService.createInstance(DecorationsWidget, this.editor));
-	private readonly additionalLinesWidget = this._register(new AdditionalLinesWidget(this.editor, this.modeService.languageIdCodec));
+	private readonly additionalLinesWidget = this._register(new AdditionalLinesWidget(this.editor, this.languageService.languageIdCodec));
 	private viewMoreContentWidget: ViewMoreLinesContentWidget | undefined = undefined;
 
 	constructor(
 		private readonly editor: ICodeEditor,
 		private readonly model: GhostTextWidgetModel,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 		super();
 

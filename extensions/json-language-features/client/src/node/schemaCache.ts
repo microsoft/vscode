@@ -21,7 +21,7 @@ interface CacheInfo {
 const MEMENTO_KEY = 'json-schema-cache';
 
 export class JSONSchemaCache {
-	private readonly cacheInfo: CacheInfo;
+	private cacheInfo: CacheInfo;
 
 	constructor(private readonly schemaCacheLocation: string, private readonly globalState: Memento) {
 		const infos = globalState.get<CacheInfo>(MEMENTO_KEY, {}) as CacheInfo;
@@ -119,6 +119,27 @@ export class JSONSchemaCache {
 		} catch (e) {
 			// ignore
 		}
+	}
+
+	public async clearCache(): Promise<string[]> {
+		const uris = Object.keys(this.cacheInfo);
+		try {
+			const files = await fs.readdir(this.schemaCacheLocation);
+			for (const file of files) {
+				try {
+					await fs.unlink(path.join(this.schemaCacheLocation, file));
+				} catch (_e) {
+					// ignore
+				}
+			}
+		} catch (e) {
+			// ignore
+		} finally {
+
+			this.cacheInfo = {};
+			await this.updateMemento();
+		}
+		return uris;
 	}
 }
 function getCacheFileName(uri: string): string {

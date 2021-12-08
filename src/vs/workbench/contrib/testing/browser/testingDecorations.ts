@@ -271,7 +271,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 	/**
 	 * Gets the decorations associated with the given code editor.
 	 */
-	public static get(editor: ICodeEditor): TestingDecorations {
+	public static get(editor: ICodeEditor): TestingDecorations | null {
 		return editor.getContribution<TestingDecorations>(Testing.DecorationsContributionId);
 	}
 
@@ -661,15 +661,16 @@ abstract class RunTestDecoration {
 		let actions = this.getContextMenuActions(e);
 		const editor = this.codeEditorService.listCodeEditors().find(e => e.getModel() === this.model);
 		if (editor) {
-			actions = {
-				dispose: actions.dispose,
-				object: Separator.join(
-					actions.object,
-					editor
-						.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID)
-						.getContextMenuActionsAtPosition(this.line, this.model)
-				)
-			};
+			const contribution = editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID);
+			if (contribution) {
+				actions = {
+					dispose: actions.dispose,
+					object: Separator.join(
+						actions.object,
+						contribution.getContextMenuActionsAtPosition(this.line, this.model)
+					)
+				};
+			}
 		}
 
 		this.contextMenuService.showContextMenu({

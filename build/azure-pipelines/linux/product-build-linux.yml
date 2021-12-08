@@ -172,7 +172,7 @@ steps:
   - script: |
       set -e
       yarn test-browser --build --browser chromium --tfs "Browser Unit Tests"
-    displayName: Run unit tests (Browser)
+    displayName: Run unit tests (Browser, Chromium)
     timeoutInMinutes: 7
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
@@ -195,7 +195,7 @@ steps:
       set -e
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-linux-$(VSCODE_ARCH)" \
       ./resources/server/test/test-web-integration.sh --browser chromium
-    displayName: Run integration tests (Browser)
+    displayName: Run integration tests (Browser, Chromium)
     timeoutInMinutes: 10
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
@@ -233,7 +233,7 @@ steps:
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-linux-$(VSCODE_ARCH)" \
       yarn smoketest-no-compile --web --headless --electronArgs="--disable-dev-shm-usage --use-gl=swiftshader"
     timeoutInMinutes: 10
-    displayName: Run smoke tests (Browser)
+    displayName: Run smoke tests (Browser, Chromium)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - task: PublishPipelineArtifact@0

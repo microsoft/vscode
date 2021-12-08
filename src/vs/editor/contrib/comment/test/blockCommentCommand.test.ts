@@ -6,10 +6,11 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { BlockCommentCommand } from 'vs/editor/contrib/comment/blockCommentCommand';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
 import { CommentMode } from 'vs/editor/test/common/commentMode';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 function testBlockCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 	let mode = new CommentMode({ lineComment: '!@#', blockComment: ['<0', '0>'] });
-	testCommand(lines, mode.languageId, selection, (sel) => new BlockCommentCommand(sel, true), expectedLines, expectedSelection);
+	testCommand(lines, mode.languageId, selection, (sel) => new BlockCommentCommand(sel, true, new TestLanguageConfigurationService()), expectedLines, expectedSelection);
 	mode.dispose();
 }
 
@@ -475,7 +476,7 @@ suite('Editor Contrib - Block Comment Command', () => {
 	test('insertSpace false', () => {
 		function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 			let mode = new CommentMode({ lineComment: '!@#', blockComment: ['<0', '0>'] });
-			testCommand(lines, mode.languageId, selection, (sel) => new BlockCommentCommand(sel, false), expectedLines, expectedSelection);
+			testCommand(lines, mode.languageId, selection, (sel) => new BlockCommentCommand(sel, false, new TestLanguageConfigurationService()), expectedLines, expectedSelection);
 			mode.dispose();
 		}
 
@@ -494,7 +495,7 @@ suite('Editor Contrib - Block Comment Command', () => {
 	test('insertSpace false does not remove space', () => {
 		function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 			let mode = new CommentMode({ lineComment: '!@#', blockComment: ['<0', '0>'] });
-			testCommand(lines, mode.languageId, selection, (sel) => new BlockCommentCommand(sel, false), expectedLines, expectedSelection);
+			testCommand(lines, mode.languageId, selection, (sel) => new BlockCommentCommand(sel, false, new TestLanguageConfigurationService()), expectedLines, expectedSelection);
 			mode.dispose();
 		}
 

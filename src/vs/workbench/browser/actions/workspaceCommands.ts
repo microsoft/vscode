@@ -16,7 +16,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IQuickInputService, IPickOptions, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { IFileDialogService, IPickAndOpenOptions } from 'vs/platform/dialogs/common/dialogs';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
@@ -86,7 +86,7 @@ CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, async functio
 	const labelService = accessor.get(ILabelService);
 	const contextService = accessor.get(IWorkspaceContextService);
 	const modelService = accessor.get(IModelService);
-	const modeService = accessor.get(IModeService);
+	const languageService = accessor.get(ILanguageService);
 
 	const folders = contextService.getWorkspace().folders;
 	if (!folders.length) {
@@ -98,7 +98,7 @@ CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, async functio
 			label: folder.name,
 			description: labelService.getUriLabel(dirname(folder.uri), { relative: true }),
 			folder,
-			iconClasses: getIconClasses(modelService, modeService, folder.uri, FileKind.ROOT_FOLDER)
+			iconClasses: getIconClasses(modelService, languageService, folder.uri, FileKind.ROOT_FOLDER)
 		};
 	});
 

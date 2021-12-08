@@ -286,7 +286,10 @@ function acquireWebNodePaths() {
         let entryPoint = (_a = packageData.browser) !== null && _a !== void 0 ? _a : packageData.main;
         // On rare cases a package doesn't have an entrypoint so we assume it has a dist folder with a min.js
         if (!entryPoint) {
-            console.warn(`No entry point for ${key} assuming dist/${key}.min.js`);
+            // TODO @lramos15 remove this when jschardet adds an entrypoint so we can warn on all packages w/out entrypoint
+            if (key !== 'jschardet') {
+                console.warn(`No entry point for ${key} assuming dist/${key}.min.js`);
+            }
             entryPoint = `dist/${key}.min.js`;
         }
         // Remove any starting path information so it's all relative info

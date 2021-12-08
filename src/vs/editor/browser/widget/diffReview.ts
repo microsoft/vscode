@@ -33,7 +33,7 @@ import { Constants } from 'vs/base/common/uint';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ILanguageIdCodec } from 'vs/editor/common/modes';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 
 const DIFF_LINES_PADDING = 3;
 
@@ -96,7 +96,7 @@ export class DiffReview extends Disposable {
 
 	constructor(
 		diffEditor: DiffEditorWidget,
-		@IModeService private readonly _modeService: IModeService
+		@ILanguageService private readonly _languageService: ILanguageService
 	) {
 		super();
 		this._diffEditor = diffEditor;
@@ -629,7 +629,7 @@ export class DiffReview extends Disposable {
 		let modLine = minModifiedLine;
 		for (let i = 0, len = diffs.length; i < len; i++) {
 			const diffEntry = diffs[i];
-			DiffReview._renderSection(container, diffEntry, modLine, lineHeight, this._width, originalOptions, originalModel, originalModelOpts, modifiedOptions, modifiedModel, modifiedModelOpts, this._modeService.languageIdCodec);
+			DiffReview._renderSection(container, diffEntry, modLine, lineHeight, this._width, originalOptions, originalModel, originalModelOpts, modifiedOptions, modifiedModel, modifiedModelOpts, this._languageService.languageIdCodec);
 			if (diffEntry.modifiedLineStart !== 0) {
 				modLine = diffEntry.modifiedLineEnd;
 			}

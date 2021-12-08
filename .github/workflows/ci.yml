@@ -75,7 +75,7 @@ jobs:
       - name: Run Unit Tests (node.js)
         run: yarn test-node
 
-      - name: Run Unit Tests (Browser)
+      - name: Run Unit Tests (Browser, Chromium)
         run: yarn test-browser --browser chromium
 
       - name: Compile Integration Tests
@@ -84,7 +84,7 @@ jobs:
       - name: Run Integration Tests (Electron)
         run: .\scripts\test-integration.bat
 
-      - name: Run Integration Tests (Browser)
+      - name: Run Integration Tests (Browser, Firefox)
         timeout-minutes: 10
         run: .\resources\server\test\test-web-integration.bat --browser firefox
 
@@ -154,7 +154,7 @@ jobs:
         id: nodejs-unit-tests
         run: yarn test-node
 
-      - name: Run Unit Tests (Browser)
+      - name: Run Unit Tests (Browser, Chromium)
         id: browser-unit-tests
         run: DISPLAY=:10 yarn test-browser --browser chromium
 
@@ -165,7 +165,7 @@ jobs:
         id: electron-integration-tests
         run: DISPLAY=:10 ./scripts/test-integration.sh
 
-      - name: Run Integration Tests (Browser)
+      - name: Run Integration Tests (Browser, Chromium)
         id: browser-integration-tests
         run: DISPLAY=:10 ./resources/server/test/test-web-integration.sh --browser chromium
 
@@ -232,7 +232,7 @@ jobs:
       - name: Run Unit Tests (node.js)
         run: yarn test-node
 
-      - name: Run Unit Tests (Browser)
+      - name: Run Unit Tests (Browser, Chromium)
         run: DISPLAY=:10 yarn test-browser --browser chromium
 
       - name: Compile Integration Tests
@@ -241,7 +241,7 @@ jobs:
       - name: Run Integration Tests (Electron)
         run: DISPLAY=:10 ./scripts/test-integration.sh
 
-      - name: Run Integration Tests (Browser)
+      - name: Run Integration Tests (Browser, Webkit)
         run: DISPLAY=:10 ./resources/server/test/test-web-integration.sh --browser webkit
 
       - name: Run Integration Tests (Remote)

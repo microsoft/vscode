@@ -82,7 +82,7 @@ export class ExceptionWidget extends ZoneWidget {
 		const actionBar = new ActionBar(actions);
 		actionBar.push(new Action('editor.closeExceptionWidget', nls.localize('close', "Close"), ThemeIcon.asClassName(widgetClose), true, async () => {
 			const contribution = this.editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID);
-			contribution.closeExceptionWidget();
+			contribution?.closeExceptionWidget();
 		}), { label: false, icon: true });
 
 		dom.append(container, title);

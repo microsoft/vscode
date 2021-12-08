@@ -218,7 +218,7 @@ export class CommentsPanel extends ViewPane {
 			const control = this.editorService.activeTextEditorControl;
 			if (threadToReveal && isCodeEditor(control)) {
 				const controller = CommentController.get(control);
-				controller.revealCommentThread(threadToReveal, commentToReveal, false);
+				controller?.revealCommentThread(threadToReveal, commentToReveal, false);
 			}
 
 			return true;
@@ -239,7 +239,7 @@ export class CommentsPanel extends ViewPane {
 				const control = editor.getControl();
 				if (threadToReveal && isCodeEditor(control)) {
 					const controller = CommentController.get(control);
-					controller.revealCommentThread(threadToReveal, commentToReveal.uniqueIdInThread, true);
+					controller?.revealCommentThread(threadToReveal, commentToReveal.uniqueIdInThread, true);
 				}
 			}
 		});

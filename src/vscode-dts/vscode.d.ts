@@ -5923,6 +5923,50 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The location of the terminal.
+	 */
+	export enum TerminalLocation {
+		/**
+		 * In the terminal view
+		 */
+		Panel = 1,
+		/**
+		 * In the editor area
+		 */
+		Editor = 2,
+	}
+
+	/**
+	 * Assumes a {@link TerminalLocation} of editor and allows specifying a {@link ViewColumn} and
+	 * {@link preserveFocus} property
+	 */
+	export interface TerminalEditorLocationOptions {
+		/**
+		 * A view column in which the {@link Terminal terminal} should be shown in the editor area.
+		 * Use {@link ViewColumn.Active active} to open in the active editor group, other values are
+		 * adjusted to be `Min(column, columnCount + 1)`, the
+		 * {@link ViewColumn.Active active}-column is not adjusted. Use
+		 * {@linkcode ViewColumn.Beside} to open the editor to the side of the currently active one.
+		 */
+		viewColumn: ViewColumn;
+		/**
+		 * An optional flag that when `true` will stop the {@link Terminal} from taking focus.
+		 */
+		preserveFocus?: boolean;
+	}
+
+	/**
+	 * Uses the parent {@link Terminal}'s location for the terminal
+	 */
+	export interface TerminalSplitLocationOptions {
+		/**
+		 * The parent terminal to split this terminal beside. This works whether the parent terminal
+		 * is in the panel or the editor area.
+		 */
+		parentTerminal: Terminal;
+	}
+
+	/**
 	 * Represents the state of a {@link Terminal}.
 	 */
 	export interface TerminalState {
@@ -9698,6 +9742,11 @@ declare module 'vscode' {
 		 * recommended for the best contrast and consistency across themes.
 		 */
 		color?: ThemeColor;
+
+		/**
+		* The {@link TerminalLocation} or {@link TerminalEditorLocationOptions} or {@link TerminalSplitLocationOptions} for the terminal.
+		*/
+		location?: TerminalLocation | TerminalEditorLocationOptions | TerminalSplitLocationOptions;
 	}
 
 	/**
@@ -9726,6 +9775,11 @@ declare module 'vscode' {
 		 * recommended for the best contrast and consistency across themes.
 		 */
 		color?: ThemeColor;
+
+		/**
+		 * The {@link TerminalLocation} or {@link TerminalEditorLocationOptions} or {@link TerminalSplitLocationOptions} for the terminal.
+		 */
+		location?: TerminalLocation | TerminalEditorLocationOptions | TerminalSplitLocationOptions;
 	}
 
 	/**
@@ -10501,6 +10555,11 @@ declare module 'vscode' {
 	export interface FileWillCreateEvent {
 
 		/**
+		 * A cancellation token.
+		 */
+		readonly token: CancellationToken;
+
+		/**
 		 * The files that are going to be created.
 		 */
 		readonly files: readonly Uri[];
@@ -10556,6 +10615,11 @@ declare module 'vscode' {
 	export interface FileWillDeleteEvent {
 
 		/**
+		 * A cancellation token.
+		 */
+		readonly token: CancellationToken;
+
+		/**
 		 * The files that are going to be deleted.
 		 */
 		readonly files: readonly Uri[];
@@ -10609,6 +10673,11 @@ declare module 'vscode' {
 	 * thenable that resolves to a {@link WorkspaceEdit workspace edit}.
 	 */
 	export interface FileWillRenameEvent {
+
+		/**
+		 * A cancellation token.
+		 */
+		readonly token: CancellationToken;
 
 		/**
 		 * The files that are going to be renamed.

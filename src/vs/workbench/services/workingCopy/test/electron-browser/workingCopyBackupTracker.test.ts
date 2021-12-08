@@ -43,6 +43,7 @@ import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/com
 import { TestContextService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { Event, Emitter } from 'vs/base/common/event';
 
 flakySuite('WorkingCopyBackupTracker (native)', function () {
 
@@ -83,6 +84,26 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 			for (const [_, disposable] of this.pendingBackupOperations) {
 				disposable.dispose();
 			}
+		}
+
+		private readonly _onDidResume = this._register(new Emitter<void>());
+		readonly onDidResume = this._onDidResume.event;
+
+		private readonly _onDidSuspend = this._register(new Emitter<void>());
+		readonly onDidSuspend = this._onDidSuspend.event;
+
+		protected override suspendBackupOperations(): { resume: () => void; } {
+			const { resume } = super.suspendBackupOperations();
+
+			this._onDidSuspend.fire();
+
+			return {
+				resume: () => {
+					resume();
+
+					this._onDidResume.fire();
+				}
+			};
 		}
 	}
 
@@ -360,7 +381,7 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 		await cleanup();
 	});
 
-	test('onWillShutdown - pending backup operations canceled', async function () {
+	test('onWillShutdown - pending backup operations canceled and tracker suspended/resumsed', async function () {
 		const { accessor, tracker, cleanup } = await createTracker();
 
 		const resource = toResource.call(this, '/path/index.txt');
@@ -373,10 +394,28 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
 		assert.strictEqual(tracker.pendingBackupOperationCount, 1);
 
+		const onSuspend = Event.toPromise(tracker.onDidSuspend);
+
 		const event = new TestBeforeShutdownEvent();
+		event.reason = ShutdownReason.QUIT;
 		accessor.lifecycleService.fireBeforeShutdown(event);
 
+		await onSuspend;
+
 		assert.strictEqual(tracker.pendingBackupOperationCount, 0);
+
+		// Ops are suspended during shutdown!
+		model?.textEditorModel?.setValue('bar');
+		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
+		assert.strictEqual(tracker.pendingBackupOperationCount, 0);
+
+		const onResume = Event.toPromise(tracker.onDidResume);
+		await event.value;
+
+		// Ops are resumed after shutdown!
+		model?.textEditorModel?.setValue('foo');
+		await onResume;
+		assert.strictEqual(tracker.pendingBackupOperationCount, 1);
 
 		await cleanup();
 	});

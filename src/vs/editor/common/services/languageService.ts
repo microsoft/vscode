@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { ILanguageIdCodec } from 'vs/editor/common/modes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export const IModeService = createDecorator<IModeService>('modeService');
+export const ILanguageService = createDecorator<ILanguageService>('languageService');
 
 export interface ILanguageExtensionPoint {
 	id: string;
@@ -26,7 +26,7 @@ export interface ILanguageSelection {
 	readonly onDidChange: Event<string>;
 }
 
-export interface IModeService {
+export interface ILanguageService {
 	readonly _serviceBrand: undefined;
 
 	readonly languageIdCodec: ILanguageIdCodec;
@@ -35,14 +35,15 @@ export interface IModeService {
 	onLanguagesMaybeChanged: Event<void>;
 
 	// --- reading
-	isRegisteredMode(mimetypeOrModeId: string): boolean;
-	getRegisteredModes(): string[];
+	isRegisteredLanguageId(languageId: string): boolean;
+	isRegisteredMimeType(mimeType: string): boolean;
+	getRegisteredLanguageIds(): string[];
 	getRegisteredLanguageNames(): string[];
 	getExtensions(alias: string): string[];
 	getFilenames(alias: string): string[];
-	getMimeForMode(languageId: string): string | null;
+	getMimeTypeForLanguageId(languageId: string): string | null;
 	getLanguageName(languageId: string): string | null;
-	getModeIdForLanguageName(alias: string): string | null;
+	getLanguageIdForLanguageName(languageName: string): string | null;
 	getModeIdByFilepathOrFirstLine(resource: URI, firstLine?: string): string | null;
 	getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string): string | null;
 	validateLanguageId(languageId: string): string | null;

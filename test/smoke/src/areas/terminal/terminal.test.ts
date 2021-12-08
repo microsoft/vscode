@@ -5,7 +5,7 @@
 
 import minimist = require('minimist');
 import { Application, Terminal, TerminalCommandId } from '../../../../automation/out';
-import { afterSuite, beforeSuite } from '../../utils';
+import { installCommonTestHandlers } from '../../utils';
 import { setup as setupTerminalEditorsTests } from './terminal-editors.test';
 import { setup as setupTerminalPersistenceTests } from './terminal-persistence.test';
 import { setup as setupTerminalProfileTests } from './terminal-profiles.test';
@@ -21,8 +21,8 @@ export function setup(opts: minimist.ParsedArgs) {
 		// Retry tests 3 times to minimize build failures due to any flakiness
 		this.retries(3);
 
-		beforeSuite(opts);
-		afterSuite(opts);
+		// Shared before/after handling
+		installCommonTestHandlers(opts);
 
 		let terminal: Terminal;
 		before(async function () {

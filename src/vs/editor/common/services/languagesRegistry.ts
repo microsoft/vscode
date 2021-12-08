@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { ILanguageIdCodec, LanguageId } from 'vs/editor/common/modes';
 import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
-import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
+import { ILanguageExtensionPoint } from 'vs/editor/common/services/languageService';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 
@@ -257,16 +257,15 @@ export class LanguagesRegistry extends Disposable {
 		}
 	}
 
-	public isRegisteredMode(mimetypeOrModeId: string): boolean {
-		// Is this a known mime type ?
-		if (hasOwnProperty.call(this._mimeTypesMap, mimetypeOrModeId)) {
-			return true;
-		}
-		// Is this a known mode id ?
-		return hasOwnProperty.call(this._languages, mimetypeOrModeId);
+	public isRegisteredLanguageId(languageId: string): boolean {
+		return hasOwnProperty.call(this._languages, languageId);
 	}
 
-	public getRegisteredModes(): string[] {
+	public isRegisteredMimeType(mimeType: string): boolean {
+		return hasOwnProperty.call(this._mimeTypesMap, mimeType);
+	}
+
+	public getRegisteredLanguageIds(): string[] {
 		return Object.keys(this._languages);
 	}
 
@@ -281,7 +280,7 @@ export class LanguagesRegistry extends Disposable {
 		return this._languages[languageId].name;
 	}
 
-	public getModeIdForLanguageNameLowercase(languageNameLower: string): string | null {
+	public getLanguageIdForLanguageName(languageNameLower: string): string | null {
 		if (!hasOwnProperty.call(this._lowercaseNameMap, languageNameLower)) {
 			return null;
 		}
@@ -295,7 +294,7 @@ export class LanguagesRegistry extends Disposable {
 		return this._languages[languageId].configurationFiles || [];
 	}
 
-	public getMimeForMode(languageId: string): string | null {
+	public getMimeTypeForLanguageId(languageId: string): string | null {
 		if (!hasOwnProperty.call(this._languages, languageId)) {
 			return null;
 		}

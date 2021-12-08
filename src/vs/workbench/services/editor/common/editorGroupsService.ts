@@ -13,6 +13,7 @@ import { IDimension } from 'vs/editor/common/editorCommon';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
+import { IGroupChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
 
@@ -395,53 +396,6 @@ export interface IEditorGroupsService {
 	enforcePartOptions(options: IEditorPartOptions): IDisposable;
 }
 
-export const enum GroupChangeKind {
-
-	/* Group Changes */
-	GROUP_ACTIVE,
-	GROUP_INDEX,
-	GROUP_LOCKED,
-
-	/* Editor Changes */
-	EDITOR_OPEN,
-	EDITOR_CLOSE,
-	EDITOR_MOVE,
-	EDITOR_ACTIVE,
-	EDITOR_LABEL,
-	EDITOR_CAPABILITIES,
-	EDITOR_PIN,
-	EDITOR_STICKY,
-	EDITOR_DIRTY
-}
-
-export interface IGroupChangeEvent {
-
-	/**
-	 * The kind of change that occured in the group.
-	 */
-	kind: GroupChangeKind;
-
-	/**
-	 * Only applies when editors change providing
-	 * access to the editor the event is about.
-	 */
-	editor?: EditorInput;
-
-	/**
-	 * Only applies when an editor opens, closes
-	 * or is moved. Identifies the index of the
-	 * editor in the group.
-	 */
-	editorIndex?: number;
-
-	/**
-	 * For `EDITOR_MOVE` only: Signifies the index the
-	 * editor is moving from. `editorIndex` will contain
-	 * the index the editor is moving to.
-	 */
-	oldEditorIndex?: number;
-}
-
 export const enum OpenEditorContext {
 	NEW_EDITOR = 1,
 	MOVE_EDITOR = 2,
@@ -454,6 +408,11 @@ export interface IEditorGroup {
 	 * An aggregated event for when the group changes in any way.
 	 */
 	readonly onDidGroupChange: Event<IGroupChangeEvent>;
+
+	/**
+	 * An event which fires whenever the underlying group model changes.
+	 */
+	readonly onDidModelChange: Event<IGroupChangeEvent>;
 
 	/**
 	 * An event that is fired when the group gets disposed.

@@ -7,8 +7,8 @@ import * as assert from 'assert';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
@@ -63,11 +63,11 @@ suite('EditorModel', () => {
 	}
 
 	let instantiationService: TestInstantiationService;
-	let modeService: IModeService;
+	let languageService: ILanguageService;
 
 	setup(() => {
 		instantiationService = new TestInstantiationService();
-		modeService = instantiationService.stub(IModeService, ModeServiceImpl);
+		languageService = instantiationService.stub(ILanguageService, LanguageService);
 	});
 
 	test('basics', async () => {
@@ -91,7 +91,7 @@ suite('EditorModel', () => {
 	test('BaseTextEditorModel', async () => {
 		let modelService = stubModelService(instantiationService);
 
-		const model = new MyTextEditorModel(modelService, modeService, instantiationService.createInstance(LanguageDetectionService), instantiationService.createInstance(TestAccessibilityService));
+		const model = new MyTextEditorModel(modelService, languageService, instantiationService.createInstance(LanguageDetectionService), instantiationService.createInstance(TestAccessibilityService));
 		await model.resolve();
 
 		model.createTextEditorModel(createTextBufferFactory('foo'), null!, Mimes.text);
