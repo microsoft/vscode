@@ -210,7 +210,7 @@ export async function renderMarkdownDocument(
 		}
 		extensionService.whenInstalledExtensionsRegistered().then(async () => {
 			let support: ITokenizationSupport | undefined;
-			const languageId = languageService.getModeIdForLanguageName(lang);
+			const languageId = languageService.getLanguageIdForLanguageName(lang);
 			if (languageId) {
 				languageService.triggerMode(languageId);
 				support = await TokenizationRegistry.getPromise(languageId) ?? undefined;

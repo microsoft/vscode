@@ -104,7 +104,7 @@ export class NotebookCodeRendererContribution extends Disposable {
 			registeredMimeTypes.set(mimeType, true);
 		};
 
-		_languageService.getRegisteredModes().forEach(id => {
+		_languageService.getRegisteredLanguageIds().forEach(id => {
 			registerCodeRendererContrib(`text/x-${id}`, id);
 		});
 

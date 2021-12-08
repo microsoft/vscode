@@ -79,20 +79,20 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	set language(newLanguage: string) {
 		if (this._textModel
 			// 1. the language update is from workspace edit, checking if it's the same as text model's mode
-			&& this._textModel.getLanguageId() === this._languageService.getModeIdForLanguageName(newLanguage)
+			&& this._textModel.getLanguageId() === this._languageService.getLanguageIdForLanguageName(newLanguage)
 			// 2. the text model's mode might be the same as the `this.language`, even if the language friendly name is not the same, we should not trigger an update
-			&& this._textModel.getLanguageId() === this._languageService.getModeIdForLanguageName(this.language)) {
+			&& this._textModel.getLanguageId() === this._languageService.getLanguageIdForLanguageName(this.language)) {
 			return;
 		}
 
-		const newMode = this._languageService.getModeIdForLanguageName(newLanguage);
+		const newLanguageId = this._languageService.getLanguageIdForLanguageName(newLanguage);
 
-		if (newMode === null) {
+		if (newLanguageId === null) {
 			return;
 		}
 
 		if (this._textModel) {
-			const languageId = this._languageService.create(newMode);
+			const languageId = this._languageService.create(newLanguageId);
 			this._textModel.setMode(languageId.languageId);
 		}
 

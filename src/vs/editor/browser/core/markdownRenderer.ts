@@ -75,7 +75,7 @@ export class MarkdownRenderer {
 				// it is possible no alias is given in which case we fall back to the current editor lang
 				let languageId: string | undefined | null;
 				if (languageAlias) {
-					languageId = this._languageService.getModeIdForLanguageName(languageAlias);
+					languageId = this._languageService.getLanguageIdForLanguageName(languageAlias);
 				} else if (this._options.editor) {
 					languageId = this._options.editor.getModel()?.getLanguageId();
 				}

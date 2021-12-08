@@ -31,7 +31,7 @@ export class ConfigureLanguageBasedSettingsAction extends Action {
 	override async run(): Promise<void> {
 		const languages = this.languageService.getRegisteredLanguageNames();
 		const picks: IQuickPickItem[] = languages.sort().map((lang, index) => {
-			const description: string = nls.localize('languageDescriptionConfigured', "({0})", this.languageService.getModeIdForLanguageName(lang.toLowerCase()));
+			const description: string = nls.localize('languageDescriptionConfigured', "({0})", this.languageService.getLanguageIdForLanguageName(lang.toLowerCase()));
 			// construct a fake resource to be able to show nice icons if any
 			let fakeResource: URI | undefined;
 			const extensions = this.languageService.getExtensions(lang);
@@ -53,7 +53,7 @@ export class ConfigureLanguageBasedSettingsAction extends Action {
 		await this.quickInputService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language") })
 			.then(pick => {
 				if (pick) {
-					const languageId = this.languageService.getModeIdForLanguageName(pick.label.toLowerCase());
+					const languageId = this.languageService.getLanguageIdForLanguageName(pick.label.toLowerCase());
 					if (typeof languageId === 'string') {
 						return this.preferencesService.openUserSettings({ jsonEditor: true, revealSetting: { key: `[${languageId}]`, edit: true } });
 					}

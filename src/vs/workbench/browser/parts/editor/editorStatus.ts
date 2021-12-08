@@ -1120,7 +1120,7 @@ export class ChangeModeAction extends Action {
 		const languages = this.languageService.getRegisteredLanguageNames();
 		const picks: QuickPickInput[] = languages.sort()
 			.map(lang => {
-				const languageId = this.languageService.getModeIdForLanguageName(lang.toLowerCase()) || 'unknown';
+				const languageId = this.languageService.getLanguageIdForLanguageName(lang.toLowerCase()) || 'unknown';
 				const extensions = this.languageService.getExtensions(lang).join(' ');
 				let description: string;
 				if (currentLanguageId === lang) {
@@ -1217,8 +1217,8 @@ export class ChangeModeAction extends Action {
 					if (resource) {
 						// fire and forget to not slow things down
 						this.languageDetectionService.detectLanguage(resource).then(detectedModeId => {
-							const chosenModeId = this.languageService.getModeIdForLanguageName(pick.label.toLowerCase()) || 'unknown';
-							if (detectedModeId === currentModeId && currentModeId !== chosenModeId) {
+							const chosenLanguageId = this.languageService.getLanguageIdForLanguageName(pick.label.toLowerCase()) || 'unknown';
+							if (detectedModeId === currentModeId && currentModeId !== chosenLanguageId) {
 								// If they didn't choose the detected language (which should also be the active language if automatic detection is enabled)
 								// then the automatic language detection was likely wrong and the user is correcting it. In this case, we want telemetry.
 								this.telemetryService.publicLog2<IAutomaticLanguageDetectionLikelyWrongData, AutomaticLanguageDetectionLikelyWrongClassification>(AutomaticLanguageDetectionLikelyWrongId, {
@@ -1251,7 +1251,7 @@ export class ChangeModeAction extends Action {
 
 		const languages = this.languageService.getRegisteredLanguageNames();
 		const picks: IQuickPickItem[] = languages.sort().map((lang, index) => {
-			const id = withNullAsUndefined(this.languageService.getModeIdForLanguageName(lang.toLowerCase())) || 'unknown';
+			const id = withNullAsUndefined(this.languageService.getLanguageIdForLanguageName(lang.toLowerCase())) || 'unknown';
 
 			return {
 				id,

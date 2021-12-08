@@ -592,7 +592,7 @@ export function insertCell(
 	const nextIndex = ui ? viewModel.getNextVisibleCellIndex(index) : index + 1;
 	let language;
 	if (type === CellKind.Code) {
-		const supportedLanguages = activeKernel?.supportedLanguages ?? languageService.getRegisteredModes();
+		const supportedLanguages = activeKernel?.supportedLanguages ?? languageService.getRegisteredLanguageIds();
 		const defaultLanguage = supportedLanguages[0] || 'plaintext';
 		if (cell?.cellKind === CellKind.Code) {
 			language = cell.language;

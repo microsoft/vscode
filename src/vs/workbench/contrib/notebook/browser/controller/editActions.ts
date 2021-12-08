@@ -377,7 +377,7 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 		const languageDetectionService = accessor.get(ILanguageDetectionService);
 
 		const providerLanguages = new Set([
-			...(context.notebookEditor.activeKernel?.supportedLanguages ?? languageService.getRegisteredModes()),
+			...(context.notebookEditor.activeKernel?.supportedLanguages ?? languageService.getRegisteredLanguageIds()),
 			'markdown'
 		]);
 

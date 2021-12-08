@@ -32,9 +32,9 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 	) {
 		this._proxy = _extHostContext.getProxy(ExtHostContext.ExtHostLanguages);
 
-		this._proxy.$acceptLanguageIds(_languageService.getRegisteredModes());
+		this._proxy.$acceptLanguageIds(_languageService.getRegisteredLanguageIds());
 		this._disposables.add(_languageService.onLanguagesMaybeChanged(e => {
-			this._proxy.$acceptLanguageIds(_languageService.getRegisteredModes());
+			this._proxy.$acceptLanguageIds(_languageService.getRegisteredLanguageIds());
 		}));
 	}
 

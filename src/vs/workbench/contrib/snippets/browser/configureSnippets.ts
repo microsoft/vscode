@@ -88,13 +88,13 @@ async function computePicks(snippetService: ISnippetsService, envService: IEnvir
 	}
 
 	const dir = envService.snippetsHome;
-	for (const mode of languageService.getRegisteredModes()) {
-		const label = languageService.getLanguageName(mode);
-		if (label && !seen.has(mode)) {
+	for (const languageId of languageService.getRegisteredLanguageIds()) {
+		const label = languageService.getLanguageName(languageId);
+		if (label && !seen.has(languageId)) {
 			future.push({
-				label: mode,
+				label: languageId,
 				description: `(${label})`,
-				filepath: joinPath(dir, `${mode}.json`),
+				filepath: joinPath(dir, `${languageId}.json`),
 				hint: true
 			});
 		}

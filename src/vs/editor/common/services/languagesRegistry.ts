@@ -265,7 +265,7 @@ export class LanguagesRegistry extends Disposable {
 		return hasOwnProperty.call(this._mimeTypesMap, mimeType);
 	}
 
-	public getRegisteredModes(): string[] {
+	public getRegisteredLanguageIds(): string[] {
 		return Object.keys(this._languages);
 	}
 
@@ -280,7 +280,7 @@ export class LanguagesRegistry extends Disposable {
 		return this._languages[languageId].name;
 	}
 
-	public getModeIdForLanguageNameLowercase(languageNameLower: string): string | null {
+	public getLanguageIdForLanguageName(languageNameLower: string): string | null {
 		if (!hasOwnProperty.call(this._lowercaseNameMap, languageNameLower)) {
 			return null;
 		}
@@ -294,7 +294,7 @@ export class LanguagesRegistry extends Disposable {
 		return this._languages[languageId].configurationFiles || [];
 	}
 
-	public getMimeForMode(languageId: string): string | null {
+	public getMimeTypeForLanguageId(languageId: string): string | null {
 		if (!hasOwnProperty.call(this._languages, languageId)) {
 			return null;
 		}

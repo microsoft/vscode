@@ -165,9 +165,9 @@ export class WorkbenchLanguageService extends LanguageService {
 		if (configuration.files?.associations) {
 			Object.keys(configuration.files.associations).forEach(pattern => {
 				const langId = configuration.files.associations[pattern];
-				const mimetype = this.getMimeForMode(langId) || `text/x-${langId}`;
+				const mimeType = this.getMimeTypeForLanguageId(langId) || `text/x-${langId}`;
 
-				mime.registerTextMime({ id: langId, mime: mimetype, filepattern: pattern, userConfigured: true });
+				mime.registerTextMime({ id: langId, mime: mimeType, filepattern: pattern, userConfigured: true });
 			});
 		}
 

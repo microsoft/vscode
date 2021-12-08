@@ -37,13 +37,13 @@ export interface ILanguageService {
 	// --- reading
 	isRegisteredLanguageId(languageId: string): boolean;
 	isRegisteredMimeType(mimeType: string): boolean;
-	getRegisteredModes(): string[];
+	getRegisteredLanguageIds(): string[];
 	getRegisteredLanguageNames(): string[];
 	getExtensions(alias: string): string[];
 	getFilenames(alias: string): string[];
-	getMimeForMode(languageId: string): string | null;
+	getMimeTypeForLanguageId(languageId: string): string | null;
 	getLanguageName(languageId: string): string | null;
-	getModeIdForLanguageName(alias: string): string | null;
+	getLanguageIdForLanguageName(languageName: string): string | null;
 	getModeIdByFilepathOrFirstLine(resource: URI, firstLine?: string): string | null;
 	getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string): string | null;
 	validateLanguageId(languageId: string): string | null;
