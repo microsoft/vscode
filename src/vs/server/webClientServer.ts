@@ -25,7 +25,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 // eslint-disable-next-line code-import-patterns
 import type { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import { editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ClientTheme, getPathPrefix, HTTPNotFoundError, WebManifest } from 'vs/server/common/net';
+import { ClientTheme, getOriginalUrl, HTTPNotFoundError, relativePath, relativeRoot, WebManifest } from 'vs/server/common/net';
 import { IServerThemeService } from 'vs/server/serverThemeService';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 
@@ -194,17 +194,13 @@ export class WebClientServer {
 	 * PWA manifest file. This informs the browser that the app may be installed.
 	 */
 	private async _handleManifest(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
-		const pathPrefix = getPathPrefix(parsedUrl.pathname!);
+		// The manifest URL is used as the base when resolving URLs so we can just
+		// use . without having to check the depth since we serve it at the root.
 		const clientTheme = await this.fetchClientTheme();
-		const startUrl = pathPrefix.substring(
-			0,
-			pathPrefix.lastIndexOf('/') + 1
-		);
-
 		const webManifest: WebManifest = {
 			name: this._productService.nameLong,
 			short_name: this._productService.nameShort,
-			start_url: normalize(startUrl),
+			start_url: '.',
 			display: 'fullscreen',
 			'background-color': clientTheme.backgroundColor,
 			description: 'Run editors on a remote server.',
@@ -320,6 +316,8 @@ export class WebClientServer {
 			scopes: [['user:email'], ['repo']]
 		} : undefined;
 
+		const base = relativeRoot(getOriginalUrl(req))
+		const vscodeBase = relativePath(getOriginalUrl(req))
 		const data = (await util.promisify(fs.readFile)(filePath)).toString()
 			.replace('{{WORKBENCH_WEB_CONFIGURATION}}', escapeAttribute(JSON.stringify(<IWorkbenchConstructionOptions>{
 				productConfiguration: {
@@ -330,17 +328,18 @@ export class WebClientServer {
 
 					// Service Worker
 					serviceWorker: {
-						scope: './',
-						url: `./${this._environmentService.serviceWorkerFileName}`
+						scope: vscodeBase + '/',
+						url: vscodeBase + '/' + this._environmentService.serviceWorkerFileName,
 					},
 
 					// Endpoints
-					logoutEndpointUrl: './logout',
-					webEndpointUrl: './static',
-					webEndpointUrlTemplate: './static',
-					webviewContentExternalBaseUrlTemplate: './webview/{{uuid}}/',
+					base,
+					logoutEndpointUrl: base + '/logout',
+					webEndpointUrl: vscodeBase + '/static',
+					webEndpointUrlTemplate: vscodeBase + '/static',
+					webviewContentExternalBaseUrlTemplate: vscodeBase + '/webview/{{uuid}}/',
 
-					updateUrl: './update/check'
+					updateUrl: base + '/update/check'
 				},
 				folderUri: (workspacePath && isFolder) ? transformer.transformOutgoing(URI.file(workspacePath)) : undefined,
 				workspaceUri: (workspacePath && !isFolder) ? transformer.transformOutgoing(URI.file(workspacePath)) : undefined,
@@ -356,7 +355,8 @@ export class WebClientServer {
 			})))
 			.replace(/{{CLIENT_BACKGROUND_COLOR}}/g, () => backgroundColor)
 			.replace(/{{CLIENT_FOREGROUND_COLOR}}/g, () => foregroundColor)
-			.replace('{{WORKBENCH_AUTH_SESSION}}', () => authSessionInfo ? escapeAttribute(JSON.stringify(authSessionInfo)) : '');
+			.replace('{{WORKBENCH_AUTH_SESSION}}', () => authSessionInfo ? escapeAttribute(JSON.stringify(authSessionInfo)) : '')
+			.replace(/{{BASE}}/g, () => vscodeBase);
 
 		const cspDirectives = [
 			'default-src \'self\';',
@@ -505,7 +505,7 @@ export class WebClientServer {
 		return res.end(JSON.stringify(knownCallbackUri));
 	}
 
-	serveError = async (_req: http.IncomingMessage, res: http.ServerResponse, code: number, message: string, parsedUrl?: url.UrlWithParsedQuery): Promise<void> => {
+	serveError = async (req: http.IncomingMessage, res: http.ServerResponse, code: number, message: string, parsedUrl?: url.UrlWithParsedQuery): Promise<void> => {
 		const { applicationName, commit = 'development', version } = this._productService;
 
 		res.statusCode = code;
@@ -533,7 +533,8 @@ export class WebClientServer {
 			.replace(/{{ERROR_MESSAGE}}/g, () => message)
 			.replace(/{{ERROR_FOOTER}}/g, () => `${version} - ${commit}`)
 			.replace(/{{CLIENT_BACKGROUND_COLOR}}/g, () => clientTheme.backgroundColor)
-			.replace(/{{CLIENT_FOREGROUND_COLOR}}/g, () => clientTheme.foregroundColor);
+			.replace(/{{CLIENT_FOREGROUND_COLOR}}/g, () => clientTheme.foregroundColor)
+			.replace(/{{BASE}}/g, () => relativePath(getOriginalUrl(req)));
 
 		res.end(data);
 	};

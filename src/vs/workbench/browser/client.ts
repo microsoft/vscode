@@ -176,7 +176,7 @@ export class CodeServerClientAdditions extends Disposable {
 	}
 
 	private appendSessionCommands() {
-		const { auth, logoutEndpointUrl } = this.productConfiguration;
+		const { auth, base, logoutEndpointUrl } = this.productConfiguration;
 
 		// Use to show or hide logout commands and menu options.
 		this.contextKeyService.createKey(CodeServerClientAdditions.AUTH_KEY, auth === AuthType.Password);
@@ -190,9 +190,10 @@ export class CodeServerClientAdditions extends Disposable {
 			 * @file 'code-server/src/node/route/logout.ts'
 			 */
 			const logoutUrl = new URL(logoutEndpointUrl!, window.location.href);
-			// Add base param as this session may be stored within a nested path.
-			logoutUrl.searchParams.set('base', window.location.pathname);
-
+			// Inform the backend about the path since the proxy might have rewritten
+			// it out of the headers and cookies must be set with absolute paths.
+			logoutUrl.searchParams.set('base', base || ".");
+			logoutUrl.searchParams.set('href', window.location.href);
 			window.location.assign(logoutUrl);
 		});
 

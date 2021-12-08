@@ -11,8 +11,8 @@
 		<meta name="mobile-web-app-capable" content="yes" />
 		<meta name="apple-mobile-web-app-capable" content="yes" />
 		<meta name="apple-mobile-web-app-title" content="Code">
-		<link rel="apple-touch-icon" sizes="192x192" href="./static/resources/server/code-192.png" />
-    <link rel="apple-touch-icon" sizes="512x512" href="./static/resources/server/code-512.png" />
+		<link rel="apple-touch-icon" sizes="192x192" href="{{BASE}}/static/resources/server/code-192.png" />
+    <link rel="apple-touch-icon" sizes="512x512" href="{{BASE}}/static/resources/server/code-512.png" />
 
 		<!-- Disable pinch zooming -->
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
@@ -27,30 +27,30 @@
 		<meta id="vscode-workbench-builtin-extensions" data-settings="{{WORKBENCH_BUILTIN_EXTENSIONS}}">
 
 		<!-- Workbench Icon/Manifest/CSS -->
-		<link rel="icon" href="./static/resources/server/favicon-dark-support.svg" type="image/svg+xml" />
-		<link rel="alternate icon" href="./static/resources/server/favicon.svg" type="image/svg+xml" />
+		<link rel="icon" href="{{BASE}}/static/resources/server/favicon-dark-support.svg" type="image/svg+xml" />
+		<link rel="alternate icon" href="{{BASE}}/static/resources/server/favicon.svg" type="image/svg+xml" />
 		<meta name="theme-color" content="{{CLIENT_BACKGROUND_COLOR}}">
 
-		<link rel="icon" href="./favicon.ico" type="image/x-icon" />
-		<link rel="manifest" href="./manifest.json" crossorigin="use-credentials">
+		<link rel="icon" href="{{BASE}}/favicon.ico" type="image/x-icon" />
+		<link rel="manifest" href="{{BASE}}/manifest.json" crossorigin="use-credentials">
 	</head>
 
 	<body style="background-color: var(--vs-theme-background-color); color: var(--vs-theme-foreground-color)" aria-label="">
 	</body>
 
 	<!-- Startup (do not modify order of script tags!) -->
-	<script src="./static/out/vs/loader.js"></script>
-	<script src="./static/out/vs/webPackagePaths.js"></script>
+	<script src="{{BASE}}/static/out/vs/loader.js"></script>
+	<script src="{{BASE}}/static/out/vs/webPackagePaths.js"></script>
 	<script>
 		/**
 		 * Updated to use relative path.
 		 * @author coder
 		 */
 		Object.keys(self.webPackagePaths).map(function (key, index) {
-			self.webPackagePaths[key] = new URL(`./static/remote/web/node_modules/${key}/${self.webPackagePaths[key]}`, window.location.href).toString();
+			self.webPackagePaths[key] = new URL(`{{BASE}}/static/remote/web/node_modules/${key}/${self.webPackagePaths[key]}`, window.location.href).toString();
 		});
 		require.config({
-			baseUrl: new URL('./static/out', window.location.href).toString(),
+			baseUrl: new URL('{{BASE}}/static/out', window.location.href).toString(),
 			recordStats: true,
 			trustedTypesPolicy: window.trustedTypes?.createPolicy('amdLoader', {
 				createScriptURL(value) {

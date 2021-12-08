@@ -33,10 +33,11 @@ export type ExtensionVirtualWorkspaceSupport = {
 
 export interface IProductConfiguration {
 	//#region Code Server Additions
-	
+
 	readonly codeServerVersion?: string;
 	readonly auth?: AuthType;
 
+	readonly base: string;
 	readonly logoutEndpointUrl: string;
 	readonly proxyEndpointUrlTemplate?: string;
 	readonly serviceWorker?: {
@@ -44,7 +45,7 @@ export interface IProductConfiguration {
 		readonly scope: string;
 	}
 	readonly icons: Array<{ src: string; type: string; sizes: string }>;
-	
+
 	//#regionend
 
 	readonly version: string;
