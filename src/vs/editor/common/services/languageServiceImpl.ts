@@ -80,10 +80,6 @@ export class LanguageService extends Disposable implements ILanguageService {
 		return this._registry.isRegisteredLanguageId(languageId);
 	}
 
-	public isRegisteredMimeType(mimeType: string): boolean {
-		return this._registry.isRegisteredMimeType(mimeType);
-	}
-
 	public getRegisteredLanguageIds(): string[] {
 		return this._registry.getRegisteredLanguageIds();
 	}
@@ -112,12 +108,16 @@ export class LanguageService extends Disposable implements ILanguageService {
 		return this._registry.getLanguageIdForLanguageName(alias);
 	}
 
+	public getLanguageIdForMimeType(mimeType: string): string | null {
+		return this._registry.getLanguageIdForMimeType(mimeType);
+	}
+
 	public getModeIdByFilepathOrFirstLine(resource: URI | null, firstLine?: string): string | null {
 		const modeIds = this._registry.getModeIdsFromFilepathOrFirstLine(resource, firstLine);
 		return firstOrDefault(modeIds, null);
 	}
 
-	public getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string | undefined): string | null {
+	private getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string | undefined): string | null {
 		const modeIds = this._registry.extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds);
 		return firstOrDefault(modeIds, null);
 	}

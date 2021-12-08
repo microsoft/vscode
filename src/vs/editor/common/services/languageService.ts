@@ -36,7 +36,6 @@ export interface ILanguageService {
 
 	// --- reading
 	isRegisteredLanguageId(languageId: string): boolean;
-	isRegisteredMimeType(mimeType: string): boolean;
 	getRegisteredLanguageIds(): string[];
 	getRegisteredLanguageNames(): string[];
 	getExtensions(alias: string): string[];
@@ -44,8 +43,8 @@ export interface ILanguageService {
 	getMimeTypeForLanguageId(languageId: string): string | null;
 	getLanguageName(languageId: string): string | null;
 	getLanguageIdForLanguageName(languageName: string): string | null;
+	getLanguageIdForMimeType(mimeType: string): string | null;
 	getModeIdByFilepathOrFirstLine(resource: URI, firstLine?: string): string | null;
-	getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string): string | null;
 	validateLanguageId(languageId: string): string | null;
 	getConfigurationFiles(languageId: string): URI[];
 

@@ -69,7 +69,7 @@ function detectModeId(modelService: IModelService, languageService: ILanguageSer
 		return null; // we need a resource at least
 	}
 
-	let modeId: string | null = null;
+	let languageId: string | null = null;
 
 	// Data URI: check for encoded metadata
 	if (resource.scheme === Schemas.data) {
@@ -77,7 +77,7 @@ function detectModeId(modelService: IModelService, languageService: ILanguageSer
 		const mime = metadata.get(DataUri.META_DATA_MIME);
 
 		if (mime) {
-			modeId = languageService.getModeId(mime);
+			languageId = languageService.getLanguageIdForMimeType(mime);
 		}
 	}
 
@@ -85,13 +85,13 @@ function detectModeId(modelService: IModelService, languageService: ILanguageSer
 	else {
 		const model = modelService.getModel(resource);
 		if (model) {
-			modeId = model.getLanguageId();
+			languageId = model.getLanguageId();
 		}
 	}
 
 	// only take if the mode is specific (aka no just plain text)
-	if (modeId && modeId !== PLAINTEXT_MODE_ID) {
-		return modeId;
+	if (languageId && languageId !== PLAINTEXT_MODE_ID) {
+		return languageId;
 	}
 
 	// otherwise fallback to path based detection

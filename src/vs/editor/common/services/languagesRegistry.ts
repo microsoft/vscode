@@ -261,10 +261,6 @@ export class LanguagesRegistry extends Disposable {
 		return hasOwnProperty.call(this._languages, languageId);
 	}
 
-	public isRegisteredMimeType(mimeType: string): boolean {
-		return hasOwnProperty.call(this._mimeTypesMap, mimeType);
-	}
-
 	public getRegisteredLanguageIds(): string[] {
 		return Object.keys(this._languages);
 	}
@@ -285,6 +281,13 @@ export class LanguagesRegistry extends Disposable {
 			return null;
 		}
 		return this._lowercaseNameMap[languageNameLower];
+	}
+
+	public getLanguageIdForMimeType(mimeType: string): string | null {
+		if (hasOwnProperty.call(this._mimeTypesMap, mimeType)) {
+			return this._mimeTypesMap[mimeType];
+		}
+		return null;
 	}
 
 	public getConfigurationFiles(languageId: string): URI[] {

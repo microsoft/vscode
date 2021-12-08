@@ -168,7 +168,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			// Init language from text model
 			// The language defined in the cell might not be supported in the editor so the text model might be using the default fallback
 			// If so let's not modify the language
-			if (!(this._languageService.getModeId(this.language) === null && (this._textModel.getLanguageId() === 'plaintext' || this._textModel.getLanguageId() === 'jupyter'))) {
+			if (!(this._languageService.isRegisteredLanguageId(this.language) === false && (this._textModel.getLanguageId() === 'plaintext' || this._textModel.getLanguageId() === 'jupyter'))) {
 				this.language = this._textModel.getLanguageId();
 			}
 
