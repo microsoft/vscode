@@ -8,6 +8,7 @@ import { CancelablePromise, createCancelablePromise, Delayer, first } from 'vs/b
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color } from 'vs/base/common/color';
 import { isPromiseCanceledError, onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
+import { Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
@@ -23,7 +24,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IIdentifiedSingleEditOperation, IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { LinkedEditingRangeProviderRegistry, LinkedEditingRanges } from 'vs/editor/common/modes';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import * as nls from 'vs/nls';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -71,7 +72,8 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 
 	constructor(
 		editor: ICodeEditor,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService,
 	) {
 		super();
 		this._editor = editor;
@@ -120,10 +122,14 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 			return;
 		}
 
-		this._languageWordPattern = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageId());
-		this._localToDispose.add(model.onDidChangeLanguageConfiguration(() => {
-			this._languageWordPattern = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageId());
-		}));
+		this._localToDispose.add(
+			Event.runAndSubscribe(
+				model.onDidChangeLanguageConfiguration,
+				() => {
+					this._languageWordPattern = this.languageConfigurationService.getLanguageConfiguration(model.getLanguageId()).getWordDefinition();
+				}
+			)
+		);
 
 		const rangeUpdateScheduler = new Delayer(this._debounceDuration);
 		const triggerRangeUpdate = () => {
