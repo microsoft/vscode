@@ -267,7 +267,8 @@ async function getWslProfiles(wslPath: string, defaultProfileName: string | unde
 			path: wslPath,
 			args: [`-d`, `${distroName}`],
 			isDefault: profileName === defaultProfileName,
-			icon: getWslIcon(distroName)
+			icon: getWslIcon(distroName),
+			isAutoDetected: true
 		};
 		// Add the profile
 		profiles.push(profile);
