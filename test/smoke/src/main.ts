@@ -296,19 +296,24 @@ async function setup(): Promise<void> {
 	console.log('*** Smoketest setup done!\n');
 }
 
-function createOptions(): ApplicationOptions {
+async function createOptions(): Promise<ApplicationOptions> {
 	const loggers: Logger[] = [];
 
 	if (opts.verbose) {
 		loggers.push(new ConsoleLogger());
 	}
 
-	let log: string | undefined = undefined;
-
+	const log: string | undefined = 'trace'; // because smoke tests are flaky
+	let logsPath: string;
 	if (opts.log) {
-		loggers.push(new FileLogger(opts.log));
-		log = 'trace';
+		logsPath = opts.log;
+	} else {
+		logsPath = path.join(repoPath, '.build', 'logs', opts.web ? 'smoke-tests-browser' : opts.remote ? 'smoke-tests-remote' : 'smoke-tests', 'smoke-test-runner.log');
 	}
+
+	await mkdirp(path.dirname(logsPath));
+
+	loggers.push(new FileLogger(logsPath));
 
 	return {
 		quality,
@@ -332,7 +337,7 @@ function createOptions(): ApplicationOptions {
 before(async function () {
 	this.timeout(2 * 60 * 1000); // allow two minutes for setup
 	await setup();
-	this.defaultOptions = createOptions();
+	this.defaultOptions = await createOptions();
 });
 
 after(async function () {
