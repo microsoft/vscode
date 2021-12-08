@@ -158,7 +158,6 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 					} else {
 						r(undefined);
 					}
-					r(undefined);
 				});
 			});
 			if (validatedLink) {

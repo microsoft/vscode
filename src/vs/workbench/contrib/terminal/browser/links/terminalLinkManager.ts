@@ -354,8 +354,8 @@ export class TerminalLinkManager extends DisposableStore {
 					path: linkUrl
 				});
 			} else {
-				// Remove file: from URI so it can be resolved
-				uri = URI.file(linkUrl.replace(/((file:)?/, ''));
+				// Remove file: from link so the file can be resolved
+				uri = URI.file(linkUrl.replace(/^(file:)/, ''));
 			}
 
 			try {
