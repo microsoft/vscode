@@ -625,6 +625,46 @@ export function maxIndex<T>(array: readonly T[], fn: (value: T) => number): numb
 	return maxIdx;
 }
 
+/**
+ * A comparator `c` defines a total order `<=` on `T` as following:
+ * `c(a, b) <= 0` iff `a` <= `b`.
+ * We also have `c(a, b) == 0` iff `c(b, a) == 0`.
+*/
+export type Comparator<T> = (a: T, b: T) => number;
+
+export function compareBy<TItem, TCompareBy>(selector: (item: TItem) => TCompareBy, comparator: Comparator<TCompareBy>): Comparator<TItem> {
+	return (a, b) => comparator(selector(a), selector(b));
+}
+
+/**
+ * The natural order on numbers.
+*/
+export const numberComparator: Comparator<number> = (a, b) => a - b;
+
+/**
+ * Returns the first item that is equal to or greater than every other item.
+*/
+export function findMaxBy<T>(items: readonly T[], comparator: Comparator<T>): T | undefined {
+	if (items.length === 0) {
+		return undefined;
+	}
+
+	let min = items[0];
+	for (const item of items) {
+		if (comparator(item, min) > 0) {
+			min = item;
+		}
+	}
+	return min;
+}
+
+/**
+ * Returns the first item that is equal to or less than every other item.
+*/
+export function findMinBy<T>(items: readonly T[], comparator: Comparator<T>): T | undefined {
+	return findMaxBy(items, (a, b) => -comparator(a, b));
+}
+
 export class ArrayQueue<T> {
 	private firstIdx = 0;
 	private lastIdx = this.items.length - 1;

@@ -354,6 +354,24 @@ suite('Arrays', () => {
 		assert.strictEqual(arrays.maxIndex(array, value => value === 'b' ? 5 : 0), 1);
 	});
 
+	test('findMaxBy', () => {
+		const array = [{ v: 3 }, { v: 5 }, { v: 2 }, { v: 2 }, { v: 2 }, { v: 5 }];
+
+		assert.strictEqual(
+			array.indexOf(arrays.findMaxBy(array, arrays.compareBy(v => v.v, arrays.numberComparator))!),
+			1
+		);
+	});
+
+	test('findMinBy', () => {
+		const array = [{ v: 3 }, { v: 5 }, { v: 2 }, { v: 2 }, { v: 2 }, { v: 5 }];
+
+		assert.strictEqual(
+			array.indexOf(arrays.findMinBy(array, arrays.compareBy(v => v.v, arrays.numberComparator))!),
+			2
+		);
+	});
+
 	suite('ArrayQueue', () => {
 		suite('takeWhile/takeFromEndWhile', () => {
 			test('TakeWhile 1', () => {
