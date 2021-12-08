@@ -204,7 +204,7 @@ const workerReady = new Promise((resolve, reject) => {
 		return reject(new Error('Service Workers are not enabled. Webviews will not work. Try disabling private/incognito mode.'));
 	}
 
-	const swPath = `service-worker.js?vscode-resource-base-authority=${(new URL(location.toString()).searchParams).get('vscode-resource-base-authority')}`;
+	const swPath = `service-worker.js?vscode-resource-base-authority=${searchParams.get('vscode-resource-base-authority')}`;
 
 	navigator.serviceWorker.register(swPath).then(
 		async registration => {
