@@ -347,6 +347,15 @@ suite('Arrays', () => {
 		);
 	});
 
+	test('findLastMaxBy', () => {
+		const array = [{ v: 3 }, { v: 5 }, { v: 2 }, { v: 2 }, { v: 2 }, { v: 5 }];
+
+		assert.strictEqual(
+			array.indexOf(arrays.findLastMaxBy(array, arrays.compareBy(v => v.v, arrays.numberComparator))!),
+			5
+		);
+	});
+
 	test('findMinBy', () => {
 		const array = [{ v: 3 }, { v: 5 }, { v: 2 }, { v: 2 }, { v: 2 }, { v: 5 }];
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy, findMaxBy, findMinBy } from 'vs/base/common/arrays';
+import { compareBy, findLastMaxBy, findMinBy } from 'vs/base/common/arrays';
 import { CursorContext, CursorState, PartialCursorState } from 'vs/editor/common/controller/cursorCommon';
 import { Cursor } from 'vs/editor/common/controller/oneCursor';
 import { Position } from 'vs/editor/common/core/position';
@@ -78,7 +78,7 @@ export class CursorCollection {
 	}
 
 	public getBottomMostViewPosition(): Position {
-		return findMaxBy(
+		return findLastMaxBy(
 			this.cursors,
 			compareBy(c => c.viewState.position, Position.compare)
 		)!.viewState.position;
