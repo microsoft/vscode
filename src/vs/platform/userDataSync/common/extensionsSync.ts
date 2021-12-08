@@ -146,10 +146,10 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		return [{
 			skippedExtensions,
 			localResource: this.localResource,
-			localContent: this.stringify(localExtensions),
+			localContent: this.stringify(localExtensions, false),
 			localExtensions,
 			remoteResource: this.remoteResource,
-			remoteContent: remoteExtensions ? this.stringify(remoteExtensions) : null,
+			remoteContent: remoteExtensions ? this.stringify(remoteExtensions, false) : null,
 			previewResource: this.previewResource,
 			previewResult,
 			localChange: previewResult.localChange,
@@ -188,7 +188,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			preview.push(localExtension);
 		}
 
-		return this.stringify(preview);
+		return this.stringify(preview, false);
 	}
 
 	protected async getMergeResult(resourcePreview: IExtensionResourcePreview, token: CancellationToken): Promise<IMergeResult> {
@@ -292,11 +292,12 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			const installedExtensions = await this.extensionManagementService.getInstalled();
 			const ignoredExtensions = this.ignoredExtensionsManagementService.getIgnoredExtensions(installedExtensions);
 			const localExtensions = this.getLocalExtensions(installedExtensions).filter(e => !ignoredExtensions.some(id => areSameExtensions({ id }, e.identifier)));
-			return this.stringify(localExtensions);
+			return this.stringify(localExtensions, true);
 		}
 
 		if (this.extUri.isEqual(this.remoteResource, uri) || this.extUri.isEqual(this.localResource, uri) || this.extUri.isEqual(this.acceptedResource, uri)) {
-			return this.resolvePreviewContent(uri);
+			const content = await this.resolvePreviewContent(uri);
+			return content ? this.stringify(JSON.parse(content), true) : content;
 		}
 
 		let content = await super.resolveContent(uri);
@@ -310,7 +311,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			if (syncData) {
 				switch (this.extUri.basename(uri)) {
 					case 'extensions.json':
-						return this.stringify(this.parseExtensions(syncData));
+						return this.stringify(this.parseExtensions(syncData), true);
 				}
 			}
 		}
@@ -318,7 +319,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		return null;
 	}
 
-	private stringify(extensions: ISyncExtension[]): string {
+	private stringify(extensions: ISyncExtension[], format: boolean): string {
 		extensions.sort((e1, e2) => {
 			if (!e1.identifier.uuid && e2.identifier.uuid) {
 				return -1;
@@ -328,7 +329,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			}
 			return compare(e1.identifier.id, e2.identifier.id);
 		});
-		return JSON.stringify(extensions, null, '\t');
+		return format ? JSON.stringify(extensions, null, '\t') : JSON.stringify(extensions);
 	}
 
 	async hasLocalData(): Promise<boolean> {

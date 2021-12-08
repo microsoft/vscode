@@ -43,12 +43,12 @@ export interface IGlobalStateResourcePreview extends IResourcePreview {
 	readonly storageKeys: StorageKeys;
 }
 
-function stringify(globalState: IGlobalState): string {
+function stringify(globalState: IGlobalState, format: boolean): string {
 	const storageKeys = globalState.storage ? Object.keys(globalState.storage).sort() : [];
 	const storage: IStringDictionary<IStorageValue> = {};
 	storageKeys.forEach(key => storage[key] = globalState.storage[key]);
 	globalState.storage = storage;
-	return JSON.stringify(globalState, null, '\t');
+	return format ? JSON.stringify(globalState, null, '\t') : JSON.stringify(globalState);
 }
 
 const GLOBAL_STATE_DATA_VERSION = 1;
@@ -124,10 +124,10 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 
 		return [{
 			localResource: this.localResource,
-			localContent: stringify(localGlobalState),
+			localContent: stringify(localGlobalState, false),
 			localUserData: localGlobalState,
 			remoteResource: this.remoteResource,
-			remoteContent: remoteGlobalState ? stringify(remoteGlobalState) : null,
+			remoteContent: remoteGlobalState ? stringify(remoteGlobalState, false) : null,
 			previewResource: this.previewResource,
 			previewResult,
 			localChange: previewResult.localChange,
@@ -243,7 +243,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	override async resolveContent(uri: URI): Promise<string | null> {
 		if (this.extUri.isEqual(uri, GlobalStateSynchroniser.GLOBAL_STATE_DATA_URI)) {
 			const localGlobalState = await this.getLocalGlobalState();
-			return stringify(localGlobalState);
+			return stringify(localGlobalState, true);
 		}
 
 		if (this.extUri.isEqual(this.remoteResource, uri) || this.extUri.isEqual(this.localResource, uri) || this.extUri.isEqual(this.acceptedResource, uri)) {
@@ -261,7 +261,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			if (syncData) {
 				switch (this.extUri.basename(uri)) {
 					case 'globalState.json':
-						return stringify(JSON.parse(syncData.content));
+						return stringify(JSON.parse(syncData.content), true);
 				}
 			}
 		}
@@ -474,7 +474,7 @@ export class UserDataSyncStoreTypeSynchronizer {
 
 		// Write the global state to remote
 		const machineId = await getServiceMachineId(this.environmentService, this.fileService, this.storageService);
-		const syncDataToUpdate: ISyncData = { version: GLOBAL_STATE_DATA_VERSION, machineId, content: stringify(remoteGlobalState) };
+		const syncDataToUpdate: ISyncData = { version: GLOBAL_STATE_DATA_VERSION, machineId, content: stringify(remoteGlobalState, false) };
 		await this.userDataSyncStoreClient.write(SyncResource.GlobalState, JSON.stringify(syncDataToUpdate), globalStateUserData.ref, syncHeaders);
 	}
 
