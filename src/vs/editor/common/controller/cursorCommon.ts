@@ -3,16 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { ConfigurationChangedEvent, EditorAutoClosingEditStrategy, EditorAutoClosingStrategy, EditorAutoIndentStrategy, EditorAutoSurroundStrategy, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { ICommand, IConfiguration } from 'vs/editor/common/editorCommon';
 import { ITextModel, PositionAffinity, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { AutoClosingPairs, IAutoClosingPair } from 'vs/editor/common/modes/languageConfiguration';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { AutoClosingPairs } from 'vs/editor/common/modes/languageConfiguration';
+import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { createScopedLineTokens } from 'vs/editor/common/modes/supports';
+import { IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
 import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
 export { CursorColumns } from './cursorColumns';
 
@@ -104,7 +106,8 @@ export class CursorConfiguration {
 	constructor(
 		languageId: string,
 		modelOptions: TextModelResolvedOptions,
-		configuration: IConfiguration
+		configuration: IConfiguration,
+		private readonly languageConfigurationService: ILanguageConfigurationService
 	) {
 		this._languageId = languageId;
 
@@ -135,13 +138,13 @@ export class CursorConfiguration {
 		this._electricChars = null;
 
 		this.shouldAutoCloseBefore = {
-			quote: CursorConfiguration._getShouldAutoClose(languageId, this.autoClosingQuotes),
-			bracket: CursorConfiguration._getShouldAutoClose(languageId, this.autoClosingBrackets)
+			quote: this._getShouldAutoClose(languageId, this.autoClosingQuotes),
+			bracket: this._getShouldAutoClose(languageId, this.autoClosingBrackets)
 		};
 
-		this.autoClosingPairs = LanguageConfigurationRegistry.getAutoClosingPairs(languageId);
+		this.autoClosingPairs = this.languageConfigurationService.getLanguageConfiguration(languageId).getAutoClosingPairs();
 
-		let surroundingPairs = CursorConfiguration._getSurroundingPairs(languageId);
+		let surroundingPairs = this.languageConfigurationService.getLanguageConfiguration(languageId).getSurroundingPairs();
 		if (surroundingPairs) {
 			for (const pair of surroundingPairs) {
 				this.surroundingPairs[pair.open] = pair.close;
@@ -152,7 +155,7 @@ export class CursorConfiguration {
 	public get electricChars() {
 		if (!this._electricChars) {
 			this._electricChars = {};
-			let electricChars = CursorConfiguration._getElectricCharacters(this._languageId);
+			const electricChars = this.languageConfigurationService.getLanguageConfiguration(this._languageId).electricCharacter?.getElectricCharacters();
 			if (electricChars) {
 				for (const char of electricChars) {
 					this._electricChars[char] = true;
@@ -162,25 +165,28 @@ export class CursorConfiguration {
 		return this._electricChars;
 	}
 
+	/**
+	 * Should return opening bracket type to match indentation with
+	 */
+	public onElectricCharacter(character: string, context: LineTokens, column: number): IElectricAction | null {
+		let scopedLineTokens = createScopedLineTokens(context, column - 1);
+		let electricCharacterSupport = this.languageConfigurationService.getLanguageConfiguration(scopedLineTokens.languageId).electricCharacter;
+		if (!electricCharacterSupport) {
+			return null;
+		}
+		return electricCharacterSupport.onElectricCharacter(character, scopedLineTokens, column - scopedLineTokens.firstCharOffset);
+	}
+
 	public normalizeIndentation(str: string): string {
 		return TextModel.normalizeIndentation(str, this.indentSize, this.insertSpaces);
 	}
 
-	private static _getElectricCharacters(languageId: string): string[] | null {
-		try {
-			return LanguageConfigurationRegistry.getElectricCharacters(languageId);
-		} catch (e) {
-			onUnexpectedError(e);
-			return null;
-		}
-	}
-
-	private static _getShouldAutoClose(languageId: string, autoCloseConfig: EditorAutoClosingStrategy): (ch: string) => boolean {
+	private _getShouldAutoClose(languageId: string, autoCloseConfig: EditorAutoClosingStrategy): (ch: string) => boolean {
 		switch (autoCloseConfig) {
 			case 'beforeWhitespace':
 				return autoCloseBeforeWhitespace;
 			case 'languageDefined':
-				return CursorConfiguration._getLanguageDefinedShouldAutoClose(languageId);
+				return this._getLanguageDefinedShouldAutoClose(languageId);
 			case 'always':
 				return autoCloseAlways;
 			case 'never':
@@ -188,23 +194,9 @@ export class CursorConfiguration {
 		}
 	}
 
-	private static _getLanguageDefinedShouldAutoClose(languageId: string): (ch: string) => boolean {
-		try {
-			const autoCloseBeforeSet = LanguageConfigurationRegistry.getAutoCloseBeforeSet(languageId);
-			return c => autoCloseBeforeSet.indexOf(c) !== -1;
-		} catch (e) {
-			onUnexpectedError(e);
-			return autoCloseNever;
-		}
-	}
-
-	private static _getSurroundingPairs(languageId: string): IAutoClosingPair[] | null {
-		try {
-			return LanguageConfigurationRegistry.getSurroundingPairs(languageId);
-		} catch (e) {
-			onUnexpectedError(e);
-			return null;
-		}
+	private _getLanguageDefinedShouldAutoClose(languageId: string): (ch: string) => boolean {
+		const autoCloseBeforeSet = this.languageConfigurationService.getLanguageConfiguration(languageId).getAutoCloseBeforeSet();
+		return c => autoCloseBeforeSet.indexOf(c) !== -1;
 	}
 }
 
