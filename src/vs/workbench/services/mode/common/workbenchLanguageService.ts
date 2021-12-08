@@ -9,7 +9,7 @@ import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { ILanguageExtensionPoint, ILanguageService } from 'vs/editor/common/services/languageService';
-import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FILES_ASSOCIATIONS_CONFIG, IFilesConfiguration } from 'vs/platform/files/common/files';
@@ -91,7 +91,7 @@ export const languagesExtPoint: IExtensionPoint<IRawLanguageExtensionPoint[]> = 
 	}
 });
 
-export class WorkbenchModeServiceImpl extends ModeServiceImpl {
+export class WorkbenchLanguageService extends LanguageService {
 	private _configurationService: IConfigurationService;
 	private _extensionService: IExtensionService;
 
@@ -221,4 +221,4 @@ function isValidLanguageExtensionPoint(value: IRawLanguageExtensionPoint, collec
 	return true;
 }
 
-registerSingleton(ILanguageService, WorkbenchModeServiceImpl);
+registerSingleton(ILanguageService, WorkbenchLanguageService);

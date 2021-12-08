@@ -25,7 +25,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { DocumentSemanticTokensProvider, DocumentSemanticTokensProviderRegistry, SemanticTokens, SemanticTokensEdits, SemanticTokensLegend } from 'vs/editor/common/modes';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Barrier, timeout } from 'vs/base/common/async';
-import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -53,7 +53,7 @@ suite('ModelService', () => {
 			new TestThemeService(),
 			new NullLogService(),
 			new UndoRedoService(dialogService, new TestNotificationService()),
-			disposables.add(new ModeServiceImpl()),
+			disposables.add(new LanguageService()),
 			new TestLanguageConfigurationService()
 		));
 	});
@@ -425,10 +425,10 @@ suite('ModelSemanticColoring', () => {
 			themeService,
 			new NullLogService(),
 			new UndoRedoService(new TestDialogService(), new TestNotificationService()),
-			disposables.add(new ModeServiceImpl()),
+			disposables.add(new LanguageService()),
 			new TestLanguageConfigurationService()
 		));
-		languageService = disposables.add(new ModeServiceImpl(false));
+		languageService = disposables.add(new LanguageService(false));
 	});
 
 	teardown(() => {

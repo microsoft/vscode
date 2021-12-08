@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { SnippetCompletionProvider } from 'vs/workbench/contrib/snippets/browser/snippetCompletionProvider';
 import { Position } from 'vs/editor/common/core/position';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
 import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
@@ -52,12 +52,12 @@ suite('SnippetsService', function () {
 	});
 
 	let disposables: DisposableStore;
-	let languageService: ModeServiceImpl;
+	let languageService: LanguageService;
 	let snippetService: ISnippetsService;
 
 	setup(function () {
 		disposables = new DisposableStore();
-		languageService = disposables.add(new ModeServiceImpl());
+		languageService = disposables.add(new LanguageService());
 		snippetService = new SimpleSnippetService([new Snippet(
 			['fooLang'],
 			'barTest',

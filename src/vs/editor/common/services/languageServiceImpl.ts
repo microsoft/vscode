@@ -47,7 +47,7 @@ class LanguageSelection implements ILanguageSelection {
 	}
 }
 
-export class ModeServiceImpl extends Disposable implements ILanguageService {
+export class LanguageService extends Disposable implements ILanguageService {
 	public _serviceBrand: undefined;
 
 	static instanceCount = 0;
@@ -64,7 +64,7 @@ export class ModeServiceImpl extends Disposable implements ILanguageService {
 
 	constructor(warnOnOverwrite = false) {
 		super();
-		ModeServiceImpl.instanceCount++;
+		LanguageService.instanceCount++;
 		this._encounteredLanguages = new Set<string>();
 		this._registry = this._register(new LanguagesRegistry(true, warnOnOverwrite));
 		this.languageIdCodec = this._registry.languageIdCodec;
@@ -72,7 +72,7 @@ export class ModeServiceImpl extends Disposable implements ILanguageService {
 	}
 
 	public override dispose(): void {
-		ModeServiceImpl.instanceCount--;
+		LanguageService.instanceCount--;
 		super.dispose();
 	}
 

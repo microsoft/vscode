@@ -8,7 +8,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILanguageService } from 'vs/editor/common/services/languageService';
-import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
@@ -67,7 +67,7 @@ suite('EditorModel', () => {
 
 	setup(() => {
 		instantiationService = new TestInstantiationService();
-		languageService = instantiationService.stub(ILanguageService, ModeServiceImpl);
+		languageService = instantiationService.stub(ILanguageService, LanguageService);
 	});
 
 	test('basics', async () => {

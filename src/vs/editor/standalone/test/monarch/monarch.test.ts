@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
 import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { MonarchTokenizer } from 'vs/editor/standalone/common/monarch/monarchLexer';
 import { compile } from 'vs/editor/standalone/common/monarch/monarchCompile';
@@ -31,7 +31,7 @@ suite('Monarch', () => {
 	}
 
 	test('Ensure @rematch and nextEmbedded can be used together in Monarch grammar', () => {
-		const languageService = new ModeServiceImpl();
+		const languageService = new LanguageService();
 		const innerModeRegistration = ModesRegistry.registerLanguage({
 			id: 'sql'
 		});
@@ -110,7 +110,7 @@ suite('Monarch', () => {
 	});
 
 	test('microsoft/monaco-editor#1235: Empty Line Handling', () => {
-		const languageService = new ModeServiceImpl();
+		const languageService = new LanguageService();
 		const tokenizer = createMonarchTokenizer(languageService, 'test', {
 			tokenizer: {
 				root: [
@@ -167,7 +167,7 @@ suite('Monarch', () => {
 	});
 
 	test('microsoft/monaco-editor#2265: Exit a state at end of line', () => {
-		const languageService = new ModeServiceImpl();
+		const languageService = new LanguageService();
 		const tokenizer = createMonarchTokenizer(languageService, 'test', {
 			includeLF: true,
 			tokenizer: {
@@ -215,7 +215,7 @@ suite('Monarch', () => {
 	});
 
 	test('issue #115662: monarchCompile function need an extra option which can control replacement', () => {
-		const languageService = new ModeServiceImpl();
+		const languageService = new LanguageService();
 
 		const tokenizer1 = createMonarchTokenizer(languageService, 'test', {
 			ignoreCase: false,
@@ -269,7 +269,7 @@ suite('Monarch', () => {
 	});
 
 	test('microsoft/monaco-editor#2424: Allow to target @@', () => {
-		const languageService = new ModeServiceImpl();
+		const languageService = new LanguageService();
 
 		const tokenizer = createMonarchTokenizer(languageService, 'test', {
 			ignoreCase: false,
