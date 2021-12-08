@@ -626,6 +626,24 @@ export function findMaxBy<T>(items: readonly T[], comparator: Comparator<T>): T 
 }
 
 /**
+ * Returns the last item that is equal to or greater than every other item.
+*/
+export function findLastMaxBy<T>(items: readonly T[], comparator: Comparator<T>): T | undefined {
+	if (items.length === 0) {
+		return undefined;
+	}
+
+	let max = items[0];
+	for (let i = 1; i < items.length; i++) {
+		const item = items[i];
+		if (comparator(item, max) >= 0) {
+			max = item;
+		}
+	}
+	return max;
+}
+
+/**
  * Returns the first item that is equal to or less than every other item.
 */
 export function findMinBy<T>(items: readonly T[], comparator: Comparator<T>): T | undefined {
