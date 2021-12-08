@@ -1327,10 +1327,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			return [terminalToReuse.terminal, commandExecutable, undefined];
 		}
 
-		await this.terminalCreationQueue;
-		const createTerminalPromise = this.doCreateTerminal(group, launchConfigs);
-		this.terminalCreationQueue = createTerminalPromise;
-		const result: ITerminalInstance = await createTerminalPromise;
+		this.terminalCreationQueue = this.terminalCreationQueue.then(() => this.doCreateTerminal(group, launchConfigs!));
+		const result: ITerminalInstance = (await this.terminalCreationQueue)!;
 
 		const terminalKey = result.instanceId.toString();
 		result.onDisposed((terminal) => {
