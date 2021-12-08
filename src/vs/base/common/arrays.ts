@@ -616,7 +616,8 @@ export function findMaxBy<T>(items: readonly T[], comparator: Comparator<T>): T 
 	}
 
 	let min = items[0];
-	for (const item of items) {
+	for (let i = 1; i < items.length; i++) {
+		const item = items[i];
 		if (comparator(item, min) > 0) {
 			min = item;
 		}
