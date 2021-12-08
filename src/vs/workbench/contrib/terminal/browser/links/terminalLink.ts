@@ -53,7 +53,6 @@ export class TerminalLink extends DisposableStore implements ILink {
 	}
 
 	activate(event: MouseEvent | undefined, text: string): void {
-		console.log('activating', text);
 		this._activateCallback(event, text);
 	}
 

@@ -2265,7 +2265,6 @@ async function preparePathForShell(originalPath: string, executable: string | un
 
 			return;
 		}
-		logService?.info('escaping non windows path', originalPath);
 		c(escapeNonWindowsPath(originalPath));
 	});
 }

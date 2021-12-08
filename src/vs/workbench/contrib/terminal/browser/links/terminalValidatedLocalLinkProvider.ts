@@ -139,25 +139,22 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 
 			const validatedLink = await new Promise<TerminalLink | undefined>(r => {
 				this._validationCallback(link, (result) => {
-					if (link.length > 2) {
-						if (result) {
-							const label = result.isDirectory
-								? (this._isDirectoryInsideWorkspace(result.uri) ? FOLDER_IN_WORKSPACE_LABEL : FOLDER_NOT_IN_WORKSPACE_LABEL)
-								: OPEN_FILE_LABEL;
-							const activateCallback = this._wrapLinkHandler((event: MouseEvent | undefined, text: string) => {
-								if (result.isDirectory) {
-									this._handleLocalFolderLink(result.uri);
-								} else {
-									this._activateFileCallback(event, text);
-								}
-							});
-							r(this._instantiationService.createInstance(TerminalLink, this._xterm, bufferRange, link, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, true, label));
-						} else {
-							r(undefined);
-						}
+					if (result) {
+						const label = result.isDirectory
+							? (this._isDirectoryInsideWorkspace(result.uri) ? FOLDER_IN_WORKSPACE_LABEL : FOLDER_NOT_IN_WORKSPACE_LABEL)
+							: OPEN_FILE_LABEL;
+						const activateCallback = this._wrapLinkHandler((event: MouseEvent | undefined, text: string) => {
+							if (result.isDirectory) {
+								this._handleLocalFolderLink(result.uri);
+							} else {
+								this._activateFileCallback(event, text);
+							}
+						});
+						r(this._instantiationService.createInstance(TerminalLink, this._xterm, bufferRange, link, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, true, label));
 					} else {
 						r(undefined);
 					}
+					r(undefined);
 				});
 			});
 			if (validatedLink) {

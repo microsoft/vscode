@@ -75,7 +75,7 @@ const supportedLinkFormats: LinkFormatInfo[] = [
 	{ urlFormat: '{0}\',{1}', line: '5' }
 ];
 
-suite('Workbench - TerminalValidatedLocalLinkProvider', () => {
+suite.only('Workbench - TerminalValidatedLocalLinkProvider', () => {
 	let instantiationService: TestInstantiationService;
 
 	setup(() => {
