@@ -55,7 +55,7 @@ suite('Workbench - TerminalService', () => {
 		instantiationService.stub(ITerminalService, terminalService);
 	});
 
-	suite('safeDisposeTerminal', () => {
+	suite.skip('safeDisposeTerminal', () => {
 		test('should not show prompt when confirmOnKill is never', async () => {
 			setConfirmOnKill(configurationService, 'never');
 			await new Promise<void>(r => {
