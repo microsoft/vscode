@@ -592,40 +592,6 @@ function getActualStartIndex<T>(array: T[], start: number): number {
 }
 
 /**
- * Like Math.min with a delegate, and returns the winning index
- */
-export function minIndex<T>(array: readonly T[], fn: (value: T) => number): number {
-	let minValue = Number.MAX_SAFE_INTEGER;
-	let minIdx = 0;
-	array.forEach((value, i) => {
-		const thisValue = fn(value);
-		if (thisValue < minValue) {
-			minValue = thisValue;
-			minIdx = i;
-		}
-	});
-
-	return minIdx;
-}
-
-/**
- * Like Math.max with a delegate, and returns the winning index
- */
-export function maxIndex<T>(array: readonly T[], fn: (value: T) => number): number {
-	let minValue = Number.MIN_SAFE_INTEGER;
-	let maxIdx = 0;
-	array.forEach((value, i) => {
-		const thisValue = fn(value);
-		if (thisValue > minValue) {
-			minValue = thisValue;
-			maxIdx = i;
-		}
-	});
-
-	return maxIdx;
-}
-
-/**
  * A comparator `c` defines a total order `<=` on `T` as following:
  * `c(a, b) <= 0` iff `a` <= `b`.
  * We also have `c(a, b) == 0` iff `c(b, a) == 0`.
