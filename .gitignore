@@ -15,3 +15,4 @@ yarn-error.log
 vscode.lsif
 vscode.db
 /.profile-oss
+src/vs/workbench/services/extensions/common/extensionsApiProposals.ts
