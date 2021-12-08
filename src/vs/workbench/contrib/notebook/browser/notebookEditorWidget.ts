@@ -306,7 +306,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private _listViewInfoAccessor!: ListViewInfoAccessor;
 	private _dndController: CellDragAndDropController | null = null;
 	private _listTopCellToolbar: ListTopCellToolbar | null = null;
-	private _renderedEditors: Map<ICellViewModel, ICodeEditor | undefined> = new Map();
+	private _renderedEditors: Map<ICellViewModel, ICodeEditor> = new Map();
 	private _viewContext: ViewContext;
 	private _notebookViewModel: NotebookViewModel | undefined;
 	private _localStore: DisposableStore = this._register(new DisposableStore());
@@ -1765,11 +1765,21 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				if (element && element.focusMode === CellFocusMode.Editor) {
 					element.updateEditState(CellEditState.Editing, 'editorWidget.focus');
 					element.focusMode = CellFocusMode.Editor;
+					this.focusEditor(element);
 					return;
 				}
 			}
 
 			this._list.domFocus();
+		}
+	}
+
+	private focusEditor(activeElement: CellViewModel): void {
+		for (const [element, editor] of this._renderedEditors.entries()) {
+			if (element === activeElement) {
+				editor.focus();
+				return;
+			}
 		}
 	}
 
