@@ -773,6 +773,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const syncIgnoredElement = DOM.append(container, $('span.setting-item-ignored'));
 		const syncIgnoredLabel = new SimpleIconLabel(syncIgnoredElement);
 		syncIgnoredLabel.text = `($(sync-ignored) ${localize('extensionSyncIgnoredLabel', 'Sync: Ignored')})`;
+		syncIgnoredLabel.title = localize('syncIgnoredTitle', "Settings sync does not sync this setting");
 
 		return syncIgnoredElement;
 	}
