@@ -165,8 +165,11 @@ suite('Workbench - TerminalValidatedLocalLinkProvider', () => {
 	});
 
 	test('should support file:/// links', async () => {
-		await assertLink('x = "file:///foo.bar";', OperatingSystem.Windows, [{ range: [[13, 1], [20, 1]], text: '/foo.bar' }]);
-		await assertLink('x = "file:///c:/foo.bar";', OperatingSystem.Windows, [{ range: [[6, 1], [23, 1]], text: 'file:///c:/foo.bar' }]);
-		await assertLink('x = "file:///shäres/foo.bar";', OperatingSystem.Windows, [{ range: [[13, 1], [27, 1]], text: '/shäres/foo.bar' }]);
+		await assertLink('file:///foo.bar', OperatingSystem.Windows, [{ range: [[1, 1], [15, 1]], text: 'file:///foo.bar' }]);
+		await assertLink('file:///c:/foo.bar', OperatingSystem.Windows, [{ range: [[1, 1], [18, 1]], text: 'file:///c:/foo.bar' }]);
+		await assertLink('file:///shäres/foo.bar', OperatingSystem.Windows, [{ range: [[1, 1], [22, 1]], text: 'file:///shäres/foo.bar' }]);
+		await assertLink('x = file:///foo.bar', OperatingSystem.Windows, [{ range: [[4, 1], [19, 1]], text: 'file:///foo.bar' }]);
+		await assertLink('x = file:///c:/foo.bar', OperatingSystem.Windows, [{ range: [[4, 1], [22, 1]], text: 'file:///c:/foo.bar' }]);
+		await assertLink('x = file:///shäres/foo.bar', OperatingSystem.Windows, [{ range: [[4, 1], [26, 1]], text: 'file:///shäres/foo.bar' }]);
 	});
 });

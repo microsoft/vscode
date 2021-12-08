@@ -96,7 +96,6 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 		const rex = new RegExp(this._localLinkRegex, 'g');
 		let match;
 		let stringIndex = -1;
-		console.log(this._localLinkRegex);
 		while ((match = rex.exec(text)) !== null) {
 			// const link = match[typeof matcher.matchIndex !== 'number' ? 0 : matcher.matchIndex];
 			let link = match[0];
@@ -152,7 +151,6 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 									this._activateFileCallback(event, text);
 								}
 							});
-							console.log('validated, creating link', text);
 							r(this._instantiationService.createInstance(TerminalLink, this._xterm, bufferRange, link, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, true, label));
 						} else {
 							r(undefined);
