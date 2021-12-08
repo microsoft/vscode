@@ -63,7 +63,7 @@ namespace snippetExt {
 			return null;
 		}
 
-		if (!isFalsyOrWhitespace(snippet.language) && !languageService.isRegisteredMode(snippet.language)) {
+		if (!isFalsyOrWhitespace(snippet.language) && !languageService.isRegisteredLanguageId(snippet.language)) {
 			extension.collector.error(localize(
 				'invalid.language',
 				"Unknown language in `contributes.{0}.language`. Provided value: {1}",

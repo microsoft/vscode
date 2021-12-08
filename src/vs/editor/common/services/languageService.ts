@@ -35,7 +35,8 @@ export interface ILanguageService {
 	onLanguagesMaybeChanged: Event<void>;
 
 	// --- reading
-	isRegisteredMode(mimetypeOrModeId: string): boolean;
+	isRegisteredLanguageId(languageId: string): boolean;
+	isRegisteredMimeType(mimeType: string): boolean;
 	getRegisteredModes(): string[];
 	getRegisteredLanguageNames(): string[];
 	getExtensions(alias: string): string[];

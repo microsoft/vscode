@@ -76,8 +76,12 @@ export class LanguageService extends Disposable implements ILanguageService {
 		super.dispose();
 	}
 
-	public isRegisteredMode(mimetypeOrModeId: string): boolean {
-		return this._registry.isRegisteredMode(mimetypeOrModeId);
+	public isRegisteredLanguageId(languageId: string): boolean {
+		return this._registry.isRegisteredLanguageId(languageId);
+	}
+
+	public isRegisteredMimeType(mimeType: string): boolean {
+		return this._registry.isRegisteredMimeType(mimeType);
 	}
 
 	public getRegisteredModes(): string[] {

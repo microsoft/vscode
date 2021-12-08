@@ -337,7 +337,7 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 	}
 
 	private _validateGrammarExtensionPoint(extensionLocation: URI, syntax: ITMSyntaxExtensionPoint, collector: ExtensionMessageCollector): boolean {
-		if (syntax.language && ((typeof syntax.language !== 'string') || !this._languageService.isRegisteredMode(syntax.language))) {
+		if (syntax.language && ((typeof syntax.language !== 'string') || !this._languageService.isRegisteredLanguageId(syntax.language))) {
 			collector.error(nls.localize('invalid.language', "Unknown language in `contributes.{0}.language`. Provided value: {1}", grammarsExtPoint.name, String(syntax.language)));
 			return false;
 		}

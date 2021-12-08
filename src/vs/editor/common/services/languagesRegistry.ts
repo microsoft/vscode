@@ -257,13 +257,12 @@ export class LanguagesRegistry extends Disposable {
 		}
 	}
 
-	public isRegisteredMode(mimetypeOrModeId: string): boolean {
-		// Is this a known mime type ?
-		if (hasOwnProperty.call(this._mimeTypesMap, mimetypeOrModeId)) {
-			return true;
-		}
-		// Is this a known mode id ?
-		return hasOwnProperty.call(this._languages, mimetypeOrModeId);
+	public isRegisteredLanguageId(languageId: string): boolean {
+		return hasOwnProperty.call(this._languages, languageId);
+	}
+
+	public isRegisteredMimeType(mimeType: string): boolean {
+		return hasOwnProperty.call(this._mimeTypesMap, mimeType);
 	}
 
 	public getRegisteredModes(): string[] {

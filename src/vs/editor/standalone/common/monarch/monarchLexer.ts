@@ -859,7 +859,12 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 	}
 
 	private _locateMode(mimetypeOrModeId: string): string | null {
-		if (!mimetypeOrModeId || !this._languageService.isRegisteredMode(mimetypeOrModeId)) {
+		if (!mimetypeOrModeId) {
+			return null;
+		}
+		const isRegisteredLanguageId = this._languageService.isRegisteredLanguageId(mimetypeOrModeId);
+		const isRegisteredMimeType = this._languageService.isRegisteredMimeType(mimetypeOrModeId);
+		if (!isRegisteredLanguageId && !isRegisteredMimeType) {
 			return null;
 		}
 
