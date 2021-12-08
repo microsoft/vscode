@@ -740,7 +740,7 @@ export class IssueReporter extends Disposable {
 				show(extensionsBlock);
 			}
 			reset(descriptionTitle, localize('stepsToReproduce', "Steps to Reproduce"), $('span.required-input', undefined, '*'));
-			reset(descriptionSubtitle, localize('bugDescription', "Share the steps needed to reliably reproduce the problem. Please include actual and expected results. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
+			reset(descriptionSubtitle, localize('bugDescription', "Share the steps needed to reliably reproduce the problem.Please include actual and expected results.We support GitHub - flavored Markdown.You will be able to edit your issue and add screenshots when we preview it on GitHub. {0}", this.issueReporterModel.getData().versionInfo.vscodeVersion.includes('insiders') ? '' : 'Please ensure that this issue hasn\'t already been resolved on an insiders build before submitting.'));
 		} else if (issueType === IssueType.PerformanceIssue) {
 			show(problemSource);
 
@@ -759,7 +759,7 @@ export class IssueReporter extends Disposable {
 			}
 
 			reset(descriptionTitle, localize('stepsToReproduce', "Steps to Reproduce"), $('span.required-input', undefined, '*'));
-			reset(descriptionSubtitle, localize('performanceIssueDesciption', "When did this performance issue happen? Does it occur on startup or after a specific series of actions? We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
+			reset(descriptionSubtitle, localize('performanceIssueDesciption', "When did this performance issue happen ? Does it occur on startup or after a specific series of actions ? We support GitHub - flavored Markdown.You will be able to edit your issue and add screenshots when we preview it on GitHub."));
 		} else if (issueType === IssueType.FeatureRequest) {
 			reset(descriptionTitle, localize('description', "Description"), $('span.required-input', undefined, '*'));
 			reset(descriptionSubtitle, localize('featureRequestDescription', "Please describe the feature you would like to see. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
@@ -773,7 +773,7 @@ export class IssueReporter extends Disposable {
 
 	private validateInput(inputId: string): boolean {
 		const inputElement = (<HTMLInputElement>this.getElementById(inputId));
-		const inputValidationMessage = this.getElementById(`${inputId}-empty-error`);
+		const inputValidationMessage = this.getElementById(`${inputId} - empty - error`);
 		if (!inputElement.value) {
 			inputElement.classList.add('invalid-input');
 			inputValidationMessage?.classList.remove('hidden');
