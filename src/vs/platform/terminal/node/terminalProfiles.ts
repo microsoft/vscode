@@ -172,7 +172,7 @@ async function transformToTerminalProfiles(
 		} else {
 			originalPaths = Array.isArray(profile.path) ? profile.path : [profile.path];
 			args = isWindows ? profile.args : Array.isArray(profile.args) ? profile.args : undefined;
-			icon = validateIcon(profile.icon) || undefined;
+			icon = validateIcon(profile.icon);
 		}
 
 		const paths = (await variableResolver?.(originalPaths)) || originalPaths.slice();
@@ -328,6 +328,7 @@ function applyConfigProfilesToMap(configProfiles: { [key: string]: IUnresolvedTe
 		if (value === null || (!('path' in value) && !('source' in value))) {
 			profilesMap.delete(profileName);
 		} else {
+			value.icon = profilesMap.get(profileName)?.icon;
 			profilesMap.set(profileName, value);
 		}
 	}
