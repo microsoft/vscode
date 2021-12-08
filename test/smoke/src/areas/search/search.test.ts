@@ -49,25 +49,26 @@ export function setup(opts: minimist.ParsedArgs) {
 			await app.workbench.search.hideQueryDetails();
 		});
 
-		it.skip('dismisses result & checks for correct result number', async function () {
+		it('dismisses result & checks for correct result number', async function () {
 			const app = this.app as Application;
 			await app.workbench.search.searchFor('body');
-			await app.workbench.search.removeFileMatch('app.js');
-			await app.workbench.search.waitForResultText('12 results in 4 files');
+			await app.workbench.search.waitForResultText('16 results in 5 files');
+			await app.workbench.search.removeFileMatch('app.js', '12 results in 4 files');
 		});
 
-		it.skip('replaces first search result with a replace term', async function () {
+		it('replaces first search result with a replace term', async function () {
 			const app = this.app as Application;
 
 			await app.workbench.search.searchFor('body');
+			await app.workbench.search.waitForResultText('16 results in 5 files');
 			await app.workbench.search.expandReplace();
 			await app.workbench.search.setReplaceText('ydob');
-			await app.workbench.search.replaceFileMatch('app.js');
-			await app.workbench.search.waitForResultText('12 results in 4 files');
+			await app.workbench.search.replaceFileMatch('app.js', '12 results in 4 files');
 
 			await app.workbench.search.searchFor('ydob');
+			await app.workbench.search.waitForResultText('4 results in 1 file');
 			await app.workbench.search.setReplaceText('body');
-			await app.workbench.search.replaceFileMatch('app.js');
+			await app.workbench.search.replaceFileMatch('app.js', '0 results in 0 files');
 			await app.workbench.search.waitForResultText('0 results in 0 files');
 		});
 	});

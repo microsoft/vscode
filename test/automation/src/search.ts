@@ -33,6 +33,11 @@ export class Search extends Viewlet {
 		super(code);
 	}
 
+	async clearSearchResults(): Promise<void> {
+		await this.code.waitAndClick(`.sidebar .codicon-search-clear-results`);
+		await this.waitForNoResultText();
+	}
+
 	async openSearchViewlet(): Promise<any> {
 		if (process.platform === 'darwin') {
 			await this.code.dispatchKeybinding('cmd+shift+f');
@@ -49,6 +54,7 @@ export class Search extends Viewlet {
 	}
 
 	async searchFor(text: string): Promise<void> {
+		await this.clearSearchResults();
 		await this.waitForInputFocus(INPUT);
 		await this.code.waitForSetValue(INPUT, text);
 		await this.submitSearch();
@@ -74,18 +80,16 @@ export class Search extends Viewlet {
 		await this.code.waitAndClick(`${VIEWLET} .query-details.more .more`);
 	}
 
-	async removeFileMatch(filename: string): Promise<void> {
+	async removeFileMatch(filename: string, expectedText: string): Promise<void> {
 		const fileMatch = FILE_MATCH(filename);
 
+		// Retry this because the click can fail if the search tree is rerendered at the same time
 		await retry(
-			() => this.code.waitAndClick(fileMatch),
-			() => this.code.waitForElement(`${fileMatch} .action-label.codicon-search-remove`, el => !!el && el.top > 0 && el.left > 0, 10)
-		);
-
-		// ¯\_(ツ)_/¯
-		await new Promise(c => setTimeout(c, 500));
-		await this.code.waitAndClick(`${fileMatch} .action-label.codicon-search-remove`);
-		await this.code.waitForElement(fileMatch, el => !el);
+			async () => {
+				await this.code.waitAndClick(fileMatch);
+				await this.code.waitAndClick(`${fileMatch} .action-label.codicon-search-remove`);
+			},
+			async () => this.waitForResultText(expectedText, 10));
 	}
 
 	async expandReplace(): Promise<void> {
@@ -100,22 +104,21 @@ export class Search extends Viewlet {
 		await this.code.waitForSetValue(`${VIEWLET} .search-widget .replace-container .monaco-inputbox textarea[title="Replace"]`, text);
 	}
 
-	async replaceFileMatch(filename: string): Promise<void> {
+	async replaceFileMatch(filename: string, expectedText: string): Promise<void> {
 		const fileMatch = FILE_MATCH(filename);
 
+		// Retry this because the click can fail if the search tree is rerendered at the same time
 		await retry(
-			() => this.code.waitAndClick(fileMatch),
-			() => this.code.waitForElement(`${fileMatch} .action-label.codicon.codicon-search-replace-all`, el => !!el && el.top > 0 && el.left > 0, 10)
-		);
-
-		// ¯\_(ツ)_/¯
-		await new Promise(c => setTimeout(c, 500));
-		await this.code.waitAndClick(`${fileMatch} .action-label.codicon.codicon-search-replace-all`);
+			async () => {
+				await this.code.waitAndClick(fileMatch);
+				await this.code.waitAndClick(`${fileMatch} .action-label.codicon.codicon-search-replace-all`);
+			},
+			() => this.waitForResultText(expectedText, 10));
 	}
 
-	async waitForResultText(text: string): Promise<void> {
+	async waitForResultText(text: string, retryCount?: number): Promise<void> {
 		// The label can end with " - " depending on whether the search editor is enabled
-		await this.code.waitForTextContent(`${VIEWLET} .messages .message`, undefined, result => result.startsWith(text));
+		await this.code.waitForTextContent(`${VIEWLET} .messages .message`, undefined, result => result.startsWith(text), retryCount);
 	}
 
 	async waitForNoResultText(): Promise<void> {
