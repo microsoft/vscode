@@ -203,7 +203,7 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 
 		// Finally apply languageId to model if specified
 		if (candidateLanguageId !== PLAINTEXT_MODE_ID) {
-			this.modelService.setMode(textModel, this.languageService.create(candidateLanguageId));
+			this.modelService.setMode(textModel, this.languageService.createById(candidateLanguageId));
 		}
 	}
 }

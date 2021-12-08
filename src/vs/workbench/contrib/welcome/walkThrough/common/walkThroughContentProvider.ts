@@ -72,7 +72,7 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 			renderer.code = (code, lang) => {
 				i++;
 				const languageId = this.languageService.getLanguageIdForLanguageName(lang) || '';
-				const languageSelection = this.languageService.create(languageId);
+				const languageSelection = this.languageService.createById(languageId);
 				// Create all models for this resource in one go... we'll need them all and we don't want to re-parse markdown each time
 				const model = this.modelService.createModel(code, languageSelection, resource.with({ fragment: `${i}.${lang}` }));
 				if (i === j) { codeEditorModel = model; }

@@ -596,7 +596,7 @@ abstract class AbstractElementRenderer extends Disposable {
 			this.layout({ metadataHeight: true });
 			this._metadataEditorDisposeStore.add(this._metadataEditor);
 
-			const mode = this.languageService.create('jsonc');
+			const mode = this.languageService.createById('jsonc');
 			const originalMetadataSource = getFormatedMetadataJSON(this.notebookEditor.textModel!,
 				this.cell.type === 'insert'
 					? this.cell.modified!.metadata || {}
@@ -630,7 +630,7 @@ abstract class AbstractElementRenderer extends Disposable {
 			const originalOutputsSource = getFormatedOutputJSON(this.cell.original?.outputs || []);
 			const modifiedOutputsSource = getFormatedOutputJSON(this.cell.modified?.outputs || []);
 			if (originalOutputsSource !== modifiedOutputsSource) {
-				const mode = this.languageService.create('json');
+				const mode = this.languageService.createById('json');
 				const originalModel = this.modelService.createModel(originalOutputsSource, mode, undefined, true);
 				const modifiedModel = this.modelService.createModel(modifiedOutputsSource, mode, undefined, true);
 				this._outputEditorDisposeStore.add(originalModel);
@@ -690,7 +690,7 @@ abstract class AbstractElementRenderer extends Disposable {
 		}, {});
 		this._outputEditorDisposeStore.add(this._outputEditor);
 
-		const mode = this.languageService.create('json');
+		const mode = this.languageService.createById('json');
 		const originaloutputSource = getFormatedOutputJSON(
 			this.notebookEditor.textModel!.transientOptions.transientOutputs
 				? []

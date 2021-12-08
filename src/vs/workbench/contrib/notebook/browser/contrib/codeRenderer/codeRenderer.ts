@@ -60,7 +60,7 @@ abstract class CodeRendererContrib extends Disposable implements IOutputTransfor
 			container.style.height = `${editorHeight + 8}px`;
 		}));
 
-		const mode = this.languageService.create(languageId);
+		const mode = this.languageService.createById(languageId);
 		const textModel = this.modelService.createModel(value, mode, undefined, false);
 		editor.setModel(textModel);
 

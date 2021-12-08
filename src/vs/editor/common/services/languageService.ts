@@ -38,19 +38,28 @@ export interface ILanguageService {
 	isRegisteredLanguageId(languageId: string): boolean;
 	getRegisteredLanguageIds(): string[];
 	getRegisteredLanguageNames(): string[];
-	getExtensions(alias: string): string[];
-	getFilenames(alias: string): string[];
+	getExtensions(alias: string): string[]; // TODO
+	getFilenames(alias: string): string[]; // TODO
 	getMimeTypeForLanguageId(languageId: string): string | null;
 	getLanguageName(languageId: string): string | null;
-	getLanguageIdForLanguageName(languageName: string): string | null;
-	getLanguageIdForMimeType(mimeType: string): string | null;
+	getLanguageIdForLanguageName(languageName: string): string | null; // TODO
+	getLanguageIdForMimeType(mimeType: string | null | undefined): string | null;
 	getLanguageIdByFilepathOrFirstLine(resource: URI, firstLine?: string): string | null;
 	validateLanguageId(languageId: string): string | null;
 	getConfigurationFiles(languageId: string): URI[];
 
 	// --- instantiation
-	create(commaSeparatedMimetypesOrCommaSeparatedIds: string | undefined): ILanguageSelection;
-	createByLanguageName(languageName: string): ILanguageSelection;
+	/**
+	 * Will fall back to 'plaintext' if `languageId` is unknown.
+	 */
+	createById(languageId: string | null | undefined): ILanguageSelection;
+	/**
+	 * Will fall back to 'plaintext' if `mimeType` is unknown.
+	 */
+	createByMimeType(mimeType: string | null | undefined): ILanguageSelection;
+	/**
+	 * Will fall back to 'plaintext' if the `languageId` cannot be determined.
+	 */
 	createByFilepathOrFirstLine(resource: URI | null, firstLine?: string): ILanguageSelection;
 
 	triggerMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): void;

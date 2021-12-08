@@ -67,7 +67,7 @@ class SearchEditorModelFactory {
 						}
 
 						return Promise.resolve({
-							resultsModel: modelService.getModel(resource) ?? modelService.createModel('', languageService.create('search-result'), resource),
+							resultsModel: modelService.getModel(resource) ?? modelService.createModel('', languageService.createById('search-result'), resource),
 							configurationModel: new SearchConfigurationModel(config)
 						});
 					})();
@@ -100,7 +100,7 @@ class SearchEditorModelFactory {
 						}
 
 						return Promise.resolve({
-							resultsModel: modelService.createModel(contents ?? '', languageService.create('search-result'), resource),
+							resultsModel: modelService.createModel(contents ?? '', languageService.createById('search-result'), resource),
 							configurationModel: new SearchConfigurationModel(config)
 						});
 					})();
@@ -134,7 +134,7 @@ class SearchEditorModelFactory {
 
 						const { text, config } = await instantiationService.invokeFunction(parseSavedSearchEditor, existingFile);
 						return ({
-							resultsModel: modelService.createModel(text ?? '', languageService.create('search-result'), resource),
+							resultsModel: modelService.createModel(text ?? '', languageService.createById('search-result'), resource),
 							configurationModel: new SearchConfigurationModel(config)
 						});
 					})();
@@ -151,7 +151,7 @@ class SearchEditorModelFactory {
 		if (!model && backup) {
 			const factory = await createTextBufferFactoryFromStream(backup.value);
 
-			model = modelService.createModel(factory, languageService.create('search-result'), resource);
+			model = modelService.createModel(factory, languageService.createById('search-result'), resource);
 		}
 
 		if (model) {
@@ -159,7 +159,7 @@ class SearchEditorModelFactory {
 			const { text, config } = parseSerializedSearchEditor(existingFile);
 			modelService.destroyModel(resource);
 			return ({
-				resultsModel: modelService.createModel(text ?? '', languageService.create('search-result'), resource),
+				resultsModel: modelService.createModel(text ?? '', languageService.createById('search-result'), resource),
 				configurationModel: new SearchConfigurationModel(config)
 			});
 		}

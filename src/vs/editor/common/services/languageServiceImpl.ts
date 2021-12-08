@@ -11,6 +11,7 @@ import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
 import { ILanguageSelection, ILanguageService } from 'vs/editor/common/services/languageService';
 import { firstOrDefault } from 'vs/base/common/arrays';
 import { ILanguageIdCodec } from 'vs/editor/common/modes';
+import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 
 class LanguageSelection implements ILanguageSelection {
 
@@ -76,7 +77,7 @@ export class LanguageService extends Disposable implements ILanguageService {
 		super.dispose();
 	}
 
-	public isRegisteredLanguageId(languageId: string): boolean {
+	public isRegisteredLanguageId(languageId: string | null | undefined): boolean {
 		return this._registry.isRegisteredLanguageId(languageId);
 	}
 
@@ -108,7 +109,7 @@ export class LanguageService extends Disposable implements ILanguageService {
 		return this._registry.getLanguageIdForLanguageName(alias);
 	}
 
-	public getLanguageIdForMimeType(mimeType: string): string | null {
+	public getLanguageIdForMimeType(mimeType: string | null | undefined): string | null {
 		return this._registry.getLanguageIdForMimeType(mimeType);
 	}
 
@@ -132,16 +133,17 @@ export class LanguageService extends Disposable implements ILanguageService {
 
 	// --- instantiation
 
-	public create(commaSeparatedMimetypesOrCommaSeparatedIds: string | undefined): ILanguageSelection {
+	public createById(languageId: string | null | undefined): ILanguageSelection {
 		return new LanguageSelection(this.onLanguagesMaybeChanged, () => {
-			const languageId = this.getModeId(commaSeparatedMimetypesOrCommaSeparatedIds);
-			return this._createModeAndGetLanguageIdentifier(languageId);
+			const validLanguageId = (languageId && this.isRegisteredLanguageId(languageId) ? languageId : PLAINTEXT_MODE_ID);
+			this._getOrCreateMode(validLanguageId);
+			return validLanguageId;
 		});
 	}
 
-	public createByLanguageName(languageName: string): ILanguageSelection {
+	public createByMimeType(mimeType: string | null | undefined): ILanguageSelection {
 		return new LanguageSelection(this.onLanguagesMaybeChanged, () => {
-			const languageId = this._getModeIdByLanguageName(languageName);
+			const languageId = this.getLanguageIdForMimeType(mimeType);
 			return this._createModeAndGetLanguageIdentifier(languageId);
 		});
 	}
@@ -153,7 +155,7 @@ export class LanguageService extends Disposable implements ILanguageService {
 		});
 	}
 
-	private _createModeAndGetLanguageIdentifier(languageId: string | null): string {
+	private _createModeAndGetLanguageIdentifier(languageId: string | null | undefined): string {
 		// Fall back to plain text if no mode was found
 		const validLanguageId = this.validateLanguageId(languageId || 'plaintext') || NULL_MODE_ID;
 		this._getOrCreateMode(validLanguageId);
@@ -164,10 +166,6 @@ export class LanguageService extends Disposable implements ILanguageService {
 		const languageId = this.getModeId(commaSeparatedMimetypesOrCommaSeparatedIds);
 		// Fall back to plain text if no mode was found
 		this._getOrCreateMode(languageId || 'plaintext');
-	}
-
-	private _getModeIdByLanguageName(languageName: string): string | null {
-		return this._registry.getModeIdFromLanguageName(languageName);
 	}
 
 	private _getOrCreateMode(languageId: string): void {

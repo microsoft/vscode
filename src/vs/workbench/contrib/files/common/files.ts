@@ -198,7 +198,7 @@ export class TextFileContentProvider extends Disposable implements ITextModelCon
 
 			let languageSelector: ILanguageSelection;
 			if (textFileModel) {
-				languageSelector = this.languageService.create(textFileModel.getLanguageId());
+				languageSelector = this.languageService.createById(textFileModel.getLanguageId());
 			} else {
 				languageSelector = this.languageService.createByFilepathOrFirstLine(savedFileResource);
 			}

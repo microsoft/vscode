@@ -148,11 +148,13 @@ export function createDiffNavigator(diffEditor: IStandaloneDiffEditor, opts?: ID
  * You can specify the language that should be set for this model or let the language be inferred from the `uri`.
  */
 export function createModel(value: string, language?: string, uri?: URI): ITextModel {
+	const languageService = StaticServices.languageService.get();
+	const languageId = languageService.getLanguageIdForMimeType(language) || language;
 	return createTextModel(
 		StaticServices.modelService.get(),
-		StaticServices.languageService.get(),
+		languageService,
 		value,
-		language,
+		languageId,
 		uri
 	);
 }
@@ -161,7 +163,7 @@ export function createModel(value: string, language?: string, uri?: URI): ITextM
  * Change the language for a model.
  */
 export function setModelLanguage(model: ITextModel, languageId: string): void {
-	StaticServices.modelService.get().setMode(model, StaticServices.languageService.get().create(languageId));
+	StaticServices.modelService.get().setMode(model, StaticServices.languageService.get().createById(languageId));
 }
 
 /**

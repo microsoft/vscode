@@ -92,7 +92,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		}
 
 		if (this._textModel) {
-			const languageId = this._languageService.create(newLanguageId);
+			const languageId = this._languageService.createById(newLanguageId);
 			this._textModel.setMode(languageId.languageId);
 		}
 

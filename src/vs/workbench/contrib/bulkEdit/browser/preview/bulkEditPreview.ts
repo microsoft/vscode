@@ -416,7 +416,7 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 				const sourceModel = ref.object.textEditorModel;
 				model = this._modelService.createModel(
 					createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()),
-					this._languageService.create(sourceModel.getLanguageId()),
+					this._languageService.createById(sourceModel.getLanguageId()),
 					previewUri
 				);
 				ref.dispose();

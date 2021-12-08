@@ -5,7 +5,7 @@
 
 import { URI as uri } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { guessMimeTypes, Mimes } from 'vs/base/common/mime';
+import { guessMimeTypes } from 'vs/base/common/mime';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILanguageService } from 'vs/editor/common/services/languageService';
@@ -17,6 +17,7 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerServ
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 
 /**
  * Debug URI format
@@ -94,7 +95,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 		}
 		const createErrModel = (errMsg?: string) => {
 			this.debugService.sourceIsNotAvailable(resource);
-			const languageSelection = this.languageService.create(Mimes.text);
+			const languageSelection = this.languageService.createById(PLAINTEXT_MODE_ID);
 			const message = errMsg
 				? localize('canNotResolveSourceWithError', "Could not load source '{0}': {1}.", resource.path, errMsg)
 				: localize('canNotResolveSource', "Could not load source '{0}'.", resource.path);
@@ -134,7 +135,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 				} else {
 					// create text model
 					const mime = response.body.mimeType || guessMimeTypes(resource)[0];
-					const languageSelection = this.languageService.create(mime);
+					const languageSelection = this.languageService.createByMimeType(mime);
 					return this.modelService.createModel(response.body.content, languageSelection, resource);
 				}
 			}

@@ -469,7 +469,7 @@ suite('ModelSemanticColoring', () => {
 			}
 		}));
 
-		const textModel = disposables.add(modelService.createModel('Hello world', languageService.create('testMode')));
+		const textModel = disposables.add(modelService.createModel('Hello world', languageService.createById('testMode')));
 
 		// wait for the provider to be called
 		await inFirstCall.wait();
@@ -532,7 +532,7 @@ suite('ModelSemanticColoring', () => {
 			return result;
 		}
 
-		const textModel = modelService.createModel('Hello world 2', languageService.create('testMode2'));
+		const textModel = modelService.createModel('Hello world 2', languageService.createById('testMode2'));
 		try {
 			let result = await getDocumentSemanticTokens(textModel, null, null, CancellationToken.None);
 			assert.ok(result, `We should have tokens (1)`);

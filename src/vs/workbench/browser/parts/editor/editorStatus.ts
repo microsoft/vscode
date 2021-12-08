@@ -1207,12 +1207,13 @@ export class ChangeModeAction extends Action {
 								languageId = detectedLanguage;
 							}
 							if (languageId) {
-								languageSelection = this.languageService.create(languageId);
+								languageSelection = this.languageService.createById(languageId);
 							}
 						}
 					}
 				} else {
-					languageSelection = this.languageService.createByLanguageName(pick.label);
+					const languageId = this.languageService.getLanguageIdForLanguageName(pick.label.toLowerCase());
+					languageSelection = this.languageService.createById(languageId);
 
 					if (resource) {
 						// fire and forget to not slow things down

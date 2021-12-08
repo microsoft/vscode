@@ -513,7 +513,7 @@ export class InteractiveEditor extends EditorPane {
 
 		if (selectedOrSuggested) {
 			const language = selectedOrSuggested.supportedLanguages[0];
-			const newMode = language ? this.#languageService.create(language).languageId : PLAINTEXT_MODE_ID;
+			const newMode = language ? this.#languageService.createById(language).languageId : PLAINTEXT_MODE_ID;
 			textModel.setMode(newMode);
 		}
 	}

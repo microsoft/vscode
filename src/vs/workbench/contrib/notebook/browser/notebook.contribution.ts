@@ -275,7 +275,7 @@ class CellContentProvider implements ITextModelContentProvider {
 					}
 				};
 				const languageId = this._languageService.getLanguageIdForLanguageName(cell.language);
-				const languageSelection = languageId ? this._languageService.create(languageId) : (cell.cellKind === CellKind.Markup ? this._languageService.create('markdown') : this._languageService.createByFilepathOrFirstLine(resource, cell.textBuffer.getLineContent(1)));
+				const languageSelection = languageId ? this._languageService.createById(languageId) : (cell.cellKind === CellKind.Markup ? this._languageService.createById('markdown') : this._languageService.createByFilepathOrFirstLine(resource, cell.textBuffer.getLineContent(1)));
 				result = this._modelService.createModel(
 					bufferFactory,
 					languageSelection,
@@ -349,7 +349,7 @@ class CellInfoContentProvider {
 		const ref = await this._notebookModelResolverService.resolve(data.notebook);
 		let result: ITextModel | null = null;
 
-		const mode = this._languageService.create('json');
+		const mode = this._languageService.createById('json');
 
 		for (const cell of ref.object.notebook.cells) {
 			if (cell.handle === data.handle) {
@@ -382,7 +382,7 @@ class CellInfoContentProvider {
 		if (streamOutputData) {
 			return {
 				content: streamOutputData,
-				mode: this._languageService.create('plaintext')
+				mode: this._languageService.createById('plaintext')
 			};
 		}
 
@@ -396,7 +396,7 @@ class CellInfoContentProvider {
 	}, cell: NotebookCellTextModel) {
 		let result: { content: string, mode: ILanguageSelection } | undefined = undefined;
 
-		const mode = this._languageService.create('json');
+		const mode = this._languageService.createById('json');
 		const op = cell.outputs.find(op => op.outputId === data.outputId);
 		const streamOutputData = this.parseStreamOutput(op);
 		if (streamOutputData) {

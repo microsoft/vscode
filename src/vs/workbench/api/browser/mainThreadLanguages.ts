@@ -57,7 +57,7 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 		const uri = URI.revive(resource);
 		const ref = await this._resolverService.createModelReference(uri);
 		try {
-			this._modelService.setMode(ref.object.textEditorModel, this._languageService.create(languageId));
+			this._modelService.setMode(ref.object.textEditorModel, this._languageService.createById(languageId));
 		} finally {
 			ref.dispose();
 		}

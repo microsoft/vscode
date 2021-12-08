@@ -94,7 +94,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 
 		if (!this._model || this._model.isDisposed()) {
 			dispose(this._modelDisposables);
-			const langId = this._languageService.create('markdown');
+			const langId = this._languageService.createById('markdown');
 			this._model = this._modelService.getModel(resource) || this._modelService.createModel('Loading...', langId, resource);
 
 			this._modelDisposables.push(langId.onDidChange(e => {
