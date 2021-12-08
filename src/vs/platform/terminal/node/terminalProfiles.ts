@@ -328,7 +328,7 @@ function applyConfigProfilesToMap(configProfiles: { [key: string]: IUnresolvedTe
 		if (value === null || (!('path' in value) && !('source' in value))) {
 			profilesMap.delete(profileName);
 		} else {
-			value.icon = profilesMap.get(profileName)?.icon;
+			value.icon = value.icon || profilesMap.get(profileName)?.icon;
 			profilesMap.set(profileName, value);
 		}
 	}
