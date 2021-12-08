@@ -5,12 +5,13 @@
 
 import minimist = require('minimist');
 import { Application, ActivityBarPosition } from '../../../../automation';
-import { afterSuite, beforeSuite } from '../../utils';
+import { installCommonTestHandlers } from '../../utils';
 
 export function setup(opts: minimist.ParsedArgs) {
 	describe('Preferences', () => {
-		beforeSuite(opts);
-		afterSuite(opts);
+
+		// Shared before/after handling
+		installCommonTestHandlers(opts);
 
 		it('turns off editor line numbers and verifies the live change', async function () {
 			const app = this.app as Application;
@@ -23,7 +24,7 @@ export function setup(opts: minimist.ParsedArgs) {
 			await app.code.waitForElements('.line-numbers', false, result => !result || result.length === 0);
 		});
 
-		it(`changes 'workbench.action.toggleSidebarPosition' command key binding and verifies it`, async function () {
+		it('changes "workbench.action.toggleSidebarPosition" command key binding and verifies it', async function () {
 			const app = this.app as Application;
 			await app.workbench.activitybar.waitForActivityBar(ActivityBarPosition.LEFT);
 

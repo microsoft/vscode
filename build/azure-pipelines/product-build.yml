@@ -152,7 +152,7 @@ stages:
         dependsOn:
           - Compile
         pool:
-          vmImage: VS2017-Win2016
+          vmImage: windows-latest
         jobs:
           - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
               - job: Windows

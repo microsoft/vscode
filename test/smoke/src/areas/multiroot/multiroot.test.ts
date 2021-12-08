@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import minimist = require('minimist');
 import * as path from 'path';
 import { Application } from '../../../../automation';
-import { afterSuite, beforeSuite } from '../../utils';
+import { installCommonTestHandlers } from '../../utils';
 
 function toUri(path: string): string {
 	if (process.platform === 'win32') {
@@ -38,12 +38,12 @@ function createWorkspaceFile(workspacePath: string): string {
 
 export function setup(opts: minimist.ParsedArgs) {
 	describe('Multiroot', () => {
-		beforeSuite(opts, async opts => {
+
+		// Shared before/after handling
+		installCommonTestHandlers(opts, async opts => {
 			const workspacePath = createWorkspaceFile(opts.workspacePath);
 			return { ...opts, workspacePath };
 		});
-
-		afterSuite(opts);
 
 		it('shows results from all folders', async function () {
 			const app = this.app as Application;

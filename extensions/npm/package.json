@@ -37,7 +37,7 @@
   "main": "./out/npmMain",
   "browser": "./dist/browser/npmBrowserMain",
   "activationEvents": [
-    "onCommand:workbench.action.tasks.runTask",
+    "onTaskType:npm",
     "onCommand:npm.runScriptFromFolder",
     "onLanguage:json",
     "workspaceContains:package.json",

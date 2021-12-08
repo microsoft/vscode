@@ -27,7 +27,6 @@ export interface SpawnOptions {
 	web?: boolean;
 	headless?: boolean;
 	browser?: 'chromium' | 'webkit' | 'firefox';
-	suiteTitle?: string;
 	testTitle?: string;
 }
 
@@ -134,6 +133,16 @@ export class Code {
 		return await this.driver.capturePage(windowId);
 	}
 
+	async startTracing(name: string): Promise<void> {
+		const windowId = await this.getActiveWindowId();
+		return await this.driver.startTracing(windowId, name);
+	}
+
+	async stopTracing(name: string, persist: boolean): Promise<void> {
+		const windowId = await this.getActiveWindowId();
+		return await this.driver.stopTracing(windowId, name, persist);
+	}
+
 	async waitForWindowIds(fn: (windowIds: number[]) => boolean): Promise<void> {
 		await poll(() => this.driver.getWindowIds(), fn, `get window ids`);
 	}
@@ -160,6 +169,10 @@ export class Code {
 				let retries = 0;
 				while (!done) {
 					retries++;
+
+					if (retries > 20) {
+						console.warn('Smoke test exit call did not terminate process after 10s, still trying...');
+					}
 
 					if (retries > 40) {
 						done = true;

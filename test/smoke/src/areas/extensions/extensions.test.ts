@@ -5,14 +5,15 @@
 
 import minimist = require('minimist');
 import { Application, Quality } from '../../../../automation';
-import { afterSuite, beforeSuite } from '../../utils';
+import { installCommonTestHandlers } from '../../utils';
 
 export function setup(opts: minimist.ParsedArgs) {
 	describe('Extensions', () => {
-		beforeSuite(opts);
-		afterSuite(opts);
 
-		it(`install and enable vscode-smoketest-check extension`, async function () {
+		// Shared before/after handling
+		installCommonTestHandlers(opts);
+
+		it('install and enable vscode-smoketest-check extension', async function () {
 			const app = this.app as Application;
 
 			if (app.quality === Quality.Dev) {
@@ -29,6 +30,5 @@ export function setup(opts: minimist.ParsedArgs) {
 
 			await app.workbench.quickaccess.runCommand('Smoke Test Check');
 		});
-
 	});
 }

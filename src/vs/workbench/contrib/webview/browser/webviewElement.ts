@@ -134,7 +134,8 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	private readonly _onDidHtmlChange: Emitter<string> = this._register(new Emitter<string>());
 	protected readonly onDidHtmlChange = this._onDidHtmlChange.event;
 
-	private readonly _messageHandlers = new Map<string, Set<(data: any) => void>>();
+	private messagePort?: MessagePort;
+	private readonly _messageHandlers = new Map<string, Set<(data: any, e: MessageEvent) => void>>();
 
 	protected readonly _webviewFindWidget: WebviewFindWidget | undefined;
 	public readonly checkImeCompletionState = true;
@@ -176,17 +177,39 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 		this._element = this.createElement(options, contentOptions);
 
-		const subscription = this._register(this.on(WebviewMessageChannels.webviewReady, () => {
-			this._logService.debug(`Webview(${this.id}): webview ready`);
 
-			this.element?.classList.add('ready');
-
-			if (this._state.type === WebviewState.Type.Initializing) {
-				this._state.pendingMessages.forEach(({ channel, data }) => this.doPostMessage(channel, data));
+		const subscription = this._register(addDisposableListener(window, 'message', (e: MessageEvent) => {
+			if (e?.data?.target !== this.iframeId) {
+				return;
 			}
-			this._state = WebviewState.Ready;
 
-			subscription.dispose();
+			if (e.origin !== this.webviewContentOrigin) {
+				console.log(`Skipped renderer receiving message due to mismatched origins: ${e.origin} ${this.webviewContentOrigin}`);
+				return;
+			}
+
+			if (e.data.channel === WebviewMessageChannels.webviewReady) {
+				if (this.messagePort) {
+					return;
+				}
+
+				this._logService.debug(`Webview(${this.id}): webview ready`);
+
+				this.messagePort = e.ports[0];
+				this.messagePort.onmessage = (e) => {
+					const handlers = this._messageHandlers.get(e.data.channel);
+					handlers?.forEach(handler => handler(e.data.data, e));
+				};
+
+				this.element?.classList.add('ready');
+
+				if (this._state.type === WebviewState.Type.Initializing) {
+					this._state.pendingMessages.forEach(({ channel, data }) => this.doPostMessage(channel, data));
+				}
+				this._state = WebviewState.Ready;
+
+				subscription.dispose();
+			}
 		}));
 
 		this._register(this.on(WebviewMessageChannels.noCspFound, () => {
@@ -318,18 +341,6 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			}
 		}));
 
-		this._register(addDisposableListener(window, 'message', e => {
-			if (e?.data?.target === this.iframeId) {
-				if (e.origin !== this.webviewContentOrigin) {
-					console.log(`Skipped renderer receiving message due to mismatched origins: ${e.origin} ${this.webviewContentOrigin}`);
-					return;
-				}
-
-				const handlers = this._messageHandlers.get(e.data.channel);
-				handlers?.forEach(handler => handler(e.data.data));
-			}
-		}));
-
 		if (options.enableFindWidget) {
 			this._webviewFindWidget = this._register(instantiationService.createInstance(WebviewFindWidget, this));
 			this.styledFindWidget();
@@ -341,6 +352,8 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	override dispose(): void {
 		this.element?.remove();
 		this._element = undefined;
+
+		this.messagePort = undefined;
 
 		this._onDidDispose.fire();
 
@@ -468,12 +481,12 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	}
 
 	private doPostMessage(channel: string, data?: any): void {
-		if (this.element) {
-			this.element.contentWindow!.postMessage({ channel, args: data }, this.webviewContentEndpoint);
+		if (this.element && this.messagePort) {
+			this.messagePort.postMessage({ channel, args: data });
 		}
 	}
 
-	protected on<T = unknown>(channel: WebviewMessageChannels, handler: (data: T) => void): IDisposable {
+	protected on<T = unknown>(channel: WebviewMessageChannels, handler: (data: T, e: MessageEvent) => void): IDisposable {
 		let handlers = this._messageHandlers.get(channel);
 		if (!handlers) {
 			handlers = new Set();

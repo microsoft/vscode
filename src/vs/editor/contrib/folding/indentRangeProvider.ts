@@ -7,7 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITextModel } from 'vs/editor/common/model';
 import { computeIndentLevel } from 'vs/editor/common/model/utils';
 import { FoldingMarkers } from 'vs/editor/common/modes/languageConfiguration';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { FoldingRegions, MAX_LINE_NUMBER } from 'vs/editor/contrib/folding/foldingRanges';
 import { RangeProvider } from './folding';
 
@@ -18,14 +18,15 @@ export const ID_INDENT_PROVIDER = 'indent';
 export class IndentRangeProvider implements RangeProvider {
 	readonly id = ID_INDENT_PROVIDER;
 
-	constructor(private readonly editorModel: ITextModel) {
-	}
+	constructor(
+		private readonly editorModel: ITextModel,
+		private readonly languageConfigurationService: ILanguageConfigurationService
+	) { }
 
-	dispose() {
-	}
+	dispose() { }
 
 	compute(cancelationToken: CancellationToken): Promise<FoldingRegions> {
-		let foldingRules = LanguageConfigurationRegistry.getFoldingRules(this.editorModel.getLanguageId());
+		let foldingRules = this.languageConfigurationService.getLanguageConfiguration(this.editorModel.getLanguageId()).foldingRules;
 		let offSide = foldingRules && !!foldingRules.offSide;
 		let markers = foldingRules && foldingRules.markers;
 		return Promise.resolve(computeRanges(this.editorModel, offSide, markers));

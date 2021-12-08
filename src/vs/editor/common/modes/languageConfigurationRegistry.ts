@@ -204,11 +204,6 @@ export class LanguageConfigurationRegistryImpl {
 		return entries?.getResolvedConfiguration() || null;
 	}
 
-	public getIndentationRules(languageId: string): IndentationRule | null {
-		const value = this.getLanguageConfiguration(languageId);
-		return value ? value.indentationRules || null : null;
-	}
-
 	// begin electricCharacter
 
 	private _getElectricCharacterSupport(languageId: string): BracketElectricCharacterSupport | null {
@@ -797,6 +792,9 @@ export class LanguageConfigurationRegistryImpl {
 	}
 }
 
+/**
+ * @deprecated Use ILanguageConfigurationService instead.
+*/
 export const LanguageConfigurationRegistry = new LanguageConfigurationRegistryImpl();
 
 class ComposedLanguageConfiguration {
@@ -967,6 +965,11 @@ export class ResolvedLanguageConfiguration {
 			);
 		}
 		return this._electricCharacter;
+	}
+
+	public getAutoClosingPairs(): AutoClosingPairs {
+		const characterPairSupport = this.characterPair;
+		return new AutoClosingPairs(characterPairSupport ? characterPairSupport.getAutoClosingPairs() : []);
 	}
 
 	public onEnter(

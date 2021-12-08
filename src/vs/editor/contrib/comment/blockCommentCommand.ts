@@ -10,7 +10,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
 import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export class BlockCommentCommand implements ICommand {
 
@@ -18,7 +18,11 @@ export class BlockCommentCommand implements ICommand {
 	private readonly _insertSpace: boolean;
 	private _usedEndToken: string | null;
 
-	constructor(selection: Selection, insertSpace: boolean) {
+	constructor(
+		selection: Selection,
+		insertSpace: boolean,
+		private readonly languageConfigurationService: ILanguageConfigurationService
+	) {
 		this._selection = selection;
 		this._insertSpace = insertSpace;
 		this._usedEndToken = null;
@@ -168,7 +172,7 @@ export class BlockCommentCommand implements ICommand {
 
 		model.tokenizeIfCheap(startLineNumber);
 		const languageId = model.getLanguageIdAtPosition(startLineNumber, startColumn);
-		const config = LanguageConfigurationRegistry.getComments(languageId);
+		const config = this.languageConfigurationService.getLanguageConfiguration(languageId).comments;
 		if (!config || !config.blockCommentStartToken || !config.blockCommentEndToken) {
 			// Mode does not support block comments
 			return;

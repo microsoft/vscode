@@ -487,9 +487,21 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	}
 
 	set value(value: string) {
+		this.doSetValue(value);
+	}
+
+	private doSetValue(value: string, skipUpdate?: boolean): void {
 		if (this._value !== value) {
-			this._value = value || '';
-			this.update();
+			this._value = value;
+			if (!skipUpdate) {
+				this.update();
+			}
+			if (this.visible) {
+				const didFilter = this.ui.list.filter(this.filterValue(this._value));
+				if (didFilter) {
+					this.trySelectFirst();
+				}
+			}
 			this.onDidChangeValueEmitter.fire(this._value);
 		}
 	}
@@ -734,15 +746,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		if (!this.visible) {
 			this.visibleDisposables.add(
 				this.ui.inputBox.onDidChange(value => {
-					if (value === this.value) {
-						return;
-					}
-					this._value = value;
-					const didFilter = this.ui.list.filter(this.filterValue(this.ui.inputBox.value));
-					if (didFilter) {
-						this.trySelectFirst();
-					}
-					this.onDidChangeValueEmitter.fire(value);
+					this.doSetValue(value, true /* skip update since this originates from the UI */);
 				}));
 			this.visibleDisposables.add(this.ui.inputBox.onMouseDown(event => {
 				if (!this.autoFocusOnList) {

@@ -204,7 +204,7 @@ const workerReady = new Promise((resolve, reject) => {
 		return reject(new Error('Service Workers are not enabled. Webviews will not work. Try disabling private/incognito mode.'));
 	}
 
-	const swPath = `service-worker.js${self.location.search}`;
+	const swPath = `service-worker.js?vscode-resource-base-authority=${(new URL(location.toString()).searchParams).get('vscode-resource-base-authority')}`;
 
 	navigator.serviceWorker.register(swPath).then(
 		async registration => {
@@ -264,16 +264,14 @@ const workerReady = new Promise((resolve, reject) => {
 });
 
 const hostMessaging = new class HostMessaging {
+
 	constructor() {
+		this.channel = new MessageChannel();
+
 		/** @type {Map<string, Array<(event: MessageEvent, data: any) => void>>} */
 		this.handlers = new Map();
 
-		window.addEventListener('message', (e) => {
-			if (e.origin !== parentOrigin) {
-				console.log(`skipping webview message due to mismatched origins: ${e.origin} ${parentOrigin}`);
-				return;
-			}
-
+		this.channel.port1.onmessage = (e) => {
 			const channel = e.data.channel;
 			const handlers = this.handlers.get(channel);
 			if (handlers) {
@@ -283,15 +281,16 @@ const hostMessaging = new class HostMessaging {
 			} else {
 				console.log('no handler for ', e);
 			}
-		});
+		};
 	}
 
 	/**
 	 * @param {string} channel
 	 * @param {any} data
+	 * @param {any} [transfer]
 	 */
-	postMessage(channel, data) {
-		window.parent.postMessage({ target: ID, channel, data }, parentOrigin);
+	postMessage(channel, data, transfer) {
+		this.channel.port1.postMessage({ channel, data }, transfer);
 	}
 
 	/**
@@ -305,6 +304,10 @@ const hostMessaging = new class HostMessaging {
 			this.handlers.set(channel, handlers);
 		}
 		handlers.push(handler);
+	}
+
+	signalReady() {
+		window.parent.postMessage({ target: ID, channel: 'webview-ready', data: {} }, parentOrigin, [this.channel.port2]);
 	}
 }();
 
@@ -1046,6 +1049,5 @@ onDomReady(() => {
 		}
 	};
 
-	// signal ready
-	hostMessaging.postMessage('webview-ready', {});
+	hostMessaging.signalReady();
 });

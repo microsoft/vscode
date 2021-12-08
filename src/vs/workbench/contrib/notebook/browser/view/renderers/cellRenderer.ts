@@ -127,7 +127,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 	constructor(
 		notebookEditor: INotebookEditorDelegate,
 		dndController: CellDragAndDropController,
-		private renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>,
+		private renderedEditors: Map<ICellViewModel, ICodeEditor>,
 		contextKeyServiceProvider: (container: HTMLElement) => IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -367,7 +367,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 	constructor(
 		notebookEditor: INotebookEditorDelegate,
-		private renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>,
+		private renderedEditors: Map<ICellViewModel, ICodeEditor>,
 		dndController: CellDragAndDropController,
 		contextKeyServiceProvider: (container: HTMLElement) => IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,

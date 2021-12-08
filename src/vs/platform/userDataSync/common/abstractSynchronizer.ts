@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from 'vs/base/common/arrays';
-import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise, ThrottledDelayer } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStringDictionary } from 'vs/base/common/collections';
@@ -107,7 +107,7 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 	private _onDidChangeConflicts: Emitter<IBaseResourcePreview[]> = this._register(new Emitter<IBaseResourcePreview[]>());
 	readonly onDidChangeConflicts: Event<IBaseResourcePreview[]> = this._onDidChangeConflicts.event;
 
-	private readonly localChangeTriggerScheduler = new RunOnceScheduler(() => this.doTriggerLocalChange(), 50);
+	private readonly localChangeTriggerThrottler = new ThrottledDelayer<void>(50);
 	private readonly _onDidChangeLocal: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeLocal: Event<void> = this._onDidChangeLocal.event;
 
@@ -139,12 +139,8 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 		this.currentMachineIdPromise = getServiceMachineId(environmentService, fileService, storageService);
 	}
 
-	protected isEnabled(): boolean { return this.userDataSyncEnablementService.isEnabled() && this.userDataSyncEnablementService.isResourceEnabled(this.resource); }
-
-	protected async triggerLocalChange(): Promise<void> {
-		if (this.isEnabled()) {
-			this.localChangeTriggerScheduler.schedule();
-		}
+	protected triggerLocalChange(): void {
+		this.localChangeTriggerThrottler.trigger(() => this.doTriggerLocalChange());
 	}
 
 	protected async doTriggerLocalChange(): Promise<void> {
@@ -162,7 +158,7 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 		else {
 			this.logService.trace(`${this.syncResourceLogLabel}: Checking for local changes...`);
 			const lastSyncUserData = await this.getLastSyncUserData();
-			const hasRemoteChanged = lastSyncUserData ? (await this.doGenerateSyncResourcePreview(lastSyncUserData, lastSyncUserData, true, this.getUserDataSyncConfiguration(), CancellationToken.None)).resourcePreviews.some(({ remoteChange }) => remoteChange !== Change.None) : true;
+			const hasRemoteChanged = lastSyncUserData ? await this.hasRemoteChanged(lastSyncUserData) : true;
 			if (hasRemoteChanged) {
 				this._onDidChangeLocal.fire();
 			}
@@ -209,14 +205,6 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 	private async _sync(manifest: IUserDataManifest | null, apply: boolean, userDataSyncConfiguration: IUserDataSyncConfiguration, headers: IHeaders): Promise<ISyncResourcePreview | null> {
 		try {
 			this.syncHeaders = { ...headers };
-
-			if (!this.isEnabled()) {
-				if (this.status !== SyncStatus.Idle) {
-					await this.stop();
-				}
-				this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing ${this.resource.toLowerCase()} as it is disabled.`);
-				return null;
-			}
 
 			if (this.status === SyncStatus.HasConflicts) {
 				this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing ${this.resource.toLowerCase()} as there are conflicts.`);
@@ -722,6 +710,7 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 	protected abstract getMergeResult(resourcePreview: IResourcePreview, token: CancellationToken): Promise<IMergeResult>;
 	protected abstract getAcceptResult(resourcePreview: IResourcePreview, resource: URI, content: string | null | undefined, token: CancellationToken): Promise<IAcceptResult>;
 	protected abstract applyResult(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, result: [IResourcePreview, IAcceptResult][], force: boolean): Promise<void>;
+	protected abstract hasRemoteChanged(lastSyncUserData: IRemoteUserData): Promise<boolean>;
 
 	abstract hasLocalData(): Promise<boolean>;
 	abstract getAssociatedResources(syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI, comparableResource: URI }[]>;
