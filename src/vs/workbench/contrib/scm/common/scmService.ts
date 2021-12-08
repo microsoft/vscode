@@ -95,7 +95,7 @@ class SCMInput implements ISCMInput {
 				const history = JSON.parse(storageService.get(key, StorageScope.GLOBAL, '[]'));
 
 				if (Array.isArray(history)) {
-					if (history.length === 0 || history.length === 1 && history[0] === '') {
+					if (history.length === 0 || (history.length === 1 && history[0] === '')) {
 						// remove empty histories
 						storageService.remove(key, StorageScope.GLOBAL);
 					} else {
