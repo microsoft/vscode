@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { ILanguageIdCodec } from 'vs/editor/common/modes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export const IModeService = createDecorator<IModeService>('modeService');
+export const ILanguageService = createDecorator<ILanguageService>('languageService');
 
 export interface ILanguageExtensionPoint {
 	id: string;
@@ -26,7 +26,7 @@ export interface ILanguageSelection {
 	readonly onDidChange: Event<string>;
 }
 
-export interface IModeService {
+export interface ILanguageService {
 	readonly _serviceBrand: undefined;
 
 	readonly languageIdCodec: ILanguageIdCodec;

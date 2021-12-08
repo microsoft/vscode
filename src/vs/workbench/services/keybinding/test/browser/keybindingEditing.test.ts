@@ -8,7 +8,7 @@ import * as json from 'vs/base/common/json';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ChordKeybinding, SimpleKeybinding } from 'vs/base/common/keybindings';
 import { OS } from 'vs/base/common/platform';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
@@ -105,7 +105,7 @@ suite('KeybindingsEditing', () => {
 		instantiationService.stub(IEditorService, new TestEditorService());
 		instantiationService.stub(IWorkingCopyService, disposables.add(new WorkingCopyService()));
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
-		instantiationService.stub(IModeService, ModeServiceImpl);
+		instantiationService.stub(ILanguageService, ModeServiceImpl);
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ILabelService, disposables.add(instantiationService.createInstance(LabelService)));
 		instantiationService.stub(IFilesConfigurationService, disposables.add(instantiationService.createInstance(FilesConfigurationService)));

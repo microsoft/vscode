@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { BracketPairColorizationOptions, DefaultEndOfLine, ITextBufferFactory, ITextModelCreationOptions } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
@@ -94,7 +94,7 @@ export function createModelServices(disposables: DisposableStore, services: Serv
 	define(INotificationService, TestNotificationService);
 	define(IDialogService, TestDialogService);
 	define(IUndoRedoService, UndoRedoService);
-	define(IModeService, ModeServiceImpl);
+	define(ILanguageService, ModeServiceImpl);
 	define(ILanguageConfigurationService, TestLanguageConfigurationService);
 	define(IConfigurationService, TestConfigurationService);
 	define(ITextResourcePropertiesService, TestTextResourcePropertiesService);

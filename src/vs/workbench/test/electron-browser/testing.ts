@@ -14,6 +14,6 @@ import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
 export function assertCleanState(): void {
 	// If this test fails, it is a clear indication that
 	// your test or suite is leaking services (e.g. via leaking text models)
-	// assert.strictEqual(ModeServiceImpl.instanceCount, 0, 'No leaking IModeService');
+	// assert.strictEqual(ModeServiceImpl.instanceCount, 0, 'No leaking ILanguageService');
 	assert.strictEqual(LanguagesRegistry.instanceCount, 0, 'No leaking LanguagesRegistry');
 }

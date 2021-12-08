@@ -18,7 +18,7 @@ import { FindMatch, ITextModel, TextModelResolvedOptions } from 'vs/editor/commo
 import * as modes from 'vs/editor/common/modes';
 import { NULL_STATE, nullTokenize } from 'vs/editor/common/modes/nullMode';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebWorker } from 'vs/editor/common/services/webWorker';
 import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
@@ -90,7 +90,7 @@ export function create(domElement: HTMLElement, options?: IStandaloneEditorConst
 			services.get(IConfigurationService),
 			services.get(IAccessibilityService),
 			services.get(IModelService),
-			services.get(IModeService),
+			services.get(ILanguageService),
 		);
 	});
 }
@@ -150,7 +150,7 @@ export function createDiffNavigator(diffEditor: IStandaloneDiffEditor, opts?: ID
 export function createModel(value: string, language?: string, uri?: URI): ITextModel {
 	return createTextModel(
 		StaticServices.modelService.get(),
-		StaticServices.modeService.get(),
+		StaticServices.languageService.get(),
 		value,
 		language,
 		uri
@@ -161,7 +161,7 @@ export function createModel(value: string, language?: string, uri?: URI): ITextM
  * Change the language for a model.
  */
 export function setModelLanguage(model: ITextModel, languageId: string): void {
-	StaticServices.modelService.get().setMode(model, StaticServices.modeService.get().create(languageId));
+	StaticServices.modelService.get().setMode(model, StaticServices.languageService.get().create(languageId));
 }
 
 /**
@@ -247,7 +247,7 @@ export function createWebWorker<T>(opts: IWebWorkerOptions): MonacoWebWorker<T> 
 export function colorizeElement(domNode: HTMLElement, options: IColorizerElementOptions): Promise<void> {
 	const themeService = <StandaloneThemeServiceImpl>StaticServices.standaloneThemeService.get();
 	themeService.registerEditorContainer(domNode);
-	return Colorizer.colorizeElement(themeService, StaticServices.modeService.get(), domNode, options);
+	return Colorizer.colorizeElement(themeService, StaticServices.languageService.get(), domNode, options);
 }
 
 /**
@@ -256,7 +256,7 @@ export function colorizeElement(domNode: HTMLElement, options: IColorizerElement
 export function colorize(text: string, languageId: string, options: IColorizerOptions): Promise<string> {
 	const themeService = <StandaloneThemeServiceImpl>StaticServices.standaloneThemeService.get();
 	themeService.registerEditorContainer(document.body);
-	return Colorizer.colorize(StaticServices.modeService.get(), text, languageId, options);
+	return Colorizer.colorize(StaticServices.languageService.get(), text, languageId, options);
 }
 
 /**
@@ -286,9 +286,9 @@ function getSafeTokenizationSupport(language: string): Omit<modes.ITokenizationS
  * Tokenize `text` using language `languageId`
  */
 export function tokenize(text: string, languageId: string): Token[][] {
-	let modeService = StaticServices.modeService.get();
+	let languageService = StaticServices.languageService.get();
 	// Needed in order to get the mode registered for subsequent look-ups
-	modeService.triggerMode(languageId);
+	languageService.triggerMode(languageId);
 
 	let tokenizationSupport = getSafeTokenizationSupport(languageId);
 	let lines = splitLines(text);

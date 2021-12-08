@@ -8,7 +8,7 @@ import * as mime from 'vs/base/common/mime';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { ILanguageExtensionPoint, IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageExtensionPoint, ILanguageService } from 'vs/editor/common/services/languageService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -221,4 +221,4 @@ function isValidLanguageExtensionPoint(value: IRawLanguageExtensionPoint, collec
 	return true;
 }
 
-registerSingleton(IModeService, WorkbenchModeServiceImpl);
+registerSingleton(ILanguageService, WorkbenchModeServiceImpl);

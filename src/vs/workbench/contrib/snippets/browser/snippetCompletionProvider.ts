@@ -9,7 +9,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, CompletionItemInsertTextRule, CompletionContext, CompletionTriggerKind, CompletionItemLabel } from 'vs/editor/common/modes';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { localize } from 'vs/nls';
 import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
@@ -57,7 +57,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 	readonly _debugDisplayName = 'snippetCompletions';
 
 	constructor(
-		@IModeService private readonly _modeService: IModeService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@ISnippetsService private readonly _snippets: ISnippetsService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService
 	) {
@@ -166,8 +166,8 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		// snippets, else fall back to the outer language
 		model.tokenizeIfCheap(position.lineNumber);
 		let languageId: string | null = model.getLanguageIdAtPosition(position.lineNumber, position.column);
-		languageId = this._modeService.validateLanguageId(languageId);
-		if (!languageId || !this._modeService.getLanguageName(languageId)) {
+		languageId = this._languageService.validateLanguageId(languageId);
+		if (!languageId || !this._languageService.getLanguageName(languageId)) {
 			languageId = model.getLanguageId();
 		}
 		return languageId;

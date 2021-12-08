@@ -20,7 +20,7 @@ import { RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBracke
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 /**
@@ -72,7 +72,7 @@ export class LanguageConfigurationService extends Disposable implements ILanguag
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IModeService private readonly modeService: IModeService
+		@ILanguageService private readonly languageService: ILanguageService
 	) {
 		super();
 
@@ -86,7 +86,7 @@ export class LanguageConfigurationService extends Disposable implements ILanguag
 				.filter(([overrideLangName, keys]) =>
 					keys.some((k) => languageConfigKeys.has(k))
 				)
-				.map(([overrideLangName]) => this.modeService.validateLanguageId(overrideLangName));
+				.map(([overrideLangName]) => this.languageService.validateLanguageId(overrideLangName));
 
 			if (globalConfigChanged) {
 				this.configurations.clear();
@@ -110,7 +110,7 @@ export class LanguageConfigurationService extends Disposable implements ILanguag
 	public getLanguageConfiguration(languageId: string): ResolvedLanguageConfiguration {
 		let result = this.configurations.get(languageId);
 		if (!result) {
-			result = computeConfig(languageId, this.configurationService, this.modeService);
+			result = computeConfig(languageId, this.configurationService, this.languageService);
 			this.configurations.set(languageId, result);
 		}
 		return result;
@@ -120,12 +120,12 @@ export class LanguageConfigurationService extends Disposable implements ILanguag
 function computeConfig(
 	languageId: string,
 	configurationService: IConfigurationService,
-	modeService: IModeService,
+	languageService: ILanguageService,
 ): ResolvedLanguageConfiguration {
 	let languageConfig = LanguageConfigurationRegistry.getLanguageConfiguration(languageId);
 
 	if (!languageConfig) {
-		const validLanguageId = modeService.validateLanguageId(languageId);
+		const validLanguageId = languageService.validateLanguageId(languageId);
 		if (!validLanguageId) {
 			throw new Error('Unexpected languageId');
 		}

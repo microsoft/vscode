@@ -113,12 +113,12 @@ suite('TokenizationSupport2Adapter', () => {
 		}
 
 		const disposables = new DisposableStore();
-		const modeService = disposables.add(new ModeServiceImpl());
+		const languageService = disposables.add(new ModeServiceImpl());
 		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
 		const adapter = new TokenizationSupport2Adapter(
 			languageId,
 			new BadTokensProvider(),
-			modeService,
+			languageService,
 			new MockThemeService()
 		);
 
@@ -132,7 +132,7 @@ suite('TokenizationSupport2Adapter', () => {
 		}
 
 		// Add the encoded language id to the expected tokens
-		const encodedLanguageId = modeService.languageIdCodec.encodeLanguageId(languageId);
+		const encodedLanguageId = languageService.languageIdCodec.encodeLanguageId(languageId);
 		const tokenLanguageMetadata = (encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET);
 		for (let i = 1; i < expectedModernTokens.length; i += 2) {
 			expectedModernTokens[i] |= tokenLanguageMetadata;

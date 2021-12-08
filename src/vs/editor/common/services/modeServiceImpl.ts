@@ -8,7 +8,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
 import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
-import { ILanguageSelection, IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageSelection, ILanguageService } from 'vs/editor/common/services/languageService';
 import { firstOrDefault } from 'vs/base/common/arrays';
 import { ILanguageIdCodec } from 'vs/editor/common/modes';
 
@@ -47,7 +47,7 @@ class LanguageSelection implements ILanguageSelection {
 	}
 }
 
-export class ModeServiceImpl extends Disposable implements IModeService {
+export class ModeServiceImpl extends Disposable implements ILanguageService {
 	public _serviceBrand: undefined;
 
 	static instanceCount = 0;

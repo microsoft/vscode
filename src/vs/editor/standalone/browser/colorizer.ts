@@ -9,7 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import { IViewLineTokens, LineTokens } from 'vs/editor/common/core/lineTokens';
 import { ITextModel } from 'vs/editor/common/model';
 import { ColorId, FontStyle, ILanguageIdCodec, ITokenizationSupport, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { RenderLineInput, renderViewLine2 as renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
@@ -28,7 +28,7 @@ export interface IColorizerElementOptions extends IColorizerOptions {
 
 export class Colorizer {
 
-	public static colorizeElement(themeService: IStandaloneThemeService, modeService: IModeService, domNode: HTMLElement, options: IColorizerElementOptions): Promise<void> {
+	public static colorizeElement(themeService: IStandaloneThemeService, languageService: ILanguageService, domNode: HTMLElement, options: IColorizerElementOptions): Promise<void> {
 		options = options || {};
 		let theme = options.theme || 'vs';
 		let mimeType = options.mimeType || domNode.getAttribute('lang') || domNode.getAttribute('data-lang');
@@ -45,11 +45,11 @@ export class Colorizer {
 			const trustedhtml = ttPolicy?.createHTML(str) ?? str;
 			domNode.innerHTML = trustedhtml as string;
 		};
-		return this.colorize(modeService, text || '', mimeType, options).then(render, (err) => console.error(err));
+		return this.colorize(languageService, text || '', mimeType, options).then(render, (err) => console.error(err));
 	}
 
-	public static colorize(modeService: IModeService, text: string, mimeType: string, options: IColorizerOptions | null | undefined): Promise<string> {
-		const languageIdCodec = modeService.languageIdCodec;
+	public static colorize(languageService: ILanguageService, text: string, mimeType: string, options: IColorizerOptions | null | undefined): Promise<string> {
+		const languageIdCodec = languageService.languageIdCodec;
 		let tabSize = 4;
 		if (options && typeof options.tabSize === 'number') {
 			tabSize = options.tabSize;
@@ -59,13 +59,13 @@ export class Colorizer {
 			text = text.substr(1);
 		}
 		let lines = strings.splitLines(text);
-		let language = modeService.getModeId(mimeType);
+		let language = languageService.getModeId(mimeType);
 		if (!language) {
 			return Promise.resolve(_fakeColorize(lines, tabSize, languageIdCodec));
 		}
 
 		// Send out the event to create the mode
-		modeService.triggerMode(language);
+		languageService.triggerMode(language);
 
 		const tokenizationSupport = TokenizationRegistry.get(language);
 		if (tokenizationSupport) {
