@@ -15,7 +15,7 @@ export class CursorCollection {
 	private context: CursorContext;
 
 	/**
-	 * `cursors[0]` is the primary cursor.
+	 * `cursors[0]` is the primary cursor, thus `cursors.length >= 1` is always true.
 	 * `cursors.slice(1)` are secondary cursors.
 	*/
 	private cursors: Cursor[];
