@@ -247,7 +247,8 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		}
 
 		if (this.extUri.isEqual(this.remoteResource, uri) || this.extUri.isEqual(this.localResource, uri) || this.extUri.isEqual(this.acceptedResource, uri)) {
-			return this.resolvePreviewContent(uri);
+			const content = await this.resolvePreviewContent(uri);
+			return content ? stringify(JSON.parse(content), true) : content;
 		}
 
 		let content = await super.resolveContent(uri);
