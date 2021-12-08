@@ -25,7 +25,7 @@ const watchClientTask = task.define('watch-client', task.series(util.rimraf('out
 gulp.task(watchClientTask);
 
 // All
-const compileTask = task.define('compile', task.parallel(monacoTypecheckTask, compileClientTask, compileApiProposalNames, compileExtensionsTask, compileExtensionMediaTask));
+const compileTask = task.define('compile', task.parallel(monacoTypecheckTask, compileClientTask, compileExtensionsTask, compileExtensionMediaTask));
 gulp.task(compileTask);
 
 gulp.task(task.define('watch', task.parallel(/* monacoTypecheckWatchTask, */ watchClientTask, watchExtensionsTask)));
