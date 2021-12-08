@@ -132,7 +132,7 @@ suite('Workbench - TerminalValidatedLocalLinkProvider', () => {
 		});
 	});
 
-	suite('Windows', () => {
+	suite.only('Windows', () => {
 		windowsLinks.forEach(baseLink => {
 			suite(`Link "${baseLink}"`, () => {
 				for (let i = 0; i < supportedLinkFormats.length; i++) {
@@ -168,8 +168,20 @@ suite('Workbench - TerminalValidatedLocalLinkProvider', () => {
 		await assertLink('file:///foo.bar', OperatingSystem.Windows, [{ range: [[1, 1], [15, 1]], text: 'file:///foo.bar' }]);
 		await assertLink('file:///c:/foo.bar', OperatingSystem.Windows, [{ range: [[1, 1], [18, 1]], text: 'file:///c:/foo.bar' }]);
 		await assertLink('file:///shäres/foo.bar', OperatingSystem.Windows, [{ range: [[1, 1], [22, 1]], text: 'file:///shäres/foo.bar' }]);
-		await assertLink('x = file:///foo.bar', OperatingSystem.Windows, [{ range: [[4, 1], [19, 1]], text: 'file:///foo.bar' }]);
-		await assertLink('x = file:///c:/foo.bar', OperatingSystem.Windows, [{ range: [[4, 1], [22, 1]], text: 'file:///c:/foo.bar' }]);
-		await assertLink('x = file:///shäres/foo.bar', OperatingSystem.Windows, [{ range: [[4, 1], [26, 1]], text: 'file:///shäres/foo.bar' }]);
+		await assertLink('x = file:///foo.bar', OperatingSystem.Windows, [{ range: [[5, 1], [19, 1]], text: 'file:///foo.bar' }]);
+		await assertLink('x = file:///c:/foo.bar', OperatingSystem.Windows, [{ range: [[5, 1], [22, 1]], text: 'file:///c:/foo.bar' }]);
+		await assertLink('x = file:///shäres/foo.bar', OperatingSystem.Windows, [{ range: [[5, 1], [26, 1]], text: 'file:///shäres/foo.bar' }]);
+	});
+
+	test('should strip file from improperly formatted file:// links', async () => {
+		await assertLink('file:\\\\\\foo.bar', OperatingSystem.Windows, [{ range: [[4, 1], [15, 1]], text: 'e:\\\\\\foo.bar' }]);
+		await assertLink('file:\\\\\\c:/foo.bar', OperatingSystem.Windows, [{ range: [[4, 1], [9, 1]], text: 'e:\\\\\\c' }, { range: [[11, 1], [18, 1]], text: '/foo.bar' }]);
+		await assertLink('file:\\\\\\shäres/foo.bar', OperatingSystem.Windows, [{ range: [[4, 1], [22, 1]], text: 'e:\\\\\\shäres/foo.bar' }]);
+		await assertLink('x = file://foo.bar', OperatingSystem.Windows, [{ range: [[11, 1], [18, 1]], text: '/foo.bar' }]);
+		await assertLink('x = file://c:/foo.bar', OperatingSystem.Windows, [{ range: [[14, 1], [21, 1]], text: '/foo.bar' }]);
+		await assertLink('x = file://shäres/foo.bar', OperatingSystem.Windows, [{ range: [[11, 1], [25, 1]], text: '/shäres/foo.bar' }]);
+		await assertLink('x = file:foo.bar', OperatingSystem.Windows, []);
+		await assertLink('x = file:c:/foo.bar', OperatingSystem.Windows, [{ range: [[10, 1], [19, 1]], text: 'c:/foo.bar' }]);
+		await assertLink('x = file:shäres/foo.bar', OperatingSystem.Windows, [{ range: [[10, 1], [23, 1]], text: 'shäres/foo.bar' }]);
 	});
 });

@@ -26,7 +26,7 @@ export const unixLocalLinkClause = '((' + pathPrefix + '|(' + excludedPathCharac
 
 export const winDrivePrefix = '((?:\\\\\\\\\\?\\\\)?[a-zA-Z]:)?';
 const winPathSeparatorClause = '(\\\\|\\/)';
-const winPathPrefix = '((file:)?' + winPathSeparatorClause + '?' + winPathSeparatorClause + '?' + winPathSeparatorClause + '?' + winDrivePrefix + '|\\.\\.?|\\~)';
+const winPathPrefix = '((file://////)?' + winDrivePrefix + '|\\.\\.?|\\~)';
 const winExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!`&*()\\[\\]\'":;]';
 /** A regex that matches paths in the form \\?\c:\foo c:\foo, ~\foo, .\foo, ..\foo, foo\bar */
 export const winLocalLinkClause = '((' + winPathPrefix + '|(' + winExcludedPathCharactersClause + ')+)?(' + winPathSeparatorClause + '(' + winExcludedPathCharactersClause + ')+)+)';
