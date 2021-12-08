@@ -456,4 +456,3 @@ registerModelAndPositionCommand('_executeLinkedEditingProvider', (model, positio
 
 registerEditorContribution(LinkedEditingContribution.ID, LinkedEditingContribution);
 registerEditorAction(LinkedEditingAction);
-

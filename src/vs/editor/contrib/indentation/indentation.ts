@@ -310,11 +310,13 @@ export class ReindentLinesAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const languageConfigurationService = accessor.get(ILanguageConfigurationService);
+
 		let model = editor.getModel();
 		if (!model) {
 			return;
 		}
-		let edits = getReindentEditOperations(model, accessor.get(ILanguageConfigurationService), 1, model.getLineCount());
+		let edits = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
 		if (edits.length > 0) {
 			editor.pushUndoStop();
 			editor.executeEdits(this.id, edits);
@@ -334,6 +336,8 @@ export class ReindentSelectedLinesAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const languageConfigurationService = accessor.get(ILanguageConfigurationService);
+
 		let model = editor.getModel();
 		if (!model) {
 			return;
@@ -362,7 +366,7 @@ export class ReindentSelectedLinesAction extends EditorAction {
 				startLineNumber--;
 			}
 
-			let editOperations = getReindentEditOperations(model, accessor.get(ILanguageConfigurationService), startLineNumber, endLineNumber);
+			let editOperations = getReindentEditOperations(model, languageConfigurationService, startLineNumber, endLineNumber);
 			edits.push(...editOperations);
 		}
 

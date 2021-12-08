@@ -27,6 +27,8 @@ abstract class CommentLineAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const languageConfigurationService = accessor.get(ILanguageConfigurationService);
+
 		if (!editor.hasModel()) {
 			return;
 		}
@@ -56,7 +58,6 @@ abstract class CommentLineAction extends EditorAction {
 			}
 		}
 
-		const languageConfigurationService = accessor.get(ILanguageConfigurationService);
 
 		for (const selection of selections) {
 			commands.push(new LineCommentCommand(
@@ -155,6 +156,8 @@ class BlockCommentAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const languageConfigurationService = accessor.get(ILanguageConfigurationService);
+
 		if (!editor.hasModel()) {
 			return;
 		}
@@ -162,7 +165,6 @@ class BlockCommentAction extends EditorAction {
 		const commentsOptions = editor.getOption(EditorOption.comments);
 		const commands: ICommand[] = [];
 		const selections = editor.getSelections();
-		const languageConfigurationService = accessor.get(ILanguageConfigurationService);
 		for (const selection of selections) {
 			commands.push(new BlockCommentCommand(selection, commentsOptions.insertSpace, languageConfigurationService));
 		}
