@@ -7,8 +7,11 @@ import * as assert from 'assert';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
+import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { deserializePipePositions, serializePipePositions, testRepeatedActionAndExtractPositions } from 'vs/editor/contrib/wordOperations/test/wordTestUtils';
+import { StaticServiceAccessor } from 'vs/editor/contrib/wordPartOperations/test/utils';
 import { CursorWordPartLeft, CursorWordPartLeftSelect, CursorWordPartRight, CursorWordPartRightSelect, DeleteWordPartLeft, DeleteWordPartRight } from 'vs/editor/contrib/wordPartOperations/wordPartOperations';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 suite('WordPartOperations', () => {
 	const _deleteWordPartLeft = new DeleteWordPartLeft();
@@ -18,8 +21,13 @@ suite('WordPartOperations', () => {
 	const _cursorWordPartRight = new CursorWordPartRight();
 	const _cursorWordPartRightSelect = new CursorWordPartRightSelect();
 
+	const serviceAccessor = new StaticServiceAccessor().withService(
+		ILanguageConfigurationService,
+		new TestLanguageConfigurationService()
+	);
+
 	function runEditorCommand(editor: ICodeEditor, command: EditorCommand): void {
-		command.runEditorCommand(null, editor, null);
+		command.runEditorCommand(serviceAccessor, editor, null);
 	}
 	function cursorWordPartLeft(editor: ICodeEditor, inSelectionmode: boolean = false): void {
 		runEditorCommand(editor, inSelectionmode ? _cursorWordPartLeftSelect : _cursorWordPartLeft);

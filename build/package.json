@@ -43,7 +43,7 @@
     "@types/xml2js": "0.0.33",
     "@typescript-eslint/experimental-utils": "~2.13.0",
     "@typescript-eslint/parser": "^3.3.0",
-    "applicationinsights": "1.0.8",
+    "applicationinsights": "1.4.2",
     "byline": "^5.0.0",
     "colors": "^1.4.0",
     "commander": "^7.0.0",

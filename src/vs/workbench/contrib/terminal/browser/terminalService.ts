@@ -342,7 +342,10 @@ export class TerminalService implements ITerminalService {
 				return;
 			}
 		}
-		instance.dispose();
+		return new Promise<void>(r => {
+			instance.onExit(() => r());
+			instance.dispose();
+		});
 	}
 
 	private _setConnected() {

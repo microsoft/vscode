@@ -13,7 +13,7 @@ import { format } from 'vs/base/common/jsonFormatter';
 import { applyEdits } from 'vs/base/common/jsonEdit';
 import { ITextModel, ITextBufferFactory, DefaultEndOfLine, ITextBuffer } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ILanguageSelection, IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageSelection, ILanguageService } from 'vs/editor/common/services/languageService';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
 import { Extensions, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -238,7 +238,7 @@ class CellContentProvider implements ITextModelContentProvider {
 	constructor(
 		@ITextModelService textModelService: ITextModelService,
 		@IModelService private readonly _modelService: IModelService,
-		@IModeService private readonly _modeService: IModeService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
 	) {
 		this._registration = textModelService.registerTextModelContentProvider(CellUri.scheme, this);
@@ -274,8 +274,8 @@ class CellContentProvider implements ITextModelContentProvider {
 						return cell.textBuffer.getLineContent(1).substr(0, limit);
 					}
 				};
-				const languageId = this._modeService.getModeIdForLanguageName(cell.language);
-				const languageSelection = languageId ? this._modeService.create(languageId) : (cell.cellKind === CellKind.Markup ? this._modeService.create('markdown') : this._modeService.createByFilepathOrFirstLine(resource, cell.textBuffer.getLineContent(1)));
+				const languageId = this._languageService.getLanguageIdForLanguageName(cell.language);
+				const languageSelection = languageId ? this._languageService.createById(languageId) : (cell.cellKind === CellKind.Markup ? this._languageService.createById('markdown') : this._languageService.createByFilepathOrFirstLine(resource, cell.textBuffer.getLineContent(1)));
 				result = this._modelService.createModel(
 					bufferFactory,
 					languageSelection,
@@ -302,7 +302,7 @@ class CellInfoContentProvider {
 	constructor(
 		@ITextModelService textModelService: ITextModelService,
 		@IModelService private readonly _modelService: IModelService,
-		@IModeService private readonly _modeService: IModeService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
 	) {
@@ -349,7 +349,7 @@ class CellInfoContentProvider {
 		const ref = await this._notebookModelResolverService.resolve(data.notebook);
 		let result: ITextModel | null = null;
 
-		const mode = this._modeService.create('json');
+		const mode = this._languageService.createById('json');
 
 		for (const cell of ref.object.notebook.cells) {
 			if (cell.handle === data.handle) {
@@ -382,7 +382,7 @@ class CellInfoContentProvider {
 		if (streamOutputData) {
 			return {
 				content: streamOutputData,
-				mode: this._modeService.create('plaintext')
+				mode: this._languageService.createById('plaintext')
 			};
 		}
 
@@ -396,7 +396,7 @@ class CellInfoContentProvider {
 	}, cell: NotebookCellTextModel) {
 		let result: { content: string, mode: ILanguageSelection } | undefined = undefined;
 
-		const mode = this._modeService.create('json');
+		const mode = this._languageService.createById('json');
 		const op = cell.outputs.find(op => op.outputId === data.outputId);
 		const streamOutputData = this.parseStreamOutput(op);
 		if (streamOutputData) {

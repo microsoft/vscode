@@ -30,7 +30,7 @@ import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsSe
 import { ExecutionStateCellStatusBarContrib, TimerCellStatusBarContrib } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/executionStatusBarItemController';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
@@ -80,7 +80,7 @@ export class InteractiveEditor extends EditorPane {
 	// #inputLineCount = 1;
 	#notebookWidgetService: INotebookEditorService;
 	#instantiationService: IInstantiationService;
-	#modeService: IModeService;
+	#languageService: ILanguageService;
 	#contextKeyService: IContextKeyService;
 	#notebookKernelService: INotebookKernelService;
 	#keybindingService: IKeybindingService;
@@ -103,7 +103,7 @@ export class InteractiveEditor extends EditorPane {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@INotebookKernelService notebookKernelService: INotebookKernelService,
-		@IModeService modeService: IModeService,
+		@ILanguageService languageService: ILanguageService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInteractiveHistoryService historyService: IInteractiveHistoryService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -120,7 +120,7 @@ export class InteractiveEditor extends EditorPane {
 		this.#notebookWidgetService = notebookWidgetService;
 		this.#contextKeyService = contextKeyService;
 		this.#notebookKernelService = notebookKernelService;
-		this.#modeService = modeService;
+		this.#languageService = languageService;
 		this.#keybindingService = keybindingService;
 		this.#historyService = historyService;
 		this.#menuService = menuService;
@@ -513,7 +513,7 @@ export class InteractiveEditor extends EditorPane {
 
 		if (selectedOrSuggested) {
 			const language = selectedOrSuggested.supportedLanguages[0];
-			const newMode = language ? this.#modeService.create(language).languageId : PLAINTEXT_MODE_ID;
+			const newMode = language ? this.#languageService.createById(language).languageId : PLAINTEXT_MODE_ID;
 			textModel.setMode(newMode);
 		}
 	}

@@ -13,7 +13,7 @@ import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { IBackupMainService, IWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
+import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
@@ -22,7 +22,7 @@ import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
 import { NullLogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IRawFileWorkspaceFolder, IRawUriWorkspaceFolder, IStoredWorkspace, IStoredWorkspaceFolder, IWorkspaceFolderCreationData, IWorkspaceIdentifier, rewriteWorkspaceFileForNewLocation, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
+import { IFolderBackupInfo, IRawFileWorkspaceFolder, IRawUriWorkspaceFolder, IStoredWorkspace, IStoredWorkspaceFolder, IWorkspaceBackupInfo, IWorkspaceFolderCreationData, IWorkspaceIdentifier, rewriteWorkspaceFileForNewLocation, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 
 flakySuite('WorkspacesManagementMainService', () => {
@@ -46,15 +46,15 @@ flakySuite('WorkspacesManagementMainService', () => {
 
 		isHotExitEnabled(): boolean { throw new Error('Method not implemented.'); }
 		getWorkspaceBackups(): IWorkspaceBackupInfo[] { throw new Error('Method not implemented.'); }
-		getFolderBackupPaths(): URI[] { throw new Error('Method not implemented.'); }
+		getFolderBackupPaths(): IFolderBackupInfo[] { throw new Error('Method not implemented.'); }
 		getEmptyWindowBackupPaths(): IEmptyWindowBackupInfo[] { throw new Error('Method not implemented.'); }
 		registerWorkspaceBackupSync(workspace: IWorkspaceBackupInfo, migrateFrom?: string | undefined): string { throw new Error('Method not implemented.'); }
-		registerFolderBackupSync(folderUri: URI): string { throw new Error('Method not implemented.'); }
+		registerFolderBackupSync(folder: IFolderBackupInfo): string { throw new Error('Method not implemented.'); }
 		registerEmptyWindowBackupSync(backupFolder?: string | undefined, remoteAuthority?: string | undefined): string { throw new Error('Method not implemented.'); }
 		unregisterWorkspaceBackupSync(workspace: IWorkspaceIdentifier): void { throw new Error('Method not implemented.'); }
 		unregisterFolderBackupSync(folderUri: URI): void { throw new Error('Method not implemented.'); }
 		unregisterEmptyWindowBackupSync(backupFolder: string): void { throw new Error('Method not implemented.'); }
-		async getDirtyWorkspaces(): Promise<(IWorkspaceIdentifier | URI)[]> { return []; }
+		async getDirtyWorkspaces(): Promise<(IWorkspaceBackupInfo | IFolderBackupInfo)[]> { return []; }
 	}
 
 	function createUntitledWorkspace(folders: string[], names?: string[]) {

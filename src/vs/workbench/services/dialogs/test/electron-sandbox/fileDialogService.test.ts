@@ -18,7 +18,7 @@ import { FileDialogService } from 'vs/workbench/services/dialogs/electron-sandbo
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { mock } from 'vs/base/test/common/mock';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -47,7 +47,7 @@ class TestFileDialogService extends FileDialogService {
 		@IOpenerService openerService: IOpenerService,
 		@INativeHostService nativeHostService: INativeHostService,
 		@IDialogService dialogService: IDialogService,
-		@IModeService modeService: IModeService,
+		@ILanguageService languageService: ILanguageService,
 		@IWorkspacesService workspacesService: IWorkspacesService,
 		@ILabelService labelService: ILabelService,
 		@IPathService pathService: IPathService,
@@ -56,7 +56,7 @@ class TestFileDialogService extends FileDialogService {
 		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
 		super(hostService, contextService, historyService, environmentService, instantiationService, configurationService, fileService,
-			openerService, nativeHostService, dialogService, modeService, workspacesService, labelService, pathService, commandService, editorService, codeEditorService);
+			openerService, nativeHostService, dialogService, languageService, workspacesService, labelService, pathService, commandService, editorService, codeEditorService);
 	}
 
 	protected override getSimpleFileDialog() {

@@ -6,11 +6,13 @@
 import * as cp from 'child_process';
 import minimist = require('minimist');
 import { Application } from '../../../../automation';
-import { afterSuite, beforeSuite } from '../../utils';
+import { installCommonTestHandlers } from '../../utils';
 
 export function setup(opts: minimist.ParsedArgs) {
 	describe.skip('Notebooks', () => {
-		beforeSuite(opts);
+
+		// Shared before/after handling
+		installCommonTestHandlers(opts);
 
 		afterEach(async function () {
 			const app = this.app as Application;
@@ -23,8 +25,6 @@ export function setup(opts: minimist.ParsedArgs) {
 			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
 			cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePathOrFolder });
 		});
-
-		afterSuite(opts);
 
 		it.skip('inserts/edits code cell', async function () {
 			const app = this.app as Application;

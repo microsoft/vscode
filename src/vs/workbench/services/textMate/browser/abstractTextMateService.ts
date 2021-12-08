@@ -16,7 +16,7 @@ import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/t
 import { IState, ITokenizationSupport, LanguageId, TokenMetadata, TokenizationRegistry, StandardTokenType } from 'vs/editor/common/modes';
 import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
@@ -51,7 +51,7 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 	protected _currentTokenColorMap: string[] | null;
 
 	constructor(
-		@IModeService protected readonly _modeService: IModeService,
+		@ILanguageService protected readonly _languageService: ILanguageService,
 		@IWorkbenchThemeService private readonly _themeService: IWorkbenchThemeService,
 		@IExtensionResourceLoaderService protected readonly _extensionResourceLoaderService: IExtensionResourceLoaderService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -103,9 +103,9 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 								// never hurts to be too careful
 								continue;
 							}
-							const validLanguageId = this._modeService.validateLanguageId(language);
+							const validLanguageId = this._languageService.validateLanguageId(language);
 							if (validLanguageId) {
-								embeddedLanguages[scope] = this._modeService.languageIdCodec.encodeLanguageId(validLanguageId);
+								embeddedLanguages[scope] = this._languageService.languageIdCodec.encodeLanguageId(validLanguageId);
 							}
 						}
 					}
@@ -131,7 +131,7 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 
 					let validLanguageId: string | null = null;
 					if (grammar.language) {
-						validLanguageId = this._modeService.validateLanguageId(grammar.language);
+						validLanguageId = this._languageService.validateLanguageId(grammar.language);
 					}
 
 					this._grammarDefinitions.push({
@@ -173,7 +173,7 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 		}
 		TokenizationRegistry.setColorMap([null!, defaultForeground, defaultBackground]);
 
-		this._modeService.onDidEncounterLanguage((languageId) => {
+		this._languageService.onDidEncounterLanguage((languageId) => {
 			this._createdModes.push(languageId);
 			this._registerDefinitionIfAvailable(languageId);
 		});
@@ -253,13 +253,13 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 	}
 
 	private _registerDefinitionIfAvailable(languageId: string): void {
-		if (!this._modeService.validateLanguageId(languageId)) {
+		if (!this._languageService.validateLanguageId(languageId)) {
 			return;
 		}
 		if (!this._canCreateGrammarFactory()) {
 			return;
 		}
-		const encodedLanguageId = this._modeService.languageIdCodec.encodeLanguageId(languageId);
+		const encodedLanguageId = this._languageService.languageIdCodec.encodeLanguageId(languageId);
 
 		// Here we must register the promise ASAP (without yielding!)
 		this._tokenizersRegistrations.push(TokenizationRegistry.registerPromise(languageId, (async () => {
@@ -275,7 +275,7 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 				const tokenization = new TMTokenization(r.grammar, r.initialState, r.containsEmbeddedLanguages);
 				tokenization.onDidEncounterLanguage((encodedLanguageId) => {
 					if (!this._encounteredLanguages[encodedLanguageId]) {
-						const languageId = this._modeService.languageIdCodec.decodeLanguageId(encodedLanguageId);
+						const languageId = this._languageService.languageIdCodec.decodeLanguageId(encodedLanguageId);
 						this._encounteredLanguages[encodedLanguageId] = true;
 						this._onDidEncounterLanguage.fire(languageId);
 					}
@@ -337,7 +337,7 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 	}
 
 	private _validateGrammarExtensionPoint(extensionLocation: URI, syntax: ITMSyntaxExtensionPoint, collector: ExtensionMessageCollector): boolean {
-		if (syntax.language && ((typeof syntax.language !== 'string') || !this._modeService.isRegisteredMode(syntax.language))) {
+		if (syntax.language && ((typeof syntax.language !== 'string') || !this._languageService.isRegisteredLanguageId(syntax.language))) {
 			collector.error(nls.localize('invalid.language', "Unknown language in `contributes.{0}.language`. Provided value: {1}", grammarsExtPoint.name, String(syntax.language)));
 			return false;
 		}
@@ -371,14 +371,14 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 	}
 
 	public async createGrammar(languageId: string): Promise<IGrammar | null> {
-		if (!this._modeService.validateLanguageId(languageId)) {
+		if (!this._languageService.validateLanguageId(languageId)) {
 			return null;
 		}
 		const grammarFactory = await this._getOrCreateGrammarFactory();
 		if (!grammarFactory.has(languageId)) {
 			return null;
 		}
-		const encodedLanguageId = this._modeService.languageIdCodec.encodeLanguageId(languageId);
+		const encodedLanguageId = this._languageService.languageIdCodec.encodeLanguageId(languageId);
 		const { grammar } = await grammarFactory.createGrammar(languageId, encodedLanguageId);
 		return grammar;
 	}

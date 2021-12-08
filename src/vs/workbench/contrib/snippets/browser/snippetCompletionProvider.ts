@@ -9,14 +9,14 @@ import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, CompletionItemInsertTextRule, CompletionContext, CompletionTriggerKind, CompletionItemLabel } from 'vs/editor/common/modes';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { localize } from 'vs/nls';
 import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
 import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { isPatternInWord } from 'vs/base/common/filters';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export class SnippetCompletion implements CompletionItem {
 
@@ -57,8 +57,9 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 	readonly _debugDisplayName = 'snippetCompletions';
 
 	constructor(
-		@IModeService private readonly _modeService: IModeService,
-		@ISnippetsService private readonly _snippets: ISnippetsService
+		@ILanguageService private readonly _languageService: ILanguageService,
+		@ISnippetsService private readonly _snippets: ISnippetsService,
+		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService
 	) {
 		//
 	}
@@ -96,7 +97,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 
 				// First check if there is anything to the right of the cursor
 				if (columnOffset < lineContentLow.length) {
-					const autoClosingPairs = LanguageConfigurationRegistry.getAutoClosingPairs(languageId);
+					const autoClosingPairs = this._languageConfigurationService.getLanguageConfiguration(languageId).getAutoClosingPairs();
 					const standardAutoClosingPairConditionals = autoClosingPairs.autoClosingPairsCloseSingleChar.get(lineContentLow[columnOffset]);
 					// If the character to the right of the cursor is a closing character of an autoclosing pair
 					if (standardAutoClosingPairConditionals?.some(p =>
@@ -165,8 +166,8 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		// snippets, else fall back to the outer language
 		model.tokenizeIfCheap(position.lineNumber);
 		let languageId: string | null = model.getLanguageIdAtPosition(position.lineNumber, position.column);
-		languageId = this._modeService.validateLanguageId(languageId);
-		if (!languageId || !this._modeService.getLanguageName(languageId)) {
+		languageId = this._languageService.validateLanguageId(languageId);
+		if (!languageId || !this._languageService.getLanguageName(languageId)) {
 			languageId = model.getLanguageId();
 		}
 		return languageId;

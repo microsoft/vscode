@@ -8,7 +8,7 @@ import { ILanguageDetectionService, ILanguageDetectionStats, LanguageDetectionSt
 import { FileAccess } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { URI } from 'vs/base/common/uri';
 import { isWeb } from 'vs/base/common/platform';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -29,7 +29,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 
 	constructor(
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
-		@IModeService private readonly _modeService: IModeService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IModelService modelService: IModelService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -59,7 +59,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 		if (!language) {
 			return undefined;
 		}
-		return this._modeService.getModeIdByFilepathOrFirstLine(URI.file(`file.${language}`)) ?? undefined;
+		return this._languageService.getLanguageIdByFilepathOrFirstLine(URI.file(`file.${language}`)) ?? undefined;
 	}
 
 	async detectLanguage(resource: URI): Promise<string | undefined> {

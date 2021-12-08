@@ -246,7 +246,7 @@ class LocalTerminalBackend extends Disposable implements ITerminalBackend {
 		const serializedState = this._storageService.get(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
 		if (serializedState) {
 			try {
-				await this._localPtyService.reviveTerminalProcesses(serializedState);
+				await this._localPtyService.reviveTerminalProcesses(serializedState, Intl.DateTimeFormat().resolvedOptions().locale);
 				this._storageService.remove(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
 				// If reviving processes, send the terminal layout info back to the pty host as it
 				// will not have been persisted on application exit

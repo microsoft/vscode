@@ -192,7 +192,6 @@ export class EditorGroupModel extends Disposable {
 
 	constructor(
 		labelOrSerializedGroup: ISerializedEditorGroupModel | undefined,
-		private index: number,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
@@ -600,7 +599,10 @@ export class EditorGroupModel extends Disposable {
 	}
 
 	setIndex(index: number) {
-		this.index = index;
+		// We do not really keep the `index` in our model because
+		// it has no special meaning to us here. But for consistency
+		// we emit a `onDidModelChange` event so that components can
+		// react.
 		this._onDidModelChange.fire({ kind: GroupChangeKind.GROUP_INDEX });
 	}
 
@@ -895,7 +897,7 @@ export class EditorGroupModel extends Disposable {
 	}
 
 	clone(): EditorGroupModel {
-		const clone = this.instantiationService.createInstance(EditorGroupModel, undefined, this.index);
+		const clone = this.instantiationService.createInstance(EditorGroupModel, undefined);
 
 		// Copy over group properties
 		clone.editors = this.editors.slice(0);

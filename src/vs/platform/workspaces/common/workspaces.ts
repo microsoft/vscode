@@ -52,7 +52,7 @@ export interface IWorkspacesService {
 	getRecentlyOpened(): Promise<IRecentlyOpened>;
 
 	// Dirty Workspaces
-	getDirtyWorkspaces(): Promise<Array<IWorkspaceIdentifier | URI>>;
+	getDirtyWorkspaces(): Promise<Array<IWorkspaceBackupInfo | IFolderBackupInfo>>;
 }
 
 //#region Workspaces Recently Opened
@@ -93,6 +93,29 @@ export function isRecentFolder(curr: IRecent): curr is IRecentFolder {
 export function isRecentFile(curr: IRecent): curr is IRecentFile {
 	return curr.hasOwnProperty('fileUri');
 }
+
+//#endregion
+
+//#region Backups
+
+export interface IWorkspaceBackupInfo {
+	workspace: IWorkspaceIdentifier;
+	remoteAuthority?: string;
+}
+
+export interface IFolderBackupInfo {
+	folderUri: URI;
+	remoteAuthority?: string;
+}
+
+export function isFolderBackupInfo(curr: IWorkspaceBackupInfo | IFolderBackupInfo): curr is IFolderBackupInfo {
+	return curr && curr.hasOwnProperty('folderUri');
+}
+
+export function isWorkspaceBackupInfo(curr: IWorkspaceBackupInfo | IFolderBackupInfo): curr is IWorkspaceBackupInfo {
+	return curr && curr.hasOwnProperty('workspace');
+}
+
 
 //#endregion
 

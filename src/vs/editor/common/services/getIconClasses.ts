@@ -7,11 +7,11 @@ import { Schemas } from 'vs/base/common/network';
 import { DataUri, basenameOrAuthority } from 'vs/base/common/resources';
 import { URI as uri } from 'vs/base/common/uri';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { FileKind } from 'vs/platform/files/common/files';
 
-export function getIconClasses(modelService: IModelService, modeService: IModeService, resource: uri | undefined, fileKind?: FileKind): string[] {
+export function getIconClasses(modelService: IModelService, languageService: ILanguageService, resource: uri | undefined, fileKind?: FileKind): string[] {
 
 	// we always set these base classes even if we do not have a path
 	const classes = fileKind === FileKind.ROOT_FOLDER ? ['rootfolder-icon'] : fileKind === FileKind.FOLDER ? ['folder-icon'] : ['file-icon'];
@@ -50,7 +50,7 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 			}
 
 			// Detected Mode
-			const detectedModeId = detectModeId(modelService, modeService, resource);
+			const detectedModeId = detectModeId(modelService, languageService, resource);
 			if (detectedModeId) {
 				classes.push(`${cssEscape(detectedModeId)}-lang-file-icon`);
 			}
@@ -64,12 +64,12 @@ export function getIconClassesForModeId(modeId: string): string[] {
 	return ['file-icon', `${cssEscape(modeId)}-lang-file-icon`];
 }
 
-function detectModeId(modelService: IModelService, modeService: IModeService, resource: uri): string | null {
+function detectModeId(modelService: IModelService, languageService: ILanguageService, resource: uri): string | null {
 	if (!resource) {
 		return null; // we need a resource at least
 	}
 
-	let modeId: string | null = null;
+	let languageId: string | null = null;
 
 	// Data URI: check for encoded metadata
 	if (resource.scheme === Schemas.data) {
@@ -77,7 +77,7 @@ function detectModeId(modelService: IModelService, modeService: IModeService, re
 		const mime = metadata.get(DataUri.META_DATA_MIME);
 
 		if (mime) {
-			modeId = modeService.getModeId(mime);
+			languageId = languageService.getLanguageIdForMimeType(mime);
 		}
 	}
 
@@ -85,17 +85,17 @@ function detectModeId(modelService: IModelService, modeService: IModeService, re
 	else {
 		const model = modelService.getModel(resource);
 		if (model) {
-			modeId = model.getLanguageId();
+			languageId = model.getLanguageId();
 		}
 	}
 
 	// only take if the mode is specific (aka no just plain text)
-	if (modeId && modeId !== PLAINTEXT_MODE_ID) {
-		return modeId;
+	if (languageId && languageId !== PLAINTEXT_MODE_ID) {
+		return languageId;
 	}
 
 	// otherwise fallback to path based detection
-	return modeService.getModeIdByFilepathOrFirstLine(resource);
+	return languageService.getLanguageIdByFilepathOrFirstLine(resource);
 }
 
 export function cssEscape(str: string): string {

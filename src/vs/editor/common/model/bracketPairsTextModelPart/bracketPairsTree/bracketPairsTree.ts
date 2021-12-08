@@ -7,7 +7,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { BracketInfo, BracketPairWithMinIndentationInfo } from 'vs/editor/common/model/bracketPairs/bracketPairs';
+import { BracketInfo, BracketPairWithMinIndentationInfo } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairs';
 import { BackgroundTokenizationState, TextModel } from 'vs/editor/common/model/textModel';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { ResolvedLanguageConfiguration } from 'vs/editor/common/modes/languageConfigurationRegistry';

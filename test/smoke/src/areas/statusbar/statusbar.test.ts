@@ -5,12 +5,13 @@
 
 import minimist = require('minimist');
 import { Application, Quality, StatusBarElement } from '../../../../automation';
-import { afterSuite, beforeSuite } from '../../utils';
+import { installCommonTestHandlers } from '../../utils';
 
 export function setup(opts: minimist.ParsedArgs) {
 	describe('Statusbar', () => {
-		beforeSuite(opts);
-		afterSuite(opts);
+
+		// Shared before/after handling
+		installCommonTestHandlers(opts);
 
 		it('verifies presence of all default status bar elements', async function () {
 			const app = this.app as Application;

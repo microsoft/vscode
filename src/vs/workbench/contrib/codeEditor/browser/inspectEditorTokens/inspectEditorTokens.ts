@@ -17,7 +17,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { FontStyle, StandardTokenType, TokenMetadata, DocumentSemanticTokensProviderRegistry, SemanticTokensLegend, SemanticTokens, ColorId, DocumentRangeSemanticTokensProviderRegistry } from 'vs/editor/common/modes';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -46,7 +46,7 @@ class InspectEditorTokensController extends Disposable implements IEditorContrib
 	private _editor: ICodeEditor;
 	private _textMateService: ITextMateService;
 	private _themeService: IWorkbenchThemeService;
-	private _modeService: IModeService;
+	private _languageService: ILanguageService;
 	private _notificationService: INotificationService;
 	private _configurationService: IConfigurationService;
 	private _widget: InspectEditorTokensWidget | null;
@@ -54,7 +54,7 @@ class InspectEditorTokensController extends Disposable implements IEditorContrib
 	constructor(
 		editor: ICodeEditor,
 		@ITextMateService textMateService: ITextMateService,
-		@IModeService modeService: IModeService,
+		@ILanguageService languageService: ILanguageService,
 		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
 		@INotificationService notificationService: INotificationService,
 		@IConfigurationService configurationService: IConfigurationService
@@ -63,7 +63,7 @@ class InspectEditorTokensController extends Disposable implements IEditorContrib
 		this._editor = editor;
 		this._textMateService = textMateService;
 		this._themeService = themeService;
-		this._modeService = modeService;
+		this._languageService = languageService;
 		this._notificationService = notificationService;
 		this._configurationService = configurationService;
 		this._widget = null;
@@ -89,7 +89,7 @@ class InspectEditorTokensController extends Disposable implements IEditorContrib
 			// disable in notebooks
 			return;
 		}
-		this._widget = new InspectEditorTokensWidget(this._editor, this._textMateService, this._modeService, this._themeService, this._notificationService, this._configurationService);
+		this._widget = new InspectEditorTokensWidget(this._editor, this._textMateService, this._languageService, this._themeService, this._notificationService, this._configurationService);
 	}
 
 	public stop(): void {
@@ -184,7 +184,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 
 	private _isDisposed: boolean;
 	private readonly _editor: IActiveCodeEditor;
-	private readonly _modeService: IModeService;
+	private readonly _languageService: ILanguageService;
 	private readonly _themeService: IWorkbenchThemeService;
 	private readonly _textMateService: ITextMateService;
 	private readonly _notificationService: INotificationService;
@@ -196,7 +196,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 	constructor(
 		editor: IActiveCodeEditor,
 		textMateService: ITextMateService,
-		modeService: IModeService,
+		languageService: ILanguageService,
 		themeService: IWorkbenchThemeService,
 		notificationService: INotificationService,
 		configurationService: IConfigurationService
@@ -204,7 +204,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		super();
 		this._isDisposed = false;
 		this._editor = editor;
-		this._modeService = modeService;
+		this._languageService = languageService;
 		this._themeService = themeService;
 		this._textMateService = textMateService;
 		this._notificationService = notificationService;
@@ -455,7 +455,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		let foreground = TokenMetadata.getForeground(metadata);
 		let background = TokenMetadata.getBackground(metadata);
 		return {
-			languageId: this._modeService.languageIdCodec.decodeLanguageId(languageId),
+			languageId: this._languageService.languageIdCodec.decodeLanguageId(languageId),
 			tokenType: tokenType,
 			bold: (fontStyle & FontStyle.Bold) ? true : undefined,
 			italic: (fontStyle & FontStyle.Italic) ? true : undefined,

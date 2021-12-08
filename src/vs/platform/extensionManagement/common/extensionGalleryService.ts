@@ -313,7 +313,10 @@ function getIconAsset(version: IRawGalleryExtensionVersion): IGalleryExtensionAs
 
 function getVersionAsset(version: IRawGalleryExtensionVersion, type: string): IGalleryExtensionAsset | null {
 	const result = version.files.filter(f => f.assetType === type)[0];
-	return result ? { uri: `${version.assetUri}/${type}`, fallbackUri: `${version.fallbackAssetUri}/${type}` } : null;
+	return result ? {
+		uri: `${version.assetUri}/${type}${version.targetPlatform ? `?targetPlatform=${version.targetPlatform}` : ''}`,
+		fallbackUri: `${version.fallbackAssetUri}/${type}${version.targetPlatform ? `?targetPlatform=${version.targetPlatform}` : ''}`
+	} : null;
 }
 
 function getExtensions(version: IRawGalleryExtensionVersion, property: string): string[] {
@@ -1035,7 +1038,7 @@ export async function resolveMarketplaceHeaders(version: string, productService:
 } | undefined): Promise<{ [key: string]: string; }> {
 	const headers: IHeaders = {
 		'X-Market-Client-Id': `VSCode ${version}`,
-		'User-Agent': `VSCode ${version}`
+		'User-Agent': `VSCode ${version} (${productService.nameShort})`
 	};
 	const uuid = await getServiceMachineId(environmentService, fileService, storageService);
 	if (supportsTelemetry(productService, environmentService) && getTelemetryLevel(configurationService) === TelemetryLevel.USAGE) {

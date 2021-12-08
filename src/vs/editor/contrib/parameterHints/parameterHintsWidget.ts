@@ -17,7 +17,7 @@ import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/browser/core/
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as modes from 'vs/editor/common/modes';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { ParameterHintsModel, TriggerContext } from 'vs/editor/contrib/parameterHints/parameterHintsModel';
 import { Context } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
 import * as nls from 'vs/nls';
@@ -61,10 +61,10 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		private readonly editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
-		@IModeService modeService: IModeService,
+		@ILanguageService languageService: ILanguageService,
 	) {
 		super();
-		this.markdownRenderer = this._register(new MarkdownRenderer({ editor }, modeService, openerService));
+		this.markdownRenderer = this._register(new MarkdownRenderer({ editor }, languageService, openerService));
 		this.model = this._register(new ParameterHintsModel(editor));
 		this.keyVisible = Context.Visible.bindTo(contextKeyService);
 		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);

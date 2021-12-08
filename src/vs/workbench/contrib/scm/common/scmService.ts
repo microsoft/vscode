@@ -65,7 +65,6 @@ class SCMInput implements ISCMInput {
 	private readonly _onDidChangeValidationMessage = new Emitter<IInputValidation>();
 	readonly onDidChangeValidationMessage: Event<IInputValidation> = this._onDidChangeValidationMessage.event;
 
-
 	private _validateInput: IInputValidator = () => Promise.resolve(undefined);
 
 	get validateInput(): IInputValidator {
@@ -82,23 +81,58 @@ class SCMInput implements ISCMInput {
 
 	private historyNavigator: HistoryNavigator2<string>;
 
+	private static didCleanup = false;
+	private static migrateAndGarbageCollectStorage(storageService: IStorageService): void {
+		if (SCMInput.didCleanup) {
+			return;
+		}
+
+		const keys = storageService.keys(StorageScope.GLOBAL, StorageTarget.USER)
+			.filter(key => key.startsWith('scm/input:'));
+
+		for (const key of keys) {
+			try {
+				const history = JSON.parse(storageService.get(key, StorageScope.GLOBAL, '[]'));
+
+				if (Array.isArray(history)) {
+					if (history.length === 0 || (history.length === 1 && history[0] === '')) {
+						// remove empty histories
+						storageService.remove(key, StorageScope.GLOBAL);
+					} else {
+						// migrate existing histories to have a timestamp
+						storageService.store(key, JSON.stringify({ timestamp: new Date().getTime(), history }), StorageScope.GLOBAL, StorageTarget.USER);
+					}
+				} else if (Array.isArray(history?.history) && Number.isInteger(history?.timestamp) && new Date().getTime() - history?.timestamp > 2592000000) {
+					// garbage collect after 30 days
+					storageService.remove(key, StorageScope.GLOBAL);
+				}
+			} catch {
+				// remove unparseable entries
+				storageService.remove(key, StorageScope.GLOBAL);
+			}
+		}
+
+		SCMInput.didCleanup = true;
+	}
+
 	constructor(
 		readonly repository: ISCMRepository,
 		@IStorageService private storageService: IStorageService
 	) {
-		const historyKey = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri?.path}`;
-		let history: string[] | undefined;
-		let rawHistory = this.storageService.get(historyKey, StorageScope.GLOBAL, '');
+		SCMInput.migrateAndGarbageCollectStorage(storageService);
 
-		if (rawHistory) {
+		const key = this.repository.provider.rootUri ? `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri?.path}` : undefined;
+		let history: string[] | undefined;
+
+		if (key) {
 			try {
-				history = JSON.parse(rawHistory);
+				history = JSON.parse(this.storageService.get(key, StorageScope.GLOBAL, '')).history;
 			} catch {
 				// noop
 			}
 		}
 
-		if (!history || history.length === 0) {
+		if (!Array.isArray(history)) {
 			history = [this._value];
 		} else {
 			this._value = history[history.length - 1];
@@ -106,15 +140,19 @@ class SCMInput implements ISCMInput {
 
 		this.historyNavigator = new HistoryNavigator2(history, 50);
 
-		this.storageService.onWillSaveState(e => {
-			if (this.historyNavigator.isAtEnd()) {
-				this.historyNavigator.replaceLast(this._value);
-			}
+		if (key) {
+			this.storageService.onWillSaveState(_ => {
+				if (this.historyNavigator.isAtEnd()) {
+					this.historyNavigator.replaceLast(this._value);
+				}
 
-			if (this.repository.provider.rootUri) {
-				this.storageService.store(historyKey, JSON.stringify([...this.historyNavigator]), StorageScope.GLOBAL, StorageTarget.USER);
-			}
-		});
+				const history = [...this.historyNavigator];
+
+				if (history.length > 1 || (history.length === 1 && history[0] !== '')) {
+					storageService.store(key, JSON.stringify({ timestamp: new Date().getTime(), history }), StorageScope.GLOBAL, StorageTarget.USER);
+				}
+			});
+		}
 	}
 
 	setValue(value: string, transient: boolean, reason?: SCMInputChangeReason) {
