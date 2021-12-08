@@ -1798,15 +1798,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async changeIcon() {
-		const items: IQuickPickItem[] = [];
+		type Item = IQuickPickItem & { icon: TerminalIcon };
+		const items: Item[] = [];
 		for (const icon of iconRegistry.all) {
-			items.push({ label: `$(${icon.id})`, description: `${icon.id}` });
+			items.push({ label: `$(${icon.id})`, description: `${icon.id}`, icon });
 		}
 		const result = await this._quickInputService.pick(items, {
 			matchOnDescription: true
 		});
-		if (result && result.description) {
-			this._icon = iconRegistry.get(result.description);
+		if (result) {
+			this._icon = result.icon;
 			this._onIconChanged.fire(this);
 		}
 	}

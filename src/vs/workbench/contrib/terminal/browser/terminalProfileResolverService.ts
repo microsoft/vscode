@@ -15,7 +15,7 @@ import { IProcessEnvironment, OperatingSystem, OS } from 'vs/base/common/platfor
 import { IShellLaunchConfig, ITerminalProfile, ITerminalProfileObject, TerminalIcon, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
 import { IShellLaunchConfigResolveOptions, ITerminalProfileResolverService, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as path from 'vs/base/common/path';
-import { Codicon, iconRegistry } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { debounce } from 'vs/base/common/decorators';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -172,7 +172,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			return undefined;
 		}
 		if (typeof icon === 'string') {
-			return iconRegistry.get(icon);
+			return ThemeIcon.fromId(icon);
 		}
 		if (ThemeIcon.isThemeIcon(icon)) {
 			return icon;
