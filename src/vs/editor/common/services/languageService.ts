@@ -44,7 +44,7 @@ export interface ILanguageService {
 	getLanguageName(languageId: string): string | null;
 	getLanguageIdForLanguageName(languageName: string): string | null;
 	getLanguageIdForMimeType(mimeType: string): string | null;
-	getModeIdByFilepathOrFirstLine(resource: URI, firstLine?: string): string | null;
+	getLanguageIdByFilepathOrFirstLine(resource: URI, firstLine?: string): string | null;
 	validateLanguageId(languageId: string): string | null;
 	getConfigurationFiles(languageId: string): URI[];
 

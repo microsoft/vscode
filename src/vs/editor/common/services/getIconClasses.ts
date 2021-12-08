@@ -95,7 +95,7 @@ function detectModeId(modelService: IModelService, languageService: ILanguageSer
 	}
 
 	// otherwise fallback to path based detection
-	return languageService.getModeIdByFilepathOrFirstLine(resource);
+	return languageService.getLanguageIdByFilepathOrFirstLine(resource);
 }
 
 export function cssEscape(str: string): string {

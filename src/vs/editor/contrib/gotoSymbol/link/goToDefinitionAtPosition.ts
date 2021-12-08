@@ -204,7 +204,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 						wordRange = new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
 					}
 
-					const languageId = this.languageService.getModeIdByFilepathOrFirstLine(textEditorModel.uri);
+					const languageId = this.languageService.getLanguageIdByFilepathOrFirstLine(textEditorModel.uri);
 					this.addDecoration(
 						wordRange,
 						new MarkdownString().appendCodeblock(languageId ? languageId : '', previewValue)

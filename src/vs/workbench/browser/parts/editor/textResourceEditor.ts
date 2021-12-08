@@ -181,29 +181,29 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 			return; // require a live model
 		}
 
-		const currentMode = textModel.getLanguageId();
-		if (currentMode !== PLAINTEXT_MODE_ID) {
-			return; // require current mode to be unspecific
+		const currentLanguageId = textModel.getLanguageId();
+		if (currentLanguageId !== PLAINTEXT_MODE_ID) {
+			return; // require current languageId to be unspecific
 		}
 
-		let candidateMode: string | undefined = undefined;
+		let candidateLanguageId: string | undefined = undefined;
 
-		// A mode is provided via the paste event so text was copied using
-		// VSCode. As such we trust this mode and use it if specific
+		// A languageId is provided via the paste event so text was copied using
+		// VSCode. As such we trust this languageId and use it if specific
 		if (e.languageId) {
-			candidateMode = e.languageId;
+			candidateLanguageId = e.languageId;
 		}
 
-		// A mode was not provided, so the data comes from outside VSCode
-		// We can still try to guess a good mode from the first line if
+		// A languageId was not provided, so the data comes from outside VSCode
+		// We can still try to guess a good languageId from the first line if
 		// the paste changed the first line
 		else {
-			candidateMode = withNullAsUndefined(this.languageService.getModeIdByFilepathOrFirstLine(textModel.uri, textModel.getLineContent(1).substr(0, ModelConstants.FIRST_LINE_DETECTION_LENGTH_LIMIT)));
+			candidateLanguageId = withNullAsUndefined(this.languageService.getLanguageIdByFilepathOrFirstLine(textModel.uri, textModel.getLineContent(1).substr(0, ModelConstants.FIRST_LINE_DETECTION_LENGTH_LIMIT)));
 		}
 
-		// Finally apply mode to model if specified
-		if (candidateMode !== PLAINTEXT_MODE_ID) {
-			this.modelService.setMode(textModel, this.languageService.create(candidateMode));
+		// Finally apply languageId to model if specified
+		if (candidateLanguageId !== PLAINTEXT_MODE_ID) {
+			this.modelService.setMode(textModel, this.languageService.create(candidateLanguageId));
 		}
 	}
 }

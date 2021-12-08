@@ -1201,7 +1201,7 @@ export class ChangeModeAction extends Action {
 						const resource = EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 						if (resource) {
 							// Detect languages since we are in an untitled file
-							let languageId: string | undefined = withNullAsUndefined(this.languageService.getModeIdByFilepathOrFirstLine(resource, textModel.getLineContent(1)));
+							let languageId: string | undefined = withNullAsUndefined(this.languageService.getLanguageIdByFilepathOrFirstLine(resource, textModel.getLineContent(1)));
 							if (!languageId) {
 								detectedLanguage = await this.languageDetectionService.detectLanguage(resource);
 								languageId = detectedLanguage;
@@ -1247,7 +1247,7 @@ export class ChangeModeAction extends Action {
 	private configureFileAssociation(resource: URI): void {
 		const extension = extname(resource);
 		const base = basename(resource);
-		const currentAssociation = this.languageService.getModeIdByFilepathOrFirstLine(URI.file(base));
+		const currentAssociation = this.languageService.getLanguageIdByFilepathOrFirstLine(URI.file(base));
 
 		const languages = this.languageService.getRegisteredLanguageNames();
 		const picks: IQuickPickItem[] = languages.sort().map((lang, index) => {

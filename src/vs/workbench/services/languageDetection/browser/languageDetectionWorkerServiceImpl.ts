@@ -59,7 +59,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 		if (!language) {
 			return undefined;
 		}
-		return this._languageService.getModeIdByFilepathOrFirstLine(URI.file(`file.${language}`)) ?? undefined;
+		return this._languageService.getLanguageIdByFilepathOrFirstLine(URI.file(`file.${language}`)) ?? undefined;
 	}
 
 	async detectLanguage(resource: URI): Promise<string | undefined> {

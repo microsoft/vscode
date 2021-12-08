@@ -112,8 +112,8 @@ export class LanguageService extends Disposable implements ILanguageService {
 		return this._registry.getLanguageIdForMimeType(mimeType);
 	}
 
-	public getModeIdByFilepathOrFirstLine(resource: URI | null, firstLine?: string): string | null {
-		const modeIds = this._registry.getModeIdsFromFilepathOrFirstLine(resource, firstLine);
+	public getLanguageIdByFilepathOrFirstLine(resource: URI | null, firstLine?: string): string | null {
+		const modeIds = this._registry.getLanguageIdByFilepathOrFirstLine(resource, firstLine);
 		return firstOrDefault(modeIds, null);
 	}
 
@@ -148,7 +148,7 @@ export class LanguageService extends Disposable implements ILanguageService {
 
 	public createByFilepathOrFirstLine(resource: URI | null, firstLine?: string): ILanguageSelection {
 		return new LanguageSelection(this.onLanguagesMaybeChanged, () => {
-			const languageId = this.getModeIdByFilepathOrFirstLine(resource, firstLine);
+			const languageId = this.getLanguageIdByFilepathOrFirstLine(resource, firstLine);
 			return this._createModeAndGetLanguageIdentifier(languageId);
 		});
 	}
