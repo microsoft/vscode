@@ -136,6 +136,7 @@ async function setupTest() {
 	instantiationService.stub(IURLService, NativeURLService);
 
 	instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
+	instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', []);
 	instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{ getExtensions: () => Promise.resolve([]), onDidChangeExtensions: new Emitter<void>().event, canAddExtension: (extension: IExtensionDescription) => false, canRemoveExtension: (extension: IExtensionDescription) => false });
 	(<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).reset();
 
