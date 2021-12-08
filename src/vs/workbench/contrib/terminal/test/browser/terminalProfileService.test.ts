@@ -318,17 +318,6 @@ suite('TerminalProfileService', () => {
 		deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
 		deepStrictEqual(terminalProfileService.contributedProfiles, [jsdebugProfile]);
 	});
-	test('should call refreshAvailableProfiles again if no profiles are returned from local/remoteTerminalService', async () => {
-		terminalInstanceService.setReturnNone();
-		const calls: ITerminalProfile[][] = [];
-		terminalProfileService.onDidChangeAvailableProfiles(e => calls.push(e));
-		await terminalProfileService.hasRefreshedProfiles;
-		deepStrictEqual(calls, [
-			[powershellProfile]
-		]);
-		deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
-		deepStrictEqual(terminalProfileService.contributedProfiles, [jsdebugProfile]);
-	});
 	suite('Profiles Quickpick', () => {
 		let quickInputService: MockQuickInputService;
 		let mockTerminalProfileService: MockTerminalProfileService;

@@ -709,7 +709,7 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 } {
 	let dropdownActions: IAction[] = [];
 	let submenuActions: IAction[] = [];
-
+	profiles = profiles.filter(e => !e.isAutoDetected);
 	const splitLocation = (location === TerminalLocation.Editor || (typeof location === 'object' && 'viewColumn' in location && location.viewColumn === ACTIVE_GROUP)) ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };
 	for (const p of profiles) {
 		const isDefault = p.profileName === defaultProfileName;
