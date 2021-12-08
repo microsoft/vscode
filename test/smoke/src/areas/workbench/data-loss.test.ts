@@ -5,15 +5,14 @@
 
 import { Application, ApplicationOptions, Quality } from '../../../../automation/out';
 import { ParsedArgs } from 'minimist';
-import { afterSuite, getRandomUserDataDir, startApp, timeout } from '../../utils';
+import { installCommonAfterHandlers, getRandomUserDataDir, startApp, timeout } from '../../utils';
 
 export function setup(opts: ParsedArgs) {
-
 	describe('Data Loss (insiders -> insiders)', () => {
 
 		let app: Application | undefined = undefined;
 
-		afterSuite(opts, () => app);
+		installCommonAfterHandlers(opts, () => app);
 
 		it('verifies opened editors are restored', async function () {
 			app = await startApp(opts, this.defaultOptions);
@@ -98,7 +97,7 @@ export function setup(opts: ParsedArgs) {
 		let insidersApp: Application | undefined = undefined;
 		let stableApp: Application | undefined = undefined;
 
-		afterSuite(opts, () => insidersApp ?? stableApp, async () => stableApp?.stop());
+		installCommonAfterHandlers(opts, () => insidersApp ?? stableApp, async () => stableApp?.stop());
 
 		it('verifies opened editors are restored', async function () {
 			const stableCodePath = opts['stable-build'];

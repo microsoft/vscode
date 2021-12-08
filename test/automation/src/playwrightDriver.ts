@@ -43,8 +43,7 @@ class PlaywrightDriver implements IDriver {
 		private readonly server: ChildProcess,
 		private readonly browser: playwright.Browser,
 		private readonly context: playwright.BrowserContext,
-		private readonly page: playwright.Page,
-		private readonly suiteTitle: string | undefined
+		private readonly page: playwright.Page
 	) {
 	}
 
@@ -56,20 +55,34 @@ class PlaywrightDriver implements IDriver {
 		return '';
 	}
 
+	async startTracing(windowId: number, name: string): Promise<void> {
+		try {
+			await this.warnAfter(this.context.tracing.startChunk({ title: name }), 5000, 'Starting playwright trace took more than 5 seconds');
+		} catch (error) {
+			console.warn(`Failed to start playwright tracing (chunk): ${error}`);
+		}
+	}
+
+	async stopTracing(windowId: number, name: string, persist: boolean): Promise<void> {
+		try {
+			let persistPath: string | undefined = undefined;
+			if (persist) {
+				persistPath = join(logsPath, `playwright-trace-${traceCounter++}-${name.replace(/\s+/g, '-')}.zip`);
+			}
+
+			await this.warnAfter(this.context.tracing.stopChunk({ path: persistPath }), 5000, 'Stopping playwright trace took more than 5 seconds');
+		} catch (error) {
+			console.warn(`Failed to stop playwright tracing (chunk): ${error}`);
+		}
+	}
+
 	async reloadWindow(windowId: number) {
 		throw new Error('Unsupported');
 	}
 
 	async exitApplication() {
 		try {
-			let traceFileName: string;
-			if (this.suiteTitle) {
-				traceFileName = `playwright-trace-${traceCounter++}-${this.suiteTitle.replace(/\s+/g, '-')}.zip`;
-			} else {
-				traceFileName = `playwright-trace-${traceCounter++}.zip`;
-			}
-
-			await this.warnAfter(this.context.tracing.stop({ path: join(logsPath, traceFileName) }), 5000, 'Stopping playwright trace took >5seconds');
+			await this.warnAfter(this.context.tracing.stop(), 5000, 'Stopping playwright trace took >5seconds');
 		} catch (error) {
 			console.warn(`Failed to stop playwright tracing: ${error}`);
 		}
@@ -196,7 +209,6 @@ let port = 9000;
 export interface PlaywrightOptions {
 	readonly browser?: 'chromium' | 'webkit' | 'firefox';
 	readonly headless?: boolean;
-	readonly suiteTitle?: string;
 }
 
 export async function launch(codeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH, userDataDir: string, extensionsPath: string, workspacePath: string, verbose: boolean, options: PlaywrightOptions = {}): Promise<{ serverProcess: ChildProcess, client: IDisposable, driver: IDriver }> {
@@ -212,7 +224,7 @@ export async function launch(codeServerPath = process.env.VSCODE_REMOTE_SERVER_P
 		client: {
 			dispose: () => { /* there is no client to dispose for browser, teardown is triggered via exitApplication call */ }
 		},
-		driver: new PlaywrightDriver(serverProcess, browser, context, page, options.suiteTitle)
+		driver: new PlaywrightDriver(serverProcess, browser, context, page)
 	};
 }
 
@@ -275,9 +287,9 @@ async function launchBrowser(options: PlaywrightOptions, endpoint: string, works
 	const context = await browser.newContext();
 
 	try {
-		await context.tracing.start({ screenshots: true, snapshots: true, sources: true, title: options.suiteTitle });
+		await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
 	} catch (error) {
-		console.warn(`Failed to start playwright tracing.`); // do not fail the build when this fails
+		console.warn(`Failed to start playwright tracing: ${error}`); // do not fail the build when this fails
 	}
 
 	const page = await context.newPage();

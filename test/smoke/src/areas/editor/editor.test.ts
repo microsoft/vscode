@@ -5,12 +5,13 @@
 
 import minimist = require('minimist');
 import { Application } from '../../../../automation';
-import { afterSuite, beforeSuite } from '../../utils';
+import { installCommonTestHandlers } from '../../utils';
 
 export function setup(opts: minimist.ParsedArgs) {
 	describe('Editor', () => {
-		beforeSuite(opts);
-		afterSuite(opts);
+
+		// Shared before/after handling
+		installCommonTestHandlers(opts);
 
 		it('shows correct quick outline', async function () {
 			const app = this.app as Application;
