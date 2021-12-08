@@ -48,7 +48,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		super(workingCopyBackupService, workingCopyService, logService, lifecycleService, filesConfigurationService, workingCopyEditorService, editorService, editorGroupService);
 	}
 
-	protected async onBeforeShutdown(reason: ShutdownReason): Promise<boolean> {
+	protected async onFinalBeforeShutdown(reason: ShutdownReason): Promise<boolean> {
 
 		// Important: we are about to shutdown and handle dirty working copies
 		// and backups. We do not want any pending backup ops to interfer with
@@ -343,18 +343,6 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		}, localize('revertBeforeShutdown', "Reverting editors with unsaved changes is taking longer than expected..."));
 	}
 
-	private withProgressAndCancellation(promiseFactory: (token: CancellationToken) => Promise<void>, title: string, detail?: string): Promise<void> {
-		const cts = new CancellationTokenSource();
-
-		return this.progressService.withProgress({
-			location: ProgressLocation.Dialog, 	// use a dialog to prevent the user from making any more changes now (https://github.com/microsoft/vscode/issues/122774)
-			cancellable: true, 					// allow to cancel (https://github.com/microsoft/vscode/issues/112278)
-			delay: 800, 						// delay notification so that it only appears when operation takes a long time
-			title,
-			detail
-		}, () => raceCancellation(promiseFactory(cts.token), cts.token), () => cts.dispose(true));
-	}
-
 	private async noVeto(backupsToDiscard: IWorkingCopyIdentifier[]): Promise<boolean> {
 
 		// Discard backups from working copies the
@@ -400,21 +388,36 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 			return;
 		}
 
-		// When we shutdown either with no dirty working copies left
-		// or with some handled, we start to discard these backups
-		// to free them up. This helps to get rid of stale backups
-		// as reported in https://github.com/microsoft/vscode/issues/92962
-		//
-		// However, we never want to discard backups that we know
-		// were not restored in the session.
-		try {
-			if (Array.isArray(arg1)) {
-				await Promises.settled(arg1.map(workingCopy => this.workingCopyBackupService.discardBackup(workingCopy)));
-			} else {
-				await this.workingCopyBackupService.discardBackups(arg1);
+		await this.withProgressAndCancellation(async () => {
+
+			// When we shutdown either with no dirty working copies left
+			// or with some handled, we start to discard these backups
+			// to free them up. This helps to get rid of stale backups
+			// as reported in https://github.com/microsoft/vscode/issues/92962
+			//
+			// However, we never want to discard backups that we know
+			// were not restored in the session.
+			try {
+				if (Array.isArray(arg1)) {
+					await Promises.settled(arg1.map(workingCopy => this.workingCopyBackupService.discardBackup(workingCopy)));
+				} else {
+					await this.workingCopyBackupService.discardBackups(arg1);
+				}
+			} catch (error) {
+				this.logService.error(`[backup tracker] error discarding backups: ${error}`);
 			}
-		} catch (error) {
-			this.logService.error(`[backup tracker] error discarding backups: ${error}`);
-		}
+		}, localize('discardBackupsBeforeShutdown', "Discarding backups is taking longer than expected..."));
+	}
+
+	private withProgressAndCancellation(promiseFactory: (token: CancellationToken) => Promise<void>, title: string, detail?: string): Promise<void> {
+		const cts = new CancellationTokenSource();
+
+		return this.progressService.withProgress({
+			location: ProgressLocation.Dialog, 	// use a dialog to prevent the user from making any more changes now (https://github.com/microsoft/vscode/issues/122774)
+			cancellable: true, 					// allow to cancel (https://github.com/microsoft/vscode/issues/112278)
+			delay: 800, 						// delay so that it only appears when operation takes a long time
+			title,
+			detail
+		}, () => raceCancellation(promiseFactory(cts.token), cts.token), () => cts.dispose(true));
 	}
 }

@@ -57,14 +57,14 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		this._register(this.workingCopyService.onDidChangeContent(workingCopy => this.onDidChangeContent(workingCopy)));
 
 		// Lifecycle
-		this.lifecycleService.onBeforeShutdown(event => (event as InternalBeforeShutdownEvent).finalVeto(() => this.onBeforeShutdown(event.reason), 'veto.backups'));
+		this.lifecycleService.onBeforeShutdown(event => (event as InternalBeforeShutdownEvent).finalVeto(() => this.onFinalBeforeShutdown(event.reason), 'veto.backups'));
 		this.lifecycleService.onWillShutdown(() => this.onWillShutdown());
 
 		// Once a handler registers, restore backups
 		this._register(this.workingCopyEditorService.onDidRegisterHandler(handler => this.restoreBackups(handler)));
 	}
 
-	protected abstract onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean>;
+	protected abstract onFinalBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean>;
 
 	private onWillShutdown(): void {
 
@@ -73,10 +73,10 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		// at the risk of corrupting a backup because the backup operation
 		// might terminate at any given time now. As such, we need to disable
 		// this tracker from performing more backups by cancelling pending
-		// operations and disposing our listeners.
+		// operations and suspending the tracker without resuming.
 
 		this.cancelBackupOperations();
-		this.dispose();
+		this.suspendBackupOperations();
 	}
 
 
