@@ -615,14 +615,14 @@ export function findMaxBy<T>(items: readonly T[], comparator: Comparator<T>): T 
 		return undefined;
 	}
 
-	let min = items[0];
+	let max = items[0];
 	for (let i = 1; i < items.length; i++) {
 		const item = items[i];
-		if (comparator(item, min) > 0) {
-			min = item;
+		if (comparator(item, max) > 0) {
+			max = item;
 		}
 	}
-	return min;
+	return max;
 }
 
 /**
