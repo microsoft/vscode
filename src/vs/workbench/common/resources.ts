@@ -66,7 +66,6 @@ export class ResourceContextKey implements IContextKey<URI> {
 			this._isFileSystemResource.set(Boolean(resource && _fileService.hasProvider(resource)));
 		}));
 
-		this._disposables.add(_languageService.onDidEncounterLanguage(this._setLangId, this));
 		this._disposables.add(_modelService.onModelAdded(model => {
 			if (isEqual(model.uri, this.get())) {
 				this._setLangId();
