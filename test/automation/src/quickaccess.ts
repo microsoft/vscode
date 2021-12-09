@@ -72,7 +72,6 @@ export class QuickAccess {
 			}
 
 			await this.quickInput.closeQuickInput();
-			await new Promise(c => setTimeout(c, 500));
 		}
 
 		if (!fileFound) {
@@ -80,8 +79,8 @@ export class QuickAccess {
 		}
 	}
 
-	async openFile(fileName: string): Promise<void> {
-		await this.openQuickAccessAndWait(fileName, true);
+	async openFile(fileName: string, fileSearch = fileName): Promise<void> {
+		await this.openQuickAccessAndWait(fileSearch, true);
 
 		await this.code.dispatchKeybinding('enter');
 		await this.editors.waitForActiveTab(fileName);
@@ -115,7 +114,6 @@ export class QuickAccess {
 			}
 
 			await this.quickInput.closeQuickInput();
-			await new Promise(c => setTimeout(c, 500));
 		}
 	}
 }

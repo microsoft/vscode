@@ -25,11 +25,11 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { DocumentSemanticTokensProvider, DocumentSemanticTokensProviderRegistry, SemanticTokens, SemanticTokensEdits, SemanticTokensLegend } from 'vs/editor/common/modes';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Barrier, timeout } from 'vs/base/common/async';
-import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { getDocumentSemanticTokens, isSemanticTokens } from 'vs/editor/common/services/getSemanticTokens';
@@ -53,7 +53,7 @@ suite('ModelService', () => {
 			new TestThemeService(),
 			new NullLogService(),
 			new UndoRedoService(dialogService, new TestNotificationService()),
-			disposables.add(new ModeServiceImpl()),
+			disposables.add(new LanguageService()),
 			new TestLanguageConfigurationService()
 		));
 	});
@@ -411,7 +411,7 @@ suite('ModelSemanticColoring', () => {
 	const disposables = new DisposableStore();
 	const ORIGINAL_FETCH_DOCUMENT_SEMANTIC_TOKENS_DELAY = ModelSemanticColoring.FETCH_DOCUMENT_SEMANTIC_TOKENS_DELAY;
 	let modelService: IModelService;
-	let modeService: IModeService;
+	let languageService: ILanguageService;
 
 	setup(() => {
 		ModelSemanticColoring.FETCH_DOCUMENT_SEMANTIC_TOKENS_DELAY = 0;
@@ -425,10 +425,10 @@ suite('ModelSemanticColoring', () => {
 			themeService,
 			new NullLogService(),
 			new UndoRedoService(new TestDialogService(), new TestNotificationService()),
-			disposables.add(new ModeServiceImpl()),
+			disposables.add(new LanguageService()),
 			new TestLanguageConfigurationService()
 		));
-		modeService = disposables.add(new ModeServiceImpl(false));
+		languageService = disposables.add(new LanguageService(false));
 	});
 
 	teardown(() => {
@@ -469,7 +469,7 @@ suite('ModelSemanticColoring', () => {
 			}
 		}));
 
-		const textModel = disposables.add(modelService.createModel('Hello world', modeService.create('testMode')));
+		const textModel = disposables.add(modelService.createModel('Hello world', languageService.createById('testMode')));
 
 		// wait for the provider to be called
 		await inFirstCall.wait();
@@ -532,7 +532,7 @@ suite('ModelSemanticColoring', () => {
 			return result;
 		}
 
-		const textModel = modelService.createModel('Hello world 2', modeService.create('testMode2'));
+		const textModel = modelService.createModel('Hello world 2', languageService.createById('testMode2'));
 		try {
 			let result = await getDocumentSemanticTokens(textModel, null, null, CancellationToken.None);
 			assert.ok(result, `We should have tokens (1)`);

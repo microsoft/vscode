@@ -551,6 +551,7 @@ export class Codicon implements CSSIcon {
 	public static readonly azureDevops = new Codicon('azure-devops', { fontCharacter: '\\ebe8' });
 	public static readonly verifiedFilled = new Codicon('verified-filled', { fontCharacter: '\\ebe9' });
 	public static readonly newLine = new Codicon('newline', { fontCharacter: '\\ebea' });
+	public static readonly layout = new Codicon('layout', { fontCharacter: '\\ebeb' });
 
 	// derived icons, that could become separate icons
 

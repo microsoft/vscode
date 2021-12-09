@@ -23,7 +23,7 @@ export interface IEditorWorkerService {
 	readonly _serviceBrand: undefined;
 
 	canComputeUnicodeHighlights(uri: URI): boolean;
-	computedUnicodeHighlights(uri: URI, options: UnicodeHighlighterOptions, range?: IRange): Promise<IRange[]>;
+	computedUnicodeHighlights(uri: URI, options: UnicodeHighlighterOptions, range?: IRange): Promise<IUnicodeHighlightsResult>;
 
 	computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean, maxComputationTime: number): Promise<IDiffComputationResult | null>;
 
@@ -37,4 +37,12 @@ export interface IEditorWorkerService {
 
 	canNavigateValueSet(resource: URI): boolean;
 	navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<IInplaceReplaceSupportResult | null>;
+}
+
+export interface IUnicodeHighlightsResult {
+	ranges: IRange[];
+	hasMore: boolean;
+	nonBasicAsciiCharacterCount: number;
+	invisibleCharacterCount: number;
+	ambiguousCharacterCount: number;
 }

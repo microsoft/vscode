@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/ionide/ionide-fsgrammar/commit/fc4cac6d9bc1787f54ce48bbc77bcbb1de8160ff",
+	"version": "https://github.com/ionide/ionide-fsgrammar/commit/bba27391e61090035449b5c1e5c4b9d396bc4c9b",
 	"name": "fsharp",
 	"scopeName": "source.fsharp",
 	"patterns": [
@@ -527,8 +527,8 @@
 			"patterns": [
 				{
 					"name": "comment.block.markdown.fsharp",
-					"begin": "^\\s*(\\(\\*\\*(?!\\)))(?!\\*\\))$",
-					"while": "^(?!\\s*\\*\\)$)",
+					"begin": "^\\s*(\\(\\*\\*(?!\\)))((?!\\*\\)).)*$",
+					"while": "^(?!\\s*(\\*)+\\)$)",
 					"beginCaptures": {
 						"1": {
 							"name": "comment.block.fsharp"
@@ -572,7 +572,7 @@
 				},
 				{
 					"name": "comment.block.markdown.fsharp.end",
-					"match": "(\\*\\))",
+					"match": "((?<!\\()(\\*)+\\))",
 					"captures": {
 						"1": {
 							"name": "comment.block.fsharp"
@@ -610,8 +610,12 @@
 					"match": "\\b(-?((0(x|X)[0-9a-fA-F][0-9a-fA-F_]*)|(0(o|O)[0-7][0-7_]*)|(0(b|B)[01][01_]*)|([0-9][0-9_]*)))"
 				},
 				{
+					"name": "constant.language.boolean.fsharp",
+					"match": "\\b(true|false)\\b"
+				},
+				{
 					"name": "constant.other.fsharp",
-					"match": "\\b(true|false|null|unit|void)\\b"
+					"match": "\\b(null|unit|void)\\b"
 				}
 			]
 		},

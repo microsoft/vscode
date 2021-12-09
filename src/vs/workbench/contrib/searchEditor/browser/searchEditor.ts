@@ -557,7 +557,7 @@ export class SearchEditor extends BaseTextEditor<SearchEditorViewState> {
 		}
 
 		const controller = ReferencesController.get(this.searchResultEditor);
-		controller.closeWidget(false);
+		controller?.closeWidget(false);
 		const labelFormatter = (uri: URI): string => this.labelService.getUriLabel(uri, { relative: true });
 		const results = serializeSearchResultForEditor(this.searchModel.searchResult, startConfig.filesToInclude, startConfig.filesToExclude, startConfig.contextLines, labelFormatter, sortOrder, searchOperation?.limitHit);
 		const { resultsModel } = await input.getModels();

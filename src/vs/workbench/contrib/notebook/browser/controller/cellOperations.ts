@@ -7,7 +7,7 @@ import { IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/brow
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference, IReadonlyTextBuffer } from 'vs/editor/common/model';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { INotebookActionContext, INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { CellEditState, CellFocusMode, expandCellRangesWithHiddenCells, IActiveNotebookEditor, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -574,7 +574,7 @@ export function computeCellLinesContents(cell: ICellViewModel, splitPoints: IPos
 }
 
 export function insertCell(
-	modeService: IModeService,
+	languageService: ILanguageService,
 	editor: IActiveNotebookEditor,
 	index: number,
 	type: CellKind,
@@ -592,7 +592,7 @@ export function insertCell(
 	const nextIndex = ui ? viewModel.getNextVisibleCellIndex(index) : index + 1;
 	let language;
 	if (type === CellKind.Code) {
-		const supportedLanguages = activeKernel?.supportedLanguages ?? modeService.getRegisteredModes();
+		const supportedLanguages = activeKernel?.supportedLanguages ?? languageService.getRegisteredLanguageIds();
 		const defaultLanguage = supportedLanguages[0] || 'plaintext';
 		if (cell?.cellKind === CellKind.Code) {
 			language = cell.language;

@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { URI } from 'vs/base/common/uri';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { CellKind, CellUri, diff, MimeTypeDisplayOrder, NotebookWorkingCopyTypeIdentifier } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { cellIndexesToRanges, cellRangesToIndexes, reduceCellRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
@@ -16,12 +16,12 @@ import { setupInstantiationService, TestCell } from 'vs/workbench/contrib/notebo
 suite('NotebookCommon', () => {
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
-	let modeService: IModeService;
+	let languageService: ILanguageService;
 
 	suiteSetup(() => {
 		disposables = new DisposableStore();
 		instantiationService = setupInstantiationService(disposables);
-		modeService = instantiationService.get(IModeService);
+		languageService = instantiationService.get(ILanguageService);
 	});
 
 	suiteTeardown(() => disposables.dispose());
@@ -231,7 +231,7 @@ suite('NotebookCommon', () => {
 
 		for (let i = 0; i < 5; i++) {
 			cells.push(
-				new TestCell('notebook', i, `var a = ${i};`, 'javascript', CellKind.Code, [], modeService)
+				new TestCell('notebook', i, `var a = ${i};`, 'javascript', CellKind.Code, [], languageService)
 			);
 		}
 
@@ -257,8 +257,8 @@ suite('NotebookCommon', () => {
 		]
 		);
 
-		const cellA = new TestCell('notebook', 6, 'var a = 6;', 'javascript', CellKind.Code, [], modeService);
-		const cellB = new TestCell('notebook', 7, 'var a = 7;', 'javascript', CellKind.Code, [], modeService);
+		const cellA = new TestCell('notebook', 6, 'var a = 6;', 'javascript', CellKind.Code, [], languageService);
+		const cellB = new TestCell('notebook', 7, 'var a = 7;', 'javascript', CellKind.Code, [], languageService);
 
 		const modifiedCells = [
 			cells[0],

@@ -152,7 +152,7 @@ export class UntitledFileWorkingCopyManager<M extends IUntitledFileWorkingCopyMo
 	private massageOptions(options: IInternalUntitledFileWorkingCopyOptions): IInternalUntitledFileWorkingCopyOptions {
 		const massagedOptions: IInternalUntitledFileWorkingCopyOptions = Object.create(null);
 
-		// Handle associcated resource
+		// Handle associated resource
 		if (options.associatedResource) {
 			massagedOptions.untitledResource = URI.from({
 				scheme: Schemas.untitled,

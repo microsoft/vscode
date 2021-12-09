@@ -13,7 +13,7 @@ import { IDimension } from 'vs/editor/common/editorCommon';
 import { IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -44,7 +44,7 @@ export class CodeCell extends Disposable {
 		@INotebookCellStatusBarService readonly notebookCellStatusBarService: INotebookCellStatusBarService,
 		@IKeybindingService readonly keybindingService: IKeybindingService,
 		@IOpenerService readonly openerService: IOpenerService,
-		@IModeService readonly modeService: IModeService,
+		@ILanguageService readonly languageService: ILanguageService,
 	) {
 		super();
 
@@ -381,7 +381,7 @@ export class CodeCell extends Disposable {
 	}
 
 	private _getRichText(buffer: IReadonlyTextBuffer, language: string) {
-		return tokenizeToString(buffer.getLineContent(1), this.modeService.languageIdCodec, TokenizationRegistry.get(language)!);
+		return tokenizeToString(buffer.getLineContent(1), this.languageService.languageIdCodec, TokenizationRegistry.get(language)!);
 	}
 
 	private _removeInputCollapsePreview() {

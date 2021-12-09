@@ -40,7 +40,7 @@ class CallHierarchyController implements IEditorContribution {
 
 	static readonly Id = 'callHierarchy';
 
-	static get(editor: ICodeEditor): CallHierarchyController {
+	static get(editor: ICodeEditor): CallHierarchyController | null {
 		return editor.getContribution<CallHierarchyController>(CallHierarchyController.Id);
 	}
 
@@ -112,7 +112,7 @@ class CallHierarchyController implements IEditorContribution {
 		const newModel = model.fork(call.item);
 		this._sessionDisposables.clear();
 
-		CallHierarchyController.get(newEditor)._showCallHierarchyWidget(
+		CallHierarchyController.get(newEditor)?._showCallHierarchyWidget(
 			Range.lift(newModel.root.selectionRange).getStartPosition(),
 			this._widget.direction,
 			Promise.resolve(newModel),
@@ -198,7 +198,7 @@ registerAction2(class extends EditorAction2 {
 	}
 
 	async runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		return CallHierarchyController.get(editor).startCallHierarchyFromEditor();
+		return CallHierarchyController.get(editor)?.startCallHierarchyFromEditor();
 	}
 });
 
@@ -223,7 +223,7 @@ registerAction2(class extends EditorAction2 {
 	}
 
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
-		return CallHierarchyController.get(editor).showIncomingCalls();
+		return CallHierarchyController.get(editor)?.showIncomingCalls();
 	}
 });
 
@@ -248,7 +248,7 @@ registerAction2(class extends EditorAction2 {
 	}
 
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
-		return CallHierarchyController.get(editor).showOutgoingCalls();
+		return CallHierarchyController.get(editor)?.showOutgoingCalls();
 	}
 });
 
@@ -268,7 +268,7 @@ registerAction2(class extends EditorAction2 {
 	}
 
 	async runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		return CallHierarchyController.get(editor).startCallHierarchyFromCallHierarchy();
+		return CallHierarchyController.get(editor)?.startCallHierarchyFromCallHierarchy();
 	}
 });
 
@@ -296,6 +296,6 @@ registerAction2(class extends EditorAction2 {
 	}
 
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		return CallHierarchyController.get(editor).endCallHierarchy();
+		return CallHierarchyController.get(editor)?.endCallHierarchy();
 	}
 });

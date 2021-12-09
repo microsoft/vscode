@@ -30,7 +30,7 @@ export class ContextMenuController implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.contextmenu';
 
-	public static get(editor: ICodeEditor): ContextMenuController {
+	public static get(editor: ICodeEditor): ContextMenuController | null {
 		return editor.getContribution<ContextMenuController>(ContextMenuController.ID);
 	}
 
@@ -281,8 +281,7 @@ class ShowContextMenu extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let contribution = ContextMenuController.get(editor);
-		contribution.showContextMenu();
+		ContextMenuController.get(editor)?.showContextMenu();
 	}
 }
 

@@ -227,6 +227,86 @@ export interface ICursorSimpleModel {
 	getLineIndentColumn(lineNumber: number): number;
 }
 
+export class CursorContext {
+	_cursorContextBrand: void = undefined;
+
+	public readonly model: ITextModel;
+	public readonly viewModel: ICursorSimpleModel;
+	public readonly coordinatesConverter: ICoordinatesConverter;
+	public readonly cursorConfig: CursorConfiguration;
+
+	constructor(model: ITextModel, viewModel: ICursorSimpleModel, coordinatesConverter: ICoordinatesConverter, cursorConfig: CursorConfiguration) {
+		this.model = model;
+		this.viewModel = viewModel;
+		this.coordinatesConverter = coordinatesConverter;
+		this.cursorConfig = cursorConfig;
+	}
+}
+
+export type PartialCursorState = CursorState | PartialModelCursorState | PartialViewCursorState;
+
+export class CursorState {
+	_cursorStateBrand: void = undefined;
+
+	public static fromModelState(modelState: SingleCursorState): PartialModelCursorState {
+		return new PartialModelCursorState(modelState);
+	}
+
+	public static fromViewState(viewState: SingleCursorState): PartialViewCursorState {
+		return new PartialViewCursorState(viewState);
+	}
+
+	public static fromModelSelection(modelSelection: ISelection): PartialModelCursorState {
+		const selection = Selection.liftSelection(modelSelection);
+		const modelState = new SingleCursorState(
+			Range.fromPositions(selection.getSelectionStart()),
+			0,
+			selection.getPosition(), 0
+		);
+		return CursorState.fromModelState(modelState);
+	}
+
+	public static fromModelSelections(modelSelections: readonly ISelection[]): PartialModelCursorState[] {
+		let states: PartialModelCursorState[] = [];
+		for (let i = 0, len = modelSelections.length; i < len; i++) {
+			states[i] = this.fromModelSelection(modelSelections[i]);
+		}
+		return states;
+	}
+
+	readonly modelState: SingleCursorState;
+	readonly viewState: SingleCursorState;
+
+	constructor(modelState: SingleCursorState, viewState: SingleCursorState) {
+		this.modelState = modelState;
+		this.viewState = viewState;
+	}
+
+	public equals(other: CursorState): boolean {
+		return (this.viewState.equals(other.viewState) && this.modelState.equals(other.modelState));
+	}
+}
+
+export class PartialModelCursorState {
+	readonly modelState: SingleCursorState;
+	readonly viewState: null;
+
+	constructor(modelState: SingleCursorState) {
+		this.modelState = modelState;
+		this.viewState = null;
+	}
+}
+
+export class PartialViewCursorState {
+	readonly modelState: null;
+	readonly viewState: SingleCursorState;
+
+	constructor(viewState: SingleCursorState) {
+		this.modelState = null;
+		this.viewState = viewState;
+	}
+}
+
 /**
  * Represents the cursor state on either the model or on the view model.
  */
@@ -292,86 +372,6 @@ export class SingleCursorState {
 		} else {
 			return Selection.fromPositions(selectionStart.getEndPosition(), position);
 		}
-	}
-}
-
-export class CursorContext {
-	_cursorContextBrand: void = undefined;
-
-	public readonly model: ITextModel;
-	public readonly viewModel: ICursorSimpleModel;
-	public readonly coordinatesConverter: ICoordinatesConverter;
-	public readonly cursorConfig: CursorConfiguration;
-
-	constructor(model: ITextModel, viewModel: ICursorSimpleModel, coordinatesConverter: ICoordinatesConverter, cursorConfig: CursorConfiguration) {
-		this.model = model;
-		this.viewModel = viewModel;
-		this.coordinatesConverter = coordinatesConverter;
-		this.cursorConfig = cursorConfig;
-	}
-}
-
-export class PartialModelCursorState {
-	readonly modelState: SingleCursorState;
-	readonly viewState: null;
-
-	constructor(modelState: SingleCursorState) {
-		this.modelState = modelState;
-		this.viewState = null;
-	}
-}
-
-export class PartialViewCursorState {
-	readonly modelState: null;
-	readonly viewState: SingleCursorState;
-
-	constructor(viewState: SingleCursorState) {
-		this.modelState = null;
-		this.viewState = viewState;
-	}
-}
-
-export type PartialCursorState = CursorState | PartialModelCursorState | PartialViewCursorState;
-
-export class CursorState {
-	_cursorStateBrand: void = undefined;
-
-	public static fromModelState(modelState: SingleCursorState): PartialModelCursorState {
-		return new PartialModelCursorState(modelState);
-	}
-
-	public static fromViewState(viewState: SingleCursorState): PartialViewCursorState {
-		return new PartialViewCursorState(viewState);
-	}
-
-	public static fromModelSelection(modelSelection: ISelection): PartialModelCursorState {
-		const selection = Selection.liftSelection(modelSelection);
-		const modelState = new SingleCursorState(
-			Range.fromPositions(selection.getSelectionStart()),
-			0,
-			selection.getPosition(), 0
-		);
-		return CursorState.fromModelState(modelState);
-	}
-
-	public static fromModelSelections(modelSelections: readonly ISelection[]): PartialModelCursorState[] {
-		let states: PartialModelCursorState[] = [];
-		for (let i = 0, len = modelSelections.length; i < len; i++) {
-			states[i] = this.fromModelSelection(modelSelections[i]);
-		}
-		return states;
-	}
-
-	readonly modelState: SingleCursorState;
-	readonly viewState: SingleCursorState;
-
-	constructor(modelState: SingleCursorState, viewState: SingleCursorState) {
-		this.modelState = modelState;
-		this.viewState = viewState;
-	}
-
-	public equals(other: CursorState): boolean {
-		return (this.viewState.equals(other.viewState) && this.modelState.equals(other.modelState));
 	}
 }
 

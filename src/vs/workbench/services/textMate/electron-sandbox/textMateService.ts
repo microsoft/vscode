@@ -6,7 +6,7 @@
 import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { AbstractTextMateService } from 'vs/workbench/services/textMate/browser/abstractTextMateService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -149,7 +149,7 @@ export class TextMateService extends AbstractTextMateService {
 	private _tokenizers: { [uri: string]: ModelWorkerTextMateTokenizer; };
 
 	constructor(
-		@IModeService modeService: IModeService,
+		@ILanguageService languageService: ILanguageService,
 		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
 		@IExtensionResourceLoaderService extensionResourceLoaderService: IExtensionResourceLoaderService,
 		@INotificationService notificationService: INotificationService,
@@ -159,7 +159,7 @@ export class TextMateService extends AbstractTextMateService {
 		@IModelService private readonly _modelService: IModelService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
-		super(modeService, themeService, extensionResourceLoaderService, notificationService, logService, configurationService, progressService);
+		super(languageService, themeService, extensionResourceLoaderService, notificationService, logService, configurationService, progressService);
 		this._worker = null;
 		this._workerProxy = null;
 		this._tokenizers = Object.create(null);
@@ -176,7 +176,7 @@ export class TextMateService extends AbstractTextMateService {
 			return;
 		}
 		const key = model.uri.toString();
-		const tokenizer = new ModelWorkerTextMateTokenizer(this._workerProxy, this._modeService.languageIdCodec, model);
+		const tokenizer = new ModelWorkerTextMateTokenizer(this._workerProxy, this._languageService.languageIdCodec, model);
 		this._tokenizers[key] = tokenizer;
 	}
 

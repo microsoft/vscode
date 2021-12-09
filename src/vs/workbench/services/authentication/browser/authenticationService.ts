@@ -721,7 +721,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 
 		const didTimeout: Promise<MainThreadAuthenticationProvider> = new Promise((_, reject) => {
 			setTimeout(() => {
-				reject();
+				reject('Timed out waiting for authentication provider to register');
 			}, 5000);
 		});
 

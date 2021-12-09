@@ -151,7 +151,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 
 			const scanPaths = (workspace.isTrusted ? workspace.getConfiguration('git', folder.uri) : config).get<string[]>('scanRepositories') || [];
 			for (const scanPath of scanPaths) {
-				if (scanPath !== '.git') {
+				if (scanPath === '.git') {
 					continue;
 				}
 

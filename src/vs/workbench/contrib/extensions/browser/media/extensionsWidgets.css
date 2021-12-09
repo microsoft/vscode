@@ -60,6 +60,6 @@
 }
 
 /* codicon colors */
-.codicon .codicon-extensions-pre-release {
+.codicon.codicon-extensions-pre-release {
 	color: var(--vscode-extensionIcon-preReleaseForeground);
 }

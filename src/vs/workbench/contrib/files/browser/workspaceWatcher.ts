@@ -41,7 +41,7 @@ export class WorkspaceWatcher extends Disposable {
 		this._register(this.contextService.onDidChangeWorkspaceFolders(e => this.onDidChangeWorkspaceFolders(e)));
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.onDidChangeWorkbenchState()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onDidChangeConfiguration(e)));
-		this._register(this.fileService.onError(error => this.onError(error)));
+		this._register(this.fileService.onDidWatchError(error => this.onDidWatchError(error)));
 	}
 
 	private onDidChangeWorkspaceFolders(e: IWorkspaceFoldersChangeEvent): void {
@@ -67,7 +67,7 @@ export class WorkspaceWatcher extends Disposable {
 		}
 	}
 
-	private onError(error: Error): void {
+	private onDidWatchError(error: Error): void {
 		const msg = error.toString();
 
 		// Detect if we run into ENOSPC issues

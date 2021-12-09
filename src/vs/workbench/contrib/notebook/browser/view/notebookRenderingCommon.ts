@@ -29,6 +29,7 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 export interface INotebookCellList {
 	isDisposed: boolean;
 	viewModel: NotebookViewModel | null;
+	webviewElement: FastDomNode<HTMLElement> | null;
 	readonly contextKeyService: IContextKeyService;
 	element(index: number): ICellViewModel | undefined;
 	elementAt(position: number): ICellViewModel | undefined;
@@ -52,6 +53,7 @@ export interface INotebookCellList {
 	readonly onContextMenu: Event<IListContextMenuEvent<CellViewModel>>;
 	detachViewModel(): void;
 	attachViewModel(viewModel: NotebookViewModel): void;
+	attachWebview(element: HTMLElement): void;
 	clear(): void;
 	getViewIndex(cell: ICellViewModel): number | undefined;
 	getViewIndex2(modelIndex: number): number | undefined;

@@ -1598,8 +1598,10 @@ export function registerTerminalActions() {
 		async run(accessor: ServicesAccessor) {
 			const themeService = accessor.get(IThemeService);
 			const groupService = accessor.get(ITerminalGroupService);
+			const notificationService = accessor.get(INotificationService);
 			const picks: ITerminalQuickPickItem[] = [];
-			if (!groupService.activeInstance || groupService.instances.length === 1) {
+			if (groupService.instances.length <= 1) {
+				notificationService.warn(localize('workbench.action.terminal.join.insufficientTerminals', 'Insufficient terminals for the join action'));
 				return;
 			}
 			const otherInstances = groupService.instances.filter(i => i.instanceId !== groupService.activeInstance?.instanceId);
@@ -1623,6 +1625,10 @@ export function registerTerminalActions() {
 						iconClasses
 					});
 				}
+			}
+			if (picks.length === 0) {
+				notificationService.warn(localize('workbench.action.terminal.join.onlySplits', 'All terminals are joined already'));
+				return;
 			}
 			const result = await accessor.get(IQuickInputService).pick(picks, {});
 			if (result) {
@@ -1798,9 +1804,11 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
+			const disposePromises: Promise<void>[] = [];
 			for (const instance of terminalService.instances) {
-				await terminalService.safeDisposeTerminal(instance);
+				disposePromises.push(terminalService.safeDisposeTerminal(instance));
 			}
+			await Promise.all(disposePromises);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1850,9 +1858,11 @@ export function registerTerminalActions() {
 				return;
 			}
 			const terminalService = accessor.get(ITerminalService);
+			const disposePromises: Promise<void>[] = [];
 			for (const instance of selectedInstances) {
-				terminalService.safeDisposeTerminal(instance);
+				disposePromises.push(terminalService.safeDisposeTerminal(instance));
 			}
+			await Promise.all(disposePromises);
 			if (terminalService.instances.length > 0) {
 				accessor.get(ITerminalGroupService).focusTabs();
 				focusNext(accessor);

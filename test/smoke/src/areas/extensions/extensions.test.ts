@@ -3,18 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import minimist = require('minimist');
-import { Application, Quality } from '../../../../automation';
-import { afterSuite, beforeSuite } from '../../utils';
+import { Application, Logger, Quality } from '../../../../automation';
+import { installAllHandlers } from '../../utils';
 
-export function setup(opts: minimist.ParsedArgs) {
+export function setup(logger: Logger) {
 	describe('Extensions', () => {
-		beforeSuite(opts);
-		afterSuite(opts);
 
-		it(`install and enable vscode-smoketest-check extension`, async function () {
+		// Shared before/after handling
+		installAllHandlers(logger);
+
+		it('install and enable vscode-smoketest-check extension', async function () {
 			const app = this.app as Application;
-
 			if (app.quality === Quality.Dev) {
 				this.skip();
 			}
@@ -29,6 +28,5 @@ export function setup(opts: minimist.ParsedArgs) {
 
 			await app.workbench.quickaccess.runCommand('Smoke Test Check');
 		});
-
 	});
 }

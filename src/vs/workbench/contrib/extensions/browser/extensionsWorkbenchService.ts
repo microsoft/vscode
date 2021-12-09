@@ -34,7 +34,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension } from 'vs/platform/extensions/common/extensions';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { FileAccess } from 'vs/base/common/network';
 import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
@@ -201,7 +201,7 @@ class Extension implements IExtension {
 	}
 
 	get outdated(): boolean {
-		return !!this.gallery && this.type === ExtensionType.User && semver.gt(this.latestVersion, this.version) && this.local?.isPreReleaseVersion === this.gallery?.properties.isPreReleaseVersion;
+		return !!this.gallery && this.type === ExtensionType.User && semver.gt(this.latestVersion, this.version) && (this.local?.isPreReleaseVersion || !this.gallery?.properties.isPreReleaseVersion);
 	}
 
 	get telemetryData(): any {
@@ -220,6 +220,10 @@ class Extension implements IExtension {
 
 	get hasPreReleaseVersion(): boolean {
 		return !!this.gallery?.hasPreReleaseVersion;
+	}
+
+	get hasReleaseVersion(): boolean {
+		return !!this.gallery?.hasReleaseVersion;
 	}
 
 	private getLocal(preRelease: boolean): ILocalExtension | undefined {
@@ -433,12 +437,24 @@ class Extensions extends Disposable {
 			hasChanged = true;
 		}
 
-		const compatible = await this.getCompatibleExtension(gallery, !!extension.local?.isPreReleaseVersion);
+		const compatible = await this.getCompatibleExtension(gallery, extension.local.isPreReleaseVersion);
 		if (compatible) {
-			const local = extension.local.identifier.uuid ? extension.local : await this.server.extensionManagementService.updateMetadata(extension.local, { id: compatible.identifier.uuid, publisherDisplayName: compatible.publisherDisplayName, publisherId: compatible.publisherId });
-			extension.local = local;
 			extension.gallery = compatible;
 			hasChanged = true;
+		}
+
+		if (!extension.local.identifier.uuid) {
+			let galleryExtension = !extension.outdated ? extension.gallery : undefined;
+			if (!galleryExtension) {
+				[galleryExtension] = await this.galleryService.getExtensions([{ ...extension.local.identifier, version: extension.version }], CancellationToken.None);
+			}
+			if (!galleryExtension) {
+				[galleryExtension] = await this.galleryService.getExtensions([extension.local.identifier], CancellationToken.None);
+			}
+			if (galleryExtension) {
+				const local = await this.server.extensionManagementService.updateMetadata(extension.local, { id: galleryExtension.identifier.uuid, publisherDisplayName: galleryExtension.publisherDisplayName, publisherId: galleryExtension.publisherId, isPreReleaseVersion: gallery.properties.isPreReleaseVersion });
+				extension.local = local;
+			}
 		}
 
 		const unsupportedPreRelease = extensionsControlManifest.unsupportedPreReleaseExtensions ? extensionsControlManifest.unsupportedPreReleaseExtensions[extension.identifier.id.toLowerCase()] : undefined;
@@ -621,7 +637,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IProgressService private readonly progressService: IProgressService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IIgnoredExtensionsManagementService private readonly extensionsSyncManagementService: IIgnoredExtensionsManagementService,
 		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
 		@IProductService private readonly productService: IProductService,
@@ -789,8 +805,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				const keywords = lookup[ext] || [];
 
 				// Get mode name
-				const languageId = this.modeService.getModeIdByFilepathOrFirstLine(URI.file(`.${ext}`));
-				const languageName = languageId && this.modeService.getLanguageName(languageId);
+				const languageId = this.languageService.getLanguageIdByFilepathOrFirstLine(URI.file(`.${ext}`));
+				const languageName = languageId && this.languageService.getLanguageName(languageId);
 				const languageTag = languageName ? ` tag:"${languageName}"` : '';
 
 				// Construct a rich query

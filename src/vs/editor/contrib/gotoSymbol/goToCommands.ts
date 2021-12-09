@@ -108,7 +108,7 @@ abstract class SymbolNavigationAction extends EditorAction {
 				// no result -> show message
 				if (!this._configuration.muteMessage) {
 					const info = model.getWordAtPosition(pos);
-					MessageController.get(editor).showMessage(this._getNoResultFoundMessage(info), pos);
+					MessageController.get(editor)?.showMessage(this._getNoResultFoundMessage(info), pos);
 				}
 			} else if (referenceCount === 1 && altAction) {
 				// already at the only result, run alternative
@@ -202,7 +202,7 @@ abstract class SymbolNavigationAction extends EditorAction {
 	}
 
 	private _openInPeek(target: ICodeEditor, model: ReferencesModel) {
-		let controller = ReferencesController.get(target);
+		const controller = ReferencesController.get(target);
 		if (controller && target.hasModel()) {
 			controller.toggleWidget(target.getSelection(), createCancelablePromise(_ => Promise.resolve(model)), this._configuration.openInPeek);
 		} else {

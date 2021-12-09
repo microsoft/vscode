@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ParsedArgs } from 'minimist';
-import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation/out';
+import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation';
 
-export function setup(opts: ParsedArgs) {
+export function setup() {
 	describe('Terminal Persistence', () => {
 		// Acquire automation API
 		let terminal: Terminal;
@@ -17,7 +16,7 @@ export function setup(opts: ParsedArgs) {
 
 		describe('detach/attach', () => {
 			// https://github.com/microsoft/vscode/issues/137799
-			it.skip('should support basic reconnection', async () => {
+			it('should support basic reconnection', async () => {
 				await terminal.runCommand(TerminalCommandId.CreateNew);
 				// TODO: Handle passing in an actual regex, not string
 				await terminal.assertTerminalGroups([
@@ -41,7 +40,7 @@ export function setup(opts: ParsedArgs) {
 				]);
 			});
 
-			it('should persist buffer content', async () => {
+			it.skip('should persist buffer content', async () => {
 				await terminal.runCommand(TerminalCommandId.CreateNew);
 				// TODO: Handle passing in an actual regex, not string
 				await terminal.assertTerminalGroups([

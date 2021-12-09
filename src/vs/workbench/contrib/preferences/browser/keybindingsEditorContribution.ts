@@ -41,7 +41,7 @@ export class DefineKeybindingController extends Disposable implements IEditorCon
 
 	public static readonly ID = 'editor.contrib.defineKeybinding';
 
-	static get(editor: ICodeEditor): DefineKeybindingController {
+	static get(editor: ICodeEditor): DefineKeybindingController | null {
 		return editor.getContribution<DefineKeybindingController>(DefineKeybindingController.ID);
 	}
 
@@ -155,7 +155,7 @@ export class KeybindingWidgetRenderer extends Disposable {
 			snippetText = smartInsertInfo.prepend + snippetText + smartInsertInfo.append;
 			this._editor.setPosition(smartInsertInfo.position);
 
-			SnippetController2.get(this._editor).insert(snippetText, { overwriteBefore: 0, overwriteAfter: 0 });
+			SnippetController2.get(this._editor)?.insert(snippetText, { overwriteBefore: 0, overwriteAfter: 0 });
 		}
 	}
 }

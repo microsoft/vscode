@@ -990,7 +990,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async sendPath(originalPath: string, addNewLine: boolean): Promise<void> {
-		const preparedPath = await preparePathForShell(originalPath, this.shellLaunchConfig.executable, this.title, this.shellType, this._processManager.backend);
+		const preparedPath = await preparePathForShell(originalPath, this.shellLaunchConfig.executable, this.title, this.shellType, this._processManager.backend, this._processManager.os);
 		return this.sendText(preparedPath, addNewLine);
 	}
 
@@ -1101,6 +1101,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					break;
 				case ProcessPropertyType.ResolvedShellLaunchConfig:
 					this._setResolvedShellLaunchConfig(value);
+					break;
+				case ProcessPropertyType.ShellType:
+					this.setShellType(value);
 					break;
 				case ProcessPropertyType.HasChildProcesses:
 					this._onDidChangeHasChildProcesses.fire(value);
@@ -2205,7 +2208,7 @@ export function parseExitResult(
  * @param backend The backend for the terminal.
  * @returns An escaped version of the path to be execuded in the terminal.
  */
-async function preparePathForShell(originalPath: string, executable: string | undefined, title: string, shellType: TerminalShellType, backend: ITerminalBackend | undefined): Promise<string> {
+async function preparePathForShell(originalPath: string, executable: string | undefined, title: string, shellType: TerminalShellType, backend: ITerminalBackend | undefined, os: OperatingSystem | undefined): Promise<string> {
 	return new Promise<string>(c => {
 		if (!executable) {
 			c(originalPath);
@@ -2231,8 +2234,7 @@ async function preparePathForShell(originalPath: string, executable: string | un
 			return;
 		}
 
-		// TODO: This should use the process manager's OS, not the local OS
-		if (isWindows) {
+		if (os === OperatingSystem.Windows) {
 			// 17063 is the build number where wsl path was introduced.
 			// Update Windows uriPath to be executed in WSL.
 			if (shellType !== undefined) {

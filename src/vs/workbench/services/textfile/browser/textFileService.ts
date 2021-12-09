@@ -36,7 +36,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, toEncodeReadable, toDecodeStream, IDecodeStreamResult } from 'vs/workbench/services/textfile/common/encoding';
 import { consumeStream, ReadableStream } from 'vs/base/common/stream';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
@@ -72,7 +72,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		@IPathService private readonly pathService: IPathService,
 		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@ILogService protected readonly logService: ILogService,
 		@IElevatedFileService private readonly elevatedFileService: IElevatedFileService,
 		@IDecorationsService private readonly decorationsService: IDecorationsService
@@ -581,19 +581,19 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	}
 
 	suggestFilename(mode: string, untitledName: string) {
-		const languageName = this.modeService.getLanguageName(mode);
+		const languageName = this.languageService.getLanguageName(mode);
 		if (!languageName) {
 			return untitledName;
 		}
 
-		const extension = this.modeService.getExtensions(languageName)[0];
+		const extension = this.languageService.getExtensions(languageName)[0];
 		if (extension) {
 			if (!untitledName.endsWith(extension)) {
 				return untitledName + extension;
 			}
 		}
 
-		const filename = this.modeService.getFilenames(languageName)[0];
+		const filename = this.languageService.getFilenames(languageName)[0];
 		return filename || untitledName;
 	}
 
