@@ -49,7 +49,6 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { getDefaultValue } from 'vs/platform/configuration/common/configurationRegistry';
 import { isUndefined } from 'vs/base/common/types';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IWebviewService, IWebview, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/webview/browser/webview';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -209,7 +208,6 @@ export class ExtensionEditor extends EditorPane {
 		@IExtensionIgnoredRecommendationsService private readonly extensionIgnoredRecommendationsService: IExtensionIgnoredRecommendationsService,
 		@IStorageService storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
@@ -476,15 +474,6 @@ export class ExtensionEditor extends EditorPane {
 			}));
 		}
 
-		const [colorThemes, fileIconThemes, productIconThemes] = await Promise.all([
-			this.workbenchThemeService.getColorThemes(),
-			this.workbenchThemeService.getFileIconThemes(),
-			this.workbenchThemeService.getProductIconThemes(),
-		]);
-		if (token.isCancellationRequested) {
-			return;
-		}
-
 		const widgets = [
 			remoteBadge,
 			this.instantiationService.createInstance(InstallCountWidget, template.installCount, false),
@@ -496,9 +485,9 @@ export class ExtensionEditor extends EditorPane {
 			reloadAction,
 			this.instantiationService.createInstance(ExtensionStatusLabelAction),
 			this.instantiationService.createInstance(UpdateAction),
-			this.instantiationService.createInstance(SetColorThemeAction, colorThemes),
-			this.instantiationService.createInstance(SetFileIconThemeAction, fileIconThemes),
-			this.instantiationService.createInstance(SetProductIconThemeAction, productIconThemes),
+			this.instantiationService.createInstance(SetColorThemeAction),
+			this.instantiationService.createInstance(SetFileIconThemeAction),
+			this.instantiationService.createInstance(SetProductIconThemeAction),
 
 			this.instantiationService.createInstance(EnableDropDownAction),
 			this.instantiationService.createInstance(DisableDropDownAction),
