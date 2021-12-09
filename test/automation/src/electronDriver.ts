@@ -13,7 +13,7 @@ import { promisify } from 'util';
 import * as kill from 'tree-kill';
 import { copyExtension } from './extensions';
 import { URI } from 'vscode-uri';
-import { measureAndLog } from './logger';
+import { Logger, measureAndLog } from './logger';
 import type { LaunchOptions } from './code';
 
 const repoPath = path.join(__dirname, '../../..');
@@ -100,18 +100,7 @@ export async function launch(options: LaunchOptions): Promise<{ electronProcess:
 				electronProcess,
 				client,
 				driver,
-				kill: async () => {
-					try {
-						return promisify(kill)(electronProcess.pid!);
-					} catch (error) {
-						try {
-							process.kill(electronProcess.pid!, 0); // throws an exception if the process doesn't exist anymore
-							logger.log(`Error tearing down electron client (pid: ${electronProcess.pid}): ${error}`);
-						} catch (error) {
-							return; // Expected when process is gone
-						}
-					}
-				}
+				kill: () => teardown(electronProcess, options.logger)
 			};
 		} catch (err) {
 
@@ -119,11 +108,7 @@ export async function launch(options: LaunchOptions): Promise<{ electronProcess:
 			if (++retries > 30) {
 				logger.log(`Error connecting driver: ${err}. Giving up...`);
 
-				try {
-					await measureAndLog(promisify(kill)(electronProcess.pid!), 'Kill Electron after failing to connect', logger);
-				} catch (error) {
-					logger.log(`Error tearing down electron client (pid: ${electronProcess.pid}): ${error}`);
-				}
+				await measureAndLog(teardown(electronProcess, logger), 'Kill Electron after failing to connect', logger);
 
 				throw err;
 			}
@@ -138,6 +123,31 @@ export async function launch(options: LaunchOptions): Promise<{ electronProcess:
 			}
 		}
 	}
+}
+
+async function teardown(electronProcess: ChildProcess, logger: Logger): Promise<void> {
+	const electronPid = electronProcess.pid;
+	if (typeof electronPid !== 'number') {
+		return;
+	}
+
+	let retries = 0;
+	while (retries < 3) {
+		retries++;
+
+		try {
+			return await promisify(kill)(electronPid);
+		} catch (error) {
+			try {
+				process.kill(electronPid, 0); // throws an exception if the process doesn't exist anymore
+				logger.log(`Error tearing down electron client (pid: ${electronPid}, attempt: ${retries}): ${error}`);
+			} catch (error) {
+				return; // Expected when process is gone
+			}
+		}
+	}
+
+	logger.log(`Gave up tearing down electron client after ${retries} attempts...`);
 }
 
 function getDevElectronPath(): string {
