@@ -42,10 +42,11 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 	readonly _serviceBrand: undefined;
 
+	#proxy: MainThreadCommandsShape;
+
 	private readonly _commands = new Map<string, CommandHandler>();
 	private readonly _apiCommands = new Map<string, ApiCommand>();
 
-	private readonly _proxy: MainThreadCommandsShape;
 	private readonly _logService: ILogService;
 	private readonly _argumentProcessors: ArgumentProcessor[];
 
@@ -55,7 +56,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 		@ILogService logService: ILogService
 	) {
-		this._proxy = extHostRpc.getProxy(MainContext.MainThreadCommands);
+		this.#proxy = extHostRpc.getProxy(MainContext.MainThreadCommands);
 		this._logService = logService;
 		this.converter = new CommandsConverter(
 			this,
@@ -146,13 +147,13 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 		this._commands.set(id, { callback, thisArg, description, extension });
 		if (global) {
-			this._proxy.$registerCommand(id);
+			this.#proxy.$registerCommand(id);
 		}
 
 		return new extHostTypes.Disposable(() => {
 			if (this._commands.delete(id)) {
 				if (global) {
-					this._proxy.$unregisterCommand(id);
+					this.#proxy.$unregisterCommand(id);
 				}
 			}
 		});
@@ -195,7 +196,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			});
 
 			try {
-				const result = await this._proxy.$executeCommand<T>(id, hasBuffers ? new SerializableObjectWithBuffers(toArgs) : toArgs, retry);
+				const result = await this.#proxy.$executeCommand<T>(id, hasBuffers ? new SerializableObjectWithBuffers(toArgs) : toArgs, retry);
 				return revive<any>(result);
 			} catch (e) {
 				// Rerun the command when it wasn't known, had arguments, and when retry
@@ -267,7 +268,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	getCommands(filterUnderscoreCommands: boolean = false): Promise<string[]> {
 		this._logService.trace('ExtHostCommands#getCommands', filterUnderscoreCommands);
 
-		return this._proxy.$getCommands().then(result => {
+		return this.#proxy.$getCommands().then(result => {
 			if (filterUnderscoreCommands) {
 				result = result.filter(command => command[0] !== '_');
 			}
