@@ -289,7 +289,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		if (onlyWrappingColumnChanged) {
 			previousLineBreaks = [];
 			for (let i = 0, len = this.modelLineProjections.length; i < len; i++) {
-				previousLineBreaks[i] = this.modelLineProjections[i].getLineBreakData();
+				previousLineBreaks[i] = this.modelLineProjections[i].getProjectionData();
 			}
 		}
 

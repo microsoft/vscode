@@ -19,7 +19,7 @@ export interface IModelLineProjection {
 	*/
 	setVisible(isVisible: boolean): IModelLineProjection;
 
-	getLineBreakData(): ModelLineProjectionData | null;
+	getProjectionData(): ModelLineProjectionData | null;
 	getViewLineCount(): number;
 	getViewLineContent(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): string;
 	getViewLineLength(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number;
@@ -63,11 +63,11 @@ export function createModelLineProjection(lineBreakData: ModelLineProjectionData
  * * inject text
  */
 class ModelLineProjection implements IModelLineProjection {
-	private readonly _lineBreakData: ModelLineProjectionData;
+	private readonly projectionData: ModelLineProjectionData;
 	private _isVisible: boolean;
 
 	constructor(lineBreakData: ModelLineProjectionData, isVisible: boolean) {
-		this._lineBreakData = lineBreakData;
+		this.projectionData = lineBreakData;
 		this._isVisible = isVisible;
 	}
 
@@ -80,30 +80,30 @@ class ModelLineProjection implements IModelLineProjection {
 		return this;
 	}
 
-	public getLineBreakData(): ModelLineProjectionData | null {
-		return this._lineBreakData;
+	public getProjectionData(): ModelLineProjectionData | null {
+		return this.projectionData;
 	}
 
 	public getViewLineCount(): number {
 		if (!this._isVisible) {
 			return 0;
 		}
-		return this._lineBreakData.getOutputLineCount();
+		return this.projectionData.getOutputLineCount();
 	}
 
 	public getViewLineContent(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): string {
 		this.assertVisible();
 
 		// These offsets refer to model text with injected text.
-		const startOffset = outputLineIndex > 0 ? this._lineBreakData.breakOffsets[outputLineIndex - 1] : 0;
-		const endOffset = outputLineIndex < this._lineBreakData.breakOffsets.length
-			? this._lineBreakData.breakOffsets[outputLineIndex]
+		const startOffset = outputLineIndex > 0 ? this.projectionData.breakOffsets[outputLineIndex - 1] : 0;
+		const endOffset = outputLineIndex < this.projectionData.breakOffsets.length
+			? this.projectionData.breakOffsets[outputLineIndex]
 			// This case might not be possible anyway, but we clamp the value to be on the safe side.
-			: this._lineBreakData.breakOffsets[this._lineBreakData.breakOffsets.length - 1];
+			: this.projectionData.breakOffsets[this.projectionData.breakOffsets.length - 1];
 
 		let r: string;
-		if (this._lineBreakData.injectionOffsets !== null) {
-			const injectedTexts = this._lineBreakData.injectionOffsets.map((offset, idx) => new LineInjectedText(0, 0, offset + 1, this._lineBreakData.injectionOptions![idx], 0));
+		if (this.projectionData.injectionOffsets !== null) {
+			const injectedTexts = this.projectionData.injectionOffsets.map((offset, idx) => new LineInjectedText(0, 0, offset + 1, this.projectionData.injectionOptions![idx], 0));
 			r = LineInjectedText.applyInjectedText(model.getLineContent(modelLineNumber), injectedTexts).substring(startOffset, endOffset);
 		} else {
 			r = model.getValueInRange({
@@ -115,7 +115,7 @@ class ModelLineProjection implements IModelLineProjection {
 		}
 
 		if (outputLineIndex > 0) {
-			r = spaces(this._lineBreakData.wrappedTextIndentLength) + r;
+			r = spaces(this.projectionData.wrappedTextIndentLength) + r;
 		}
 
 		return r;
@@ -123,17 +123,17 @@ class ModelLineProjection implements IModelLineProjection {
 
 	public getViewLineLength(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number {
 		this.assertVisible();
-		return this._lineBreakData.getLineLength(outputLineIndex);
+		return this.projectionData.getLineLength(outputLineIndex);
 	}
 
 	public getViewLineMinColumn(_model: ITextModel, _modelLineNumber: number, outputLineIndex: number): number {
 		this.assertVisible();
-		return this._lineBreakData.getMinOutputOffset(outputLineIndex) + 1;
+		return this.projectionData.getMinOutputOffset(outputLineIndex) + 1;
 	}
 
 	public getViewLineMaxColumn(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number {
 		this.assertVisible();
-		return this._lineBreakData.getMaxOutputOffset(outputLineIndex) + 1;
+		return this.projectionData.getMaxOutputOffset(outputLineIndex) + 1;
 	}
 
 	/**
@@ -148,7 +148,7 @@ class ModelLineProjection implements IModelLineProjection {
 	public getViewLinesData(model: ISimpleModel, modelLineNumber: number, fromOutputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: Array<ViewLineData | null>): void {
 		this.assertVisible();
 
-		const lineBreakData = this._lineBreakData;
+		const lineBreakData = this.projectionData;
 
 		const injectionOffsets = lineBreakData.injectionOffsets;
 		const injectionOptions = lineBreakData.injectionOptions;
@@ -219,7 +219,7 @@ class ModelLineProjection implements IModelLineProjection {
 
 	private _getViewLineData(lineWithInjections: LineTokens, inlineDecorations: null | SingleLineInlineDecoration[], outputLineIndex: number): ViewLineData {
 		this.assertVisible();
-		const lineBreakData = this._lineBreakData;
+		const lineBreakData = this.projectionData;
 		const deltaStartIndex = (outputLineIndex > 0 ? lineBreakData.wrappedTextIndentLength : 0);
 
 		const lineStartOffsetInInputWithInjections = outputLineIndex > 0 ? lineBreakData.breakOffsets[outputLineIndex - 1] : 0;
@@ -231,7 +231,7 @@ class ModelLineProjection implements IModelLineProjection {
 			lineContent = spaces(lineBreakData.wrappedTextIndentLength) + lineContent;
 		}
 
-		const minColumn = this._lineBreakData.getMinOutputOffset(outputLineIndex) + 1;
+		const minColumn = this.projectionData.getMinOutputOffset(outputLineIndex) + 1;
 		const maxColumn = lineContent.length + 1;
 		const continuesWithWrappedLine = (outputLineIndex + 1 < this.getViewLineCount());
 		const startVisibleColumn = (outputLineIndex === 0 ? 0 : lineBreakData.breakOffsetsVisibleColumn[outputLineIndex - 1]);
@@ -249,30 +249,30 @@ class ModelLineProjection implements IModelLineProjection {
 
 	public getModelColumnOfViewPosition(outputLineIndex: number, outputColumn: number): number {
 		this.assertVisible();
-		return this._lineBreakData.translateToInputOffset(outputLineIndex, outputColumn - 1) + 1;
+		return this.projectionData.translateToInputOffset(outputLineIndex, outputColumn - 1) + 1;
 	}
 
 	public getViewPositionOfModelPosition(deltaLineNumber: number, inputColumn: number, affinity: PositionAffinity = PositionAffinity.None): Position {
 		this.assertVisible();
-		let r = this._lineBreakData.translateToOutputPosition(inputColumn - 1, affinity);
+		let r = this.projectionData.translateToOutputPosition(inputColumn - 1, affinity);
 		return r.toPosition(deltaLineNumber);
 	}
 
 	public getViewLineNumberOfModelPosition(deltaLineNumber: number, inputColumn: number): number {
 		this.assertVisible();
-		const r = this._lineBreakData.translateToOutputPosition(inputColumn - 1);
+		const r = this.projectionData.translateToOutputPosition(inputColumn - 1);
 		return deltaLineNumber + r.outputLineIndex;
 	}
 
 	public normalizePosition(outputLineIndex: number, outputPosition: Position, affinity: PositionAffinity): Position {
 		const baseViewLineNumber = outputPosition.lineNumber - outputLineIndex;
-		const normalizedOutputPosition = this._lineBreakData.normalizeOutputPosition(outputLineIndex, outputPosition.column - 1, affinity);
+		const normalizedOutputPosition = this.projectionData.normalizeOutputPosition(outputLineIndex, outputPosition.column - 1, affinity);
 		const result = normalizedOutputPosition.toPosition(baseViewLineNumber);
 		return result;
 	}
 
 	public getInjectedTextAt(outputLineIndex: number, outputColumn: number): InjectedText | null {
-		return this._lineBreakData.getInjectedText(outputLineIndex, outputColumn - 1);
+		return this.projectionData.getInjectedText(outputLineIndex, outputColumn - 1);
 	}
 
 	private assertVisible() {
@@ -301,7 +301,7 @@ class IdentityModelLineProjection implements IModelLineProjection {
 		return HiddenModelLineProjection.INSTANCE;
 	}
 
-	public getLineBreakData(): ModelLineProjectionData | null {
+	public getProjectionData(): ModelLineProjectionData | null {
 		return null;
 	}
 
@@ -387,7 +387,7 @@ class HiddenModelLineProjection implements IModelLineProjection {
 		return IdentityModelLineProjection.INSTANCE;
 	}
 
-	public getLineBreakData(): ModelLineProjectionData | null {
+	public getProjectionData(): ModelLineProjectionData | null {
 		return null;
 	}
 
