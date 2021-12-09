@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import minimist = require('minimist');
-import { Application, Quality, StatusBarElement } from '../../../../automation';
+import { Application, Quality, StatusBarElement, Logger } from '../../../../automation';
 import { installCommonTestHandlers } from '../../utils';
 
-export function setup(opts: minimist.ParsedArgs) {
+export function setup(isWeb: boolean, logger: Logger) {
 	describe('Statusbar', () => {
 
 		// Shared before/after handling
-		installCommonTestHandlers(opts);
+		installCommonTestHandlers(logger);
 
 		it('verifies presence of all default status bar elements', async function () {
 			const app = this.app as Application;
@@ -24,7 +23,7 @@ export function setup(opts: minimist.ParsedArgs) {
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.PROBLEMS_STATUS);
 
 			await app.workbench.quickaccess.openFile('app.js');
-			if (!opts.web) {
+			if (!isWeb) {
 				// Encoding picker currently hidden in web (only UTF-8 supported)
 				await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.ENCODING_STATUS);
 			}
@@ -45,7 +44,7 @@ export function setup(opts: minimist.ParsedArgs) {
 			await app.workbench.statusbar.clickOn(StatusBarElement.INDENTATION_STATUS);
 			await app.workbench.quickinput.waitForQuickInputOpened();
 			await app.workbench.quickinput.closeQuickInput();
-			if (!opts.web) {
+			if (!isWeb) {
 				// Encoding picker currently hidden in web (only UTF-8 supported)
 				await app.workbench.statusbar.clickOn(StatusBarElement.ENCODING_STATUS);
 				await app.workbench.quickinput.waitForQuickInputOpened();

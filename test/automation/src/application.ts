@@ -94,7 +94,7 @@ export class Application {
 
 	async captureScreenshot(name: string): Promise<void> {
 		if (this.options.screenshotsPath) {
-			const raw = await measureAndLog(this.code.capturePage(), 'capturePage', this.options.logger);
+			const raw = await measureAndLog(this.code.capturePage(), 'capturePage', this.logger);
 			const buffer = Buffer.from(raw, 'base64');
 			const screenshotPath = path.join(this.options.screenshotsPath, `${name}.png`);
 			this.logger.log('Screenshot recorded:', screenshotPath);

@@ -3,20 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application, ApplicationOptions, Quality } from '../../../../automation/out';
-import { ParsedArgs } from 'minimist';
+import { Application, ApplicationOptions, Logger, Quality } from '../../../../automation';
 import { installCommonAfterHandlers, getRandomUserDataDir, startApp, timeout, installCommonBeforeEachHandler } from '../../utils';
 
-export function setup(opts: ParsedArgs) {
+export function setup(stableCodePath: string | undefined, isRemote: boolean, logger: Logger) {
 	describe('Data Loss (insiders -> insiders)', () => {
 
 		let app: Application | undefined = undefined;
 
-		installCommonBeforeEachHandler();
-		installCommonAfterHandlers(opts, () => app);
+		installCommonBeforeEachHandler(logger);
+		installCommonAfterHandlers(() => app);
 
 		it('verifies opened editors are restored', async function () {
-			app = await startApp(opts, this.defaultOptions);
+			app = await startApp(this.defaultOptions);
 
 			// Open 3 editors and pin 2 of them
 			await app.workbench.quickaccess.openFile('www');
@@ -51,7 +50,7 @@ export function setup(opts: ParsedArgs) {
 		});
 
 		async function testHotExit(restartDelay: number | undefined, autoSave: boolean | undefined) {
-			app = await startApp(opts, this.defaultOptions);
+			app = await startApp(this.defaultOptions);
 
 			if (autoSave) {
 				await app.workbench.settingsEditor.addUserSetting('files.autoSave', '"afterDelay"');
@@ -98,12 +97,11 @@ export function setup(opts: ParsedArgs) {
 		let insidersApp: Application | undefined = undefined;
 		let stableApp: Application | undefined = undefined;
 
-		installCommonBeforeEachHandler();
-		installCommonAfterHandlers(opts, () => insidersApp ?? stableApp, async () => stableApp?.stop());
+		installCommonBeforeEachHandler(logger);
+		installCommonAfterHandlers(() => insidersApp ?? stableApp, async () => stableApp?.stop());
 
 		it('verifies opened editors are restored', async function () {
-			const stableCodePath = opts['stable-build'];
-			if (!stableCodePath || opts.remote) {
+			if (!stableCodePath || isRemote) {
 				this.skip();
 			}
 
@@ -160,8 +158,7 @@ export function setup(opts: ParsedArgs) {
 		});
 
 		async function testHotExit(restartDelay: number | undefined) {
-			const stableCodePath = opts['stable-build'];
-			if (!stableCodePath || opts.remote) {
+			if (!stableCodePath || isRemote) {
 				this.skip();
 			}
 

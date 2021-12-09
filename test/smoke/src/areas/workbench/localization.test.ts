@@ -3,25 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import minimist = require('minimist');
-import { Application, Quality } from '../../../../automation';
+import { Application, Quality, Logger } from '../../../../automation';
 import { installCommonAfterHandlers, installCommonBeforeEachHandler, startApp } from '../../utils';
 
-export function setup(args: minimist.ParsedArgs) {
+export function setup(logger: Logger) {
 
 	describe('Localization', () => {
 
 		let app: Application | undefined = undefined;
 
-		installCommonBeforeEachHandler();
-		installCommonAfterHandlers(args, () => app);
+		installCommonBeforeEachHandler(logger);
+		installCommonAfterHandlers(() => app);
 
 		it(`starts with 'DE' locale and verifies title and viewlets text is in German`, async function () {
 			if (this.defaultOptions.quality === Quality.Dev || this.defaultOptions.remote) {
 				return this.skip();
 			}
 
-			app = await startApp(args, this.defaultOptions);
+			app = await startApp(this.defaultOptions);
 
 			await app.workbench.extensions.openExtensionsViewlet();
 			await app.workbench.extensions.installExtension('ms-ceintl.vscode-language-pack-de', false);

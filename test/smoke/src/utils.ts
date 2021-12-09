@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import minimist = require('minimist');
 import { Suite, Context } from 'mocha';
-import { Application, ApplicationOptions } from '../../automation';
+import { Application, ApplicationOptions, Logger } from '../../automation';
 
 export function describeRepeat(n: number, description: string, callback: (this: Suite) => void): void {
 	for (let i = 0; i < n; i++) {
@@ -19,31 +18,31 @@ export function itRepeat(n: number, description: string, callback: (this: Contex
 	}
 }
 
-export function installCommonTestHandlers(args: minimist.ParsedArgs, optionsTransform?: (opts: ApplicationOptions) => Promise<ApplicationOptions>) {
-	installCommonBeforeHandlers(args, optionsTransform);
-	installCommonAfterHandlers(args);
+export function installCommonTestHandlers(logger: Logger, optionsTransform?: (opts: ApplicationOptions) => Promise<ApplicationOptions>) {
+	installCommonBeforeHandlers(logger, optionsTransform);
+	installCommonAfterHandlers();
 }
 
-export function installCommonBeforeHandlers(args: minimist.ParsedArgs, optionsTransform?: (opts: ApplicationOptions) => Promise<ApplicationOptions>) {
+export function installCommonBeforeHandlers(logger: Logger, optionsTransform?: (opts: ApplicationOptions) => Promise<ApplicationOptions>) {
 	before(async function () {
-		this.app = await startApp(args, this.defaultOptions, optionsTransform);
+		this.app = await startApp(this.defaultOptions, optionsTransform);
 	});
 
-	installCommonBeforeEachHandler();
+	installCommonBeforeEachHandler(logger);
 }
 
-export function installCommonBeforeEachHandler() {
+export function installCommonBeforeEachHandler(logger: Logger) {
 	beforeEach(async function () {
 		const testTitle = this.currentTest?.title;
-		this.defaultOptions.logger.log('');
-		this.defaultOptions.logger.log(`>>> Test start: ${testTitle} <<<`);
-		this.defaultOptions.logger.log('');
+		logger.log('');
+		logger.log(`>>> Test start: ${testTitle} <<<`);
+		logger.log('');
 
 		await this.app?.startTracing(testTitle);
 	});
 }
 
-export async function startApp(args: minimist.ParsedArgs, options: ApplicationOptions, optionsTransform?: (opts: ApplicationOptions) => Promise<ApplicationOptions>): Promise<Application> {
+export async function startApp(options: ApplicationOptions, optionsTransform?: (opts: ApplicationOptions) => Promise<ApplicationOptions>): Promise<Application> {
 	if (optionsTransform) {
 		options = await optionsTransform({ ...options });
 	}
@@ -68,11 +67,11 @@ export function getRandomUserDataDir(options: ApplicationOptions): string {
 	return options.userDataDir.concat(`-${userDataPathSuffix}`);
 }
 
-export function installCommonAfterHandlers(opts: minimist.ParsedArgs, appFn?: () => Application | undefined, joinFn?: () => Promise<unknown>) {
+export function installCommonAfterHandlers(appFn?: () => Application | undefined, joinFn?: () => Promise<unknown>) {
 	after(async function () {
 		const app: Application = appFn?.() ?? this.app;
 
-		if (this.currentTest?.state === 'failed' && opts.screenshots) {
+		if (this.currentTest?.state === 'failed') {
 			const name = this.currentTest!.fullTitle().replace(/[^a-z0-9\-]/ig, '_');
 			try {
 				await app.captureScreenshot(name);

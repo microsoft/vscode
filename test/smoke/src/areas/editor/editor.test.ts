@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import minimist = require('minimist');
-import { Application } from '../../../../automation';
+import { Application, Logger } from '../../../../automation';
 import { installCommonTestHandlers } from '../../utils';
 
-export function setup(opts: minimist.ParsedArgs) {
+export function setup(logger: Logger) {
 	describe('Editor', () => {
 
 		// Shared before/after handling
-		installCommonTestHandlers(opts);
+		installCommonTestHandlers(logger);
 
 		it('shows correct quick outline', async function () {
 			const app = this.app as Application;

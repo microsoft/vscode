@@ -4,15 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
-import minimist = require('minimist');
-import { Application } from '../../../../automation';
+import { Application, Logger } from '../../../../automation';
 import { installCommonTestHandlers, retry } from '../../utils';
 
-export function setup(opts: minimist.ParsedArgs) {
+export function setup(logger: Logger) {
 	describe('Search', () => {
 
 		// Shared before/after handling
-		installCommonTestHandlers(opts);
+		installCommonTestHandlers(logger);
 
 		after(function () {
 			const app = this.app as Application;
@@ -76,7 +75,7 @@ export function setup(opts: minimist.ParsedArgs) {
 	describe('Quick Open', () => {
 
 		// Shared before/after handling
-		installCommonTestHandlers(opts);
+		installCommonTestHandlers(logger);
 
 		it('quick open search produces correct result', async function () {
 			const app = this.app as Application;
