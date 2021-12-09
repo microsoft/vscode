@@ -236,7 +236,7 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 	static readonly Class = `${ExtensionAction.LABEL_ACTION_CLASS} prominent install`;
 
 	protected _manifest: IExtensionManifest | null = null;
-	set manifest(manifest: IExtensionManifest) {
+	set manifest(manifest: IExtensionManifest | null) {
 		this._manifest = manifest;
 		this.updateLabel();
 	}
@@ -461,9 +461,8 @@ export class InstallAndSyncAction extends AbstractInstallAction {
 
 export class InstallDropdownAction extends ActionWithDropDownAction {
 
-	set manifest(manifest: IExtensionManifest) {
+	set manifest(manifest: IExtensionManifest | null) {
 		this.extensionActions.forEach(a => (<AbstractInstallAction>a).manifest = manifest);
-		this.extensionActions.forEach(a => a.update());
 		this.update();
 	}
 
