@@ -23,6 +23,9 @@ import { IProgressService, ProgressLocation, IProgressNotificationOptions, IProg
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IExpression } from 'vs/base/common/glob';
+import { mixin, deepClone } from 'vs/base/common/objects';
+import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 
 export const UNDO_REDO_SOURCE = new UndoRedoSource();
 
@@ -39,6 +42,7 @@ export class ExplorerService implements IExplorerService {
 	private model: ExplorerModel;
 	private onFileChangesScheduler: RunOnceScheduler;
 	private fileChangeEvents: FileChangesEvent[] = [];
+	private revealExcludeMatcher: ResourceGlobMatcher;
 
 	constructor(
 		@IFileService private fileService: IFileService,
@@ -130,6 +134,12 @@ export class ExplorerService implements IExplorerService {
 				this.refresh(false);
 			}
 		}));
+		this.revealExcludeMatcher = new ResourceGlobMatcher(
+			(uri) => getRevealExcludes(configurationService.getValue<IFilesConfiguration>({ resource: uri })),
+			(event) => event.affectsConfiguration('explorer.autoRevealExclude'),
+			contextService, configurationService);
+		this.disposables.add(this.revealExcludeMatcher);
+		this.disposables.add(this.revealExcludeMatcher.onExpressionChange(() => this.refresh()));
 	}
 
 	get roots(): ExplorerItem[] {
@@ -255,7 +265,8 @@ export class ExplorerService implements IExplorerService {
 		}
 
 		const fileStat = this.findClosest(resource);
-		if (fileStat) {
+		// If file or parent matches exclude patterns, do not reveal
+		if (fileStat && !this.matchesUpToRoot(fileStat)) {
 			await this.view.selectResource(fileStat.resource, reveal);
 			return Promise.resolve(undefined);
 		}
@@ -277,7 +288,10 @@ export class ExplorerService implements IExplorerService {
 			const item = root.find(resource);
 			await this.view.refresh(true, root);
 
-			// Select and Reveal
+			// Select and Reveal, unless matching exclude patterns
+			if (item && reveal && this.matchesUpToRoot(item)) {
+				return;
+			}
 			await this.view.selectResource(item ? item.resource : undefined, reveal);
 		} catch (error) {
 			root.isError = true;
@@ -395,6 +409,25 @@ export class ExplorerService implements IExplorerService {
 		}
 	}
 
+	// Reveal excludes
+	private matchesUpToRoot(item: ExplorerItem | undefined): boolean {
+		if (item === undefined) {
+			return false;
+		}
+		const root = item.root;
+		let currentItem = item;
+		while (currentItem !== root) {
+			if (this.revealExcludeMatcher.matches(currentItem.resource, name => !!(currentItem.parent && currentItem.parent.getChild(name)))) {
+				return true;
+			}
+			if (currentItem.parent === undefined) {
+				return false;
+			}
+			currentItem = currentItem.parent;
+		}
+		return false;
+	}
+
 	private async onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): Promise<void> {
 		let shouldRefresh = false;
 
@@ -439,4 +472,24 @@ function doesFileEventAffect(item: ExplorerItem, view: IExplorerView, events: Fi
 	}
 
 	return false;
+}
+
+function getRevealExcludes(configuration: IFilesConfiguration): IExpression {
+	const fileExcludes = configuration && configuration.files && configuration.files.exclude;
+	const revealExcludes = configuration && configuration.explorer && configuration.explorer.autoRevealExclude;
+
+	if (!fileExcludes && !revealExcludes) {
+		return {};
+	}
+
+	if (!fileExcludes || !revealExcludes) {
+		return fileExcludes || revealExcludes;
+	}
+
+	let allExcludes: IExpression = Object.create(null);
+	// clone the config as it could be frozen
+	allExcludes = mixin(allExcludes, deepClone(fileExcludes));
+	allExcludes = mixin(allExcludes, deepClone(revealExcludes), true);
+
+	return allExcludes;
 }
