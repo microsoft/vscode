@@ -153,7 +153,7 @@ class SCMInput implements ISCMInput {
 			}
 		}
 
-		if (!Array.isArray(history)) {
+		if (!Array.isArray(history) || history.length === 0) {
 			history = [this._value];
 		} else {
 			this._value = history[history.length - 1];
