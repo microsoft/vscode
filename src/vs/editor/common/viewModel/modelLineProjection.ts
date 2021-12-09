@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IViewLineTokens, LineTokens } from 'vs/editor/common/core/lineTokens';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { EndOfLinePreference, ITextModel, PositionAffinity } from 'vs/editor/common/model';
@@ -91,14 +91,6 @@ class ModelLineProjection implements IModelLineProjection {
 		return this._lineBreakData.getOutputLineCount();
 	}
 
-	private getInputStartOffsetOfOutputLineIndex(outputLineIndex: number): number {
-		return this._lineBreakData.translateToInputOffset(outputLineIndex, 0);
-	}
-
-	private getInputEndOffsetOfOutputLineIndex(outputLineIndex: number): number {
-		return this._lineBreakData.translateToInputOffset(outputLineIndex, this._lineBreakData.getMaxOutputOffset(outputLineIndex));
-	}
-
 	public getViewLineContent(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): string {
 		this.assertVisible();
 
@@ -144,62 +136,95 @@ class ModelLineProjection implements IModelLineProjection {
 		return this._lineBreakData.getMaxOutputOffset(outputLineIndex) + 1;
 	}
 
+	/**
+	 * Try using {@link getViewLinesData} instead.
+	*/
 	public getViewLineData(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): ViewLineData {
+		const arr = new Array<ViewLineData>();
+		this.getViewLinesData(model, modelLineNumber, outputLineIndex, outputLineIndex + 1, 0, [true], arr);
+		return arr[0];
+	}
+
+	public getViewLinesData(model: ISimpleModel, modelLineNumber: number, fromOutputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: Array<ViewLineData | null>): void {
 		this.assertVisible();
+
 		const lineBreakData = this._lineBreakData;
-		const deltaStartIndex = (outputLineIndex > 0 ? lineBreakData.wrappedTextIndentLength : 0);
 
 		const injectionOffsets = lineBreakData.injectionOffsets;
 		const injectionOptions = lineBreakData.injectionOptions;
 
-		let tokens: IViewLineTokens;
-		let inlineDecorations: null | SingleLineInlineDecoration[];
+		let inlineDecorationsPerOutputLine: SingleLineInlineDecoration[][] | null = null;
+
 		if (injectionOffsets) {
-			const lineTokens = model.getLineTokens(modelLineNumber).withInserted(injectionOffsets.map((offset, idx) => ({
+			inlineDecorationsPerOutputLine = [];
+			let totalInjectedTextLengthBefore = 0;
+			let currentInjectedOffset = 0;
+
+			for (let outputLineIndex = 0; outputLineIndex < lineBreakData.getOutputLineCount(); outputLineIndex++) {
+				const inlineDecorations = new Array<SingleLineInlineDecoration>();
+				inlineDecorationsPerOutputLine[outputLineIndex] = inlineDecorations;
+
+				const lineStartOffsetInInputWithInjections = outputLineIndex > 0 ? lineBreakData.breakOffsets[outputLineIndex - 1] : 0;
+				const lineEndOffsetInInputWithInjections = lineBreakData.breakOffsets[outputLineIndex];
+
+				while (currentInjectedOffset < injectionOffsets.length) {
+					const length = injectionOptions![currentInjectedOffset].content.length;
+					const injectedTextStartOffsetInInputWithInjections = injectionOffsets[currentInjectedOffset] + totalInjectedTextLengthBefore;
+					const injectedTextEndOffsetInInputWithInjections = injectedTextStartOffsetInInputWithInjections + length;
+
+					if (injectedTextStartOffsetInInputWithInjections > lineEndOffsetInInputWithInjections) {
+						// Injected text only starts in later wrapped lines.
+						break;
+					}
+
+					if (lineStartOffsetInInputWithInjections < injectedTextEndOffsetInInputWithInjections) {
+						// Injected text ends after or in this line (but also starts in or before this line).
+						const options = injectionOptions![currentInjectedOffset];
+						if (options.inlineClassName) {
+							const offset = (outputLineIndex > 0 ? lineBreakData.wrappedTextIndentLength : 0);
+							const start = offset + Math.max(injectedTextStartOffsetInInputWithInjections - lineStartOffsetInInputWithInjections, 0);
+							const end = offset + Math.min(injectedTextEndOffsetInInputWithInjections - lineStartOffsetInInputWithInjections, lineEndOffsetInInputWithInjections);
+							if (start !== end) {
+								inlineDecorations.push(new SingleLineInlineDecoration(start, end, options.inlineClassName, options.inlineClassNameAffectsLetterSpacing!));
+							}
+						}
+					}
+
+					totalInjectedTextLengthBefore += length;
+					currentInjectedOffset++;
+				}
+			}
+		}
+
+		let lineWithInjections: LineTokens;
+		if (injectionOffsets) {
+			lineWithInjections = model.getLineTokens(modelLineNumber).withInserted(injectionOffsets.map((offset, idx) => ({
 				offset,
 				text: injectionOptions![idx].content,
 				tokenMetadata: LineTokens.defaultTokenMetadata
 			})));
-
-			const lineStartOffsetInInputWithInjections = outputLineIndex > 0 ? lineBreakData.breakOffsets[outputLineIndex - 1] : 0;
-			const lineEndOffsetInInputWithInjections = lineBreakData.breakOffsets[outputLineIndex];
-
-			tokens = lineTokens.sliceAndInflate(lineStartOffsetInInputWithInjections, lineEndOffsetInInputWithInjections, deltaStartIndex);
-			inlineDecorations = new Array<SingleLineInlineDecoration>();
-
-			let totalInjectedTextLengthBefore = 0;
-			for (let i = 0; i < injectionOffsets.length; i++) {
-				const length = injectionOptions![i].content.length;
-				const injectedTextStartOffsetInInputWithInjections = injectionOffsets[i] + totalInjectedTextLengthBefore;
-				const injectedTextEndOffsetInInputWithInjections = injectionOffsets[i] + totalInjectedTextLengthBefore + length;
-
-				if (injectedTextStartOffsetInInputWithInjections > lineEndOffsetInInputWithInjections) {
-					// Injected text only starts in later wrapped lines.
-					break;
-				}
-
-				if (lineStartOffsetInInputWithInjections < injectedTextEndOffsetInInputWithInjections) {
-					// Injected text ends after or in this line (but also starts in or before this line).
-					const options = injectionOptions![i];
-					if (options.inlineClassName) {
-						const offset = (outputLineIndex > 0 ? lineBreakData.wrappedTextIndentLength : 0);
-						const start = offset + Math.max(injectedTextStartOffsetInInputWithInjections - lineStartOffsetInInputWithInjections, 0);
-						const end = offset + Math.min(injectedTextEndOffsetInInputWithInjections - lineStartOffsetInInputWithInjections, lineEndOffsetInInputWithInjections);
-						if (start !== end) {
-							inlineDecorations.push(new SingleLineInlineDecoration(start, end, options.inlineClassName, options.inlineClassNameAffectsLetterSpacing!));
-						}
-					}
-				}
-
-				totalInjectedTextLengthBefore += length;
-			}
 		} else {
-			const startOffset = this.getInputStartOffsetOfOutputLineIndex(outputLineIndex);
-			const endOffset = this.getInputEndOffsetOfOutputLineIndex(outputLineIndex);
-			const lineTokens = model.getLineTokens(modelLineNumber);
-			tokens = lineTokens.sliceAndInflate(startOffset, endOffset, deltaStartIndex);
-			inlineDecorations = null;
+			lineWithInjections = model.getLineTokens(modelLineNumber);
 		}
+
+		for (let outputLineIndex = fromOutputLineIndex; outputLineIndex < toOutputLineIndex; outputLineIndex++) {
+			let globalIndex = globalStartIndex + outputLineIndex - fromOutputLineIndex;
+			if (!needed[globalIndex]) {
+				result[globalIndex] = null;
+				continue;
+			}
+			result[globalIndex] = this._getViewLineData(lineWithInjections, inlineDecorationsPerOutputLine ? inlineDecorationsPerOutputLine[outputLineIndex] : null, outputLineIndex);
+		}
+	}
+
+	private _getViewLineData(lineWithInjections: LineTokens, inlineDecorations: null | SingleLineInlineDecoration[], outputLineIndex: number): ViewLineData {
+		this.assertVisible();
+		const lineBreakData = this._lineBreakData;
+		const deltaStartIndex = (outputLineIndex > 0 ? lineBreakData.wrappedTextIndentLength : 0);
+
+		const lineStartOffsetInInputWithInjections = outputLineIndex > 0 ? lineBreakData.breakOffsets[outputLineIndex - 1] : 0;
+		const lineEndOffsetInInputWithInjections = lineBreakData.breakOffsets[outputLineIndex];
+		const tokens = lineWithInjections.sliceAndInflate(lineStartOffsetInInputWithInjections, lineEndOffsetInInputWithInjections, deltaStartIndex);
 
 		let lineContent = tokens.getLineContent();
 		if (outputLineIndex > 0) {
@@ -220,18 +245,6 @@ class ModelLineProjection implements IModelLineProjection {
 			tokens,
 			inlineDecorations
 		);
-	}
-
-	public getViewLinesData(model: ITextModel, modelLineNumber: number, fromOutputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: Array<ViewLineData | null>): void {
-		this.assertVisible();
-		for (let outputLineIndex = fromOutputLineIndex; outputLineIndex < toOutputLineIndex; outputLineIndex++) {
-			let globalIndex = globalStartIndex + outputLineIndex - fromOutputLineIndex;
-			if (!needed[globalIndex]) {
-				result[globalIndex] = null;
-				continue;
-			}
-			result[globalIndex] = this.getViewLineData(model, modelLineNumber, outputLineIndex);
-		}
 	}
 
 	public getModelColumnOfViewPosition(outputLineIndex: number, outputColumn: number): number {
