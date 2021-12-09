@@ -589,9 +589,7 @@ function trimCategoryForGroup(category: string, groupId: string): string {
 }
 
 export function isExcludeSetting(setting: ISetting): boolean {
-	return setting.key === 'files.exclude' ||
-		setting.key === 'search.exclude' ||
-		setting.key === 'files.watcherExclude';
+	return ['files.exclude', 'search.exclude', 'files.watcherExclude', 'explorer.autoRevealExclude'].includes(setting.key);
 }
 
 function isObjectRenderableSchema({ type }: IJSONSchema): boolean {

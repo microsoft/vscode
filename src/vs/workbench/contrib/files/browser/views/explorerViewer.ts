@@ -529,13 +529,13 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 	}
 }
 
-interface CachedParsedExpression {
+export interface CachedParsedExpression {
 	original: glob.IExpression;
 	parsed: glob.ParsedExpression;
 }
 
 /**
- * Respectes files.exclude setting in filtering out content from the explorer.
+ * Respects files.exclude setting in filtering out content from the explorer.
  * Makes sure that visible editors are always shown in the explorer even if they are filtered out by settings.
  */
 export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {

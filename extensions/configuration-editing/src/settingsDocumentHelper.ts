@@ -29,8 +29,8 @@ export class SettingsDocument {
 			return this.provideFilesAssociationsCompletionItems(location, range);
 		}
 
-		// files.exclude, search.exclude
-		if (location.path[0] === 'files.exclude' || location.path[0] === 'search.exclude') {
+		// files.exclude, search.exclude, explorer.autorevealExclude
+		if (location.path[0] === 'files.exclude' || location.path[0] === 'search.exclude' || location.path[0] === 'explorer.autorevealExclude') {
 			return this.provideExcludeCompletionItems(location, range);
 		}
 
