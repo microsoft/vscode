@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Application, ProblemSeverity, Problems, Logger } from '../../../../automation';
-import { installCommonTestHandlers } from '../../utils';
+import { installAllHandlers } from '../../utils';
 
 export function setup(logger: Logger) {
 	describe('Language Features', () => {
 
 		// Shared before/after handling
-		installCommonTestHandlers(logger);
+		installAllHandlers(logger);
 
 		it('verifies quick outline', async function () {
 			const app = this.app as Application;

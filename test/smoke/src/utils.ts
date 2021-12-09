@@ -18,33 +18,71 @@ export function itRepeat(n: number, description: string, callback: (this: Contex
 	}
 }
 
-export function installCommonTestHandlers(logger: Logger, optionsTransform?: (opts: ApplicationOptions) => Promise<ApplicationOptions>) {
-	installCommonBeforeHandlers(logger, optionsTransform);
-	installCommonAfterHandlers();
+export function installAllHandlers(logger: Logger, optionsTransform?: (opts: ApplicationOptions) => ApplicationOptions) {
+	installDiagnosticsHandler(logger);
+	installAppBeforeHandler(optionsTransform);
+	installAppAfterHandler();
 }
 
-export function installCommonBeforeHandlers(logger: Logger, optionsTransform?: (opts: ApplicationOptions) => Promise<ApplicationOptions>) {
+export function installDiagnosticsHandler(logger: Logger) {
+
+	// Before each suite
 	before(async function () {
-		this.app = await startApp(this.defaultOptions, optionsTransform);
+		const suiteTitle = this.currentTest?.parent?.title;
+		logger.log('');
+		logger.log(`>>> Suite start: '${suiteTitle ?? 'unknown'}' <<<`);
+		logger.log('');
 	});
 
-	installCommonBeforeEachHandler(logger);
-}
-
-export function installCommonBeforeEachHandler(logger: Logger) {
+	// Before each test
 	beforeEach(async function () {
 		const testTitle = this.currentTest?.title;
 		logger.log('');
-		logger.log(`>>> Test start: ${testTitle} <<<`);
+		logger.log(`>>> Test start: '${testTitle}' <<<`);
 		logger.log('');
 
 		await this.app?.startTracing(testTitle);
 	});
+
+	// After each test
+	afterEach(async function () {
+		const failed = this.currentTest?.state === 'failed';
+
+		const testTitle = this.currentTest?.title;
+		logger.log('');
+		if (failed) {
+			logger.log(`>>> !!! FAILURE !!! Test end: '${testTitle}' !!! FAILURE !!! <<<`);
+		} else {
+			logger.log(`>>> Test end: '${testTitle}' <<<`);
+		}
+		logger.log('');
+
+		await this.app?.stopTracing(this.currentTest?.title, failed);
+	});
 }
 
-export async function startApp(options: ApplicationOptions, optionsTransform?: (opts: ApplicationOptions) => Promise<ApplicationOptions>): Promise<Application> {
+function installAppBeforeHandler(optionsTransform?: (opts: ApplicationOptions) => ApplicationOptions) {
+	before(async function () {
+		this.app = await startApp(this.defaultOptions, optionsTransform);
+	});
+}
+
+export function installAppAfterHandler(appFn?: () => Application | undefined, joinFn?: () => Promise<unknown>) {
+	after(async function () {
+		const app: Application = appFn?.() ?? this.app;
+		if (app) {
+			await app.stop();
+		}
+
+		if (joinFn) {
+			await joinFn();
+		}
+	});
+}
+
+export async function startApp(options: ApplicationOptions, optionsTransform?: (opts: ApplicationOptions) => ApplicationOptions): Promise<Application> {
 	if (optionsTransform) {
-		options = await optionsTransform({ ...options });
+		options = optionsTransform({ ...options });
 	}
 
 	const app = new Application({
@@ -65,33 +103,6 @@ export function getRandomUserDataDir(options: ApplicationOptions): string {
 	const userDataPathSuffix = [...Array(8)].map(() => Math.random().toString(36)[3]).join('');
 
 	return options.userDataDir.concat(`-${userDataPathSuffix}`);
-}
-
-export function installCommonAfterHandlers(appFn?: () => Application | undefined, joinFn?: () => Promise<unknown>) {
-	after(async function () {
-		const app: Application = appFn?.() ?? this.app;
-
-		if (this.currentTest?.state === 'failed') {
-			const name = this.currentTest!.fullTitle().replace(/[^a-z0-9\-]/ig, '_');
-			try {
-				await app.captureScreenshot(name);
-			} catch (error) {
-				// ignore
-			}
-		}
-
-		if (app) {
-			await app.stop();
-		}
-
-		if (joinFn) {
-			await joinFn();
-		}
-	});
-
-	afterEach(async function () {
-		await this.app?.stopTracing(this.currentTest?.title, this.currentTest?.state === 'failed');
-	});
 }
 
 export function timeout(i: number) {

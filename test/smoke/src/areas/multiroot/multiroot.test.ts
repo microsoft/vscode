@@ -6,7 +6,7 @@
 import { writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { Application, Logger } from '../../../../automation';
-import { installCommonTestHandlers } from '../../utils';
+import { installAllHandlers } from '../../utils';
 
 function toUri(path: string): string {
 	if (process.platform === 'win32') {
@@ -39,7 +39,7 @@ export function setup(logger: Logger) {
 	describe('Multiroot', () => {
 
 		// Shared before/after handling
-		installCommonTestHandlers(logger, async opts => {
+		installAllHandlers(logger, opts => {
 			const workspacePath = createWorkspaceFile(opts.workspacePath);
 			return { ...opts, workspacePath };
 		});

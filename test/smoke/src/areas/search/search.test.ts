@@ -5,13 +5,13 @@
 
 import * as cp from 'child_process';
 import { Application, Logger } from '../../../../automation';
-import { installCommonTestHandlers, retry } from '../../utils';
+import { installAllHandlers, retry } from '../../utils';
 
 export function setup(logger: Logger) {
 	describe('Search', () => {
 
 		// Shared before/after handling
-		installCommonTestHandlers(logger);
+		installAllHandlers(logger);
 
 		after(function () {
 			const app = this.app as Application;
@@ -75,7 +75,7 @@ export function setup(logger: Logger) {
 	describe('Quick Open', () => {
 
 		// Shared before/after handling
-		installCommonTestHandlers(logger);
+		installAllHandlers(logger);
 
 		it('quick open search produces correct result', async function () {
 			const app = this.app as Application;

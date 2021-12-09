@@ -4,17 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Application, Quality, StatusBarElement, Logger } from '../../../../automation';
-import { installCommonTestHandlers } from '../../utils';
+import { installAllHandlers } from '../../utils';
 
 export function setup(isWeb: boolean, logger: Logger) {
 	describe('Statusbar', () => {
 
 		// Shared before/after handling
-		installCommonTestHandlers(logger);
+		installAllHandlers(logger);
 
 		it('verifies presence of all default status bar elements', async function () {
 			const app = this.app as Application;
-
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.BRANCH_STATUS);
 			if (app.quality !== Quality.Dev) {
 				await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.FEEDBACK_ICON);
@@ -35,7 +34,6 @@ export function setup(isWeb: boolean, logger: Logger) {
 
 		it(`verifies that 'quick input' opens when clicking on status bar elements`, async function () {
 			const app = this.app as Application;
-
 			await app.workbench.statusbar.clickOn(StatusBarElement.BRANCH_STATUS);
 			await app.workbench.quickinput.waitForQuickInputOpened();
 			await app.workbench.quickinput.closeQuickInput();
@@ -60,14 +58,12 @@ export function setup(isWeb: boolean, logger: Logger) {
 
 		it(`verifies that 'Problems View' appears when clicking on 'Problems' status element`, async function () {
 			const app = this.app as Application;
-
 			await app.workbench.statusbar.clickOn(StatusBarElement.PROBLEMS_STATUS);
 			await app.workbench.problems.waitForProblemsView();
 		});
 
 		it(`verifies if changing EOL is reflected in the status bar`, async function () {
 			const app = this.app as Application;
-
 			await app.workbench.quickaccess.openFile('app.js');
 			await app.workbench.statusbar.clickOn(StatusBarElement.EOL_STATUS);
 
@@ -79,7 +75,6 @@ export function setup(isWeb: boolean, logger: Logger) {
 
 		it(`verifies that 'Tweet us feedback' pop-up appears when clicking on 'Feedback' icon`, async function () {
 			const app = this.app as Application;
-
 			if (app.quality === Quality.Dev) {
 				return this.skip();
 			}

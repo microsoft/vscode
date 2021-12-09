@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Application, Logger } from '../../../../automation';
-import { installCommonTestHandlers } from '../../utils';
+import { installAllHandlers } from '../../utils';
 
 export function setup(logger: Logger) {
 	describe('Editor', () => {
 
 		// Shared before/after handling
-		installCommonTestHandlers(logger);
+		installAllHandlers(logger);
 
 		it('shows correct quick outline', async function () {
 			const app = this.app as Application;

@@ -4,17 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Application, ActivityBarPosition, Logger } from '../../../../automation';
-import { installCommonTestHandlers } from '../../utils';
+import { installAllHandlers } from '../../utils';
 
 export function setup(logger: Logger) {
 	describe('Preferences', () => {
 
 		// Shared before/after handling
-		installCommonTestHandlers(logger);
+		installAllHandlers(logger);
 
 		it('turns off editor line numbers and verifies the live change', async function () {
 			const app = this.app as Application;
-
 			await app.workbench.quickaccess.openFile('app.js');
 			await app.code.waitForElements('.line-numbers', false, elements => !!elements.length);
 

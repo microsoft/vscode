@@ -5,22 +5,17 @@
 
 import { join } from 'path';
 import { Application, Logger } from '../../../../automation';
-import { installCommonAfterHandlers, installCommonBeforeEachHandler, startApp } from '../../utils';
+import { installAllHandlers } from '../../utils';
 
 export function setup(logger: Logger) {
 	describe('Launch', () => {
 
-		let app: Application | undefined;
+		// Shared before/after handling
+		installAllHandlers(logger, opts => ({ ...opts, userDataDir: join(opts.userDataDir, 'ø') }));
 
-		installCommonBeforeEachHandler(logger);
-		installCommonAfterHandlers(() => app);
-
-		it(`verifies that application launches when user data directory has non-ascii characters`, async function () {
-			const massagedOptions = { ...this.defaultOptions, userDataDir: join(this.defaultOptions.userDataDir, 'ø') };
-			app = await startApp(massagedOptions);
-
-			await app.stop();
-			app = undefined;
+		it('verifies that application launches when user data directory has non-ascii characters', async function () {
+			const app = this.app as Application;
+			await app.workbench.explorer.openExplorerView();
 		});
 	});
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Application, Terminal, TerminalCommandId, Logger } from '../../../../automation';
-import { installCommonTestHandlers } from '../../utils';
+import { installAllHandlers } from '../../utils';
 import { setup as setupTerminalEditorsTests } from './terminal-editors.test';
 import { setup as setupTerminalPersistenceTests } from './terminal-persistence.test';
 import { setup as setupTerminalProfileTests } from './terminal-profiles.test';
@@ -21,7 +21,7 @@ export function setup(isWeb: boolean, logger: Logger) {
 		this.retries(3);
 
 		// Shared before/after handling
-		installCommonTestHandlers(logger);
+		installAllHandlers(logger);
 
 		let terminal: Terminal;
 		before(async function () {

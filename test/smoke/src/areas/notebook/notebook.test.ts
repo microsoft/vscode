@@ -5,13 +5,13 @@
 
 import * as cp from 'child_process';
 import { Application, Logger } from '../../../../automation';
-import { installCommonTestHandlers } from '../../utils';
+import { installAllHandlers } from '../../utils';
 
 export function setup(logger: Logger) {
 	describe.skip('Notebooks', () => {
 
 		// Shared before/after handling
-		installCommonTestHandlers(logger);
+		installAllHandlers(logger);
 
 		afterEach(async function () {
 			const app = this.app as Application;

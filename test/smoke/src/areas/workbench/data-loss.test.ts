@@ -4,15 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Application, ApplicationOptions, Logger, Quality } from '../../../../automation';
-import { installCommonAfterHandlers, getRandomUserDataDir, startApp, timeout, installCommonBeforeEachHandler } from '../../utils';
+import { getRandomUserDataDir, startApp, timeout, installDiagnosticsHandler, installAppAfterHandler } from '../../utils';
 
 export function setup(stableCodePath: string | undefined, isRemote: boolean, logger: Logger) {
 	describe('Data Loss (insiders -> insiders)', () => {
 
 		let app: Application | undefined = undefined;
 
-		installCommonBeforeEachHandler(logger);
-		installCommonAfterHandlers(() => app);
+		// Shared before/after handling
+		installDiagnosticsHandler(logger);
+		installAppAfterHandler(() => app);
 
 		it('verifies opened editors are restored', async function () {
 			app = await startApp(this.defaultOptions);
@@ -97,8 +98,9 @@ export function setup(stableCodePath: string | undefined, isRemote: boolean, log
 		let insidersApp: Application | undefined = undefined;
 		let stableApp: Application | undefined = undefined;
 
-		installCommonBeforeEachHandler(logger);
-		installCommonAfterHandlers(() => insidersApp ?? stableApp, async () => stableApp?.stop());
+		// Shared before/after handling
+		installDiagnosticsHandler(logger);
+		installAppAfterHandler(() => insidersApp ?? stableApp, async () => stableApp?.stop());
 
 		it('verifies opened editors are restored', async function () {
 			if (!stableCodePath || isRemote) {
