@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import minimist = require('minimist');
-import * as path from 'path';
-import { Application } from '../../../../automation';
-import { installCommonTestHandlers } from '../../utils';
+import { writeFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { Application, Logger } from '../../../../automation';
+import { installAllHandlers } from '../../utils';
 
 function toUri(path: string): string {
 	if (process.platform === 'win32') {
@@ -18,12 +17,12 @@ function toUri(path: string): string {
 }
 
 function createWorkspaceFile(workspacePath: string): string {
-	const workspaceFilePath = path.join(path.dirname(workspacePath), 'smoketest.code-workspace');
+	const workspaceFilePath = join(dirname(workspacePath), 'smoketest.code-workspace');
 	const workspace = {
 		folders: [
-			{ path: toUri(path.join(workspacePath, 'public')) },
-			{ path: toUri(path.join(workspacePath, 'routes')) },
-			{ path: toUri(path.join(workspacePath, 'views')) }
+			{ path: toUri(join(workspacePath, 'public')) },
+			{ path: toUri(join(workspacePath, 'routes')) },
+			{ path: toUri(join(workspacePath, 'views')) }
 		],
 		settings: {
 			'workbench.startupEditor': 'none',
@@ -31,16 +30,16 @@ function createWorkspaceFile(workspacePath: string): string {
 		}
 	};
 
-	fs.writeFileSync(workspaceFilePath, JSON.stringify(workspace, null, '\t'));
+	writeFileSync(workspaceFilePath, JSON.stringify(workspace, null, '\t'));
 
 	return workspaceFilePath;
 }
 
-export function setup(opts: minimist.ParsedArgs) {
+export function setup(logger: Logger) {
 	describe('Multiroot', () => {
 
 		// Shared before/after handling
-		installCommonTestHandlers(opts, async opts => {
+		installAllHandlers(logger, opts => {
 			const workspacePath = createWorkspaceFile(opts.workspacePath);
 			return { ...opts, workspacePath };
 		});

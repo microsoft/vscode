@@ -3,18 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import minimist = require('minimist');
-import { Application, Terminal, TerminalCommandId } from '../../../../automation/out';
-import { installCommonTestHandlers } from '../../utils';
+import { Application, Terminal, TerminalCommandId, Logger } from '../../../../automation';
+import { installAllHandlers } from '../../utils';
 import { setup as setupTerminalEditorsTests } from './terminal-editors.test';
 import { setup as setupTerminalPersistenceTests } from './terminal-persistence.test';
 import { setup as setupTerminalProfileTests } from './terminal-profiles.test';
 import { setup as setupTerminalTabsTests } from './terminal-tabs.test';
 
-export function setup(opts: minimist.ParsedArgs) {
+export function setup(isWeb: boolean, logger: Logger) {
 	describe('Terminal', function () {
 		// TODO: Enable terminal tests for non-web when the desktop driver is moved to playwright
-		if (!opts.web) {
+		if (!isWeb) {
 			return;
 		}
 
@@ -22,7 +21,7 @@ export function setup(opts: minimist.ParsedArgs) {
 		this.retries(3);
 
 		// Shared before/after handling
-		installCommonTestHandlers(opts);
+		installAllHandlers(logger);
 
 		let terminal: Terminal;
 		before(async function () {
@@ -42,9 +41,9 @@ export function setup(opts: minimist.ParsedArgs) {
 			await terminal.runCommand(TerminalCommandId.KillAll);
 		});
 
-		setupTerminalEditorsTests(opts);
-		setupTerminalPersistenceTests(opts);
-		setupTerminalProfileTests(opts);
-		setupTerminalTabsTests(opts);
+		setupTerminalEditorsTests();
+		setupTerminalPersistenceTests();
+		setupTerminalProfileTests();
+		setupTerminalTabsTests();
 	});
 }

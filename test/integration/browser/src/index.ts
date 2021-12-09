@@ -162,8 +162,14 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 	}
 
 	process.on('exit', () => serverProcess.kill());
-	process.on('SIGINT', () => serverProcess.kill());
-	process.on('SIGTERM', () => serverProcess.kill());
+	process.on('SIGINT', () => {
+		serverProcess.kill();
+		process.exit(128 + 2); // https://nodejs.org/docs/v14.16.0/api/process.html#process_signal_events
+	});
+	process.on('SIGTERM', () => {
+		serverProcess.kill();
+		process.exit(128 + 15); // https://nodejs.org/docs/v14.16.0/api/process.html#process_signal_events
+	});
 
 	return new Promise(c => {
 		serverProcess.stdout!.on('data', data => {
