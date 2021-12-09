@@ -71,6 +71,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		const snippets = new Set(await this._snippets.getSnippets(languageId));
 
 		const lineContentLow = model.getLineContent(position.lineNumber).toLowerCase();
+		const wordUntil = model.getWordUntilPosition(position).word.toLowerCase();
 
 		const suggestions: SnippetCompletion[] = [];
 		const columnOffset = position.column - 1;
@@ -78,6 +79,12 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		const triggerCharacterLow = context.triggerCharacter?.toLowerCase() ?? '';
 
 		for (const snippet of snippets) {
+
+			if (wordUntil && snippet.prefixLow.length < wordUntil.length && !isPatternInWord(snippet.prefixLow, 0, snippet.prefixLow.length, wordUntil, 0, wordUntil.length)) {
+				// when at a word the snippet prefix must match
+				continue;
+			}
+
 
 			for (let pos = Math.max(0, columnOffset - snippet.prefixLow.length); pos < lineContentLow.length; pos++) {
 
