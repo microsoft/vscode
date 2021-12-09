@@ -111,7 +111,7 @@ export class CellEditorStatusBar extends CellPart {
 		// nothing to read
 	}
 
-	updateLayoutNow(element: ICellViewModel): void {
+	updateInternalLayoutNow(element: ICellViewModel): void {
 		const layoutInfo = element.layoutInfo;
 		const width = layoutInfo.editorWidth;
 		if (!width) {
@@ -145,12 +145,12 @@ export class CellEditorStatusBar extends CellPart {
 
 		this.itemsDisposable.add(this.currentContext.cell.onDidChangeLayout(() => {
 			if (this.currentContext) {
-				this.updateLayoutNow(this.currentContext.cell);
+				this.updateInternalLayoutNow(this.currentContext.cell);
 			}
 		}));
 		this.itemsDisposable.add(this.currentContext.cell.onDidChangeCellStatusBarItems(() => this.updateRenderedItems()));
 		this.itemsDisposable.add(this.currentContext.notebookEditor.onDidChangeActiveCell(() => this.updateActiveCell()));
-		this.updateLayoutNow(this.currentContext.cell);
+		this.updateInternalLayoutNow(this.currentContext.cell);
 		this.updateActiveCell();
 		this.updateRenderedItems();
 	}

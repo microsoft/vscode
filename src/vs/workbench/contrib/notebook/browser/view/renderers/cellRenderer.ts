@@ -233,9 +233,9 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 	}
 
 	private updateForLayout(element: MarkupCellViewModel, templateData: MarkdownCellRenderTemplate): void {
-		templateData.focusIndicator.updateLayoutNow(element);
+		templateData.focusIndicator.updateInternalLayoutNow(element);
 		templateData.container.classList.toggle('cell-statusbar-hidden', this.notebookEditor.notebookOptions.computeEditorStatusbarHeight(element.internalMetadata) === 0);
-		templateData.betweenCellToolbar.updateLayoutNow(element);
+		templateData.betweenCellToolbar.updateInternalLayoutNow(element);
 	}
 
 	disposeTemplate(templateData: MarkdownCellRenderTemplate): void {
@@ -581,7 +581,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	private updateForLayout(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
 		templateData.elementDisposables.add(DOM.scheduleAtNextAnimationFrame(() => {
 			const bottomToolbarDimensions = this.notebookEditor.notebookOptions.computeBottomToolbarDimensions(this.notebookEditor.textModel?.viewType);
-			templateData.focusIndicator.updateLayoutNow(element);
+			templateData.focusIndicator.updateInternalLayoutNow(element);
 			templateData.outputContainer.setTop(element.layoutInfo.outputContainerOffset);
 			templateData.outputShowMoreContainer.setTop(element.layoutInfo.outputShowMoreContainerOffset);
 			templateData.dragHandle.setHeight(element.layoutInfo.totalHeight - bottomToolbarDimensions.bottomToolbarGap);
@@ -589,9 +589,9 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			templateData.container.classList.toggle('cell-statusbar-hidden', this.notebookEditor.notebookOptions.computeEditorStatusbarHeight(element.internalMetadata) === 0);
 
 			this.updateForTitleMenu(templateData);
-			templateData.betweenCellToolbar.updateLayoutNow(element);
+			templateData.betweenCellToolbar.updateInternalLayoutNow(element);
 
-			templateData.cellExecution.updateLayoutNow(element);
+			templateData.cellExecution.updateInternalLayoutNow(element);
 		}));
 	}
 

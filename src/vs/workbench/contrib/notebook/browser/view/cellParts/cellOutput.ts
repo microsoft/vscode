@@ -579,7 +579,7 @@ export class CellOutputContainer extends CellPart {
 		}));
 
 		this._register(viewCell.onDidChangeLayout(() => {
-			this.updateLayoutNow(viewCell);
+			this.updateInternalLayoutNow(viewCell);
 		}));
 	}
 
@@ -587,7 +587,7 @@ export class CellOutputContainer extends CellPart {
 		// no op
 	}
 
-	updateLayoutNow(viewCell: CodeCellViewModel) {
+	updateInternalLayoutNow(viewCell: CodeCellViewModel) {
 		this._outputEntries.forEach(entry => {
 			const index = this.viewCell.outputsViewModels.indexOf(entry.model);
 			if (index >= 0) {
