@@ -28,10 +28,38 @@ export interface LaunchOptions {
 	browser?: 'chromium' | 'webkit' | 'firefox';
 }
 
+interface ICodeInstance {
+	kill: () => Promise<void>
+}
+
+const instances = new Set<ICodeInstance>();
+
+function registerInstance(process: cp.ChildProcess, logger: Logger, type: string, kill: () => Promise<void>) {
+	const instance = { kill };
+	instances.add(instance);
+	process.once('exit', (code, signal) => {
+		logger.log(`Process terminated (type: ${type}, pid: ${process.pid}, code: ${code}, signal: ${signal})`);
+
+		instances.delete(instance);
+	});
+}
+
+async function teardown(signal?: number) {
+	stopped = true;
+
+	for (const instance of instances) {
+		await instance.kill();
+	}
+
+	if (typeof signal === 'number') {
+		process.exit(signal);
+	}
+}
+
 let stopped = false;
-process.on('exit', () => stopped = true);
-process.on('SIGINT', () => stopped = true);
-process.on('SIGTERM', () => stopped = true);
+process.on('exit', () => teardown());
+process.on('SIGINT', () => teardown(128 + 2)); 	 // https://nodejs.org/docs/v14.16.0/api/process.html#process_signal_events
+process.on('SIGTERM', () => teardown(128 + 15)); // same as above
 
 export async function launch(options: LaunchOptions): Promise<Code> {
 	if (stopped) {
@@ -42,13 +70,19 @@ export async function launch(options: LaunchOptions): Promise<Code> {
 
 	// Browser smoke tests
 	if (options.web) {
-		const { serverProcess, client, driver } = await launchPlaywright(options);
+		const { serverProcess, client, driver, kill } = await measureAndLog(launchPlaywright(options), 'launch playwright', options.logger);
+		registerInstance(serverProcess, options.logger, 'server', kill);
+
 		return new Code(client, driver, options.logger, serverProcess);
 	}
 
 	// Electron smoke tests
-	const { electronProcess, client, driver } = await launchElectron(options);
-	return new Code(client, driver, options.logger, electronProcess);
+	else {
+		const { electronProcess, client, driver, kill } = await measureAndLog(launchElectron(options), 'launch electron', options.logger);
+		registerInstance(electronProcess, options.logger, 'electron', kill);
+
+		return new Code(client, driver, options.logger, electronProcess);
+	}
 }
 
 async function poll<T>(

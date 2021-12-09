@@ -199,7 +199,7 @@ class PlaywrightDriver implements IDriver {
 
 let port = 9000;
 
-export async function launch(options: LaunchOptions): Promise<{ serverProcess: ChildProcess, client: IDisposable, driver: IDriver }> {
+export async function launch(options: LaunchOptions): Promise<{ serverProcess: ChildProcess, client: IDisposable, driver: IDriver, kill: () => Promise<void> }> {
 
 	// Launch server
 	const { serverProcess, endpoint } = await launchServer(options);
@@ -212,12 +212,13 @@ export async function launch(options: LaunchOptions): Promise<{ serverProcess: C
 		client: {
 			dispose: () => { /* there is no client to dispose for browser, teardown is triggered via exitApplication call */ }
 		},
-		driver: new PlaywrightDriver(serverProcess, browser, context, page, options.logger)
+		driver: new PlaywrightDriver(serverProcess, browser, context, page, options.logger),
+		kill: () => teardown(serverProcess, options.logger)
 	};
 }
 
 async function launchServer(options: LaunchOptions) {
-	const { userDataDir, codePath, extensionsPath, verbose, logger } = options;
+	const { userDataDir, codePath, extensionsPath, logger } = options;
 	const codeServerPath = codePath ?? process.env.VSCODE_REMOTE_SERVER_PATH;
 	const agentFolder = userDataDir;
 	await measureAndLog(promisify(mkdir)(agentFolder), `mkdir(${agentFolder})`, logger);
@@ -234,18 +235,14 @@ async function launchServer(options: LaunchOptions) {
 		serverLocation = join(codeServerPath, `server.${process.platform === 'win32' ? 'cmd' : 'sh'}`);
 		args.push(`--logsPath=${logsPath}`);
 
-		if (verbose) {
-			logger.log(`Starting built server from '${serverLocation}'`);
-			logger.log(`Storing log files into '${logsPath}'`);
-		}
+		logger.log(`Starting built server from '${serverLocation}'`);
+		logger.log(`Storing log files into '${logsPath}'`);
 	} else {
 		serverLocation = join(root, `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`);
 		args.push('--logsPath', logsPath);
 
-		if (verbose) {
-			logger.log(`Starting server out of sources from '${serverLocation}'`);
-			logger.log(`Storing log files into '${logsPath}'`);
-		}
+		logger.log(`Starting server out of sources from '${serverLocation}'`);
+		logger.log(`Storing log files into '${logsPath}'`);
 	}
 
 	const serverProcess = spawn(
@@ -254,17 +251,11 @@ async function launchServer(options: LaunchOptions) {
 		{ env }
 	);
 
-	if (verbose) {
-		logger.log(`*** Started server for browser smoke tests (pid: ${serverProcess.pid})`);
-		serverProcess.once('exit', (code, signal) => logger.log(`Server for browser smoke tests terminated (pid: ${serverProcess.pid}, code: ${code}, signal: ${signal})`));
+	logger.log(`Started server for browser smoke tests (pid: ${serverProcess.pid})`);
+	serverProcess.once('exit', (code, signal) => logger.log(`Server for browser smoke tests terminated (pid: ${serverProcess.pid}, code: ${code}, signal: ${signal})`));
 
-		serverProcess.stderr?.on('data', error => logger.log(`Server stderr: ${error}`));
-		serverProcess.stdout?.on('data', data => logger.log(`Server stdout: ${data}`));
-	}
-
-	process.on('exit', () => teardown(serverProcess, logger));
-	process.on('SIGINT', () => teardown(serverProcess, logger));
-	process.on('SIGTERM', () => teardown(serverProcess, logger));
+	serverProcess.stderr?.on('data', error => logger.log(`Server stderr: ${error}`));
+	serverProcess.stdout?.on('data', data => logger.log(`Server stdout: ${data}`));
 
 	return {
 		serverProcess,

@@ -18,7 +18,7 @@ import type { LaunchOptions } from './code';
 
 const repoPath = path.join(__dirname, '../../..');
 
-export async function launch(options: LaunchOptions): Promise<{ electronProcess: ChildProcess, client: IDisposable, driver: IDriver }> {
+export async function launch(options: LaunchOptions): Promise<{ electronProcess: ChildProcess, client: IDisposable, driver: IDriver, kill: () => Promise<void> }> {
 	const { codePath, workspacePath, extensionsPath, userDataDir, remote, logger, verbose, extraArgs } = options;
 	const env = { ...process.env };
 	const logsPath = path.join(repoPath, '.build', 'logs', remote ? 'smoke-tests-remote' : 'smoke-tests');
@@ -89,30 +89,30 @@ export async function launch(options: LaunchOptions): Promise<{ electronProcess:
 	const electronPath = codePath ? getBuildElectronPath(codePath) : getDevElectronPath();
 	const electronProcess = spawn(electronPath, args, spawnOptions);
 
-	if (verbose) {
-		logger.log(`Started electron for desktop smoke tests on pid ${electronProcess.pid}`);
-	}
-
-	let electronProcessDidExit = false;
-	electronProcess.once('exit', (code, signal) => {
-		if (verbose) {
-			logger.log(`Electron for desktop smoke tests terminated (pid: ${electronProcess.pid}, code: ${code}, signal: ${signal})`);
-		}
-		electronProcessDidExit = true;
-	});
-
-	process.once('exit', () => {
-		if (!electronProcessDidExit) {
-			electronProcess.kill();
-		}
-	});
+	logger.log(`Started electron for desktop smoke tests on pid ${electronProcess.pid}`);
 
 	let retries = 0;
 
 	while (true) {
 		try {
 			const { client, driver } = await measureAndLog(connectElectronDriver(outPath, driverIPCHandle), 'connectElectronDriver()', logger);
-			return { electronProcess, client, driver };
+			return {
+				electronProcess,
+				client,
+				driver,
+				kill: async () => {
+					try {
+						return promisify(kill)(electronProcess.pid!);
+					} catch (error) {
+						try {
+							process.kill(electronProcess.pid!, 0); // throws an exception if the process doesn't exist anymore
+							logger.log(`Error tearing down electron client (pid: ${electronProcess.pid}): ${error}`);
+						} catch (error) {
+							return; // Expected when process is gone
+						}
+					}
+				}
+			};
 		} catch (err) {
 
 			// give up
