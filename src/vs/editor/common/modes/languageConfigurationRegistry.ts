@@ -13,7 +13,7 @@ import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common
 import { EnterAction, FoldingRules, IAutoClosingPair, IndentAction, IndentationRule, LanguageConfiguration, CompleteEnterAction, AutoClosingPairs, CharacterPair, ExplicitLanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
 import { createScopedLineTokens, ScopedLineTokens } from 'vs/editor/common/modes/supports';
 import { CharacterPairSupport } from 'vs/editor/common/modes/supports/characterPair';
-import { BracketElectricCharacterSupport, IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
+import { BracketElectricCharacterSupport } from 'vs/editor/common/modes/supports/electricCharacter';
 import { IndentConsts, IndentRulesSupport } from 'vs/editor/common/modes/supports/indentRules';
 import { OnEnterSupport } from 'vs/editor/common/modes/supports/onEnter';
 import { RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
@@ -204,104 +204,12 @@ export class LanguageConfigurationRegistryImpl {
 		return entries?.getResolvedConfiguration() || null;
 	}
 
-	// begin electricCharacter
-
-	private _getElectricCharacterSupport(languageId: string): BracketElectricCharacterSupport | null {
-		let value = this.getLanguageConfiguration(languageId);
-		if (!value) {
-			return null;
-		}
-		return value.electricCharacter || null;
-	}
-
-	public getElectricCharacters(languageId: string): string[] {
-		let electricCharacterSupport = this._getElectricCharacterSupport(languageId);
-		if (!electricCharacterSupport) {
-			return [];
-		}
-		return electricCharacterSupport.getElectricCharacters();
-	}
-
-	/**
-	 * Should return opening bracket type to match indentation with
-	 */
-	public onElectricCharacter(character: string, context: LineTokens, column: number): IElectricAction | null {
-		let scopedLineTokens = createScopedLineTokens(context, column - 1);
-		let electricCharacterSupport = this._getElectricCharacterSupport(scopedLineTokens.languageId);
-		if (!electricCharacterSupport) {
-			return null;
-		}
-		return electricCharacterSupport.onElectricCharacter(character, scopedLineTokens, column - scopedLineTokens.firstCharOffset);
-	}
-
-	// end electricCharacter
-
 	public getComments(languageId: string): ICommentsConfiguration | null {
 		let value = this.getLanguageConfiguration(languageId);
 		if (!value) {
 			return null;
 		}
 		return value.comments || null;
-	}
-
-	// begin characterPair
-
-	private _getCharacterPairSupport(languageId: string): CharacterPairSupport | null {
-		let value = this.getLanguageConfiguration(languageId);
-		if (!value) {
-			return null;
-		}
-		return value.characterPair || null;
-	}
-
-	public getAutoClosingPairs(languageId: string): AutoClosingPairs {
-		const characterPairSupport = this._getCharacterPairSupport(languageId);
-		return new AutoClosingPairs(characterPairSupport ? characterPairSupport.getAutoClosingPairs() : []);
-	}
-
-	public getAutoCloseBeforeSet(languageId: string): string {
-		let characterPairSupport = this._getCharacterPairSupport(languageId);
-		if (!characterPairSupport) {
-			return CharacterPairSupport.DEFAULT_AUTOCLOSE_BEFORE_LANGUAGE_DEFINED;
-		}
-		return characterPairSupport.getAutoCloseBeforeSet();
-	}
-
-	public getSurroundingPairs(languageId: string): IAutoClosingPair[] {
-		let characterPairSupport = this._getCharacterPairSupport(languageId);
-		if (!characterPairSupport) {
-			return [];
-		}
-		return characterPairSupport.getSurroundingPairs();
-	}
-
-	// end characterPair
-
-	public getWordDefinition(languageId: string): RegExp {
-		let value = this.getLanguageConfiguration(languageId);
-		if (!value) {
-			return ensureValidWordDefinition(null);
-		}
-		return ensureValidWordDefinition(value.wordDefinition || null);
-	}
-
-	public getWordDefinitions(): [string, RegExp][] {
-		let result: [string, RegExp][] = [];
-		for (const [language, entries] of this._entries) {
-			const value = entries.getResolvedConfiguration();
-			if (value) {
-				result.push([language, value.wordDefinition]);
-			}
-		}
-		return result;
-	}
-
-	public getFoldingRules(languageId: string): FoldingRules {
-		let value = this.getLanguageConfiguration(languageId);
-		if (!value) {
-			return {};
-		}
-		return value.foldingRules;
 	}
 
 	// begin Indent Rules
@@ -967,11 +875,6 @@ export class ResolvedLanguageConfiguration {
 		return this._electricCharacter;
 	}
 
-	public getAutoClosingPairs(): AutoClosingPairs {
-		const characterPairSupport = this.characterPair;
-		return new AutoClosingPairs(characterPairSupport ? characterPairSupport.getAutoClosingPairs() : []);
-	}
-
 	public onEnter(
 		autoIndent: EditorAutoIndentStrategy,
 		previousLineText: string,
@@ -987,6 +890,18 @@ export class ResolvedLanguageConfiguration {
 			beforeEnterText,
 			afterEnterText
 		);
+	}
+
+	public getAutoClosingPairs(): AutoClosingPairs {
+		return new AutoClosingPairs(this.characterPair.getAutoClosingPairs());
+	}
+
+	public getAutoCloseBeforeSet(): string {
+		return this.characterPair.getAutoCloseBeforeSet();
+	}
+
+	public getSurroundingPairs(): IAutoClosingPair[] {
+		return this.characterPair.getSurroundingPairs();
 	}
 
 	private static _handleComments(
