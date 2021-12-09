@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { Workbench } from './workbench';
-import { Code, spawn, SpawnOptions } from './code';
+import { Code, launch, LaunchOptions } from './code';
 import { Logger, measureAndLog } from './logger';
 
 export const enum Quality {
@@ -15,7 +15,7 @@ export const enum Quality {
 	Stable
 }
 
-export interface ApplicationOptions extends SpawnOptions {
+export interface ApplicationOptions extends LaunchOptions {
 	quality: Quality;
 	workspacePath: string;
 	waitTime: number;
@@ -112,7 +112,7 @@ export class Application {
 	}
 
 	private async startApplication(extraArgs: string[] = []): Promise<Code> {
-		const code = this._code = await spawn({
+		const code = this._code = await launch({
 			...this.options,
 			extraArgs: [...(this.options.extraArgs || []), ...extraArgs],
 		});

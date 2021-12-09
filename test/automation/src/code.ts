@@ -14,7 +14,7 @@ import { copyExtension } from './extensions';
 
 const repoPath = path.join(__dirname, '../../..');
 
-export interface SpawnOptions {
+export interface LaunchOptions {
 	codePath?: string;
 	workspacePath: string;
 	userDataDir: string;
@@ -26,7 +26,6 @@ export interface SpawnOptions {
 	web?: boolean;
 	headless?: boolean;
 	browser?: 'chromium' | 'webkit' | 'firefox';
-	testTitle?: string;
 }
 
 let stopped = false;
@@ -34,7 +33,7 @@ process.on('exit', () => stopped = true);
 process.on('SIGINT', () => stopped = true);
 process.on('SIGTERM', () => stopped = true);
 
-export async function spawn(options: SpawnOptions): Promise<Code> {
+export async function launch(options: LaunchOptions): Promise<Code> {
 	if (stopped) {
 		throw new Error('Smoke test process has terminated, refusing to spawn Code');
 	}
@@ -43,22 +42,12 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 
 	// Browser smoke tests
 	if (options.web) {
-		return spawnBrowser(options);
+		const { serverProcess, client, driver } = await launchPlaywright(options);
+		return new Code(client, driver, options.logger, serverProcess);
 	}
 
 	// Electron smoke tests
-	return spawnElectron(options);
-}
-
-async function spawnBrowser(options: SpawnOptions): Promise<Code> {
-	const { serverProcess, client, driver } = await launchPlaywright(options.codePath, options.userDataDir, options.extensionsPath, options.workspacePath, Boolean(options.verbose), options, options.logger);
-
-	return new Code(client, driver, options.logger, serverProcess);
-}
-
-async function spawnElectron(options: SpawnOptions): Promise<Code> {
-	const { electronProcess, client, driver } = await launchElectron(options.codePath, options.userDataDir, options.extensionsPath, options.workspacePath, Boolean(options.verbose), Boolean(options.remote), options.extraArgs, options.logger);
-
+	const { electronProcess, client, driver } = await launchElectron(options);
 	return new Code(client, driver, options.logger, electronProcess);
 }
 
@@ -110,7 +99,7 @@ export class Code {
 		private readonly mainProcess: cp.ChildProcess
 	) {
 		this.driver = new Proxy(driver, {
-			get(target, prop, receiver) {
+			get(target, prop) {
 				if (typeof prop === 'symbol') {
 					throw new Error('Invalid usage');
 				}

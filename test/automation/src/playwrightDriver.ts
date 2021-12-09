@@ -13,6 +13,7 @@ import { URI } from 'vscode-uri';
 import * as kill from 'tree-kill';
 import { PageFunction } from 'playwright-core/types/structs';
 import { Logger, measureAndLog } from './logger';
+import type { LaunchOptions } from './code';
 
 const width = 1200;
 const height = 800;
@@ -198,29 +199,26 @@ class PlaywrightDriver implements IDriver {
 
 let port = 9000;
 
-export interface PlaywrightOptions {
-	readonly browser?: 'chromium' | 'webkit' | 'firefox';
-	readonly headless?: boolean;
-}
-
-export async function launch(codeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH, userDataDir: string, extensionsPath: string, workspacePath: string, verbose: boolean, options: PlaywrightOptions = {}, logger: Logger): Promise<{ serverProcess: ChildProcess, client: IDisposable, driver: IDriver }> {
+export async function launch(options: LaunchOptions): Promise<{ serverProcess: ChildProcess, client: IDisposable, driver: IDriver }> {
 
 	// Launch server
-	const { serverProcess, endpoint } = await launchServer(userDataDir, codeServerPath, extensionsPath, verbose, logger);
+	const { serverProcess, endpoint } = await launchServer(options);
 
 	// Launch browser
-	const { browser, context, page } = await launchBrowser(options, endpoint, workspacePath, logger);
+	const { browser, context, page } = await launchBrowser(options, endpoint);
 
 	return {
 		serverProcess,
 		client: {
 			dispose: () => { /* there is no client to dispose for browser, teardown is triggered via exitApplication call */ }
 		},
-		driver: new PlaywrightDriver(serverProcess, browser, context, page, logger)
+		driver: new PlaywrightDriver(serverProcess, browser, context, page, options.logger)
 	};
 }
 
-async function launchServer(userDataDir: string, codeServerPath: string | undefined, extensionsPath: string, verbose: boolean, logger: Logger) {
+async function launchServer(options: LaunchOptions) {
+	const { userDataDir, codePath, extensionsPath, verbose, logger } = options;
+	const codeServerPath = codePath ?? process.env.VSCODE_REMOTE_SERVER_PATH;
 	const agentFolder = userDataDir;
 	await measureAndLog(promisify(mkdir)(agentFolder), `mkdir(${agentFolder})`, logger);
 	const env = {
@@ -274,7 +272,8 @@ async function launchServer(userDataDir: string, codeServerPath: string | undefi
 	};
 }
 
-async function launchBrowser(options: PlaywrightOptions, endpoint: string, workspacePath: string, logger: Logger) {
+async function launchBrowser(options: LaunchOptions, endpoint: string) {
+	const { logger, workspacePath } = options;
 	const browser = await measureAndLog(playwright[options.browser ?? 'chromium'].launch({ headless: options.headless ?? false }), 'playwright#launch', logger);
 	const context = await measureAndLog(browser.newContext(), 'browser.newContext', logger);
 

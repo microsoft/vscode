@@ -73,12 +73,12 @@ export function setup(opts: minimist.ParsedArgs) {
 		});
 	});
 
-	describe('Quick Access', () => {
+	describe('Quick Open', () => {
 
 		// Shared before/after handling
 		installCommonTestHandlers(opts);
 
-		it('quick access search produces correct result', async function () {
+		it('quick open search produces correct result', async function () {
 			const app = this.app as Application;
 			const expectedNames = [
 				'.eslintrc.json',
@@ -95,7 +95,7 @@ export function setup(opts: minimist.ParsedArgs) {
 			await app.code.dispatchKeybinding('escape');
 		});
 
-		it('quick access respects fuzzy matching', async function () {
+		it('quick open respects fuzzy matching', async function () {
 			const app = this.app as Application;
 			const expectedNames = [
 				'tasks.json',

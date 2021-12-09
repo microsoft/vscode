@@ -13,11 +13,13 @@ import { promisify } from 'util';
 import * as kill from 'tree-kill';
 import { copyExtension } from './extensions';
 import { URI } from 'vscode-uri';
-import { Logger, measureAndLog } from './logger';
+import { measureAndLog } from './logger';
+import type { LaunchOptions } from './code';
 
 const repoPath = path.join(__dirname, '../../..');
 
-export async function launch(codePath: string | undefined, userDataDir: string, extensionsPath: string, workspacePath: string, verbose: boolean, remote: boolean, extraArgs: string[] | undefined, logger: Logger): Promise<{ electronProcess: ChildProcess, client: IDisposable, driver: IDriver }> {
+export async function launch(options: LaunchOptions): Promise<{ electronProcess: ChildProcess, client: IDisposable, driver: IDriver }> {
+	const { codePath, workspacePath, extensionsPath, userDataDir, remote, logger, verbose, extraArgs } = options;
 	const env = { ...process.env };
 	const logsPath = path.join(repoPath, '.build', 'logs', remote ? 'smoke-tests-remote' : 'smoke-tests');
 	const outPath = codePath ? getBuildOutPath(codePath) : getDevOutPath();
