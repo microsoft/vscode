@@ -1159,10 +1159,7 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 		let result: Array<ViewLineData | null> = [];
 		for (let lineNumber = viewStartLineNumber; lineNumber <= viewEndLineNumber; lineNumber++) {
 			let idx = lineNumber - viewStartLineNumber;
-			if (!needed[idx]) {
-				result[idx] = null;
-			}
-			result[idx] = this.getViewLineData(lineNumber);
+			result[idx] = needed[idx] ? this.getViewLineData(lineNumber) : null;
 		}
 
 		return result;
