@@ -338,20 +338,31 @@ suite('Arrays', () => {
 		assert.strictEqual(array[6], 7);
 	});
 
-	test('minIndex', () => {
-		const array = ['a', 'b', 'c'];
-		assert.strictEqual(arrays.minIndex(array, value => array.indexOf(value)), 0);
-		assert.strictEqual(arrays.minIndex(array, value => -array.indexOf(value)), 2);
-		assert.strictEqual(arrays.minIndex(array, _value => 0), 0);
-		assert.strictEqual(arrays.minIndex(array, value => value === 'b' ? 0 : 5), 1);
+	test('findMaxBy', () => {
+		const array = [{ v: 3 }, { v: 5 }, { v: 2 }, { v: 2 }, { v: 2 }, { v: 5 }];
+
+		assert.strictEqual(
+			array.indexOf(arrays.findMaxBy(array, arrays.compareBy(v => v.v, arrays.numberComparator))!),
+			1
+		);
 	});
 
-	test('maxIndex', () => {
-		const array = ['a', 'b', 'c'];
-		assert.strictEqual(arrays.maxIndex(array, value => array.indexOf(value)), 2);
-		assert.strictEqual(arrays.maxIndex(array, value => -array.indexOf(value)), 0);
-		assert.strictEqual(arrays.maxIndex(array, _value => 0), 0);
-		assert.strictEqual(arrays.maxIndex(array, value => value === 'b' ? 5 : 0), 1);
+	test('findLastMaxBy', () => {
+		const array = [{ v: 3 }, { v: 5 }, { v: 2 }, { v: 2 }, { v: 2 }, { v: 5 }];
+
+		assert.strictEqual(
+			array.indexOf(arrays.findLastMaxBy(array, arrays.compareBy(v => v.v, arrays.numberComparator))!),
+			5
+		);
+	});
+
+	test('findMinBy', () => {
+		const array = [{ v: 3 }, { v: 5 }, { v: 2 }, { v: 2 }, { v: 2 }, { v: 5 }];
+
+		assert.strictEqual(
+			array.indexOf(arrays.findMinBy(array, arrays.compareBy(v => v.v, arrays.numberComparator))!),
+			2
+		);
 	});
 
 	suite('ArrayQueue', () => {

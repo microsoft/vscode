@@ -8,8 +8,8 @@ import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
@@ -150,7 +150,7 @@ export module StaticServices {
 
 	export const markerService = define(IMarkerService, () => new MarkerService());
 
-	export const modeService = define(IModeService, (o) => new ModeServiceImpl());
+	export const languageService = define(ILanguageService, (o) => new LanguageService());
 
 	export const standaloneThemeService = define(IStandaloneThemeService, () => new StandaloneThemeServiceImpl());
 
@@ -158,7 +158,7 @@ export module StaticServices {
 
 	export const undoRedoService = define(IUndoRedoService, (o) => new UndoRedoService(dialogService.get(o), notificationService.get(o)));
 
-	export const languageConfigurationService = define(ILanguageConfigurationService, (o) => new LanguageConfigurationService(configurationService.get(o), modeService.get(o)));
+	export const languageConfigurationService = define(ILanguageConfigurationService, (o) => new LanguageConfigurationService(configurationService.get(o), languageService.get(o)));
 
 	export const modelService = define(
 		IModelService,
@@ -169,7 +169,7 @@ export module StaticServices {
 				standaloneThemeService.get(o),
 				logService.get(o),
 				undoRedoService.get(o),
-				modeService.get(o),
+				languageService.get(o),
 				languageConfigurationService.get(o)
 			)
 	);

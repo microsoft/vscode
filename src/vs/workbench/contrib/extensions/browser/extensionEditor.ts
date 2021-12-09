@@ -57,7 +57,7 @@ import { platform } from 'vs/base/common/process';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/contrib/markdown/browser/markdownDocumentRenderer';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 import { buttonForeground, buttonHoverBackground, editorBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -211,7 +211,7 @@ export class ExtensionEditor extends EditorPane {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
 		@IWebviewService private readonly webviewService: IWebviewService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
@@ -786,7 +786,7 @@ export class ExtensionEditor extends EditorPane {
 
 	private async renderMarkdown(cacheResult: CacheResult<string>, container: HTMLElement) {
 		const contents = await this.loadContents(() => cacheResult, container);
-		const content = await renderMarkdownDocument(contents, this.extensionService, this.modeService);
+		const content = await renderMarkdownDocument(contents, this.extensionService, this.languageService);
 		return this.renderBody(content);
 	}
 

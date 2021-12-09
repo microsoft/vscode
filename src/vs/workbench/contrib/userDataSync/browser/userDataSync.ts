@@ -14,7 +14,7 @@ import { registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/
 import type { IEditorContribution } from 'vs/editor/common/editorCommon';
 import type { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
 import { MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
@@ -1287,13 +1287,13 @@ class UserDataRemoteContentProvider implements ITextModelContentProvider {
 	constructor(
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 	}
 
 	provideTextContent(uri: URI): Promise<ITextModel> | null {
 		if (uri.scheme === USER_DATA_SYNC_SCHEME) {
-			return this.userDataSyncService.resolveContent(uri).then(content => this.modelService.createModel(content || '', this.modeService.create('jsonc'), uri));
+			return this.userDataSyncService.resolveContent(uri).then(content => this.modelService.createModel(content || '', this.languageService.createById('jsonc'), uri));
 		}
 		return null;
 	}

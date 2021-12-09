@@ -40,7 +40,7 @@ import { getWordAtText } from 'vs/editor/common/model/wordHelper';
 import { FormattingOptions, StandardTokenType } from 'vs/editor/common/modes';
 import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { EditorTheme } from 'vs/editor/common/view/viewContext';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IUndoRedoService, ResourceEditStackSnapshot } from 'vs/platform/undoRedo/common/undoRedo';
@@ -328,7 +328,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		languageId: string | null,
 		associatedResource: URI | null = null,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
-		@IModeService private readonly _modeService: IModeService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 	) {
 		super();
@@ -398,9 +398,9 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._isRedoing = false;
 		this._trimAutoWhitespaceLines = null;
 
-		this._tokens = new TokensStore(this._modeService.languageIdCodec);
-		this._tokens2 = new TokensStore2(this._modeService.languageIdCodec);
-		this._tokenization = new TextModelTokenization(this, this._modeService.languageIdCodec);
+		this._tokens = new TokensStore(this._languageService.languageIdCodec);
+		this._tokens2 = new TokensStore2(this._languageService.languageIdCodec);
+		this._tokenization = new TextModelTokenization(this, this._languageService.languageIdCodec);
 
 		this._bracketPairColorizer = this._register(new BracketPairsTextModelPart(this, this._languageConfigurationService));
 		this._guidesTextModelPart = this._register(new GuidesTextModelPart(this, this._languageConfigurationService));

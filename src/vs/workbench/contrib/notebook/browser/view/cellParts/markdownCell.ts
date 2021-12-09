@@ -24,7 +24,7 @@ import { IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
@@ -53,7 +53,7 @@ export class StatefulMarkdownCell extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@INotebookCellStatusBarService readonly notebookCellStatusBarService: INotebookCellStatusBarService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IConfigurationService private configurationService: IConfigurationService,
 	) {
 		super();
@@ -254,7 +254,7 @@ export class StatefulMarkdownCell extends Disposable {
 	}
 
 	private getRichText(buffer: IReadonlyTextBuffer, language: string) {
-		return tokenizeToString(buffer.getLineContent(1), this.modeService.languageIdCodec, TokenizationRegistry.get(language)!);
+		return tokenizeToString(buffer.getLineContent(1), this.languageService.languageIdCodec, TokenizationRegistry.get(language)!);
 	}
 
 	private viewUpdateEditing(): void {

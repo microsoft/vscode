@@ -198,11 +198,11 @@ function apiProposalNamesGenerator() {
                 '// THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.',
                 '',
                 'export const allApiProposals = Object.freeze({',
-                `${proposalNames.map(t => `\t${t[0]}: '${t[1]}'`).join(',\n')}`,
+                `${proposalNames.map(t => `\t${t[0]}: '${t[1]}'`).join(`,${os.EOL}`)}`,
                 '});',
                 'export type ApiProposalName = keyof typeof allApiProposals;',
                 '',
-            ].join('\n');
+            ].join(os.EOL);
             const outFile = path.join(dtsFolder, '../vs/workbench/services/extensions/common/extensionsApiProposals.ts');
             if (fs.readFileSync(outFile).toString() !== source) {
                 fs.writeFileSync(outFile, source);

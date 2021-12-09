@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
-import { ILanguageSelection } from 'vs/editor/common/services/modeService';
+import { ILanguageSelection } from 'vs/editor/common/services/languageService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider } from 'vs/editor/common/modes';
 import { SemanticTokensProviderStyling } from 'vs/editor/common/services/semanticTokensProviderStyling';

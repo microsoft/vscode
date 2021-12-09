@@ -26,23 +26,20 @@ export function installCommonTestHandlers(args: minimist.ParsedArgs, optionsTran
 
 export function installCommonBeforeHandlers(args: minimist.ParsedArgs, optionsTransform?: (opts: ApplicationOptions) => Promise<ApplicationOptions>) {
 	before(async function () {
-		const testTitle = this.currentTest?.title;
-
-		this.app = await startApp(args, this.defaultOptions, async opts => {
-			opts.testTitle = testTitle;
-
-			if (optionsTransform) {
-				opts = await optionsTransform(opts);
-			}
-
-			return opts;
-		});
+		this.app = await startApp(args, this.defaultOptions, optionsTransform);
 	});
 
+	installCommonBeforeEachHandler();
+}
+
+export function installCommonBeforeEachHandler() {
 	beforeEach(async function () {
-		if (this.app) {
-			await this.app.startTracing(this.currentTest?.title);
-		}
+		const testTitle = this.currentTest?.title;
+		this.defaultOptions.logger.log('');
+		this.defaultOptions.logger.log(`>>> Test start: ${testTitle} <<<`);
+		this.defaultOptions.logger.log('');
+
+		await this.app?.startTracing(testTitle);
 	});
 }
 
@@ -57,10 +54,6 @@ export async function startApp(args: minimist.ParsedArgs, options: ApplicationOp
 	});
 
 	await app.start();
-
-	if (args.log && options.testTitle) {
-		app.logger.log('*** Test start:', options.testTitle);
-	}
 
 	return app;
 }
@@ -98,9 +91,7 @@ export function installCommonAfterHandlers(opts: minimist.ParsedArgs, appFn?: ()
 	});
 
 	afterEach(async function () {
-		if (this.app) {
-			await this.app.stopTracing(this.currentTest?.title, this.currentTest?.state === 'failed');
-		}
+		await this.app?.stopTracing(this.currentTest?.title, this.currentTest?.state === 'failed');
 	});
 }
 

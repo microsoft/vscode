@@ -1804,9 +1804,11 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
+			const disposePromises: Promise<void>[] = [];
 			for (const instance of terminalService.instances) {
-				await terminalService.safeDisposeTerminal(instance);
+				disposePromises.push(terminalService.safeDisposeTerminal(instance));
 			}
+			await Promise.all(disposePromises);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1856,9 +1858,11 @@ export function registerTerminalActions() {
 				return;
 			}
 			const terminalService = accessor.get(ITerminalService);
+			const disposePromises: Promise<void>[] = [];
 			for (const instance of selectedInstances) {
-				terminalService.safeDisposeTerminal(instance);
+				disposePromises.push(terminalService.safeDisposeTerminal(instance));
 			}
+			await Promise.all(disposePromises);
 			if (terminalService.instances.length > 0) {
 				accessor.get(ITerminalGroupService).focusTabs();
 				focusNext(accessor);

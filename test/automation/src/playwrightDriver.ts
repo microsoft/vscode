@@ -12,6 +12,7 @@ import { IDriver, IDisposable, IWindowDriver } from './driver';
 import { URI } from 'vscode-uri';
 import * as kill from 'tree-kill';
 import { PageFunction } from 'playwright-core/types/structs';
+import { Logger, measureAndLog } from './logger';
 
 const width = 1200;
 const height = 800;
@@ -43,7 +44,8 @@ class PlaywrightDriver implements IDriver {
 		private readonly server: ChildProcess,
 		private readonly browser: playwright.Browser,
 		private readonly context: playwright.BrowserContext,
-		private readonly page: playwright.Page
+		private readonly page: playwright.Page,
+		private readonly logger: Logger
 	) {
 	}
 
@@ -57,9 +59,9 @@ class PlaywrightDriver implements IDriver {
 
 	async startTracing(windowId: number, name: string): Promise<void> {
 		try {
-			await this.warnAfter(this.context.tracing.startChunk({ title: name }), 5000, 'Starting playwright trace took more than 5 seconds');
+			await measureAndLog(this.context.tracing.startChunk({ title: name }), `startTracing for ${name}`, this.logger);
 		} catch (error) {
-			console.warn(`Failed to start playwright tracing (chunk): ${error}`);
+			// Ignore
 		}
 	}
 
@@ -70,9 +72,9 @@ class PlaywrightDriver implements IDriver {
 				persistPath = join(logsPath, `playwright-trace-${traceCounter++}-${name.replace(/\s+/g, '-')}.zip`);
 			}
 
-			await this.warnAfter(this.context.tracing.stopChunk({ path: persistPath }), 5000, 'Stopping playwright trace took more than 5 seconds');
+			await measureAndLog(this.context.tracing.stopChunk({ path: persistPath }), `stopTracing for ${name}`, this.logger);
 		} catch (error) {
-			console.warn(`Failed to stop playwright tracing (chunk): ${error}`);
+			// Ignore
 		}
 	}
 
@@ -82,30 +84,20 @@ class PlaywrightDriver implements IDriver {
 
 	async exitApplication() {
 		try {
-			await this.warnAfter(this.context.tracing.stop(), 5000, 'Stopping playwright trace took >5seconds');
+			await measureAndLog(this.context.tracing.stop(), 'stop tracing', this.logger);
 		} catch (error) {
-			console.warn(`Failed to stop playwright tracing: ${error}`);
+			// Ignore
 		}
 
 		try {
-			await this.warnAfter(this.browser.close(), 5000, 'Closing playwright browser took >5seconds');
+			await measureAndLog(this.browser.close(), 'Browser.close()', this.logger);
 		} catch (error) {
-			console.warn(`Failed to close browser: ${error}`);
+			// Ignore
 		}
 
-		await this.warnAfter(teardown(this.server), 5000, 'Tearing down server took >5seconds');
+		await measureAndLog(teardown(this.server, this.logger), 'teardown server', this.logger);
 
 		return false;
-	}
-
-	private async warnAfter(promise: Promise<void>, delay: number, msg: string): Promise<void> {
-		const timeout = setTimeout(() => console.warn(msg), delay);
-
-		try {
-			await promise;
-		} finally {
-			clearTimeout(timeout);
-		}
 	}
 
 	async dispatchKeybinding(windowId: number, keybinding: string) {
@@ -211,26 +203,26 @@ export interface PlaywrightOptions {
 	readonly headless?: boolean;
 }
 
-export async function launch(codeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH, userDataDir: string, extensionsPath: string, workspacePath: string, verbose: boolean, options: PlaywrightOptions = {}): Promise<{ serverProcess: ChildProcess, client: IDisposable, driver: IDriver }> {
+export async function launch(codeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH, userDataDir: string, extensionsPath: string, workspacePath: string, verbose: boolean, options: PlaywrightOptions = {}, logger: Logger): Promise<{ serverProcess: ChildProcess, client: IDisposable, driver: IDriver }> {
 
 	// Launch server
-	const { serverProcess, endpoint } = await launchServer(userDataDir, codeServerPath, extensionsPath, verbose);
+	const { serverProcess, endpoint } = await launchServer(userDataDir, codeServerPath, extensionsPath, verbose, logger);
 
 	// Launch browser
-	const { browser, context, page } = await launchBrowser(options, endpoint, workspacePath);
+	const { browser, context, page } = await launchBrowser(options, endpoint, workspacePath, logger);
 
 	return {
 		serverProcess,
 		client: {
 			dispose: () => { /* there is no client to dispose for browser, teardown is triggered via exitApplication call */ }
 		},
-		driver: new PlaywrightDriver(serverProcess, browser, context, page)
+		driver: new PlaywrightDriver(serverProcess, browser, context, page, logger)
 	};
 }
 
-async function launchServer(userDataDir: string, codeServerPath: string | undefined, extensionsPath: string, verbose: boolean) {
+async function launchServer(userDataDir: string, codeServerPath: string | undefined, extensionsPath: string, verbose: boolean, logger: Logger) {
 	const agentFolder = userDataDir;
-	await promisify(mkdir)(agentFolder);
+	await measureAndLog(promisify(mkdir)(agentFolder), `mkdir(${agentFolder})`, logger);
 	const env = {
 		VSCODE_AGENT_FOLDER: agentFolder,
 		VSCODE_REMOTE_SERVER_PATH: codeServerPath,
@@ -245,16 +237,16 @@ async function launchServer(userDataDir: string, codeServerPath: string | undefi
 		args.push(`--logsPath=${logsPath}`);
 
 		if (verbose) {
-			console.log(`Starting built server from '${serverLocation}'`);
-			console.log(`Storing log files into '${logsPath}'`);
+			logger.log(`Starting built server from '${serverLocation}'`);
+			logger.log(`Storing log files into '${logsPath}'`);
 		}
 	} else {
 		serverLocation = join(root, `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`);
 		args.push('--logsPath', logsPath);
 
 		if (verbose) {
-			console.log(`Starting server out of sources from '${serverLocation}'`);
-			console.log(`Storing log files into '${logsPath}'`);
+			logger.log(`Starting server out of sources from '${serverLocation}'`);
+			logger.log(`Storing log files into '${logsPath}'`);
 		}
 	}
 
@@ -265,51 +257,51 @@ async function launchServer(userDataDir: string, codeServerPath: string | undefi
 	);
 
 	if (verbose) {
-		console.info(`*** Started server for browser smoke tests (pid: ${serverProcess.pid})`);
-		serverProcess.once('exit', (code, signal) => console.info(`*** Server for browser smoke tests terminated (pid: ${serverProcess.pid}, code: ${code}, signal: ${signal})`));
+		logger.log(`*** Started server for browser smoke tests (pid: ${serverProcess.pid})`);
+		serverProcess.once('exit', (code, signal) => logger.log(`Server for browser smoke tests terminated (pid: ${serverProcess.pid}, code: ${code}, signal: ${signal})`));
 
-		serverProcess.stderr?.on('data', error => console.log(`Server stderr: ${error}`));
-		serverProcess.stdout?.on('data', data => console.log(`Server stdout: ${data}`));
+		serverProcess.stderr?.on('data', error => logger.log(`Server stderr: ${error}`));
+		serverProcess.stdout?.on('data', data => logger.log(`Server stdout: ${data}`));
 	}
 
-	process.on('exit', () => teardown(serverProcess));
-	process.on('SIGINT', () => teardown(serverProcess));
-	process.on('SIGTERM', () => teardown(serverProcess));
+	process.on('exit', () => teardown(serverProcess, logger));
+	process.on('SIGINT', () => teardown(serverProcess, logger));
+	process.on('SIGTERM', () => teardown(serverProcess, logger));
 
 	return {
 		serverProcess,
-		endpoint: await waitForEndpoint(serverProcess)
+		endpoint: await measureAndLog(waitForEndpoint(serverProcess), 'waitForEndpoint(serverProcess)', logger)
 	};
 }
 
-async function launchBrowser(options: PlaywrightOptions, endpoint: string, workspacePath: string) {
-	const browser = await playwright[options.browser ?? 'chromium'].launch({ headless: options.headless ?? false });
-	const context = await browser.newContext();
+async function launchBrowser(options: PlaywrightOptions, endpoint: string, workspacePath: string, logger: Logger) {
+	const browser = await measureAndLog(playwright[options.browser ?? 'chromium'].launch({ headless: options.headless ?? false }), 'playwright#launch', logger);
+	const context = await measureAndLog(browser.newContext(), 'browser.newContext', logger);
 
 	try {
-		await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
+		await measureAndLog(context.tracing.start({ screenshots: true, snapshots: true, sources: true }), 'context.tracing.start()', logger);
 	} catch (error) {
-		console.warn(`Failed to start playwright tracing: ${error}`); // do not fail the build when this fails
+		logger.log(`Failed to start playwright tracing: ${error}`); // do not fail the build when this fails
 	}
 
-	const page = await context.newPage();
-	await page.setViewportSize({ width, height });
+	const page = await measureAndLog(context.newPage(), 'context.newPage()', logger);
+	await measureAndLog(page.setViewportSize({ width, height }), 'page.setViewportSize', logger);
 
-	page.on('pageerror', async (error) => console.error(`Playwright ERROR: page error: ${error}`));
-	page.on('crash', page => console.error('Playwright ERROR: page crash'));
+	page.on('pageerror', async (error) => logger.log(`Playwright ERROR: page error: ${error}`));
+	page.on('crash', page => logger.log('Playwright ERROR: page crash'));
 	page.on('response', async (response) => {
 		if (response.status() >= 400) {
-			console.error(`Playwright ERROR: HTTP status ${response.status()} for ${response.url()}`);
+			logger.log(`Playwright ERROR: HTTP status ${response.status()} for ${response.url()}`);
 		}
 	});
 
 	const payloadParam = `[["enableProposedApi",""],["skipWelcome","true"]]`;
-	await page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${URI.file(workspacePath!).path}&payload=${payloadParam}`);
+	await measureAndLog(page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${URI.file(workspacePath!).path}&payload=${payloadParam}`), 'page.goto()', logger);
 
 	return { browser, context, page };
 }
 
-async function teardown(server: ChildProcess): Promise<void> {
+async function teardown(server: ChildProcess, logger: Logger): Promise<void> {
 	const serverPid = server.pid;
 	if (typeof serverPid !== 'number') {
 		return;
@@ -324,14 +316,14 @@ async function teardown(server: ChildProcess): Promise<void> {
 		} catch (error) {
 			try {
 				process.kill(serverPid, 0); // throws an exception if the process doesn't exist anymore
-				console.warn(`Error tearing down server (pid: ${serverPid}, attempt: ${retries}): ${error}`);
+				logger.log(`Error tearing down server (pid: ${serverPid}, attempt: ${retries}): ${error}`);
 			} catch (error) {
 				return; // Expected when process is gone
 			}
 		}
 	}
 
-	console.error(`Gave up tearing down server after ${retries} attempts...`);
+	logger.log(`Gave up tearing down server after ${retries} attempts...`);
 }
 
 function waitForEndpoint(server: ChildProcess): Promise<string> {

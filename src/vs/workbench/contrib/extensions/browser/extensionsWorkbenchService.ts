@@ -34,7 +34,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension } from 'vs/platform/extensions/common/extensions';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { FileAccess } from 'vs/base/common/network';
 import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
@@ -637,7 +637,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IProgressService private readonly progressService: IProgressService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IIgnoredExtensionsManagementService private readonly extensionsSyncManagementService: IIgnoredExtensionsManagementService,
 		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
 		@IProductService private readonly productService: IProductService,
@@ -805,8 +805,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				const keywords = lookup[ext] || [];
 
 				// Get mode name
-				const languageId = this.modeService.getModeIdByFilepathOrFirstLine(URI.file(`.${ext}`));
-				const languageName = languageId && this.modeService.getLanguageName(languageId);
+				const languageId = this.languageService.getLanguageIdByFilepathOrFirstLine(URI.file(`.${ext}`));
+				const languageName = languageId && this.languageService.getLanguageName(languageId);
 				const languageTag = languageName ? ` tag:"${languageName}"` : '';
 
 				// Construct a rich query

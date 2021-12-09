@@ -9,7 +9,7 @@ import * as resources from 'vs/base/common/resources';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/suggest';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -21,7 +21,7 @@ import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/comm
 import { ISnippetGetOptions, ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
 import { Snippet, SnippetFile, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
+import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchLanguageService';
 import { SnippetCompletionProvider } from './snippetCompletionProvider';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 import { ResourceMap } from 'vs/base/common/map';
@@ -43,7 +43,7 @@ namespace snippetExt {
 		location: URI;
 	}
 
-	export function toValidSnippet(extension: IExtensionPointUser<ISnippetsExtensionPoint[]>, snippet: ISnippetsExtensionPoint, modeService: IModeService): IValidSnippetsExtensionPoint | null {
+	export function toValidSnippet(extension: IExtensionPointUser<ISnippetsExtensionPoint[]>, snippet: ISnippetsExtensionPoint, languageService: ILanguageService): IValidSnippetsExtensionPoint | null {
 
 		if (isFalsyOrWhitespace(snippet.path)) {
 			extension.collector.error(localize(
@@ -63,7 +63,7 @@ namespace snippetExt {
 			return null;
 		}
 
-		if (!isFalsyOrWhitespace(snippet.language) && !modeService.isRegisteredMode(snippet.language)) {
+		if (!isFalsyOrWhitespace(snippet.language) && !languageService.isRegisteredLanguageId(snippet.language)) {
 			extension.collector.error(localize(
 				'invalid.language',
 				"Unknown language in `contributes.{0}.language`. Provided value: {1}",
@@ -178,7 +178,7 @@ class SnippetsService implements ISnippetsService {
 	constructor(
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
-		@IModeService private readonly _modeService: IModeService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILogService private readonly _logService: ILogService,
 		@IFileService private readonly _fileService: IFileService,
 		@ITextFileService private readonly _textfileService: ITextFileService,
@@ -192,7 +192,7 @@ class SnippetsService implements ISnippetsService {
 			this._initWorkspaceSnippets();
 		})));
 
-		setSnippetSuggestSupport(new SnippetCompletionProvider(this._modeService, this, new TestLanguageConfigurationService()));
+		setSnippetSuggestSupport(new SnippetCompletionProvider(this._languageService, this, new TestLanguageConfigurationService()));
 
 		this._enablement = instantiationService.createInstance(SnippetEnablement);
 	}
@@ -228,7 +228,7 @@ class SnippetsService implements ISnippetsService {
 		const result: Snippet[] = [];
 		const promises: Promise<any>[] = [];
 
-		const langName = this._modeService.validateLanguageId(languageId);
+		const langName = this._languageService.validateLanguageId(languageId);
 		if (langName) {
 			for (const file of this._files.values()) {
 				promises.push(file.load()
@@ -243,7 +243,7 @@ class SnippetsService implements ISnippetsService {
 
 	getSnippetsSync(languageId: string, opts?: ISnippetGetOptions): Snippet[] {
 		const result: Snippet[] = [];
-		const langName = this._modeService.validateLanguageId(languageId);
+		const langName = this._languageService.validateLanguageId(languageId);
 		if (langName) {
 			for (const file of this._files.values()) {
 				// kick off loading (which is a noop in case it's already loaded)
@@ -275,7 +275,7 @@ class SnippetsService implements ISnippetsService {
 
 			for (const extension of extensions) {
 				for (const contribution of extension.value) {
-					const validContribution = snippetExt.toValidSnippet(extension, contribution, this._modeService);
+					const validContribution = snippetExt.toValidSnippet(extension, contribution, this._languageService);
 					if (!validContribution) {
 						continue;
 					}

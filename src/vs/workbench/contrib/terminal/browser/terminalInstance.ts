@@ -2234,7 +2234,6 @@ async function preparePathForShell(originalPath: string, executable: string | un
 			return;
 		}
 
-		// TODO: This should use the process manager's OS, not the local OS
 		if (os === OperatingSystem.Windows) {
 			// 17063 is the build number where wsl path was introduced.
 			// Update Windows uriPath to be executed in WSL.

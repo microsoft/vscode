@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextModel, DefaultEndOfLine, EndOfLinePreference, ITextBufferFactory } from 'vs/editor/common/model';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import * as marked from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
@@ -44,7 +44,7 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 
 	constructor(
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IModelService private readonly modelService: IModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
@@ -71,8 +71,8 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 			const renderer = new marked.Renderer();
 			renderer.code = (code, lang) => {
 				i++;
-				const languageId = this.modeService.getModeIdForLanguageName(lang) || '';
-				const languageSelection = this.modeService.create(languageId);
+				const languageId = this.languageService.getLanguageIdForLanguageName(lang) || '';
+				const languageSelection = this.languageService.createById(languageId);
 				// Create all models for this resource in one go... we'll need them all and we don't want to re-parse markdown each time
 				const model = this.modelService.createModel(code, languageSelection, resource.with({ fragment: `${i}.${lang}` }));
 				if (i === j) { codeEditorModel = model; }
