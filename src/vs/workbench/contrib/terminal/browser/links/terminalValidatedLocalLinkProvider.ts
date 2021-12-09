@@ -24,11 +24,12 @@ const excludedPathCharactersClause = '[^\\0\\s!`&*()\\[\\]\'":;\\\\]';
 /** A regex that matches paths in the form /foo, ~/foo, ./foo, ../foo, foo/bar */
 export const unixLocalLinkClause = '((' + pathPrefix + '|(' + excludedPathCharactersClause + ')+)?(' + pathSeparatorClause + '(' + excludedPathCharactersClause + ')+)+)';
 
-export const winDrivePrefix = '((?:\\\\\\\\\\?\\\\)?[a-zA-Z]:)?';
+export const winDriveFilePrefix = 'file:\\/\\/\\/)[a-zA-Z]:';
+export const winDrivePrefix = '(?:\\\\\\\\\\?\\\\)?[a-zA-Z]:';
+const winPrefix = '((' + winDriveFilePrefix + '|' + winDrivePrefix + ')';
+const winPathPrefix = '(' + winPrefix + '|\\.\\.?|\\~)';
 const winPathSeparatorClause = '(\\\\|\\/)';
-const file = '(file:\\/\\/\\/)?';
-const winPathPrefix = '(' + file + winDrivePrefix + '|\\.\\.?|\\~)';
-const winExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!`&*()\\[\\]\'":;]';
+const winExcludedPathCharactersClause = '[^\\0<>\\?\\|\\s!`&*()\\[\\]\'":;]';
 /** A regex that matches paths in the form \\?\c:\foo c:\foo, ~\foo, .\foo, ..\foo, foo\bar */
 export const winLocalLinkClause = '((' + winPathPrefix + '|(' + winExcludedPathCharactersClause + ')+)?(' + winPathSeparatorClause + '(' + winExcludedPathCharactersClause + ')+)+)';
 
@@ -94,6 +95,7 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 		}
 
 		// clone regex to do a global search on text
+		console.log(this._localLinkRegex);
 		const rex = new RegExp(this._localLinkRegex, 'g');
 		let match;
 		let stringIndex = -1;

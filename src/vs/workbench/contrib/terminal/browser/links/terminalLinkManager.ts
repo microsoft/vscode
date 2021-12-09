@@ -415,6 +415,7 @@ export class TerminalLinkManager extends DisposableStore {
 		if (!matches) {
 			return null;
 		}
+		console.log('matches', matches);
 		return matches[1];
 	}
 }
