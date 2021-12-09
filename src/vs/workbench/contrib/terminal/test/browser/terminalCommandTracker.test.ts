@@ -28,20 +28,21 @@ async function writeP(terminal: TestTerminal, data: string): Promise<void> {
 	});
 }
 
-suite('Workbench - TerminalCommandTracker', () => {
+suite('Workbench - TerminalCommandTracker', function () {
 	let xterm: TestTerminal;
 	let commandTracker: CommandTrackerAddon;
 
 	setup(async () => {
-		console.log('setup 1');
 		xterm = (<TestTerminal>new Terminal({
 			cols: COLS,
 			rows: ROWS
 		}));
 		// Fill initial viewport
+		let data = '';
 		for (let i = 0; i < ROWS - 1; i++) {
-			await writeP(xterm, `${i}\n`);
+			data += `${i}\n`;
 		}
+		await writeP(xterm, data);
 		commandTracker = new CommandTrackerAddon();
 		xterm.loadAddon(commandTracker);
 	});
@@ -64,7 +65,6 @@ suite('Workbench - TerminalCommandTracker', () => {
 	suite('Commands', () => {
 		let container: HTMLElement;
 		setup(() => {
-			console.log('setup 2');
 			(<any>window).matchMedia = () => {
 				return { addListener: () => { } };
 			};
