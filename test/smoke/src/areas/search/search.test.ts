@@ -36,7 +36,7 @@ export function setup(logger: Logger) {
 			await app.workbench.search.waitForResultText('16 results in 5 files');
 		});
 
-		it.skip('searches only for *.js files & checks for correct result number', async function () {
+		it('searches only for *.js files & checks for correct result number', async function () {
 			const app = this.app as Application;
 			await app.workbench.search.searchFor('body');
 			await app.workbench.search.showQueryDetails();

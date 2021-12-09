@@ -34,8 +34,9 @@ export class Search extends Viewlet {
 	}
 
 	async clearSearchResults(): Promise<void> {
-		await this.code.waitAndClick(`.sidebar .codicon-search-clear-results`);
-		await this.waitForNoResultText();
+		await retry(
+			() => this.code.waitAndClick(`.sidebar .codicon-search-clear-results`),
+			() => this.waitForNoResultText(10));
 	}
 
 	async openSearchViewlet(): Promise<any> {
@@ -121,8 +122,8 @@ export class Search extends Viewlet {
 		await this.code.waitForTextContent(`${VIEWLET} .messages .message`, undefined, result => result.startsWith(text), retryCount);
 	}
 
-	async waitForNoResultText(): Promise<void> {
-		await this.code.waitForTextContent(`${VIEWLET} .messages`, '');
+	async waitForNoResultText(retryCount?: number): Promise<void> {
+		await this.code.waitForTextContent(`${VIEWLET} .messages`, '', undefined, retryCount);
 	}
 
 	private async waitForInputFocus(selector: string): Promise<void> {
