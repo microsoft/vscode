@@ -26,7 +26,7 @@ export interface IModelLineProjection {
 	getViewLineMinColumn(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number;
 	getViewLineMaxColumn(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number;
 	getViewLineData(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): ViewLineData;
-	getViewLinesData(model: ISimpleModel, modelLineNumber: number, fromOutputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: Array<ViewLineData | null>): void;
+	getViewLinesData(model: ISimpleModel, modelLineNumber: number, outputLineIdx: number, lineCount: number, globalStartIndex: number, needed: boolean[], result: Array<ViewLineData | null>): void;
 
 	getModelColumnOfViewPosition(outputLineIndex: number, outputColumn: number): number;
 	getViewPositionOfModelPosition(deltaLineNumber: number, inputColumn: number, affinity?: PositionAffinity): Position;
@@ -149,11 +149,11 @@ class ModelLineProjection implements IModelLineProjection {
 	*/
 	public getViewLineData(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): ViewLineData {
 		const arr = new Array<ViewLineData>();
-		this.getViewLinesData(model, modelLineNumber, outputLineIndex, outputLineIndex + 1, 0, [true], arr);
+		this.getViewLinesData(model, modelLineNumber, outputLineIndex, 1, 0, [true], arr);
 		return arr[0];
 	}
 
-	public getViewLinesData(model: ISimpleModel, modelLineNumber: number, fromOutputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: Array<ViewLineData | null>): void {
+	public getViewLinesData(model: ISimpleModel, modelLineNumber: number, outputLineIdx: number, lineCount: number, globalStartIndex: number, needed: boolean[], result: Array<ViewLineData | null>): void {
 		this._assertVisible();
 
 		const lineBreakData = this._projectionData;
@@ -215,8 +215,8 @@ class ModelLineProjection implements IModelLineProjection {
 			lineWithInjections = model.getLineTokens(modelLineNumber);
 		}
 
-		for (let outputLineIndex = fromOutputLineIndex; outputLineIndex < toOutputLineIndex; outputLineIndex++) {
-			let globalIndex = globalStartIndex + outputLineIndex - fromOutputLineIndex;
+		for (let outputLineIndex = outputLineIdx; outputLineIndex < outputLineIdx + lineCount; outputLineIndex++) {
+			let globalIndex = globalStartIndex + outputLineIndex - outputLineIdx;
 			if (!needed[globalIndex]) {
 				result[globalIndex] = null;
 				continue;
