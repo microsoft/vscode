@@ -12,7 +12,7 @@ export function setup(stableCodePath: string | undefined, isRemote: boolean, log
 		let app: Application | undefined = undefined;
 
 		// Shared before/after handling
-		installDiagnosticsHandler(logger);
+		installDiagnosticsHandler(logger, () => app);
 		installAppAfterHandler(() => app);
 
 		it('verifies opened editors are restored', async function () {
@@ -99,7 +99,7 @@ export function setup(stableCodePath: string | undefined, isRemote: boolean, log
 		let stableApp: Application | undefined = undefined;
 
 		// Shared before/after handling
-		installDiagnosticsHandler(logger);
+		installDiagnosticsHandler(logger, () => insidersApp ?? stableApp);
 		installAppAfterHandler(() => insidersApp ?? stableApp, async () => stableApp?.stop());
 
 		it('verifies opened editors are restored', async function () {

@@ -39,7 +39,6 @@ const opts = minimist(args, {
 		'stable-build',
 		'wait-time',
 		'test-repo',
-		'screenshots',
 		'electronArgs'
 	],
 	boolean: [
@@ -56,7 +55,6 @@ const opts = minimist(args, {
 	remote?: boolean,
 	headless?: boolean,
 	web?: boolean,
-	screenshots?: string,
 	build?: string,
 	'stable-build'?: string,
 	browser?: string,
@@ -104,11 +102,6 @@ const testRepoUrl = 'https://github.com/microsoft/vscode-smoketest-express';
 const workspacePath = path.join(testDataPath, 'vscode-smoketest-express');
 const extensionsPath = path.join(testDataPath, 'extensions-dir');
 mkdirp.sync(extensionsPath);
-
-const screenshotsPath = opts.screenshots ? path.resolve(opts.screenshots) : null;
-if (screenshotsPath) {
-	mkdirp.sync(screenshotsPath);
-}
 
 function fail(errorMessage): void {
 	logger.log(errorMessage);
@@ -332,7 +325,6 @@ before(async function () {
 		waitTime: parseInt(opts['wait-time'] || '0') || 20,
 		logger,
 		verbose: opts.verbose,
-		screenshotsPath,
 		remote: opts.remote,
 		web: opts.web,
 		headless: opts.headless,

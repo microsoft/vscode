@@ -24,7 +24,7 @@ export function installAllHandlers(logger: Logger, optionsTransform?: (opts: App
 	installAppAfterHandler();
 }
 
-export function installDiagnosticsHandler(logger: Logger) {
+export function installDiagnosticsHandler(logger: Logger, appFn?: () => Application | undefined) {
 
 	// Before each suite
 	before(async function () {
@@ -38,17 +38,22 @@ export function installDiagnosticsHandler(logger: Logger) {
 	beforeEach(async function () {
 		const testTitle = this.currentTest?.title;
 		logger.log('');
-		logger.log(`>>> Test start: '${testTitle}' <<<`);
+		logger.log(`>>> Test start: '${testTitle ?? 'unknown'}' <<<`);
 		logger.log('');
 
-		await this.app?.startTracing(testTitle);
+		const app: Application = appFn?.() ?? this.app;
+		await app?.startTracing(testTitle ?? 'unknown');
 	});
 
 	// After each test
 	afterEach(async function () {
-		const failed = this.currentTest?.state === 'failed';
+		const currentTest = this.currentTest;
+		if (!currentTest) {
+			return;
+		}
 
-		const testTitle = this.currentTest?.title;
+		const failed = currentTest.state === 'failed';
+		const testTitle = currentTest.title;
 		logger.log('');
 		if (failed) {
 			logger.log(`>>> !!! FAILURE !!! Test end: '${testTitle}' !!! FAILURE !!! <<<`);
@@ -57,7 +62,8 @@ export function installDiagnosticsHandler(logger: Logger) {
 		}
 		logger.log('');
 
-		await this.app?.stopTracing(this.currentTest?.title, failed);
+		const app: Application = appFn?.() ?? this.app;
+		await app?.stopTracing(testTitle.replace(/[^a-z0-9\-]/ig, '_'), failed);
 	});
 }
 

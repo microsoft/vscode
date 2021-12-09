@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
 import { Workbench } from './workbench';
 import { Code, launch, LaunchOptions } from './code';
-import { Logger, measureAndLog } from './logger';
+import { Logger } from './logger';
 
 export const enum Quality {
 	Dev,
@@ -19,7 +17,6 @@ export interface ApplicationOptions extends LaunchOptions {
 	quality: Quality;
 	workspacePath: string;
 	waitTime: number;
-	screenshotsPath: string | null;
 }
 
 export class Application {
@@ -89,17 +86,6 @@ export class Application {
 			} finally {
 				this._code = undefined;
 			}
-		}
-	}
-
-	async captureScreenshot(name: string): Promise<void> {
-		if (this.options.screenshotsPath) {
-			const raw = await measureAndLog(this.code.capturePage(), 'capturePage', this.logger);
-			const buffer = Buffer.from(raw, 'base64');
-			const screenshotPath = path.join(this.options.screenshotsPath, `${name}.png`);
-			this.logger.log('Screenshot recorded:', screenshotPath);
-
-			fs.writeFileSync(screenshotPath, buffer);
 		}
 	}
 
