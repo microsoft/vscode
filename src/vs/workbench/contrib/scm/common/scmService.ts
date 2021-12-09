@@ -11,6 +11,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { HistoryNavigator2 } from 'vs/base/common/history';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { Iterable } from 'vs/base/common/iterator';
 
 class SCMInput implements ISCMInput {
 
@@ -80,19 +81,21 @@ class SCMInput implements ISCMInput {
 	readonly onDidChangeValidateInput: Event<void> = this._onDidChangeValidateInput.event;
 
 	private historyNavigator: HistoryNavigator2<string>;
+	private didChangeHistory: boolean;
 
-	private static didCleanup = false;
+	private static didGarbageCollect = false;
 	private static migrateAndGarbageCollectStorage(storageService: IStorageService): void {
-		if (SCMInput.didCleanup) {
+		if (SCMInput.didGarbageCollect) {
 			return;
 		}
 
-		const keys = storageService.keys(StorageScope.GLOBAL, StorageTarget.USER)
-			.filter(key => key.startsWith('scm/input:'));
+		// Migrate from old format // TODO@joao: remove this migration code a few releases
+		const userKeys = Iterable.filter(Iterable.from(storageService.keys(StorageScope.GLOBAL, StorageTarget.USER)), key => key.startsWith('scm/input:'));
 
-		for (const key of keys) {
+		for (const key of userKeys) {
 			try {
-				const history = JSON.parse(storageService.get(key, StorageScope.GLOBAL, '[]'));
+				const rawHistory = storageService.get(key, StorageScope.GLOBAL, '');
+				const history = JSON.parse(rawHistory);
 
 				if (Array.isArray(history)) {
 					if (history.length === 0 || (history.length === 1 && history[0] === '')) {
@@ -100,9 +103,26 @@ class SCMInput implements ISCMInput {
 						storageService.remove(key, StorageScope.GLOBAL);
 					} else {
 						// migrate existing histories to have a timestamp
-						storageService.store(key, JSON.stringify({ timestamp: new Date().getTime(), history }), StorageScope.GLOBAL, StorageTarget.USER);
+						storageService.store(key, JSON.stringify({ timestamp: new Date().getTime(), history }), StorageScope.GLOBAL, StorageTarget.MACHINE);
 					}
-				} else if (Array.isArray(history?.history) && Number.isInteger(history?.timestamp) && new Date().getTime() - history?.timestamp > 2592000000) {
+				} else {
+					// move to MACHINE target
+					storageService.store(key, rawHistory, StorageScope.GLOBAL, StorageTarget.MACHINE);
+				}
+			} catch {
+				// remove unparseable entries
+				storageService.remove(key, StorageScope.GLOBAL);
+			}
+		}
+
+		// Garbage collect
+		const machineKeys = Iterable.filter(Iterable.from(storageService.keys(StorageScope.GLOBAL, StorageTarget.MACHINE)), key => key.startsWith('scm/input:'));
+
+		for (const key of machineKeys) {
+			try {
+				const history = JSON.parse(storageService.get(key, StorageScope.GLOBAL, ''));
+
+				if (Array.isArray(history?.history) && Number.isInteger(history?.timestamp) && new Date().getTime() - history?.timestamp > 2592000000) {
 					// garbage collect after 30 days
 					storageService.remove(key, StorageScope.GLOBAL);
 				}
@@ -112,7 +132,7 @@ class SCMInput implements ISCMInput {
 			}
 		}
 
-		SCMInput.didCleanup = true;
+		SCMInput.didGarbageCollect = true;
 	}
 
 	constructor(
@@ -139,18 +159,26 @@ class SCMInput implements ISCMInput {
 		}
 
 		this.historyNavigator = new HistoryNavigator2(history, 50);
+		this.didChangeHistory = false;
 
 		if (key) {
 			this.storageService.onWillSaveState(_ => {
 				if (this.historyNavigator.isAtEnd()) {
-					this.historyNavigator.replaceLast(this._value);
+					this.saveValue();
+				}
+
+				if (!this.didChangeHistory) {
+					return;
 				}
 
 				const history = [...this.historyNavigator];
 
-				if (history.length > 1 || (history.length === 1 && history[0] !== '')) {
-					storageService.store(key, JSON.stringify({ timestamp: new Date().getTime(), history }), StorageScope.GLOBAL, StorageTarget.USER);
+				if (history.length === 0 || (history.length === 1 && history[0] === '')) {
+					return;
 				}
+
+				storageService.store(key, JSON.stringify({ timestamp: new Date().getTime(), history }), StorageScope.GLOBAL, StorageTarget.MACHINE);
+				this.didChangeHistory = false;
 			});
 		}
 	}
@@ -161,8 +189,9 @@ class SCMInput implements ISCMInput {
 		}
 
 		if (!transient) {
-			this.historyNavigator.replaceLast(this._value);
+			this.saveValue();
 			this.historyNavigator.add(value);
+			this.didChangeHistory = true;
 		}
 
 		this._value = value;
@@ -173,7 +202,7 @@ class SCMInput implements ISCMInput {
 		if (this.historyNavigator.isAtEnd()) {
 			return;
 		} else if (!this.historyNavigator.has(this.value)) {
-			this.historyNavigator.replaceLast(this._value);
+			this.saveValue();
 			this.historyNavigator.resetCursor();
 		}
 
@@ -183,14 +212,19 @@ class SCMInput implements ISCMInput {
 
 	showPreviousHistoryValue(): void {
 		if (this.historyNavigator.isAtEnd()) {
-			this.historyNavigator.replaceLast(this._value);
+			this.saveValue();
 		} else if (!this.historyNavigator.has(this._value)) {
-			this.historyNavigator.replaceLast(this._value);
+			this.saveValue();
 			this.historyNavigator.resetCursor();
 		}
 
 		const value = this.historyNavigator.previous();
 		this.setValue(value, true, SCMInputChangeReason.HistoryPrevious);
+	}
+
+	private saveValue(): void {
+		const oldValue = this.historyNavigator.replaceLast(this._value);
+		this.didChangeHistory = this.didChangeHistory || (oldValue !== this._value);
 	}
 }
 
