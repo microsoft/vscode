@@ -893,6 +893,16 @@ export const renameHandler = async (accessor: ServicesAccessor) => {
 	});
 };
 
+export const moveFileToTrashFromTabHandler = async (accessor: ServicesAccessor, resource: URI) => {
+	const explorerService = accessor.get(IExplorerService);
+	const stat = explorerService.findClosest(resource);
+	const stats = stat ? [stat] : [];
+
+	if (stats.length) {
+		await deleteFiles(accessor.get(IExplorerService), accessor.get(IWorkingCopyFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, true);
+	}
+};
+
 export const moveFileToTrashHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
 	const stats = explorerService.getContext(true).filter(s => !s.isRoot);
