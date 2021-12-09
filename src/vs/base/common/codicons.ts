@@ -25,8 +25,8 @@ export function getCodiconAriaLabel(text: string | undefined) {
  * The Codicon library is a set of default icons that are built-in in VS Code.
  *
  * In the product (outside of base) Codicons should only be used as defaults. In order to have all icons in VS Code
- * themeable, component should ise define new, component specific icons using `iconRegistry.registerIcon`.
- * In that call a Codicon can be names as default.
+ * themeable, component should define new, UI component specific icons using `iconRegistry.registerIcon`.
+ * In that call a Codicon can be named as default.
  */
 export class Codicon implements CSSIcon {
 
@@ -42,7 +42,7 @@ export class Codicon implements CSSIcon {
 	private static _allCodicons : Codicon[] = [];
 
 	/**
-	 * @returns Returns all Codicons. Only to be used by the icon registry in platform.
+	 * @returns Returns all default icons covered by the codicon font. Only to be used by the icon registry in platform.
 	 */
 	public static getAll() : readonly Codicon[] {
 		return Codicon._allCodicons;
