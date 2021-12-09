@@ -202,6 +202,18 @@ export function format(documentText: string, range: Range | undefined, options: 
 	return editOperations;
 }
 
+/**
+ *
+ * @param any Creates a formatted string out of the object passed as argeument
+ */
+export function toFormattedString(obj: any, options: FormattingOptions) {
+	const content = JSON.stringify(obj, undefined, options.insertSpaces ? options.tabSize || 4 : '\t');
+	if (options.eol !== undefined) {
+		return content.replace(/\r\n|\r|\n/g, options.eol);
+	}
+	return content;
+}
+
 function repeat(s: string, count: number): string {
 	let result = '';
 	for (let i = 0; i < count; i++) {
