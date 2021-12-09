@@ -94,23 +94,31 @@ class ModelLineProjection implements IModelLineProjection {
 	public getViewLineContent(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): string {
 		this._assertVisible();
 
-		// These offsets refer to model text with injected text.
-		const startOffset = outputLineIndex > 0 ? this._projectionData.breakOffsets[outputLineIndex - 1] : 0;
-		const endOffset = outputLineIndex < this._projectionData.breakOffsets.length
-			? this._projectionData.breakOffsets[outputLineIndex]
-			// This case might not be possible anyway, but we clamp the value to be on the safe side.
-			: this._projectionData.breakOffsets[this._projectionData.breakOffsets.length - 1];
+		const startOffsetInInputWithInjections = outputLineIndex > 0 ? this._projectionData.breakOffsets[outputLineIndex - 1] : 0;
+		const endOffsetInInputWithInjections = this._projectionData.breakOffsets[outputLineIndex];
 
 		let r: string;
 		if (this._projectionData.injectionOffsets !== null) {
-			const injectedTexts = this._projectionData.injectionOffsets.map((offset, idx) => new LineInjectedText(0, 0, offset + 1, this._projectionData.injectionOptions![idx], 0));
-			r = LineInjectedText.applyInjectedText(model.getLineContent(modelLineNumber), injectedTexts).substring(startOffset, endOffset);
+			const injectedTexts = this._projectionData.injectionOffsets.map(
+				(offset, idx) => new LineInjectedText(
+					0,
+					0,
+					offset + 1,
+					this._projectionData.injectionOptions![idx],
+					0
+				)
+			);
+			const lineWithInjections = LineInjectedText.applyInjectedText(
+				model.getLineContent(modelLineNumber),
+				injectedTexts
+			);
+			r = lineWithInjections.substring(startOffsetInInputWithInjections, endOffsetInInputWithInjections);
 		} else {
 			r = model.getValueInRange({
 				startLineNumber: modelLineNumber,
-				startColumn: startOffset + 1,
+				startColumn: startOffsetInInputWithInjections + 1,
 				endLineNumber: modelLineNumber,
-				endColumn: endOffset + 1
+				endColumn: endOffsetInInputWithInjections + 1
 			});
 		}
 
