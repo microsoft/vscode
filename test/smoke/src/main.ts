@@ -256,10 +256,6 @@ async function setupRepository(): Promise<void> {
 }
 
 async function ensureStableCode(): Promise<void> {
-	if (opts.web || !opts['build']) {
-		return;
-	}
-
 	let stableCodePath = opts['stable-build'];
 	if (!stableCodePath) {
 		const { major, minor } = parseVersion(version!);
@@ -304,10 +300,13 @@ async function ensureStableCode(): Promise<void> {
 }
 
 async function setup(): Promise<void> {
-	logger.log('Test data:', testDataPath);
+	logger.log('Test data path:', testDataPath);
 	logger.log('Preparing smoketest setup...');
 
-	await measureAndLog(ensureStableCode(), 'ensureStableCode', logger);
+	if (!opts.web && !opts.remote && opts.build) {
+		// only enabled when running with --build and not in web or remote
+		await measureAndLog(ensureStableCode(), 'ensureStableCode', logger);
+	}
 	await measureAndLog(setupRepository(), 'setupRepository', logger);
 
 	logger.log('Smoketest setup done!\n');
@@ -370,7 +369,7 @@ after(async function () {
 });
 
 describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
-	if (!opts.web) { setupDataLossTests(opts['stable-build'], !!opts.remote, logger); }
+	if (!opts.web) { setupDataLossTests(() => opts['stable-build'] /* Do not change, deferred for a reason! */, logger); }
 	if (!opts.web) { setupPreferencesTests(logger); }
 	setupSearchTests(logger);
 	setupNotebookTests(logger);

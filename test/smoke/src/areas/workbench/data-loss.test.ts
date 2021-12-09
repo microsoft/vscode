@@ -6,7 +6,7 @@
 import { Application, ApplicationOptions, Logger, Quality } from '../../../../automation';
 import { getRandomUserDataDir, startApp, timeout, installDiagnosticsHandler, installAppAfterHandler } from '../../utils';
 
-export function setup(stableCodePath: string | undefined, isRemote: boolean, logger: Logger) {
+export function setup(ensureStableCode: () => string | undefined, logger: Logger) {
 	describe('Data Loss (insiders -> insiders)', () => {
 
 		let app: Application | undefined = undefined;
@@ -103,7 +103,8 @@ export function setup(stableCodePath: string | undefined, isRemote: boolean, log
 		installAppAfterHandler(() => insidersApp ?? stableApp, async () => stableApp?.stop());
 
 		it('verifies opened editors are restored', async function () {
-			if (!stableCodePath || isRemote) {
+			const stableCodePath = ensureStableCode();
+			if (!stableCodePath) {
 				this.skip();
 			}
 
@@ -160,7 +161,8 @@ export function setup(stableCodePath: string | undefined, isRemote: boolean, log
 		});
 
 		async function testHotExit(restartDelay: number | undefined) {
-			if (!stableCodePath || isRemote) {
+			const stableCodePath = ensureStableCode();
+			if (!stableCodePath) {
 				this.skip();
 			}
 
