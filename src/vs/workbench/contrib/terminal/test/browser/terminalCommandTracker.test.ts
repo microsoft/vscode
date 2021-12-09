@@ -102,33 +102,31 @@ suite('Workbench - TerminalCommandTracker', function () {
 			commandTracker.scrollToNextCommand();
 			assert.strictEqual(xterm.buffer.active.viewportY, 20);
 		});
-		for (let i = 0; i < 100; i++) {
-			test('should select to the next and previous commands ' + i, async () => {
-				await writeP(xterm, '\r0');
-				await writeP(xterm, '\n\r1');
-				await writeP(xterm, '\x1b[3G'); // Move cursor to column 3
-				xterm._core._onKey.fire({ key: '\x0d' }); // Mark line
-				assert.strictEqual(xterm.markers[0].line, 10);
-				await writeP(xterm, '\n\r2');
-				await writeP(xterm, '\x1b[3G'); // Move cursor to column 3
-				xterm._core._onKey.fire({ key: '\x0d' }); // Mark line
-				assert.strictEqual(xterm.markers[1].line, 11);
-				await writeP(xterm, '\n\r3');
+		test('should select to the next and previous commands', async () => {
+			await writeP(xterm, '\r0');
+			await writeP(xterm, '\n\r1');
+			await writeP(xterm, '\x1b[3G'); // Move cursor to column 3
+			xterm._core._onKey.fire({ key: '\x0d' }); // Mark line
+			assert.strictEqual(xterm.markers[0].line, 10);
+			await writeP(xterm, '\n\r2');
+			await writeP(xterm, '\x1b[3G'); // Move cursor to column 3
+			xterm._core._onKey.fire({ key: '\x0d' }); // Mark line
+			assert.strictEqual(xterm.markers[1].line, 11);
+			await writeP(xterm, '\n\r3');
 
-				assert.strictEqual(xterm.buffer.active.baseY, 3);
-				assert.strictEqual(xterm.buffer.active.viewportY, 3);
+			assert.strictEqual(xterm.buffer.active.baseY, 3);
+			assert.strictEqual(xterm.buffer.active.viewportY, 3);
 
-				assert.strictEqual(xterm.getSelection(), '');
-				commandTracker.selectToPreviousCommand();
-				assert.strictEqual(xterm.getSelection(), '2');
-				commandTracker.selectToPreviousCommand();
-				assert.strictEqual(xterm.getSelection(), isWindows ? '1\r\n2' : '1\n2');
-				commandTracker.selectToNextCommand();
-				assert.strictEqual(xterm.getSelection(), '2');
-				commandTracker.selectToNextCommand();
-				assert.strictEqual(xterm.getSelection(), isWindows ? '\r\n' : '\n');
-			});
-		}
+			assert.strictEqual(xterm.getSelection(), '');
+			commandTracker.selectToPreviousCommand();
+			assert.strictEqual(xterm.getSelection(), '2');
+			commandTracker.selectToPreviousCommand();
+			assert.strictEqual(xterm.getSelection(), isWindows ? '1\r\n2' : '1\n2');
+			commandTracker.selectToNextCommand();
+			assert.strictEqual(xterm.getSelection(), '2');
+			commandTracker.selectToNextCommand();
+			assert.strictEqual(xterm.getSelection(), isWindows ? '\r\n' : '\n');
+		});
 		test('should select to the next and previous lines & commands', async () => {
 			await writeP(xterm, '\r0');
 			await writeP(xterm, '\n\r1');
