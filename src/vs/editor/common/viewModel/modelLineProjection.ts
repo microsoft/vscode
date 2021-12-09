@@ -63,11 +63,11 @@ export function createModelLineProjection(lineBreakData: ModelLineProjectionData
  * * inject text
  */
 class ModelLineProjection implements IModelLineProjection {
-	private readonly projectionData: ModelLineProjectionData;
+	private readonly _projectionData: ModelLineProjectionData;
 	private _isVisible: boolean;
 
 	constructor(lineBreakData: ModelLineProjectionData, isVisible: boolean) {
-		this.projectionData = lineBreakData;
+		this._projectionData = lineBreakData;
 		this._isVisible = isVisible;
 	}
 
@@ -81,29 +81,29 @@ class ModelLineProjection implements IModelLineProjection {
 	}
 
 	public getProjectionData(): ModelLineProjectionData | null {
-		return this.projectionData;
+		return this._projectionData;
 	}
 
 	public getViewLineCount(): number {
 		if (!this._isVisible) {
 			return 0;
 		}
-		return this.projectionData.getOutputLineCount();
+		return this._projectionData.getOutputLineCount();
 	}
 
 	public getViewLineContent(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): string {
-		this.assertVisible();
+		this._assertVisible();
 
 		// These offsets refer to model text with injected text.
-		const startOffset = outputLineIndex > 0 ? this.projectionData.breakOffsets[outputLineIndex - 1] : 0;
-		const endOffset = outputLineIndex < this.projectionData.breakOffsets.length
-			? this.projectionData.breakOffsets[outputLineIndex]
+		const startOffset = outputLineIndex > 0 ? this._projectionData.breakOffsets[outputLineIndex - 1] : 0;
+		const endOffset = outputLineIndex < this._projectionData.breakOffsets.length
+			? this._projectionData.breakOffsets[outputLineIndex]
 			// This case might not be possible anyway, but we clamp the value to be on the safe side.
-			: this.projectionData.breakOffsets[this.projectionData.breakOffsets.length - 1];
+			: this._projectionData.breakOffsets[this._projectionData.breakOffsets.length - 1];
 
 		let r: string;
-		if (this.projectionData.injectionOffsets !== null) {
-			const injectedTexts = this.projectionData.injectionOffsets.map((offset, idx) => new LineInjectedText(0, 0, offset + 1, this.projectionData.injectionOptions![idx], 0));
+		if (this._projectionData.injectionOffsets !== null) {
+			const injectedTexts = this._projectionData.injectionOffsets.map((offset, idx) => new LineInjectedText(0, 0, offset + 1, this._projectionData.injectionOptions![idx], 0));
 			r = LineInjectedText.applyInjectedText(model.getLineContent(modelLineNumber), injectedTexts).substring(startOffset, endOffset);
 		} else {
 			r = model.getValueInRange({
@@ -115,25 +115,25 @@ class ModelLineProjection implements IModelLineProjection {
 		}
 
 		if (outputLineIndex > 0) {
-			r = spaces(this.projectionData.wrappedTextIndentLength) + r;
+			r = spaces(this._projectionData.wrappedTextIndentLength) + r;
 		}
 
 		return r;
 	}
 
 	public getViewLineLength(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number {
-		this.assertVisible();
-		return this.projectionData.getLineLength(outputLineIndex);
+		this._assertVisible();
+		return this._projectionData.getLineLength(outputLineIndex);
 	}
 
 	public getViewLineMinColumn(_model: ITextModel, _modelLineNumber: number, outputLineIndex: number): number {
-		this.assertVisible();
-		return this.projectionData.getMinOutputOffset(outputLineIndex) + 1;
+		this._assertVisible();
+		return this._projectionData.getMinOutputOffset(outputLineIndex) + 1;
 	}
 
 	public getViewLineMaxColumn(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number {
-		this.assertVisible();
-		return this.projectionData.getMaxOutputOffset(outputLineIndex) + 1;
+		this._assertVisible();
+		return this._projectionData.getMaxOutputOffset(outputLineIndex) + 1;
 	}
 
 	/**
@@ -146,9 +146,9 @@ class ModelLineProjection implements IModelLineProjection {
 	}
 
 	public getViewLinesData(model: ISimpleModel, modelLineNumber: number, fromOutputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: Array<ViewLineData | null>): void {
-		this.assertVisible();
+		this._assertVisible();
 
-		const lineBreakData = this.projectionData;
+		const lineBreakData = this._projectionData;
 
 		const injectionOffsets = lineBreakData.injectionOffsets;
 		const injectionOptions = lineBreakData.injectionOptions;
@@ -218,8 +218,8 @@ class ModelLineProjection implements IModelLineProjection {
 	}
 
 	private _getViewLineData(lineWithInjections: LineTokens, inlineDecorations: null | SingleLineInlineDecoration[], outputLineIndex: number): ViewLineData {
-		this.assertVisible();
-		const lineBreakData = this.projectionData;
+		this._assertVisible();
+		const lineBreakData = this._projectionData;
 		const deltaStartIndex = (outputLineIndex > 0 ? lineBreakData.wrappedTextIndentLength : 0);
 
 		const lineStartOffsetInInputWithInjections = outputLineIndex > 0 ? lineBreakData.breakOffsets[outputLineIndex - 1] : 0;
@@ -231,7 +231,7 @@ class ModelLineProjection implements IModelLineProjection {
 			lineContent = spaces(lineBreakData.wrappedTextIndentLength) + lineContent;
 		}
 
-		const minColumn = this.projectionData.getMinOutputOffset(outputLineIndex) + 1;
+		const minColumn = this._projectionData.getMinOutputOffset(outputLineIndex) + 1;
 		const maxColumn = lineContent.length + 1;
 		const continuesWithWrappedLine = (outputLineIndex + 1 < this.getViewLineCount());
 		const startVisibleColumn = (outputLineIndex === 0 ? 0 : lineBreakData.breakOffsetsVisibleColumn[outputLineIndex - 1]);
@@ -248,34 +248,34 @@ class ModelLineProjection implements IModelLineProjection {
 	}
 
 	public getModelColumnOfViewPosition(outputLineIndex: number, outputColumn: number): number {
-		this.assertVisible();
-		return this.projectionData.translateToInputOffset(outputLineIndex, outputColumn - 1) + 1;
+		this._assertVisible();
+		return this._projectionData.translateToInputOffset(outputLineIndex, outputColumn - 1) + 1;
 	}
 
 	public getViewPositionOfModelPosition(deltaLineNumber: number, inputColumn: number, affinity: PositionAffinity = PositionAffinity.None): Position {
-		this.assertVisible();
-		let r = this.projectionData.translateToOutputPosition(inputColumn - 1, affinity);
+		this._assertVisible();
+		let r = this._projectionData.translateToOutputPosition(inputColumn - 1, affinity);
 		return r.toPosition(deltaLineNumber);
 	}
 
 	public getViewLineNumberOfModelPosition(deltaLineNumber: number, inputColumn: number): number {
-		this.assertVisible();
-		const r = this.projectionData.translateToOutputPosition(inputColumn - 1);
+		this._assertVisible();
+		const r = this._projectionData.translateToOutputPosition(inputColumn - 1);
 		return deltaLineNumber + r.outputLineIndex;
 	}
 
 	public normalizePosition(outputLineIndex: number, outputPosition: Position, affinity: PositionAffinity): Position {
 		const baseViewLineNumber = outputPosition.lineNumber - outputLineIndex;
-		const normalizedOutputPosition = this.projectionData.normalizeOutputPosition(outputLineIndex, outputPosition.column - 1, affinity);
+		const normalizedOutputPosition = this._projectionData.normalizeOutputPosition(outputLineIndex, outputPosition.column - 1, affinity);
 		const result = normalizedOutputPosition.toPosition(baseViewLineNumber);
 		return result;
 	}
 
 	public getInjectedTextAt(outputLineIndex: number, outputColumn: number): InjectedText | null {
-		return this.projectionData.getInjectedText(outputLineIndex, outputColumn - 1);
+		return this._projectionData.getInjectedText(outputLineIndex, outputColumn - 1);
 	}
 
-	private assertVisible() {
+	private _assertVisible() {
 		if (!this._isVisible) {
 			throw new Error('Not supported');
 		}
