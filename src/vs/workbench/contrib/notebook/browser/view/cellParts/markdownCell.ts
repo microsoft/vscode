@@ -86,6 +86,17 @@ export class StatefulMarkdownCell extends Disposable {
 
 		this.applyDecorations();
 		this.viewUpdate();
+
+		this.layoutCellParts();
+		this._register(this.viewCell.onDidChangeLayout(() => {
+			this.layoutCellParts();
+		}));
+	}
+
+	layoutCellParts() {
+		this.cellParts.forEach(part => {
+			part.updateInternalLayoutNow(this.viewCell);
+		});
 	}
 
 	private constructDOM() {

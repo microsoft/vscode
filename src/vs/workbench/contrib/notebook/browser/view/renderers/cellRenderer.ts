@@ -219,23 +219,11 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			return;
 		}
 
-		const elementDisposables = templateData.elementDisposables;
-
-		this.updateForLayout(element, templateData);
-		elementDisposables.add(element.onDidChangeLayout(() => {
-			this.updateForLayout(element, templateData);
-		}));
-
-		elementDisposables.add(templateData.instantiationService.createInstance(StatefulMarkdownCell, this.notebookEditor, element, templateData, [
+		templateData.elementDisposables.add(templateData.instantiationService.createInstance(StatefulMarkdownCell, this.notebookEditor, element, templateData, [
 			templateData.betweenCellToolbar,
-			templateData.statusBar
+			templateData.statusBar,
+			templateData.focusIndicator
 		], this.renderedEditors));
-	}
-
-	private updateForLayout(element: MarkupCellViewModel, templateData: MarkdownCellRenderTemplate): void {
-		templateData.focusIndicator.updateInternalLayoutNow(element);
-		templateData.container.classList.toggle('cell-statusbar-hidden', this.notebookEditor.notebookOptions.computeEditorStatusbarHeight(element.internalMetadata) === 0);
-		templateData.betweenCellToolbar.updateInternalLayoutNow(element);
 	}
 
 	disposeTemplate(templateData: MarkdownCellRenderTemplate): void {
