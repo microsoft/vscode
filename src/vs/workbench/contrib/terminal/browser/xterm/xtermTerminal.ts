@@ -62,6 +62,12 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 	get commandTracker(): ICommandTracker { return this._commandTrackerAddon; }
 
+	private _target: TerminalLocation | undefined;
+	set target(location: TerminalLocation | undefined) {
+		this._target = location;
+	}
+	get target(): TerminalLocation | undefined { return this._target; }
+
 	/**
 	 * @param xtermCtor The xterm.js constructor, this is passed in so it can be fetched lazily
 	 * outside of this class such that {@link raw} is not nullable.
@@ -71,7 +77,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		private readonly _configHelper: TerminalConfigHelper,
 		cols: number,
 		rows: number,
-		private readonly _target: TerminalLocation,
+		location: TerminalLocation,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -80,7 +86,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService
 	) {
 		super();
-
+		this.target = location;
 		const font = this._configHelper.getFont(undefined, true);
 		const config = this._configHelper.config;
 		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');

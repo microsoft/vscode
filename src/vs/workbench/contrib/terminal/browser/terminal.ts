@@ -794,6 +794,11 @@ export interface IXtermTerminal {
 	readonly commandTracker: ICommandTracker;
 
 	/**
+	 * The position of the terminal.
+	 */
+	target?: TerminalLocation;
+
+	/**
 	 * Find the next instance of the term
 	*/
 	findNext(term: string, searchOptions: ISearchOptions): boolean;

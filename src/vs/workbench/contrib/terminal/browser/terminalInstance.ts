@@ -183,6 +183,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	get target(): TerminalLocation | undefined { return this._target; }
 	set target(value: TerminalLocation | undefined) {
+		if (this.xterm) {
+			this.xterm.target = value;
+		}
 		this._target = value;
 	}
 
