@@ -112,8 +112,9 @@ export class Application {
 		await code.waitForWindowIds(ids => ids.length > 0);
 		await code.waitForElement('.monaco-workbench');
 
-		if (this.remote) {
-			await code.waitForTextContent('.monaco-workbench .statusbar-item[id="status.host"]', ' TestResolver', undefined, 2000);
+		if (this.remote || this.web) {
+			const host = this.remote ? 'TestResolver' : 'localhost:9000';
+			await code.waitForTextContent('.monaco-workbench .statusbar-item[id="status.host"]', ` ${host}`, undefined, 2000);
 		}
 	}
 }
