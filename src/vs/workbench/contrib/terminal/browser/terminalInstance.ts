@@ -20,7 +20,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, editorBackground, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessManager, ProcessState, TERMINAL_VIEW_ID, INavigationMode, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, ITerminalProfileResolverService, TerminalCommandId, ITerminalBackend } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -29,7 +29,7 @@ import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalInstance, ITerminalExternalLinkProvider, IRequestAddInstanceToGroupEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
-import type { Terminal as XTermTerminal, ITerminalAddon } from 'xterm';
+import type { Terminal as XTermTerminal, ITerminalAddon, ITheme } from 'xterm';
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/xterm/navigationModeAddon';
 import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { EnvironmentVariableInfoWidget } from 'vs/workbench/contrib/terminal/browser/widgets/environmentVariableInfoWidget';
@@ -65,6 +65,9 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/lineDataEventAddon';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
+import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { TERMINAL_FOREGROUND_COLOR, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR, ansiColorIdentifiers } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { Color } from 'vs/base/common/color';
 
 const enum Constants {
 	/**
@@ -179,12 +182,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _labelComputer?: TerminalLabelComputer;
 	private _userHome?: string;
 	private _hasScrollBar?: boolean;
+	private _target?: TerminalLocation | undefined;
 
-	get target(): TerminalLocation | undefined { return this.xterm?.target; }
+	get target(): TerminalLocation | undefined { return this._target; }
 	set target(value: TerminalLocation | undefined) {
-		if (this.xterm) {
-			this.xterm.target = value;
-		}
+		this._target = value;
 	}
 
 	get instanceId(): number { return this._instanceId; }
@@ -314,7 +316,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@IEditorService private readonly _editorService: IEditorService
+		@IEditorService private readonly _editorService: IEditorService,
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService
 	) {
 		super();
 
@@ -427,6 +430,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._register(toDisposable(() => {
 			if (initialDataEventsTimeout) {
 				window.clearTimeout(initialDataEventsTimeout);
+			}
+		}));
+		this._register(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
+		this._register(this._viewDescriptorService.onDidChangeLocation(({ views }) => {
+			if (views.some(v => v.id === TERMINAL_VIEW_ID)) {
+				this._updateTheme();
 			}
 		}));
 	}
@@ -559,7 +568,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			throw new Error('Terminal disposed of during xterm.js creation');
 		}
 
-		const xterm = this._instantiationService.createInstance(XtermTerminal, Terminal, this._configHelper, this._cols, this._rows);
+		const xterm = this._instantiationService.createInstance(XtermTerminal, Terminal, this._configHelper, this._cols, this._rows, this._getXtermTheme());
 		this.xterm = xterm;
 		const lineDataEventAddon = new LineDataEventAddon();
 		this.xterm.raw.loadAddon(lineDataEventAddon);
@@ -635,6 +644,51 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return xterm;
 	}
 
+	private _getXtermTheme(theme?: IColorTheme): ITheme {
+		if (!theme) {
+			theme = this._themeService.getColorTheme();
+		}
+
+		const location = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
+		const foregroundColor = theme.getColor(TERMINAL_FOREGROUND_COLOR);
+		let backgroundColor: Color | undefined;
+		if (this.target === TerminalLocation.Editor) {
+			backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(editorBackground);
+		} else {
+			backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || (location === ViewContainerLocation.Panel ? theme.getColor(PANEL_BACKGROUND) : theme.getColor(SIDE_BAR_BACKGROUND));
+		}
+		const cursorColor = theme.getColor(TERMINAL_CURSOR_FOREGROUND_COLOR) || foregroundColor;
+		const cursorAccentColor = theme.getColor(TERMINAL_CURSOR_BACKGROUND_COLOR) || backgroundColor;
+		const selectionColor = theme.getColor(TERMINAL_SELECTION_BACKGROUND_COLOR);
+
+		return {
+			background: backgroundColor ? backgroundColor.toString() : undefined,
+			foreground: foregroundColor ? foregroundColor.toString() : undefined,
+			cursor: cursorColor ? cursorColor.toString() : undefined,
+			cursorAccent: cursorAccentColor ? cursorAccentColor.toString() : undefined,
+			selection: selectionColor ? selectionColor.toString() : undefined,
+			black: theme.getColor(ansiColorIdentifiers[0])?.toString(),
+			red: theme.getColor(ansiColorIdentifiers[1])?.toString(),
+			green: theme.getColor(ansiColorIdentifiers[2])?.toString(),
+			yellow: theme.getColor(ansiColorIdentifiers[3])?.toString(),
+			blue: theme.getColor(ansiColorIdentifiers[4])?.toString(),
+			magenta: theme.getColor(ansiColorIdentifiers[5])?.toString(),
+			cyan: theme.getColor(ansiColorIdentifiers[6])?.toString(),
+			white: theme.getColor(ansiColorIdentifiers[7])?.toString(),
+			brightBlack: theme.getColor(ansiColorIdentifiers[8])?.toString(),
+			brightRed: theme.getColor(ansiColorIdentifiers[9])?.toString(),
+			brightGreen: theme.getColor(ansiColorIdentifiers[10])?.toString(),
+			brightYellow: theme.getColor(ansiColorIdentifiers[11])?.toString(),
+			brightBlue: theme.getColor(ansiColorIdentifiers[12])?.toString(),
+			brightMagenta: theme.getColor(ansiColorIdentifiers[13])?.toString(),
+			brightCyan: theme.getColor(ansiColorIdentifiers[14])?.toString(),
+			brightWhite: theme.getColor(ansiColorIdentifiers[15])?.toString()
+		};
+	}
+
+	private _updateTheme(theme?: IColorTheme): void {
+		this.xterm?.raw.setOption('theme', this._getXtermTheme(theme));
+	}
 	private _loadTypeAheadAddon(xterm: XtermTerminal): void {
 		const enabled = this._configHelper.config.localEchoEnabled;
 		const isRemote = !!this.remoteAuthority;
@@ -665,6 +719,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._attachBarrier.open();
 
 		this.xterm?.attachToElement(container);
+		this._updateTheme();
 
 		// Attach has not occurred yet
 		if (!this._wrapperElement) {
@@ -700,7 +755,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!xterm.raw.element || !xterm.raw.textarea) {
 			throw new Error('xterm elements not set after open');
 		}
-
 
 		this._setAriaLabel(xterm.raw, this._instanceId, this._title);
 
