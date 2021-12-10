@@ -583,8 +583,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			codeCellView.layoutCellParts();
 			const bottomToolbarDimensions = this.notebookEditor.notebookOptions.computeBottomToolbarDimensions(this.notebookEditor.textModel?.viewType);
 			templateData.dragHandle.setHeight(element.layoutInfo.totalHeight - bottomToolbarDimensions.bottomToolbarGap);
-
-			this.updateForTitleMenu(templateData);
 		}));
 	}
 
@@ -640,8 +638,22 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			this.updateForLayout(codeCellView, element, templateData);
 		}));
 
+		this.updateTitleMenuAndSubscribe(element, templateData, codeCellView);
+	}
+
+	updateTitleMenuAndSubscribe(element: CodeCellViewModel, templateData: CodeCellRenderTemplate, codeCellView: CodeCell) {
+		// todo@rebornix, consolidate duplicated requests in next frame
+		templateData.elementDisposables.add(DOM.scheduleAtNextAnimationFrame(() => {
+			this.updateForTitleMenu(templateData);
+		}));
+
+		templateData.elementDisposables.add(element.onDidChangeLayout(() => {
+			templateData.elementDisposables.add(DOM.scheduleAtNextAnimationFrame(() => {
+				this.updateForTitleMenu(templateData);
+			}));
+		}));
+
 		templateData.elementDisposables.add(templateData.titleToolbar.onDidUpdateActions(() => {
-			// Don't call directly here - is initially called by updateForLayout in the next frame
 			this.updateForTitleMenu(templateData);
 		}));
 	}
