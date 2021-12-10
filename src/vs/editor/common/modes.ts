@@ -18,7 +18,7 @@ import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureR
 import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
-import { iconRegistry, Codicon } from 'vs/base/common/codicons';
+import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 /**
  * Open ended enum at runtime
@@ -371,94 +371,102 @@ export const enum CompletionItemKind {
 /**
  * @internal
  */
-export const completionKindToCssClass = (function () {
-	let data = Object.create(null);
-	data[CompletionItemKind.Method] = 'symbol-method';
-	data[CompletionItemKind.Function] = 'symbol-function';
-	data[CompletionItemKind.Constructor] = 'symbol-constructor';
-	data[CompletionItemKind.Field] = 'symbol-field';
-	data[CompletionItemKind.Variable] = 'symbol-variable';
-	data[CompletionItemKind.Class] = 'symbol-class';
-	data[CompletionItemKind.Struct] = 'symbol-struct';
-	data[CompletionItemKind.Interface] = 'symbol-interface';
-	data[CompletionItemKind.Module] = 'symbol-module';
-	data[CompletionItemKind.Property] = 'symbol-property';
-	data[CompletionItemKind.Event] = 'symbol-event';
-	data[CompletionItemKind.Operator] = 'symbol-operator';
-	data[CompletionItemKind.Unit] = 'symbol-unit';
-	data[CompletionItemKind.Value] = 'symbol-value';
-	data[CompletionItemKind.Constant] = 'symbol-constant';
-	data[CompletionItemKind.Enum] = 'symbol-enum';
-	data[CompletionItemKind.EnumMember] = 'symbol-enum-member';
-	data[CompletionItemKind.Keyword] = 'symbol-keyword';
-	data[CompletionItemKind.Snippet] = 'symbol-snippet';
-	data[CompletionItemKind.Text] = 'symbol-text';
-	data[CompletionItemKind.Color] = 'symbol-color';
-	data[CompletionItemKind.File] = 'symbol-file';
-	data[CompletionItemKind.Reference] = 'symbol-reference';
-	data[CompletionItemKind.Customcolor] = 'symbol-customcolor';
-	data[CompletionItemKind.Folder] = 'symbol-folder';
-	data[CompletionItemKind.TypeParameter] = 'symbol-type-parameter';
-	data[CompletionItemKind.User] = 'account';
-	data[CompletionItemKind.Issue] = 'issues';
+export namespace CompletionItemKinds {
 
-	return function (kind: CompletionItemKind): string {
-		const name = data[kind];
-		let codicon = name && iconRegistry.get(name);
+	const byKind = new Map<CompletionItemKind, CSSIcon>();
+	byKind.set(CompletionItemKind.Method, Codicon.symbolMethod);
+	byKind.set(CompletionItemKind.Function, Codicon.symbolFunction);
+	byKind.set(CompletionItemKind.Constructor, Codicon.symbolConstructor);
+	byKind.set(CompletionItemKind.Field, Codicon.symbolField);
+	byKind.set(CompletionItemKind.Variable, Codicon.symbolVariable);
+	byKind.set(CompletionItemKind.Class, Codicon.symbolClass);
+	byKind.set(CompletionItemKind.Struct, Codicon.symbolStruct);
+	byKind.set(CompletionItemKind.Interface, Codicon.symbolInterface);
+	byKind.set(CompletionItemKind.Module, Codicon.symbolModule);
+	byKind.set(CompletionItemKind.Property, Codicon.symbolProperty);
+	byKind.set(CompletionItemKind.Event, Codicon.symbolEvent);
+	byKind.set(CompletionItemKind.Operator, Codicon.symbolOperator);
+	byKind.set(CompletionItemKind.Unit, Codicon.symbolUnit);
+	byKind.set(CompletionItemKind.Value, Codicon.symbolValue);
+	byKind.set(CompletionItemKind.Enum, Codicon.symbolEnum);
+	byKind.set(CompletionItemKind.Constant, Codicon.symbolConstant);
+	byKind.set(CompletionItemKind.Enum, Codicon.symbolEnum);
+	byKind.set(CompletionItemKind.EnumMember, Codicon.symbolEnumMember);
+	byKind.set(CompletionItemKind.Keyword, Codicon.symbolKeyword);
+	byKind.set(CompletionItemKind.Snippet, Codicon.symbolSnippet);
+	byKind.set(CompletionItemKind.Text, Codicon.symbolText);
+	byKind.set(CompletionItemKind.Color, Codicon.symbolColor);
+	byKind.set(CompletionItemKind.File, Codicon.symbolFile);
+	byKind.set(CompletionItemKind.Reference, Codicon.symbolReference);
+	byKind.set(CompletionItemKind.Customcolor, Codicon.symbolCustomColor);
+	byKind.set(CompletionItemKind.Folder, Codicon.symbolFolder);
+	byKind.set(CompletionItemKind.TypeParameter, Codicon.symbolTypeParameter);
+	byKind.set(CompletionItemKind.User, Codicon.account);
+	byKind.set(CompletionItemKind.Issue, Codicon.issues);
+
+	/**
+	 * @internal
+	 */
+	export function toIcon(kind: CompletionItemKind): CSSIcon {
+		let codicon = byKind.get(kind);
 		if (!codicon) {
 			console.info('No codicon found for CompletionItemKind ' + kind);
 			codicon = Codicon.symbolProperty;
 		}
-		return codicon.classNames;
-	};
-})();
+		return codicon;
+	}
 
-/**
- * @internal
- */
-export let completionKindFromString: {
-	(value: string): CompletionItemKind;
-	(value: string, strict: true): CompletionItemKind | undefined;
-} = (function () {
-	let data: Record<string, CompletionItemKind> = Object.create(null);
-	data['method'] = CompletionItemKind.Method;
-	data['function'] = CompletionItemKind.Function;
-	data['constructor'] = <any>CompletionItemKind.Constructor;
-	data['field'] = CompletionItemKind.Field;
-	data['variable'] = CompletionItemKind.Variable;
-	data['class'] = CompletionItemKind.Class;
-	data['struct'] = CompletionItemKind.Struct;
-	data['interface'] = CompletionItemKind.Interface;
-	data['module'] = CompletionItemKind.Module;
-	data['property'] = CompletionItemKind.Property;
-	data['event'] = CompletionItemKind.Event;
-	data['operator'] = CompletionItemKind.Operator;
-	data['unit'] = CompletionItemKind.Unit;
-	data['value'] = CompletionItemKind.Value;
-	data['constant'] = CompletionItemKind.Constant;
-	data['enum'] = CompletionItemKind.Enum;
-	data['enum-member'] = CompletionItemKind.EnumMember;
-	data['enumMember'] = CompletionItemKind.EnumMember;
-	data['keyword'] = CompletionItemKind.Keyword;
-	data['snippet'] = CompletionItemKind.Snippet;
-	data['text'] = CompletionItemKind.Text;
-	data['color'] = CompletionItemKind.Color;
-	data['file'] = CompletionItemKind.File;
-	data['reference'] = CompletionItemKind.Reference;
-	data['customcolor'] = CompletionItemKind.Customcolor;
-	data['folder'] = CompletionItemKind.Folder;
-	data['type-parameter'] = CompletionItemKind.TypeParameter;
-	data['typeParameter'] = CompletionItemKind.TypeParameter;
-	data['account'] = CompletionItemKind.User;
-	data['issue'] = CompletionItemKind.Issue;
-	return function (value: string, strict?: true) {
-		let res = data[value];
+	const data = new Map<string, CompletionItemKind>();
+	data.set('method', CompletionItemKind.Method);
+	data.set('function', CompletionItemKind.Function);
+	data.set('constructor', <any>CompletionItemKind.Constructor);
+	data.set('field', CompletionItemKind.Field);
+	data.set('variable', CompletionItemKind.Variable);
+	data.set('class', CompletionItemKind.Class);
+	data.set('struct', CompletionItemKind.Struct);
+	data.set('interface', CompletionItemKind.Interface);
+	data.set('module', CompletionItemKind.Module);
+	data.set('property', CompletionItemKind.Property);
+	data.set('event', CompletionItemKind.Event);
+	data.set('operator', CompletionItemKind.Operator);
+	data.set('unit', CompletionItemKind.Unit);
+	data.set('value', CompletionItemKind.Value);
+	data.set('constant', CompletionItemKind.Constant);
+	data.set('enum', CompletionItemKind.Enum);
+	data.set('enum-member', CompletionItemKind.EnumMember);
+	data.set('enumMember', CompletionItemKind.EnumMember);
+	data.set('keyword', CompletionItemKind.Keyword);
+	data.set('snippet', CompletionItemKind.Snippet);
+	data.set('text', CompletionItemKind.Text);
+	data.set('color', CompletionItemKind.Color);
+	data.set('file', CompletionItemKind.File);
+	data.set('reference', CompletionItemKind.Reference);
+	data.set('customcolor', CompletionItemKind.Customcolor);
+	data.set('folder', CompletionItemKind.Folder);
+	data.set('type-parameter', CompletionItemKind.TypeParameter);
+	data.set('typeParameter', CompletionItemKind.TypeParameter);
+	data.set('account', CompletionItemKind.User);
+	data.set('issue', CompletionItemKind.Issue);
+
+	/**
+	 * @internal
+	 */
+	export function fromString(value: string): CompletionItemKind;
+	/**
+	 * @internal
+	 */
+	export function fromString(value: string, strict: true): CompletionItemKind | undefined;
+	/**
+	 * @internal
+	 */
+	export function fromString(value: string, strict?: boolean): CompletionItemKind | undefined {
+		let res = data.get(value);
 		if (typeof res === 'undefined' && !strict) {
 			res = CompletionItemKind.Property;
 		}
 		return res;
-	};
-})();
+	}
+}
 
 export interface CompletionItemLabel {
 	label: string;
@@ -1103,84 +1111,43 @@ export const enum SymbolTag {
  */
 export namespace SymbolKinds {
 
-	const byName = new Map<string, SymbolKind>();
-	byName.set('file', SymbolKind.File);
-	byName.set('module', SymbolKind.Module);
-	byName.set('namespace', SymbolKind.Namespace);
-	byName.set('package', SymbolKind.Package);
-	byName.set('class', SymbolKind.Class);
-	byName.set('method', SymbolKind.Method);
-	byName.set('property', SymbolKind.Property);
-	byName.set('field', SymbolKind.Field);
-	byName.set('constructor', SymbolKind.Constructor);
-	byName.set('enum', SymbolKind.Enum);
-	byName.set('interface', SymbolKind.Interface);
-	byName.set('function', SymbolKind.Function);
-	byName.set('variable', SymbolKind.Variable);
-	byName.set('constant', SymbolKind.Constant);
-	byName.set('string', SymbolKind.String);
-	byName.set('number', SymbolKind.Number);
-	byName.set('boolean', SymbolKind.Boolean);
-	byName.set('array', SymbolKind.Array);
-	byName.set('object', SymbolKind.Object);
-	byName.set('key', SymbolKind.Key);
-	byName.set('null', SymbolKind.Null);
-	byName.set('enum-member', SymbolKind.EnumMember);
-	byName.set('struct', SymbolKind.Struct);
-	byName.set('event', SymbolKind.Event);
-	byName.set('operator', SymbolKind.Operator);
-	byName.set('type-parameter', SymbolKind.TypeParameter);
-
-	const byKind = new Map<SymbolKind, string>();
-	byKind.set(SymbolKind.File, 'file');
-	byKind.set(SymbolKind.Module, 'module');
-	byKind.set(SymbolKind.Namespace, 'namespace');
-	byKind.set(SymbolKind.Package, 'package');
-	byKind.set(SymbolKind.Class, 'class');
-	byKind.set(SymbolKind.Method, 'method');
-	byKind.set(SymbolKind.Property, 'property');
-	byKind.set(SymbolKind.Field, 'field');
-	byKind.set(SymbolKind.Constructor, 'constructor');
-	byKind.set(SymbolKind.Enum, 'enum');
-	byKind.set(SymbolKind.Interface, 'interface');
-	byKind.set(SymbolKind.Function, 'function');
-	byKind.set(SymbolKind.Variable, 'variable');
-	byKind.set(SymbolKind.Constant, 'constant');
-	byKind.set(SymbolKind.String, 'string');
-	byKind.set(SymbolKind.Number, 'number');
-	byKind.set(SymbolKind.Boolean, 'boolean');
-	byKind.set(SymbolKind.Array, 'array');
-	byKind.set(SymbolKind.Object, 'object');
-	byKind.set(SymbolKind.Key, 'key');
-	byKind.set(SymbolKind.Null, 'null');
-	byKind.set(SymbolKind.EnumMember, 'enum-member');
-	byKind.set(SymbolKind.Struct, 'struct');
-	byKind.set(SymbolKind.Event, 'event');
-	byKind.set(SymbolKind.Operator, 'operator');
-	byKind.set(SymbolKind.TypeParameter, 'type-parameter');
+	const byKind = new Map<SymbolKind, CSSIcon>();
+	byKind.set(SymbolKind.File, Codicon.symbolFile);
+	byKind.set(SymbolKind.Module, Codicon.symbolModule);
+	byKind.set(SymbolKind.Namespace, Codicon.symbolNamespace);
+	byKind.set(SymbolKind.Package, Codicon.symbolPackage);
+	byKind.set(SymbolKind.Class, Codicon.symbolClass);
+	byKind.set(SymbolKind.Method, Codicon.symbolMethod);
+	byKind.set(SymbolKind.Property, Codicon.symbolProperty);
+	byKind.set(SymbolKind.Field, Codicon.symbolField);
+	byKind.set(SymbolKind.Constructor, Codicon.symbolConstructor);
+	byKind.set(SymbolKind.Enum, Codicon.symbolEnum);
+	byKind.set(SymbolKind.Interface, Codicon.symbolInterface);
+	byKind.set(SymbolKind.Function, Codicon.symbolFunction);
+	byKind.set(SymbolKind.Variable, Codicon.symbolVariable);
+	byKind.set(SymbolKind.Constant, Codicon.symbolConstant);
+	byKind.set(SymbolKind.String, Codicon.symbolString);
+	byKind.set(SymbolKind.Number, Codicon.symbolNumber);
+	byKind.set(SymbolKind.Boolean, Codicon.symbolBoolean);
+	byKind.set(SymbolKind.Array, Codicon.symbolArray);
+	byKind.set(SymbolKind.Object, Codicon.symbolObject);
+	byKind.set(SymbolKind.Key, Codicon.symbolKey);
+	byKind.set(SymbolKind.Null, Codicon.symbolNull);
+	byKind.set(SymbolKind.EnumMember, Codicon.symbolEnumMember);
+	byKind.set(SymbolKind.Struct, Codicon.symbolStruct);
+	byKind.set(SymbolKind.Event, Codicon.symbolEvent);
+	byKind.set(SymbolKind.Operator, Codicon.symbolOperator);
+	byKind.set(SymbolKind.TypeParameter, Codicon.symbolTypeParameter);
 	/**
 	 * @internal
 	 */
-	export function fromString(value: string): SymbolKind | undefined {
-		return byName.get(value);
-	}
-	/**
-	 * @internal
-	 */
-	export function toString(kind: SymbolKind): string | undefined {
-		return byKind.get(kind);
-	}
-	/**
-	 * @internal
-	 */
-	export function toCssClassName(kind: SymbolKind, inline?: boolean): string {
-		const symbolName = byKind.get(kind);
-		let codicon = symbolName && iconRegistry.get('symbol-' + symbolName);
-		if (!codicon) {
+	export function toIcon(kind: SymbolKind): CSSIcon {
+		let icon = byKind.get(kind);
+		if (!icon) {
 			console.info('No codicon found for SymbolKind ' + kind);
-			codicon = Codicon.symbolProperty;
+			icon = Codicon.symbolProperty;
 		}
-		return `${inline ? 'inline' : 'block'} ${codicon.classNames}`;
+		return icon;
 	}
 }
 

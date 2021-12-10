@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { iconRegistry } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
@@ -27,8 +27,8 @@ const terminalProfileBaseProperties: IJSONSchemaMap = {
 	icon: {
 		description: localize('terminalProfile.icon', 'A codicon ID to associate with this terminal.'),
 		type: 'string',
-		enum: Array.from(iconRegistry.all, icon => icon.id),
-		markdownEnumDescriptions: Array.from(iconRegistry.all, icon => `$(${icon.id})`),
+		enum: Array.from(Codicon.getAll(), icon => icon.id),
+		markdownEnumDescriptions: Array.from(Codicon.getAll(), icon => `$(${icon.id})`),
 	},
 	color: {
 		description: localize('terminalProfile.color', 'A theme color ID to associate with this terminal.'),
