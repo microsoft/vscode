@@ -43,6 +43,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standaloneThemeServiceImpl';
 import { splitLines } from 'vs/base/common/strings';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 
@@ -91,6 +92,7 @@ export function create(domElement: HTMLElement, options?: IStandaloneEditorConst
 			services.get(IAccessibilityService),
 			services.get(IModelService),
 			services.get(ILanguageService),
+			services.get(ILanguageConfigurationService),
 		);
 	});
 }
@@ -240,7 +242,7 @@ export function onDidChangeModelLanguage(listener: (e: { readonly model: ITextMo
  * Specify an AMD module to load that will `create` an object that will be proxied.
  */
 export function createWebWorker<T>(opts: IWebWorkerOptions): MonacoWebWorker<T> {
-	return actualCreateWebWorker<T>(StaticServices.modelService.get(), opts);
+	return actualCreateWebWorker<T>(StaticServices.modelService.get(), StaticServices.languageConfigurationService.get(), opts);
 }
 
 /**

@@ -67,6 +67,11 @@ export class Terminal {
 	async runCommandWithValue(commandId: TerminalCommandIdWithValue, value?: string, altKey?: boolean): Promise<void> {
 		const shouldKeepOpen = !!value || commandId === TerminalCommandIdWithValue.NewWithProfile || commandId === TerminalCommandIdWithValue.Rename || (commandId === TerminalCommandIdWithValue.SelectDefaultProfile && value !== 'PowerShell');
 		await this.quickaccess.runCommand(commandId, shouldKeepOpen);
+		// Running the command should hide the quick input in the following frame, this next wait
+		// ensures that the quick input is opened again before proceeding to avoid a race condition
+		// where the enter keybinding below would close the quick input if it's triggered before the
+		// new quick input shows.
+		await this.quickinput.waitForQuickInputOpened();
 		if (value) {
 			await this.code.waitForSetValue(QuickInput.QUICK_INPUT_INPUT, value);
 		} else if (commandId === TerminalCommandIdWithValue.Rename) {

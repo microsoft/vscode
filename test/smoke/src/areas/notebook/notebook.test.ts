@@ -4,15 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
-import minimist = require('minimist');
-import { Application } from '../../../../automation';
-import { installCommonTestHandlers } from '../../utils';
+import { Application, Logger } from '../../../../automation';
+import { installAllHandlers } from '../../utils';
 
-export function setup(opts: minimist.ParsedArgs) {
+export function setup(logger: Logger) {
 	describe.skip('Notebooks', () => {
 
 		// Shared before/after handling
-		installCommonTestHandlers(opts);
+		installAllHandlers(logger);
 
 		afterEach(async function () {
 			const app = this.app as Application;

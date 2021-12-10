@@ -6,7 +6,6 @@
 import { asCSSPropertyValue, asCSSUrl } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
 import { getIconRegistry, IconContribution, IconFontContribution } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 
 export interface IIconsStyleSheet {
@@ -24,13 +23,9 @@ export function getIconsStyleSheet(): IIconsStyleSheet {
 		getCSS() {
 			const usedFontIds: { [id: string]: IconFontContribution } = {};
 			const formatIconRule = (contribution: IconContribution): string | undefined => {
-				let definition = contribution.defaults;
-				while (ThemeIcon.isThemeIcon(definition)) {
-					const c = iconRegistry.getIcon(definition.id);
-					if (!c) {
-						return undefined;
-					}
-					definition = c.defaults;
+				const definition = IconContribution.getDefinition(contribution, iconRegistry);
+				if (!definition) {
+					return undefined;
 				}
 				const fontId = definition.fontId;
 				if (fontId) {

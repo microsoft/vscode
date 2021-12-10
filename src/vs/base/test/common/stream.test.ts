@@ -343,6 +343,40 @@ suite('Stream', () => {
 		assert.strictEqual(end, true);
 	});
 
+	test('listenStream - dispose', () => {
+		const stream = newWriteableStream<string>(strings => strings.join());
+
+		let error = false;
+		let end = false;
+		let data = '';
+
+		const disposable = listenStream(stream, {
+			onData: d => {
+				data = d;
+			},
+			onError: e => {
+				error = true;
+			},
+			onEnd: () => {
+				end = true;
+			}
+		});
+
+		disposable.dispose();
+
+		stream.write('Hello');
+		assert.strictEqual(data, '');
+
+		stream.write('World');
+		assert.strictEqual(data, '');
+
+		stream.error(new Error());
+		assert.strictEqual(error, false);
+
+		stream.end('Final Bit');
+		assert.strictEqual(end, false);
+	});
+
 	test('peekStream', async () => {
 		for (let i = 0; i < 5; i++) {
 			const stream = readableToStream(arrayToReadable(['1', '2', '3', '4', '5']));

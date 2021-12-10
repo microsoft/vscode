@@ -226,30 +226,19 @@ class Extension implements IExtension {
 		return !!this.gallery?.hasReleaseVersion;
 	}
 
-	private getLocal(preRelease: boolean): ILocalExtension | undefined {
-		return this.local && !this.outdated && this.local.isPreReleaseVersion === preRelease ? this.local : undefined;
+	private getLocal(): ILocalExtension | undefined {
+		return this.local && !this.outdated ? this.local : undefined;
 	}
 
-	private async getGallery(preRelease: boolean, token: CancellationToken): Promise<IGalleryExtension | undefined> {
-		if (this.gallery) {
-			if (preRelease === this.gallery.properties.isPreReleaseVersion) {
-				return this.gallery;
-			}
-			return (await this.galleryService.getExtensions([this.gallery.identifier], preRelease, token))[0];
-		}
-		return undefined;
-	}
-
-	async getManifest(preRelease: boolean, token: CancellationToken): Promise<IExtensionManifest | null> {
-		const local = this.getLocal(preRelease);
+	async getManifest(token: CancellationToken): Promise<IExtensionManifest | null> {
+		const local = this.getLocal();
 		if (local) {
 			return local.manifest;
 		}
 
-		const gallery = await this.getGallery(preRelease, token);
-		if (gallery) {
-			if (gallery.assets.manifest) {
-				return this.galleryService.getManifest(gallery, token);
+		if (this.gallery) {
+			if (this.gallery.assets.manifest) {
+				return this.galleryService.getManifest(this.gallery, token);
 			}
 			this.logService.error(nls.localize('Manifest is not found', "Manifest is not found"), this.identifier.id);
 			return null;
@@ -270,17 +259,16 @@ class Extension implements IExtension {
 		return this.type === ExtensionType.System;
 	}
 
-	async getReadme(preRelease: boolean, token: CancellationToken): Promise<string> {
-		const local = this.getLocal(preRelease);
+	async getReadme(token: CancellationToken): Promise<string> {
+		const local = this.getLocal();
 		if (local?.readmeUrl) {
 			const content = await this.fileService.readFile(local.readmeUrl);
 			return content.value.toString();
 		}
 
-		const gallery = await this.getGallery(preRelease, token);
-		if (gallery) {
-			if (gallery.assets.readme) {
-				return this.galleryService.getReadme(gallery, token);
+		if (this.gallery) {
+			if (this.gallery.assets.readme) {
+				return this.galleryService.getReadme(this.gallery, token);
 			}
 			this.telemetryService.publicLog('extensions:NotFoundReadMe', this.telemetryData);
 		}
@@ -308,16 +296,15 @@ ${this.description}
 		return this.type === ExtensionType.System;
 	}
 
-	async getChangelog(preRelease: boolean, token: CancellationToken): Promise<string> {
-		const local = this.getLocal(preRelease);
+	async getChangelog(token: CancellationToken): Promise<string> {
+		const local = this.getLocal();
 		if (local?.changelogUrl) {
 			const content = await this.fileService.readFile(local.changelogUrl);
 			return content.value.toString();
 		}
 
-		const gallery = await this.getGallery(preRelease, token);
-		if (gallery?.assets.changelog) {
-			return this.galleryService.getChangelog(gallery, token);
+		if (this.gallery?.assets.changelog) {
+			return this.galleryService.getChangelog(this.gallery, token);
 		}
 
 		if (this.type === ExtensionType.System) {
@@ -1018,27 +1005,41 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			.then(undefined, err => null);
 	}
 
-	private syncWithGallery(): Promise<void> {
-		const ids: string[] = [], names: string[] = [];
+	private async syncWithGallery(): Promise<void> {
+		const ids: string[] = [], preReleaseIds: string[] = [], names: string[] = [], preReleaseNames: string[] = [];
 		for (const installed of this.local) {
 			if (installed.type === ExtensionType.User) {
 				if (installed.identifier.uuid) {
-					ids.push(installed.identifier.uuid);
+					if (installed.local?.isPreReleaseVersion || installed.local?.preRelease) {
+						preReleaseIds.push(installed.identifier.uuid);
+					} else {
+						ids.push(installed.identifier.uuid);
+					}
 				} else {
-					names.push(installed.identifier.id);
+					if (installed.local?.isPreReleaseVersion || installed.local?.preRelease) {
+						preReleaseNames.push(installed.identifier.id);
+					} else {
+						names.push(installed.identifier.id);
+					}
 				}
 			}
 		}
 
 		const promises: Promise<IPager<IExtension>>[] = [];
 		if (ids.length) {
-			promises.push(this.queryGallery({ ids, pageSize: ids.length }, CancellationToken.None));
+			promises.push(this.queryGallery({ ids, pageSize: ids.length, includePreRelease: false }, CancellationToken.None));
+		}
+		if (preReleaseIds.length) {
+			promises.push(this.queryGallery({ ids: preReleaseIds, pageSize: preReleaseIds.length, includePreRelease: true }, CancellationToken.None));
 		}
 		if (names.length) {
-			promises.push(this.queryGallery({ names, pageSize: names.length }, CancellationToken.None));
+			promises.push(this.queryGallery({ names, pageSize: names.length, includePreRelease: false }, CancellationToken.None));
+		}
+		if (preReleaseNames.length) {
+			promises.push(this.queryGallery({ names: preReleaseNames, pageSize: names.length, includePreRelease: true }, CancellationToken.None));
 		}
 
-		return Promises.settled(promises).then(() => undefined);
+		await Promises.settled(promises);
 	}
 
 	private eventuallyAutoUpdateExtensions(): void {
