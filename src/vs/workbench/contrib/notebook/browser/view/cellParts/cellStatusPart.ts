@@ -46,12 +46,13 @@ export class CellEditorStatusBar extends CellPart {
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditorDelegate,
-		container: HTMLElement,
+		private readonly _cellContainer: HTMLElement,
+		editorPart: HTMLElement,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
-		this.statusBarContainer = DOM.append(container, $('.cell-statusbar-container'));
+		this.statusBarContainer = DOM.append(editorPart, $('.cell-statusbar-container'));
 		this.statusBarContainer.tabIndex = -1;
 		const leftItemsContainer = DOM.append(this.statusBarContainer, $('.cell-status-left'));
 		const rightItemsContainer = DOM.append(this.statusBarContainer, $('.cell-status-right'));
@@ -102,6 +103,9 @@ export class CellEditorStatusBar extends CellPart {
 	}
 
 	updateInternalLayoutNow(element: ICellViewModel): void {
+		// todo@rebornix layer breaker
+		this._cellContainer.classList.toggle('cell-statusbar-hidden', this._notebookEditor.notebookOptions.computeEditorStatusbarHeight(element.internalMetadata) === 0);
+
 		const layoutInfo = element.layoutInfo;
 		const width = layoutInfo.editorWidth;
 		if (!width) {
