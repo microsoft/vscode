@@ -243,6 +243,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				}
 			}
 
+			(options as any).experimentalDarkMode = true;
+
 			// Create the browser window
 			mark('code/willCreateCodeBrowserWindow');
 			this._win = new BrowserWindow(options);

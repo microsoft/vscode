@@ -335,10 +335,11 @@ export class IssueMainService implements ICommonIssueService {
 				nativeWindowOpen: true,
 				zoomFactor: zoomLevelToZoomFactor(options.zoomLevel),
 				sandbox: true,
-				contextIsolation: true,
+				contextIsolation: true
 			},
-			alwaysOnTop: options.alwaysOnTop
-		});
+			alwaysOnTop: options.alwaysOnTop,
+			experimentalDarkMode: true
+		} as any);
 
 		window.setMenuBarVisibility(false);
 
