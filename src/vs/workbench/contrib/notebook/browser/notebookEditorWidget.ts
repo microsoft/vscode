@@ -2071,7 +2071,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		if (!cells) {
 			cells = this.viewModel.viewCells;
 		}
-		return this.notebookExecutionService.executeNotebookCells(this.textModel, cells);
+		return this.notebookExecutionService.executeNotebookCells(this.textModel, Array.from(cells).map(c => c.model));
 	}
 
 	//#endregion
