@@ -585,6 +585,11 @@ export interface ITerminalChildProcess {
 	updateProperty<T extends ProcessPropertyType>(property: T, value: IProcessPropertyMap[T]): Promise<void>;
 }
 
+export interface ITerminalEventListener {
+	handleInput(data: string): void;
+	handleResize(cols: number, rows: number): void;
+}
+
 export interface IReconnectConstants {
 	graceTime: number;
 	shortGraceTime: number;

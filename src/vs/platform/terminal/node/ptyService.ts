@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { getSystemShell } from 'vs/base/node/shell';
 import { ILogService } from 'vs/platform/log/common/log';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
-import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, ProcessCapability } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, ProcessCapability, ITerminalEventListener } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { Terminal as XtermTerminal } from 'xterm-headless';
@@ -23,6 +23,7 @@ import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnviron
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
 import { localize } from 'vs/nls';
 import { ignoreProcessNames } from 'vs/platform/terminal/node/childProcessMonitor';
+import { TerminalAutoResponder } from 'vs/platform/terminal/common/terminalAutoResponder';
 
 type WorkspaceId = string;
 
@@ -399,6 +400,7 @@ interface IPersistentTerminalProcessLaunchOptions {
 export class PersistentTerminalProcess extends Disposable {
 
 	private readonly _bufferer: TerminalDataBufferer;
+	private _eventListeners: ITerminalEventListener[] = [];
 
 	private readonly _pendingCommands = new Map<number, { resolve: (data: any) => void; reject: (err: any) => void; }>();
 
@@ -561,6 +563,8 @@ export class PersistentTerminalProcess extends Disposable {
 			// be attached yet). https://github.com/microsoft/terminal/issues/11213
 			if (this._wasRevived) {
 				this.triggerReplay();
+			} else {
+				this._setupAutoResponder();
 			}
 		} else {
 			this._onProcessReady.fire({ pid: this._pid, cwd: this._cwd, capabilities: this._terminalProcess.capabilities, requiresWindowsMode: isWindows && getWindowsBuildNumber() < 21376 });
@@ -578,6 +582,9 @@ export class PersistentTerminalProcess extends Disposable {
 		if (this._inReplay) {
 			return;
 		}
+		for (const listener of this._eventListeners) {
+			listener.handleInput(data);
+		}
 		return this._terminalProcess.input(data);
 	}
 	writeBinary(data: string): Promise<void> {
@@ -591,6 +598,10 @@ export class PersistentTerminalProcess extends Disposable {
 
 		// Buffered events should flush when a resize occurs
 		this._bufferer.flushBuffer(this._persistentProcessId);
+
+		for (const listener of this._eventListeners) {
+			listener.handleResize(cols, rows);
+		}
 		return this._terminalProcess.resize(cols, rows);
 	}
 	setUnicodeVersion(version: '6' | '11'): void {
@@ -624,6 +635,13 @@ export class PersistentTerminalProcess extends Disposable {
 		this._logService.info(`Persistent process "${this._persistentProcessId}": Replaying ${dataLength} chars and ${ev.events.length} size events`);
 		this._onProcessReplay.fire(ev);
 		this._terminalProcess.clearUnacknowledgedChars();
+		this._setupAutoResponder();
+	}
+
+	private _setupAutoResponder() {
+		if (isWindows) {
+			this._eventListeners.push(this._register(new TerminalAutoResponder(this._terminalProcess, 'Terminate batch job (Y/N)', 'Y\r')));
+		}
 	}
 
 	sendCommandResult(reqId: number, isError: boolean, serializedPayload: any): void {
