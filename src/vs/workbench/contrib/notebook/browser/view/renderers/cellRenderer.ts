@@ -586,7 +586,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		}));
 	}
 
-	private updateForTitleMenu(templateData: CodeCellRenderTemplate): void {
+	private updateFocusIndicatorsForTitleMenu(templateData: CodeCellRenderTemplate): void {
 		const layoutInfo = this.notebookEditor.notebookOptions.getLayoutConfiguration();
 		if (templateData.titleToolbar.hasActions) {
 			templateData.focusIndicator.left.domNode.style.transform = `translateY(${layoutInfo.editorToolbarHeight + layoutInfo.cellTopMargin}px)`;
@@ -638,23 +638,23 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			this.updateForLayout(codeCellView, element, templateData);
 		}));
 
-		this.updateTitleMenuAndSubscribe(element, templateData, codeCellView);
+		this.updateFocusIndicatorsForTitleMenuAndSubscribe(element, templateData, codeCellView);
 	}
 
-	updateTitleMenuAndSubscribe(element: CodeCellViewModel, templateData: CodeCellRenderTemplate, codeCellView: CodeCell) {
+	updateFocusIndicatorsForTitleMenuAndSubscribe(element: CodeCellViewModel, templateData: CodeCellRenderTemplate, codeCellView: CodeCell) {
 		// todo@rebornix, consolidate duplicated requests in next frame
 		templateData.elementDisposables.add(DOM.scheduleAtNextAnimationFrame(() => {
-			this.updateForTitleMenu(templateData);
+			this.updateFocusIndicatorsForTitleMenu(templateData);
 		}));
 
 		templateData.elementDisposables.add(element.onDidChangeLayout(() => {
 			templateData.elementDisposables.add(DOM.scheduleAtNextAnimationFrame(() => {
-				this.updateForTitleMenu(templateData);
+				this.updateFocusIndicatorsForTitleMenu(templateData);
 			}));
 		}));
 
 		templateData.elementDisposables.add(templateData.titleToolbar.onDidUpdateActions(() => {
-			this.updateForTitleMenu(templateData);
+			this.updateFocusIndicatorsForTitleMenu(templateData);
 		}));
 	}
 
