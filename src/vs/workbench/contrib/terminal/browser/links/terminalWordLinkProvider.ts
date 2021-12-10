@@ -154,13 +154,28 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 		const sanitizedLink = link.replace(/:\d+(:\d+)?$/, '');
 		let exactMatch = await this._getExactMatch(sanitizedLink, link);
 		if (exactMatch) {
+			// If there was exactly one match, open it
+			const match = link.match(/:(\d+)?(:(\d+))?$/);
+			const startLineNumber = match?.[1];
+			const startColumn = match?.[3];
+			await this._editorService.openEditor({
+				resource: exactMatch,
+				options: {
+					pinned: true,
+					revealIfOpened: true,
+					selection: startLineNumber ? {
+						startLineNumber: parseInt(startLineNumber),
+						startColumn: startColumn ? parseInt(startColumn) : 0
+					} : undefined
+				}
+			});
 			return;
 		}
 		// Fallback to searching quick access
 		return this._quickInputService.quickAccess.show(link);
 	}
 
-	private async _getExactMatch(sanitizedLink: string, link: string): Promise<boolean> {
+	private async _getExactMatch(sanitizedLink: string, link: string): Promise<URI | undefined> {
 		let exactResource: URI | undefined;
 		if (isAbsolute(sanitizedLink)) {
 			const scheme = this._environmentService.remoteAuthority ? Schemas.vscodeRemote : Schemas.file;
@@ -182,25 +197,7 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 				exactResource = results.results[0].resource;
 			}
 		}
-		if (exactResource) {
-			// If there was exactly one match, open it
-			const match = link.match(/:(\d+)?(:(\d+))?$/);
-			const startLineNumber = match?.[1];
-			const startColumn = match?.[3];
-			await this._editorService.openEditor({
-				resource: exactResource,
-				options: {
-					pinned: true,
-					revealIfOpened: true,
-					selection: startLineNumber ? {
-						startLineNumber: parseInt(startLineNumber),
-						startColumn: startColumn ? parseInt(startColumn) : 0
-					} : undefined
-				}
-			});
-			return true;
-		}
-		return false;
+		return exactResource;
 	}
 }
 
