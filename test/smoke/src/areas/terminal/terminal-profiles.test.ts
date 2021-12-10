@@ -22,20 +22,20 @@ export function setup() {
 			await terminal.assertSingleTab({ name: ANY_PROFILE_NAME });
 		});
 
-		it.skip('should set the default profile to a contributed one', async () => {
+		it('should set the default profile to a contributed one', async () => {
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.SelectDefaultProfile, CONTRIBUTED_PROFILE_NAME);
 			await terminal.runCommand(TerminalCommandId.CreateNew);
 			await terminal.assertSingleTab({ name: CONTRIBUTED_PROFILE_NAME });
 		});
 
-		it.skip('should use the default contributed profile on panel open and for splitting', async () => {
+		it('should use the default contributed profile on panel open and for splitting', async () => {
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.SelectDefaultProfile, CONTRIBUTED_PROFILE_NAME);
 			await terminal.runCommand(TerminalCommandId.Show);
 			await terminal.runCommand(TerminalCommandId.Split);
 			await terminal.assertTerminalGroups([[{ name: CONTRIBUTED_PROFILE_NAME }, { name: CONTRIBUTED_PROFILE_NAME }]]);
 		});
 
-		it.skip('should set the default profile', async () => {
+		it('should set the default profile', async () => {
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.SelectDefaultProfile, process.platform === 'win32' ? 'PowerShell' : undefined);
 			await terminal.runCommand(TerminalCommandId.CreateNew);
 			await terminal.assertSingleTab({ name: ANY_PROFILE_NAME });
@@ -53,7 +53,7 @@ export function setup() {
 			await terminal.assertSingleTab({ name: ANY_PROFILE_NAME });
 		});
 
-		it.skip('createWithProfile command should create a terminal with a contributed profile', async () => {
+		it('createWithProfile command should create a terminal with a contributed profile', async () => {
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.NewWithProfile, CONTRIBUTED_PROFILE_NAME);
 			await terminal.assertSingleTab({ name: CONTRIBUTED_PROFILE_NAME });
 		});
@@ -64,7 +64,7 @@ export function setup() {
 			await terminal.assertTerminalGroups([[{}, {}]]);
 		});
 
-		it.skip('createWithProfile command should create a split terminal with a contributed profile', async () => {
+		it('createWithProfile command should create a split terminal with a contributed profile', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
 			await terminal.assertSingleTab({});
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.NewWithProfile, CONTRIBUTED_PROFILE_NAME, true);
