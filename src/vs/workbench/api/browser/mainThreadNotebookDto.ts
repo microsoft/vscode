@@ -6,7 +6,8 @@
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CellExecutionUpdateType, ICellExecuteUpdate, ICellExecutionComplete } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
+import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
+import { ICellExecuteUpdate, ICellExecutionComplete } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 export namespace NotebookDto {
 

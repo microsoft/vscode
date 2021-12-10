@@ -15,7 +15,7 @@ import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
+import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernel, INotebookKernelChangeEvent, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtHostContext, ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, ICellExecutionCompleteDto, IExtHostContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol';
@@ -113,8 +113,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		extHostContext: IExtHostContext,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
-		@INotebookExecutionService private readonly _notebookExecutionService: INotebookExecutionService,
-		// @INotebookService private readonly _notebookService: INotebookService,
+		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
 		@INotebookEditorService notebookEditorService: INotebookEditorService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebookKernels);
@@ -128,7 +127,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			this._executions.forEach(e => {
 				const uri = CellUri.parse(URI.parse(e));
 				if (uri) {
-					this._notebookExecutionService.completeNotebookCellExecution(uri.notebook, uri.handle, { });
+					this._notebookExecutionStateService.completeNotebookCellExecution(uri.notebook, uri.handle, { });
 				}
 			});
 		}));
@@ -248,7 +247,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 
 	$addExecution(rawUri: UriComponents, cellHandle: number): void {
 		const uri = URI.revive(rawUri);
-		this._notebookExecutionService.createNotebookCellExecution(uri, cellHandle);
+		this._notebookExecutionStateService.createNotebookCellExecution(uri, cellHandle);
 
 		const cellUri = CellUri.generateCellUri(uri, cellHandle, uri.scheme);
 		this._executions.add(cellUri.toString());
@@ -262,7 +261,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 
 			try {
 				const uri = URI.revive(first.uri);
-				this._notebookExecutionService.updateNotebookCellExecution(uri, first.cellHandle, datas.map(NotebookDto.fromCellExecuteUpdateDto));
+				this._notebookExecutionStateService.updateNotebookCellExecution(uri, first.cellHandle, datas.map(NotebookDto.fromCellExecuteUpdateDto));
 			} catch (e) {
 				onUnexpectedError(e);
 			}
@@ -271,7 +270,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 
 	$completeExecution(rawUri: UriComponents, cellHandle: number, data: SerializableObjectWithBuffers<ICellExecutionCompleteDto>): void {
 		const uri = URI.revive(rawUri);
-		this._notebookExecutionService.completeNotebookCellExecution(uri, cellHandle, NotebookDto.fromCellExecuteCompleteDto(data.value));
+		this._notebookExecutionStateService.completeNotebookCellExecution(uri, cellHandle, NotebookDto.fromCellExecuteCompleteDto(data.value));
 
 		const cellUri = CellUri.generateCellUri(uri, cellHandle, uri.scheme);
 		this._executions.delete(cellUri.toString());

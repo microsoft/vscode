@@ -95,12 +95,14 @@ import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
 // Output renderers registration
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
 import { editorOptionsRegistry } from 'vs/editor/common/config/editorOptions';
+import { NotebookExecutionStateService } from 'vs/workbench/contrib/notebook/browser/notebookExecutionStateServiceImpl';
 import { NotebookExecutionService } from 'vs/workbench/contrib/notebook/browser/notebookExecutionServiceImpl';
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookKeymapService } from 'vs/workbench/contrib/notebook/common/notebookKeymapService';
 import { NotebookKeymapService } from 'vs/workbench/contrib/notebook/browser/notebookKeymapServiceImpl';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -627,6 +629,7 @@ registerSingleton(INotebookCellStatusBarService, NotebookCellStatusBarService, t
 registerSingleton(INotebookEditorService, NotebookEditorWidgetService, true);
 registerSingleton(INotebookKernelService, NotebookKernelService, true);
 registerSingleton(INotebookExecutionService, NotebookExecutionService, true);
+registerSingleton(INotebookExecutionStateService, NotebookExecutionStateService, true);
 registerSingleton(INotebookRendererMessagingService, NotebookRendererMessagingService, true);
 registerSingleton(INotebookKeymapService, NotebookKeymapService, true);
 
