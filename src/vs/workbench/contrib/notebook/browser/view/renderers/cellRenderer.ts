@@ -32,7 +32,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { CodeCellLayoutInfo, EXPAND_CELL_OUTPUT_COMMAND_ID, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellContextKeys';
 import { CellDecorations } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellDecorations';
-import { CellDragAndDropController } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellDnd';
+import { CellDragAndDropController, DragPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellDnd';
 import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
 import { CellExecutionPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellExecution';
 import { CellFocusIndicator } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellFocusIndicator';
@@ -393,7 +393,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const focusIndicatorTop = new FastDomNode(DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-top')));
 		const titleToolbarContainer = DOM.append(container, $('.cell-title-toolbar'));
 		const focusIndicatorLeft = new FastDomNode(DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left')));
-		const dragHandle = new FastDomNode(DOM.append(container, DOM.$('.cell-drag-handle')));
+		const dragHandle = new DragPart(this.notebookEditor, new FastDomNode(DOM.append(container, DOM.$('.cell-drag-handle'))));
 
 		const cellContainer = DOM.append(container, $('.cell.code'));
 		const runButtonContainer = DOM.append(cellContainer, $('.run-button-container'));
@@ -581,8 +581,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	private updateForLayout(codeCellView: CodeCell, element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
 		templateData.elementDisposables.add(DOM.scheduleAtNextAnimationFrame(() => {
 			codeCellView.layoutCellParts();
-			const bottomToolbarDimensions = this.notebookEditor.notebookOptions.computeBottomToolbarDimensions(this.notebookEditor.textModel?.viewType);
-			templateData.dragHandle.setHeight(element.layoutInfo.totalHeight - bottomToolbarDimensions.bottomToolbarGap);
 		}));
 	}
 
@@ -625,6 +623,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			templateData.runToolbar,
 			cellEditorOptions,
 			templateData.cellExecution,
+			templateData.dragHandle
 		]));
 
 		this.renderedEditors.set(element, templateData.editor);
