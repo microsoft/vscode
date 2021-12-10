@@ -432,7 +432,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		const location = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
 		const foregroundColor = theme.getColor(TERMINAL_FOREGROUND_COLOR);
 		let backgroundColor: Color | undefined;
-		if (this._target === TerminalLocation.Editor) {
+		if (this.target === TerminalLocation.Editor) {
 			backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(editorBackground);
 		} else {
 			backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || (location === ViewContainerLocation.Panel ? theme.getColor(PANEL_BACKGROUND) : theme.getColor(SIDE_BAR_BACKGROUND));
