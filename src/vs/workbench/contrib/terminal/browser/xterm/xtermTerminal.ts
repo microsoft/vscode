@@ -76,8 +76,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		@ILogService private readonly _logService: ILogService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
-		@IThemeService private readonly _themeService: IThemeService
+		@IThemeService private readonly _themeService: IThemeService,
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService
 	) {
 		super();
 
@@ -126,8 +126,14 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			}
 		}));
 
-		// Load addons
+		this.add(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
+		this.add(this._viewDescriptorService.onDidChangeLocation(({ views }) => {
+			if (views.some(v => v.id === TERMINAL_VIEW_ID)) {
+				this._updateTheme();
+			}
+		}));
 
+		// Load addons
 		this._updateUnicodeVersion();
 
 		this._commandTrackerAddon = new CommandTrackerAddon();
@@ -137,58 +143,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			this._searchAddon = new addonCtor();
 			this.raw.loadAddon(this._searchAddon);
 		});
-		this.add(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
-		this.add(this._viewDescriptorService.onDidChangeLocation(({ views }) => {
-			if (views.some(v => v.id === TERMINAL_VIEW_ID)) {
-				this._updateTheme();
-			}
-		}));
-	}
-
-	private _getXtermTheme(theme?: IColorTheme): ITheme {
-		if (!theme) {
-			theme = this._themeService.getColorTheme();
-		}
-
-		const location = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
-		const foregroundColor = theme.getColor(TERMINAL_FOREGROUND_COLOR);
-		let backgroundColor: Color | undefined;
-		if (this._target === TerminalLocation.Editor) {
-			backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(editorBackground);
-		} else {
-			backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || (location === ViewContainerLocation.Panel ? theme.getColor(PANEL_BACKGROUND) : theme.getColor(SIDE_BAR_BACKGROUND));
-		}
-		const cursorColor = theme.getColor(TERMINAL_CURSOR_FOREGROUND_COLOR) || foregroundColor;
-		const cursorAccentColor = theme.getColor(TERMINAL_CURSOR_BACKGROUND_COLOR) || backgroundColor;
-		const selectionColor = theme.getColor(TERMINAL_SELECTION_BACKGROUND_COLOR);
-
-		return {
-			background: backgroundColor ? backgroundColor.toString() : undefined,
-			foreground: foregroundColor ? foregroundColor.toString() : undefined,
-			cursor: cursorColor ? cursorColor.toString() : undefined,
-			cursorAccent: cursorAccentColor ? cursorAccentColor.toString() : undefined,
-			selection: selectionColor ? selectionColor.toString() : undefined,
-			black: theme.getColor(ansiColorIdentifiers[0])?.toString(),
-			red: theme.getColor(ansiColorIdentifiers[1])?.toString(),
-			green: theme.getColor(ansiColorIdentifiers[2])?.toString(),
-			yellow: theme.getColor(ansiColorIdentifiers[3])?.toString(),
-			blue: theme.getColor(ansiColorIdentifiers[4])?.toString(),
-			magenta: theme.getColor(ansiColorIdentifiers[5])?.toString(),
-			cyan: theme.getColor(ansiColorIdentifiers[6])?.toString(),
-			white: theme.getColor(ansiColorIdentifiers[7])?.toString(),
-			brightBlack: theme.getColor(ansiColorIdentifiers[8])?.toString(),
-			brightRed: theme.getColor(ansiColorIdentifiers[9])?.toString(),
-			brightGreen: theme.getColor(ansiColorIdentifiers[10])?.toString(),
-			brightYellow: theme.getColor(ansiColorIdentifiers[11])?.toString(),
-			brightBlue: theme.getColor(ansiColorIdentifiers[12])?.toString(),
-			brightMagenta: theme.getColor(ansiColorIdentifiers[13])?.toString(),
-			brightCyan: theme.getColor(ansiColorIdentifiers[14])?.toString(),
-			brightWhite: theme.getColor(ansiColorIdentifiers[15])?.toString()
-		};
-	}
-
-	private _updateTheme(theme?: IColorTheme): void {
-		this.raw.setOption('theme', this._getXtermTheme(theme));
 	}
 
 	attachToElement(container: HTMLElement) {
@@ -462,6 +416,52 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 				textRenderLayer.onGridChanged = originalOnGridChanged;
 			}
 		};
+	}
+
+	private _getXtermTheme(theme?: IColorTheme): ITheme {
+		if (!theme) {
+			theme = this._themeService.getColorTheme();
+		}
+
+		const location = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
+		const foregroundColor = theme.getColor(TERMINAL_FOREGROUND_COLOR);
+		let backgroundColor: Color | undefined;
+		if (this._target === TerminalLocation.Editor) {
+			backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(editorBackground);
+		} else {
+			backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || (location === ViewContainerLocation.Panel ? theme.getColor(PANEL_BACKGROUND) : theme.getColor(SIDE_BAR_BACKGROUND));
+		}
+		const cursorColor = theme.getColor(TERMINAL_CURSOR_FOREGROUND_COLOR) || foregroundColor;
+		const cursorAccentColor = theme.getColor(TERMINAL_CURSOR_BACKGROUND_COLOR) || backgroundColor;
+		const selectionColor = theme.getColor(TERMINAL_SELECTION_BACKGROUND_COLOR);
+
+		return {
+			background: backgroundColor ? backgroundColor.toString() : undefined,
+			foreground: foregroundColor ? foregroundColor.toString() : undefined,
+			cursor: cursorColor ? cursorColor.toString() : undefined,
+			cursorAccent: cursorAccentColor ? cursorAccentColor.toString() : undefined,
+			selection: selectionColor ? selectionColor.toString() : undefined,
+			black: theme.getColor(ansiColorIdentifiers[0])?.toString(),
+			red: theme.getColor(ansiColorIdentifiers[1])?.toString(),
+			green: theme.getColor(ansiColorIdentifiers[2])?.toString(),
+			yellow: theme.getColor(ansiColorIdentifiers[3])?.toString(),
+			blue: theme.getColor(ansiColorIdentifiers[4])?.toString(),
+			magenta: theme.getColor(ansiColorIdentifiers[5])?.toString(),
+			cyan: theme.getColor(ansiColorIdentifiers[6])?.toString(),
+			white: theme.getColor(ansiColorIdentifiers[7])?.toString(),
+			brightBlack: theme.getColor(ansiColorIdentifiers[8])?.toString(),
+			brightRed: theme.getColor(ansiColorIdentifiers[9])?.toString(),
+			brightGreen: theme.getColor(ansiColorIdentifiers[10])?.toString(),
+			brightYellow: theme.getColor(ansiColorIdentifiers[11])?.toString(),
+			brightBlue: theme.getColor(ansiColorIdentifiers[12])?.toString(),
+			brightMagenta: theme.getColor(ansiColorIdentifiers[13])?.toString(),
+			brightCyan: theme.getColor(ansiColorIdentifiers[14])?.toString(),
+			brightWhite: theme.getColor(ansiColorIdentifiers[15])?.toString()
+		};
+	}
+
+	private _updateTheme(theme?: IColorTheme): void {
+		this.raw.setOption('theme', this._getXtermTheme(theme));
 	}
 
 	private async _updateUnicodeVersion(): Promise<void> {
