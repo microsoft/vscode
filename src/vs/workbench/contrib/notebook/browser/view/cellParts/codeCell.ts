@@ -116,6 +116,16 @@ export class CodeCell extends Disposable {
 		this._register(viewCell.onDidChangeOutputs(_e => this.updateForOutputs()));
 	}
 
+	layoutCellParts() {
+		this.cellParts.forEach(part => {
+			part.updateInternalLayoutNow(this.viewCell);
+		});
+
+		// this.cellsParts are parted created on the template while output container is created by the `CodeCell`
+
+		this._outputContainerRenderer.updateInternalLayoutNow(this.viewCell);
+	}
+
 	private updateForOutputHover() {
 		this.templateData.container.classList.toggle('cell-output-hover', this.viewCell.outputIsHovered);
 	}

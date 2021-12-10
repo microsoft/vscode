@@ -578,20 +578,14 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		return combinedDisposable(dragHandleListener, collapsedPartListener, clickHandler);
 	}
 
-	private updateForLayout(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
+	private updateForLayout(codeCellView: CodeCell, element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
 		templateData.elementDisposables.add(DOM.scheduleAtNextAnimationFrame(() => {
+			codeCellView.layoutCellParts();
 			const bottomToolbarDimensions = this.notebookEditor.notebookOptions.computeBottomToolbarDimensions(this.notebookEditor.textModel?.viewType);
-			templateData.focusIndicator.updateInternalLayoutNow(element);
-			templateData.outputContainer.setTop(element.layoutInfo.outputContainerOffset);
-			templateData.outputShowMoreContainer.setTop(element.layoutInfo.outputShowMoreContainerOffset);
 			templateData.dragHandle.setHeight(element.layoutInfo.totalHeight - bottomToolbarDimensions.bottomToolbarGap);
-
 			templateData.container.classList.toggle('cell-statusbar-hidden', this.notebookEditor.notebookOptions.computeEditorStatusbarHeight(element.internalMetadata) === 0);
 
 			this.updateForTitleMenu(templateData);
-			templateData.betweenCellToolbar.updateInternalLayoutNow(element);
-
-			templateData.cellExecution.updateInternalLayoutNow(element);
 		}));
 	}
 
@@ -625,7 +619,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const elementDisposables = templateData.elementDisposables;
 		const cellEditorOptions = elementDisposables.add(new CellEditorOptions(this.notebookEditor, this.notebookEditor.notebookOptions, this.configurationService, element.language));
 
-		elementDisposables.add(templateData.instantiationService.createInstance(CodeCell, this.notebookEditor, element, templateData, [
+		const codeCellView = elementDisposables.add(templateData.instantiationService.createInstance(CodeCell, this.notebookEditor, element, templateData, [
 			templateData.focusIndicator,
 			templateData.betweenCellToolbar,
 			templateData.statusBar,
@@ -642,9 +636,9 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		templateData.editor.updateOptions(cellEditorOptions.getUpdatedValue(element.internalMetadata));
 		cellEditorOptions.setLineNumbers(element.lineNumbers);
 
-		this.updateForLayout(element, templateData);
+		this.updateForLayout(codeCellView, element, templateData);
 		elementDisposables.add(element.onDidChangeLayout(() => {
-			this.updateForLayout(element, templateData);
+			this.updateForLayout(codeCellView, element, templateData);
 		}));
 
 		templateData.elementDisposables.add(templateData.titleToolbar.onDidUpdateActions(() => {

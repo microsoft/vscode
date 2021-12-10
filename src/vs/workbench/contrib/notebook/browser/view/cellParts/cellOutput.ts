@@ -588,6 +588,9 @@ export class CellOutputContainer extends CellPart {
 	}
 
 	updateInternalLayoutNow(viewCell: CodeCellViewModel) {
+		this.templateData.outputContainer.setTop(viewCell.layoutInfo.outputContainerOffset);
+		this.templateData.outputShowMoreContainer.setTop(viewCell.layoutInfo.outputShowMoreContainerOffset);
+
 		this._outputEntries.forEach(entry => {
 			const index = this.viewCell.outputsViewModels.indexOf(entry.model);
 			if (index >= 0) {
