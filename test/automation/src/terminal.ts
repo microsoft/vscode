@@ -10,6 +10,7 @@ import { QuickAccess } from './quickaccess';
 export enum Selector {
 	TerminalView = `#terminal`,
 	Xterm = `#terminal .terminal-wrapper`,
+	XtermEditor = `.editor-instance .terminal-wrapper`,
 	TabsEntry = '.terminal-tabs-entry',
 	XtermFocused = '.terminal.xterm.focus',
 	PlusButton = '.codicon-plus',
@@ -27,6 +28,7 @@ export enum TerminalCommandIdWithValue {
 	NewWithProfile = 'workbench.action.terminal.newWithProfile',
 	SelectDefaultProfile = 'workbench.action.terminal.selectDefaultShell',
 	AttachToSession = 'workbench.action.terminal.attachToSession',
+	CreateNew = 'workbench.action.terminal.new'
 }
 
 export enum TerminalCommandId {
@@ -35,7 +37,6 @@ export enum TerminalCommandId {
 	Unsplit = 'workbench.action.terminal.unsplit',
 	Join = 'workbench.action.terminal.join',
 	Show = 'workbench.action.terminal.toggleTerminal',
-	CreateNew = 'workbench.action.terminal.new',
 	CreateNewEditor = 'workbench.action.createTerminalEditor',
 	SplitEditor = 'workbench.action.createTerminalEditorSide',
 	MoveToPanel = 'workbench.action.terminal.moveToTerminalPanel',
@@ -57,8 +58,8 @@ export class Terminal {
 
 	async runCommand(commandId: TerminalCommandId): Promise<void> {
 		await this.quickaccess.runCommand(commandId, commandId === TerminalCommandId.Join);
-		if (commandId === TerminalCommandId.Show || commandId === TerminalCommandId.CreateNew) {
-			return await this._waitForTerminal();
+		if (commandId === TerminalCommandId.Show) {
+			return await this._waitForTerminal(undefined);
 		}
 		await this.code.dispatchKeybinding('enter');
 		await this.quickinput.waitForQuickInputClosed();
@@ -77,6 +78,9 @@ export class Terminal {
 		} else if (commandId === TerminalCommandIdWithValue.Rename) {
 			// Reset
 			await this.code.dispatchKeybinding('Backspace');
+		}
+		if (commandId === TerminalCommandIdWithValue.CreateNew) {
+			return await this._waitForTerminal(value);
 		}
 		await this.code.dispatchKeybinding(altKey ? 'Alt+Enter' : 'enter');
 		await this.quickinput.waitForQuickInputClosed();
@@ -194,8 +198,8 @@ export class Terminal {
 		return (this.code.driver as any).page;
 	}
 
-	private async _waitForTerminal(): Promise<void> {
+	private async _waitForTerminal(value: any): Promise<void> {
 		await this.code.waitForElement(Selector.XtermFocused);
-		await this.code.waitForTerminalBuffer(Selector.Xterm, lines => lines.some(line => line.length > 0));
+		await this.code.waitForTerminalBuffer(value === 'editor' ? Selector.XtermEditor : Selector.Xterm, lines => lines.some(line => line.length > 0));
 	}
 }
