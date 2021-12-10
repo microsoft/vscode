@@ -12,8 +12,8 @@ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configur
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { ICommandTracker, ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { ICommandTracker, ITerminalFont, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
 import { IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -22,6 +22,12 @@ import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/termin
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandTrackerAddon';
 import { localize } from 'vs/nls';
+import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { TERMINAL_FOREGROUND_COLOR, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR, ansiColorIdentifiers } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { Color } from 'vs/base/common/color';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -65,11 +71,13 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		private readonly _configHelper: TerminalConfigHelper,
 		cols: number,
 		rows: number,
-		private readonly _theme: ITheme,
+		private readonly _target: TerminalLocation,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IStorageService private readonly _storageService: IStorageService
+		@IStorageService private readonly _storageService: IStorageService,
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
+		@IThemeService private readonly _themeService: IThemeService
 	) {
 		super();
 
@@ -82,7 +90,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			rows,
 			altClickMovesCursor: config.altClickMovesCursor && editorOptions.multiCursorModifier === 'alt',
 			scrollback: config.scrollback,
-			theme: this._theme,
+			theme: this._getXtermTheme(),
 			drawBoldTextInBrightColors: config.drawBoldTextInBrightColors,
 			fontFamily: font.fontFamily,
 			fontWeight: config.fontWeight,
@@ -129,10 +137,63 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			this._searchAddon = new addonCtor();
 			this.raw.loadAddon(this._searchAddon);
 		});
+		this.add(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
+		this.add(this._viewDescriptorService.onDidChangeLocation(({ views }) => {
+			if (views.some(v => v.id === TERMINAL_VIEW_ID)) {
+				this._updateTheme();
+			}
+		}));
+	}
+
+	private _getXtermTheme(theme?: IColorTheme): ITheme {
+		if (!theme) {
+			theme = this._themeService.getColorTheme();
+		}
+
+		const location = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
+		const foregroundColor = theme.getColor(TERMINAL_FOREGROUND_COLOR);
+		let backgroundColor: Color | undefined;
+		if (this._target === TerminalLocation.Editor) {
+			backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(editorBackground);
+		} else {
+			backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || (location === ViewContainerLocation.Panel ? theme.getColor(PANEL_BACKGROUND) : theme.getColor(SIDE_BAR_BACKGROUND));
+		}
+		const cursorColor = theme.getColor(TERMINAL_CURSOR_FOREGROUND_COLOR) || foregroundColor;
+		const cursorAccentColor = theme.getColor(TERMINAL_CURSOR_BACKGROUND_COLOR) || backgroundColor;
+		const selectionColor = theme.getColor(TERMINAL_SELECTION_BACKGROUND_COLOR);
+
+		return {
+			background: backgroundColor ? backgroundColor.toString() : undefined,
+			foreground: foregroundColor ? foregroundColor.toString() : undefined,
+			cursor: cursorColor ? cursorColor.toString() : undefined,
+			cursorAccent: cursorAccentColor ? cursorAccentColor.toString() : undefined,
+			selection: selectionColor ? selectionColor.toString() : undefined,
+			black: theme.getColor(ansiColorIdentifiers[0])?.toString(),
+			red: theme.getColor(ansiColorIdentifiers[1])?.toString(),
+			green: theme.getColor(ansiColorIdentifiers[2])?.toString(),
+			yellow: theme.getColor(ansiColorIdentifiers[3])?.toString(),
+			blue: theme.getColor(ansiColorIdentifiers[4])?.toString(),
+			magenta: theme.getColor(ansiColorIdentifiers[5])?.toString(),
+			cyan: theme.getColor(ansiColorIdentifiers[6])?.toString(),
+			white: theme.getColor(ansiColorIdentifiers[7])?.toString(),
+			brightBlack: theme.getColor(ansiColorIdentifiers[8])?.toString(),
+			brightRed: theme.getColor(ansiColorIdentifiers[9])?.toString(),
+			brightGreen: theme.getColor(ansiColorIdentifiers[10])?.toString(),
+			brightYellow: theme.getColor(ansiColorIdentifiers[11])?.toString(),
+			brightBlue: theme.getColor(ansiColorIdentifiers[12])?.toString(),
+			brightMagenta: theme.getColor(ansiColorIdentifiers[13])?.toString(),
+			brightCyan: theme.getColor(ansiColorIdentifiers[14])?.toString(),
+			brightWhite: theme.getColor(ansiColorIdentifiers[15])?.toString()
+		};
+	}
+
+	private _updateTheme(theme?: IColorTheme): void {
+		this.raw.setOption('theme', this._getXtermTheme(theme));
 	}
 
 	attachToElement(container: HTMLElement) {
-
+		// Update the theme when attaching as the terminal location could have changed
+		this._updateTheme();
 		if (!this._container) {
 			this.raw.open(container);
 		}
