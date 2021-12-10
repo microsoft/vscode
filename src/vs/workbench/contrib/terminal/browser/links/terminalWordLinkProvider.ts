@@ -22,6 +22,7 @@ import { isWindows } from 'vs/base/common/platform';
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 const MAX_LENGTH = 2000;
 
@@ -38,7 +39,8 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ISearchService private readonly _searchService: ISearchService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IFileService private readonly _fileService: IFileService
+		@IFileService private readonly _fileService: IFileService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 	}
@@ -133,9 +135,8 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 	}
 
 	private async _activate(link: string) {
+		// Remove file:/// and any leading ./ or ../ since quick access doesn't understand that format
 		link = link.replace(/^file:\/\/\/?/, '');
-		// Normalize the link and remove any leading ./ or ../ or file:/// since quick access doesn't understand
-		// that format
 		link = normalize(link).replace(/^(\.+[\\/])+/, '');
 
 		// Remove `:in` from the end which is how Ruby outputs stack traces
@@ -149,11 +150,21 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 				return;
 			}
 		});
-		let exactResource: URI | undefined;
+
 		const sanitizedLink = link.replace(/:\d+(:\d+)?$/, '');
+		let exactMatch = await this._getExactMatch(sanitizedLink, link);
+		if (exactMatch) {
+			return;
+		}
+		// Fallback to searching quick access
+		return this._quickInputService.quickAccess.show(link);
+	}
+
+	private async _getExactMatch(sanitizedLink: string, link: string): Promise<boolean> {
+		let exactResource: URI | undefined;
 		if (isAbsolute(sanitizedLink)) {
-			const resource = URI.from({ scheme: Schemas.file, path: sanitizedLink });
-			// TODO: this..remoteAuthority ? Schemas.vscodeRemote : Schemas.file
+			const scheme = this._environmentService.remoteAuthority ? Schemas.vscodeRemote : Schemas.file;
+			const resource = URI.from({ scheme, path: sanitizedLink });
 			const fileStat = await this._fileService.resolve(resource);
 			if (fileStat.isFile) {
 				exactResource = resource;
@@ -187,10 +198,9 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 					} : undefined
 				}
 			});
-			return;
+			return true;
 		}
-		// Fallback to searching quick access
-		this._quickInputService.quickAccess.show(link);
+		return false;
 	}
 }
 
