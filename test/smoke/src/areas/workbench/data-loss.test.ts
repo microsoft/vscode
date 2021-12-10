@@ -38,19 +38,14 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 			app = undefined;
 		});
 
-		it('verifies editors can save and restore', async function () {
+		it.only('verifies editors can save and restore', async function () {
 			app = await startApp(this.defaultOptions);
 
-			const readmeMd = 'readme.md';
 			const appJs = 'app.js';
 			const textToType = 'Hello, Code';
 
-			// open first editor
-			await app.workbench.quickaccess.openFile(readmeMd);
-			await app.workbench.quickaccess.runCommand('View: Keep Editor');
-
-			// open second editor and type
-			await app.workbench.quickaccess.openFile('app.js');
+			// open editor and type
+			await app.workbench.quickaccess.openFile(appJs);
 			await app.workbench.editor.waitForTypeInEditor(appJs, textToType);
 			await app.workbench.editors.waitForTab(appJs, true);
 
@@ -58,13 +53,10 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 			await app.workbench.editors.saveOpenedFile();
 			await app.workbench.editors.waitForTab(appJs, false);
 
-			// close editor
-			const waitForEditorClosed = app.workbench.editors.waitForActiveEditor(readmeMd);
-			await app.workbench.quickaccess.runCommand('workbench.action.closeActiveEditor');
-			await waitForEditorClosed;
+			// restart
+			await app.restart();
 
-			// open editor again and verify contents
-			await app.workbench.quickaccess.openFile(appJs);
+			// verify contents
 			await app.workbench.editor.waitForEditorContents(appJs, contents => contents.indexOf(textToType) > -1);
 
 			await app.stop();

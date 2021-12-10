@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { timeout } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { consumeStream, newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
@@ -317,13 +317,7 @@ suite('File Service', () => {
 
 			readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
 				const stream = newWriteableStream<Uint8Array>(chunk => chunk[0]);
-				timeout(5).then(() => {
-					if (token.isCancellationRequested) {
-						stream.error(new Error('Expected cancellation'));
-					} else {
-						stream.end(VSBuffer.fromString('Unexpected').buffer);
-					}
-				});
+				token.onCancellationRequested(() => stream.error(new Error('Expected cancellation')));
 
 				return stream;
 			}
@@ -338,7 +332,7 @@ suite('File Service', () => {
 		try {
 			const cts = new CancellationTokenSource();
 			const promise = service.readFile(URI.parse('test://foo/bar'), undefined, cts.token);
-			timeout(1).then(() => cts.cancel());
+			scheduleAtNextAnimationFrame(() => cts.cancel());
 			await promise;
 		} catch (error) {
 			e1 = error;
@@ -350,7 +344,7 @@ suite('File Service', () => {
 		try {
 			const cts = new CancellationTokenSource();
 			const stream = await service.readFileStream(URI.parse('test://foo/bar'), undefined, cts.token);
-			timeout(1).then(() => cts.cancel());
+			scheduleAtNextAnimationFrame(() => cts.cancel());
 			await consumeStream(stream.value, chunk => chunk[0]);
 		} catch (error) {
 			e2 = error;
