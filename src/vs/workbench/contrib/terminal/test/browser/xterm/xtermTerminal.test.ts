@@ -120,7 +120,8 @@ suite('XtermTerminal', () => {
 		strictEqual(xterm.raw.getOption('rows'), 30);
 	});
 
-	suite('theme', () => {
+	//TODO: test in terminal instance tests
+	suite.skip('theme', () => {
 		test('should apply correct background color based on the current view', () => {
 			themeService.setTheme(new TestColorTheme({
 				[PANEL_BACKGROUND]: '#ff0000',
