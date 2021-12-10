@@ -57,7 +57,6 @@ export abstract class BaseWindowDriver implements IWindowDriver {
 	async getElements(selector: string, recursive: boolean): Promise<IElement[]> {
 		const query = document.querySelectorAll(selector);
 		const result: IElement[] = [];
-
 		for (let i = 0; i < query.length; i++) {
 			const element = query.item(i);
 			result.push(this.serializeElement(element, recursive));
@@ -139,9 +138,8 @@ export abstract class BaseWindowDriver implements IWindowDriver {
 		}
 
 		const lines: string[] = [];
-
-		for (let i = 0; i < xterm.buffer.length; i++) {
-			lines.push(xterm.buffer.getLine(i)!.translateToString(true));
+		for (let i = 0; i < xterm.buffer.active.length; i++) {
+			lines.push(xterm.buffer.active.getLine(i)!.translateToString(true));
 		}
 
 		return lines;
@@ -160,7 +158,7 @@ export abstract class BaseWindowDriver implements IWindowDriver {
 			throw new Error(`Xterm not found: ${selector}`);
 		}
 
-		xterm._core._coreService.triggerDataEvent(text);
+		xterm._core.coreService.triggerDataEvent(text);
 	}
 
 	getLocaleInfo(): Promise<ILocaleInfo> {

@@ -25,7 +25,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionActivationHost as IWorkspaceContainsActivationHost, checkGlobFileExists, checkActivateWorkspaceContainsExtension } from 'vs/workbench/api/common/shared/workspaceContains';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -183,6 +183,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		@IConfigurationService protected readonly _configurationService: IConfigurationService,
 		@IExtensionManifestPropertiesService protected readonly _extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IWebExtensionsScannerService protected readonly _webExtensionsScannerService: IWebExtensionsScannerService,
+		@ILogService protected readonly _logService: ILogService,
 	) {
 		super();
 
@@ -237,8 +238,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		this._register(this._extensionManagementService.onDidInstallExtensions((result) => {
 			const extensions: IExtension[] = [];
-			for (const { local } of result) {
-				if (local && this._safeInvokeIsEnabled(local)) {
+			for (const { local, operation } of result) {
+				if (local && operation !== InstallOperation.Migrate && this._safeInvokeIsEnabled(local)) {
 					extensions.push(local);
 				}
 			}
@@ -495,6 +496,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			const workspace = await this._contextService.getCompleteWorkspace();
 			const forceUsingSearch = !!this._environmentService.remoteAuthority;
 			const host: IWorkspaceContainsActivationHost = {
+				logService: this._logService,
 				folders: workspace.folders.map(folder => folder.uri),
 				forceUsingSearch: forceUsingSearch,
 				exists: (uri) => this._fileService.exists(uri),
@@ -1195,9 +1197,6 @@ class ProposedApiController {
 			}
 
 			extension.enabledApiProposals = productEnabledProposals;
-
-			// todo@jrieken REMOVE, legacy flag is turned on
-			extension.enableProposedApi = true;
 			return;
 		}
 
@@ -1207,11 +1206,10 @@ class ProposedApiController {
 			return;
 		}
 
-		if (!extension.isBuiltin && (extension.enableProposedApi || isNonEmptyArray(extension.enabledApiProposals))) {
+		if (!extension.isBuiltin && isNonEmptyArray(extension.enabledApiProposals)) {
 			// restrictive: extension cannot use proposed API in this context and its declaration is nulled
 			this._logService.critical(`Extension '${extension.identifier.value} CANNOT USE these API proposals '${extension.enabledApiProposals?.join(', ') ?? '*'}'. You MUST start in extension development mode or use the --enable-proposed-api command line flag`);
 			extension.enabledApiProposals = [];
-			extension.enableProposedApi = false;
 		}
 	}
 }

@@ -11,8 +11,9 @@ import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/envi
 
 export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	'port': { type: 'string' },
-	'connectionToken': { type: 'string' },
-	'connection-secret': { type: 'string', description: nls.localize('connection-secret', "Path to file that contains the connection token. This will require that all incoming connections know the secret.") },
+	'pick-port': { type: 'string' },
+	'connection-token': { type: 'string', cat: 'o', deprecates: 'connectionToken', description: nls.localize('connection-token', "A secret that must be included by the web client with all requests.") },
+	'connection-secret': { type: 'string', cat: 'o', description: nls.localize('connection-secret', "Path to file that contains the connection token. This will require that all incoming connections know the secret.") },
 	'host': { type: 'string' },
 	'socket-path': { type: 'string' },
 	'driver': { type: 'string' },
@@ -53,12 +54,27 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	'log': { type: 'string' },
 	'logsPath': { type: 'string' },
 
+	'help': OPTIONS['help'],
+	'version': OPTIONS['version'],
+	'accept-server-license-terms': { type: 'boolean' },
+
 	_: OPTIONS['_']
 };
 
 export interface ServerParsedArgs {
 	port?: string;
-	connectionToken?: string;
+	'pick-port'?: string;
+	/**
+	 * A secret token that must be provided by the web client with all requests.
+	 * Use only `[0-9A-Za-z\-]`.
+	 *
+	 * By default, a UUID will be generated every time the server starts up.
+	 *
+	 * If the server is running on a multi-user system, then consider
+	 * using `--connection-secret` which has the advantage that the token cannot
+	 * be seen by other users using `ps` or similar commands.
+	 */
+	'connection-token'?: string;
 	/**
 	 * A path to a filename which will be read on startup.
 	 * Consider placing this file in a folder readable only by the same user (a `chmod 0700` directory).
@@ -99,6 +115,7 @@ export interface ServerParsedArgs {
 
 	force?: boolean; // used by install-extension
 	'do-not-sync'?: boolean; // used by install-extension
+	'pre-release'?: boolean; // used by install-extension
 
 	'user-data-dir'?: string;
 	'builtin-extensions-dir'?: string;
@@ -111,6 +128,12 @@ export interface ServerParsedArgs {
 	'github-auth'?: string;
 	'log'?: string;
 	'logsPath'?: string;
+
+	// server cli
+	help: boolean;
+	version: boolean;
+
+	'accept-server-license-terms': boolean;
 
 	_: string[];
 }

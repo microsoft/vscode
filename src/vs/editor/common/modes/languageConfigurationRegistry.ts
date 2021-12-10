@@ -10,17 +10,17 @@ import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
-import { EnterAction, FoldingRules, IAutoClosingPair, IndentAction, IndentationRule, LanguageConfiguration, StandardAutoClosingPairConditional, CompleteEnterAction, AutoClosingPairs, CharacterPair, ExplicitLanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
+import { EnterAction, FoldingRules, IAutoClosingPair, IndentAction, IndentationRule, LanguageConfiguration, CompleteEnterAction, AutoClosingPairs, CharacterPair, ExplicitLanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
 import { createScopedLineTokens, ScopedLineTokens } from 'vs/editor/common/modes/supports';
 import { CharacterPairSupport } from 'vs/editor/common/modes/supports/characterPair';
-import { BracketElectricCharacterSupport, IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
+import { BracketElectricCharacterSupport } from 'vs/editor/common/modes/supports/electricCharacter';
 import { IndentConsts, IndentRulesSupport } from 'vs/editor/common/modes/supports/indentRules';
 import { OnEnterSupport } from 'vs/editor/common/modes/supports/onEnter';
 import { RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 /**
@@ -72,7 +72,7 @@ export class LanguageConfigurationService extends Disposable implements ILanguag
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IModeService private readonly modeService: IModeService
+		@ILanguageService private readonly languageService: ILanguageService
 	) {
 		super();
 
@@ -86,7 +86,7 @@ export class LanguageConfigurationService extends Disposable implements ILanguag
 				.filter(([overrideLangName, keys]) =>
 					keys.some((k) => languageConfigKeys.has(k))
 				)
-				.map(([overrideLangName]) => this.modeService.validateLanguageId(overrideLangName));
+				.map(([overrideLangName]) => this.languageService.validateLanguageId(overrideLangName));
 
 			if (globalConfigChanged) {
 				this.configurations.clear();
@@ -110,7 +110,7 @@ export class LanguageConfigurationService extends Disposable implements ILanguag
 	public getLanguageConfiguration(languageId: string): ResolvedLanguageConfiguration {
 		let result = this.configurations.get(languageId);
 		if (!result) {
-			result = computeConfig(languageId, this.configurationService, this.modeService);
+			result = computeConfig(languageId, this.configurationService, this.languageService);
 			this.configurations.set(languageId, result);
 		}
 		return result;
@@ -120,12 +120,12 @@ export class LanguageConfigurationService extends Disposable implements ILanguag
 function computeConfig(
 	languageId: string,
 	configurationService: IConfigurationService,
-	modeService: IModeService,
+	languageService: ILanguageService,
 ): ResolvedLanguageConfiguration {
 	let languageConfig = LanguageConfigurationRegistry.getLanguageConfiguration(languageId);
 
 	if (!languageConfig) {
-		const validLanguageId = modeService.validateLanguageId(languageId);
+		const validLanguageId = languageService.validateLanguageId(languageId);
 		if (!validLanguageId) {
 			throw new Error('Unexpected languageId');
 		}
@@ -204,114 +204,12 @@ export class LanguageConfigurationRegistryImpl {
 		return entries?.getResolvedConfiguration() || null;
 	}
 
-	public getIndentationRules(languageId: string): IndentationRule | null {
-		const value = this.getLanguageConfiguration(languageId);
-		return value ? value.indentationRules || null : null;
-	}
-
-	// begin electricCharacter
-
-	private _getElectricCharacterSupport(languageId: string): BracketElectricCharacterSupport | null {
-		let value = this.getLanguageConfiguration(languageId);
-		if (!value) {
-			return null;
-		}
-		return value.electricCharacter || null;
-	}
-
-	public getElectricCharacters(languageId: string): string[] {
-		let electricCharacterSupport = this._getElectricCharacterSupport(languageId);
-		if (!electricCharacterSupport) {
-			return [];
-		}
-		return electricCharacterSupport.getElectricCharacters();
-	}
-
-	/**
-	 * Should return opening bracket type to match indentation with
-	 */
-	public onElectricCharacter(character: string, context: LineTokens, column: number): IElectricAction | null {
-		let scopedLineTokens = createScopedLineTokens(context, column - 1);
-		let electricCharacterSupport = this._getElectricCharacterSupport(scopedLineTokens.languageId);
-		if (!electricCharacterSupport) {
-			return null;
-		}
-		return electricCharacterSupport.onElectricCharacter(character, scopedLineTokens, column - scopedLineTokens.firstCharOffset);
-	}
-
-	// end electricCharacter
-
 	public getComments(languageId: string): ICommentsConfiguration | null {
 		let value = this.getLanguageConfiguration(languageId);
 		if (!value) {
 			return null;
 		}
 		return value.comments || null;
-	}
-
-	// begin characterPair
-
-	private _getCharacterPairSupport(languageId: string): CharacterPairSupport | null {
-		let value = this.getLanguageConfiguration(languageId);
-		if (!value) {
-			return null;
-		}
-		return value.characterPair || null;
-	}
-
-	public getAutoClosingPairs(languageId: string): AutoClosingPairs {
-		const characterPairSupport = this._getCharacterPairSupport(languageId);
-		return new AutoClosingPairs(characterPairSupport ? characterPairSupport.getAutoClosingPairs() : []);
-	}
-
-	public getAutoCloseBeforeSet(languageId: string): string {
-		let characterPairSupport = this._getCharacterPairSupport(languageId);
-		if (!characterPairSupport) {
-			return CharacterPairSupport.DEFAULT_AUTOCLOSE_BEFORE_LANGUAGE_DEFINED;
-		}
-		return characterPairSupport.getAutoCloseBeforeSet();
-	}
-
-	public getSurroundingPairs(languageId: string): IAutoClosingPair[] {
-		let characterPairSupport = this._getCharacterPairSupport(languageId);
-		if (!characterPairSupport) {
-			return [];
-		}
-		return characterPairSupport.getSurroundingPairs();
-	}
-
-	public shouldAutoClosePair(autoClosingPair: StandardAutoClosingPairConditional, context: LineTokens, column: number): boolean {
-		const scopedLineTokens = createScopedLineTokens(context, column - 1);
-		return CharacterPairSupport.shouldAutoClosePair(autoClosingPair, scopedLineTokens, column - scopedLineTokens.firstCharOffset);
-	}
-
-	// end characterPair
-
-	public getWordDefinition(languageId: string): RegExp {
-		let value = this.getLanguageConfiguration(languageId);
-		if (!value) {
-			return ensureValidWordDefinition(null);
-		}
-		return ensureValidWordDefinition(value.wordDefinition || null);
-	}
-
-	public getWordDefinitions(): [string, RegExp][] {
-		let result: [string, RegExp][] = [];
-		for (const [language, entries] of this._entries) {
-			const value = entries.getResolvedConfiguration();
-			if (value) {
-				result.push([language, value.wordDefinition]);
-			}
-		}
-		return result;
-	}
-
-	public getFoldingRules(languageId: string): FoldingRules {
-		let value = this.getLanguageConfiguration(languageId);
-		if (!value) {
-			return {};
-		}
-		return value.foldingRules;
 	}
 
 	// begin Indent Rules
@@ -802,6 +700,9 @@ export class LanguageConfigurationRegistryImpl {
 	}
 }
 
+/**
+ * @deprecated Use ILanguageConfigurationService instead.
+*/
 export const LanguageConfigurationRegistry = new LanguageConfigurationRegistryImpl();
 
 class ComposedLanguageConfiguration {
@@ -989,6 +890,18 @@ export class ResolvedLanguageConfiguration {
 			beforeEnterText,
 			afterEnterText
 		);
+	}
+
+	public getAutoClosingPairs(): AutoClosingPairs {
+		return new AutoClosingPairs(this.characterPair.getAutoClosingPairs());
+	}
+
+	public getAutoCloseBeforeSet(): string {
+		return this.characterPair.getAutoCloseBeforeSet();
+	}
+
+	public getSurroundingPairs(): IAutoClosingPair[] {
+		return this.characterPair.getSurroundingPairs();
 	}
 
 	private static _handleComments(

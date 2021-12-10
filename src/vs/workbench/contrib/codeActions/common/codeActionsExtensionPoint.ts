@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
-import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
+import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchLanguageService';
 
 export enum CodeActionExtensionPointFields {
 	languages = 'languages',

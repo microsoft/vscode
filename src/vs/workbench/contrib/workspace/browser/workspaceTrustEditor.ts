@@ -62,7 +62,7 @@ const checkListIcon = registerIcon('workspace-trust-editor-check', Codicon.check
 const xListIcon = registerIcon('workspace-trust-editor-cross', Codicon.x, localize('xListIcon', 'Icon for the cross in the workspace trust editor.'));
 const folderPickerIcon = registerIcon('workspace-trust-editor-folder-picker', Codicon.folder, localize('folderPickerIcon', 'Icon for the pick folder icon in the workspace trust editor.'));
 const editIcon = registerIcon('workspace-trust-editor-edit-folder', Codicon.edit, localize('editIcon', 'Icon for the edit folder icon in the workspace trust editor.'));
-const removeIcon = registerIcon('workspace-trust-editor-remove-folder', Codicon.edit, localize('removeIcon', 'Icon for the remove folder icon in the workspace trust editor.'));
+const removeIcon = registerIcon('workspace-trust-editor-remove-folder', Codicon.close, localize('removeIcon', 'Icon for the remove folder icon in the workspace trust editor.'));
 
 interface ITrustedUriItem {
 	parentOfWorkspaceItem: boolean;

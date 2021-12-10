@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel } from 'vs/editor/common/model/textModel';
+import { computeIndentLevel } from 'vs/editor/common/model/utils';
 import { MetadataConsts } from 'vs/editor/common/modes';
 import { ViewLineToken, ViewLineTokenFactory } from 'vs/editor/test/common/core/viewLineToken';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
@@ -44,7 +45,7 @@ function assertLineTokens(__actual: LineTokens, _expected: TestToken[]): void {
 
 suite('ModelLine - getIndentLevel', () => {
 	function assertIndentLevel(text: string, expected: number, tabSize: number = 4): void {
-		let actual = TextModel.computeIndentLevel(text, tabSize);
+		let actual = computeIndentLevel(text, tabSize);
 		assert.strictEqual(actual, expected, text);
 	}
 

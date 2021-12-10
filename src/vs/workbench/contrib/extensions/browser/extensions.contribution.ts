@@ -8,14 +8,14 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { MenuRegistry, MenuId, registerAction2, Action2, ISubmenuItem, IMenuItem, IAction2Options } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ExtensionsLabel, ExtensionsLocalizedLabel, ExtensionsChannelId, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionsLabel, ExtensionsLocalizedLabel, ExtensionsChannelId, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, InstallOperation, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { EnablementState, IExtensionManagementServerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IOutputChannelRegistry, Extensions as OutputExtensions } from 'vs/workbench/services/output/common/output';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, DefaultViewsContext, ExtensionsSortByContext, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, ExtensionEditorTab } from 'vs/workbench/contrib/extensions/common/extensions';
-import { ReinstallAction, InstallSpecificVersionOfExtensionAction, ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, PromptExtensionInstallFailureAction, SearchExtensionsAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, DefaultViewsContext, ExtensionsSortByContext, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, ExtensionEditorTab, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP } from 'vs/workbench/contrib/extensions/common/extensions';
+import { ReinstallAction, InstallSpecificVersionOfExtensionAction, ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, PromptExtensionInstallFailureAction, SearchExtensionsAction, SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction, SetColorThemeAction, SetFileIconThemeAction, SetProductIconThemeAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
 import { StatusUpdater, MaliciousExtensionChecker, ExtensionsViewletViewsContribution, ExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/browser/extensionsViewlet';
@@ -274,6 +274,11 @@ CommandsRegistry.registerCommand({
 							'description': localize('workbench.extensions.installExtension.option.installOnlyNewlyAddedFromExtensionPackVSIX', "When enabled, VS Code installs only newly added extensions from the extension pack VSIX. This option is considered only while installing a VSIX."),
 							default: false
 						},
+						'installPreReleaseVersion': {
+							'type': 'boolean',
+							'description': localize('workbench.extensions.installExtension.option.installPreReleaseVersion', "When enabled, VS Code installs the pre-release version of the extension if available."),
+							default: false
+						},
 						'donotSync': {
 							'type': 'boolean',
 							'description': localize('workbench.extensions.installExtension.option.donotSync', "When enabled, VS Code do not sync this extension when Settings Sync is on."),
@@ -284,14 +289,18 @@ CommandsRegistry.registerCommand({
 			}
 		]
 	},
-	handler: async (accessor, arg: string | UriComponents, options?: { installOnlyNewlyAddedFromExtensionPackVSIX?: boolean, donotSync?: boolean }) => {
+	handler: async (accessor, arg: string | UriComponents, options?: { installOnlyNewlyAddedFromExtensionPackVSIX?: boolean, installPreReleaseVersion?: boolean, donotSync?: boolean }) => {
 		const extensionManagementService = accessor.get(IExtensionManagementService);
 		const extensionGalleryService = accessor.get(IExtensionGalleryService);
 		try {
 			if (typeof arg === 'string') {
 				const [extension] = await extensionGalleryService.getExtensions([{ id: arg }], CancellationToken.None);
 				if (extension) {
-					await extensionManagementService.installFromGallery(extension, options?.donotSync ? { isMachineScoped: true } : undefined);
+					const installOptions: InstallOptions = {
+						isMachineScoped: options?.donotSync ? true : undefined, /* do not allow syncing extensions automatically while installing through the command */
+						installPreReleaseVersion: options?.installPreReleaseVersion
+					};
+					await extensionManagementService.installFromGallery(extension, installOptions);
 				} else {
 					throw new Error(localize('notFound', "Extension '{0}' not found.", arg));
 				}
@@ -612,7 +621,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 					try {
 						await this.extensionsWorkbenchService.install(extension);
 					} catch (err) {
-						runAction(this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, extension.latestVersion, InstallOperation.Update, err));
+						runAction(this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, extension.latestVersion, InstallOperation.Update, undefined, err));
 					}
 				}));
 			}
@@ -1156,6 +1165,137 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 	// Extension Context Menu
 	private registerContextMenuActions(): void {
+
+		this.registerExtensionAction({
+			id: SetColorThemeAction.ID,
+			title: SetColorThemeAction.TITLE,
+			menu: {
+				id: MenuId.ExtensionContext,
+				group: THEME_ACTIONS_GROUP,
+				order: 0,
+				when: ContextKeyExpr.and(ContextKeyExpr.not('inExtensionEditor'), ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.has('extensionHasColorThemes'))
+			},
+			run: async (accessor: ServicesAccessor, extensionId: string) => {
+				const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+				const instantiationService = accessor.get(IInstantiationService);
+				const extension = extensionWorkbenchService.local.find(e => areSameExtensions(e.identifier, { id: extensionId }));
+				if (extension) {
+					const action = instantiationService.createInstance(SetColorThemeAction);
+					action.extension = extension;
+					return action.run();
+				}
+			}
+		});
+
+		this.registerExtensionAction({
+			id: SetFileIconThemeAction.ID,
+			title: SetFileIconThemeAction.TITLE,
+			menu: {
+				id: MenuId.ExtensionContext,
+				group: THEME_ACTIONS_GROUP,
+				order: 0,
+				when: ContextKeyExpr.and(ContextKeyExpr.not('inExtensionEditor'), ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.has('extensionHasFileIconThemes'))
+			},
+			run: async (accessor: ServicesAccessor, extensionId: string) => {
+				const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+				const instantiationService = accessor.get(IInstantiationService);
+				const extension = extensionWorkbenchService.local.find(e => areSameExtensions(e.identifier, { id: extensionId }));
+				if (extension) {
+					const action = instantiationService.createInstance(SetFileIconThemeAction);
+					action.extension = extension;
+					return action.run();
+				}
+			}
+		});
+
+		this.registerExtensionAction({
+			id: SetProductIconThemeAction.ID,
+			title: SetProductIconThemeAction.TITLE,
+			menu: {
+				id: MenuId.ExtensionContext,
+				group: THEME_ACTIONS_GROUP,
+				order: 0,
+				when: ContextKeyExpr.and(ContextKeyExpr.not('inExtensionEditor'), ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.has('extensionHasProductIconThemes'))
+			},
+			run: async (accessor: ServicesAccessor, extensionId: string) => {
+				const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+				const instantiationService = accessor.get(IInstantiationService);
+				const extension = extensionWorkbenchService.local.find(e => areSameExtensions(e.identifier, { id: extensionId }));
+				if (extension) {
+					const action = instantiationService.createInstance(SetProductIconThemeAction);
+					action.extension = extension;
+					return action.run();
+				}
+			}
+		});
+
+		this.registerExtensionAction({
+			id: 'workbench.extensions.action.showPreReleaseVersion',
+			title: { value: localize('show pre-release version', "Show Pre-Release Version"), original: 'Show Pre-Release Version' },
+			menu: {
+				id: MenuId.ExtensionContext,
+				group: INSTALL_ACTIONS_GROUP,
+				order: 0,
+				when: ContextKeyExpr.and(ContextKeyExpr.has('inExtensionEditor'), ContextKeyExpr.has('extensionHasPreReleaseVersion'), ContextKeyExpr.not('showPreReleaseVersion'), ContextKeyExpr.not('isBuiltinExtension'))
+			},
+			run: async (accessor: ServicesAccessor, extensionId: string) => {
+				const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+				const extension = (await extensionWorkbenchService.queryGallery({ names: [extensionId] }, CancellationToken.None)).firstPage[0];
+				extensionWorkbenchService.open(extension, { showPreReleaseVersion: true });
+			}
+		});
+		this.registerExtensionAction({
+			id: 'workbench.extensions.action.showReleasedVersion',
+			title: { value: localize('show released version', "Show Release Version"), original: 'Show Release Version' },
+			menu: {
+				id: MenuId.ExtensionContext,
+				group: INSTALL_ACTIONS_GROUP,
+				order: 1,
+				when: ContextKeyExpr.and(ContextKeyExpr.has('inExtensionEditor'), ContextKeyExpr.has('extensionHasPreReleaseVersion'), ContextKeyExpr.has('extensionHasReleaseVersion'), ContextKeyExpr.has('showPreReleaseVersion'), ContextKeyExpr.not('isBuiltinExtension'))
+			},
+			run: async (accessor: ServicesAccessor, extensionId: string) => {
+				const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+				const extension = (await extensionWorkbenchService.queryGallery({ names: [extensionId] }, CancellationToken.None)).firstPage[0];
+				extensionWorkbenchService.open(extension, { showPreReleaseVersion: false });
+			}
+		});
+		this.registerExtensionAction({
+			id: SwitchToPreReleaseVersionAction.ID,
+			title: SwitchToPreReleaseVersionAction.TITLE,
+			menu: {
+				id: MenuId.ExtensionContext,
+				group: INSTALL_ACTIONS_GROUP,
+				order: 2,
+				when: ContextKeyExpr.and(ContextKeyExpr.not('installedExtensionIsPreReleaseVersion'), ContextKeyExpr.has('extensionHasPreReleaseVersion'), ContextKeyExpr.not('inExtensionEditor'), ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.not('isBuiltinExtension'))
+			},
+			run: async (accessor: ServicesAccessor, id: string) => {
+				const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+				const extension = extensionWorkbenchService.local.find(e => areSameExtensions(e.identifier, { id }));
+				if (extension) {
+					extensionWorkbenchService.open(extension, { showPreReleaseVersion: true });
+					await extensionWorkbenchService.install(extension, { installPreReleaseVersion: true });
+				}
+			}
+		});
+		this.registerExtensionAction({
+			id: SwitchToReleasedVersionAction.ID,
+			title: SwitchToReleasedVersionAction.TITLE,
+			menu: {
+				id: MenuId.ExtensionContext,
+				group: INSTALL_ACTIONS_GROUP,
+				order: 3,
+				when: ContextKeyExpr.and(ContextKeyExpr.has('installedExtensionIsPreReleaseVersion'), ContextKeyExpr.has('extensionHasPreReleaseVersion'), ContextKeyExpr.has('extensionHasReleaseVersion'), ContextKeyExpr.not('inExtensionEditor'), ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.not('isBuiltinExtension'))
+			},
+			run: async (accessor: ServicesAccessor, id: string) => {
+				const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+				const extension = extensionWorkbenchService.local.find(e => areSameExtensions(e.identifier, { id }));
+				if (extension) {
+					extensionWorkbenchService.open(extension, { showPreReleaseVersion: false });
+					await extensionWorkbenchService.install(extension, { installPreReleaseVersion: false });
+				}
+			}
+		});
+
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.copyExtension',
 			title: { value: localize('workbench.extensions.action.copyExtension', "Copy"), original: 'Copy' },

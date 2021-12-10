@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DeferredPromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { join } from 'vs/base/common/path';
-import { generateUuid } from 'vs/base/common/uuid';
 import { Promises } from 'vs/base/node/pfs';
 import { InMemoryStorageDatabase, IStorage, Storage, StorageHint } from 'vs/base/parts/storage/common/storage';
 import { ISQLiteStorageDatabaseLoggingOptions, SQLiteStorageDatabase } from 'vs/base/parts/storage/node/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
-import { currentSessionDateStorageKey, firstSessionDateStorageKey, instanceStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
+import { currentSessionDateStorageKey, firstSessionDateStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export interface IStorageMainOptions {
@@ -45,6 +45,12 @@ export interface IStorageMain extends IDisposable {
 	 * Access to all cached items of this storage service.
 	 */
 	readonly items: Map<string, string>;
+
+	/**
+	 * Allows to join on the `init` call having completed
+	 * to be able to safely use the storage.
+	 */
+	readonly whenInit: Promise<void>;
 
 	/**
 	 * Required call to ensure the service can be used.
@@ -91,6 +97,9 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 
 	private initializePromise: Promise<void> | undefined = undefined;
 
+	private readonly whenInitPromise = new DeferredPromise<void>();
+	readonly whenInit = this.whenInitPromise.p;
+
 	constructor(
 		protected readonly logService: ILogService
 	) {
@@ -126,6 +135,8 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 					}
 				} catch (error) {
 					this.logService.error(`StorageMain#initialize(): Unable to init storage due to ${error}`);
+				} finally {
+					this.whenInitPromise.complete();
 				}
 			})();
 		}
@@ -213,12 +224,6 @@ export class GlobalStorageMain extends BaseStorageMain implements IStorageMain {
 	}
 
 	private updateTelemetryState(storage: IStorage): void {
-
-		// Instance UUID (once)
-		const instanceId = storage.get(instanceStorageKey, undefined);
-		if (instanceId === undefined) {
-			storage.set(instanceStorageKey, generateUuid());
-		}
 
 		// First session date (once)
 		const firstSessionDate = storage.get(firstSessionDateStorageKey, undefined);

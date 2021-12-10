@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextBuffer, ValidAnnotatedEditOperation } from 'vs/editor/common/model';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { IConfigurationService, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -15,7 +15,7 @@ import { FindModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/fi
 import { IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { ICellModelDecorations, ICellModelDeltaDecorations, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellEditType, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { TestCell, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
+import { TestCell, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 
 suite('Notebook Find', () => {
 	const configurationValue: IConfigurationValue<any> = {
@@ -73,7 +73,7 @@ suite('Notebook Find', () => {
 
 				editor.textModel.applyEdits([{
 					editType: CellEditType.Replace, index: 3, count: 0, cells: [
-						new TestCell(viewModel.viewType, 3, '# next paragraph 1', 'markdown', CellKind.Code, [], accessor.get(IModeService)),
+						new TestCell(viewModel.viewType, 3, '# next paragraph 1', 'markdown', CellKind.Code, [], accessor.get(ILanguageService)),
 					]
 				}], true, undefined, () => undefined, undefined, true);
 				assert.strictEqual(editor.textModel.length, 4);

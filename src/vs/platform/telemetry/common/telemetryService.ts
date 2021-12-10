@@ -95,12 +95,11 @@ export class TelemetryService implements ITelemetryService {
 
 		// well known properties
 		let sessionId = values['sessionID'];
-		let instanceId = values['common.instanceId'];
 		let machineId = values['common.machineId'];
 		let firstSessionDate = values['common.firstSessionDate'];
 		let msftInternal = values['common.msftInternal'];
 
-		return { sessionId, instanceId, machineId, firstSessionDate, msftInternal };
+		return { sessionId, machineId, firstSessionDate, msftInternal };
 	}
 
 	dispose(): void {
@@ -206,7 +205,7 @@ export class TelemetryService implements ITelemetryService {
 
 		// Regex which matches @*.site
 		const emailRegex = /@[a-zA-Z0-9-.]+/;
-		const secretRegex = /\S*(key|token|sig|password|passwd|pwd)[="':\s]+\S*/;
+		const secretRegex = /(key|token|sig|signature|password|passwd|pwd)[="':\s]/;
 
 		// Check for common user data in the telemetry events
 		if (secretRegex.test(value)) {

@@ -11,9 +11,8 @@ import { FileAccess } from 'vs/base/common/network';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Worker } from 'worker_threads';
 import { IWorker, IWorkerCallback, IWorkerFactory, SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
-import { IExtensionHostStarterWorkerHost } from 'vs/platform/extensions/node/extensionHostStarterWorker';
+import type { ExtensionHostStarter, IExtensionHostStarterWorkerHost } from 'vs/platform/extensions/node/extensionHostStarterWorker';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ExtensionHostStarter } from 'vs/platform/extensions/node/extensionHostStarter';
 
 class NodeWorker implements IWorker {
 
@@ -80,15 +79,7 @@ export class WorkerMainProcessExtensionHostStarter implements IDisposable, IExte
 		);
 		this._initialize();
 
-		// Abnormal shutdown: terminate extension hosts asap
-		lifecycleMainService.onWillKill(async () => {
-			this._shutdown = true;
-			if (this._proxy) {
-				this._proxy.killAllNow();
-			}
-		});
-
-		// Normal shutdown: gracefully await extension host shutdowns
+		// On shutdown: gracefully await extension host shutdowns
 		lifecycleMainService.onWillShutdown((e) => {
 			this._shutdown = true;
 			if (this._proxy) {

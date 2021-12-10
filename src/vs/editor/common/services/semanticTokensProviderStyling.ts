@@ -7,7 +7,7 @@ import { SemanticTokensLegend, TokenMetadata, FontStyle, MetadataConsts, Semanti
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { MultilineTokens2, SparseEncodedTokens } from 'vs/editor/common/model/tokensStore';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 
 export const enum SemanticTokensProviderStylingConstants {
 	NO_STYLING = 0b01111111111111111111111111111111
@@ -21,7 +21,7 @@ export class SemanticTokensProviderStyling {
 	constructor(
 		private readonly _legend: SemanticTokensLegend,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IModeService private readonly _modeService: IModeService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILogService private readonly _logService: ILogService
 	) {
 		this._hashTable = new HashTable();
@@ -29,7 +29,7 @@ export class SemanticTokensProviderStyling {
 	}
 
 	public getMetadata(tokenTypeIndex: number, tokenModifierSet: number, languageId: string): number {
-		const encodedLanguageId = this._modeService.languageIdCodec.encodeLanguageId(languageId);
+		const encodedLanguageId = this._languageService.languageIdCodec.encodeLanguageId(languageId);
 		const entry = this._hashTable.get(tokenTypeIndex, tokenModifierSet, encodedLanguageId);
 		let metadata: number;
 		if (entry) {

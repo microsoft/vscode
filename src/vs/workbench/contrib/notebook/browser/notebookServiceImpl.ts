@@ -135,6 +135,12 @@ export class NotebookProviderInfoStore extends Disposable {
 		this._memento.saveMemento();
 	}
 
+	clearEditorCache() {
+		const mementoObject = this._memento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
+		mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = [];
+		this._memento.saveMemento();
+	}
+
 	private _convertPriority(priority?: string) {
 		if (!priority) {
 			return RegisteredEditorPriority.default;
@@ -320,6 +326,7 @@ export class NotebookOutputRendererInfoStore {
 
 		const preferred = notebookProviderInfo && this.preferredMimetype.getValue()[notebookProviderInfo.id]?.[mimeType];
 		const notebookExtId = notebookProviderInfo?.extension?.value;
+		const notebookId = notebookProviderInfo?.id;
 		const renderers: { ordered: IOrderedMimeType, score: number }[] = Array.from(this.contributedRenderers.values())
 			.map(renderer => {
 				const ownScore = kernelProvides === undefined
@@ -333,7 +340,7 @@ export class NotebookOutputRendererInfoStore {
 				const rendererExtId = renderer.extensionId.value;
 				const reuseScore = preferred === renderer.id
 					? ReuseOrder.PreviouslySelected
-					: rendererExtId === notebookExtId || RENDERER_EQUIVALENT_EXTENSIONS.get(rendererExtId)?.has(notebookExtId!)
+					: rendererExtId === notebookExtId || RENDERER_EQUIVALENT_EXTENSIONS.get(rendererExtId)?.has(notebookId!)
 						? ReuseOrder.SameExtensionAsNotebook
 						: renderer.isBuiltin ? ReuseOrder.BuiltIn : ReuseOrder.OtherRenderer;
 				return {
@@ -520,6 +527,10 @@ export class NotebookService extends Disposable implements INotebookService {
 			displayName: info.displayName,
 			providerDisplayName: info.providerDisplayName
 		}));
+	}
+
+	clearEditorCache(): void {
+		this.notebookProviderInfoStore.clearEditorCache();
 	}
 
 	private _postDocumentOpenActivation(viewType: string) {

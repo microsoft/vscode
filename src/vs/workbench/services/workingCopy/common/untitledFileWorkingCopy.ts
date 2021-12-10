@@ -190,7 +190,7 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 		this.setDirty(this.hasAssociatedFilePath || !!backup || Boolean(this.initialContents && this.initialContents.markDirty !== false));
 
 		// If we have initial contents, make sure to emit this
-		// as the appropiate events to the outside.
+		// as the appropriate events to the outside.
 		if (!!backup || this.initialContents) {
 			this._onDidChangeContent.fire();
 		}

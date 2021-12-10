@@ -51,6 +51,7 @@ import { gotoNextLocation, gotoPreviousLocation } from 'vs/platform/theme/common
 import { Codicon } from 'vs/base/common/codicons';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TextCompareEditorActiveContext } from 'vs/workbench/common/editor';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 
 class DiffActionRunner extends ActionRunner {
 
@@ -555,7 +556,7 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 
 	public static readonly ID = 'editor.contrib.dirtydiff';
 
-	static get(editor: ICodeEditor): DirtyDiffController {
+	static get(editor: ICodeEditor): DirtyDiffController | null {
 		return editor.getContribution<DirtyDiffController>(DirtyDiffController.ID);
 	}
 
@@ -1088,7 +1089,8 @@ export class DirtyDiffModel extends Disposable {
 		@ISCMService private readonly scmService: ISCMService,
 		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ITextModelService private readonly textModelResolverService: ITextModelService
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@IProgressService private readonly progressService: IProgressService,
 	) {
 		super();
 		this._model = textFileModel;
@@ -1160,21 +1162,23 @@ export class DirtyDiffModel extends Disposable {
 	}
 
 	private diff(): Promise<IChange[] | null> {
-		return this.getOriginalURIPromise().then(originalURI => {
-			if (this._disposed || this._model.isDisposed() || !originalURI) {
-				return Promise.resolve([]); // disposed
-			}
+		return this.progressService.withProgress({ location: ProgressLocation.Scm, delay: 250 }, async () => {
+			return this.getOriginalURIPromise().then(originalURI => {
+				if (this._disposed || this._model.isDisposed() || !originalURI) {
+					return Promise.resolve([]); // disposed
+				}
 
-			if (!this.editorWorkerService.canComputeDirtyDiff(originalURI, this._model.resource)) {
-				return Promise.resolve([]); // Files too large
-			}
+				if (!this.editorWorkerService.canComputeDirtyDiff(originalURI, this._model.resource)) {
+					return Promise.resolve([]); // Files too large
+				}
 
-			const ignoreTrimWhitespaceSetting = this.configurationService.getValue<'true' | 'false' | 'inherit'>('scm.diffDecorationsIgnoreTrimWhitespace');
-			const ignoreTrimWhitespace = ignoreTrimWhitespaceSetting === 'inherit'
-				? this.configurationService.getValue<boolean>('diffEditor.ignoreTrimWhitespace')
-				: ignoreTrimWhitespaceSetting !== 'false';
+				const ignoreTrimWhitespaceSetting = this.configurationService.getValue<'true' | 'false' | 'inherit'>('scm.diffDecorationsIgnoreTrimWhitespace');
+				const ignoreTrimWhitespace = ignoreTrimWhitespaceSetting === 'inherit'
+					? this.configurationService.getValue<boolean>('diffEditor.ignoreTrimWhitespace')
+					: ignoreTrimWhitespaceSetting !== 'false';
 
-			return this.editorWorkerService.computeDirtyDiff(originalURI, this._model.resource, ignoreTrimWhitespace);
+				return this.editorWorkerService.computeDirtyDiff(originalURI, this._model.resource, ignoreTrimWhitespace);
+			});
 		});
 	}
 
@@ -1406,7 +1410,9 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 			.map(editor => {
 				const codeEditor = editor as CodeEditorWidget;
 				const controller = DirtyDiffController.get(codeEditor);
-				controller.modelRegistry = this;
+				if (controller) {
+					controller.modelRegistry = this;
+				}
 				return codeEditor.getModel();
 			})
 

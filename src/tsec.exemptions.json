@@ -32,6 +32,7 @@
 		"vs/platform/sharedProcess/electron-browser/sharedProcessWorkerService.ts"
 	],
 	"ban-domparser-parsefromstring": [
+		"vs/base/browser/markdownRenderer.ts",
 		"vs/base/test/browser/markdownRenderer.test.ts"
 	]
 }

@@ -9,14 +9,14 @@ import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, CompletionItemInsertTextRule, CompletionContext, CompletionTriggerKind, CompletionItemLabel } from 'vs/editor/common/modes';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { localize } from 'vs/nls';
 import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
 import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { isPatternInWord } from 'vs/base/common/filters';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export class SnippetCompletion implements CompletionItem {
 
@@ -57,31 +57,42 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 	readonly _debugDisplayName = 'snippetCompletions';
 
 	constructor(
-		@IModeService private readonly _modeService: IModeService,
-		@ISnippetsService private readonly _snippets: ISnippetsService
+		@ILanguageService private readonly _languageService: ILanguageService,
+		@ISnippetsService private readonly _snippets: ISnippetsService,
+		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService
 	) {
 		//
 	}
 
 	async provideCompletionItems(model: ITextModel, position: Position, context: CompletionContext): Promise<CompletionList> {
 
-		if (context.triggerKind === CompletionTriggerKind.TriggerCharacter && context.triggerCharacter?.match(/\s/)) {
-			// no snippets when suggestions have been triggered by space
-			return { suggestions: [] };
-		}
-
 		const sw = new StopWatch(true);
 		const languageId = this._getLanguageIdAtPosition(model, position);
 		const snippets = new Set(await this._snippets.getSnippets(languageId));
 
 		const lineContentLow = model.getLineContent(position.lineNumber).toLowerCase();
+		const wordUntil = model.getWordUntilPosition(position).word.toLowerCase();
 
 		const suggestions: SnippetCompletion[] = [];
 		const columnOffset = position.column - 1;
 
+		const triggerCharacterLow = context.triggerCharacter?.toLowerCase() ?? '';
+
 		for (const snippet of snippets) {
 
+			if (wordUntil && snippet.prefixLow.length < wordUntil.length && !isPatternInWord(snippet.prefixLow, 0, snippet.prefixLow.length, wordUntil, 0, wordUntil.length)) {
+				// when at a word the snippet prefix must match
+				continue;
+			}
+
+
 			for (let pos = Math.max(0, columnOffset - snippet.prefixLow.length); pos < lineContentLow.length; pos++) {
+
+				if (context.triggerKind === CompletionTriggerKind.TriggerCharacter && !snippet.prefixLow.startsWith(triggerCharacterLow)) {
+					// strict -> when having trigger characters they must prefix-match
+					continue;
+				}
+
 				if (!isPatternInWord(lineContentLow, pos, columnOffset, snippet.prefixLow, 0, snippet.prefixLow.length)) {
 					continue;
 				}
@@ -93,7 +104,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 
 				// First check if there is anything to the right of the cursor
 				if (columnOffset < lineContentLow.length) {
-					const autoClosingPairs = LanguageConfigurationRegistry.getAutoClosingPairs(languageId);
+					const autoClosingPairs = this._languageConfigurationService.getLanguageConfiguration(languageId).getAutoClosingPairs();
 					const standardAutoClosingPairConditionals = autoClosingPairs.autoClosingPairsCloseSingleChar.get(lineContentLow[columnOffset]);
 					// If the character to the right of the cursor is a closing character of an autoclosing pair
 					if (standardAutoClosingPairConditionals?.some(p =>
@@ -118,14 +129,16 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		}
 
 
-		const endsInWhitespace = /\s/.test(lineContentLow[position.column - 2]);
-
-		if (endsInWhitespace || !lineContentLow /*empty line*/) {
-			// add remaing snippets when the current prefix ends in whitespace or when line is empty
-			for (let snippet of snippets) {
-				const insert = Range.fromPositions(position);
-				const replace = lineContentLow.indexOf(snippet.prefixLow, columnOffset) === columnOffset ? insert.setEndPosition(position.lineNumber, position.column + snippet.prefixLow.length) : insert;
-				suggestions.push(new SnippetCompletion(snippet, { replace, insert }));
+		// add remaing snippets when the current prefix ends in whitespace or when line is empty
+		// and when not having a trigger character
+		if (!triggerCharacterLow) {
+			const endsInWhitespace = /\s/.test(lineContentLow[position.column - 2]);
+			if (endsInWhitespace || !lineContentLow /*empty line*/) {
+				for (let snippet of snippets) {
+					const insert = Range.fromPositions(position);
+					const replace = lineContentLow.indexOf(snippet.prefixLow, columnOffset) === columnOffset ? insert.setEndPosition(position.lineNumber, position.column + snippet.prefixLow.length) : insert;
+					suggestions.push(new SnippetCompletion(snippet, { replace, insert }));
+				}
 			}
 		}
 
@@ -160,8 +173,8 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		// snippets, else fall back to the outer language
 		model.tokenizeIfCheap(position.lineNumber);
 		let languageId: string | null = model.getLanguageIdAtPosition(position.lineNumber, position.column);
-		languageId = this._modeService.validateLanguageId(languageId);
-		if (!languageId || !this._modeService.getLanguageName(languageId)) {
+		languageId = this._languageService.validateLanguageId(languageId);
+		if (!languageId || !this._languageService.getLanguageName(languageId)) {
 			languageId = model.getLanguageId();
 		}
 		return languageId;

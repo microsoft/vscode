@@ -41,7 +41,7 @@ export class WorkspaceWatcher extends Disposable {
 		this._register(this.contextService.onDidChangeWorkspaceFolders(e => this.onDidChangeWorkspaceFolders(e)));
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.onDidChangeWorkbenchState()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onDidChangeConfiguration(e)));
-		this._register(this.fileService.onError(error => this.onError(error)));
+		this._register(this.fileService.onDidWatchError(error => this.onDidWatchError(error)));
 	}
 
 	private onDidChangeWorkspaceFolders(e: IWorkspaceFoldersChangeEvent): void {
@@ -67,7 +67,7 @@ export class WorkspaceWatcher extends Disposable {
 		}
 	}
 
-	private onError(error: Error): void {
+	private onDidWatchError(error: Error): void {
 		const msg = error.toString();
 
 		// Detect if we run into ENOSPC issues
@@ -90,7 +90,7 @@ export class WorkspaceWatcher extends Disposable {
 		else if (msg.indexOf('EUNKNOWN') >= 0) {
 			this.notificationService.prompt(
 				Severity.Warning,
-				localize('eshutdownError', "File changes watcher stopped unexpectedly. Please reload the window to enable the watcher again."),
+				localize('eshutdownError', "File changes watcher stopped unexpectedly. A reload of the window may enable the watcher again unless the workspace cannot be watched for file changes."),
 				[{
 					label: localize('reload', "Reload"),
 					run: () => this.hostService.reload()

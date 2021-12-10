@@ -224,7 +224,7 @@ function apiProposalNamesGenerator() {
 
 			const t1 = Date.now();
 			const proposalNames: [name: string, url: string][] = [];
-			for (let file of fs.readdirSync(dtsFolder)) {
+			for (let file of fs.readdirSync(dtsFolder).sort()) {
 				const match = pattern.exec(file);
 				if (match) {
 					proposalNames.push([match[1], `https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/${file}`]);
@@ -240,11 +240,11 @@ function apiProposalNamesGenerator() {
 				'// THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.',
 				'',
 				'export const allApiProposals = Object.freeze({',
-				`${proposalNames.map(t => `\t${t[0]}: '${t[1]}'`).join(',\n')}`,
+				`${proposalNames.map(t => `\t${t[0]}: '${t[1]}'`).join(`,${os.EOL}`)}`,
 				'});',
 				'export type ApiProposalName = keyof typeof allApiProposals;',
 				'',
-			].join('\n');
+			].join(os.EOL);
 
 			const outFile = path.join(dtsFolder, '../vs/workbench/services/extensions/common/extensionsApiProposals.ts');
 

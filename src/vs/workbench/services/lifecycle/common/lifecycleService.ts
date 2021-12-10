@@ -6,7 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { Barrier } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ILifecycleService, BeforeShutdownEvent, WillShutdownEvent, StartupKind, LifecyclePhase, LifecyclePhaseToString, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILifecycleService, WillShutdownEvent, StartupKind, LifecyclePhase, LifecyclePhaseToString, ShutdownReason, BeforeShutdownErrorEvent, InternalBeforeShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { mark } from 'vs/base/common/performance';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
@@ -17,7 +17,7 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 
 	declare readonly _serviceBrand: undefined;
 
-	protected readonly _onBeforeShutdown = this._register(new Emitter<BeforeShutdownEvent>());
+	protected readonly _onBeforeShutdown = this._register(new Emitter<InternalBeforeShutdownEvent>());
 	readonly onBeforeShutdown = this._onBeforeShutdown.event;
 
 	protected readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
@@ -25,6 +25,9 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 
 	protected readonly _onDidShutdown = this._register(new Emitter<void>());
 	readonly onDidShutdown = this._onDidShutdown.event;
+
+	protected readonly _onBeforeShutdownError = this._register(new Emitter<BeforeShutdownErrorEvent>());
+	readonly onBeforeShutdownError = this._onBeforeShutdownError.event;
 
 	private _startupKind: StartupKind;
 	get startupKind(): StartupKind { return this._startupKind; }

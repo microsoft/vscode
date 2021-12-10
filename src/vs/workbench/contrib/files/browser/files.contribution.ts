@@ -257,22 +257,6 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('watcherInclude', "Configure extra paths to watch for changes inside the workspace. By default, all workspace folders will be watched recursively, except for folders that are symbolic links. You can explicitly add absolute or relative paths to support watching folders that are symbolic links. Relative paths will be resolved to an absolute path using the currently opened workspace."),
 			'scope': ConfigurationScope.RESOURCE
 		},
-		'files.legacyWatcher': {
-			'type': 'string',
-			'enum': [
-				'on',
-				'off',
-				'default',
-			],
-			'markdownEnumDescriptions': [
-				nls.localize('files.legacyWatcher.on', "Enable the legacy file watcher in case you see issues with the new file watcher."),
-				nls.localize('files.legacyWatcher.off', "Disable the legacy file watcher and enable the new file watcher to benefit from its capabilities."),
-				nls.localize('files.legacyWatcher.default', "The new file watcher will be enabled."),
-			],
-			'default': 'default',
-			'description': nls.localize('legacyWatcher', "Controls the mechanism used for file watching. Only change this when you see issues related to file watching."),
-			'scope': ConfigurationScope.APPLICATION
-		},
 		'files.hotExit': hotExitConfiguration,
 		'files.defaultLanguage': {
 			'type': 'string',
@@ -307,13 +291,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('files.simpleDialog.enable', "Enables the simple file dialog. The simple file dialog replaces the system file dialog when enabled."),
 			'default': false
-		},
-		'files.experimentalSandboxedFileService': {
-			'type': 'boolean',
-			'description': nls.localize('files.experimentalSandboxedFileService', "Experimental: changes the file service to be sandboxed. Do not change this unless instructed!"),
-			'default': true,
-			'scope': ConfigurationScope.APPLICATION
-		},
+		}
 	}
 });
 

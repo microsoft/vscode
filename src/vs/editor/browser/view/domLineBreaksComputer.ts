@@ -25,9 +25,6 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 	}
 
 	public createLineBreaksComputer(fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent): ILineBreaksComputer {
-		tabSize = tabSize | 0; //@perf
-		wrappingColumn = +wrappingColumn; //@perf
-
 		let requests: string[] = [];
 		let injectedTexts: (LineInjectedText[] | null)[] = [];
 		return {

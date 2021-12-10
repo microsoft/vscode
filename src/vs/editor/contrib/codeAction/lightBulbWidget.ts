@@ -13,7 +13,7 @@ import 'vs/css!./lightBulbWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { computeIndentLevel } from 'vs/editor/common/model/utils';
 import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
 import type { CodeActionTrigger } from 'vs/editor/contrib/codeAction/types';
 import * as nls from 'vs/nls';
@@ -163,7 +163,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		const tabSize = model.getOptions().tabSize;
 		const fontInfo = options.get(EditorOption.fontInfo);
 		const lineContent = model.getLineContent(lineNumber);
-		const indent = TextModel.computeIndentLevel(lineContent, tabSize);
+		const indent = computeIndentLevel(lineContent, tabSize);
 		const lineHasSpace = fontInfo.spaceWidth * indent > 22;
 		const isFolded = (lineNumber: number) => {
 			return lineNumber > 2 && this._editor.getTopForLineNumber(lineNumber) === this._editor.getTopForLineNumber(lineNumber - 1);

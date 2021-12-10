@@ -291,7 +291,14 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		let folder = null;
 		let packageJson = null;
 
+		const regularExpressionsSetting = workspace.getConfiguration('npm').get<string[]>('scriptExplorerExclude', []);
+		const regularExpressions = regularExpressionsSetting?.map(value => RegExp(value));
+
 		tasks.forEach(each => {
+			if (regularExpressions.some((regularExpression) => (<NpmTaskDefinition>each.task.definition).script.match(regularExpression))) {
+				return;
+			}
+
 			if (isWorkspaceFolder(each.task.scope) && !this.isInstallTask(each.task)) {
 				folder = folders.get(each.task.scope.name);
 				if (!folder) {

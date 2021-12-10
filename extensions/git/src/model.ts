@@ -6,17 +6,17 @@
 import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, OutputChannel, commands } from 'vscode';
 import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
-import { dispose, anyEvent, filterEvent, isDescendant, pathEquals, toDisposable, eventToPromise } from './util';
+import { dispose, anyEvent, filterEvent, isDescendant, pathEquals, toDisposable, eventToPromise, logTimestamp } from './util';
 import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 import { fromGitUri } from './uri';
-import { APIState as State, RemoteSourceProvider, CredentialsProvider, PushErrorHandler, PublishEvent } from './api/git';
+import { APIState as State, CredentialsProvider, PushErrorHandler, PublishEvent, RemoteSourcePublisher } from './api/git';
 import { Askpass } from './askpass';
-import { IRemoteSourceProviderRegistry } from './remoteProvider';
 import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
+import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 
 const localize = nls.loadMessageBundle();
 
@@ -48,7 +48,7 @@ interface OpenRepository extends Disposable {
 	repository: Repository;
 }
 
-export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRegistry {
+export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerRegistry {
 
 	private _onDidOpenRepository = new EventEmitter<Repository>();
 	readonly onDidOpenRepository: Event<Repository> = this._onDidOpenRepository.event;
@@ -95,13 +95,13 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 		return eventToPromise(filterEvent(this.onDidChangeState, s => s === 'initialized')) as Promise<any>;
 	}
 
-	private remoteSourceProviders = new Set<RemoteSourceProvider>();
+	private remoteSourcePublishers = new Set<RemoteSourcePublisher>();
 
-	private _onDidAddRemoteSourceProvider = new EventEmitter<RemoteSourceProvider>();
-	readonly onDidAddRemoteSourceProvider = this._onDidAddRemoteSourceProvider.event;
+	private _onDidAddRemoteSourcePublisher = new EventEmitter<RemoteSourcePublisher>();
+	readonly onDidAddRemoteSourcePublisher = this._onDidAddRemoteSourcePublisher.event;
 
-	private _onDidRemoveRemoteSourceProvider = new EventEmitter<RemoteSourceProvider>();
-	readonly onDidRemoveRemoteSourceProvider = this._onDidRemoveRemoteSourceProvider.event;
+	private _onDidRemoveRemoteSourcePublisher = new EventEmitter<RemoteSourcePublisher>();
+	readonly onDidRemoveRemoteSourcePublisher = this._onDidRemoveRemoteSourcePublisher.event;
 
 	private pushErrorHandlers = new Set<PushErrorHandler>();
 
@@ -146,12 +146,12 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 
 		await Promise.all((workspace.workspaceFolders || []).map(async folder => {
 			const root = folder.uri.fsPath;
-			const children = await new Promise<string[]>((c, e) => fs.readdir(root, (err, r) => err ? e(err) : c(r)));
+			const children = (await fs.promises.readdir(root, { withFileTypes: true })).filter(dirent => dirent.isDirectory()).map(dirent => dirent.name);
 			const subfolders = new Set(children.filter(child => child !== '.git').map(child => path.join(root, child)));
 
 			const scanPaths = (workspace.isTrusted ? workspace.getConfiguration('git', folder.uri) : config).get<string[]>('scanRepositories') || [];
 			for (const scanPath of scanPaths) {
-				if (scanPath !== '.git') {
+				if (scanPath === '.git') {
 					continue;
 				}
 
@@ -303,7 +303,7 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 			repository.status(); // do not await this, we want SCM to know about the repo asap
 		} catch (ex) {
 			// noop
-			this.outputChannel.appendLine(`Opening repository for path='${repoPath}' failed; ex=${ex}`);
+			this.outputChannel.appendLine(`${logTimestamp()} Opening repository for path='${repoPath}' failed; ex=${ex}`);
 		}
 	}
 
@@ -329,7 +329,7 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 	}
 
 	private open(repository: Repository): void {
-		this.outputChannel.appendLine(`Open repository: ${repository.root}`);
+		this.outputChannel.appendLine(`${logTimestamp()} Open repository: ${repository.root}`);
 
 		const onDidDisappearRepository = filterEvent(repository.onDidChangeState, state => state === RepositoryState.Disposed);
 		const disappearListener = onDidDisappearRepository(() => dispose());
@@ -386,7 +386,7 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 			return;
 		}
 
-		this.outputChannel.appendLine(`Close repository: ${repository.root}`);
+		this.outputChannel.appendLine(`${logTimestamp()} Close repository: ${repository.root}`);
 		openRepository.dispose();
 	}
 
@@ -496,22 +496,22 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 		return undefined;
 	}
 
-	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable {
-		this.remoteSourceProviders.add(provider);
-		this._onDidAddRemoteSourceProvider.fire(provider);
+	registerRemoteSourcePublisher(publisher: RemoteSourcePublisher): Disposable {
+		this.remoteSourcePublishers.add(publisher);
+		this._onDidAddRemoteSourcePublisher.fire(publisher);
 
 		return toDisposable(() => {
-			this.remoteSourceProviders.delete(provider);
-			this._onDidRemoveRemoteSourceProvider.fire(provider);
+			this.remoteSourcePublishers.delete(publisher);
+			this._onDidRemoveRemoteSourcePublisher.fire(publisher);
 		});
+	}
+
+	getRemoteSourcePublishers(): RemoteSourcePublisher[] {
+		return [...this.remoteSourcePublishers.values()];
 	}
 
 	registerCredentialsProvider(provider: CredentialsProvider): Disposable {
 		return this.askpass.registerCredentialsProvider(provider);
-	}
-
-	getRemoteProviders(): RemoteSourceProvider[] {
-		return [...this.remoteSourceProviders.values()];
 	}
 
 	registerPushErrorHandler(handler: PushErrorHandler): Disposable {

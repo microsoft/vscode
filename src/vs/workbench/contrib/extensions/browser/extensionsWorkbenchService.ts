@@ -14,18 +14,18 @@ import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
-	InstallExtensionEvent, DidUninstallExtensionEvent, IExtensionIdentifier, InstallOperation, DefaultIconPath, InstallOptions, WEB_EXTENSION_TAG, InstallExtensionResult
+	InstallExtensionEvent, DidUninstallExtensionEvent, IExtensionIdentifier, InstallOperation, DefaultIconPath, InstallOptions, WEB_EXTENSION_TAG, InstallExtensionResult, isIExtensionIdentifier, IExtensionsControlManifest
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, getMaliciousExtensionsSet, groupByExtension, ExtensionIdentifierWithVersion, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, ExtensionIdentifierWithVersion, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { URI } from 'vs/base/common/uri';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext, ExtensionEditorTab } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
-import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
+import { ExtensionsInput, IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -34,13 +34,13 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension } from 'vs/platform/extensions/common/extensions';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { FileAccess } from 'vs/base/common/network';
 import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { isBoolean } from 'vs/base/common/types';
+import { isBoolean, isUndefined } from 'vs/base/common/types';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IExtensionService, IExtensionsStatus } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
@@ -186,6 +186,7 @@ class Extension implements IExtension {
 	}
 
 	public isMalicious: boolean = false;
+	public isUnsupported: boolean | { preReleaseExtension: { id: string, displayName: string } } = false;
 
 	get installCount(): number | undefined {
 		return this.gallery ? this.gallery.installCount : undefined;
@@ -200,7 +201,7 @@ class Extension implements IExtension {
 	}
 
 	get outdated(): boolean {
-		return !!this.gallery && this.type === ExtensionType.User && semver.gt(this.latestVersion, this.version);
+		return !!this.gallery && this.type === ExtensionType.User && semver.gt(this.latestVersion, this.version) && (this.local?.isPreReleaseVersion || !this.gallery?.properties.isPreReleaseVersion);
 	}
 
 	get telemetryData(): any {
@@ -217,9 +218,22 @@ class Extension implements IExtension {
 		return this.gallery ? this.gallery.preview : false;
 	}
 
-	getManifest(token: CancellationToken): Promise<IExtensionManifest | null> {
-		if (this.local && !this.outdated) {
-			return Promise.resolve(this.local.manifest);
+	get hasPreReleaseVersion(): boolean {
+		return !!this.gallery?.hasPreReleaseVersion;
+	}
+
+	get hasReleaseVersion(): boolean {
+		return !!this.gallery?.hasReleaseVersion;
+	}
+
+	private getLocal(): ILocalExtension | undefined {
+		return this.local && !this.outdated ? this.local : undefined;
+	}
+
+	async getManifest(token: CancellationToken): Promise<IExtensionManifest | null> {
+		const local = this.getLocal();
+		if (local) {
+			return local.manifest;
 		}
 
 		if (this.gallery) {
@@ -227,10 +241,10 @@ class Extension implements IExtension {
 				return this.galleryService.getManifest(this.gallery, token);
 			}
 			this.logService.error(nls.localize('Manifest is not found', "Manifest is not found"), this.identifier.id);
-			return Promise.resolve(null);
+			return null;
 		}
 
-		return Promise.resolve(null);
+		return null;
 	}
 
 	hasReadme(): boolean {
@@ -245,9 +259,11 @@ class Extension implements IExtension {
 		return this.type === ExtensionType.System;
 	}
 
-	getReadme(token: CancellationToken): Promise<string> {
-		if (this.local && this.local.readmeUrl && !this.outdated) {
-			return this.fileService.readFile(this.local.readmeUrl).then(content => content.value.toString());
+	async getReadme(token: CancellationToken): Promise<string> {
+		const local = this.getLocal();
+		if (local?.readmeUrl) {
+			const content = await this.fileService.readFile(local.readmeUrl);
+			return content.value.toString();
 		}
 
 		if (this.gallery) {
@@ -280,13 +296,14 @@ ${this.description}
 		return this.type === ExtensionType.System;
 	}
 
-	getChangelog(token: CancellationToken): Promise<string> {
-
-		if (this.local && this.local.changelogUrl && !this.outdated) {
-			return this.fileService.readFile(this.local.changelogUrl).then(content => content.value.toString());
+	async getChangelog(token: CancellationToken): Promise<string> {
+		const local = this.getLocal();
+		if (local?.changelogUrl) {
+			const content = await this.fileService.readFile(local.changelogUrl);
+			return content.value.toString();
 		}
 
-		if (this.gallery && this.gallery.assets.changelog) {
+		if (this.gallery?.assets.changelog) {
 			return this.galleryService.getChangelog(this.gallery, token);
 		}
 
@@ -393,29 +410,66 @@ class Extensions extends Disposable {
 		return this.local;
 	}
 
-	async syncLocalWithGalleryExtension(gallery: IGalleryExtension, maliciousExtensionSet: Set<string>): Promise<boolean> {
+	async syncLocalWithGalleryExtension(gallery: IGalleryExtension, extensionsControlManifest: IExtensionsControlManifest): Promise<boolean> {
 		const extension = this.getInstalledExtensionMatchingGallery(gallery);
-		if (!extension) {
+		if (!extension?.local) {
 			return false;
 		}
-		if (maliciousExtensionSet.has(extension.identifier.id)) {
-			extension.isMalicious = true;
+
+		let hasChanged: boolean = false;
+
+		const isMalicious = extensionsControlManifest.malicious.some(identifier => areSameExtensions(extension.identifier, identifier));
+		if (extension.isMalicious !== isMalicious) {
+			extension.isMalicious = isMalicious;
+			hasChanged = true;
 		}
-		// Loading the compatible version only there is an engine property
-		// Otherwise falling back to old way so that we will not make many roundtrips
-		const compatible = gallery.properties.engine ? await this.galleryService.getCompatibleExtension(gallery, await this.server.extensionManagementService.getTargetPlatform()) : gallery;
-		if (!compatible) {
-			return false;
-		}
-		// Sync the local extension with gallery extension if local extension doesnot has metadata
-		if (extension.local) {
-			const local = extension.local.identifier.uuid ? extension.local : await this.server.extensionManagementService.updateMetadata(extension.local, { id: compatible.identifier.uuid, publisherDisplayName: compatible.publisherDisplayName, publisherId: compatible.publisherId });
-			extension.local = local;
+
+		const compatible = await this.getCompatibleExtension(gallery, extension.local.isPreReleaseVersion);
+		if (compatible) {
 			extension.gallery = compatible;
-			this._onChange.fire({ extension });
-			return true;
+			hasChanged = true;
 		}
-		return false;
+
+		if (!extension.local.identifier.uuid) {
+			let galleryExtension = !extension.outdated ? extension.gallery : undefined;
+			if (!galleryExtension) {
+				[galleryExtension] = await this.galleryService.getExtensions([{ ...extension.local.identifier, version: extension.version }], CancellationToken.None);
+			}
+			if (!galleryExtension) {
+				[galleryExtension] = await this.galleryService.getExtensions([extension.local.identifier], CancellationToken.None);
+			}
+			if (galleryExtension) {
+				const local = await this.server.extensionManagementService.updateMetadata(extension.local, { id: galleryExtension.identifier.uuid, publisherDisplayName: galleryExtension.publisherDisplayName, publisherId: galleryExtension.publisherId, isPreReleaseVersion: gallery.properties.isPreReleaseVersion });
+				extension.local = local;
+			}
+		}
+
+		const unsupportedPreRelease = extensionsControlManifest.unsupportedPreReleaseExtensions ? extensionsControlManifest.unsupportedPreReleaseExtensions[extension.identifier.id.toLowerCase()] : undefined;
+		if (unsupportedPreRelease) {
+			if (isBoolean(extension.isUnsupported) || !areSameExtensions({ id: extension.isUnsupported.preReleaseExtension.id }, { id: unsupportedPreRelease.id })) {
+				extension.isUnsupported = { preReleaseExtension: unsupportedPreRelease };
+				hasChanged = true;
+			}
+		} else if (extension.isUnsupported) {
+			extension.isUnsupported = false;
+			hasChanged = true;
+		}
+
+		if (hasChanged) {
+			this._onChange.fire({ extension });
+		}
+		return hasChanged;
+	}
+
+	private async getCompatibleExtension(extensionOrIdentifier: IGalleryExtension | IExtensionIdentifier, includePreRelease: boolean): Promise<IGalleryExtension | null> {
+		if (isIExtensionIdentifier(extensionOrIdentifier)) {
+			return this.galleryService.getCompatibleExtension(extensionOrIdentifier, includePreRelease, await this.server.extensionManagementService.getTargetPlatform());
+		}
+		const extension = extensionOrIdentifier;
+		if (includePreRelease && extension.hasPreReleaseVersion && !extension.properties.isPreReleaseVersion) {
+			return this.getCompatibleExtension(extension.identifier, includePreRelease);
+		}
+		return this.galleryService.getCompatibleExtension(extension, includePreRelease, await this.server.extensionManagementService.getTargetPlatform());
 	}
 
 	canInstall(galleryExtension: IGalleryExtension): Promise<boolean> {
@@ -426,7 +480,7 @@ class Extensions extends Disposable {
 		if (!this.galleryService.isEnabled()) {
 			return;
 		}
-		const compatible = await this.galleryService.getCompatibleExtension(extension.identifier, await this.server.extensionManagementService.getTargetPlatform());
+		const compatible = await this.getCompatibleExtension(extension.identifier, !!extension.local?.isPreReleaseVersion);
 		if (compatible) {
 			extension.gallery = compatible;
 			this._onChange.fire({ extension });
@@ -552,6 +606,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private readonly _onChange: Emitter<IExtension | undefined> = new Emitter<IExtension | undefined>();
 	get onChange(): Event<IExtension | undefined> { return this._onChange.event; }
 
+	readonly preferPreReleases = this.productService.quality !== 'stable';
+
 	private installing: IExtension[] = [];
 
 	constructor(
@@ -568,7 +624,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IProgressService private readonly progressService: IProgressService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IIgnoredExtensionsManagementService private readonly extensionsSyncManagementService: IIgnoredExtensionsManagementService,
 		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
 		@IProductService private readonly productService: IProductService,
@@ -578,6 +634,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
 		super();
+		const preferPreReleasesValue = configurationService.getValue('_extensions.preferPreReleases');
+		if (!isUndefined(preferPreReleasesValue)) {
+			this.preferPreReleases = !!preferPreReleasesValue;
+		}
 		this.hasOutdatedExtensionsContextKey = HasOutdatedExtensionsContext.bindTo(contextKeyService);
 		if (extensionManagementServerService.localExtensionManagementServer) {
 			this.localExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.localExtensionManagementServer, ext => this.getExtensionState(ext)));
@@ -702,24 +762,22 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	queryGallery(token: CancellationToken): Promise<IPager<IExtension>>;
 	queryGallery(options: IQueryOptions, token: CancellationToken): Promise<IPager<IExtension>>;
-	queryGallery(arg1: any, arg2?: any): Promise<IPager<IExtension>> {
+	async queryGallery(arg1: any, arg2?: any): Promise<IPager<IExtension>> {
 		const options: IQueryOptions = CancellationToken.isCancellationToken(arg1) ? {} : arg1;
 		const token: CancellationToken = CancellationToken.isCancellationToken(arg1) ? arg1 : arg2;
 		options.text = options.text ? this.resolveQueryText(options.text) : options.text;
-		return this.extensionManagementService.getExtensionsReport()
-			.then(report => {
-				const maliciousSet = getMaliciousExtensionsSet(report);
+		options.includePreRelease = isUndefined(options.includePreRelease) ? this.preferPreReleases : options.includePreRelease;
 
-				return this.galleryService.query(options, token)
-					.then(result => mapPager(result, gallery => this.fromGallery(gallery, maliciousSet)))
-					.then(undefined, err => {
-						if (/No extension gallery service configured/.test(err.message)) {
-							return Promise.resolve(singlePagePager([]));
-						}
-
-						return Promise.reject<IPager<IExtension>>(err);
-					});
-			});
+		const extensionsControlManifest = await this.extensionManagementService.getExtensionsControlManifest();
+		try {
+			const result = await this.galleryService.query(options, token);
+			return mapPager(result, gallery => this.fromGallery(gallery, extensionsControlManifest));
+		} catch (error) {
+			if (/No extension gallery service configured/.test(error.message)) {
+				return Promise.resolve(singlePagePager([]));
+			}
+			throw error;
+		}
 	}
 
 	private resolveQueryText(text: string): string {
@@ -734,8 +792,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				const keywords = lookup[ext] || [];
 
 				// Get mode name
-				const languageId = this.modeService.getModeIdByFilepathOrFirstLine(URI.file(`.${ext}`));
-				const languageName = languageId && this.modeService.getLanguageName(languageId);
+				const languageId = this.languageService.getLanguageIdByFilepathOrFirstLine(URI.file(`.${ext}`));
+				const languageName = languageId && this.languageService.getLanguageName(languageId);
 				const languageTag = languageName ? ` tag:"${languageName}"` : '';
 
 				// Construct a rich query
@@ -745,8 +803,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return text.substr(0, 350);
 	}
 
-	async open(extension: IExtension, options?: { sideByside?: boolean, preserveFocus?: boolean, pinned?: boolean, tab?: ExtensionEditorTab }): Promise<void> {
-		const editor = await this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension), { preserveFocus: options?.preserveFocus, pinned: options?.pinned }, options?.sideByside ? SIDE_GROUP : ACTIVE_GROUP);
+	async open(extension: IExtension, options?: IExtensionEditorOptions): Promise<void> {
+		const editor = await this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension), options, options?.sideByside ? SIDE_GROUP : ACTIVE_GROUP);
 		if (options?.tab && editor instanceof ExtensionEditor) {
 			await editor.openTab(options.tab);
 		}
@@ -850,11 +908,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return extension || extensions[0];
 	}
 
-	private fromGallery(gallery: IGalleryExtension, maliciousExtensionSet: Set<string>): IExtension {
+	private fromGallery(gallery: IGalleryExtension, extensionsControlManifest: IExtensionsControlManifest): IExtension {
 		Promise.all([
-			this.localExtensions ? this.localExtensions.syncLocalWithGalleryExtension(gallery, maliciousExtensionSet) : Promise.resolve(false),
-			this.remoteExtensions ? this.remoteExtensions.syncLocalWithGalleryExtension(gallery, maliciousExtensionSet) : Promise.resolve(false),
-			this.webExtensions ? this.webExtensions.syncLocalWithGalleryExtension(gallery, maliciousExtensionSet) : Promise.resolve(false)
+			this.localExtensions ? this.localExtensions.syncLocalWithGalleryExtension(gallery, extensionsControlManifest) : Promise.resolve(false),
+			this.remoteExtensions ? this.remoteExtensions.syncLocalWithGalleryExtension(gallery, extensionsControlManifest) : Promise.resolve(false),
+			this.webExtensions ? this.webExtensions.syncLocalWithGalleryExtension(gallery, extensionsControlManifest) : Promise.resolve(false)
 		])
 			.then(result => {
 				if (result[0] || result[1] || result[2]) {
@@ -867,8 +925,14 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return installed;
 		}
 		const extension = this.instantiationService.createInstance(Extension, ext => this.getExtensionState(ext), undefined, undefined, gallery);
-		if (maliciousExtensionSet.has(extension.identifier.id)) {
+		if (extensionsControlManifest.malicious.some(identifier => areSameExtensions(extension.identifier, identifier))) {
 			extension.isMalicious = true;
+		}
+		const unsupportedPreRelease = extensionsControlManifest.unsupportedPreReleaseExtensions ? extensionsControlManifest.unsupportedPreReleaseExtensions[extension.identifier.id.toLowerCase()] : undefined;
+		if (unsupportedPreRelease) {
+			if (isBoolean(extension.isUnsupported) || !areSameExtensions({ id: extension.isUnsupported.preReleaseExtension.id }, { id: unsupportedPreRelease.id })) {
+				extension.isUnsupported = { preReleaseExtension: unsupportedPreRelease };
+			}
 		}
 		return extension;
 	}
@@ -941,27 +1005,41 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			.then(undefined, err => null);
 	}
 
-	private syncWithGallery(): Promise<void> {
-		const ids: string[] = [], names: string[] = [];
+	private async syncWithGallery(): Promise<void> {
+		const ids: string[] = [], preReleaseIds: string[] = [], names: string[] = [], preReleaseNames: string[] = [];
 		for (const installed of this.local) {
 			if (installed.type === ExtensionType.User) {
 				if (installed.identifier.uuid) {
-					ids.push(installed.identifier.uuid);
+					if (installed.local?.isPreReleaseVersion || installed.local?.preRelease) {
+						preReleaseIds.push(installed.identifier.uuid);
+					} else {
+						ids.push(installed.identifier.uuid);
+					}
 				} else {
-					names.push(installed.identifier.id);
+					if (installed.local?.isPreReleaseVersion || installed.local?.preRelease) {
+						preReleaseNames.push(installed.identifier.id);
+					} else {
+						names.push(installed.identifier.id);
+					}
 				}
 			}
 		}
 
 		const promises: Promise<IPager<IExtension>>[] = [];
 		if (ids.length) {
-			promises.push(this.queryGallery({ ids, pageSize: ids.length }, CancellationToken.None));
+			promises.push(this.queryGallery({ ids, pageSize: ids.length, includePreRelease: false }, CancellationToken.None));
+		}
+		if (preReleaseIds.length) {
+			promises.push(this.queryGallery({ ids: preReleaseIds, pageSize: preReleaseIds.length, includePreRelease: true }, CancellationToken.None));
 		}
 		if (names.length) {
-			promises.push(this.queryGallery({ names, pageSize: names.length }, CancellationToken.None));
+			promises.push(this.queryGallery({ names, pageSize: names.length, includePreRelease: false }, CancellationToken.None));
+		}
+		if (preReleaseNames.length) {
+			promises.push(this.queryGallery({ names: preReleaseNames, pageSize: names.length, includePreRelease: true }, CancellationToken.None));
 		}
 
-		return Promises.settled(promises).then(() => undefined);
+		await Promises.settled(promises);
 	}
 
 	private eventuallyAutoUpdateExtensions(): void {
@@ -979,7 +1057,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			(this.getAutoUpdateValue() === true || (e.local && this.extensionEnablementService.isEnabled(e.local)))
 		);
 
-		return Promises.settled(toUpdate.map(e => this.install(e)));
+		return Promises.settled(toUpdate.map(e => this.install(e, e.local?.preRelease ? { installPreReleaseVersion: true } : undefined)));
 	}
 
 	async canInstall(extension: IExtension): Promise<boolean> {
@@ -988,6 +1066,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		if (extension.isMalicious) {
+			return false;
+		}
+
+		if (extension.isUnsupported) {
 			return false;
 		}
 
@@ -1047,7 +1129,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}, () => this.extensionManagementService.uninstall(toUninstall).then(() => undefined));
 	}
 
-	async installVersion(extension: IExtension, version: string): Promise<IExtension> {
+	async installVersion(extension: IExtension, version: string, installOptions: InstallOptions = {}): Promise<IExtension> {
 		if (!(extension instanceof Extension)) {
 			return extension;
 		}
@@ -1062,7 +1144,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		return this.installWithProgress(async () => {
-			const installed = await this.installFromGallery(extension, gallery, { installGivenVersion: true });
+			installOptions.installGivenVersion = true;
+			const installed = await this.installFromGallery(extension, gallery, installOptions);
 			if (extension.latestVersion !== version) {
 				this.ignoreAutoUpdate(new ExtensionIdentifierWithVersion(gallery.identifier, version));
 			}

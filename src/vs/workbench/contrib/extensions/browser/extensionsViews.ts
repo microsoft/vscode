@@ -56,7 +56,7 @@ import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { ILogService } from 'vs/platform/log/common/log';
 
 // Extensions that are automatically classified as Programming Language extensions, but should be Feature extensions
-const FORCE_FEATURE_EXTENSIONS = ['vscode.git', 'vscode.search-result'];
+const FORCE_FEATURE_EXTENSIONS = ['vscode.git', 'vscode.git-base', 'vscode.search-result'];
 
 type WorkspaceRecommendationsClassification = {
 	count: { classification: 'SystemMetaData', purpose: 'FeatureInsight', 'isMeasurement': true };
@@ -280,17 +280,19 @@ export class ExtensionsListView extends ViewPane {
 	private async onContextMenu(e: IListContextMenuEvent<IExtension>): Promise<void> {
 		if (e.element) {
 			const runningExtensions = await this.extensionService.getExtensions();
-			const manageExtensionAction = this.instantiationService.createInstance(ManageExtensionAction);
-			manageExtensionAction.extension = e.element;
+			const disposables = new DisposableStore();
+			const manageExtensionAction = disposables.add(this.instantiationService.createInstance(ManageExtensionAction));
+			const extension = e.element ? this.extensionsWorkbenchService.local.find(local => areSameExtensions(local.identifier, e.element!.identifier) && (!e.element!.server || e.element!.server === local.server)) || e.element
+				: e.element;
+			manageExtensionAction.extension = extension;
 			let groups: IAction[][] = [];
 			if (manageExtensionAction.enabled) {
 				groups = await manageExtensionAction.getActionGroups(runningExtensions);
-
-			} else if (e.element) {
-				groups = getContextMenuActions(e.element, false, this.instantiationService);
+			} else if (extension) {
+				groups = await getContextMenuActions(extension, this.contextKeyService, this.instantiationService);
 				groups.forEach(group => group.forEach(extensionAction => {
 					if (extensionAction instanceof ExtensionAction) {
-						extensionAction.extension = e.element!;
+						extensionAction.extension = extension;
 					}
 				}));
 			}
@@ -303,6 +305,7 @@ export class ExtensionsListView extends ViewPane {
 				getAnchor: () => e.anchor,
 				getActions: () => actions,
 				actionRunner: this.contextMenuActionRunner,
+				onHide: () => disposables.dispose()
 			});
 		}
 	}

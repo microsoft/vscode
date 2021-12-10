@@ -17,9 +17,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { mock } from 'vs/base/test/common/mock';
 import { TreeItemCollapsibleState, ITreeItem, IRevealOptions } from 'vs/workbench/common/views';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import type { IDisposable } from 'vs/base/common/lifecycle';
-import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { nullExtensionDescription as extensionsDescription } from 'vs/workbench/services/extensions/common/extensions';
 
 suite('ExtHostTreeView', function () {
 
@@ -41,8 +40,6 @@ suite('ExtHostTreeView', function () {
 		}
 
 	}
-
-	const extensionsDescription: IExtensionDescription = { ...nullExtensionDescription, enableProposedApi: true };
 
 	let testObject: ExtHostTreeViews;
 	let target: RecordingShape;

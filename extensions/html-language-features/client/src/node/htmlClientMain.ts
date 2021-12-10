@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getNodeFSRequestService } from './nodeFs';
+import { getNodeFileFS } from './nodeFs';
 import { Disposable, ExtensionContext } from 'vscode';
 import { startClient, LanguageClientConstructor } from '../htmlClient';
 import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient } from 'vscode-languageclient/node';
@@ -44,7 +44,7 @@ export function activate(context: ExtensionContext) {
 		}
 	};
 
-	startClient(context, newLanguageClient, { fs: getNodeFSRequestService(), TextDecoder, telemetry, timer });
+	startClient(context, newLanguageClient, { fileFs: getNodeFileFS(), TextDecoder, telemetry, timer });
 }
 
 interface IPackageInfo {

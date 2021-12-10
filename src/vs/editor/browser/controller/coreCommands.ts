@@ -1518,31 +1518,6 @@ export namespace CoreNavigationCommands {
 		precondition: undefined
 	}));
 
-	export const ExpandLineSelection: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
-		constructor() {
-			super({
-				id: 'expandLineSelection',
-				precondition: undefined,
-				kbOpts: {
-					weight: CORE_WEIGHT,
-					kbExpr: EditorContextKeys.textInputFocus,
-					primary: KeyMod.CtrlCmd | KeyCode.KeyL
-				}
-			});
-		}
-
-		public runCoreEditorCommand(viewModel: IViewModel, args: any): void {
-			viewModel.model.pushStackElement();
-			viewModel.setCursorStates(
-				args.source,
-				CursorChangeReason.Explicit,
-				CursorMoveCommands.expandLineSelection(viewModel, viewModel.getCursorStates())
-			);
-			viewModel.revealPrimaryCursor(args.source, true);
-		}
-
-	});
-
 	export const CancelSelection: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
 		constructor() {
 			super({

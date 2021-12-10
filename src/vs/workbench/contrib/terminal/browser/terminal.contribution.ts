@@ -48,6 +48,7 @@ import { TerminalProfileService } from 'vs/workbench/contrib/terminal/browser/te
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { RemoteTerminalBackendContribution } from 'vs/workbench/contrib/terminal/browser/remoteTerminalBackend';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { TerminalMainContribution } from 'vs/workbench/contrib/terminal/browser/terminalMainContribution';
 
 // Register services
 registerSingleton(ITerminalService, TerminalService, true);
@@ -73,6 +74,7 @@ CommandsRegistry.registerCommand({ id: quickAccessNavigatePreviousInTerminalPick
 
 // Register workbench contributions
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+workbenchRegistry.registerWorkbenchContribution(TerminalMainContribution, LifecyclePhase.Starting);
 workbenchRegistry.registerWorkbenchContribution(RemoteTerminalBackendContribution, LifecyclePhase.Starting);
 
 // Register configurations
@@ -171,8 +173,8 @@ if (isWindows) {
 		primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 	});
 }
-// Delete word right: alt+d
-registerSendSequenceKeybinding('\u000d', {
+// Delete word right: alt+d [27, 100]
+registerSendSequenceKeybinding('\u001bd', {
 	primary: KeyMod.CtrlCmd | KeyCode.Delete,
 	mac: { primary: KeyMod.Alt | KeyCode.Delete }
 });

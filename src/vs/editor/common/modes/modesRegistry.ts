@@ -6,10 +6,11 @@
 import * as nls from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
+import { ILanguageExtensionPoint } from 'vs/editor/common/services/languageService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 
 // Define extension point ids
 export const Extensions = {
@@ -86,3 +87,12 @@ LanguageConfigurationRegistry.register(PLAINTEXT_MODE_ID, {
 		offSide: true
 	}
 }, 0);
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
+	.registerDefaultConfigurations([{
+		overrides: {
+			'[plaintext]': {
+				'editor.unicodeHighlight.ambiguousCharacters': false
+			}
+		}
+	}]);

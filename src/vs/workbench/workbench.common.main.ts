@@ -69,7 +69,7 @@ import 'vs/workbench/services/keybinding/browser/keybindingService';
 import 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import 'vs/workbench/services/textresourceProperties/common/textResourcePropertiesService';
 import 'vs/workbench/services/textfile/common/textEditorService';
-import 'vs/workbench/services/mode/common/workbenchModeService';
+import 'vs/workbench/services/mode/common/workbenchLanguageService';
 import 'vs/workbench/services/model/common/workbenchModelService';
 import 'vs/workbench/services/commands/common/commandService';
 import 'vs/workbench/services/themes/browser/workbenchThemeService';
@@ -81,7 +81,6 @@ import 'vs/workbench/services/extensionManagement/browser/builtinExtensionsScann
 import 'vs/workbench/services/extensionRecommendations/common/extensionIgnoredRecommendationsService';
 import 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
 import 'vs/workbench/services/notification/common/notificationService';
-import 'vs/workbench/services/userDataSync/browser/userDataSyncResourceEnablementService';
 import 'vs/workbench/services/userDataSync/common/userDataSyncUtil';
 import 'vs/workbench/services/remote/common/remoteExplorerService';
 import 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -122,7 +121,10 @@ import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 import { ExtensionsStorageSyncService, IExtensionsStorageSyncService } from 'vs/platform/userDataSync/common/extensionsStorageSync';
+import { IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
+import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 
+registerSingleton(IUserDataSyncLogService, UserDataSyncLogService);
 registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService);
 registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementService);
 registerSingleton(IExtensionsStorageSyncService, ExtensionsStorageSyncService);

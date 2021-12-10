@@ -1661,8 +1661,10 @@ declare module 'vscode' {
 		detail?: string;
 
 		/**
-		 * Optional flag indicating if this item is picked initially.
-		 * (Only honored when the picker allows multiple selections.)
+		 * Optional flag indicating if this item is picked initially. This is only honored when using
+		 * the {@link window.showQuickPick()} API. To do the same thing with the {@link window.createQuickPick()} API,
+		 * simply set the {@link QuickPick.selectedItems} to the items you want picked initially.
+		 * (*Note:* This is only honored when the picker allows multiple selections.)
 		 *
 		 * @see {@link QuickPickOptions.canPickMany}
 		 */
@@ -1675,7 +1677,9 @@ declare module 'vscode' {
 
 		/**
 		 * Optional buttons that will be rendered on this particular item. These buttons will trigger
-		 * an {@link QuickPickItemButtonEvent} when clicked.
+		 * an {@link QuickPickItemButtonEvent} when clicked. Buttons are only rendered when using a quickpick
+		 * created by the {@link window.createQuickPick()} API. Buttons are not rendered when using
+		 * the {@link window.showQuickPick()} API.
 		 */
 		buttons?: readonly QuickInputButton[];
 	}
@@ -5919,6 +5923,50 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The location of the terminal.
+	 */
+	export enum TerminalLocation {
+		/**
+		 * In the terminal view
+		 */
+		Panel = 1,
+		/**
+		 * In the editor area
+		 */
+		Editor = 2,
+	}
+
+	/**
+	 * Assumes a {@link TerminalLocation} of editor and allows specifying a {@link ViewColumn} and
+	 * {@link preserveFocus} property
+	 */
+	export interface TerminalEditorLocationOptions {
+		/**
+		 * A view column in which the {@link Terminal terminal} should be shown in the editor area.
+		 * Use {@link ViewColumn.Active active} to open in the active editor group, other values are
+		 * adjusted to be `Min(column, columnCount + 1)`, the
+		 * {@link ViewColumn.Active active}-column is not adjusted. Use
+		 * {@linkcode ViewColumn.Beside} to open the editor to the side of the currently active one.
+		 */
+		viewColumn: ViewColumn;
+		/**
+		 * An optional flag that when `true` will stop the {@link Terminal} from taking focus.
+		 */
+		preserveFocus?: boolean;
+	}
+
+	/**
+	 * Uses the parent {@link Terminal}'s location for the terminal
+	 */
+	export interface TerminalSplitLocationOptions {
+		/**
+		 * The parent terminal to split this terminal beside. This works whether the parent terminal
+		 * is in the panel or the editor area.
+		 */
+		parentTerminal: Terminal;
+	}
+
+	/**
 	 * Represents the state of a {@link Terminal}.
 	 */
 	export interface TerminalState {
@@ -8598,10 +8646,10 @@ declare module 'vscode' {
 		 *
 		 * @param command Identifier of the command to execute.
 		 * @param rest Parameters passed to the command function.
-		 * @return A thenable that resolves to the returned value of the given command. `undefined` when
+		 * @return A thenable that resolves to the returned value of the given command. Returns `undefined` when
 		 * the command handler function doesn't return anything.
 		 */
-		export function executeCommand<T>(command: string, ...rest: any[]): Thenable<T | undefined>;
+		export function executeCommand<T = unknown>(command: string, ...rest: any[]): Thenable<T>;
 
 		/**
 		 * Retrieve the list of all available commands. Commands starting with an underscore are
@@ -8786,7 +8834,7 @@ declare module 'vscode' {
 		 * @param items A set of items that will be rendered as actions in the message.
 		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
 		 */
-		export function showInformationMessage(message: string, ...items: string[]): Thenable<string | undefined>;
+		export function showInformationMessage<T extends string>(message: string, ...items: T[]): Thenable<T | undefined>;
 
 		/**
 		 * Show an information message to users. Optionally provide an array of items which will be presented as
@@ -8797,7 +8845,7 @@ declare module 'vscode' {
 		 * @param items A set of items that will be rendered as actions in the message.
 		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
 		 */
-		export function showInformationMessage(message: string, options: MessageOptions, ...items: string[]): Thenable<string | undefined>;
+		export function showInformationMessage<T extends string>(message: string, options: MessageOptions, ...items: T[]): Thenable<T | undefined>;
 
 		/**
 		 * Show an information message.
@@ -8831,7 +8879,7 @@ declare module 'vscode' {
 		 * @param items A set of items that will be rendered as actions in the message.
 		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
 		 */
-		export function showWarningMessage(message: string, ...items: string[]): Thenable<string | undefined>;
+		export function showWarningMessage<T extends string>(message: string, ...items: T[]): Thenable<T | undefined>;
 
 		/**
 		 * Show a warning message.
@@ -8843,7 +8891,7 @@ declare module 'vscode' {
 		 * @param items A set of items that will be rendered as actions in the message.
 		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
 		 */
-		export function showWarningMessage(message: string, options: MessageOptions, ...items: string[]): Thenable<string | undefined>;
+		export function showWarningMessage<T extends string>(message: string, options: MessageOptions, ...items: T[]): Thenable<T | undefined>;
 
 		/**
 		 * Show a warning message.
@@ -8877,7 +8925,7 @@ declare module 'vscode' {
 		 * @param items A set of items that will be rendered as actions in the message.
 		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
 		 */
-		export function showErrorMessage(message: string, ...items: string[]): Thenable<string | undefined>;
+		export function showErrorMessage<T extends string>(message: string, ...items: T[]): Thenable<T | undefined>;
 
 		/**
 		 * Show an error message.
@@ -8889,7 +8937,7 @@ declare module 'vscode' {
 		 * @param items A set of items that will be rendered as actions in the message.
 		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
 		 */
-		export function showErrorMessage(message: string, options: MessageOptions, ...items: string[]): Thenable<string | undefined>;
+		export function showErrorMessage<T extends string>(message: string, options: MessageOptions, ...items: T[]): Thenable<T | undefined>;
 
 		/**
 		 * Show an error message.
@@ -9694,6 +9742,11 @@ declare module 'vscode' {
 		 * recommended for the best contrast and consistency across themes.
 		 */
 		color?: ThemeColor;
+
+		/**
+		* The {@link TerminalLocation} or {@link TerminalEditorLocationOptions} or {@link TerminalSplitLocationOptions} for the terminal.
+		*/
+		location?: TerminalLocation | TerminalEditorLocationOptions | TerminalSplitLocationOptions;
 	}
 
 	/**
@@ -9722,6 +9775,11 @@ declare module 'vscode' {
 		 * recommended for the best contrast and consistency across themes.
 		 */
 		color?: ThemeColor;
+
+		/**
+		 * The {@link TerminalLocation} or {@link TerminalEditorLocationOptions} or {@link TerminalSplitLocationOptions} for the terminal.
+		 */
+		location?: TerminalLocation | TerminalEditorLocationOptions | TerminalSplitLocationOptions;
 	}
 
 	/**
@@ -10497,6 +10555,11 @@ declare module 'vscode' {
 	export interface FileWillCreateEvent {
 
 		/**
+		 * A cancellation token.
+		 */
+		readonly token: CancellationToken;
+
+		/**
 		 * The files that are going to be created.
 		 */
 		readonly files: readonly Uri[];
@@ -10552,6 +10615,11 @@ declare module 'vscode' {
 	export interface FileWillDeleteEvent {
 
 		/**
+		 * A cancellation token.
+		 */
+		readonly token: CancellationToken;
+
+		/**
 		 * The files that are going to be deleted.
 		 */
 		readonly files: readonly Uri[];
@@ -10605,6 +10673,11 @@ declare module 'vscode' {
 	 * thenable that resolves to a {@link WorkspaceEdit workspace edit}.
 	 */
 	export interface FileWillRenameEvent {
+
+		/**
+		 * A cancellation token.
+		 */
+		readonly token: CancellationToken;
 
 		/**
 		 * The files that are going to be renamed.
@@ -10784,6 +10857,11 @@ declare module 'vscode' {
 
 		/**
 		 * An event that is emitted when a workspace folder is added or removed.
+		 *
+		 * **Note:** this event will not fire if the first workspace folder is added, removed or changed,
+		 * because in that case the currently executing extensions (including the one that listens to this
+		 * event) will be terminated and restarted so that the (deprecated) `rootPath` property is updated
+		 * to point to the first workspace folder.
 		 */
 		export const onDidChangeWorkspaceFolders: Event<WorkspaceFoldersChangeEvent>;
 
@@ -13914,6 +13992,15 @@ declare module 'vscode' {
 		 */
 		createIfNone?: boolean;
 
+		/**
+		 * Whether we should attempt to reauthenticate even if there is already a session available.
+		 *
+		 * If true, a modal dialog will be shown asking the user to sign in again. This is mostly used for scenarios
+		 * where the token needs to be re minted because it has lost some authorization.
+		 *
+		 * Defaults to false.
+		 */
+		forceNewSession?: boolean | { detail: string };
 
 		/**
 		 * Whether we should show the indication to sign in in the Accounts menu.
@@ -14049,6 +14136,21 @@ declare module 'vscode' {
 		 * @returns A thenable that resolves to an authentication session
 		 */
 		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { createIfNone: true }): Thenable<AuthenticationSession>;
+
+		/**
+		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
+		 * registered, or if the user does not consent to sharing authentication information with
+		 * the extension. If there are multiple sessions with the same scopes, the user will be shown a
+		 * quickpick to select which account they would like to use.
+		 *
+		 * Currently, there are only two authentication providers that are contributed from built in extensions
+		 * to the editor that implement GitHub and Microsoft authentication: their providerId's are 'github' and 'microsoft'.
+		 * @param providerId The id of the provider to use
+		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
+		 * @param options The {@link AuthenticationGetSessionOptions} to use
+		 * @returns A thenable that resolves to an authentication session
+		 */
+		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { forceNewSession: true | { detail: string } }): Thenable<AuthenticationSession>;
 
 		/**
 		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not

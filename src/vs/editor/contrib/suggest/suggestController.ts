@@ -43,6 +43,9 @@ import { CommitCharacterController } from './suggestCommitCharacters';
 import { State, SuggestModel } from './suggestModel';
 import { OvertypingCapturer } from './suggestOvertypingCapturer';
 import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { basename, extname } from 'vs/base/common/resources';
+import { hash } from 'vs/base/common/hash';
 
 // sticky suggest widget which doesn't disappear on focus out and such
 let _sticky = false;
@@ -101,7 +104,7 @@ export class SuggestController implements IEditorContribution {
 
 	public static readonly ID: string = 'editor.contrib.suggestController';
 
-	public static get(editor: ICodeEditor): SuggestController {
+	public static get(editor: ICodeEditor): SuggestController | null {
 		return editor.getContribution<SuggestController>(SuggestController.ID);
 	}
 
@@ -122,6 +125,7 @@ export class SuggestController implements IEditorContribution {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		this.editor = editor;
 		this.model = _instantiationService.createInstance(SuggestModel, this.editor,);
@@ -280,6 +284,10 @@ export class SuggestController implements IEditorContribution {
 		if (!this.editor.hasModel()) {
 			return;
 		}
+		const snippetController = SnippetController2.get(this.editor);
+		if (!snippetController) {
+			return;
+		}
 
 		const model = this.editor.getModel();
 		const modelVersionNow = model.getAlternativeVersionId();
@@ -373,7 +381,7 @@ export class SuggestController implements IEditorContribution {
 			insertText = SnippetParser.escape(insertText);
 		}
 
-		SnippetController2.get(this.editor).insert(insertText, {
+		snippetController.insert(insertText, {
 			overwriteBefore: info.overwriteBefore,
 			overwriteAfter: info.overwriteAfter,
 			undoStopBefore: false,
@@ -427,8 +435,34 @@ export class SuggestController implements IEditorContribution {
 
 		// clear only now - after all tasks are done
 		Promise.all(tasks).finally(() => {
+			this._reportSuggestionAcceptedTelemetry(model, event);
+
 			this.model.clear();
 			cts.dispose();
+		});
+	}
+
+	private _telemetryGate: number = 0;
+	private _reportSuggestionAcceptedTelemetry(model: ITextModel, acceptedSuggestion: ISelectedSuggestion) {
+		if (this._telemetryGate++ % 100 !== 0) {
+			return;
+		}
+
+		type AcceptedSuggestion = { providerId: string; fileExtension: string; languageId: string; basenameHash: string; };
+		type AcceptedSuggestionClassification = {
+			providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; };
+			basenameHash: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; };
+			fileExtension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; };
+			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; };
+		};
+		// _debugDisplayName looks like `vscode.css-language-features(/-:)`, where the last bit is the trigger chars
+		// normalize it to just the extension ID and lowercase
+		const providerId = (acceptedSuggestion.item.provider._debugDisplayName ?? 'unknown').split('(', 1)[0].toLowerCase();
+		this._telemetryService.publicLog2<AcceptedSuggestion, AcceptedSuggestionClassification>('suggest.acceptedSuggestion', {
+			providerId,
+			basenameHash: hash(basename(model.uri)).toString(16),
+			languageId: model.getLanguageId(),
+			fileExtension: extname(model.uri),
 		});
 	}
 
@@ -954,6 +988,6 @@ registerEditorAction(class extends EditorAction {
 	}
 
 	run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		SuggestController.get(editor).resetWidgetSize();
+		SuggestController.get(editor)?.resetWidgetSize();
 	}
 });

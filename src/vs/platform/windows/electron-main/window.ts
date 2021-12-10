@@ -137,7 +137,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private readonly touchBarGroups: TouchBarSegmentedControl[] = [];
 
-	private marketplaceHeadersPromise: Promise<object>;
 	private currentHttpProxy: string | undefined = undefined;
 	private currentNoProxy: string | undefined = undefined;
 
@@ -150,7 +149,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IFileService private readonly fileService: IFileService,
-		@IStorageMainService storageMainService: IStorageMainService,
+		@IStorageMainService private readonly storageMainService: IStorageMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
 		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
@@ -302,12 +301,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// macOS: touch bar support
 		this.createTouchBar();
-
-		// Request handling
-		this.marketplaceHeadersPromise = resolveMarketplaceHeaders(this.productService.version, this.productService, this.environmentMainService, this.configurationService, this.fileService, {
-			get: key => storageMainService.globalStorage.get(key),
-			store: (key, value) => storageMainService.globalStorage.set(key, value)
-		});
 
 		// Eventing
 		this.registerListeners();
@@ -542,10 +535,21 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Inject headers when requests are incoming
 		const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
 		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, async (details, cb) => {
-			const headers = await this.marketplaceHeadersPromise;
+			const headers = await this.getMarketplaceHeaders();
 
 			cb({ cancel: false, requestHeaders: Object.assign(details.requestHeaders, headers) });
 		});
+	}
+
+	private marketplaceHeadersPromise: Promise<object> | undefined;
+	private getMarketplaceHeaders(): Promise<object> {
+		if (!this.marketplaceHeadersPromise) {
+			this.marketplaceHeadersPromise = resolveMarketplaceHeaders(this.productService.version, this.productService, this.environmentMainService, this.configurationService, this.fileService, {
+				get: key => this.storageMainService.globalStorage.get(key),
+				store: (key, value) => this.storageMainService.globalStorage.set(key, value)
+			});
+		}
+		return this.marketplaceHeadersPromise;
 	}
 
 	private async onWindowError(error: WindowError.UNRESPONSIVE): Promise<void>;
@@ -588,6 +592,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				// to signal back a failing run.
 				if (this.isExtensionDevelopmentTestFromCli) {
 					this.lifecycleMainService.kill(1);
+					return;
+				}
+
+				// If we run smoke tests, we never want to show a blocking dialog
+				if (this.environmentMainService.driverHandle) {
+					this.destroyWindow(false);
 					return;
 				}
 
@@ -689,7 +699,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				},
 				urisToOpen: workspace ? [workspace] : undefined,
 				forceEmpty,
-				forceNewWindow: true
+				forceNewWindow: true,
+				remoteAuthority: this.remoteAuthority
 			});
 			window.focus();
 		}

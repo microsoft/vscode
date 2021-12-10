@@ -12,7 +12,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
 import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { ILanguageConfigurationService, LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { BlockCommentCommand } from 'vs/editor/contrib/comment/blockCommentCommand';
 
 export interface IInsertionPoint {
@@ -60,12 +60,13 @@ export class LineCommentCommand implements ICommand {
 	private _ignoreFirstLine: boolean;
 
 	constructor(
+		private readonly languageConfigurationService: ILanguageConfigurationService,
 		selection: Selection,
 		tabSize: number,
 		type: Type,
 		insertSpace: boolean,
 		ignoreEmptyLines: boolean,
-		ignoreFirstLine?: boolean
+		ignoreFirstLine?: boolean,
 	) {
 		this._selection = selection;
 		this._tabSize = tabSize;
@@ -82,12 +83,12 @@ export class LineCommentCommand implements ICommand {
 	 * Do an initial pass over the lines and gather info about the line comment string.
 	 * Returns null if any of the lines doesn't support a line comment string.
 	 */
-	public static _gatherPreflightCommentStrings(model: ITextModel, startLineNumber: number, endLineNumber: number): ILinePreflightData[] | null {
+	private static _gatherPreflightCommentStrings(model: ITextModel, startLineNumber: number, endLineNumber: number, languageConfigurationService: ILanguageConfigurationService): ILinePreflightData[] | null {
 
 		model.tokenizeIfCheap(startLineNumber);
 		const languageId = model.getLanguageIdAtPosition(startLineNumber, 1);
 
-		const config = LanguageConfigurationRegistry.getComments(languageId);
+		const config = languageConfigurationService.getLanguageConfiguration(languageId).comments;
 		const commentStr = (config ? config.lineCommentToken : null);
 		if (!commentStr) {
 			// Mode does not support line comments
@@ -111,7 +112,7 @@ export class LineCommentCommand implements ICommand {
 	 * Analyze lines and decide which lines are relevant and what the toggle should do.
 	 * Also, build up several offsets and lengths useful in the generation of editor operations.
 	 */
-	public static _analyzeLines(type: Type, insertSpace: boolean, model: ISimpleModel, lines: ILinePreflightData[], startLineNumber: number, ignoreEmptyLines: boolean, ignoreFirstLine: boolean): IPreflightData {
+	public static _analyzeLines(type: Type, insertSpace: boolean, model: ISimpleModel, lines: ILinePreflightData[], startLineNumber: number, ignoreEmptyLines: boolean, ignoreFirstLine: boolean, languageConfigurationService: ILanguageConfigurationService): IPreflightData {
 		let onlyWhitespaceLines = true;
 
 		let shouldRemoveComments: boolean;
@@ -187,15 +188,15 @@ export class LineCommentCommand implements ICommand {
 	/**
 	 * Analyze all lines and decide exactly what to do => not supported | insert line comments | remove line comments
 	 */
-	public static _gatherPreflightData(type: Type, insertSpace: boolean, model: ITextModel, startLineNumber: number, endLineNumber: number, ignoreEmptyLines: boolean, ignoreFirstLine: boolean): IPreflightData {
-		const lines = LineCommentCommand._gatherPreflightCommentStrings(model, startLineNumber, endLineNumber);
+	public static _gatherPreflightData(type: Type, insertSpace: boolean, model: ITextModel, startLineNumber: number, endLineNumber: number, ignoreEmptyLines: boolean, ignoreFirstLine: boolean, languageConfigurationService: ILanguageConfigurationService): IPreflightData {
+		const lines = LineCommentCommand._gatherPreflightCommentStrings(model, startLineNumber, endLineNumber, languageConfigurationService);
 		if (lines === null) {
 			return {
 				supported: false
 			};
 		}
 
-		return LineCommentCommand._analyzeLines(type, insertSpace, model, lines, startLineNumber, ignoreEmptyLines, ignoreFirstLine);
+		return LineCommentCommand._analyzeLines(type, insertSpace, model, lines, startLineNumber, ignoreEmptyLines, ignoreFirstLine, languageConfigurationService);
 	}
 
 	/**
@@ -350,7 +351,8 @@ export class LineCommentCommand implements ICommand {
 			s.startLineNumber,
 			s.endLineNumber,
 			this._ignoreEmptyLines,
-			this._ignoreFirstLine
+			this._ignoreFirstLine,
+			this.languageConfigurationService
 		);
 
 		if (data.supported) {

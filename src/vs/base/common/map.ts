@@ -130,6 +130,7 @@ export class ConfigKeysIterator implements IKeyIterator<string> {
 export class PathIterator implements IKeyIterator<string> {
 
 	private _value!: string;
+	private _valueLen!: number;
 	private _from!: number;
 	private _to!: number;
 
@@ -139,21 +140,29 @@ export class PathIterator implements IKeyIterator<string> {
 	) { }
 
 	reset(key: string): this {
-		this._value = key.replace(/\\$|\/$/, '');
 		this._from = 0;
 		this._to = 0;
+		this._value = key;
+		this._valueLen = key.length;
+		for (let pos = key.length - 1; pos >= 0; pos--, this._valueLen--) {
+			const ch = this._value.charCodeAt(pos);
+			if (!(ch === CharCode.Slash || this._splitOnBackslash && ch === CharCode.Backslash)) {
+				break;
+			}
+		}
+
 		return this.next();
 	}
 
 	hasNext(): boolean {
-		return this._to < this._value.length;
+		return this._to < this._valueLen;
 	}
 
 	next(): this {
 		// this._data = key.split(/[\\/]/).filter(s => !!s);
 		this._from = this._to;
 		let justSeps = true;
-		for (; this._to < this._value.length; this._to++) {
+		for (; this._to < this._valueLen; this._to++) {
 			const ch = this._value.charCodeAt(this._to);
 			if (ch === CharCode.Slash || this._splitOnBackslash && ch === CharCode.Backslash) {
 				if (justSeps) {
@@ -599,7 +608,7 @@ export class TernarySearchTree<K, V> {
 					stack[i][1] = node.rotateLeft();
 				} else {
 					// right, left -> double rotate
-					node.right = stack[i + 1][1] = stack[i + 1][1].rotateRight();
+					node.right = node.right!.rotateRight();
 					stack[i][1] = node.rotateLeft();
 				}
 
@@ -610,7 +619,7 @@ export class TernarySearchTree<K, V> {
 					stack[i][1] = node.rotateRight();
 				} else {
 					// left, right -> double rotate
-					node.left = stack[i + 1][1] = stack[i + 1][1].rotateLeft();
+					node.left = node.left!.rotateLeft();
 					stack[i][1] = node.rotateRight();
 				}
 			}

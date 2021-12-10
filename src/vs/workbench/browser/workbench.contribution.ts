@@ -358,13 +358,27 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.experimental.layoutControl.enabled': {
 				'type': 'boolean',
-				'default': product.quality !== 'stable',
+				'tags': ['experimental'],
+				'default': false,
 				'description': localize('layoutControlEnabled', "Controls whether the layout control button in the custom title bar is enabled."),
 			},
 			'workbench.experimental.sidePanel.enabled': {
 				'type': 'boolean',
 				'default': false,
 				'description': localize('auxiliaryBarEnabled', "Controls whether the side panel opposite the side bar is enabled."),
+				'included': product.quality !== 'stable'
+			},
+			'workbench.experimental.panel.alignment': {
+				'type': 'string',
+				'enum': ['left', 'center', 'right', 'justify'],
+				'enumDescriptions': [
+					localize('panel.alignment.left', "The panel spans from the far left of the window to the right side of the editor area."),
+					localize('panel.alignment.center', "The panel spans beneath the editor area."),
+					localize('panel.alignment.right', "The panel spans from the left side of the editor area to the far right of the window."),
+					localize('panel.alignment.justify', "The panel spans the full width of the window."),
+				],
+				'default': 'center',
+				'description': localize('panelAlignment', "Controls the alignment of the panel (terminal, debug console, output, problems) and whether or not it spans beneath the side bar and side panel. Note that this setting only takes effect when the panel is positioned at the bottom of the screen."),
 				'included': product.quality !== 'stable'
 			},
 		}
@@ -414,8 +428,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'window.titleSeparator': {
 				'type': 'string',
-				// allow-any-unicode-next-line
-				'default': isMacintosh ? ' — ' : ' - ',
+				'default': isMacintosh ? ' \u2014 ' : ' - ',
 				'markdownDescription': localize("window.titleSeparator", "Separator used by `window.title`.")
 			},
 			'window.menuBarVisibility': {

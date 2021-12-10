@@ -23,6 +23,7 @@ export interface ILanguageStatus {
 	readonly severity: Severity;
 	readonly label: string;
 	readonly detail: string;
+	readonly busy: boolean;
 	readonly source: string;
 	readonly command: Command | undefined;
 	readonly accessibilityInfo: IAccessibilityInformation | undefined;

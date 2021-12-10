@@ -124,7 +124,7 @@ class RenameController implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.renameController';
 
-	static get(editor: ICodeEditor): RenameController {
+	static get(editor: ICodeEditor): RenameController | null {
 		return editor.getContribution<RenameController>(RenameController.ID);
 	}
 
@@ -173,7 +173,7 @@ class RenameController implements IEditorContribution {
 			this._progressService.showWhile(resolveLocationOperation, 250);
 			loc = await resolveLocationOperation;
 		} catch (e) {
-			MessageController.get(this.editor).showMessage(e || nls.localize('resolveRenameLocationFailed', "An unknown error occurred while resolving rename location"), position);
+			MessageController.get(this.editor)?.showMessage(e || nls.localize('resolveRenameLocationFailed', "An unknown error occurred while resolving rename location"), position);
 			return undefined;
 		}
 
@@ -182,7 +182,7 @@ class RenameController implements IEditorContribution {
 		}
 
 		if (loc.rejectReason) {
-			MessageController.get(this.editor).showMessage(loc.rejectReason, position);
+			MessageController.get(this.editor)?.showMessage(loc.rejectReason, position);
 			return undefined;
 		}
 

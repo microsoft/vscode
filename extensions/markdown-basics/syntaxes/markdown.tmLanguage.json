@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/b0e9d49bdb9ff10332439db26550383b5d13aea7",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/402cd37bf494f7e04e2df15423ba91ce8a9b1301",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -1781,6 +1781,72 @@
 				}
 			]
 		},
+		"fenced_code_block_latex": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(latex|tex)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
+			"name": "markup.fenced_code.block.markdown",
+			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
+			"beginCaptures": {
+				"3": {
+					"name": "punctuation.definition.markdown"
+				},
+				"4": {
+					"name": "fenced_code.block.language.markdown"
+				},
+				"5": {
+					"name": "fenced_code.block.language.attributes.markdown"
+				}
+			},
+			"endCaptures": {
+				"3": {
+					"name": "punctuation.definition.markdown"
+				}
+			},
+			"patterns": [
+				{
+					"begin": "(^|\\G)(\\s*)(.*)",
+					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.block.latex",
+					"patterns": [
+						{
+							"include": "text.tex.latex"
+						}
+					]
+				}
+			]
+		},
+		"fenced_code_block_bibtex": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(bibtex)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
+			"name": "markup.fenced_code.block.markdown",
+			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
+			"beginCaptures": {
+				"3": {
+					"name": "punctuation.definition.markdown"
+				},
+				"4": {
+					"name": "fenced_code.block.language.markdown"
+				},
+				"5": {
+					"name": "fenced_code.block.language.attributes.markdown"
+				}
+			},
+			"endCaptures": {
+				"3": {
+					"name": "punctuation.definition.markdown"
+				}
+			},
+			"patterns": [
+				{
+					"begin": "(^|\\G)(\\s*)(.*)",
+					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.block.bibtex",
+					"patterns": [
+						{
+							"include": "text.bibtex"
+						}
+					]
+				}
+			]
+		},
 		"fenced_code_block": {
 			"patterns": [
 				{
@@ -1938,6 +2004,12 @@
 				},
 				{
 					"include": "#fenced_code_block_elixir"
+				},
+				{
+					"include": "#fenced_code_block_latex"
+				},
+				{
+					"include": "#fenced_code_block_bibtex"
 				},
 				{
 					"include": "#fenced_code_block_unknown"

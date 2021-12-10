@@ -64,8 +64,8 @@ export class ExtensionHostMain {
 		const instaService: IInstantiationService = new InstantiationService(services, true);
 
 		// ugly self - inject
-		const terminalService = instaService.invokeFunction(accessor => accessor.get(IExtHostTerminalService));
-		this._disposables.add(terminalService);
+		this._disposables.add(instaService.invokeFunction(accessor => accessor.get(IExtHostTerminalService)));
+		this._disposables.add(instaService.invokeFunction(accessor => accessor.get(IExtHostExtensionService)));
 
 		this._logService = instaService.invokeFunction(accessor => accessor.get(ILogService));
 

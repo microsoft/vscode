@@ -41,7 +41,7 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 	private _modifierPressed: boolean;
 	static readonly TRIGGER_KEY_VALUE = isMacintosh ? KeyCode.Alt : KeyCode.Ctrl;
 
-	static get(editor: ICodeEditor): DragAndDropController {
+	static get(editor: ICodeEditor): DragAndDropController | null {
 		return editor.getContribution<DragAndDropController>(DragAndDropController.ID);
 	}
 

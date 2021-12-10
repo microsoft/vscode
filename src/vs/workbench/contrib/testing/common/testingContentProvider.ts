@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ILanguageSelection, IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageSelection, ILanguageService } from 'vs/editor/common/services/languageService';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { TestMessageType } from 'vs/workbench/contrib/testing/common/testCollection';
@@ -20,7 +20,7 @@ import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResu
 export class TestingContentProvider implements IWorkbenchContribution, ITextModelContentProvider {
 	constructor(
 		@ITextModelService textModelResolverService: ITextModelService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IModelService private readonly modelService: IModelService,
 		@ITestResultService private readonly resultService: ITestResultService,
 	) {
@@ -66,7 +66,7 @@ export class TestingContentProvider implements IWorkbenchContribution, ITextMode
 					text = message;
 				} else if (message) {
 					text = message.value;
-					language = this.modeService.create('markdown');
+					language = this.languageService.createById('markdown');
 				}
 				break;
 		}

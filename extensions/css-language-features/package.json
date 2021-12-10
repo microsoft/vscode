@@ -17,7 +17,6 @@
   ],
   "main": "./client/out/node/cssClientMain",
   "browser": "./client/dist/browser/cssClientMain",
-  "enableProposedApi": true,
   "capabilities": {
     "virtualWorkspaces": true,
     "untrustedWorkspaces": {

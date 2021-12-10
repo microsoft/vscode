@@ -494,7 +494,7 @@ class WordHighlighterContribution extends Disposable implements IEditorContribut
 
 	public static readonly ID = 'editor.contrib.wordHighlighter';
 
-	public static get(editor: ICodeEditor): WordHighlighterContribution {
+	public static get(editor: ICodeEditor): WordHighlighterContribution | null {
 		return editor.getContribution<WordHighlighterContribution>(WordHighlighterContribution.ID);
 	}
 

@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { ILanguageIdCodec, LanguageId } from 'vs/editor/common/modes';
 import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
-import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
+import { ILanguageExtensionPoint } from 'vs/editor/common/services/languageService';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 
@@ -257,16 +257,14 @@ export class LanguagesRegistry extends Disposable {
 		}
 	}
 
-	public isRegisteredMode(mimetypeOrModeId: string): boolean {
-		// Is this a known mime type ?
-		if (hasOwnProperty.call(this._mimeTypesMap, mimetypeOrModeId)) {
-			return true;
+	public isRegisteredLanguageId(languageId: string | null | undefined): boolean {
+		if (!languageId) {
+			return false;
 		}
-		// Is this a known mode id ?
-		return hasOwnProperty.call(this._languages, mimetypeOrModeId);
+		return hasOwnProperty.call(this._languages, languageId);
 	}
 
-	public getRegisteredModes(): string[] {
+	public getRegisteredLanguageIds(): string[] {
 		return Object.keys(this._languages);
 	}
 
@@ -281,11 +279,21 @@ export class LanguagesRegistry extends Disposable {
 		return this._languages[languageId].name;
 	}
 
-	public getModeIdForLanguageNameLowercase(languageNameLower: string): string | null {
+	public getLanguageIdForLanguageName(languageNameLower: string): string | null {
 		if (!hasOwnProperty.call(this._lowercaseNameMap, languageNameLower)) {
 			return null;
 		}
 		return this._lowercaseNameMap[languageNameLower];
+	}
+
+	public getLanguageIdForMimeType(mimeType: string | null | undefined): string | null {
+		if (!mimeType) {
+			return null;
+		}
+		if (hasOwnProperty.call(this._mimeTypesMap, mimeType)) {
+			return this._mimeTypesMap[mimeType];
+		}
+		return null;
 	}
 
 	public getConfigurationFiles(languageId: string): URI[] {
@@ -295,7 +303,7 @@ export class LanguagesRegistry extends Disposable {
 		return this._languages[languageId].configurationFiles || [];
 	}
 
-	public getMimeForMode(languageId: string): string | null {
+	public getMimeTypeForLanguageId(languageId: string): string | null {
 		if (!hasOwnProperty.call(this._languages, languageId)) {
 			return null;
 		}
@@ -324,7 +332,7 @@ export class LanguagesRegistry extends Disposable {
 		);
 	}
 
-	public validateLanguageId(languageId: string | null): string | null {
+	public validateLanguageId(languageId: string | null | undefined): string | null {
 		if (!languageId || languageId === NULL_MODE_ID) {
 			return NULL_MODE_ID;
 		}
@@ -346,7 +354,7 @@ export class LanguagesRegistry extends Disposable {
 		return null;
 	}
 
-	public getModeIdsFromFilepathOrFirstLine(resource: URI | null, firstLine?: string): string[] {
+	public getLanguageIdByFilepathOrFirstLine(resource: URI | null, firstLine?: string): string[] {
 		if (!resource && !firstLine) {
 			return [];
 		}

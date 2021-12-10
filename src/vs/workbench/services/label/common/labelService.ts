@@ -84,7 +84,7 @@ class ResourceLabelFormattersHandler implements IWorkbenchContribution {
 	constructor(@ILabelService labelService: ILabelService) {
 		resourceLabelFormattersExtPoint.setHandler((extensions, delta) => {
 			delta.added.forEach(added => added.value.forEach(formatter => {
-				if (!isProposedApiEnabled(added.description) && formatter.formatting.workspaceTooltip) {
+				if (!isProposedApiEnabled(added.description, 'contribLabelFormatterWorkspaceTooltip') && formatter.formatting.workspaceTooltip) {
 					// workspaceTooltip is only proposed
 					formatter.formatting.workspaceTooltip = undefined;
 				}

@@ -15,7 +15,6 @@ import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { LogLevel, createHttpPatch, ProxyResolveEvent, createProxyResolver, createTlsPatch, ProxySupportSetting } from 'vscode-proxy-agent';
-import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 export function connectProxyResolver(
 	extHostWorkspace: IExtHostWorkspaceProvider,
@@ -130,9 +129,6 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 				}
 				if (!cache[request]) {
 					let mod = modules.default;
-					if (ext && isProposedApiEnabled(ext)) {
-						mod = (modules as any)[(<any>ext).proxySupport] || modules.onRequest;
-					}
 					cache[request] = <any>{ ...mod }; // Copy to work around #93167.
 				}
 				return cache[request];
