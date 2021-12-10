@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.buildWebNodePaths = exports.createExternalLoaderConfig = exports.acquireWebNodePaths = exports.getElectronVersion = exports.streamToPromise = exports.versionStringToNumber = exports.filter = exports.rebase = exports.getVersion = exports.ensureDir = exports.rreddir = exports.rimraf = exports.rewriteSourceMappingURL = exports.stripSourceMappingURL = exports.loadSourcemaps = exports.cleanNodeModules = exports.skipDirectories = exports.toFileUri = exports.setExecutableBit = exports.fixWin32DirectoryPermissions = exports.incremental = void 0;
+exports.buildWebNodePaths = exports.createExternalLoaderConfig = exports.acquireWebNodePaths = exports.getElectronVersion = exports.streamToPromise = exports.versionStringToNumber = exports.filter = exports.rebase = exports.getVersion = exports.ensureDir = exports.rreddir = exports.rimraf = exports.rewriteSourceMappingURL = exports.stripSourceMappingURL = exports.loadSourcemaps = exports.cleanNodeModules = exports.skipDirectories = exports.toFileUri = exports.setExecutableBit = exports.fixWin32DirectoryPermissions = exports.debounce = exports.incremental = void 0;
 const es = require("event-stream");
-const debounce = require("debounce");
+const _debounce = require("debounce");
 const _filter = require("gulp-filter");
 const rename = require("gulp-rename");
 const path = require("path");
@@ -36,7 +36,7 @@ function incremental(streamProvider, initial, supportsCancellation) {
     if (initial) {
         run(initial, false);
     }
-    const eventuallyRun = debounce(() => {
+    const eventuallyRun = _debounce(() => {
         const paths = Object.keys(buffer);
         if (paths.length === 0) {
             return;
@@ -54,6 +54,35 @@ function incremental(streamProvider, initial, supportsCancellation) {
     return es.duplex(input, output);
 }
 exports.incremental = incremental;
+function debounce(task) {
+    const input = es.through();
+    const output = es.through();
+    let state = 'idle';
+    const run = () => {
+        state = 'running';
+        task()
+            .pipe(es.through(undefined, () => {
+            const shouldRunAgain = state === 'stale';
+            state = 'idle';
+            if (shouldRunAgain) {
+                eventuallyRun();
+            }
+        }))
+            .pipe(output);
+    };
+    run();
+    const eventuallyRun = _debounce(() => run(), 500);
+    input.on('data', () => {
+        if (state === 'idle') {
+            eventuallyRun();
+        }
+        else {
+            state = 'stale';
+        }
+    });
+    return es.duplex(input, output);
+}
+exports.debounce = debounce;
 function fixWin32DirectoryPermissions() {
     if (!/win32/.test(process.platform)) {
         return es.through();
