@@ -9,8 +9,7 @@ import { parse } from 'vs/base/common/marshalling';
 import { isEqual } from 'vs/base/common/resources';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { format } from 'vs/base/common/jsonFormatter';
-import { applyEdits } from 'vs/base/common/jsonEdit';
+import { toFormattedString } from 'vs/base/common/jsonFormatter';
 import { ITextModel, ITextBufferFactory, DefaultEndOfLine, ITextBuffer } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILanguageSelection, ILanguageService } from 'vs/editor/common/services/languageService';
@@ -404,16 +403,15 @@ class CellInfoContentProvider {
 			return result;
 		}
 
-		const content = JSON.stringify(cell.outputs.map(output => ({
+		const obj = cell.outputs.map(output => ({
 			metadata: output.metadata,
 			outputItems: output.outputs.map(opit => ({
 				mimeType: opit.mime,
 				data: opit.data.toString()
 			}))
-		})));
+		}));
 
-		const edits = format(content, undefined, {});
-		const outputSource = applyEdits(content, edits);
+		const outputSource = toFormattedString(obj, {});
 		result = {
 			content: outputSource,
 			mode

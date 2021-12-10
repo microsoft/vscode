@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
 import { Workbench } from './workbench';
-import { Code, spawn, SpawnOptions } from './code';
-import { Logger, measureAndLog } from './logger';
+import { Code, launch, LaunchOptions } from './code';
+import { Logger } from './logger';
 
 export const enum Quality {
 	Dev,
@@ -15,11 +13,10 @@ export const enum Quality {
 	Stable
 }
 
-export interface ApplicationOptions extends SpawnOptions {
+export interface ApplicationOptions extends LaunchOptions {
 	quality: Quality;
 	workspacePath: string;
 	waitTime: number;
-	screenshotsPath: string | null;
 }
 
 export class Application {
@@ -92,17 +89,6 @@ export class Application {
 		}
 	}
 
-	async captureScreenshot(name: string): Promise<void> {
-		if (this.options.screenshotsPath) {
-			const raw = await measureAndLog(this.code.capturePage(), 'capturePage', this.options.logger);
-			const buffer = Buffer.from(raw, 'base64');
-			const screenshotPath = path.join(this.options.screenshotsPath, `${name}.png`);
-			this.logger.log('Screenshot recorded:', screenshotPath);
-
-			fs.writeFileSync(screenshotPath, buffer);
-		}
-	}
-
 	async startTracing(name: string): Promise<void> {
 		await this._code?.startTracing(name);
 	}
@@ -112,7 +98,7 @@ export class Application {
 	}
 
 	private async startApplication(extraArgs: string[] = []): Promise<Code> {
-		const code = this._code = await spawn({
+		const code = this._code = await launch({
 			...this.options,
 			extraArgs: [...(this.options.extraArgs || []), ...extraArgs],
 		});

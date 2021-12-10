@@ -32,7 +32,7 @@ export class CellProgressBar extends CellPart {
 		// nothing to read
 	}
 
-	updateLayoutNow(element: ICellViewModel): void {
+	updateInternalLayoutNow(element: ICellViewModel): void {
 		// nothing to update
 	}
 

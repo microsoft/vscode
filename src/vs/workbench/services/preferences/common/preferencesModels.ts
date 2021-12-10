@@ -19,7 +19,7 @@ import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPrope
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { IFilterMetadata, IFilterResult, IGroupFilter, IKeybindingsEditorModel, ISearchResultGroup, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
+import { IFilterMetadata, IFilterResult, IGroupFilter, IKeybindingsEditorModel, ISearchResultGroup, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup, SettingMatchType } from 'vs/workbench/services/preferences/common/preferences';
 import { withNullAsUndefined, isArray } from 'vs/base/common/types';
 import { FOLDER_SCOPES, WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
 import { createValidator } from 'vs/workbench/services/preferences/common/preferencesValidation';
@@ -70,14 +70,25 @@ export abstract class AbstractSettingsModel extends EditorModel {
 						filterMatches.push({
 							setting,
 							matches: settingMatchResult && settingMatchResult.matches,
-							score: settingMatchResult ? settingMatchResult.score : 0
+							matchType: settingMatchResult?.matchType ?? SettingMatchType.None,
+							score: settingMatchResult?.score ?? 0
 						});
 					}
 				}
 			}
 		}
 
-		return filterMatches.sort((a, b) => b.score - a.score);
+		filterMatches.sort((a, b) => {
+			// Sort by match type if the match types are not equal.
+			// The priority of the match type is given by the SettingMatchType enum.
+			// If they're equal, fall back to the "stable sort" counter score.
+			if (a.matchType !== b.matchType) {
+				return b.matchType - a.matchType;
+			} else {
+				return b.score - a.score;
+			}
+		});
+		return filterMatches;
 	}
 
 	getPreference(key: string): ISetting | undefined {

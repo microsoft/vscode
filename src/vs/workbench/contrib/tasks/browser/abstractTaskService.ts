@@ -67,9 +67,8 @@ import { RunAutomaticTasks } from 'vs/workbench/contrib/tasks/browser/runAutomat
 
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { format } from 'vs/base/common/jsonFormatter';
+import { toFormattedString } from 'vs/base/common/jsonFormatter';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { applyEdits } from 'vs/base/common/jsonEdit';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
@@ -1268,8 +1267,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			const model = reference.object.textEditorModel;
 			const { tabSize, insertSpaces } = model.getOptions();
 			const eol = model.getEOL();
-			const edits = format(JSON.stringify(task), undefined, { eol, tabSize, insertSpaces });
-			let stringified = applyEdits(JSON.stringify(task), edits);
+			let stringified = toFormattedString(task, { eol, tabSize, insertSpaces });
 			const regex = new RegExp(eol + (insertSpaces ? ' '.repeat(tabSize) : '\\t'), 'g');
 			stringified = stringified.replace(regex, eol + (insertSpaces ? ' '.repeat(tabSize * 3) : '\t\t\t'));
 			const twoTabs = insertSpaces ? ' '.repeat(tabSize * 2) : '\t\t';

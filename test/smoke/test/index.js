@@ -50,6 +50,8 @@ mocha.run(failures => {
 # Logs are attached as build artefact and can be downloaded       #
 # from the build Summary page (Summary -> Related -> N published) #
 #                                                                 #
+# Show playwright traces on: https://trace.playwright.dev/        #
+#                                                                 #
 ###################################################################
 		`);
 		} else {

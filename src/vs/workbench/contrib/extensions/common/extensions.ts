@@ -181,3 +181,7 @@ export const LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID = 'workbench.exten
 export const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
 export const ExtensionsSortByContext = new RawContextKey<string>('extensionsSortByValue', '');
 export const HasOutdatedExtensionsContext = new RawContextKey<boolean>('hasOutdatedExtensions', false);
+
+// Context Menu Groups
+export const THEME_ACTIONS_GROUP = '_theme_';
+export const INSTALL_ACTIONS_GROUP = '0_install';

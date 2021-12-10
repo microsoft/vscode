@@ -595,6 +595,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					return;
 				}
 
+				// If we run smoke tests, we never want to show a blocking dialog
+				if (this.environmentMainService.driverHandle) {
+					this.destroyWindow(false);
+					return;
+				}
+
 				// Unresponsive
 				if (type === WindowError.UNRESPONSIVE) {
 					if (this.isExtensionDevelopmentHost || this.isExtensionTestHost || (this._win && this._win.webContents && this._win.webContents.isDevToolsOpened())) {

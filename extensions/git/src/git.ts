@@ -532,10 +532,15 @@ export class Git {
 			child.stdin!.end(options.input, 'utf8');
 		}
 
+		const startTime = Date.now();
 		const bufferResult = await exec(child, options.cancellationToken);
 
-		if (options.log !== false && bufferResult.stderr.length > 0) {
-			this.log(`${bufferResult.stderr}\n`);
+		if (options.log !== false) {
+			this.log(`> git ${args.join(' ')} [${Date.now() - startTime}ms]\n`);
+
+			if (bufferResult.stderr.length > 0) {
+				this.log(`${bufferResult.stderr}\n`);
+			}
 		}
 
 		let encoding = options.encoding || 'utf8';
@@ -585,10 +590,6 @@ export class Git {
 		const cwd = this.getCwd(options);
 		if (cwd) {
 			options.cwd = sanitizePath(cwd);
-		}
-
-		if (options.log !== false) {
-			this.log(`> git ${args.join(' ')}\n`);
 		}
 
 		return cp.spawn(this.path, args, options);

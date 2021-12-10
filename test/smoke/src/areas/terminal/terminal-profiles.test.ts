@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ParsedArgs } from 'minimist';
 import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation';
 
 const CONTRIBUTED_PROFILE_NAME = `JavaScript Debug Terminal`;
 const ANY_PROFILE_NAME = '^((?!JavaScript Debug Terminal).)*$';
 
-export function setup(opts: ParsedArgs) {
+export function setup() {
 	describe('Terminal Profiles', () => {
 		// Acquire automation API
 		let terminal: Terminal;

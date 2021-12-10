@@ -23,6 +23,7 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
+import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export const ctxCommentEditorFocused = new RawContextKey<boolean>('commentEditorFocused', false);
 
@@ -44,7 +45,8 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@INotificationService notificationService: INotificationService,
-		@IAccessibilityService accessibilityService: IAccessibilityService
+		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService
 	) {
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
 			isSimpleWidget: true,
@@ -57,7 +59,7 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 			]
 		};
 
-		super(domElement, options, codeEditorWidgetOptions, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService);
+		super(domElement, options, codeEditorWidgetOptions, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService, languageConfigurationService);
 
 		this._commentEditorFocused = ctxCommentEditorFocused.bindTo(contextKeyService);
 		this._commentEditorEmpty = CommentContextKeys.commentIsEmpty.bindTo(contextKeyService);

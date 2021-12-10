@@ -3,35 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import minimist = require('minimist');
-import { Application, Quality } from '../../../../automation';
-import { installCommonAfterHandlers, installCommonBeforeEachHandler, startApp } from '../../utils';
+import { Quality, Logger, Application } from '../../../../automation';
+import { installAllHandlers } from '../../utils';
 
-export function setup(args: minimist.ParsedArgs) {
+export function setup(logger: Logger) {
 
 	describe('Localization', () => {
 
-		let app: Application | undefined = undefined;
+		// Shared before/after handling
+		installAllHandlers(logger);
 
-		installCommonBeforeEachHandler();
-		installCommonAfterHandlers(args, () => app);
-
-		it(`starts with 'DE' locale and verifies title and viewlets text is in German`, async function () {
+		it('starts with "DE" locale and verifies title and viewlets text is in German', async function () {
 			if (this.defaultOptions.quality === Quality.Dev || this.defaultOptions.remote) {
 				return this.skip();
 			}
 
-			app = await startApp(args, this.defaultOptions);
-
+			const app = this.app as Application;
 			await app.workbench.extensions.openExtensionsViewlet();
 			await app.workbench.extensions.installExtension('ms-ceintl.vscode-language-pack-de', false);
 			await app.restart({ extraArgs: ['--locale=DE'] });
 
 			const result = await app.workbench.localization.getLocalizedStrings();
 			const localeInfo = await app.workbench.localization.getLocaleInfo();
-
-			await app.stop();
-			app = undefined;
 
 			if (localeInfo.locale === undefined || localeInfo.locale.toLowerCase() !== 'de') {
 				throw new Error(`The requested locale for VS Code was not German. The received value is: ${localeInfo.locale === undefined ? 'not set' : localeInfo.locale}`);

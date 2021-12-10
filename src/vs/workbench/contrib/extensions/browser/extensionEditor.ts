@@ -49,7 +49,6 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { getDefaultValue } from 'vs/platform/configuration/common/configurationRegistry';
 import { isUndefined } from 'vs/base/common/types';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IWebviewService, IWebview, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/webview/browser/webview';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -155,6 +154,8 @@ interface IExtensionEditorTemplate {
 	navbar: NavBar;
 	content: HTMLElement;
 	header: HTMLElement;
+	extension: IExtension;
+	manifest: IExtensionManifest | null;
 }
 
 const enum WebviewIndex {
@@ -209,7 +210,6 @@ export class ExtensionEditor extends EditorPane {
 		@IExtensionIgnoredRecommendationsService private readonly extensionIgnoredRecommendationsService: IExtensionIgnoredRecommendationsService,
 		@IStorageService storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
@@ -263,6 +263,7 @@ export class ExtensionEditor extends EditorPane {
 
 		const iconContainer = append(header, $('.icon-container'));
 		const icon = append(iconContainer, $<HTMLImageElement>('img.icon', { draggable: false }));
+		const remoteBadge = this.instantiationService.createInstance(RemoteBadgeWidget, iconContainer, true);
 
 		const details = append(header, $('.details'));
 		const title = append(details, $('.title'));
@@ -282,11 +283,49 @@ export class ExtensionEditor extends EditorPane {
 		publisher.setAttribute('role', 'button');
 		const verifiedPublisherIcon = append(publisher, $(`.publisher-verified${ThemeIcon.asCSSSelector(verifiedPublisherThemeIcon)}`));
 		const publisherDisplayName = append(publisher, $('.publisher-name'));
+
 		const installCount = append(append(subtitle, $('.subtitle-entry')), $('span.install', { title: localize('install count', "Install count"), tabIndex: 0 }));
+		const installCountWidget = this.instantiationService.createInstance(InstallCountWidget, installCount, false);
+
 		const rating = append(append(subtitle, $('.subtitle-entry')), $('span.rating.clickable', { title: localize('rating', "Rating"), tabIndex: 0 }));
 		rating.setAttribute('role', 'link'); // #132645
+		const ratingsWidget = this.instantiationService.createInstance(RatingsWidget, rating, false);
+
+		const widgets = [
+			remoteBadge,
+			installCountWidget,
+			ratingsWidget,
+		];
 
 		const description = append(details, $('.description'));
+
+		const installAction = this.instantiationService.createInstance(InstallDropdownAction);
+		const actions = [
+			this.instantiationService.createInstance(ReloadAction),
+			this.instantiationService.createInstance(ExtensionStatusLabelAction),
+			this.instantiationService.createInstance(UpdateAction),
+			this.instantiationService.createInstance(SetColorThemeAction),
+			this.instantiationService.createInstance(SetFileIconThemeAction),
+			this.instantiationService.createInstance(SetProductIconThemeAction),
+
+			this.instantiationService.createInstance(EnableDropDownAction),
+			this.instantiationService.createInstance(DisableDropDownAction),
+			this.instantiationService.createInstance(RemoteInstallAction, false),
+			this.instantiationService.createInstance(LocalInstallAction),
+			this.instantiationService.createInstance(WebInstallAction),
+			installAction,
+			this.instantiationService.createInstance(InstallingLabelAction),
+			this.instantiationService.createInstance(ActionWithDropDownAction, 'extensions.uninstall', UninstallAction.UninstallLabel, [
+				[
+					this.instantiationService.createInstance(UninstallAction),
+					this.instantiationService.createInstance(InstallAnotherVersionAction),
+				]
+			]),
+			this.instantiationService.createInstance(SwitchToPreReleaseVersionAction),
+			this.instantiationService.createInstance(SwitchToReleasedVersionAction),
+			this.instantiationService.createInstance(ToggleSyncExtensionAction),
+			new ExtensionEditorManageExtensionAction(this.scopedContextKeyService || this.contextKeyService, this.instantiationService),
+		];
 
 		const actionsAndStatusContainer = append(details, $('.actions-status-container'));
 		const extensionActionBar = this._register(new ActionBar(actionsAndStatusContainer, {
@@ -302,6 +341,19 @@ export class ExtensionEditor extends EditorPane {
 			},
 			focusOnlyEnabledItems: true
 		}));
+
+		extensionActionBar.push(actions, { icon: true, label: true });
+		extensionActionBar.setFocusable(true);
+		// update focusable elements when the enablement of an action changes
+		this._register(Event.any(...actions.map(a => Event.filter(a.onDidChange, e => e.enabled !== undefined)))(() => {
+			extensionActionBar.setFocusable(false);
+			extensionActionBar.setFocusable(true);
+		}));
+
+		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets]);
+		for (const disposable of [...actions, ...widgets, extensionContainers]) {
+			this._register(disposable);
+		}
 
 		const status = append(actionsAndStatusContainer, $('.status'));
 		const recommendation = append(details, $('.recommendation'));
@@ -337,7 +389,13 @@ export class ExtensionEditor extends EditorPane {
 			actionsAndStatusContainer,
 			extensionActionBar,
 			status,
-			recommendation
+			recommendation,
+			set extension(extension: IExtension) {
+				extensionContainers.extension = extension;
+			},
+			set manifest(manifest: IExtensionManifest | null) {
+				installAction.manifest = manifest;
+			}
 		};
 	}
 
@@ -413,47 +471,26 @@ export class ExtensionEditor extends EditorPane {
 	private async updateTemplate(extension: IExtension, gallery: IGalleryExtension | undefined, template: IExtensionEditorTemplate, preserveFocus: boolean, token: CancellationToken): Promise<void> {
 		this.activeElement = null;
 		this.editorLoadComplete = false;
-
-		if (this.currentIdentifier !== extension.identifier.id) {
-			this.initialScrollProgress.clear();
-			this.currentIdentifier = extension.identifier.id;
-		}
-
 		this.transientDisposables.clear();
 
 		this.extensionReadme = new Cache(() => extension.getReadme(!!this.showPreReleaseVersionContextKey?.get(), token));
 		this.extensionChangelog = new Cache(() => extension.getChangelog(!!this.showPreReleaseVersionContextKey?.get(), token));
 		this.extensionManifest = new Cache(() => extension.getManifest(!!this.showPreReleaseVersionContextKey?.get(), token));
 
-		const remoteBadge = this.instantiationService.createInstance(RemoteBadgeWidget, template.iconContainer, true);
+		template.extension = extension;
+		template.manifest = null;
+
 		this.transientDisposables.add(addDisposableListener(template.icon, 'error', () => template.icon.src = extension.iconUrlFallback, { once: true }));
 		template.icon.src = extension.iconUrl;
 
 		template.name.textContent = extension.displayName;
+		template.name.classList.toggle('clickable', !!extension.url);
 		template.version.textContent = `v${gallery ? gallery.version : extension.version}`;
 		template.preview.style.display = extension.preview ? 'inherit' : 'none';
 		template.preRelease.style.display = (gallery ? gallery.properties.isPreReleaseVersion : (extension.local?.isPreReleaseVersion || extension.gallery?.properties.isPreReleaseVersion)) ? 'inherit' : 'none';
 		template.builtin.style.display = extension.isBuiltin ? 'inherit' : 'none';
 
 		template.description.textContent = extension.description;
-
-		const extRecommendations = this.extensionRecommendationsService.getAllRecommendationsWithReason();
-		let recommendationsData = {};
-		if (extRecommendations[extension.identifier.id.toLowerCase()]) {
-			recommendationsData = { recommendationReason: extRecommendations[extension.identifier.id.toLowerCase()].reasonId };
-		}
-
-		/* __GDPR__
-		"extensionGallery:openExtension" : {
-			"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"${include}": [
-				"${GalleryExtensionTelemetryData}"
-			]
-		}
-		*/
-		this.telemetryService.publicLog('extensionGallery:openExtension', { ...extension.telemetryData, ...recommendationsData });
-
-		template.name.classList.toggle('clickable', !!extension.url);
 
 		// subtitle
 		template.publisher.classList.toggle('clickable', !!extension.url);
@@ -462,7 +499,6 @@ export class ExtensionEditor extends EditorPane {
 		template.publisher.title = extension.publisherDomain?.link ? localize('publisher verified tooltip', "This publisher has verified ownership of {0}", URI.parse(extension.publisherDomain.link).authority) : '';
 
 		template.installCount.parentElement?.classList.toggle('hide', !extension.url);
-
 		template.rating.parentElement?.classList.toggle('hide', !extension.url);
 		template.rating.classList.toggle('clickable', !!extension.url);
 
@@ -476,74 +512,8 @@ export class ExtensionEditor extends EditorPane {
 			}));
 		}
 
-		const [colorThemes, fileIconThemes, productIconThemes] = await Promise.all([
-			this.workbenchThemeService.getColorThemes(),
-			this.workbenchThemeService.getFileIconThemes(),
-			this.workbenchThemeService.getProductIconThemes(),
-		]);
-		if (token.isCancellationRequested) {
-			return;
-		}
-
-		const widgets = [
-			remoteBadge,
-			this.instantiationService.createInstance(InstallCountWidget, template.installCount, false),
-			this.instantiationService.createInstance(RatingsWidget, template.rating, false)
-		];
-		const reloadAction = this.instantiationService.createInstance(ReloadAction);
-		const combinedInstallAction = this.instantiationService.createInstance(InstallDropdownAction);
-		const actions = [
-			reloadAction,
-			this.instantiationService.createInstance(ExtensionStatusLabelAction),
-			this.instantiationService.createInstance(UpdateAction),
-			this.instantiationService.createInstance(SetColorThemeAction, colorThemes),
-			this.instantiationService.createInstance(SetFileIconThemeAction, fileIconThemes),
-			this.instantiationService.createInstance(SetProductIconThemeAction, productIconThemes),
-
-			this.instantiationService.createInstance(EnableDropDownAction),
-			this.instantiationService.createInstance(DisableDropDownAction),
-			this.instantiationService.createInstance(RemoteInstallAction, false),
-			this.instantiationService.createInstance(LocalInstallAction),
-			this.instantiationService.createInstance(WebInstallAction),
-			combinedInstallAction,
-			this.instantiationService.createInstance(InstallingLabelAction),
-			this.instantiationService.createInstance(ActionWithDropDownAction, 'extensions.uninstall', UninstallAction.UninstallLabel, [
-				[
-					this.instantiationService.createInstance(UninstallAction),
-					this.instantiationService.createInstance(InstallAnotherVersionAction),
-				]
-			]),
-			this.instantiationService.createInstance(SwitchToPreReleaseVersionAction),
-			this.instantiationService.createInstance(SwitchToReleasedVersionAction),
-			this.instantiationService.createInstance(ToggleSyncExtensionAction),
-			new ExtensionEditorManageExtensionAction(this.scopedContextKeyService || this.contextKeyService, this.instantiationService),
-		];
-		const extensionStatus = this.instantiationService.createInstance(ExtensionStatusAction);
-		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets, extensionStatus]);
-		extensionContainers.extension = extension;
-
-		template.extensionActionBar.clear();
-		template.extensionActionBar.push(actions, { icon: true, label: true });
-		template.extensionActionBar.setFocusable(true);
-		// update focusable elements when the enablement of an action changes
-		this.transientDisposables.add(Event.any(...actions.map(a => Event.filter(a.onDidChange, e => e.enabled !== undefined)))(() => {
-			template.extensionActionBar.setFocusable(false);
-			template.extensionActionBar.setFocusable(true);
-		}));
-		for (const disposable of [...actions, ...widgets, extensionContainers]) {
-			this.transientDisposables.add(disposable);
-		}
-
-		this.setStatus(extension, extensionStatus, template);
+		this.setStatus(extension, template);
 		this.setRecommendationText(extension, template);
-
-		template.content.innerText = ''; // Clear content before setting navbar actions.
-
-		template.navbar.clear();
-
-		if (extension.hasReadme()) {
-			template.navbar.push(ExtensionEditorTab.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
-		}
 
 		const manifest = await this.extensionManifest.get().promise;
 		if (token.isCancellationRequested) {
@@ -551,7 +521,41 @@ export class ExtensionEditor extends EditorPane {
 		}
 
 		if (manifest) {
-			combinedInstallAction.manifest = manifest;
+			template.manifest = manifest;
+		}
+
+		this.updateNavbar(extension, manifest, template, preserveFocus);
+
+		// report telemetry
+		const extRecommendations = this.extensionRecommendationsService.getAllRecommendationsWithReason();
+		let recommendationsData = {};
+		if (extRecommendations[extension.identifier.id.toLowerCase()]) {
+			recommendationsData = { recommendationReason: extRecommendations[extension.identifier.id.toLowerCase()].reasonId };
+		}
+		/* __GDPR__
+		"extensionGallery:openExtension" : {
+			"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"${include}": [
+				"${GalleryExtensionTelemetryData}"
+			]
+		}
+		*/
+		this.telemetryService.publicLog('extensionGallery:openExtension', { ...extension.telemetryData, ...recommendationsData });
+
+		this.editorLoadComplete = true;
+	}
+
+	private updateNavbar(extension: IExtension, manifest: IExtensionManifest | null, template: IExtensionEditorTemplate, preserveFocus: boolean): void {
+		template.content.innerText = '';
+		template.navbar.clear();
+
+		if (this.currentIdentifier !== extension.identifier.id) {
+			this.initialScrollProgress.clear();
+			this.currentIdentifier = extension.identifier.id;
+		}
+
+		if (extension.hasReadme()) {
+			template.navbar.push(ExtensionEditorTab.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
 		}
 		if (manifest && manifest.contributes) {
 			template.navbar.push(ExtensionEditorTab.Contributions, localize('contributions', "Feature Contributions"), localize('contributionstooltip', "Lists contributions to VS Code by this extension"));
@@ -582,13 +586,12 @@ export class ExtensionEditor extends EditorPane {
 			this.onNavbarChange(extension, { id: template.navbar.currentId, focus: !preserveFocus }, template);
 		}
 		template.navbar.onChange(e => this.onNavbarChange(extension, e, template), this, this.transientDisposables);
-
-		this.editorLoadComplete = true;
 	}
 
-	private setStatus(extension: IExtension, extensionStatus: ExtensionStatusAction, template: IExtensionEditorTemplate): void {
-		const disposables = new DisposableStore();
-		this.transientDisposables.add(disposables);
+	private setStatus(extension: IExtension, template: IExtensionEditorTemplate): void {
+		const disposables = this.transientDisposables.add(new DisposableStore());
+		const extensionStatus = disposables.add(this.instantiationService.createInstance(ExtensionStatusAction));
+		extensionStatus.extension = extension;
 		const updateStatus = (layout: boolean) => {
 			disposables.clear();
 			reset(template.status);
