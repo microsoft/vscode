@@ -8,6 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
+import { toFormattedString } from 'vs/base/common/jsonFormatter';
 import { compare } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -329,7 +330,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			}
 			return compare(e1.identifier.id, e2.identifier.id);
 		});
-		return format ? JSON.stringify(extensions, null, '\t') : JSON.stringify(extensions);
+		return format ? toFormattedString(extensions, {}) : JSON.stringify(extensions);
 	}
 
 	async hasLocalData(): Promise<boolean> {

@@ -1293,7 +1293,7 @@ class UserDataRemoteContentProvider implements ITextModelContentProvider {
 
 	provideTextContent(uri: URI): Promise<ITextModel> | null {
 		if (uri.scheme === USER_DATA_SYNC_SCHEME) {
-			return this.userDataSyncService.resolveContent(uri).then(content => this.modelService.createModel(content || '', this.languageService.create('jsonc'), uri));
+			return this.userDataSyncService.resolveContent(uri).then(content => this.modelService.createModel(content || '', this.languageService.createById('jsonc'), uri));
 		}
 		return null;
 	}

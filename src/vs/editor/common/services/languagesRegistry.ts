@@ -257,12 +257,11 @@ export class LanguagesRegistry extends Disposable {
 		}
 	}
 
-	public isRegisteredLanguageId(languageId: string): boolean {
+	public isRegisteredLanguageId(languageId: string | null | undefined): boolean {
+		if (!languageId) {
+			return false;
+		}
 		return hasOwnProperty.call(this._languages, languageId);
-	}
-
-	public isRegisteredMimeType(mimeType: string): boolean {
-		return hasOwnProperty.call(this._mimeTypesMap, mimeType);
 	}
 
 	public getRegisteredLanguageIds(): string[] {
@@ -285,6 +284,16 @@ export class LanguagesRegistry extends Disposable {
 			return null;
 		}
 		return this._lowercaseNameMap[languageNameLower];
+	}
+
+	public getLanguageIdForMimeType(mimeType: string | null | undefined): string | null {
+		if (!mimeType) {
+			return null;
+		}
+		if (hasOwnProperty.call(this._mimeTypesMap, mimeType)) {
+			return this._mimeTypesMap[mimeType];
+		}
+		return null;
 	}
 
 	public getConfigurationFiles(languageId: string): URI[] {
@@ -323,7 +332,7 @@ export class LanguagesRegistry extends Disposable {
 		);
 	}
 
-	public validateLanguageId(languageId: string | null): string | null {
+	public validateLanguageId(languageId: string | null | undefined): string | null {
 		if (!languageId || languageId === NULL_MODE_ID) {
 			return NULL_MODE_ID;
 		}
@@ -345,7 +354,7 @@ export class LanguagesRegistry extends Disposable {
 		return null;
 	}
 
-	public getModeIdsFromFilepathOrFirstLine(resource: URI | null, firstLine?: string): string[] {
+	public getLanguageIdByFilepathOrFirstLine(resource: URI | null, firstLine?: string): string[] {
 		if (!resource && !firstLine) {
 			return [];
 		}

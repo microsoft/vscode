@@ -744,13 +744,14 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 			}
 
 			const computeNewStateForEmbeddedMode = (enteringEmbeddedMode: string) => {
-				// substitute language alias to known modes to support syntax highlighting
-				let enteringEmbeddedLanguageId = this._languageService.getLanguageIdForLanguageName(enteringEmbeddedMode);
-				if (enteringEmbeddedLanguageId) {
-					enteringEmbeddedMode = enteringEmbeddedLanguageId;
-				}
+				// support language names, mime types, and language ids
+				const languageId = (
+					this._languageService.getLanguageIdForLanguageName(enteringEmbeddedMode)
+					|| this._languageService.getLanguageIdForMimeType(enteringEmbeddedMode)
+					|| enteringEmbeddedMode
+				);
 
-				const embeddedModeData = this._getNestedEmbeddedModeData(enteringEmbeddedMode);
+				const embeddedModeData = this._getNestedEmbeddedModeData(languageId);
 
 				if (pos < lineLength) {
 					// there is content from the embedded mode on this line
@@ -846,44 +847,24 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 		return MonarchLineStateFactory.create(stack, embeddedModeData);
 	}
 
-	private _getNestedEmbeddedModeData(mimetypeOrModeId: string): EmbeddedModeData {
-		let nestedModeId = this._locateMode(mimetypeOrModeId);
-		if (nestedModeId) {
-			let tokenizationSupport = modes.TokenizationRegistry.get(nestedModeId);
-			if (tokenizationSupport) {
-				return new EmbeddedModeData(nestedModeId, tokenizationSupport.getInitialState());
-			}
+	private _getNestedEmbeddedModeData(languageId: string): EmbeddedModeData {
+		if (!this._languageService.isRegisteredLanguageId(languageId)) {
+			return new EmbeddedModeData(languageId, NULL_STATE);
 		}
 
-		return new EmbeddedModeData(nestedModeId || NULL_MODE_ID, NULL_STATE);
-	}
-
-	private _locateMode(mimetypeOrModeId: string): string | null {
-		if (!mimetypeOrModeId) {
-			return null;
-		}
-		const isRegisteredLanguageId = this._languageService.isRegisteredLanguageId(mimetypeOrModeId);
-		const isRegisteredMimeType = this._languageService.isRegisteredMimeType(mimetypeOrModeId);
-		if (!isRegisteredLanguageId && !isRegisteredMimeType) {
-			return null;
-		}
-
-		if (mimetypeOrModeId === this._languageId) {
-			// embedding myself...
-			return mimetypeOrModeId;
-		}
-
-		const languageId = this._languageService.getModeId(mimetypeOrModeId);
-
-		if (languageId) {
+		if (languageId !== this._languageId) {
 			// Fire mode loading event
 			this._languageService.triggerMode(languageId);
 			this._embeddedModes[languageId] = true;
 		}
 
-		return languageId;
-	}
+		const tokenizationSupport = modes.TokenizationRegistry.get(languageId);
+		if (tokenizationSupport) {
+			return new EmbeddedModeData(languageId, tokenizationSupport.getInitialState());
+		}
 
+		return new EmbeddedModeData(languageId || NULL_MODE_ID, NULL_STATE);
+	}
 }
 
 /**

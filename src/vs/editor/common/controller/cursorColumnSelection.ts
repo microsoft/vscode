@@ -7,15 +7,6 @@ import { CursorColumns, CursorConfiguration, ICursorSimpleModel, SingleCursorSta
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 
-export interface IColumnSelectResult {
-	viewStates: SingleCursorState[];
-	reversed: boolean;
-	fromLineNumber: number;
-	fromVisualColumn: number;
-	toLineNumber: number;
-	toVisualColumn: number;
-}
-
 export class ColumnSelection {
 
 	public static columnSelect(config: CursorConfiguration, model: ICursorSimpleModel, fromLineNumber: number, fromVisibleColumn: number, toLineNumber: number, toVisibleColumn: number): IColumnSelectResult {
@@ -123,4 +114,13 @@ export class ColumnSelection {
 		const toViewLineNumber = Math.min(model.getLineCount(), prevColumnSelectData.toViewLineNumber + linesCount);
 		return this.columnSelect(config, model, prevColumnSelectData.fromViewLineNumber, prevColumnSelectData.fromViewVisualColumn, toViewLineNumber, prevColumnSelectData.toViewVisualColumn);
 	}
+}
+
+export interface IColumnSelectResult {
+	viewStates: SingleCursorState[];
+	reversed: boolean;
+	fromLineNumber: number;
+	fromVisualColumn: number;
+	toLineNumber: number;
+	toVisualColumn: number;
 }

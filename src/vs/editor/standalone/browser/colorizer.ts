@@ -31,11 +31,12 @@ export class Colorizer {
 	public static colorizeElement(themeService: IStandaloneThemeService, languageService: ILanguageService, domNode: HTMLElement, options: IColorizerElementOptions): Promise<void> {
 		options = options || {};
 		let theme = options.theme || 'vs';
-		let mimeType = options.mimeType || domNode.getAttribute('lang') || domNode.getAttribute('data-lang');
+		const mimeType = options.mimeType || domNode.getAttribute('lang') || domNode.getAttribute('data-lang');
 		if (!mimeType) {
 			console.error('Mode not detected');
 			return Promise.resolve();
 		}
+		const languageId = languageService.getLanguageIdForMimeType(mimeType) || mimeType;
 
 		themeService.setTheme(theme);
 
@@ -45,10 +46,10 @@ export class Colorizer {
 			const trustedhtml = ttPolicy?.createHTML(str) ?? str;
 			domNode.innerHTML = trustedhtml as string;
 		};
-		return this.colorize(languageService, text || '', mimeType, options).then(render, (err) => console.error(err));
+		return this.colorize(languageService, text || '', languageId, options).then(render, (err) => console.error(err));
 	}
 
-	public static colorize(languageService: ILanguageService, text: string, mimeType: string, options: IColorizerOptions | null | undefined): Promise<string> {
+	public static colorize(languageService: ILanguageService, text: string, languageId: string, options: IColorizerOptions | null | undefined): Promise<string> {
 		const languageIdCodec = languageService.languageIdCodec;
 		let tabSize = 4;
 		if (options && typeof options.tabSize === 'number') {
@@ -59,20 +60,19 @@ export class Colorizer {
 			text = text.substr(1);
 		}
 		let lines = strings.splitLines(text);
-		let language = languageService.getModeId(mimeType);
-		if (!language) {
+		if (!languageService.isRegisteredLanguageId(languageId)) {
 			return Promise.resolve(_fakeColorize(lines, tabSize, languageIdCodec));
 		}
 
 		// Send out the event to create the mode
-		languageService.triggerMode(language);
+		languageService.triggerMode(languageId);
 
-		const tokenizationSupport = TokenizationRegistry.get(language);
+		const tokenizationSupport = TokenizationRegistry.get(languageId);
 		if (tokenizationSupport) {
 			return _colorize(lines, tabSize, tokenizationSupport, languageIdCodec);
 		}
 
-		const tokenizationSupportPromise = TokenizationRegistry.getPromise(language);
+		const tokenizationSupportPromise = TokenizationRegistry.getPromise(languageId);
 		if (tokenizationSupportPromise) {
 			// A tokenizer will be registered soon
 			return new Promise<string>((resolve, reject) => {
@@ -95,7 +95,7 @@ export class Colorizer {
 					timeout.dispose();
 					timeout = null;
 				}
-				const tokenizationSupport = TokenizationRegistry.get(language!);
+				const tokenizationSupport = TokenizationRegistry.get(languageId!);
 				if (tokenizationSupport) {
 					_colorize(lines, tabSize, tokenizationSupport, languageIdCodec).then(resolve, reject);
 					return;
@@ -107,7 +107,7 @@ export class Colorizer {
 			timeout = new TimeoutTimer();
 			timeout.cancelAndSet(execute, 500);
 			listener = TokenizationRegistry.onDidChange((e) => {
-				if (e.changedLanguages.indexOf(language!) >= 0) {
+				if (e.changedLanguages.indexOf(languageId!) >= 0) {
 					execute();
 				}
 			});

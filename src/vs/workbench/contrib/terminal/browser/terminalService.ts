@@ -5,7 +5,6 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { timeout } from 'vs/base/common/async';
-import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -20,7 +19,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ICreateContributedTerminalProfileOptions, IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalLocationString } from 'vs/platform/terminal/common/terminal';
 import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IconDefinition } from 'vs/platform/theme/common/iconRegistry';
+import { getIconRegistry, IconContribution } from 'vs/platform/theme/common/iconRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
@@ -1126,16 +1125,16 @@ class TerminalEditorStyle extends Themable {
 				);
 			}
 			if (ThemeIcon.isThemeIcon(icon)) {
-				const codicon = iconRegistry.get(icon.id);
-				if (codicon) {
-					let def: Codicon | IconDefinition = codicon;
-					while ('definition' in def) {
-						def = def.definition;
+				const iconRegistry = getIconRegistry();
+				const iconContribution = iconRegistry.getIcon(icon.id);
+				if (iconContribution) {
+					const def = IconContribution.getDefinition(iconContribution, iconRegistry);
+					if (def) {
+						css += (
+							`.monaco-workbench .terminal-tab.codicon-${icon.id}::before` +
+							`{content: '${def.fontCharacter}' !important; font-family: ${dom.asCSSPropertyValue(def.fontId ?? 'codicon')} !important;}`
+						);
 					}
-					css += (
-						`.monaco-workbench .terminal-tab.codicon-${icon.id}::before` +
-						`{content: '${def.fontCharacter}' !important;}`
-					);
 				}
 			}
 		}

@@ -9,6 +9,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { parse } from 'vs/base/common/json';
+import { toFormattedString } from 'vs/base/common/jsonFormatter';
 import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -48,7 +49,7 @@ function stringify(globalState: IGlobalState, format: boolean): string {
 	const storage: IStringDictionary<IStorageValue> = {};
 	storageKeys.forEach(key => storage[key] = globalState.storage[key]);
 	globalState.storage = storage;
-	return format ? JSON.stringify(globalState, null, '\t') : JSON.stringify(globalState);
+	return format ? toFormattedString(globalState, {}) : JSON.stringify(globalState);
 }
 
 const GLOBAL_STATE_DATA_VERSION = 1;

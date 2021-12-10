@@ -60,7 +60,7 @@ abstract class CodeRendererContrib extends Disposable implements IOutputTransfor
 			container.style.height = `${editorHeight + 8}px`;
 		}));
 
-		const mode = this.languageService.create(languageId);
+		const mode = this.languageService.createById(languageId);
 		const textModel = this.modelService.createModel(value, mode, undefined, false);
 		editor.setModel(textModel);
 
@@ -108,8 +108,10 @@ export class NotebookCodeRendererContribution extends Disposable {
 			registerCodeRendererContrib(`text/x-${id}`, id);
 		});
 
-		this._register(_languageService.onDidEncounterLanguage((languageId) => {
-			registerCodeRendererContrib(`text/x-${languageId}`, languageId);
+		this._register(_languageService.onLanguagesMaybeChanged(() => {
+			_languageService.getRegisteredLanguageIds().forEach(id => {
+				registerCodeRendererContrib(`text/x-${id}`, id);
+			});
 		}));
 
 		registerCodeRendererContrib('application/json', 'json');

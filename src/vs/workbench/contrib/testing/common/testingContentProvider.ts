@@ -66,7 +66,7 @@ export class TestingContentProvider implements IWorkbenchContribution, ITextMode
 					text = message;
 				} else if (message) {
 					text = message.value;
-					language = this.languageService.create('markdown');
+					language = this.languageService.createById('markdown');
 				}
 				break;
 		}

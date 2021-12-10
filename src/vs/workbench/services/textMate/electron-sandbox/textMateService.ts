@@ -27,6 +27,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { FileAccess } from 'vs/base/common/network';
 import { ILanguageIdCodec } from 'vs/editor/common/modes';
+import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 const RUN_TEXTMATE_IN_WORKER = false;
 
@@ -158,6 +159,7 @@ export class TextMateService extends AbstractTextMateService {
 		@IProgressService progressService: IProgressService,
 		@IModelService private readonly _modelService: IModelService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 	) {
 		super(languageService, themeService, extensionResourceLoaderService, notificationService, logService, configurationService, progressService);
 		this._worker = null;
@@ -200,7 +202,7 @@ export class TextMateService extends AbstractTextMateService {
 
 		if (RUN_TEXTMATE_IN_WORKER) {
 			const workerHost = new TextMateWorkerHost(this, this._extensionResourceLoaderService);
-			const worker = createWebWorker<TextMateWorker>(this._modelService, {
+			const worker = createWebWorker<TextMateWorker>(this._modelService, this._languageConfigurationService, {
 				createData: {
 					grammarDefinitions
 				},

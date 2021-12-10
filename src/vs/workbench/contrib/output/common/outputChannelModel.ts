@@ -106,7 +106,7 @@ export class FileOutputChannelModel extends Disposable implements IOutputChannel
 
 	constructor(
 		private readonly modelUri: URI,
-		private readonly mimeType: string,
+		private readonly mimeType: 'text/x-code-log-output' | 'text/x-code-output',
 		private readonly file: URI,
 		@IFileService private readonly fileService: IFileService,
 		@IModelService private readonly modelService: IModelService,
@@ -163,7 +163,7 @@ export class FileOutputChannelModel extends Disposable implements IOutputChannel
 		if (this.model) {
 			this.model.setValue(content);
 		} else {
-			this.model = this.modelService.createModel(content, this.languageService.create(this.mimeType), this.modelUri);
+			this.model = this.modelService.createModel(content, this.languageService.createByMimeType(this.mimeType), this.modelUri);
 			this.fileHandler.watch(this.etag);
 			const disposable = this.model.onWillDispose(() => {
 				this.cancelModelUpdate();
@@ -324,7 +324,7 @@ class OutputChannelBackedByFile extends FileOutputChannelModel implements IOutpu
 	constructor(
 		id: string,
 		modelUri: URI,
-		mimeType: string,
+		mimeType: 'text/x-code-log-output' | 'text/x-code-output',
 		file: URI,
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService,
@@ -371,7 +371,7 @@ export class DelegatedOutputChannelModel extends Disposable implements IOutputCh
 	constructor(
 		id: string,
 		modelUri: URI,
-		mimeType: string,
+		mimeType: 'text/x-code-log-output' | 'text/x-code-output',
 		outputDir: Promise<URI>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IFileService private readonly fileService: IFileService,
@@ -380,7 +380,7 @@ export class DelegatedOutputChannelModel extends Disposable implements IOutputCh
 		this.outputChannelModel = this.createOutputChannelModel(id, modelUri, mimeType, outputDir);
 	}
 
-	private async createOutputChannelModel(id: string, modelUri: URI, mimeType: string, outputDirPromise: Promise<URI>): Promise<IOutputChannelModel> {
+	private async createOutputChannelModel(id: string, modelUri: URI, mimeType: 'text/x-code-log-output' | 'text/x-code-output', outputDirPromise: Promise<URI>): Promise<IOutputChannelModel> {
 		const outputDir = await outputDirPromise;
 		const file = resources.joinPath(outputDir, `${id.replace(/[\\/:\*\?"<>\|]/g, '')}.log`);
 		await this.fileService.createFile(file);

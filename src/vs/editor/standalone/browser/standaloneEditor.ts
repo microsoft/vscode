@@ -43,6 +43,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standaloneThemeServiceImpl';
 import { splitLines } from 'vs/base/common/strings';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 
@@ -91,6 +92,7 @@ export function create(domElement: HTMLElement, options?: IStandaloneEditorConst
 			services.get(IAccessibilityService),
 			services.get(IModelService),
 			services.get(ILanguageService),
+			services.get(ILanguageConfigurationService),
 		);
 	});
 }
@@ -148,11 +150,13 @@ export function createDiffNavigator(diffEditor: IStandaloneDiffEditor, opts?: ID
  * You can specify the language that should be set for this model or let the language be inferred from the `uri`.
  */
 export function createModel(value: string, language?: string, uri?: URI): ITextModel {
+	const languageService = StaticServices.languageService.get();
+	const languageId = languageService.getLanguageIdForMimeType(language) || language;
 	return createTextModel(
 		StaticServices.modelService.get(),
-		StaticServices.languageService.get(),
+		languageService,
 		value,
-		language,
+		languageId,
 		uri
 	);
 }
@@ -161,7 +165,7 @@ export function createModel(value: string, language?: string, uri?: URI): ITextM
  * Change the language for a model.
  */
 export function setModelLanguage(model: ITextModel, languageId: string): void {
-	StaticServices.modelService.get().setMode(model, StaticServices.languageService.get().create(languageId));
+	StaticServices.modelService.get().setMode(model, StaticServices.languageService.get().createById(languageId));
 }
 
 /**
@@ -238,7 +242,7 @@ export function onDidChangeModelLanguage(listener: (e: { readonly model: ITextMo
  * Specify an AMD module to load that will `create` an object that will be proxied.
  */
 export function createWebWorker<T>(opts: IWebWorkerOptions): MonacoWebWorker<T> {
-	return actualCreateWebWorker<T>(StaticServices.modelService.get(), opts);
+	return actualCreateWebWorker<T>(StaticServices.modelService.get(), StaticServices.languageConfigurationService.get(), opts);
 }
 
 /**

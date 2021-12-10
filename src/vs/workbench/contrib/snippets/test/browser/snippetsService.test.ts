@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { SnippetCompletionProvider } from 'vs/workbench/contrib/snippets/browser/snippetCompletionProvider';
+import { SnippetCompletion, SnippetCompletionProvider } from 'vs/workbench/contrib/snippets/browser/snippetCompletionProvider';
 import { Position } from 'vs/editor/common/core/position';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
@@ -92,12 +92,17 @@ suite('SnippetsService', function () {
 		});
 	});
 
-	test('snippet completions - simple 2', function () {
+	test('snippet completions - simple 2', async function () {
 
 		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
 		const model = disposables.add(createTextModel('hello ', undefined, 'fooLang'));
 
-		return provider.provideCompletionItems(model, new Position(1, 6), context)!.then(result => {
+		await provider.provideCompletionItems(model, new Position(1, 6) /* hello| */, context)!.then(result => {
+			assert.strictEqual(result.incomplete, undefined);
+			assert.strictEqual(result.suggestions.length, 0);
+		});
+
+		await provider.provideCompletionItems(model, new Position(1, 7) /* hello |*/, context)!.then(result => {
 			assert.strictEqual(result.incomplete, undefined);
 			assert.strictEqual(result.suggestions.length, 2);
 		});
@@ -639,6 +644,48 @@ suite('SnippetsService', function () {
 		)!;
 
 		assert.strictEqual(result.suggestions.length, 1);
+		model.dispose();
+	});
+
+	test('Snippet suggestions are too eager #138707 (word)', async function () {
+		snippetService = new SimpleSnippetService([
+			new Snippet(['fooLang'], 'tys', 'tys', '', 'value', '', SnippetSource.User),
+			new Snippet(['fooLang'], 't', 't', '', 'value', '', SnippetSource.User),
+			new Snippet(['fooLang'], '^y', '^y', '', 'value', '', SnippetSource.User),
+		]);
+
+		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		let model = createTextModel('\'hellot\'', undefined, 'fooLang');
+
+		let result = await provider.provideCompletionItems(
+			model,
+			new Position(1, 8),
+			{ triggerKind: CompletionTriggerKind.Invoke }
+		)!;
+
+		assert.strictEqual(result.suggestions.length, 1);
+		assert.strictEqual((<SnippetCompletion>result.suggestions[0]).label.label, 't');
+		model.dispose();
+	});
+
+	test('Snippet suggestions are too eager #138707 (no word)', async function () {
+		snippetService = new SimpleSnippetService([
+			new Snippet(['fooLang'], 'tys', 'tys', '', 'value', '', SnippetSource.User),
+			new Snippet(['fooLang'], 't', 't', '', 'value', '', SnippetSource.User),
+			new Snippet(['fooLang'], '^y', '^y', '', 'value', '', SnippetSource.User),
+		]);
+
+		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		let model = createTextModel(')*&^', undefined, 'fooLang');
+
+		let result = await provider.provideCompletionItems(
+			model,
+			new Position(1, 5),
+			{ triggerKind: CompletionTriggerKind.Invoke }
+		)!;
+
+		assert.strictEqual(result.suggestions.length, 1);
+		assert.strictEqual((<SnippetCompletion>result.suggestions[0]).label.label, '^y');
 		model.dispose();
 	});
 });

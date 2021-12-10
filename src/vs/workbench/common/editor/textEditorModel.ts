@@ -95,7 +95,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 			return;
 		}
 
-		this.modelService.setMode(this.textEditorModel, this.languageService.create(mode));
+		this.modelService.setMode(this.textEditorModel, this.languageService.createById(mode));
 	}
 
 	getMode(): string | undefined {
@@ -179,7 +179,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 		}
 
 		// otherwise take the preferred mode for granted
-		return languageService.create(preferredMode);
+		return languageService.createById(preferredMode);
 	}
 
 	/**
@@ -197,7 +197,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 
 		// mode (only if specific and changed)
 		if (preferredMode && preferredMode !== PLAINTEXT_MODE_ID && this.textEditorModel.getLanguageId() !== preferredMode) {
-			this.modelService.setMode(this.textEditorModel, this.languageService.create(preferredMode));
+			this.modelService.setMode(this.textEditorModel, this.languageService.createById(preferredMode));
 		}
 	}
 

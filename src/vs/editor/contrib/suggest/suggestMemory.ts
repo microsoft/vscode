@@ -9,7 +9,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { LRUCache, TernarySearchTree } from 'vs/base/common/map';
 import { IPosition } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { CompletionItemKind, completionKindFromString } from 'vs/editor/common/modes';
+import { CompletionItemKind, CompletionItemKinds } from 'vs/editor/common/modes';
 import { CompletionItem } from 'vs/editor/contrib/suggest/suggest';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -138,7 +138,7 @@ export class LRUMemory extends Memory {
 		let seq = 0;
 		for (const [key, value] of data) {
 			value.touch = seq;
-			value.type = typeof value.type === 'number' ? value.type : completionKindFromString(value.type);
+			value.type = typeof value.type === 'number' ? value.type : CompletionItemKinds.fromString(value.type);
 			this._cache.set(key, value);
 		}
 		this._seq = this._cache.size;
@@ -206,7 +206,7 @@ export class PrefixMemory extends Memory {
 		if (data.length > 0) {
 			this._seq = data[0][1].touch + 1;
 			for (const [key, value] of data) {
-				value.type = typeof value.type === 'number' ? value.type : completionKindFromString(value.type);
+				value.type = typeof value.type === 'number' ? value.type : CompletionItemKinds.fromString(value.type);
 				this._trie.set(key, value);
 			}
 		}

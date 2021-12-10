@@ -122,7 +122,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		if (this.isDefaultSettingsResource(uri)) {
 
 			const target = this.getConfigurationTargetFromDefaultSettingsResource(uri);
-			const languageSelection = this.languageService.create('jsonc');
+			const languageSelection = this.languageService.createById('jsonc');
 			const model = this._register(this.modelService.createModel('', languageSelection, uri));
 
 			let defaultSettings: DefaultSettings | undefined;
@@ -150,14 +150,14 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 		if (this.defaultSettingsRawResource.toString() === uri.toString()) {
 			const defaultRawSettingsEditorModel = this.instantiationService.createInstance(DefaultRawSettingsEditorModel, this.getDefaultSettings(ConfigurationTarget.USER_LOCAL));
-			const languageSelection = this.languageService.create('jsonc');
+			const languageSelection = this.languageService.createById('jsonc');
 			const model = this._register(this.modelService.createModel(defaultRawSettingsEditorModel.content, languageSelection, uri));
 			return model;
 		}
 
 		if (this.defaultKeybindingsResource.toString() === uri.toString()) {
 			const defaultKeybindingsEditorModel = this.instantiationService.createInstance(DefaultKeybindingsEditorModel, uri);
-			const languageSelection = this.languageService.create('jsonc');
+			const languageSelection = this.languageService.createById('jsonc');
 			const model = this._register(this.modelService.createModel(defaultKeybindingsEditorModel.content, languageSelection, uri));
 			return model;
 		}

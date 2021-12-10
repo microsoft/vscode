@@ -1128,13 +1128,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					toAdd.push('-c');
 				}
 			}
-			toAdd.forEach(element => {
-				if (!shellArgs.some(arg => arg.toLowerCase() === element)) {
-					shellArgs.push(element);
-				}
-			});
-			shellArgs.push(commandLine);
-			shellLaunchConfig.args = windowsShellArgs ? shellArgs.join(' ') : shellArgs;
+			const combinedShellArgs = this.addAllArgument(toAdd, shellArgs);
+			combinedShellArgs.push(commandLine);
+			shellLaunchConfig.args = windowsShellArgs ? combinedShellArgs.join(' ') : combinedShellArgs;
 			if (task.command.presentation && task.command.presentation.echo) {
 				if (needsFolderQualification && workspaceFolder) {
 					shellLaunchConfig.initialText = `\x1b[1m> Executing task in folder ${workspaceFolder.name}: ${commandLine} <\x1b[0m\n`;
@@ -1194,6 +1190,24 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		shellLaunchConfig.isFeatureTerminal = true;
 		shellLaunchConfig.useShellEnvironment = true;
 		return shellLaunchConfig;
+	}
+
+	private addAllArgument(shellCommandArgs: string[], configuredShellArgs: string[]): string[] {
+		const combinedShellArgs: string[] = Objects.deepClone(configuredShellArgs);
+		shellCommandArgs.forEach(element => {
+			const shouldAddShellCommandArg = configuredShellArgs.every((arg, index) => {
+				if ((arg.toLowerCase() === element) && (configuredShellArgs.length > index + 1)) {
+					// We can still add the argument, but only if not all of the following arguments begin with "-".
+					return !configuredShellArgs.slice(index + 1).every(testArg => testArg.startsWith('-'));
+				} else {
+					return arg.toLowerCase() !== element;
+				}
+			});
+			if (shouldAddShellCommandArg) {
+				combinedShellArgs.push(element);
+			}
+		});
+		return combinedShellArgs;
 	}
 
 	private async doCreateTerminal(group: string | undefined, launchConfigs: IShellLaunchConfig): Promise<ITerminalInstance> {
@@ -1313,10 +1327,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			return [terminalToReuse.terminal, commandExecutable, undefined];
 		}
 
-		await this.terminalCreationQueue;
-		const createTerminalPromise = this.doCreateTerminal(group, launchConfigs);
-		this.terminalCreationQueue = createTerminalPromise;
-		const result: ITerminalInstance = await createTerminalPromise;
+		this.terminalCreationQueue = this.terminalCreationQueue.then(() => this.doCreateTerminal(group, launchConfigs!));
+		const result: ITerminalInstance = (await this.terminalCreationQueue)!;
 
 		const terminalKey = result.instanceId.toString();
 		result.onDisposed((terminal) => {

@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application, ApplicationOptions, Quality } from '../../../../automation/out';
-import { ParsedArgs } from 'minimist';
-import { installCommonAfterHandlers, getRandomUserDataDir, startApp, timeout, installCommonBeforeEachHandler } from '../../utils';
+import { Application, ApplicationOptions, Logger, Quality } from '../../../../automation';
+import { getRandomUserDataDir, startApp, timeout, installDiagnosticsHandler, installAppAfterHandler } from '../../utils';
 
-export function setup(opts: ParsedArgs) {
+export function setup(ensureStableCode: () => string | undefined, logger: Logger) {
 	describe('Data Loss (insiders -> insiders)', () => {
 
 		let app: Application | undefined = undefined;
 
-		installCommonBeforeEachHandler();
-		installCommonAfterHandlers(opts, () => app);
+		// Shared before/after handling
+		installDiagnosticsHandler(logger, () => app);
+		installAppAfterHandler(() => app);
 
 		it('verifies opened editors are restored', async function () {
-			app = await startApp(opts, this.defaultOptions);
+			app = await startApp(this.defaultOptions);
 
 			// Open 3 editors and pin 2 of them
 			await app.workbench.quickaccess.openFile('www');
@@ -38,6 +38,31 @@ export function setup(opts: ParsedArgs) {
 			app = undefined;
 		});
 
+		it.only('verifies editors can save and restore', async function () {
+			app = await startApp(this.defaultOptions);
+
+			const appJs = 'app.js';
+			const textToType = 'Hello, Code';
+
+			// open editor and type
+			await app.workbench.quickaccess.openFile(appJs);
+			await app.workbench.editor.waitForTypeInEditor(appJs, textToType);
+			await app.workbench.editors.waitForTab(appJs, true);
+
+			// save
+			await app.workbench.editors.saveOpenedFile();
+			await app.workbench.editors.waitForTab(appJs, false);
+
+			// restart
+			await app.restart();
+
+			// verify contents
+			await app.workbench.editor.waitForEditorContents(appJs, contents => contents.indexOf(textToType) > -1);
+
+			await app.stop();
+			app = undefined;
+		});
+
 		it('verifies that "hot exit" works for dirty files (without delay)', function () {
 			return testHotExit.call(this, undefined);
 		});
@@ -51,7 +76,7 @@ export function setup(opts: ParsedArgs) {
 		});
 
 		async function testHotExit(restartDelay: number | undefined, autoSave: boolean | undefined) {
-			app = await startApp(opts, this.defaultOptions);
+			app = await startApp(this.defaultOptions);
 
 			if (autoSave) {
 				await app.workbench.settingsEditor.addUserSetting('files.autoSave', '"afterDelay"');
@@ -98,12 +123,13 @@ export function setup(opts: ParsedArgs) {
 		let insidersApp: Application | undefined = undefined;
 		let stableApp: Application | undefined = undefined;
 
-		installCommonBeforeEachHandler();
-		installCommonAfterHandlers(opts, () => insidersApp ?? stableApp, async () => stableApp?.stop());
+		// Shared before/after handling
+		installDiagnosticsHandler(logger, () => insidersApp ?? stableApp);
+		installAppAfterHandler(() => insidersApp ?? stableApp, async () => stableApp?.stop());
 
 		it('verifies opened editors are restored', async function () {
-			const stableCodePath = opts['stable-build'];
-			if (!stableCodePath || opts.remote) {
+			const stableCodePath = ensureStableCode();
+			if (!stableCodePath) {
 				this.skip();
 			}
 
@@ -160,8 +186,8 @@ export function setup(opts: ParsedArgs) {
 		});
 
 		async function testHotExit(restartDelay: number | undefined) {
-			const stableCodePath = opts['stable-build'];
-			if (!stableCodePath || opts.remote) {
+			const stableCodePath = ensureStableCode();
+			if (!stableCodePath) {
 				this.skip();
 			}
 

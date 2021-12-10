@@ -10,8 +10,7 @@ import { CellLayoutState, IGenericCellViewModel, NotebookLayoutInfo } from 'vs/w
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { hash } from 'vs/base/common/hash';
-import { format } from 'vs/base/common/jsonFormatter';
-import { applyEdits } from 'vs/base/common/jsonEdit';
+import { toFormattedString } from 'vs/base/common/jsonFormatter';
 import { ICellOutput, IOutputDto, IOutputItemDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
 import { URI } from 'vs/base/common/uri';
@@ -617,13 +616,12 @@ export function getFormatedMetadataJSON(documentTextModel: NotebookTextModel, me
 		filteredMetadata = metadata;
 	}
 
-	const content = JSON.stringify({
+	const obj = {
 		language,
 		...filteredMetadata
-	});
+	};
 
-	const edits = format(content, undefined, {});
-	const metadataSource = applyEdits(content, edits);
+	const metadataSource = toFormattedString(obj, {});
 
 	return metadataSource;
 }

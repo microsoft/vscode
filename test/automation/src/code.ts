@@ -14,7 +14,7 @@ import { copyExtension } from './extensions';
 
 const repoPath = path.join(__dirname, '../../..');
 
-export interface SpawnOptions {
+export interface LaunchOptions {
 	codePath?: string;
 	workspacePath: string;
 	userDataDir: string;
@@ -26,15 +26,42 @@ export interface SpawnOptions {
 	web?: boolean;
 	headless?: boolean;
 	browser?: 'chromium' | 'webkit' | 'firefox';
-	testTitle?: string;
+}
+
+interface ICodeInstance {
+	kill: () => Promise<void>
+}
+
+const instances = new Set<ICodeInstance>();
+
+function registerInstance(process: cp.ChildProcess, logger: Logger, type: string, kill: () => Promise<void>) {
+	const instance = { kill };
+	instances.add(instance);
+	process.once('exit', (code, signal) => {
+		logger.log(`Process terminated (type: ${type}, pid: ${process.pid}, code: ${code}, signal: ${signal})`);
+
+		instances.delete(instance);
+	});
+}
+
+async function teardown(signal?: number) {
+	stopped = true;
+
+	for (const instance of instances) {
+		await instance.kill();
+	}
+
+	if (typeof signal === 'number') {
+		process.exit(signal);
+	}
 }
 
 let stopped = false;
-process.on('exit', () => stopped = true);
-process.on('SIGINT', () => stopped = true);
-process.on('SIGTERM', () => stopped = true);
+process.on('exit', () => teardown());
+process.on('SIGINT', () => teardown(128 + 2)); 	 // https://nodejs.org/docs/v14.16.0/api/process.html#process_signal_events
+process.on('SIGTERM', () => teardown(128 + 15)); // same as above
 
-export async function spawn(options: SpawnOptions): Promise<Code> {
+export async function launch(options: LaunchOptions): Promise<Code> {
 	if (stopped) {
 		throw new Error('Smoke test process has terminated, refusing to spawn Code');
 	}
@@ -43,23 +70,19 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 
 	// Browser smoke tests
 	if (options.web) {
-		return spawnBrowser(options);
+		const { serverProcess, client, driver, kill } = await measureAndLog(launchPlaywright(options), 'launch playwright', options.logger);
+		registerInstance(serverProcess, options.logger, 'server', kill);
+
+		return new Code(client, driver, options.logger, serverProcess);
 	}
 
 	// Electron smoke tests
-	return spawnElectron(options);
-}
+	else {
+		const { electronProcess, client, driver, kill } = await measureAndLog(launchElectron(options), 'launch electron', options.logger);
+		registerInstance(electronProcess, options.logger, 'electron', kill);
 
-async function spawnBrowser(options: SpawnOptions): Promise<Code> {
-	const { serverProcess, client, driver } = await launchPlaywright(options.codePath, options.userDataDir, options.extensionsPath, options.workspacePath, Boolean(options.verbose), options, options.logger);
-
-	return new Code(client, driver, options.logger, serverProcess);
-}
-
-async function spawnElectron(options: SpawnOptions): Promise<Code> {
-	const { electronProcess, client, driver } = await launchElectron(options.codePath, options.userDataDir, options.extensionsPath, options.workspacePath, Boolean(options.verbose), Boolean(options.remote), options.extraArgs, options.logger);
-
-	return new Code(client, driver, options.logger, electronProcess);
+		return new Code(client, driver, options.logger, electronProcess);
+	}
 }
 
 async function poll<T>(
@@ -110,7 +133,7 @@ export class Code {
 		private readonly mainProcess: cp.ChildProcess
 	) {
 		this.driver = new Proxy(driver, {
-			get(target, prop, receiver) {
+			get(target, prop) {
 				if (typeof prop === 'symbol') {
 					throw new Error('Invalid usage');
 				}

@@ -12,6 +12,7 @@ import { OUTPUT_MODE_ID, LOG_MODE_ID } from 'vs/workbench/contrib/output/common/
 import { MonacoWebWorker, createWebWorker } from 'vs/editor/common/services/webWorker';
 import { ICreateData, OutputLinkComputer } from 'vs/workbench/contrib/output/common/outputLinkComputer';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export class OutputLinkProvider {
 
@@ -23,7 +24,8 @@ export class OutputLinkProvider {
 
 	constructor(
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IModelService private readonly modelService: IModelService
+		@IModelService private readonly modelService: IModelService,
+		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService
 	) {
 		this.disposeWorkerScheduler = new RunOnceScheduler(() => this.disposeWorker(), OutputLinkProvider.DISPOSE_WORKER_TIME);
 
@@ -67,7 +69,7 @@ export class OutputLinkProvider {
 				workspaceFolders: this.contextService.getWorkspace().folders.map(folder => folder.uri.toString())
 			};
 
-			this.worker = createWebWorker<OutputLinkComputer>(this.modelService, {
+			this.worker = createWebWorker<OutputLinkComputer>(this.modelService, this.languageConfigurationService, {
 				moduleId: 'vs/workbench/contrib/output/common/outputLinkComputer',
 				createData,
 				label: 'outputLinkComputer'

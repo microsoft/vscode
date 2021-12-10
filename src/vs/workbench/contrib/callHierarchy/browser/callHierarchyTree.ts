@@ -14,6 +14,7 @@ import { compare } from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { localize } from 'vs/nls';
+import { CSSIcon } from 'vs/base/common/codicons';
 
 export class Call {
 	constructor(
@@ -118,7 +119,7 @@ export class CallRenderer implements ITreeRenderer<Call, FuzzyScore, CallRenderi
 	renderElement(node: ITreeNode<Call, FuzzyScore>, _index: number, template: CallRenderingTemplate): void {
 		const { element, filterData } = node;
 		const deprecated = element.item.tags?.includes(SymbolTag.Deprecated);
-		template.icon.className = SymbolKinds.toCssClassName(element.item.kind, true);
+		template.icon.classList.add('inline', ...CSSIcon.asClassNameArray(SymbolKinds.toIcon(element.item.kind)));
 		template.label.setLabel(
 			element.item.name,
 			element.item.detail,

@@ -21,104 +21,6 @@ import { dispose, Disposable } from 'vs/base/common/lifecycle';
 import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
 import { CursorStateChangedEvent, ViewModelEventsCollector } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
 
-/**
- * A snapshot of the cursor and the model state
- */
-export class CursorModelState {
-
-	public readonly modelVersionId: number;
-	public readonly cursorState: CursorState[];
-
-	constructor(model: ITextModel, cursor: CursorsController) {
-		this.modelVersionId = model.getVersionId();
-		this.cursorState = cursor.getCursorStates();
-	}
-
-	public equals(other: CursorModelState | null): boolean {
-		if (!other) {
-			return false;
-		}
-		if (this.modelVersionId !== other.modelVersionId) {
-			return false;
-		}
-		if (this.cursorState.length !== other.cursorState.length) {
-			return false;
-		}
-		for (let i = 0, len = this.cursorState.length; i < len; i++) {
-			if (!this.cursorState[i].equals(other.cursorState[i])) {
-				return false;
-			}
-		}
-		return true;
-	}
-}
-
-class AutoClosedAction {
-
-	public static getAllAutoClosedCharacters(autoClosedActions: AutoClosedAction[]): Range[] {
-		let autoClosedCharacters: Range[] = [];
-		for (const autoClosedAction of autoClosedActions) {
-			autoClosedCharacters = autoClosedCharacters.concat(autoClosedAction.getAutoClosedCharactersRanges());
-		}
-		return autoClosedCharacters;
-	}
-
-	private readonly _model: ITextModel;
-
-	private _autoClosedCharactersDecorations: string[];
-	private _autoClosedEnclosingDecorations: string[];
-
-	constructor(model: ITextModel, autoClosedCharactersDecorations: string[], autoClosedEnclosingDecorations: string[]) {
-		this._model = model;
-		this._autoClosedCharactersDecorations = autoClosedCharactersDecorations;
-		this._autoClosedEnclosingDecorations = autoClosedEnclosingDecorations;
-	}
-
-	public dispose(): void {
-		this._autoClosedCharactersDecorations = this._model.deltaDecorations(this._autoClosedCharactersDecorations, []);
-		this._autoClosedEnclosingDecorations = this._model.deltaDecorations(this._autoClosedEnclosingDecorations, []);
-	}
-
-	public getAutoClosedCharactersRanges(): Range[] {
-		let result: Range[] = [];
-		for (let i = 0; i < this._autoClosedCharactersDecorations.length; i++) {
-			const decorationRange = this._model.getDecorationRange(this._autoClosedCharactersDecorations[i]);
-			if (decorationRange) {
-				result.push(decorationRange);
-			}
-		}
-		return result;
-	}
-
-	public isValid(selections: Range[]): boolean {
-		let enclosingRanges: Range[] = [];
-		for (let i = 0; i < this._autoClosedEnclosingDecorations.length; i++) {
-			const decorationRange = this._model.getDecorationRange(this._autoClosedEnclosingDecorations[i]);
-			if (decorationRange) {
-				enclosingRanges.push(decorationRange);
-				if (decorationRange.startLineNumber !== decorationRange.endLineNumber) {
-					// Stop tracking if the range becomes multiline...
-					return false;
-				}
-			}
-		}
-		enclosingRanges.sort(Range.compareRangesUsingStarts);
-
-		selections.sort(Range.compareRangesUsingStarts);
-
-		for (let i = 0; i < selections.length; i++) {
-			if (i >= enclosingRanges.length) {
-				return false;
-			}
-			if (!enclosingRanges[i].strictContainsRange(selections[i])) {
-				return false;
-			}
-		}
-
-		return true;
-	}
-}
-
 export class CursorsController extends Disposable {
 
 	public static readonly MAX_CURSOR_COUNT = 10000;
@@ -221,7 +123,7 @@ export class CursorsController extends Disposable {
 			reachedMaxCursorCount = true;
 		}
 
-		const oldState = new CursorModelState(this._model, this);
+		const oldState = CursorModelState.from(this._model, this);
 
 		this._cursors.setStates(states);
 		this._cursors.normalize();
@@ -505,7 +407,7 @@ export class CursorsController extends Disposable {
 	// ----- emitting events
 
 	private _emitStateChangedIfNecessary(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, reason: CursorChangeReason, oldState: CursorModelState | null, reachedMaxCursorCount: boolean): boolean {
-		const newState = new CursorModelState(this._model, this);
+		const newState = CursorModelState.from(this._model, this);
 		if (newState.equals(oldState)) {
 			return false;
 		}
@@ -616,7 +518,7 @@ export class CursorsController extends Disposable {
 			return;
 		}
 
-		const oldState = new CursorModelState(this._model, this);
+		const oldState = CursorModelState.from(this._model, this);
 		this._cursors.stopTrackingSelections();
 		this._isHandling = true;
 
@@ -728,6 +630,105 @@ export class CursorsController extends Disposable {
 				shouldPushStackElementAfter: false
 			}));
 		}, eventsCollector, source);
+	}
+}
+
+/**
+ * A snapshot of the cursor and the model state
+ */
+class CursorModelState {
+	public static from(model: ITextModel, cursor: CursorsController): CursorModelState {
+		return new CursorModelState(model.getVersionId(), cursor.getCursorStates());
+	}
+
+	constructor(
+		public readonly modelVersionId: number,
+		public readonly cursorState: CursorState[],
+	) {
+	}
+
+	public equals(other: CursorModelState | null): boolean {
+		if (!other) {
+			return false;
+		}
+		if (this.modelVersionId !== other.modelVersionId) {
+			return false;
+		}
+		if (this.cursorState.length !== other.cursorState.length) {
+			return false;
+		}
+		for (let i = 0, len = this.cursorState.length; i < len; i++) {
+			if (!this.cursorState[i].equals(other.cursorState[i])) {
+				return false;
+			}
+		}
+		return true;
+	}
+}
+
+class AutoClosedAction {
+
+	public static getAllAutoClosedCharacters(autoClosedActions: AutoClosedAction[]): Range[] {
+		let autoClosedCharacters: Range[] = [];
+		for (const autoClosedAction of autoClosedActions) {
+			autoClosedCharacters = autoClosedCharacters.concat(autoClosedAction.getAutoClosedCharactersRanges());
+		}
+		return autoClosedCharacters;
+	}
+
+	private readonly _model: ITextModel;
+
+	private _autoClosedCharactersDecorations: string[];
+	private _autoClosedEnclosingDecorations: string[];
+
+	constructor(model: ITextModel, autoClosedCharactersDecorations: string[], autoClosedEnclosingDecorations: string[]) {
+		this._model = model;
+		this._autoClosedCharactersDecorations = autoClosedCharactersDecorations;
+		this._autoClosedEnclosingDecorations = autoClosedEnclosingDecorations;
+	}
+
+	public dispose(): void {
+		this._autoClosedCharactersDecorations = this._model.deltaDecorations(this._autoClosedCharactersDecorations, []);
+		this._autoClosedEnclosingDecorations = this._model.deltaDecorations(this._autoClosedEnclosingDecorations, []);
+	}
+
+	public getAutoClosedCharactersRanges(): Range[] {
+		let result: Range[] = [];
+		for (let i = 0; i < this._autoClosedCharactersDecorations.length; i++) {
+			const decorationRange = this._model.getDecorationRange(this._autoClosedCharactersDecorations[i]);
+			if (decorationRange) {
+				result.push(decorationRange);
+			}
+		}
+		return result;
+	}
+
+	public isValid(selections: Range[]): boolean {
+		let enclosingRanges: Range[] = [];
+		for (let i = 0; i < this._autoClosedEnclosingDecorations.length; i++) {
+			const decorationRange = this._model.getDecorationRange(this._autoClosedEnclosingDecorations[i]);
+			if (decorationRange) {
+				enclosingRanges.push(decorationRange);
+				if (decorationRange.startLineNumber !== decorationRange.endLineNumber) {
+					// Stop tracking if the range becomes multiline...
+					return false;
+				}
+			}
+		}
+		enclosingRanges.sort(Range.compareRangesUsingStarts);
+
+		selections.sort(Range.compareRangesUsingStarts);
+
+		for (let i = 0; i < selections.length; i++) {
+			if (i >= enclosingRanges.length) {
+				return false;
+			}
+			if (!enclosingRanges[i].strictContainsRange(selections[i])) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 }
 
