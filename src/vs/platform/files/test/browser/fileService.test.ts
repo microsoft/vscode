@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
-import { timeout } from 'vs/base/common/async';
+import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { consumeStream, newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
@@ -304,6 +303,8 @@ suite('File Service', () => {
 	test('readFile/readFileStream supports cancellation (https://github.com/microsoft/vscode/issues/138805)', async () => {
 		const service = new FileService(new NullLogService());
 
+		let readFileStreamReady: DeferredPromise<void> | undefined = undefined;
+
 		const provider = new class extends NullFileSystemProvider {
 
 			override async stat(resource: URI): Promise<IStat> {
@@ -317,7 +318,12 @@ suite('File Service', () => {
 
 			readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
 				const stream = newWriteableStream<Uint8Array>(chunk => chunk[0]);
-				token.onCancellationRequested(() => stream.error(new Error('Expected cancellation')));
+				token.onCancellationRequested(() => {
+					stream.error(new Error('Expected cancellation'));
+					stream.end();
+				});
+
+				readFileStreamReady!.complete();
 
 				return stream;
 			}
@@ -327,13 +333,12 @@ suite('File Service', () => {
 
 		provider.setCapabilities(FileSystemProviderCapabilities.FileReadStream);
 
-
 		let e1;
 		try {
 			const cts = new CancellationTokenSource();
+			readFileStreamReady = new DeferredPromise();
 			const promise = service.readFile(URI.parse('test://foo/bar'), undefined, cts.token);
-			scheduleAtNextAnimationFrame(() => cts.cancel());
-			await promise;
+			await Promise.all([readFileStreamReady.p.then(() => cts.cancel()), promise]);
 		} catch (error) {
 			e1 = error;
 		}
@@ -343,9 +348,9 @@ suite('File Service', () => {
 		let e2;
 		try {
 			const cts = new CancellationTokenSource();
+			readFileStreamReady = new DeferredPromise();
 			const stream = await service.readFileStream(URI.parse('test://foo/bar'), undefined, cts.token);
-			scheduleAtNextAnimationFrame(() => cts.cancel());
-			await consumeStream(stream.value, chunk => chunk[0]);
+			await Promise.all([readFileStreamReady.p.then(() => cts.cancel()), consumeStream(stream.value, chunk => chunk[0])]);
 		} catch (error) {
 			e2 = error;
 		}
