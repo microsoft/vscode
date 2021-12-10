@@ -375,10 +375,10 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	setupNotebookTests(logger);
 	setupLanguagesTests(logger);
 	setupEditorTests(logger);
-	setupTerminalTests(!!opts.web, logger);
+	if (opts.web) { setupTerminalTests(logger); } // TODO@daniel TODO@meggan: Enable terminal tests for non-web when the desktop driver is moved to playwright
 	setupStatusbarTests(!!opts.web, logger);
-	setupExtensionTests(logger);
+	if (quality !== Quality.Dev) { setupExtensionTests(logger); }
 	if (!opts.web) { setupMultirootTests(logger); }
-	if (!opts.web) { setupLocalizationTests(logger); }
-	if (!opts.web) { setupLaunchTests(logger); }
+	if (!opts.web && !opts.remote && quality !== Quality.Dev) { setupLocalizationTests(logger); }
+	if (!opts.web && !opts.remote) { setupLaunchTests(logger); }
 });

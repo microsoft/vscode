@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Quality, Logger, Application } from '../../../../automation';
+import { Logger, Application } from '../../../../automation';
 import { installAllHandlers } from '../../utils';
 
 export function setup(logger: Logger) {
@@ -14,10 +14,6 @@ export function setup(logger: Logger) {
 		installAllHandlers(logger);
 
 		it('starts with "DE" locale and verifies title and viewlets text is in German', async function () {
-			if (this.defaultOptions.quality === Quality.Dev || this.defaultOptions.remote) {
-				return this.skip();
-			}
-
 			const app = this.app as Application;
 			await app.workbench.extensions.openExtensionsViewlet();
 			await app.workbench.extensions.installExtension('ms-ceintl.vscode-language-pack-de', false);
