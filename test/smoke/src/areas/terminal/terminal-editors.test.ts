@@ -6,7 +6,7 @@
 import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation';
 
 export function setup() {
-	describe('Terminal Editors', () => {
+	describe.only('Terminal Editors', () => {
 		let terminal: Terminal;
 		let app: Application;
 		// Acquire automation API
@@ -72,6 +72,7 @@ export function setup() {
 			await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');
 			await terminal.runCommand(TerminalCommandId.CreateNew);
 			await terminal.assertEditorGroupCount(1);
+			await terminal.assertTerminalViewHidden();
 		});
 	});
 }
