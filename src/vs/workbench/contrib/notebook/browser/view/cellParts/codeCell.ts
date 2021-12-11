@@ -5,6 +5,7 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { raceCancellation } from 'vs/base/common/async';
+import { Event } from 'vs/base/common/event';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -112,13 +113,8 @@ export class CodeCell extends Disposable {
 
 		this.updateForCollapseState();
 
-		this.updateForOutputs();
-		this._register(viewCell.onDidChangeOutputs(_e => this.updateForOutputs()));
-
-		this.updateForLayout();
-		this._register(this.viewCell.onDidChangeLayout(() => {
-			this.updateForLayout();
-		}));
+		this._register(Event.runAndSubscribe(viewCell.onDidChangeOutputs, this.updateForOutputs.bind(this)));
+		this._register(Event.runAndSubscribe(viewCell.onDidChangeLayout, this.updateForLayout.bind(this)));
 	}
 
 	private updateForLayout(): void {
