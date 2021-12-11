@@ -113,7 +113,8 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		}
 
 		if (this._renderLineNumbers === RenderLineNumbersType.Relative) {
-			const diff = Math.abs(this._lastCursorModelPosition.lineNumber - modelLineNumber);
+			const lastCursorViewPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(this._lastCursorModelPosition);
+			const diff = Math.abs(lastCursorViewPosition.lineNumber - viewLineNumber);
 			if (diff === 0) {
 				return '<span class="relative-current-line-number">' + modelLineNumber + '</span>';
 			}
