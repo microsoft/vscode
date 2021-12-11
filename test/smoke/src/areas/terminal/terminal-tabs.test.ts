@@ -14,7 +14,7 @@ export function setup() {
 			terminal = app.workbench.terminal;
 		});
 
-		it('clicking the plus button should create a terminal and display the tabs view showing no split decorations', async () => {
+		it.skip('clicking the plus button should create a terminal and display the tabs view showing no split decorations', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.CreateNew);
 			await terminal.clickPlusButton();

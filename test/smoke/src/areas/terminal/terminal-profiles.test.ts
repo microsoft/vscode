@@ -48,7 +48,7 @@ export function setup() {
 			await terminal.assertTerminalGroups([[{}, {}]]);
 		});
 
-		it('createWithProfile command should create a terminal with a profile', async () => {
+		it.skip('createWithProfile command should create a terminal with a profile', async () => {
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.NewWithProfile);
 			await terminal.assertSingleTab({ name: ANY_PROFILE_NAME });
 		});
