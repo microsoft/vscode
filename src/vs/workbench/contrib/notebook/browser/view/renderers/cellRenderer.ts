@@ -230,13 +230,8 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		templateData.templateDisposables.clear();
 	}
 
-	disposeElement(element: ICellViewModel, _index: number, templateData: MarkdownCellRenderTemplate): void {
+	disposeElement(_element: ICellViewModel, _index: number, templateData: MarkdownCellRenderTemplate): void {
 		templateData.elementDisposables.clear();
-		element.getCellDecorations().forEach(e => {
-			if (e.className) {
-				templateData.container.classList.remove(e.className);
-			}
-		});
 	}
 }
 
