@@ -131,7 +131,13 @@ export class GitHubServer implements IGitHubServer {
 		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate`));
 
 		if (this.isTestEnvironment(callbackUri)) {
-			const token = await vscode.window.showInputBox({ prompt: 'GitHub Personal Access Token', ignoreFocusOut: true });
+			let token;
+			try {
+				token = await vscode.commands.executeCommand<string>('authentication.github.device.code', scopes);
+			} catch (ex) {
+				this._logger.error(ex.message);
+				token = await vscode.window.showInputBox({ prompt: 'GitHub Personal Access Token', ignoreFocusOut: true });
+			}
 			if (!token) { throw new Error('Sign in failed: No token provided'); }
 
 			const tokenScopes = await getScopes(token, this.getServerUri('/'), this._logger); // Example: ['repo', 'user']
