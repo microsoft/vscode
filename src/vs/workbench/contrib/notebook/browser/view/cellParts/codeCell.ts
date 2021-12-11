@@ -114,16 +114,22 @@ export class CodeCell extends Disposable {
 
 		this.updateForOutputs();
 		this._register(viewCell.onDidChangeOutputs(_e => this.updateForOutputs()));
+
+		this.updateForLayout();
+		this._register(this.viewCell.onDidChangeLayout(() => {
+			this.updateForLayout();
+		}));
 	}
 
-	layoutCellParts() {
-		this.cellParts.forEach(part => {
-			part.updateInternalLayoutNow(this.viewCell);
-		});
+	private updateForLayout(): void {
+		this.templateData.elementDisposables.add(DOM.scheduleAtNextAnimationFrame(() => {
+			this.cellParts.forEach(part => {
+				part.updateInternalLayoutNow(this.viewCell);
+			});
 
-		// this.cellsParts are parted created on the template while output container is created by the `CodeCell`
-
-		this._outputContainerRenderer.updateInternalLayoutNow(this.viewCell);
+			// this.cellsParts are parted created on the template while output container is created by the `CodeCell`
+			this._outputContainerRenderer.updateInternalLayoutNow(this.viewCell);
+		}));
 	}
 
 	private updateForOutputHover() {

@@ -561,12 +561,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		return combinedDisposable(dragHandleListener, collapsedPartListener, clickHandler);
 	}
 
-	private updateForLayout(codeCellView: CodeCell, element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
-		templateData.elementDisposables.add(DOM.scheduleAtNextAnimationFrame(() => {
-			codeCellView.layoutCellParts();
-		}));
-	}
-
 	private updateFocusIndicatorsForTitleMenu(templateData: CodeCellRenderTemplate): void {
 		const layoutInfo = this.notebookEditor.notebookOptions.getLayoutConfiguration();
 		if (templateData.titleToolbar.hasActions) {
@@ -614,11 +608,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		elementDisposables.add(cellEditorOptions.onDidChange(() => templateData.editor.updateOptions(cellEditorOptions.getUpdatedValue(element.internalMetadata))));
 		templateData.editor.updateOptions(cellEditorOptions.getUpdatedValue(element.internalMetadata));
 		cellEditorOptions.setLineNumbers(element.lineNumbers);
-
-		this.updateForLayout(codeCellView, element, templateData);
-		elementDisposables.add(element.onDidChangeLayout(() => {
-			this.updateForLayout(codeCellView, element, templateData);
-		}));
 
 		this.updateFocusIndicatorsForTitleMenuAndSubscribe(element, templateData, codeCellView);
 	}
