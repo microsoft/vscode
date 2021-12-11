@@ -792,7 +792,7 @@ export interface WebviewPanelViewStateData {
 }
 
 export interface ExtHostWebviewsShape {
-	$onMessage(handle: WebviewHandle, jsonSerializedMessage: string, ...buffers: VSBuffer[]): void;
+	$onMessage(handle: WebviewHandle, jsonSerializedMessage: string, buffers: SerializableObjectWithBuffers<VSBuffer[]>): void;
 	$onMissingCsp(handle: WebviewHandle, extensionId: string): void;
 }
 
