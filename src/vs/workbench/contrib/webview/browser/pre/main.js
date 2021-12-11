@@ -204,40 +204,28 @@ const workerReady = new Promise((resolve, reject) => {
 		return reject(new Error('Service Workers are not enabled. Webviews will not work. Try disabling private/incognito mode.'));
 	}
 
-	const swPath = `service-worker.js?vscode-resource-base-authority=${searchParams.get('vscode-resource-base-authority')}`;
+	const swPath = `service-worker.js?v=${expectedWorkerVersion}&vscode-resource-base-authority=${searchParams.get('vscode-resource-base-authority')}`;
 
 	navigator.serviceWorker.register(swPath).then(
 		async registration => {
 			await navigator.serviceWorker.ready;
-
 			/**
 			 * @param {MessageEvent} event
 			 */
 			const versionHandler = async (event) => {
-				if (event.data.channel !== 'version') {
+				if (event.data.channel !== 'init') {
 					return;
 				}
-
 				navigator.serviceWorker.removeEventListener('message', versionHandler);
-				if (event.data.version === expectedWorkerVersion) {
-					return resolve();
-				} else {
-					console.log(`Found unexpected service worker version. Found: ${event.data.version}. Expected: ${expectedWorkerVersion}`);
-					console.log(`Attempting to reload service worker`);
 
-					// If we have the wrong version, try once (and only once) to unregister and re-register
-					// Note that `.update` doesn't seem to work desktop electron at the moment so we use
-					// `unregister` and `register` here.
-					return registration.unregister()
-						.then(() => navigator.serviceWorker.register(swPath))
-						.then(() => navigator.serviceWorker.ready)
-						.finally(() => { resolve(); });
-				}
+				// Forward the port back to VS Code
+				hostMessaging.onMessage('did-init-service-worker', () => resolve());
+				hostMessaging.postMessage('init-service-worker', {}, event.ports);
 			};
 			navigator.serviceWorker.addEventListener('message', versionHandler);
 
 			const postVersionMessage = () => {
-				assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'version' });
+				assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'init' });
 			};
 
 			// At this point, either the service worker is ready and
@@ -388,26 +376,7 @@ const initData = {
 	themeName: undefined,
 };
 
-hostMessaging.onMessage('did-load-resource', (_event, data) => {
-	navigator.serviceWorker.ready.then(registration => {
-		assertIsDefined(registration.active).postMessage({ channel: 'did-load-resource', data }, data.data?.buffer ? [data.data.buffer] : []);
-	});
-});
 
-hostMessaging.onMessage('did-load-localhost', (_event, data) => {
-	navigator.serviceWorker.ready.then(registration => {
-		assertIsDefined(registration.active).postMessage({ channel: 'did-load-localhost', data });
-	});
-});
-
-navigator.serviceWorker.addEventListener('message', event => {
-	switch (event.data.channel) {
-		case 'load-resource':
-		case 'load-localhost':
-			hostMessaging.postMessage(event.data.channel, event.data);
-			return;
-	}
-});
 /**
  * @param {HTMLDocument?} document
  * @param {HTMLElement?} body
