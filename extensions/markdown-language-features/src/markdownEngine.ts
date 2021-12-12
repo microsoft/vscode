@@ -164,6 +164,7 @@ export class MarkdownEngine {
 	): Token[] {
 		const cached = this._tokenCache.tryGetCached(document, config);
 		if (cached) {
+			this.resetSlugCount();
 			return cached;
 		}
 
@@ -173,9 +174,13 @@ export class MarkdownEngine {
 	}
 
 	private tokenizeString(text: string, engine: MarkdownIt) {
-		this._slugCount = new Map<string, number>();
+		this.resetSlugCount();
 
 		return engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {});
+	}
+	
+	public resetSlugCount(): void {
+		this._slugCount = new Map<string, number>();
 	}
 
 	public async render(input: SkinnyTextDocument | string, resourceProvider?: WebviewResourceProvider): Promise<RenderOutput> {
