@@ -745,7 +745,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 	constructor(
 		private readonly settingActions: IAction[],
-		private readonly disposableActionFactory: (setting: ISetting) => IAction[],
+		private readonly getSettingSpecificActions: (setting: ISetting) => [IAction[], IAction[]],
 		@IThemeService protected readonly _themeService: IThemeService,
 		@IContextViewService protected readonly _contextViewService: IContextViewService,
 		@IOpenerService protected readonly _openerService: IOpenerService,
@@ -869,9 +869,10 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const element = node.element;
 		template.context = element;
 		template.toolbar.context = element;
-		const actions = this.disposableActionFactory(element.setting);
-		actions.forEach(a => template.elementDisposables?.add(a));
-		template.toolbar.setActions([], [...this.settingActions, ...actions]);
+		const [prependActions, appendActions] = this.getSettingSpecificActions(element.setting);
+		prependActions.forEach(a => template.elementDisposables?.add(a));
+		appendActions.forEach(a => template.elementDisposables?.add(a));
+		template.toolbar.setActions([], [...prependActions, ...this.settingActions, ...appendActions]);
 
 		const setting = element.setting;
 
@@ -1944,19 +1945,12 @@ export class SettingTreeRenderers {
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IUserDataSyncEnablementService private readonly _userDataSyncEnablementService: IUserDataSyncEnablementService,
+		@IUserDataSyncEnablementService private readonly _userDataSyncEnablementService: IUserDataSyncEnablementService
 	) {
 		this.settingActions = [
-			new Action('settings.resetSetting', localize('resetSettingLabel', "Reset Setting"), undefined, undefined, async context => {
-				if (context instanceof SettingsTreeSettingElement) {
-					if (!context.isUntrusted) {
-						this._onDidChangeSetting.fire({ key: context.setting.key, value: undefined, type: context.setting.type as SettingValueType });
-					}
-				}
-			}),
-			new Separator(),
 			this._instantiationService.createInstance(CopySettingIdAction),
 			this._instantiationService.createInstance(CopySettingAsJSONAction),
 		];
@@ -1993,14 +1987,35 @@ export class SettingTreeRenderers {
 		];
 	}
 
-	private getActionsForSetting(setting: ISetting): IAction[] {
+	/**
+	 * Gets actions specific to the given setting.
+	 * @returns a list of two lists, one with the actions to prepend to the
+	 * generic actions list, and one with the actions to append to that same list.
+	 */
+	private getActionsForSetting(setting: ISetting): [IAction[], IAction[]] {
+		const prependActions: IAction[] = [];
+		const appendActions: IAction[] = [];
+
+		const resetAction = new Action('settings.resetSetting',
+			localize('resetSettingLabel', "Reset Setting"),
+			undefined,
+			!setting.restricted || this._contextKeyService.getContextKeyValue('isWorkspaceTrusted'),
+			async context => {
+				if (context instanceof SettingsTreeSettingElement) {
+					if (!context.isUntrusted) {
+						this._onDidChangeSetting.fire({ key: context.setting.key, value: undefined, type: context.setting.type as SettingValueType });
+					}
+				}
+			});
+		prependActions.push(resetAction);
+		prependActions.push(new Separator());
+
 		const enableSync = this._userDataSyncEnablementService.isEnabled();
-		return enableSync && !setting.disallowSyncIgnore ?
-			[
-				new Separator(),
-				this._instantiationService.createInstance(SyncSettingAction, setting)
-			] :
-			[];
+		if (enableSync && !setting.disallowSyncIgnore) {
+			appendActions.push(new Separator());
+			appendActions.push(this._instantiationService.createInstance(SyncSettingAction, setting));
+		}
+		return [prependActions, appendActions];
 	}
 
 	cancelSuggesters() {
