@@ -366,8 +366,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			this._send(WebviewMessageChannels.didInitServiceWorker);
 		}));
 
-		this.style();
-		this._register(webviewThemeDataProvider.onThemeDataChanged(this.style, this));
+		this._register(Event.runAndSubscribe(webviewThemeDataProvider.onThemeDataChanged, () => this.style()));
 
 		/* __GDPR__
 			"webview.createWebview" : {
