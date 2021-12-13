@@ -453,7 +453,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 				},
 				get environmentVariableCollection() { return that._extHostTerminalService.getEnvironmentVariableCollection(extensionDescription); },
 				messagePassingProtocol: messagePort && {
-					onDidReceiveMessage: Event.fromDOMEventEmitter(messagePort, 'message', (e: MessageEvent) => e.data),
+					onDidReceiveMessage: Event.fromDOMEventEmitter(messagePort, 'message', e => e.data),
 					postMessage: messagePort.postMessage.bind(messagePort) as any
 				}
 			});
