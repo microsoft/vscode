@@ -127,12 +127,15 @@ export class CodeCell extends Disposable {
 		cellEditorOptions.setLineNumbers(this.viewCell.lineNumbers);
 	}
 
+	private _pendingLayout: IDisposable | undefined;
+
 	private updateForLayout(): void {
-		this.templateData.elementDisposables.add(DOM.scheduleAtNextAnimationFrame(() => {
+		this._pendingLayout?.dispose();
+		this._pendingLayout = DOM.modify(() => {
 			this.cellParts.forEach(part => {
 				part.updateInternalLayoutNow(this.viewCell);
 			});
-		}));
+		});
 	}
 
 	private updateForOutputHover() {
@@ -501,6 +504,7 @@ export class CodeCell extends Disposable {
 		this._outputContainerRenderer.dispose();
 		this._untrustedStatusItem?.dispose();
 		this.templateData.focusIndicator.left.setHeight(0);
+		this._pendingLayout?.dispose();
 
 		super.dispose();
 	}
