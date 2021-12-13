@@ -319,6 +319,7 @@ export class InteractiveEditor extends EditorPane {
 
 		this.#notebookWidget.value?.setParentContextKeyService(this.#contextKeyService);
 		await this.#notebookWidget.value!.setModel(model.notebook, undefined);
+		model.notebook.setCellCollapseDefault({ inputCollapsed: true, outputCollapsed: false });
 		this.#notebookWidget.value!.setOptions({
 			isReadOnly: true
 		});
