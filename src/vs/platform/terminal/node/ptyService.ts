@@ -37,6 +37,7 @@ export class PtyService extends Disposable implements IPtyService {
 	private readonly _workspaceLayoutInfos = new Map<WorkspaceId, ISetTerminalLayoutInfoArgs>();
 	private readonly _detachInstanceRequestStore: RequestStore<IProcessDetails | undefined, { workspaceId: string, instanceId: number }>;
 	private readonly _revivedPtyIdMap: Map<number, { newId: number, state: ISerializedTerminalState }> = new Map();
+	private readonly _autoReplies: Map<string, string> = new Map();
 
 	private readonly _onHeartbeat = this._register(new Emitter<void>());
 	readonly onHeartbeat = this._onHeartbeat.event;
@@ -206,6 +207,11 @@ export class PtyService extends Disposable implements IPtyService {
 		persistentProcess.onProcessReady(event => this._onProcessReady.fire({ id, event }));
 		persistentProcess.onProcessOrphanQuestion(() => this._onProcessOrphanQuestion.fire({ id }));
 		persistentProcess.onDidChangeProperty(property => this._onDidChangeProperty.fire({ id, property }));
+		persistentProcess.onPersistentProcessReady(() => {
+			for (const e of this._autoReplies.entries()) {
+				persistentProcess.installAutoReply(e[0], e[1]);
+			}
+		});
 		this._ptys.set(id, persistentProcess);
 		return id;
 	}
@@ -291,6 +297,26 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 	async orphanQuestionReply(id: number): Promise<void> {
 		return this._throwIfNoPty(id).orphanQuestionReply();
+	}
+
+	async installAutoReply(match: string, reply: string) {
+		this._autoReplies.set(match, reply);
+		// If the auto reply exists on any existing terminals it will be overridden
+		for (const p of this._ptys.values()) {
+			p.installAutoReply(match, reply);
+		}
+	}
+	async uninstallAllAutoReplies() {
+		for (const match of this._autoReplies.keys()) {
+			for (const p of this._ptys.values()) {
+				p.uninstallAutoReply(match);
+			}
+		}
+	}
+	async uninstallAutoReply(match: string) {
+		for (const p of this._ptys.values()) {
+			p.uninstallAutoReply(match);
+		}
 	}
 
 	async getDefaultSystemShell(osOverride: OperatingSystem = OS): Promise<string> {
@@ -401,6 +427,7 @@ export class PersistentTerminalProcess extends Disposable {
 
 	private readonly _bufferer: TerminalDataBufferer;
 	private _eventListeners: ITerminalEventListener[] = [];
+	private _autoReplies: Map<string, TerminalAutoResponder> = new Map();
 
 	private readonly _pendingCommands = new Map<number, { resolve: (data: any) => void; reject: (err: any) => void; }>();
 
@@ -417,6 +444,9 @@ export class PersistentTerminalProcess extends Disposable {
 	readonly onProcessReplay = this._onProcessReplay.event;
 	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
 	readonly onProcessReady = this._onProcessReady.event;
+	private readonly _onPersistentProcessReady = this._register(new Emitter<void>());
+	/** Fired when the persistent process has a ready process and has finished its replay. */
+	readonly onPersistentProcessReady = this._onPersistentProcessReady.event;
 	private readonly _onProcessData = this._register(new Emitter<string>());
 	readonly onProcessData = this._onProcessData.event;
 	private readonly _onProcessOrphanQuestion = this._register(new Emitter<void>());
@@ -515,6 +545,14 @@ export class PersistentTerminalProcess extends Disposable {
 
 		// Data recording for reconnect
 		this._register(this.onProcessData(e => this._serializer.handleData(e)));
+
+		// Clean up other disposables
+		this._register(toDisposable(() => {
+			for (const e of this._autoReplies.values()) {
+				e.dispose();
+			}
+			this._autoReplies.clear();
+		}));
 	}
 
 	attach(): void {
@@ -564,7 +602,7 @@ export class PersistentTerminalProcess extends Disposable {
 			if (this._wasRevived) {
 				this.triggerReplay();
 			} else {
-				this._setupAutoResponder();
+				this._onPersistentProcessReady.fire();
 			}
 		} else {
 			this._onProcessReady.fire({ pid: this._pid, cwd: this._cwd, capabilities: this._terminalProcess.capabilities, requiresWindowsMode: isWindows && getWindowsBuildNumber() < 21376 });
@@ -635,14 +673,27 @@ export class PersistentTerminalProcess extends Disposable {
 		this._logService.info(`Persistent process "${this._persistentProcessId}": Replaying ${dataLength} chars and ${ev.events.length} size events`);
 		this._onProcessReplay.fire(ev);
 		this._terminalProcess.clearUnacknowledgedChars();
-		this._setupAutoResponder();
+		this._onPersistentProcessReady.fire();
 	}
 
-	private _setupAutoResponder() {
-		if (isWindows) {
-			this._eventListeners.push(this._register(new TerminalAutoResponder(this._terminalProcess, 'Terminate batch job (Y/N)', 'Y\r')));
-		}
+	installAutoReply(match: string, reply: string) {
+		this._autoReplies.get(match)?.dispose();
+		this._autoReplies.set(match, new TerminalAutoResponder(this._terminalProcess, match, reply));
 	}
+
+	uninstallAutoReply(match: string) {
+		const autoReply = this._autoReplies.get(match);
+		autoReply?.dispose();
+		this._autoReplies.delete(match);
+	}
+
+	// TODO: Remove
+	// private _setupAutoResponder() {
+	// 	if (isWindows) {
+	// 		this._eventListeners.push(this._register(new TerminalAutoResponder(this._terminalProcess, 'Terminate batch job (Y/N)', 'Y\r')));
+	// 	}
+	// 	this._eventListeners.push(this._register(new TerminalAutoResponder(this._terminalProcess, 'foo', 'bar')));
+	// }
 
 	sendCommandResult(reqId: number, isError: boolean, serializedPayload: any): void {
 		const data = this._pendingCommands.get(reqId);
