@@ -29,6 +29,7 @@ import { SCMViewService } from 'vs/workbench/contrib/scm/browser/scmViewService'
 import { SCMRepositoriesViewPane } from 'vs/workbench/contrib/scm/browser/scmRepositoriesViewPane';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
+import { MANAGE_TRUST_COMMAND_ID, WorkspaceTrustContext } from 'vs/workbench/contrib/workspace/common/workspace';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -58,6 +59,16 @@ const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsR
 viewsRegistry.registerViewWelcomeContent(VIEW_PANE_ID, {
 	content: localize('no open repo', "No source control providers registered."),
 	when: 'default'
+});
+
+viewsRegistry.registerViewWelcomeContent(VIEW_PANE_ID, {
+	content: localize('no open repo in an untrusted workspace', "None of the registered source control providers work in Restricted Mode."),
+	when: ContextKeyExpr.and(WorkspaceTrustContext.IsEnabled, WorkspaceTrustContext.IsTrusted.toNegated())
+});
+
+viewsRegistry.registerViewWelcomeContent(VIEW_PANE_ID, {
+	content: `[${localize('manageWorkspaceTrustAction', "Manage Workspace Trust")}](command:${MANAGE_TRUST_COMMAND_ID})`,
+	when: ContextKeyExpr.and(WorkspaceTrustContext.IsEnabled, WorkspaceTrustContext.IsTrusted.toNegated())
 });
 
 viewsRegistry.registerViews([{
