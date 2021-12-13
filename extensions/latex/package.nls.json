@@ -1,4 +1,4 @@
 {
 	"displayName": "LaTeX Language Basics",
-	"description": "Provides syntax highlighting and bracket matching for BibTeX, DocTeX, LaTeX, LaTeX3, Rsweave, Weave.jl-LaTeX."
+	"description": "Provides syntax highlighting and bracket matching for BibTeX, DocTeX, LaTeX."
 }
