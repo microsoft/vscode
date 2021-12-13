@@ -35,6 +35,11 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import * as marked from 'vs/base/common/marked/marked';
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
+import { OutlineModel } from 'vs/editor/contrib/documentSymbols/outlineModel';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { DocumentSymbol, SymbolKinds } from 'vs/editor/common/modes';
+
 
 export interface IOutlineMarkerInfo {
 	readonly count: number;
@@ -164,7 +169,7 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 			extraClasses: []
 		};
 
-		if (node.element.cell.cellKind === CellKind.Code && this._themeService.getFileIconTheme().hasFileIcons) {
+		if (node.element.cell.cellKind === CellKind.Code && this._themeService.getFileIconTheme().hasFileIcons && false) {
 			template.iconClass.className = '';
 			options.extraClasses?.push(...getIconClassesForModeId(node.element.cell.language ?? ''));
 		} else {
@@ -299,6 +304,7 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 		@IEditorService private readonly _editorService: IEditorService,
 		@IMarkerService private readonly _markerService: IMarkerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITextModelService private readonly _textModelService: ITextModelService,
 	) {
 		super();
 		const selectionListener = this._register(new MutableDisposable());
@@ -367,18 +373,14 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 		};
 	}
 
-	private _recomputeState(): void {
+	private async _recomputeState(): Promise<void> {
 		this._entriesDisposables.clear();
 		this._activeEntry = undefined;
 		this._entries.length = 0;
 
 		const notebookEditorControl = this._editor.getControl();
 
-		if (!notebookEditorControl) {
-			return;
-		}
-
-		if (!notebookEditorControl.hasModel()) {
+		if (!notebookEditorControl?.hasModel()) {
 			return;
 		}
 
@@ -419,20 +421,48 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 						entries.push(new OutlineEntry(entries.length, token.depth, cell, renderMarkdownAsPlaintext({ value: token.text }).trim(), Codicon.markdown));
 					}
 				}
+
 				if (!hasHeader) {
-					content = renderMarkdownAsPlaintext({ value: content });
+					const preview = content.trim() || localize('empty', "empty cell");
+					entries.push(new OutlineEntry(entries.length, 7, cell, preview, Codicon.markdown));
+				}
+
+			} else {
+				// code cell
+				const ref = await this._textModelService.createModelReference(cell.uri);
+				try {
+					const model = await OutlineModel.create(ref.object.textEditorModel, CancellationToken.None);
+					const symbolCount = (function visitSymbol(symbols: DocumentSymbol[], level: number) {
+						let count = 0;
+						for (let symbol of symbols) {
+							count += 1;
+							entries.push(new OutlineEntry(entries.length, level, cell, symbol.name, SymbolKinds.toIcon(symbol.kind)));
+							if (symbol.children) {
+								count += visitSymbol(symbol.children, level + 1);
+							}
+						}
+						return count;
+					})(model.getTopLevelSymbols(), 7);
+
+					if (symbolCount === 0) {
+						// no "good" outline symbols
+						entries.push(new OutlineEntry(entries.length, 7, cell, content.trim() || localize('empty.code', "empty code cell"), Codicon.code));
+					}
+
+				} finally {
+					ref.dispose();
 				}
 			}
 
-			if (!hasHeader) {
-				let preview = content.trim();
-				if (preview.length === 0) {
-					// empty or just whitespace
-					preview = localize('empty', "empty cell");
-				}
+			// if (!hasHeader) {
+			// 	let preview = content.trim();
+			// 	if (preview.length === 0) {
+			// 		// empty or just whitespace
+			// 		preview = localize('empty', "empty cell");
+			// 	}
 
-				entries.push(new OutlineEntry(entries.length, 7, cell, preview, isMarkdown ? Codicon.markdown : Codicon.code));
-			}
+			// 	entries.push(new OutlineEntry(entries.length, 7, cell, preview, isMarkdown ? Codicon.markdown : Codicon.code));
+			// }
 
 			if (cell.handle === focused) {
 				this._activeEntry = entries[entries.length - 1];
