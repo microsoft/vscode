@@ -171,7 +171,7 @@ class InsertSnippetAction extends EditorAction {
 							label = nls.localize('sep.userSnippet', "User Snippets");
 							break;
 						case SnippetSource.Extension:
-							label = nls.localize('sep.extSnippet', "Extension: {0}", snippet.source);
+							label = nls.localize('sep.extSnippet', "{0}", snippet.source);
 							break;
 						case SnippetSource.Workspace:
 							label = nls.localize('sep.workspaceSnippet', "Workspace Snippets");
