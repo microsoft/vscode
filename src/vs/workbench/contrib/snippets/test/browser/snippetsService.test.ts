@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { SnippetCompletionProvider } from 'vs/workbench/contrib/snippets/browser/snippetCompletionProvider';
+import { SnippetCompletion, SnippetCompletionProvider } from 'vs/workbench/contrib/snippets/browser/snippetCompletionProvider';
 import { Position } from 'vs/editor/common/core/position';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
@@ -91,12 +91,17 @@ suite('SnippetsService', function () {
 		});
 	});
 
-	test('snippet completions - simple 2', function () {
+	test('snippet completions - simple 2', async function () {
 
 		const provider = new SnippetCompletionProvider(modeService, snippetService);
 		const model = disposables.add(createTextModel('hello ', undefined, 'fooLang'));
 
-		return provider.provideCompletionItems(model, new Position(1, 6), context)!.then(result => {
+		await provider.provideCompletionItems(model, new Position(1, 6) /* hello| */, context)!.then(result => {
+			assert.strictEqual(result.incomplete, undefined);
+			assert.strictEqual(result.suggestions.length, 0);
+		});
+
+		await provider.provideCompletionItems(model, new Position(1, 7) /* hello |*/, context)!.then(result => {
 			assert.strictEqual(result.incomplete, undefined);
 			assert.strictEqual(result.suggestions.length, 2);
 		});
@@ -638,6 +643,69 @@ suite('SnippetsService', function () {
 		)!;
 
 		assert.strictEqual(result.suggestions.length, 1);
+		model.dispose();
+	});
+
+	test('Snippet suggestions are too eager #138707 (word)', async function () {
+		snippetService = new SimpleSnippetService([
+			new Snippet(['fooLang'], 'tys', 'tys', '', 'value', '', SnippetSource.User),
+			new Snippet(['fooLang'], 'hell_or_tell', 'hell_or_tell', '', 'value', '', SnippetSource.User),
+			new Snippet(['fooLang'], '^y', '^y', '', 'value', '', SnippetSource.User),
+		]);
+
+		const provider = new SnippetCompletionProvider(modeService, snippetService);
+		let model = createTextModel('\'hellot\'', undefined, 'fooLang');
+
+		let result = await provider.provideCompletionItems(
+			model,
+			new Position(1, 8),
+			{ triggerKind: CompletionTriggerKind.Invoke }
+		)!;
+
+		assert.strictEqual(result.suggestions.length, 2);
+		assert.strictEqual((<SnippetCompletion>result.suggestions[0]).label.label, '^y');
+		assert.strictEqual((<SnippetCompletion>result.suggestions[1]).label.label, 'hell_or_tell');
+		model.dispose();
+	});
+
+	test('Snippet suggestions are too eager #138707 (no word)', async function () {
+		snippetService = new SimpleSnippetService([
+			new Snippet(['fooLang'], 'tys', 'tys', '', 'value', '', SnippetSource.User),
+			new Snippet(['fooLang'], 't', 't', '', 'value', '', SnippetSource.User),
+			new Snippet(['fooLang'], '^y', '^y', '', 'value', '', SnippetSource.User),
+		]);
+
+		const provider = new SnippetCompletionProvider(modeService, snippetService);
+		let model = createTextModel(')*&^', undefined, 'fooLang');
+
+		let result = await provider.provideCompletionItems(
+			model,
+			new Position(1, 5),
+			{ triggerKind: CompletionTriggerKind.Invoke }
+		)!;
+
+		assert.strictEqual(result.suggestions.length, 1);
+		assert.strictEqual((<SnippetCompletion>result.suggestions[0]).label.label, '^y');
+		model.dispose();
+	});
+
+	test('Snippet suggestions are too eager #138707 (word/word)', async function () {
+		snippetService = new SimpleSnippetService([
+			new Snippet(['fooLang'], 'async arrow function', 'async arrow function', '', 'value', '', SnippetSource.User),
+			new Snippet(['fooLang'], 'foobarrrrrr', 'foobarrrrrr', '', 'value', '', SnippetSource.User),
+		]);
+
+		const provider = new SnippetCompletionProvider(modeService, snippetService);
+		let model = createTextModel('foobar', undefined, 'fooLang');
+
+		let result = await provider.provideCompletionItems(
+			model,
+			new Position(1, 7),
+			{ triggerKind: CompletionTriggerKind.Invoke }
+		)!;
+
+		assert.strictEqual(result.suggestions.length, 1);
+		assert.strictEqual((<SnippetCompletion>result.suggestions[0]).label.label, 'foobarrrrrr');
 		model.dispose();
 	});
 });
