@@ -30,7 +30,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel } from 'vs/editor/common/model';
-import { CompletionContext, CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, completionKindFromString, CompletionList, CompletionProviderRegistry } from 'vs/editor/common/modes';
+import { CompletionContext, CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemKinds, CompletionList, CompletionProviderRegistry } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
@@ -252,7 +252,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 										suggestions.push({
 											label: item.label,
 											insertText,
-											kind: completionKindFromString(item.type || 'property'),
+											kind: CompletionItemKinds.fromString(item.type || 'property'),
 											filterText: (item.start && item.length) ? text.substr(item.start, item.length).concat(item.label) : undefined,
 											range: computeRange(item.length || overwriteBefore),
 											sortText: item.sortText,

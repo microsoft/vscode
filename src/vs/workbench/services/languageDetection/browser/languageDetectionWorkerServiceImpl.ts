@@ -8,7 +8,7 @@ import { ILanguageDetectionService, ILanguageDetectionStats, LanguageDetectionSt
 import { FileAccess } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { URI } from 'vs/base/common/uri';
 import { isWeb } from 'vs/base/common/platform';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -17,6 +17,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { EditorWorkerClient, EditorWorkerHost } from 'vs/editor/common/services/editorWorkerServiceImpl';
+import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 const moduleLocation = '../../../../../../node_modules/@vscode/vscode-languagedetection';
 const moduleLocationAsar = '../../../../../../node_modules.asar/@vscode/vscode-languagedetection';
@@ -29,10 +30,11 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 
 	constructor(
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
-		@IModeService private readonly _modeService: IModeService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IModelService modelService: IModelService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService
 	) {
 		super();
 
@@ -48,7 +50,9 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 				: FileAccess.asBrowserUri(`${moduleLocation}/model/model.json`, require).toString(true),
 			this._environmentService.isBuilt && !isWeb
 				? FileAccess.asBrowserUri(`${moduleLocationAsar}/model/group1-shard1of1.bin`, require).toString(true)
-				: FileAccess.asBrowserUri(`${moduleLocation}/model/group1-shard1of1.bin`, require).toString(true));
+				: FileAccess.asBrowserUri(`${moduleLocation}/model/group1-shard1of1.bin`, require).toString(true),
+			languageConfigurationService
+		);
 	}
 
 	public isEnabledForMode(languageId: string): boolean {
@@ -59,7 +63,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 		if (!language) {
 			return undefined;
 		}
-		return this._modeService.getModeIdByFilepathOrFirstLine(URI.file(`file.${language}`)) ?? undefined;
+		return this._languageService.getLanguageIdByFilepathOrFirstLine(URI.file(`file.${language}`)) ?? undefined;
 	}
 
 	async detectLanguage(resource: URI): Promise<string | undefined> {
@@ -121,9 +125,10 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 		private readonly _telemetryService: ITelemetryService,
 		private readonly _indexJsUri: string,
 		private readonly _modelJsonUri: string,
-		private readonly _weightsUri: string
+		private readonly _weightsUri: string,
+		languageConfigurationService: ILanguageConfigurationService,
 	) {
-		super(modelService, true, 'languageDetectionWorkerService');
+		super(modelService, true, 'languageDetectionWorkerService', languageConfigurationService);
 	}
 
 	private _getOrCreateLanguageDetectionWorker(): Promise<IWorkerClient<LanguageDetectionSimpleWorker>> {

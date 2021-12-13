@@ -154,6 +154,19 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 
 	}
 
+	protected async hasRemoteChanged(lastSyncUserData: IRemoteUserData): Promise<boolean> {
+		const lastSyncContent = this.getKeybindingsContentFromLastSyncUserData(lastSyncUserData);
+		if (lastSyncContent === null) {
+			return true;
+		}
+
+		const fileContent = await this.getLocalFileContent();
+		const localContent: string = fileContent ? fileContent.value.toString() : '';
+		const formattingOptions = await this.getFormattingOptions();
+		const result = await merge(localContent || '[]', lastSyncContent, lastSyncContent, formattingOptions, this.userDataSyncUtilService);
+		return result.hasConflicts || result.mergeContent !== lastSyncContent;
+	}
+
 	protected async getMergeResult(resourcePreview: IKeybindingsResourcePreview, token: CancellationToken): Promise<IMergeResult> {
 		return resourcePreview.previewResult;
 	}

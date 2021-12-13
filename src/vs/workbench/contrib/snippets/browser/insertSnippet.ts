@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
@@ -80,7 +80,7 @@ class InsertSnippetAction extends EditorAction {
 	}
 
 	async run(accessor: ServicesAccessor, editor: ICodeEditor, arg: any): Promise<void> {
-		const modeService = accessor.get(IModeService);
+		const languageService = accessor.get(ILanguageService);
 		const snippetService = accessor.get(ISnippetsService);
 
 		if (!editor.hasModel()) {
@@ -109,7 +109,7 @@ class InsertSnippetAction extends EditorAction {
 
 			let languageId = NULL_MODE_ID;
 			if (langId) {
-				const otherLangId = modeService.validateLanguageId(langId);
+				const otherLangId = languageService.validateLanguageId(langId);
 				if (otherLangId) {
 					languageId = otherLangId;
 				}
@@ -120,7 +120,7 @@ class InsertSnippetAction extends EditorAction {
 				// validate the `languageId` to ensure this is a user
 				// facing language with a name and the chance to have
 				// snippets, else fall back to the outer language
-				if (!modeService.getLanguageName(languageId)) {
+				if (!languageService.getLanguageName(languageId)) {
 					languageId = editor.getModel().getLanguageId();
 				}
 			}

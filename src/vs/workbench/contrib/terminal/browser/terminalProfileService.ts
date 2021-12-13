@@ -28,7 +28,6 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 * and keeps the available terminal profiles updated
 */
 export class TerminalProfileService implements ITerminalProfileService {
-	private _ifNoProfilesTryAgain: boolean = true;
 	private _webExtensionContributedProfileContextKey: IContextKey<boolean>;
 	private _profilesReadyBarrier: AutoOpenBarrier;
 	private _availableProfiles: ITerminalProfile[] | undefined;
@@ -104,17 +103,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 	}
 
 	protected async _refreshAvailableProfilesNow(): Promise<void> {
-		const profiles = await this._detectProfiles();
-		if (profiles.length === 0 && this._ifNoProfilesTryAgain) {
-			// available profiles get updated when a terminal is created
-			// or relevant config changes.
-			// if there are no profiles, we want to refresh them again
-			// since terminal creation can't happen in this case and users
-			// might not think to try changing the config
-			this._ifNoProfilesTryAgain = false;
-			await this._refreshAvailableProfilesNow();
-			return;
-		}
+		const profiles = await this._detectProfiles(true);
 		const profilesChanged = !(equals(profiles, this._availableProfiles, profilesEqual));
 		const contributedProfilesChanged = await this._updateContributedProfiles();
 		if (profilesChanged || contributedProfilesChanged) {

@@ -24,7 +24,7 @@ import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { OutgoingViewModelEventKind } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 
 // --------- utils
@@ -4771,7 +4771,7 @@ suite('autoClosingPairs', () => {
 
 		private static readonly _id = 'autoClosingMode';
 
-		constructor(modeService: IModeService | null = null) {
+		constructor(languageService: ILanguageService | null = null) {
 			super(AutoClosingMode._id);
 			this._register(LanguageConfigurationRegistry.register(this.languageId, {
 				autoClosingPairs: [
@@ -4823,8 +4823,8 @@ suite('autoClosingPairs', () => {
 			}
 			type State = BaseState | StringState | BlockCommentState;
 
-			if (modeService) {
-				const encodedLanguageId = modeService.languageIdCodec.encodeLanguageId(this.languageId);
+			if (languageService) {
+				const encodedLanguageId = languageService.languageIdCodec.encodeLanguageId(this.languageId);
 				this._register(TokenizationRegistry.register(this.languageId, {
 					getInitialState: () => new BaseState(),
 					tokenize: undefined!,
@@ -4977,8 +4977,8 @@ suite('autoClosingPairs', () => {
 	test('issue #132912: quotes should not auto-close if they are closing a string', () => {
 		const disposables = new DisposableStore();
 		const instantiationService = createCodeEditorServices(disposables);
-		const modeService = instantiationService.invokeFunction((accessor) => accessor.get(IModeService));
-		const mode = disposables.add(new AutoClosingMode(modeService));
+		const languageService = instantiationService.invokeFunction((accessor) => accessor.get(ILanguageService));
+		const mode = disposables.add(new AutoClosingMode(languageService));
 		withTestCodeEditor(
 			null,
 			{

@@ -17,7 +17,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { IRecent, isRecentFolder, isRecentWorkspace, IWorkspacesService, IWorkspaceIdentifier, isFolderBackupInfo, isWorkspaceBackupInfo } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
@@ -75,7 +75,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 		const labelService = accessor.get(ILabelService);
 		const keybindingService = accessor.get(IKeybindingService);
 		const modelService = accessor.get(IModelService);
-		const modeService = accessor.get(IModeService);
+		const languageService = accessor.get(ILanguageService);
 		const hostService = accessor.get(IHostService);
 		const dialogService = accessor.get(IDialogService);
 
@@ -113,19 +113,19 @@ abstract class BaseOpenRecentAction extends Action2 {
 		for (const recent of recentlyOpened.workspaces) {
 			const isDirty = isRecentFolder(recent) ? dirtyFolders.has(recent.folderUri) : dirtyWorkspaces.has(recent.workspace.configPath);
 
-			workspacePicks.push(this.toQuickPick(modelService, modeService, labelService, recent, isDirty));
+			workspacePicks.push(this.toQuickPick(modelService, languageService, labelService, recent, isDirty));
 		}
 
 		// Fill any backup workspace that is not yet shown at the end
 		for (const dirtyWorkspaceOrFolder of dirtyWorkspacesAndFolders) {
 			if (isFolderBackupInfo(dirtyWorkspaceOrFolder) && !recentFolders.has(dirtyWorkspaceOrFolder.folderUri)) {
-				workspacePicks.push(this.toQuickPick(modelService, modeService, labelService, dirtyWorkspaceOrFolder, true));
+				workspacePicks.push(this.toQuickPick(modelService, languageService, labelService, dirtyWorkspaceOrFolder, true));
 			} else if (isWorkspaceBackupInfo(dirtyWorkspaceOrFolder) && !recentWorkspaces.has(dirtyWorkspaceOrFolder.workspace.configPath)) {
-				workspacePicks.push(this.toQuickPick(modelService, modeService, labelService, dirtyWorkspaceOrFolder, true));
+				workspacePicks.push(this.toQuickPick(modelService, languageService, labelService, dirtyWorkspaceOrFolder, true));
 			}
 		}
 
-		const filePicks = recentlyOpened.files.map(p => this.toQuickPick(modelService, modeService, labelService, p, false));
+		const filePicks = recentlyOpened.files.map(p => this.toQuickPick(modelService, languageService, labelService, p, false));
 
 		// focus second entry if the first recent workspace is the current workspace
 		const firstEntry = recentlyOpened.workspaces[0];
@@ -182,7 +182,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 		}
 	}
 
-	private toQuickPick(modelService: IModelService, modeService: IModeService, labelService: ILabelService, recent: IRecent, isDirty: boolean): IRecentlyOpenedPick {
+	private toQuickPick(modelService: IModelService, languageService: ILanguageService, labelService: ILabelService, recent: IRecent, isDirty: boolean): IRecentlyOpenedPick {
 		let openable: IWindowOpenable | undefined;
 		let iconClasses: string[];
 		let fullLabel: string | undefined;
@@ -192,7 +192,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 		// Folder
 		if (isRecentFolder(recent)) {
 			resource = recent.folderUri;
-			iconClasses = getIconClasses(modelService, modeService, resource, FileKind.FOLDER);
+			iconClasses = getIconClasses(modelService, languageService, resource, FileKind.FOLDER);
 			openable = { folderUri: resource };
 			fullLabel = recent.label || labelService.getWorkspaceLabel(resource, { verbose: true });
 		}
@@ -200,7 +200,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 		// Workspace
 		else if (isRecentWorkspace(recent)) {
 			resource = recent.workspace.configPath;
-			iconClasses = getIconClasses(modelService, modeService, resource, FileKind.ROOT_FOLDER);
+			iconClasses = getIconClasses(modelService, languageService, resource, FileKind.ROOT_FOLDER);
 			openable = { workspaceUri: resource };
 			fullLabel = recent.label || labelService.getWorkspaceLabel(recent.workspace, { verbose: true });
 			isWorkspace = true;
@@ -209,7 +209,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 		// File
 		else {
 			resource = recent.fileUri;
-			iconClasses = getIconClasses(modelService, modeService, resource, FileKind.FILE);
+			iconClasses = getIconClasses(modelService, languageService, resource, FileKind.FILE);
 			openable = { fileUri: resource };
 			fullLabel = recent.label || labelService.getUriLabel(resource);
 		}

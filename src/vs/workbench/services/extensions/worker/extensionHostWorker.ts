@@ -36,7 +36,6 @@ declare namespace self {
 	let importScripts: any;
 	let fetch: _Fetch;
 	let XMLHttpRequest: any;
-	let trustedTypes: any;
 }
 
 const nativeClose = self.close.bind(self);
@@ -81,7 +80,6 @@ self.addEventListener = () => console.trace(`'addEventListener' has been blocked
 (<any>self)['webkitResolveLocalFileSystemURL'] = undefined;
 
 if ((<any>self).Worker) {
-	const ttPolicy = (<any>self).trustedTypes?.createPolicy('extensionHostWorker', { createScriptURL: (value: string) => value });
 
 	// make sure new Worker(...) always uses blob: (to maintain current origin)
 	const _Worker = (<any>self).Worker;
@@ -119,8 +117,7 @@ if ((<any>self).Worker) {
 				nativeImportScripts(...urls.map(asWorkerBrowserUrl));
 			};
 
-			const ttPolicy = self.trustedTypes ? self.trustedTypes.createPolicy('extensionHostWorker', { createScriptURL: (value: string) => value }) : undefined;
-			nativeImportScripts(ttPolicy ? ttPolicy.createScriptURL(workerUrl) : workerUrl);
+			nativeImportScripts(workerUrl);
 		}).toString();
 
 		const js = `(${bootstrapFnSource}('${stringUrl}'))`;
@@ -128,7 +125,7 @@ if ((<any>self).Worker) {
 		options.name = options.name || path.basename(stringUrl.toString());
 		const blob = new Blob([js], { type: 'application/javascript' });
 		const blobUrl = URL.createObjectURL(blob);
-		return new _Worker(ttPolicy ? ttPolicy.createScriptURL(blobUrl) : blobUrl, options);
+		return new _Worker(blobUrl, options);
 	};
 
 } else {

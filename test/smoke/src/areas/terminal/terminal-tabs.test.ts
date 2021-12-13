@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation';
 
-import { ParsedArgs } from 'minimist';
-import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation/out';
-
-export function setup(opts: ParsedArgs) {
+export function setup() {
 	describe('Terminal Tabs', () => {
 		// Acquire automation API
 		let terminal: Terminal;
@@ -16,9 +14,9 @@ export function setup(opts: ParsedArgs) {
 			terminal = app.workbench.terminal;
 		});
 
-		it('clicking the plus button should create a terminal and display the tabs view showing no split decorations', async () => {
+		it.skip('clicking the plus button should create a terminal and display the tabs view showing no split decorations', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
-			await terminal.runCommand(TerminalCommandId.CreateNew);
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.CreateNew);
 			await terminal.clickPlusButton();
 			await terminal.assertTerminalGroups([[{}], [{}]]);
 		});
@@ -102,14 +100,14 @@ export function setup(opts: ParsedArgs) {
 
 		it('should join tabs when more than one non-split terminal', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
-			await terminal.runCommand(TerminalCommandId.CreateNew);
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.CreateNew);
 			await terminal.runCommand(TerminalCommandId.Join);
 			await terminal.assertTerminalGroups([[{}, {}]]);
 		});
 
 		it('should do nothing when unsplit tabs called with no splits', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
-			await terminal.runCommand(TerminalCommandId.CreateNew);
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.CreateNew);
 			await terminal.assertTerminalGroups([[{}], [{}]]);
 			await terminal.runCommand(TerminalCommandId.Unsplit);
 			await terminal.assertTerminalGroups([[{}], [{}]]);

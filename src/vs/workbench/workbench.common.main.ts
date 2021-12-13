@@ -69,7 +69,7 @@ import 'vs/workbench/services/keybinding/browser/keybindingService';
 import 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import 'vs/workbench/services/textresourceProperties/common/textResourcePropertiesService';
 import 'vs/workbench/services/textfile/common/textEditorService';
-import 'vs/workbench/services/mode/common/workbenchModeService';
+import 'vs/workbench/services/mode/common/workbenchLanguageService';
 import 'vs/workbench/services/model/common/workbenchModelService';
 import 'vs/workbench/services/commands/common/commandService';
 import 'vs/workbench/services/themes/browser/workbenchThemeService';

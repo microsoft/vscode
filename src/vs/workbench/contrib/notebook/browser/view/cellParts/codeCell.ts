@@ -5,6 +5,7 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { raceCancellation } from 'vs/base/common/async';
+import { Event } from 'vs/base/common/event';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -13,7 +14,7 @@ import { IDimension } from 'vs/editor/common/editorCommon';
 import { IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -44,7 +45,7 @@ export class CodeCell extends Disposable {
 		@INotebookCellStatusBarService readonly notebookCellStatusBarService: INotebookCellStatusBarService,
 		@IKeybindingService readonly keybindingService: IKeybindingService,
 		@IOpenerService readonly openerService: IOpenerService,
-		@IModeService readonly modeService: IModeService,
+		@ILanguageService readonly languageService: ILanguageService,
 	) {
 		super();
 
@@ -112,8 +113,19 @@ export class CodeCell extends Disposable {
 
 		this.updateForCollapseState();
 
-		this.updateForOutputs();
-		this._register(viewCell.onDidChangeOutputs(_e => this.updateForOutputs()));
+		this._register(Event.runAndSubscribe(viewCell.onDidChangeOutputs, this.updateForOutputs.bind(this)));
+		this._register(Event.runAndSubscribe(viewCell.onDidChangeLayout, this.updateForLayout.bind(this)));
+	}
+
+	private updateForLayout(): void {
+		this.templateData.elementDisposables.add(DOM.scheduleAtNextAnimationFrame(() => {
+			this.cellParts.forEach(part => {
+				part.updateInternalLayoutNow(this.viewCell);
+			});
+
+			// this.cellsParts are parted created on the template while output container is created by the `CodeCell`
+			this._outputContainerRenderer.updateInternalLayoutNow(this.viewCell);
+		}));
 	}
 
 	private updateForOutputHover() {
@@ -381,7 +393,7 @@ export class CodeCell extends Disposable {
 	}
 
 	private _getRichText(buffer: IReadonlyTextBuffer, language: string) {
-		return tokenizeToString(buffer.getLineContent(1), this.modeService.languageIdCodec, TokenizationRegistry.get(language)!);
+		return tokenizeToString(buffer.getLineContent(1), this.languageService.languageIdCodec, TokenizationRegistry.get(language)!);
 	}
 
 	private _removeInputCollapsePreview() {

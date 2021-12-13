@@ -17,7 +17,7 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { FontStyle, IState, ITokenizationSupport, StandardTokenType, TokenMetadata, TokenizationRegistry, ILanguageIdCodec } from 'vs/editor/common/modes';
 import { NULL_STATE, nullTokenize, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import { editorHoverBackground, editorHoverBorder, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -34,17 +34,17 @@ class InspectTokensController extends Disposable implements IEditorContribution 
 	}
 
 	private readonly _editor: ICodeEditor;
-	private readonly _modeService: IModeService;
+	private readonly _languageService: ILanguageService;
 	private _widget: InspectTokensWidget | null;
 
 	constructor(
 		editor: ICodeEditor,
 		@IStandaloneThemeService standaloneColorService: IStandaloneThemeService,
-		@IModeService modeService: IModeService
+		@ILanguageService languageService: ILanguageService
 	) {
 		super();
 		this._editor = editor;
-		this._modeService = modeService;
+		this._languageService = languageService;
 		this._widget = null;
 
 		this._register(this._editor.onDidChangeModel((e) => this.stop()));
@@ -65,7 +65,7 @@ class InspectTokensController extends Disposable implements IEditorContribution 
 		if (!this._editor.hasModel()) {
 			return;
 		}
-		this._widget = new InspectTokensWidget(this._editor, this._modeService);
+		this._widget = new InspectTokensWidget(this._editor, this._languageService);
 	}
 
 	public stop(): void {
@@ -151,22 +151,22 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 	public allowEditorOverflow = true;
 
 	private readonly _editor: IActiveCodeEditor;
-	private readonly _modeService: IModeService;
+	private readonly _languageService: ILanguageService;
 	private readonly _tokenizationSupport: ITokenizationSupport;
 	private readonly _model: ITextModel;
 	private readonly _domNode: HTMLElement;
 
 	constructor(
 		editor: IActiveCodeEditor,
-		modeService: IModeService
+		languageService: ILanguageService
 	) {
 		super();
 		this._editor = editor;
-		this._modeService = modeService;
+		this._languageService = languageService;
 		this._model = this._editor.getModel();
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'tokens-inspect-widget';
-		this._tokenizationSupport = getSafeTokenizationSupport(this._modeService.languageIdCodec, this._model.getLanguageId());
+		this._tokenizationSupport = getSafeTokenizationSupport(this._languageService.languageIdCodec, this._model.getLanguageId());
 		this._compute(this._editor.getPosition());
 		this._register(this._editor.onDidChangeCursorPosition((e) => this._compute(this._editor.getPosition())));
 		this._editor.addContentWidget(this);
@@ -256,7 +256,7 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 		let foreground = TokenMetadata.getForeground(metadata);
 		let background = TokenMetadata.getBackground(metadata);
 		return {
-			languageId: this._modeService.languageIdCodec.decodeLanguageId(languageId),
+			languageId: this._languageService.languageIdCodec.decodeLanguageId(languageId),
 			tokenType: tokenType,
 			fontStyle: fontStyle,
 			foreground: colorMap[foreground],

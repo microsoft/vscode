@@ -9,7 +9,7 @@ import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResource
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILifecycleService, LifecyclePhase, StartupKindToString } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
@@ -82,7 +82,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 
 	constructor(
 		@IModelService private readonly _modelService: IModelService,
-		@IModeService private readonly _modeService: IModeService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@ITimerService private readonly _timerService: ITimerService,
@@ -94,7 +94,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 
 		if (!this._model || this._model.isDisposed()) {
 			dispose(this._modelDisposables);
-			const langId = this._modeService.create('markdown');
+			const langId = this._languageService.createById('markdown');
 			this._model = this._modelService.getModel(resource) || this._modelService.createModel('Loading...', langId, resource);
 
 			this._modelDisposables.push(langId.onDidChange(e => {

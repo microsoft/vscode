@@ -17,20 +17,20 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { EndOfLineSequence, IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { StandardTokenType, TextEdit } from 'vs/editor/common/modes';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { ILanguageConfigurationService, LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { IndentConsts } from 'vs/editor/common/modes/supports/indentRules';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import * as indentUtils from 'vs/editor/contrib/indentation/indentUtils';
 import * as nls from 'vs/nls';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
-export function getReindentEditOperations(model: ITextModel, startLineNumber: number, endLineNumber: number, inheritedIndent?: string): IIdentifiedSingleEditOperation[] {
+export function getReindentEditOperations(model: ITextModel, languageConfigurationService: ILanguageConfigurationService, startLineNumber: number, endLineNumber: number, inheritedIndent?: string): IIdentifiedSingleEditOperation[] {
 	if (model.getLineCount() === 1 && model.getLineMaxColumn(1) === 1) {
 		// Model is empty
 		return [];
 	}
 
-	const indentationRules = LanguageConfigurationRegistry.getIndentationRules(model.getLanguageId());
+	const indentationRules = languageConfigurationService.getLanguageConfiguration(model.getLanguageId()).indentationRules;
 	if (!indentationRules) {
 		return [];
 	}
@@ -310,11 +310,13 @@ export class ReindentLinesAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const languageConfigurationService = accessor.get(ILanguageConfigurationService);
+
 		let model = editor.getModel();
 		if (!model) {
 			return;
 		}
-		let edits = getReindentEditOperations(model, 1, model.getLineCount());
+		let edits = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
 		if (edits.length > 0) {
 			editor.pushUndoStop();
 			editor.executeEdits(this.id, edits);
@@ -334,6 +336,8 @@ export class ReindentSelectedLinesAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const languageConfigurationService = accessor.get(ILanguageConfigurationService);
+
 		let model = editor.getModel();
 		if (!model) {
 			return;
@@ -362,7 +366,7 @@ export class ReindentSelectedLinesAction extends EditorAction {
 				startLineNumber--;
 			}
 
-			let editOperations = getReindentEditOperations(model, startLineNumber, endLineNumber);
+			let editOperations = getReindentEditOperations(model, languageConfigurationService, startLineNumber, endLineNumber);
 			edits.push(...editOperations);
 		}
 

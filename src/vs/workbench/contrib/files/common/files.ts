@@ -13,7 +13,7 @@ import { ITextModelContentProvider } from 'vs/editor/common/services/resolverSer
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
+import { ILanguageService, ILanguageSelection } from 'vs/editor/common/services/languageService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -131,7 +131,7 @@ export class TextFileContentProvider extends Disposable implements ITextModelCon
 	constructor(
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IFileService private readonly fileService: IFileService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IModelService private readonly modelService: IModelService
 	) {
 		super();
@@ -198,9 +198,9 @@ export class TextFileContentProvider extends Disposable implements ITextModelCon
 
 			let languageSelector: ILanguageSelection;
 			if (textFileModel) {
-				languageSelector = this.modeService.create(textFileModel.getLanguageId());
+				languageSelector = this.languageService.createById(textFileModel.getLanguageId());
 			} else {
-				languageSelector = this.modeService.createByFilepathOrFirstLine(savedFileResource);
+				languageSelector = this.languageService.createByFilepathOrFirstLine(savedFileResource);
 			}
 
 			codeEditorModel = this.modelService.createModel(content.value, languageSelector, resource);

@@ -29,6 +29,7 @@ import { canceled, onUnexpectedError } from 'vs/base/common/errors';
 import { Barrier } from 'vs/base/common/async';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { FileAccess } from 'vs/base/common/network';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export interface IWebWorkerExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -65,6 +66,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IProductService private readonly _productService: IProductService,
 		@ILayoutService private readonly _layoutService: ILayoutService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
 		this.lazyStart = lazyStart;
@@ -83,9 +85,16 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			const commit = this._productService.commit;
 			const quality = this._productService.quality;
 			if (webEndpointUrlTemplate && commit && quality) {
+				// Try to keep the web worker extension host iframe origin stable by storing it in workspace storage
+				const key = 'webWorkerExtensionHostIframeStableOriginUUID';
+				let stableOriginUUID = this._storageService.get(key, StorageScope.WORKSPACE);
+				if (typeof stableOriginUUID === 'undefined') {
+					stableOriginUUID = generateUuid();
+					this._storageService.store(key, stableOriginUUID, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+				}
 				const baseUrl = (
 					webEndpointUrlTemplate
-						.replace('{{uuid}}', generateUuid())
+						.replace('{{uuid}}', stableOriginUUID)
 						.replace('{{commit}}', commit)
 						.replace('{{quality}}', quality)
 				);

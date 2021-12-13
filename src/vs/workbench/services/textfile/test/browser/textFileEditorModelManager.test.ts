@@ -9,7 +9,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { workbenchInstantiationService, TestServiceAccessor, TestTextFileEditorModelManager } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
+import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { toResource } from 'vs/base/test/common/utils';
 import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
@@ -170,6 +170,41 @@ suite('Files - TextFileEditorModelManager', () => {
 		assert.strictEqual(didResolve, true);
 	});
 
+	test('resolve (sync) - model disposed when error and first call to resolve', async () => {
+		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
+		const resource = URI.file('/path/index.txt');
+
+		accessor.textFileService.setReadStreamErrorOnce(new FileOperationError('fail', FileOperationResult.FILE_OTHER_ERROR));
+
+		let error: Error | undefined = undefined;
+		try {
+			await manager.resolve(resource);
+		} catch (e) {
+			error = e;
+		}
+
+		assert.ok(error);
+		assert.strictEqual(manager.models.length, 0);
+	});
+
+	test('resolve (sync) - model not disposed when error and model existed before', async () => {
+		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
+		const resource = URI.file('/path/index.txt');
+
+		await manager.resolve(resource);
+
+		accessor.textFileService.setReadStreamErrorOnce(new FileOperationError('fail', FileOperationResult.FILE_OTHER_ERROR));
+
+		let error: Error | undefined = undefined;
+		try {
+			await manager.resolve(resource, { reload: { async: false } });
+		} catch (e) {
+			error = e;
+		}
+
+		assert.ok(error);
+		assert.strictEqual(manager.models.length, 1);
+	});
 
 	test('resolve with initial contents', async () => {
 		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);

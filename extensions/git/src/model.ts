@@ -6,7 +6,7 @@
 import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, OutputChannel, commands } from 'vscode';
 import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
-import { dispose, anyEvent, filterEvent, isDescendant, pathEquals, toDisposable, eventToPromise } from './util';
+import { dispose, anyEvent, filterEvent, isDescendant, pathEquals, toDisposable, eventToPromise, logTimestamp } from './util';
 import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -146,7 +146,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 
 		await Promise.all((workspace.workspaceFolders || []).map(async folder => {
 			const root = folder.uri.fsPath;
-			const children = await new Promise<string[]>((c, e) => fs.readdir(root, (err, r) => err ? e(err) : c(r)));
+			const children = (await fs.promises.readdir(root, { withFileTypes: true })).filter(dirent => dirent.isDirectory()).map(dirent => dirent.name);
 			const subfolders = new Set(children.filter(child => child !== '.git').map(child => path.join(root, child)));
 
 			const scanPaths = (workspace.isTrusted ? workspace.getConfiguration('git', folder.uri) : config).get<string[]>('scanRepositories') || [];
@@ -303,7 +303,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 			repository.status(); // do not await this, we want SCM to know about the repo asap
 		} catch (ex) {
 			// noop
-			this.outputChannel.appendLine(`Opening repository for path='${repoPath}' failed; ex=${ex}`);
+			this.outputChannel.appendLine(`${logTimestamp()} Opening repository for path='${repoPath}' failed; ex=${ex}`);
 		}
 	}
 
@@ -329,7 +329,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 	}
 
 	private open(repository: Repository): void {
-		this.outputChannel.appendLine(`Open repository: ${repository.root}`);
+		this.outputChannel.appendLine(`${logTimestamp()} Open repository: ${repository.root}`);
 
 		const onDidDisappearRepository = filterEvent(repository.onDidChangeState, state => state === RepositoryState.Disposed);
 		const disappearListener = onDidDisappearRepository(() => dispose());
@@ -386,7 +386,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 			return;
 		}
 
-		this.outputChannel.appendLine(`Close repository: ${repository.root}`);
+		this.outputChannel.appendLine(`${logTimestamp()} Close repository: ${repository.root}`);
 		openRepository.dispose();
 	}
 

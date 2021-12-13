@@ -10,7 +10,7 @@ import { TernarySearchTree } from 'vs/base/common/map';
 import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isThenable } from 'vs/base/common/async';
 import { LinkedList } from 'vs/base/common/linkedList';
-import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector } from 'vs/base/browser/dom';
+import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector, asCSSPropertyValue } from 'vs/base/browser/dom';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
@@ -19,9 +19,9 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { hash } from 'vs/base/common/hash';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { iconRegistry } from 'vs/base/common/codicons';
 import { asArray, distinct } from 'vs/base/common/arrays';
 import { asCssVariableName } from 'vs/platform/theme/common/colorRegistry';
+import { getIconRegistry, IconContribution } from 'vs/platform/theme/common/iconRegistry';
 
 class DecorationRule {
 
@@ -121,20 +121,23 @@ class DecorationRule {
 
 	private _createIconCSSRule(icon: ThemeIcon, color: string | undefined, element: HTMLStyleElement) {
 
-		const index = icon.id.lastIndexOf('~');
-		const id = index < 0 ? icon.id : icon.id.substr(0, index);
-		const modifier = index < 0 ? '' : icon.id.substr(index + 1);
-
-		const codicon = iconRegistry.get(id);
-		if (!codicon || !('fontCharacter' in codicon.definition)) {
+		const modifier = ThemeIcon.getModifier(icon);
+		if (modifier) {
+			icon = ThemeIcon.modify(icon, undefined);
+		}
+		const iconContribution = getIconRegistry().getIcon(icon.id);
+		if (!iconContribution) {
 			return;
 		}
-		const charCode = parseInt(codicon.definition.fontCharacter.substr(1), 16);
+		const definition = IconContribution.getDefinition(iconContribution, getIconRegistry());
+		if (!definition) {
+			return;
+		}
 		createCSSRule(
 			`.${this.iconBadgeClassName}::after`,
-			`content: "${String.fromCharCode(charCode)}";
+			`content: '${definition.fontCharacter}';
 			color: ${getColor(color)};
-			font-family: codicon;
+			font-family: ${asCSSPropertyValue(definition.fontId ?? 'codicon')};
 			font-size: 16px;
 			margin-right: 14px;
 			font-weight: normal;

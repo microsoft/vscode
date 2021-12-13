@@ -13,7 +13,7 @@ import { CommandCenter } from './commands';
 import { GitFileSystemProvider } from './fileSystemProvider';
 import { GitDecorations } from './decorationProvider';
 import { Askpass } from './askpass';
-import { toDisposable, filterEvent, eventToPromise } from './util';
+import { toDisposable, filterEvent, eventToPromise, logTimestamp } from './util';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { GitExtension } from './api/git';
 import { GitProtocolHandler } from './protocolHandler';
@@ -46,7 +46,7 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 	}
 
 	const info = await findGit(pathHints, gitPath => {
-		outputChannel.appendLine(localize('validating', "Validating found git in: {0}", gitPath));
+		outputChannel.appendLine(localize('validating', "{0} Validating found git in: {1}", logTimestamp(), gitPath));
 		if (excludes.length === 0) {
 			return true;
 		}
@@ -54,7 +54,7 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 		const normalized = path.normalize(gitPath).replace(/[\r\n]+$/, '');
 		const skip = excludes.some(e => normalized.startsWith(e));
 		if (skip) {
-			outputChannel.appendLine(localize('skipped', "Skipped found git in: {0}", gitPath));
+			outputChannel.appendLine(localize('skipped', "{0} Skipped found git in: {1}", logTimestamp(), gitPath));
 		}
 		return !skip;
 	});
@@ -81,7 +81,7 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 	model.onDidCloseRepository(onRepository, null, disposables);
 	onRepository();
 
-	outputChannel.appendLine(localize('using git', "Using git {0} from {1}", info.version, info.path));
+	outputChannel.appendLine(localize('using git', "{0} Using git {1} from {2}", logTimestamp(), info.version, info.path));
 
 	const onOutput = (str: string) => {
 		const lines = str.split(/\r?\n/mg);
@@ -90,7 +90,7 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 			lines.pop();
 		}
 
-		outputChannel.appendLine(lines.join('\n'));
+		outputChannel.appendLine(`${logTimestamp()} ${lines.join('\n')}`);
 	};
 	git.onOutput.addListener('log', onOutput);
 	disposables.push(toDisposable(() => git.onOutput.removeListener('log', onOutput)));
@@ -190,7 +190,7 @@ export async function _activate(context: ExtensionContext): Promise<GitExtension
 		}
 
 		console.warn(err.message);
-		outputChannel.appendLine(err.message);
+		outputChannel.appendLine(`${logTimestamp()} ${err.message}`);
 
 		commands.executeCommand('setContext', 'git.missing', true);
 		warnAboutMissingGit();

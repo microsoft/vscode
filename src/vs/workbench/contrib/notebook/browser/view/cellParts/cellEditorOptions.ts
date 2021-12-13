@@ -94,7 +94,7 @@ export class CellEditorOptions extends CellPart {
 	prepareLayout(): void {
 		// nothing to read
 	}
-	updateLayoutNow(element: ICellViewModel): void {
+	updateInternalLayoutNow(element: ICellViewModel): void {
 		// nothing to update
 	}
 

@@ -289,7 +289,7 @@ export class ExtensionsListView extends ViewPane {
 			if (manageExtensionAction.enabled) {
 				groups = await manageExtensionAction.getActionGroups(runningExtensions);
 			} else if (extension) {
-				groups = getContextMenuActions(extension, this.contextKeyService, this.instantiationService);
+				groups = await getContextMenuActions(extension, this.contextKeyService, this.instantiationService);
 				groups.forEach(group => group.forEach(extensionAction => {
 					if (extensionAction instanceof ExtensionAction) {
 						extensionAction.extension = extension;

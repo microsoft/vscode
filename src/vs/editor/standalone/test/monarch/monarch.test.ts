@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { MonarchTokenizer } from 'vs/editor/standalone/common/monarch/monarchLexer';
 import { compile } from 'vs/editor/standalone/common/monarch/monarchCompile';
 import { Token } from 'vs/editor/common/core/token';
@@ -15,8 +15,8 @@ import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 
 suite('Monarch', () => {
 
-	function createMonarchTokenizer(modeService: IModeService, languageId: string, language: IMonarchLanguage): MonarchTokenizer {
-		return new MonarchTokenizer(modeService, null!, languageId, compile(languageId, language));
+	function createMonarchTokenizer(languageService: ILanguageService, languageId: string, language: IMonarchLanguage): MonarchTokenizer {
+		return new MonarchTokenizer(languageService, null!, languageId, compile(languageId, language));
 	}
 
 	function getTokens(tokenizer: MonarchTokenizer, lines: string[]): Token[][] {
@@ -31,11 +31,11 @@ suite('Monarch', () => {
 	}
 
 	test('Ensure @rematch and nextEmbedded can be used together in Monarch grammar', () => {
-		const modeService = new ModeServiceImpl();
+		const languageService = new LanguageService();
 		const innerModeRegistration = ModesRegistry.registerLanguage({
 			id: 'sql'
 		});
-		const innerModeTokenizationRegistration = TokenizationRegistry.register('sql', createMonarchTokenizer(modeService, 'sql', {
+		const innerModeTokenizationRegistration = TokenizationRegistry.register('sql', createMonarchTokenizer(languageService, 'sql', {
 			tokenizer: {
 				root: [
 					[/./, 'token']
@@ -43,7 +43,7 @@ suite('Monarch', () => {
 			}
 		}));
 		const SQL_QUERY_START = '(SELECT|INSERT|UPDATE|DELETE|CREATE|REPLACE|ALTER|WITH)';
-		const tokenizer = createMonarchTokenizer(modeService, 'test1', {
+		const tokenizer = createMonarchTokenizer(languageService, 'test1', {
 			tokenizer: {
 				root: [
 					[`(\"\"\")${SQL_QUERY_START}`, [{ 'token': 'string.quote', }, { token: '@rematch', next: '@endStringWithSQL', nextEmbedded: 'sql', },]],
@@ -106,12 +106,12 @@ suite('Monarch', () => {
 		]);
 		innerModeTokenizationRegistration.dispose();
 		innerModeRegistration.dispose();
-		modeService.dispose();
+		languageService.dispose();
 	});
 
 	test('microsoft/monaco-editor#1235: Empty Line Handling', () => {
-		const modeService = new ModeServiceImpl();
-		const tokenizer = createMonarchTokenizer(modeService, 'test', {
+		const languageService = new LanguageService();
+		const tokenizer = createMonarchTokenizer(languageService, 'test', {
 			tokenizer: {
 				root: [
 					{ include: '@comments' },
@@ -162,13 +162,13 @@ suite('Monarch', () => {
 			[],
 			[new Token(0, 'source.test', 'test')]
 		]);
-		modeService.dispose();
+		languageService.dispose();
 
 	});
 
 	test('microsoft/monaco-editor#2265: Exit a state at end of line', () => {
-		const modeService = new ModeServiceImpl();
-		const tokenizer = createMonarchTokenizer(modeService, 'test', {
+		const languageService = new LanguageService();
+		const tokenizer = createMonarchTokenizer(languageService, 'test', {
 			includeLF: true,
 			tokenizer: {
 				root: [
@@ -211,13 +211,13 @@ suite('Monarch', () => {
 				new Token(18, 'number.test', 'test'),
 			]
 		]);
-		modeService.dispose();
+		languageService.dispose();
 	});
 
 	test('issue #115662: monarchCompile function need an extra option which can control replacement', () => {
-		const modeService = new ModeServiceImpl();
+		const languageService = new LanguageService();
 
-		const tokenizer1 = createMonarchTokenizer(modeService, 'test', {
+		const tokenizer1 = createMonarchTokenizer(languageService, 'test', {
 			ignoreCase: false,
 			uselessReplaceKey1: '@uselessReplaceKey2',
 			uselessReplaceKey2: '@uselessReplaceKey3',
@@ -236,7 +236,7 @@ suite('Monarch', () => {
 			},
 		});
 
-		const tokenizer2 = createMonarchTokenizer(modeService, 'test', {
+		const tokenizer2 = createMonarchTokenizer(languageService, 'test', {
 			ignoreCase: false,
 			tokenizer: {
 				root: [
@@ -265,13 +265,13 @@ suite('Monarch', () => {
 				new Token(0, 'ham.test', 'test'),
 			]
 		]);
-		modeService.dispose();
+		languageService.dispose();
 	});
 
 	test('microsoft/monaco-editor#2424: Allow to target @@', () => {
-		const modeService = new ModeServiceImpl();
+		const languageService = new LanguageService();
 
-		const tokenizer = createMonarchTokenizer(modeService, 'test', {
+		const tokenizer = createMonarchTokenizer(languageService, 'test', {
 			ignoreCase: false,
 			tokenizer: {
 				root: [
@@ -293,7 +293,7 @@ suite('Monarch', () => {
 				new Token(0, 'ham.test', 'test'),
 			]
 		]);
-		modeService.dispose();
+		languageService.dispose();
 	});
 
 });
