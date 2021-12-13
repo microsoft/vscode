@@ -171,7 +171,7 @@ class InsertSnippetAction extends EditorAction {
 							label = nls.localize('sep.userSnippet', "User Snippets");
 							break;
 						case SnippetSource.Extension:
-							label = nls.localize('sep.extSnippet', "{0}", snippet.source);
+							label = snippet.source;
 							break;
 						case SnippetSource.Workspace:
 							label = nls.localize('sep.workspaceSnippet', "Workspace Snippets");
@@ -179,8 +179,6 @@ class InsertSnippetAction extends EditorAction {
 					}
 					result.push({ type: 'separator', label });
 				}
-
-
 
 				if (snippet.snippetSource === SnippetSource.Extension) {
 					const isEnabled = snippetService.isEnabled(snippet);
