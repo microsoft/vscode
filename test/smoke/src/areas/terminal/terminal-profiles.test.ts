@@ -9,7 +9,7 @@ const CONTRIBUTED_PROFILE_NAME = `JavaScript Debug Terminal`;
 const ANY_PROFILE_NAME = '^((?!JavaScript Debug Terminal).)*$';
 
 export function setup() {
-	describe.only('Terminal Profiles', () => {
+	describe('Terminal Profiles', () => {
 		// Acquire automation API
 		let terminal: Terminal;
 		before(function () {

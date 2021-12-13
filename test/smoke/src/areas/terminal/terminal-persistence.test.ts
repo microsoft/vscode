@@ -6,7 +6,7 @@
 import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation';
 
 export function setup() {
-	describe.only('Terminal Persistence', () => {
+	describe('Terminal Persistence', () => {
 		// Acquire automation API
 		let terminal: Terminal;
 		before(function () {

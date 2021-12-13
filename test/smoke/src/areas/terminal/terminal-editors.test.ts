@@ -6,7 +6,7 @@
 import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation';
 
 export function setup() {
-	describe.only('Terminal Editors', () => {
+	describe('Terminal Editors', () => {
 		let terminal: Terminal;
 
 		// Acquire automation API
