@@ -85,6 +85,9 @@ export const ResourceSelectedForCompareContext = new RawContextKey<boolean>('res
 export const REMOVE_ROOT_FOLDER_COMMAND_ID = 'removeRootFolder';
 export const REMOVE_ROOT_FOLDER_LABEL = nls.localize('removeFolderFromWorkspace', "Remove Folder from Workspace");
 
+export const RENAME_ROOT_FOLDER_COMMAND_ID = "renameRootFolder";
+export const RENAME_ROOT_FOLDER_LABEL = nls.localize("renameWorkspacePath", "Rename Path in Workspace");
+
 export const ADD_PATH_TO_WORKSPACE_COMMAND_ID = "addPathToWorkspace";
 export const ADD_PATH_TO_WORKSPACE_LABEL = nls.localize("addPathToWorkspace", "Add Path to Workspace");
 
@@ -582,6 +585,39 @@ CommandsRegistry.registerCommand({
 		);
 
 		return workspaceEditingService.removeFolders(resources);
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: RENAME_ROOT_FOLDER_COMMAND_ID,
+	handler: async (accessor: ServicesAccessor, resource: URI | object) => {
+		const explorerService = accessor.get(IExplorerService);
+		const contextService = accessor.get(IWorkspaceContextService);
+		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
+
+		const stats = explorerService.getContext(false);
+		const stat = stats.length > 0 ? stats[0] : undefined;
+		if (!stat) {
+			return;
+		}
+
+		await explorerService.setEditable(stat, {
+			validationMessage: value => null,
+			onFinish: async (value, success) => {
+				if (success) {
+					if (resource instanceof URI) {
+						let oldName = contextService.getWorkspaceFolder(resource)?.name;
+						let index = contextService.getWorkspaceFolder(resource)?.index;
+						if (oldName!==value && index!==undefined) {
+							await workspaceEditingService.updateFolders(index,1,[{uri:resource,name:value}],false);
+						}
+
+					}
+				}
+				await explorerService.setEditable(stat, null);
+			}
+		});
+
 	}
 });
 
