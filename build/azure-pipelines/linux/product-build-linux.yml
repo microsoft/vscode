@@ -283,13 +283,6 @@ steps:
 
   - script: |
       set -e
-      yarn --cwd build
-      yarn --cwd build compile
-    displayName: Compile build tools
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
-
-  - script: |
-      set -e
       node build/azure-pipelines/common/sign "$(esrpclient.toolpath)/$(esrpclient.toolname)" rpm $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) .build/linux/rpm '*.rpm'
     displayName: Codesign rpm
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
