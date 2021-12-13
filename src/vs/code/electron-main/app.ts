@@ -571,6 +571,7 @@ export class CodeApplication extends Disposable {
 		assertType(diskFileSystemProvider instanceof DiskFileSystemProvider);
 		const fileSystemProviderChannel = new DiskFileSystemProviderChannel(diskFileSystemProvider, this.logService);
 		mainProcessElectronServer.registerChannel('localFilesystem', fileSystemProviderChannel);
+		sharedProcessClient.then(client => client.registerChannel('localFilesystem', fileSystemProviderChannel));
 
 		// User Configuration File
 		const userConfigurationFileService = new UserConfigurationFileService(this.environmentMainService, this.fileService, this.logService);
