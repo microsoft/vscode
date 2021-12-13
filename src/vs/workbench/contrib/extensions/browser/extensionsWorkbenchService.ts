@@ -379,7 +379,7 @@ class Extensions extends Disposable {
 	private installed: Extension[] = [];
 
 	constructor(
-		private readonly server: IExtensionManagementServer,
+		readonly server: IExtensionManagementServer,
 		private readonly stateProvider: IExtensionStateProvider<ExtensionState>,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
@@ -1018,21 +1018,22 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			.then(undefined, err => null);
 	}
 
-	private syncWithGallery(): Promise<void> {
-		const ids: string[] = [], names: string[] = [];
+	private async syncWithGallery(): Promise<void> {
+		const identifiers: (IExtensionIdentifier & { preRelease: boolean })[] = [], names: string[] = [];
 		for (const installed of this.local) {
 			if (installed.type === ExtensionType.User) {
 				if (installed.identifier.uuid) {
-					ids.push(installed.identifier.uuid);
+					identifiers.push({ ...installed.identifier, preRelease: !!installed.local?.isPreReleaseVersion || !!installed.local?.preRelease });
 				} else {
 					names.push(installed.identifier.id);
 				}
 			}
 		}
 
-		const promises: Promise<IPager<IExtension>>[] = [];
-		if (ids.length) {
-			promises.push(this.queryGallery({ ids, pageSize: ids.length }, CancellationToken.None));
+		const promises: Promise<any>[] = [];
+		if (identifiers.length) {
+			const extensionsControlManifest = await this.extensionManagementService.getExtensionsControlManifest();
+			promises.push(this.galleryService.getExtensions2(identifiers).then(galleryExtensions => galleryExtensions.forEach(gallery => this.fromGallery(gallery, extensionsControlManifest))));
 		}
 		if (names.length) {
 			promises.push(this.queryGallery({ names, pageSize: names.length }, CancellationToken.None));
