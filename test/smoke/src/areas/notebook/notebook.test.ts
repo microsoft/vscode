@@ -25,7 +25,7 @@ export function setup(logger: Logger) {
 			cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePathOrFolder });
 		});
 
-		it('inserts/edits code cell', async function () {
+		it.skip('inserts/edits code cell', async function () {
 			const app = this.app as Application;
 			await app.workbench.notebook.openNotebook();
 			await app.workbench.notebook.focusNextCell();
@@ -54,7 +54,7 @@ export function setup(logger: Logger) {
 			await app.workbench.notebook.waitForMarkdownContents('p', 'Markdown Cell');
 		});
 
-		it('moves focus in and out of output', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/113882
+		it.skip('moves focus in and out of output', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/113882
 			const app = this.app as Application;
 			await app.workbench.notebook.openNotebook();
 			await app.workbench.notebook.executeActiveCell();
@@ -63,7 +63,7 @@ export function setup(logger: Logger) {
 			await app.workbench.notebook.waitForActiveCellEditorContents('code()');
 		});
 
-		it('cell action execution', async function () {
+		it.skip('cell action execution', async function () {
 			const app = this.app as Application;
 			await app.workbench.notebook.openNotebook();
 			await app.workbench.notebook.insertNotebookCell('code');
