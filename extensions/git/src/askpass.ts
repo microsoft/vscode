@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { window, InputBoxOptions, Uri, OutputChannel, Disposable, workspace } from 'vscode';
-import { IDisposable, EmptyDisposable, toDisposable } from './util';
+import { IDisposable, EmptyDisposable, toDisposable, logTimestamp } from './util';
 import * as path from 'path';
 import { IIPCHandler, IIPCServer, createIPCServer } from './ipc/ipcServer';
 import { CredentialsProvider, Credentials } from './api/git';
@@ -19,7 +19,7 @@ export class Askpass implements IIPCHandler {
 		try {
 			return new Askpass(await createIPCServer(context));
 		} catch (err) {
-			outputChannel.appendLine(`[error] Failed to create git askpass IPC: ${err}`);
+			outputChannel.appendLine(`${logTimestamp()} [error] Failed to create git askpass IPC: ${err}`);
 			return new Askpass();
 		}
 	}

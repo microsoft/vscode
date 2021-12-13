@@ -19,7 +19,7 @@ import { IModelDecoration, IModelDeltaDecoration, ITextModel, MinimapPosition, O
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { UnicodeHighlighterOptions, UnicodeHighlighterReason, UnicodeHighlighterReasonKind, UnicodeTextModelHighlighter } from 'vs/editor/common/modes/unicodeTextModelHighlighter';
 import { IEditorWorkerService, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorkerService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { isModelDecorationVisible } from 'vs/editor/common/viewModel/viewModelDecorations';
 import { HoverAnchor, HoverAnchorType, IEditorHover, IEditorHoverParticipant, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
 import { MarkdownHover, renderMarkdownHovers } from 'vs/editor/contrib/hover/markdownHoverParticipant';
@@ -397,7 +397,7 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _hover: IEditorHover,
-		@IModeService private readonly _modeService: IModeService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) {
 	}
@@ -482,7 +482,7 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 	}
 
 	public renderHoverParts(hoverParts: MarkdownHover[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable {
-		return renderMarkdownHovers(hoverParts, fragment, this._editor, this._hover, this._modeService, this._openerService);
+		return renderMarkdownHovers(hoverParts, fragment, this._editor, this._hover, this._languageService, this._openerService);
 	}
 }
 

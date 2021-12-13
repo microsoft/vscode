@@ -187,6 +187,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	};
 
 	private activeTasks: IStringDictionary<ActiveTerminalData>;
+	private startingTasks: Map<string, Task>;
 	private instances: IStringDictionary<InstanceManager>;
 	private busyTasks: IStringDictionary<Task>;
 	private terminals: IStringDictionary<TerminalData>;
@@ -228,6 +229,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		super();
 
 		this.activeTasks = Object.create(null);
+		this.startingTasks = new Map();
 		this.instances = Object.create(null);
 		this.busyTasks = Object.create(null);
 		this.terminals = Object.create(null);
@@ -252,6 +254,14 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult {
+		if (this.startingTasks.has(task.getCommonTaskId())) {
+			// This can occur when tasks are executed too close together.
+			// The user probably only wanted to run the task once.
+			return { task, promise: Promise.resolve({exitCode: 0}), kind: TaskExecuteKind.Active };
+		}
+
+		this.startingTasks.set(task.getCommonTaskId(), task);
+
 		task = task.clone(); // A small amount of task state is stored in the task (instance) and tasks passed in to run may have that set already.
 		const recentTaskKey = task.getRecentlyUsedKey() ?? '';
 		let validInstance = task.runOptions && task.runOptions.instanceLimit && this.instances[recentTaskKey] && this.instances[recentTaskKey].instances < task.runOptions.instanceLimit;
@@ -534,6 +544,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		} else {
 			return Promise.all(promises).then((summaries): ITaskSummary => {
 				encounteredDependencies.delete(task.getCommonTaskId());
+				this.startingTasks.delete(task.getCommonTaskId());
 				for (let summary of summaries) {
 					if (summary.exitCode !== 0) {
 						return { exitCode: summary.exitCode };
@@ -828,6 +839,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			}, (_error) => {
 				this.logService.error('Task terminal process never got ready');
 			});
+			this.startingTasks.delete(task.getCommonTaskId());
 			this.fireTaskEvent(TaskEvent.create(TaskEventKind.Start, task, terminal.instanceId));
 			const onData = terminal.onLineData((line) => {
 				watchingProblemMatcher.processLine(line);
@@ -908,6 +920,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			}, (_error) => {
 				// The process never got ready. Need to think how to handle this.
 			});
+			this.startingTasks.delete(task.getCommonTaskId());
 			this.fireTaskEvent(TaskEvent.create(TaskEventKind.Start, task, terminal.instanceId, resolver.values));
 			const mapKey = task.getMapKey();
 			this.busyTasks[mapKey] = task;
@@ -1128,13 +1141,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					toAdd.push('-c');
 				}
 			}
-			toAdd.forEach(element => {
-				if (!shellArgs.some(arg => arg.toLowerCase() === element)) {
-					shellArgs.push(element);
-				}
-			});
-			shellArgs.push(commandLine);
-			shellLaunchConfig.args = windowsShellArgs ? shellArgs.join(' ') : shellArgs;
+			const combinedShellArgs = this.addAllArgument(toAdd, shellArgs);
+			combinedShellArgs.push(commandLine);
+			shellLaunchConfig.args = windowsShellArgs ? combinedShellArgs.join(' ') : combinedShellArgs;
 			if (task.command.presentation && task.command.presentation.echo) {
 				if (needsFolderQualification && workspaceFolder) {
 					shellLaunchConfig.initialText = `\x1b[1m> Executing task in folder ${workspaceFolder.name}: ${commandLine} <\x1b[0m\n`;
@@ -1194,6 +1203,24 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		shellLaunchConfig.isFeatureTerminal = true;
 		shellLaunchConfig.useShellEnvironment = true;
 		return shellLaunchConfig;
+	}
+
+	private addAllArgument(shellCommandArgs: string[], configuredShellArgs: string[]): string[] {
+		const combinedShellArgs: string[] = Objects.deepClone(configuredShellArgs);
+		shellCommandArgs.forEach(element => {
+			const shouldAddShellCommandArg = configuredShellArgs.every((arg, index) => {
+				if ((arg.toLowerCase() === element) && (configuredShellArgs.length > index + 1)) {
+					// We can still add the argument, but only if not all of the following arguments begin with "-".
+					return !configuredShellArgs.slice(index + 1).every(testArg => testArg.startsWith('-'));
+				} else {
+					return arg.toLowerCase() !== element;
+				}
+			});
+			if (shouldAddShellCommandArg) {
+				combinedShellArgs.push(element);
+			}
+		});
+		return combinedShellArgs;
 	}
 
 	private async doCreateTerminal(group: string | undefined, launchConfigs: IShellLaunchConfig): Promise<ITerminalInstance> {
@@ -1313,10 +1340,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			return [terminalToReuse.terminal, commandExecutable, undefined];
 		}
 
-		await this.terminalCreationQueue;
-		const createTerminalPromise = this.doCreateTerminal(group, launchConfigs);
-		this.terminalCreationQueue = createTerminalPromise;
-		const result: ITerminalInstance = await createTerminalPromise;
+		this.terminalCreationQueue = this.terminalCreationQueue.then(() => this.doCreateTerminal(group, launchConfigs!));
+		const result: ITerminalInstance = (await this.terminalCreationQueue)!;
 
 		const terminalKey = result.instanceId.toString();
 		result.onDisposed((terminal) => {

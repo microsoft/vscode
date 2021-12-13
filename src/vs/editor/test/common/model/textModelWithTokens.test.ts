@@ -15,7 +15,7 @@ import { CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { ViewLineToken } from 'vs/editor/test/common/core/viewLineToken';
 import { createModelServices, createTextModel, createTextModel2 } from 'vs/editor/test/common/editorTestUtils';
 
@@ -350,7 +350,7 @@ suite('TextModelWithTokens', () => {
 		const mode1 = 'testMode1';
 		const mode2 = 'testMode2';
 
-		const languageIdCodec = instantiationService.invokeFunction((accessor) => accessor.get(IModeService).languageIdCodec);
+		const languageIdCodec = instantiationService.invokeFunction((accessor) => accessor.get(ILanguageService).languageIdCodec);
 
 		disposables.add(ModesRegistry.registerLanguage({ id: mode1 }));
 		disposables.add(ModesRegistry.registerLanguage({ id: mode2 }));
@@ -453,7 +453,7 @@ suite('TextModelWithTokens', () => {
 		const instantiationService = createModelServices(disposables);
 		const mode = 'testMode';
 
-		const languageIdCodec = instantiationService.invokeFunction((accessor) => accessor.get(IModeService).languageIdCodec);
+		const languageIdCodec = instantiationService.invokeFunction((accessor) => accessor.get(ILanguageService).languageIdCodec);
 
 		const encodedMode = languageIdCodec!.encodeLanguageId(mode);
 
@@ -673,7 +673,7 @@ suite('TextModelWithTokens regression tests', () => {
 		disposables.add(ModesRegistry.registerLanguage({ id: outerMode }));
 		disposables.add(ModesRegistry.registerLanguage({ id: innerMode }));
 
-		const languageIdCodec = instantiationService.invokeFunction((accessor) => accessor.get(IModeService).languageIdCodec);
+		const languageIdCodec = instantiationService.invokeFunction((accessor) => accessor.get(ILanguageService).languageIdCodec);
 		const encodedInnerMode = languageIdCodec.encodeLanguageId(innerMode);
 
 		const tokenizationSupport: ITokenizationSupport = {

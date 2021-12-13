@@ -289,7 +289,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		if (onlyWrappingColumnChanged) {
 			previousLineBreaks = [];
 			for (let i = 0, len = this.modelLineProjections.length; i < len; i++) {
-				previousLineBreaks[i] = this.modelLineProjections[i].getLineBreakData();
+				previousLineBreaks[i] = this.modelLineProjections[i].getProjectionData();
 			}
 		}
 
@@ -709,9 +709,8 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 				lastLine = true;
 				remainingViewLineCount = viewEndLineNumber - viewLineNumber + 1;
 			}
-			let toViewLineIndex = fromViewLineIndex + remainingViewLineCount;
 
-			line.getViewLinesData(this.model, modelLineIndex + 1, fromViewLineIndex, toViewLineIndex, viewLineNumber - viewStartLineNumber, needed, result);
+			line.getViewLinesData(this.model, modelLineIndex + 1, fromViewLineIndex, remainingViewLineCount, viewLineNumber - viewStartLineNumber, needed, result);
 
 			viewLineNumber += remainingViewLineCount;
 
@@ -1160,10 +1159,7 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 		let result: Array<ViewLineData | null> = [];
 		for (let lineNumber = viewStartLineNumber; lineNumber <= viewEndLineNumber; lineNumber++) {
 			let idx = lineNumber - viewStartLineNumber;
-			if (!needed[idx]) {
-				result[idx] = null;
-			}
-			result[idx] = this.getViewLineData(lineNumber);
+			result[idx] = needed[idx] ? this.getViewLineData(lineNumber) : null;
 		}
 
 		return result;

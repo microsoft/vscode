@@ -30,7 +30,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('MainThreadDocumentsAndEditors', () => {
@@ -67,7 +67,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 			new TestThemeService(),
 			new NullLogService(),
 			undoRedoService,
-			disposables.add(new ModeServiceImpl()),
+			disposables.add(new LanguageService()),
 			new TestLanguageConfigurationService()
 		);
 		codeEditorService = new TestCodeEditorService();

@@ -23,7 +23,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { EditorOption, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ModelConstants } from 'vs/editor/common/model';
@@ -145,7 +145,7 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService
+		@ILanguageService private readonly languageService: ILanguageService
 	) {
 		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService);
 	}
@@ -181,29 +181,29 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 			return; // require a live model
 		}
 
-		const currentMode = textModel.getLanguageId();
-		if (currentMode !== PLAINTEXT_MODE_ID) {
-			return; // require current mode to be unspecific
+		const currentLanguageId = textModel.getLanguageId();
+		if (currentLanguageId !== PLAINTEXT_MODE_ID) {
+			return; // require current languageId to be unspecific
 		}
 
-		let candidateMode: string | undefined = undefined;
+		let candidateLanguageId: string | undefined = undefined;
 
-		// A mode is provided via the paste event so text was copied using
-		// VSCode. As such we trust this mode and use it if specific
+		// A languageId is provided via the paste event so text was copied using
+		// VSCode. As such we trust this languageId and use it if specific
 		if (e.languageId) {
-			candidateMode = e.languageId;
+			candidateLanguageId = e.languageId;
 		}
 
-		// A mode was not provided, so the data comes from outside VSCode
-		// We can still try to guess a good mode from the first line if
+		// A languageId was not provided, so the data comes from outside VSCode
+		// We can still try to guess a good languageId from the first line if
 		// the paste changed the first line
 		else {
-			candidateMode = withNullAsUndefined(this.modeService.getModeIdByFilepathOrFirstLine(textModel.uri, textModel.getLineContent(1).substr(0, ModelConstants.FIRST_LINE_DETECTION_LENGTH_LIMIT)));
+			candidateLanguageId = withNullAsUndefined(this.languageService.getLanguageIdByFilepathOrFirstLine(textModel.uri, textModel.getLineContent(1).substr(0, ModelConstants.FIRST_LINE_DETECTION_LENGTH_LIMIT)));
 		}
 
-		// Finally apply mode to model if specified
-		if (candidateMode !== PLAINTEXT_MODE_ID) {
-			this.modelService.setMode(textModel, this.modeService.create(candidateMode));
+		// Finally apply languageId to model if specified
+		if (candidateLanguageId !== PLAINTEXT_MODE_ID) {
+			this.modelService.setMode(textModel, this.languageService.createById(candidateLanguageId));
 		}
 	}
 }

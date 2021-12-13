@@ -8,8 +8,8 @@ import * as mime from 'vs/base/common/mime';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { ILanguageExtensionPoint, IModeService } from 'vs/editor/common/services/modeService';
-import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { ILanguageExtensionPoint, ILanguageService } from 'vs/editor/common/services/languageService';
+import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FILES_ASSOCIATIONS_CONFIG, IFilesConfiguration } from 'vs/platform/files/common/files';
@@ -91,7 +91,7 @@ export const languagesExtPoint: IExtensionPoint<IRawLanguageExtensionPoint[]> = 
 	}
 });
 
-export class WorkbenchModeServiceImpl extends ModeServiceImpl {
+export class WorkbenchLanguageService extends LanguageService {
 	private _configurationService: IConfigurationService;
 	private _extensionService: IExtensionService;
 
@@ -165,9 +165,9 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 		if (configuration.files?.associations) {
 			Object.keys(configuration.files.associations).forEach(pattern => {
 				const langId = configuration.files.associations[pattern];
-				const mimetype = this.getMimeForMode(langId) || `text/x-${langId}`;
+				const mimeType = this.getMimeTypeForLanguageId(langId) || `text/x-${langId}`;
 
-				mime.registerTextMime({ id: langId, mime: mimetype, filepattern: pattern, userConfigured: true });
+				mime.registerTextMime({ id: langId, mime: mimeType, filepattern: pattern, userConfigured: true });
 			});
 		}
 
@@ -221,4 +221,4 @@ function isValidLanguageExtensionPoint(value: IRawLanguageExtensionPoint, collec
 	return true;
 }
 
-registerSingleton(IModeService, WorkbenchModeServiceImpl);
+registerSingleton(ILanguageService, WorkbenchLanguageService);

@@ -773,7 +773,7 @@ export class TypeOperations {
 
 		let electricAction: IElectricAction | null;
 		try {
-			electricAction = LanguageConfigurationRegistry.onElectricCharacter(ch, lineTokens, position.column);
+			electricAction = config.onElectricCharacter(ch, lineTokens, position.column);
 		} catch (e) {
 			onUnexpectedError(e);
 			return null;

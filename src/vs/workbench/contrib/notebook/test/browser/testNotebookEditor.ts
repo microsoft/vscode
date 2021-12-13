@@ -17,8 +17,8 @@ import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
@@ -63,9 +63,9 @@ export class TestCell extends NotebookCellTextModel {
 		language: string,
 		cellKind: CellKind,
 		outputs: IOutputDto[],
-		modeService: IModeService,
+		languageService: ILanguageService,
 	) {
-		super(CellUri.generate(URI.parse('test:///fake/notebook'), handle), handle, source, language, Mimes.text, cellKind, outputs, undefined, undefined, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }, modeService);
+		super(CellUri.generate(URI.parse('test:///fake/notebook'), handle), handle, source, language, Mimes.text, cellKind, outputs, undefined, undefined, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }, languageService);
 	}
 }
 
@@ -158,7 +158,7 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 
 export function setupInstantiationService(disposables = new DisposableStore()) {
 	const instantiationService = new TestInstantiationService();
-	instantiationService.stub(IModeService, disposables.add(new ModeServiceImpl()));
+	instantiationService.stub(ILanguageService, disposables.add(new LanguageService()));
 	instantiationService.stub(IUndoRedoService, instantiationService.createInstance(UndoRedoService));
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(IThemeService, new TestThemeService());

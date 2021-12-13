@@ -208,6 +208,7 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 	}
 
 	set value(value: string) {
+		value = value ?? '';
 		this.#proxy.$setInputBoxValue(this._sourceControlHandle, value);
 		this.updateValue(value);
 	}

@@ -486,6 +486,7 @@ export interface TerminalLaunchConfig {
 	isExtensionOwnedTerminal?: boolean;
 	useShellEnvironment?: boolean;
 	location?: TerminalLocation | { viewColumn: number, preserveFocus?: boolean } | { parentTerminal: ExtHostTerminalIdentifier } | { splitActiveTerminal: boolean };
+	disablePersistence?: boolean;
 }
 
 export interface MainThreadTerminalServiceShape extends IDisposable {
@@ -791,7 +792,7 @@ export interface WebviewPanelViewStateData {
 }
 
 export interface ExtHostWebviewsShape {
-	$onMessage(handle: WebviewHandle, jsonSerializedMessage: string, ...buffers: VSBuffer[]): void;
+	$onMessage(handle: WebviewHandle, jsonSerializedMessage: string, buffers: SerializableObjectWithBuffers<VSBuffer[]>): void;
 	$onMissingCsp(handle: WebviewHandle, extensionId: string): void;
 }
 

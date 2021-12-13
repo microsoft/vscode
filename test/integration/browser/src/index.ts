@@ -65,7 +65,7 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 	const testExtensionUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.extensionDevelopmentPath)).path, protocol, host, slashes: true });
 	const testFilesUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.extensionTestsPath)).path, protocol, host, slashes: true });
 
-	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"],["enableProposedApi",""],["webviewExternalEndpointCommit","9acd320edad7cea2c062d339fa04822c5eeb9e1d"],["skipWelcome","true"]]`;
+	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"],["enableProposedApi",""],["webviewExternalEndpointCommit","69df0500a8963fc469161c038a14a39384d5a303"],["skipWelcome","true"]]`;
 
 	if (path.extname(testWorkspaceUri) === '.code-workspace') {
 		await page.goto(`${endpoint.href}&workspace=${testWorkspaceUri}&payload=${payloadParam}`);
@@ -162,8 +162,14 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 	}
 
 	process.on('exit', () => serverProcess.kill());
-	process.on('SIGINT', () => serverProcess.kill());
-	process.on('SIGTERM', () => serverProcess.kill());
+	process.on('SIGINT', () => {
+		serverProcess.kill();
+		process.exit(128 + 2); // https://nodejs.org/docs/v14.16.0/api/process.html#process_signal_events
+	});
+	process.on('SIGTERM', () => {
+		serverProcess.kill();
+		process.exit(128 + 15); // https://nodejs.org/docs/v14.16.0/api/process.html#process_signal_events
+	});
 
 	return new Promise(c => {
 		serverProcess.stdout!.on('data', data => {

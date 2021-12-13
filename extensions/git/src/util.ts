@@ -13,6 +13,10 @@ export function log(...args: any[]): void {
 	console.log.apply(console, ['git:', ...args]);
 }
 
+export function logTimestamp(): string {
+	return `[${new Date().toISOString()}]`;
+}
+
 export interface IDisposable {
 	dispose(): void;
 }

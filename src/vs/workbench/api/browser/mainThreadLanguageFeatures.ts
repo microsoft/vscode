@@ -12,9 +12,9 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position as EditorPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange, IRange } from 'vs/editor/common/core/range';
 import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ILanguageConfigurationDto, IRegExpDto, IIndentationRuleDto, IOnEnterRuleDto, ILocationDto, IWorkspaceSymbolDto, reviveWorkspaceEditDto, IDocumentFilterDto, IDefinitionLinkDto, ISignatureHelpProviderMetadataDto, ILinkDto, ICallHierarchyItemDto, ISuggestDataDto, ICodeActionDto, ISuggestDataDtoField, ISuggestResultDtoField, ICodeActionProviderMetadataDto, ILanguageWordDefinitionDto, IdentifiableInlineCompletions, IdentifiableInlineCompletion, ITypeHierarchyItemDto } from '../common/extHost.protocol';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { ILanguageConfigurationService, LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { LanguageConfiguration, IndentationRule, OnEnterRule } from 'vs/editor/common/modes/languageConfiguration';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -28,21 +28,22 @@ import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticToken
 export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
 
 	private readonly _proxy: ExtHostLanguageFeaturesShape;
-	private readonly _modeService: IModeService;
+	private readonly _languageService: ILanguageService;
 	private readonly _registrations = new Map<number, IDisposable>();
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IModeService modeService: IModeService,
+		@ILanguageService languageService: ILanguageService,
+		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostLanguageFeatures);
-		this._modeService = modeService;
+		this._languageService = languageService;
 
-		if (this._modeService) {
+		if (this._languageService) {
 			const updateAllWordDefinitions = () => {
-				const langWordPairs = LanguageConfigurationRegistry.getWordDefinitions();
 				let wordDefinitionDtos: ILanguageWordDefinitionDto[] = [];
-				for (const [languageId, wordDefinition] of langWordPairs) {
+				for (const languageId of languageService.getRegisteredLanguageIds()) {
+					const wordDefinition = languageConfigurationService.getLanguageConfiguration(languageId).getWordDefinition();
 					wordDefinitionDtos.push({
 						languageId: languageId,
 						regexSource: wordDefinition.source,
@@ -51,13 +52,17 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				}
 				this._proxy.$setWordDefinitions(wordDefinitionDtos);
 			};
-			LanguageConfigurationRegistry.onDidChange((e) => {
-				const wordDefinition = LanguageConfigurationRegistry.getWordDefinition(e.languageId);
-				this._proxy.$setWordDefinitions([{
-					languageId: e.languageId,
-					regexSource: wordDefinition.source,
-					regexFlags: wordDefinition.flags
-				}]);
+			languageConfigurationService.onDidChange((e) => {
+				if (!e.languageId) {
+					updateAllWordDefinitions();
+				} else {
+					const wordDefinition = languageConfigurationService.getLanguageConfiguration(e.languageId).getWordDefinition();
+					this._proxy.$setWordDefinitions([{
+						languageId: e.languageId,
+						regexSource: wordDefinition.source,
+						regexFlags: wordDefinition.flags
+					}]);
+				}
 			});
 			updateAllWordDefinitions();
 		}
@@ -770,7 +775,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			};
 		}
 
-		const validLanguageId = this._modeService.validateLanguageId(languageId);
+		const validLanguageId = this._languageService.validateLanguageId(languageId);
 		if (validLanguageId) {
 			this._registrations.set(handle, LanguageConfigurationRegistry.register(validLanguageId, configuration, 100));
 		}

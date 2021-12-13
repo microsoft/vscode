@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 /**
  * The payload that flows in readable stream events.
@@ -558,14 +558,31 @@ export interface IStreamListener<T> {
 /**
  * Helper to listen to all events of a T stream in proper order.
  */
-export function listenStream<T>(stream: ReadableStreamEvents<T>, listener: IStreamListener<T>): void {
-	stream.on('error', error => listener.onError(error));
-	stream.on('end', () => listener.onEnd());
+export function listenStream<T>(stream: ReadableStreamEvents<T>, listener: IStreamListener<T>): IDisposable {
+	let destroyed = false;
+
+	stream.on('error', error => {
+		if (!destroyed) {
+			listener.onError(error);
+		}
+	});
+
+	stream.on('end', () => {
+		if (!destroyed) {
+			listener.onEnd();
+		}
+	});
 
 	// Adding the `data` listener will turn the stream
 	// into flowing mode. As such it is important to
 	// add this listener last (DO NOT CHANGE!)
-	stream.on('data', data => listener.onData(data));
+	stream.on('data', data => {
+		if (!destroyed) {
+			listener.onData(data);
+		}
+	});
+
+	return toDisposable(() => destroyed = true);
 }
 
 /**

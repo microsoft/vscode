@@ -7,7 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextResourceConfigurationService, ITextResourceConfigurationChangeEvent } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IConfigurationService, ConfigurationTarget, IConfigurationValue, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -22,7 +22,7 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 		super();
 		this._register(this.configurationService.onDidChangeConfiguration(e => this._onDidChangeConfiguration.fire(this.toResourceConfigurationChangeEvent(e))));
@@ -111,7 +111,7 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 		if (model) {
 			return position ? model.getLanguageIdAtPosition(position.lineNumber, position.column) : model.getLanguageId();
 		}
-		return this.modeService.getModeIdByFilepathOrFirstLine(resource);
+		return this.languageService.getLanguageIdByFilepathOrFirstLine(resource);
 	}
 
 	private toResourceConfigurationChangeEvent(configurationChangeEvent: IConfigurationChangeEvent): ITextResourceConfigurationChangeEvent {

@@ -3,11 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, IReference } from 'vs/base/common/lifecycle';
-
-export function createDisposableRef<T>(object: T, disposable?: IDisposable): IReference<T> {
-	return {
-		object,
-		dispose: () => disposable?.dispose(),
-	};
+declare module 'vscode' {
+	export interface TerminalOptions {
+		/**
+		 * Opt-out of the default terminal persistence on restart and reload
+		 */
+		disablePersistence?: boolean;
+	}
+	export interface ExtensionTerminalOptions {
+		/**
+		 * Opt-out of the default terminal persistence on restart and reload
+		 */
+		disablePersistence?: boolean;
+	}
 }
