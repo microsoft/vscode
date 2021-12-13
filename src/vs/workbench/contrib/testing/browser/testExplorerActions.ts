@@ -7,7 +7,8 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { isDefined } from 'vs/base/common/types';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
@@ -733,9 +734,10 @@ abstract class ExecuteTestAtCursor extends Action2 {
 		const profileService = accessor.get(ITestProfileService);
 
 		let bestNodes: InternalTestItem[] = [];
+		let bestRange: Range | undefined;
+
 		let bestNodesBefore: InternalTestItem[] = [];
-		let bestRange: IRange | undefined;
-		let bestRangeBefore: IRange | undefined;
+		let bestRangeBefore: Range | undefined;
 
 		// testsInFile will descend in the test tree. We assume that as we go
 		// deeper, ranges get more specific. We'll want to run all tests whose
@@ -750,45 +752,30 @@ abstract class ExecuteTestAtCursor extends Action2 {
 					continue;
 				}
 
-				if (Range.containsPosition(test.item.range, position)) {
+				const irange = Range.lift(test.item.range);
+				if (irange.containsPosition(position)) {
 					if (bestRange && Range.equalsRange(test.item.range, bestRange)) {
 						bestNodes.push(test);
 					} else {
-						bestRange = test.item.range;
+						bestRange = irange;
 						bestNodes = [test];
 					}
-				}
-				else if (test.item.range.startLineNumber < position.lineNumber
-					|| (test.item.range.startLineNumber === position.lineNumber
-						&& test.item.range.startColumn < position.column)) {
-					if (bestRangeBefore) {
-						if (Range.equalsRange(test.item.range, bestRangeBefore)) {
-							bestNodesBefore.push(test);
-						} else if (test.item.range.startLineNumber > bestRangeBefore.startLineNumber
-							|| (test.item.range.startLineNumber === bestRangeBefore.startLineNumber
-								&& test.item.range.startColumn > bestRangeBefore.startColumn)) {
-							bestRangeBefore = test.item.range;
-							bestNodesBefore = [test];
-						}
-					} else {
-						bestRangeBefore = test.item.range;
+				} else if (Position.isBefore(irange.getStartPosition(), position)) {
+					if (!bestRangeBefore || bestRangeBefore.getStartPosition().isBefore(irange.getStartPosition())) {
+						bestRangeBefore = irange;
 						bestNodesBefore = [test];
+					} else if (irange.equalsRange(bestRangeBefore)) {
+						bestNodesBefore.push(test);
 					}
 				}
 			}
 		})());
 
-
-		if (bestNodes.length) {
+		const testsToRun = bestNodes.length ? bestNodes : bestNodesBefore;
+		if (testsToRun.length) {
 			await testService.runTests({
 				group: this.group,
-				tests: bestNodes,
-			});
-		}
-		else if (bestNodesBefore.length) {
-			await testService.runTests({
-				group: this.group,
-				tests: bestNodesBefore,
+				tests: bestNodes.length ? bestNodes : bestNodesBefore,
 			});
 		}
 	}
