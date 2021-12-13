@@ -505,15 +505,14 @@ const terminalConfiguration: IConfigurationNode = {
 			default: true
 		},
 		[TerminalSettingId.AutoReplies]: {
-			description: localize('terminal.integrated.autoReplies', "A set of messages that when encountered in the terminal will be automatically responded to. Provided the message is specific enough, this can help automate away common responses."),
+			description: localize('terminal.integrated.autoReplies', "A set of messages that when encountered in the terminal will be automatically responded to. Provided the message is specific enough, this can help automate away common responses. Each reply can only happen once every second."),
 			type: 'object',
 			additionalProperties: {
 				type: 'string',
-				// TODO: message + localize
-				description: 'TODO'
+				description: localize('terminal.integrated.autoReplies.reply', "The reply to send to the process.")
 			},
 			default: {
-				'Terminate batch job (Y/N)': 'Y\\u000d'
+				'Terminate batch job (Y/N)': 'Y\u000d'
 			}
 		}
 	}

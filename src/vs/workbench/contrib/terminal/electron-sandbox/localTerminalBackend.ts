@@ -146,12 +146,12 @@ class LocalTerminalBackend extends Disposable implements ITerminalBackend {
 			this._localPtyService.installAutoReply(match, initialConfig.autoReplies[match]);
 		}
 		// TODO: Could simplify update to a single call
-		this._register(configurationService.onDidChangeConfiguration(e => {
+		this._register(configurationService.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration(TerminalSettingId.AutoReplies)) {
 				this._localPtyService.uninstallAllAutoReplies();
 				const config = configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
 				for (const match of Object.keys(config.autoReplies)) {
-					this._localPtyService.installAutoReply(match, config.autoReplies[match]);
+					await this._localPtyService.installAutoReply(match, config.autoReplies[match]);
 				}
 			}
 		}));

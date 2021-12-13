@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { timeout } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isWindows } from 'vs/base/common/platform';
 import { ITerminalChildProcess, ITerminalEventListener } from 'vs/platform/terminal/common/terminal';
@@ -15,6 +16,7 @@ import { ITerminalChildProcess, ITerminalEventListener } from 'vs/platform/termi
 export class TerminalAutoResponder extends Disposable implements ITerminalEventListener {
 	private _pointer = 0;
 	private _paused = false;
+	private _throttled = false;
 
 	constructor(
 		proc: ITerminalChildProcess,
@@ -24,10 +26,9 @@ export class TerminalAutoResponder extends Disposable implements ITerminalEventL
 		super();
 
 		this._register(proc.onProcessData(e => {
-			if (this._paused) {
+			if (this._paused || this._throttled) {
 				return;
 			}
-			console.log('data', e);
 			const data = typeof e === 'string' ? e : e.data;
 			for (let i = 0; i < data.length; i++) {
 				if (data[i] === matchWord[this._pointer]) {
@@ -38,6 +39,8 @@ export class TerminalAutoResponder extends Disposable implements ITerminalEventL
 				// Auto reply and reset
 				if (this._pointer === matchWord.length) {
 					proc.input(response);
+					this._throttled = true;
+					timeout(1000).then(() => this._throttled = false);
 					this._reset();
 				}
 			}
