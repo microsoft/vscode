@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { assertIsDefined } from 'vs/base/common/types';
 import { isValidBasename } from 'vs/base/common/extpath';
 import { basename } from 'vs/base/common/resources';
@@ -183,7 +182,7 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 
 		// Offer to create a file from the error if we have a file not found and the name is valid
 		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && isValidBasename(basename(input.preferredResource))) {
-			const fileNotFoundError: FileOperationError & IErrorWithActions = new FileOperationError(toErrorMessage(error), FileOperationResult.FILE_NOT_FOUND);
+			const fileNotFoundError: FileOperationError & IErrorWithActions = new FileOperationError(localize('fileNotFoundError', "File not found"), FileOperationResult.FILE_NOT_FOUND);
 			fileNotFoundError.actions = [
 				toAction({
 					id: 'workbench.files.action.createMissingFile', label: localize('createFile', "Create File"), run: async () => {

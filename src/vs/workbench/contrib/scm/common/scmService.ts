@@ -147,7 +147,7 @@ class SCMInput implements ISCMInput {
 		if (key) {
 			try {
 				history = JSON.parse(this.storageService.get(key, StorageScope.GLOBAL, '')).history;
-				history = history?.filter(s => !!s);
+				history = history?.map(s => s ?? '');
 			} catch {
 				// noop
 			}
@@ -172,7 +172,7 @@ class SCMInput implements ISCMInput {
 					return;
 				}
 
-				const history = [...this.historyNavigator].filter(s => !!s);
+				const history = [...this.historyNavigator].map(s => s ?? '');
 
 				if (history.length === 0 || (history.length === 1 && history[0] === '')) {
 					return;

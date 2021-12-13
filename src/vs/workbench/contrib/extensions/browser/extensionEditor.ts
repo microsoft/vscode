@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/extensionEditor';
 import { localize } from 'vs/nls';
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import * as arrays from 'vs/base/common/arrays';
 import { OS } from 'vs/base/common/platform';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -23,7 +22,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { ExtensionsInput, IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, IExtension, ExtensionContainers, ExtensionEditorTab, ExtensionState } from 'vs/workbench/contrib/extensions/common/extensions';
-import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
+import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget, ExtensionWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import {
@@ -139,8 +138,6 @@ interface IExtensionEditorTemplate {
 	name: HTMLElement;
 	preview: HTMLElement;
 	builtin: HTMLElement;
-	version: HTMLElement;
-	preRelease: HTMLElement;
 	publisher: HTMLElement;
 	publisherDisplayName: HTMLElement;
 	verifiedPublisherIcon: HTMLElement;
@@ -155,6 +152,7 @@ interface IExtensionEditorTemplate {
 	content: HTMLElement;
 	header: HTMLElement;
 	extension: IExtension;
+	gallery: IGalleryExtension | null;
 	manifest: IExtensionManifest | null;
 }
 
@@ -165,8 +163,53 @@ const enum WebviewIndex {
 
 const CONTEXT_SHOW_PRE_RELEASE_VERSION = new RawContextKey<boolean>('showPreReleaseVersion', false);
 
-interface IExtensionEditorWidget extends IDisposable {
-	updateInput(extension: IExtension, gallery: IGalleryExtension | undefined, preserveFocus?: boolean): void;
+abstract class ExtensionWithDifferentGalleryVersionWidget extends ExtensionWidget {
+	private _gallery: IGalleryExtension | null = null;
+	get gallery(): IGalleryExtension | null { return this._gallery; }
+	set gallery(gallery: IGalleryExtension | null) {
+		if (this.extension && gallery && !areSameExtensions(this.extension.identifier, gallery.identifier)) {
+			return;
+		}
+		this._gallery = gallery;
+		this.update();
+	}
+}
+
+class VersionWidget extends ExtensionWithDifferentGalleryVersionWidget {
+	private readonly element: HTMLElement;
+	constructor(container: HTMLElement) {
+		super();
+		this.element = append(container, $('code.version', { title: localize('extension version', "Extension Version") }));
+		this.render();
+	}
+	render(): void {
+		if (!this.extension) {
+			return;
+		}
+		this.element.textContent = `v${this.gallery ? this.gallery.version : this.extension.version}`;
+	}
+}
+
+class PreReleaseTextWidget extends ExtensionWithDifferentGalleryVersionWidget {
+	private readonly element: HTMLElement;
+	constructor(container: HTMLElement) {
+		super();
+		this.element = append(container, $('span.pre-release'));
+		this.element.textContent = localize('preRelease', "Pre-Release");
+		this.render();
+	}
+	render(): void {
+		this.element.style.display = this.isPreReleaseVersion() ? 'inherit' : 'none';
+	}
+	private isPreReleaseVersion(): boolean {
+		if (!this.extension) {
+			return false;
+		}
+		if (this.gallery) {
+			return this.gallery.properties.isPreReleaseVersion;
+		}
+		return !!(this.extension.local?.isPreReleaseVersion || this.extension.gallery?.properties.isPreReleaseVersion);
+	}
 }
 
 export class ExtensionEditor extends EditorPane {
@@ -194,7 +237,6 @@ export class ExtensionEditor extends EditorPane {
 	private dimension: Dimension | undefined;
 
 	private showPreReleaseVersionContextKey: IContextKey<boolean> | undefined;
-	private readonly extensionEditorWidget: IExtensionEditorWidget;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -219,31 +261,6 @@ export class ExtensionEditor extends EditorPane {
 		this.extensionReadme = null;
 		this.extensionChangelog = null;
 		this.extensionManifest = null;
-		const that = this;
-		this.extensionEditorWidget = this._register(new class extends Disposable implements IExtensionEditorWidget {
-			private gallery: IGalleryExtension | undefined = undefined;
-			private extension: IExtension | undefined = undefined;
-			private updatePromise: CancelablePromise<void> | undefined;
-			constructor() {
-				super();
-				this._register(that.extensionsWorkbenchService.onChange(e => {
-					if (e && this.extension
-						&& areSameExtensions(this.extension.identifier, e?.identifier)
-						&& (!this.extension.server || this.extension.server === e.server)
-						&& this.extension.latestVersion !== e.latestVersion) {
-						this.updateInput(e, this.gallery);
-					}
-				}));
-			}
-			updateInput(extension: IExtension, gallery: IGalleryExtension | undefined, preserveFocus?: boolean): void {
-				this.extension = extension;
-				this.gallery = gallery;
-				if (that.template) {
-					this.updatePromise?.cancel();
-					this.updatePromise = createCancelablePromise(token => that.updateTemplate(this.extension!, this.gallery, that.template!, !!preserveFocus, token));
-				}
-			}
-		}());
 	}
 
 	override get scopedContextKeyService(): IContextKeyService | undefined {
@@ -268,13 +285,12 @@ export class ExtensionEditor extends EditorPane {
 		const details = append(header, $('.details'));
 		const title = append(details, $('.title'));
 		const name = append(title, $('span.name.clickable', { title: localize('name', "Extension name"), role: 'heading', tabIndex: 0 }));
-		const version = append(title, $('code.version', { title: localize('extension version', "Extension Version") }));
+		const versionWidget = new VersionWidget(title);
 
 		const preview = append(title, $('span.preview', { title: localize('preview', "Preview") }));
 		preview.textContent = localize('preview', "Preview");
 
-		const preRelease = append(title, $('span.pre-release'));
-		preRelease.textContent = localize('preRelease', "Pre-Release");
+		const preReleaseWidget = new PreReleaseTextWidget(title);
 		const builtin = append(title, $('span.builtin'));
 		builtin.textContent = localize('builtin', "Built-in");
 
@@ -293,6 +309,8 @@ export class ExtensionEditor extends EditorPane {
 
 		const widgets = [
 			remoteBadge,
+			versionWidget,
+			preReleaseWidget,
 			installCountWidget,
 			ratingsWidget,
 		];
@@ -376,8 +394,6 @@ export class ExtensionEditor extends EditorPane {
 			header,
 			icon,
 			iconContainer,
-			version,
-			preRelease,
 			installCount,
 			name,
 			navbar,
@@ -392,6 +408,10 @@ export class ExtensionEditor extends EditorPane {
 			recommendation,
 			set extension(extension: IExtension) {
 				extensionContainers.extension = extension;
+			},
+			set gallery(gallery: IGalleryExtension | null) {
+				versionWidget.gallery = gallery;
+				preReleaseWidget.gallery = gallery;
 			},
 			set manifest(manifest: IExtensionManifest | null) {
 				installAction.manifest = manifest;
@@ -417,8 +437,7 @@ export class ExtensionEditor extends EditorPane {
 		await super.setInput(input, options, context, token);
 		this.updatePreReleaseVersionContext();
 		if (this.template) {
-			const gallery = await this.getGallery(input.extension, options?.showPreReleaseVersion);
-			this.extensionEditorWidget.updateInput(input.extension, gallery, options?.preserveFocus);
+			this.render(input.extension, this.template, !!options?.preserveFocus);
 		}
 	}
 
@@ -426,25 +445,9 @@ export class ExtensionEditor extends EditorPane {
 		const currentOptions: IExtensionEditorOptions | undefined = this.options;
 		super.setOptions(options);
 		this.updatePreReleaseVersionContext();
-		if (this.input && currentOptions?.showPreReleaseVersion !== options?.showPreReleaseVersion) {
-			this.getGallery((<ExtensionsInput>this.input).extension, !!options?.showPreReleaseVersion).then(gallery => this.extensionEditorWidget.updateInput((<ExtensionsInput>this.input).extension, gallery));
+		if (this.input && this.template && currentOptions?.showPreReleaseVersion !== options?.showPreReleaseVersion) {
+			this.render((this.input as ExtensionsInput).extension, this.template, !!options?.preserveFocus);
 		}
-	}
-
-	private async getGallery(extension: IExtension, preRelease?: boolean): Promise<IGalleryExtension | undefined> {
-		if (isUndefined(preRelease)) {
-			return undefined;
-		}
-		if (preRelease === extension.gallery?.properties.isPreReleaseVersion) {
-			return undefined;
-		}
-		if (preRelease && !extension.hasPreReleaseVersion) {
-			return undefined;
-		}
-		if (!preRelease && !extension.hasReleaseVersion) {
-			return undefined;
-		}
-		return (await this.extensionGalleryService.query({ includePreRelease: preRelease, names: [extension.identifier.id] }, CancellationToken.None)).firstPage[0];
 	}
 
 	private updatePreReleaseVersionContext(): void {
@@ -468,16 +471,40 @@ export class ExtensionEditor extends EditorPane {
 		}
 	}
 
-	private async updateTemplate(extension: IExtension, gallery: IGalleryExtension | undefined, template: IExtensionEditorTemplate, preserveFocus: boolean, token: CancellationToken): Promise<void> {
+	private async getGalleryVersionToShow(extension: IExtension, preRelease?: boolean): Promise<IGalleryExtension | null> {
+		if (isUndefined(preRelease)) {
+			return null;
+		}
+		if (preRelease === extension.gallery?.properties.isPreReleaseVersion) {
+			return null;
+		}
+		if (preRelease && !extension.hasPreReleaseVersion) {
+			return null;
+		}
+		if (!preRelease && !extension.hasReleaseVersion) {
+			return null;
+		}
+		return (await this.extensionGalleryService.query({ includePreRelease: preRelease, names: [extension.identifier.id] }, CancellationToken.None)).firstPage[0] || null;
+	}
+
+	private async render(extension: IExtension, template: IExtensionEditorTemplate, preserveFocus: boolean): Promise<void> {
 		this.activeElement = null;
 		this.editorLoadComplete = false;
 		this.transientDisposables.clear();
 
-		this.extensionReadme = new Cache(() => extension.getReadme(!!this.showPreReleaseVersionContextKey?.get(), token));
-		this.extensionChangelog = new Cache(() => extension.getChangelog(!!this.showPreReleaseVersionContextKey?.get(), token));
-		this.extensionManifest = new Cache(() => extension.getManifest(!!this.showPreReleaseVersionContextKey?.get(), token));
+		const token = this.transientDisposables.add(new CancellationTokenSource()).token;
+
+		const gallery = await this.getGalleryVersionToShow(extension, (this.options as IExtensionEditorOptions)?.showPreReleaseVersion);
+		if (token.isCancellationRequested) {
+			return;
+		}
+
+		this.extensionReadme = new Cache(() => gallery ? this.extensionGalleryService.getReadme(gallery, token) : extension.getReadme(token));
+		this.extensionChangelog = new Cache(() => gallery ? this.extensionGalleryService.getChangelog(gallery, token) : extension.getChangelog(token));
+		this.extensionManifest = new Cache(() => gallery ? this.extensionGalleryService.getManifest(gallery, token) : extension.getManifest(token));
 
 		template.extension = extension;
+		template.gallery = gallery;
 		template.manifest = null;
 
 		this.transientDisposables.add(addDisposableListener(template.icon, 'error', () => template.icon.src = extension.iconUrlFallback, { once: true }));
@@ -485,9 +512,7 @@ export class ExtensionEditor extends EditorPane {
 
 		template.name.textContent = extension.displayName;
 		template.name.classList.toggle('clickable', !!extension.url);
-		template.version.textContent = `v${gallery ? gallery.version : extension.version}`;
 		template.preview.style.display = extension.preview ? 'inherit' : 'none';
-		template.preRelease.style.display = (gallery ? gallery.properties.isPreReleaseVersion : (extension.local?.isPreReleaseVersion || extension.gallery?.properties.isPreReleaseVersion)) ? 'inherit' : 'none';
 		template.builtin.style.display = extension.isBuiltin ? 'inherit' : 'none';
 
 		template.description.textContent = extension.description;
@@ -524,7 +549,7 @@ export class ExtensionEditor extends EditorPane {
 			template.manifest = manifest;
 		}
 
-		this.updateNavbar(extension, manifest, template, preserveFocus);
+		this.renderNavbar(extension, manifest, template, preserveFocus);
 
 		// report telemetry
 		const extRecommendations = this.extensionRecommendationsService.getAllRecommendationsWithReason();
@@ -545,7 +570,7 @@ export class ExtensionEditor extends EditorPane {
 		this.editorLoadComplete = true;
 	}
 
-	private updateNavbar(extension: IExtension, manifest: IExtensionManifest | null, template: IExtensionEditorTemplate, preserveFocus: boolean): void {
+	private renderNavbar(extension: IExtension, manifest: IExtensionManifest | null, template: IExtensionEditorTemplate, preserveFocus: boolean): void {
 		template.content.innerText = '';
 		template.navbar.clear();
 

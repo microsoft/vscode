@@ -10,12 +10,8 @@ import { setup as setupTerminalPersistenceTests } from './terminal-persistence.t
 import { setup as setupTerminalProfileTests } from './terminal-profiles.test';
 import { setup as setupTerminalTabsTests } from './terminal-tabs.test';
 
-export function setup(isWeb: boolean, logger: Logger) {
+export function setup(logger: Logger) {
 	describe('Terminal', function () {
-		// TODO: Enable terminal tests for non-web when the desktop driver is moved to playwright
-		if (!isWeb) {
-			return;
-		}
 
 		// Retry tests 3 times to minimize build failures due to any flakiness
 		this.retries(3);

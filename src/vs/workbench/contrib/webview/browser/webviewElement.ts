@@ -48,8 +48,6 @@ export const enum WebviewMessageChannels {
 	doUpdateState = 'do-update-state',
 	doReload = 'do-reload',
 	setConfirmBeforeClose = 'set-confirm-before-close',
-	loadResource = 'load-resource',
-	loadLocalhost = 'load-localhost',
 	webviewReady = 'webview-ready',
 	wheel = 'did-scroll-wheel',
 	fatalError = 'fatal-error',
@@ -57,7 +55,28 @@ export const enum WebviewMessageChannels {
 	didKeydown = 'did-keydown',
 	didKeyup = 'did-keyup',
 	didContextMenu = 'did-context-menu',
+
+	// Service worker
+	initServiceWorker = 'init-service-worker',
+	didInitServiceWorker = 'did-init-service-worker',
 }
+
+const enum ServiceWorkerMessages {
+	// From
+	loadResource = 'load-resource',
+	loadLocalhost = 'load-localhost',
+
+	// To
+	didLoadLocalHost = 'did-load-localhost',
+	didLoadResource = 'did-load-resource',
+}
+
+type ResponseResponse =
+	| { readonly status: 200; id: number; path: string; mime: string; data: Uint8Array; etag: string | undefined; mtime: number | undefined; } // success
+	| { readonly status: 304; id: number; path: string; mime: string; mtime: number | undefined } // not modified
+	| { readonly status: 401; id: number; path: string } // unauthorized
+	| { readonly status: 404; id: number; path: string } // not found
+	;
 
 interface IKeydownEvent {
 	key: string;
@@ -99,7 +118,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 	protected get platform(): string { return 'browser'; }
 
-	private readonly _expectedServiceWorkerVersion = 2; // Keep this in sync with the version in service-worker.js
+	private readonly _expectedServiceWorkerVersion = 3; // Keep this in sync with the version in service-worker.js
 
 	private _element: HTMLIFrameElement | undefined;
 	protected get element(): HTMLIFrameElement | undefined { return this._element; }
@@ -294,28 +313,57 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			});
 		}));
 
-		this._register(this.on(WebviewMessageChannels.loadResource, (entry: { id: number, path: string, query: string, scheme: string, authority: string, ifNoneMatch?: string }) => {
-			try {
-				// Restore the authority we previously encoded
-				const authority = decodeAuthority(entry.authority);
-				const uri = URI.from({
-					scheme: entry.scheme,
-					authority: authority,
-					path: decodeURIComponent(entry.path), // This gets re-encoded
-					query: entry.query ? decodeURIComponent(entry.query) : entry.query,
-				});
-				this.loadResource(entry.id, uri, entry.ifNoneMatch);
-			} catch (e) {
-				this._send('did-load-resource', {
-					id: entry.id,
-					status: 404,
-					path: entry.path,
-				});
-			}
-		}));
+		this._register(this.on(WebviewMessageChannels.initServiceWorker, (_, e) => {
+			const swPort = e.ports[0];
+			swPort.onmessage = async (e) => {
+				switch (e.data.channel) {
+					case ServiceWorkerMessages.loadResource:
+						const entry = e.data;
+						try {
+							// Restore the authority we previously encoded
+							const authority = decodeAuthority(entry.authority);
+							const uri = URI.from({
+								scheme: entry.scheme,
+								authority: authority,
+								path: decodeURIComponent(entry.path), // This gets re-encoded
+								query: entry.query ? decodeURIComponent(entry.query) : entry.query,
+							});
 
-		this._register(this.on(WebviewMessageChannels.loadLocalhost, (entry: any) => {
-			this.localLocalhost(entry.id, entry.origin);
+							const body = await this.loadResource(entry.id, uri, entry.ifNoneMatch);
+							return swPort.postMessage({
+								channel: ServiceWorkerMessages.didLoadResource,
+								...body
+							});
+						} catch (e) {
+							return swPort.postMessage({
+								channel: ServiceWorkerMessages.didLoadResource,
+								id: entry.id,
+								status: 404,
+								path: entry.path,
+							});
+						}
+
+					case ServiceWorkerMessages.loadLocalhost:
+						try {
+							const redirect = await this.getLocalhostRedirect(entry.id, entry.origin);
+							return swPort.postMessage({
+								chanel: ServiceWorkerMessages.didLoadLocalHost,
+								id: entry.id,
+								origin: entry.origin,
+								location: redirect
+							});
+						} catch (e) {
+							return swPort.postMessage({
+								chanel: ServiceWorkerMessages.didLoadLocalHost,
+								id: entry.id,
+								origin: entry.origin,
+								location: undefined
+							});
+						}
+				}
+			};
+
+			this._send(WebviewMessageChannels.didInitServiceWorker);
 		}));
 
 		this.style();
@@ -698,7 +746,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		}
 	}
 
-	private async loadResource(id: number, uri: URI, ifNoneMatch: string | undefined) {
+	private async loadResource(id: number, uri: URI, ifNoneMatch: string | undefined): Promise<ResponseResponse> {
 		try {
 			const result = await loadLocalResource(uri, {
 				ifNoneMatch,
@@ -707,57 +755,48 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 			switch (result.type) {
 				case WebviewResourceResponse.Type.Success:
-					{
-						const { buffer } = await streamToBuffer(result.stream);
-						return this._send('did-load-resource', {
-							id,
-							status: 200,
-							path: uri.path,
-							mime: result.mimeType,
-							data: buffer,
-							etag: result.etag,
-							mtime: result.mtime
-						});
-					}
+					const { buffer } = await streamToBuffer(result.stream);
+					return {
+						id,
+						status: 200,
+						path: uri.path,
+						mime: result.mimeType,
+						data: buffer,
+						etag: result.etag,
+						mtime: result.mtime
+					};
+
 				case WebviewResourceResponse.Type.NotModified:
-					{
-						return this._send('did-load-resource', {
-							id,
-							status: 304, // not modified
-							path: uri.path,
-							mime: result.mimeType,
-							mtime: result.mtime
-						});
-					}
+					return {
+						id,
+						status: 304, // not modified
+						path: uri.path,
+						mime: result.mimeType,
+						mtime: result.mtime
+					};
+
 				case WebviewResourceResponse.Type.AccessDenied:
-					{
-						return this._send('did-load-resource', {
-							id,
-							status: 401, // unauthorized
-							path: uri.path,
-						});
-					}
+					return {
+						id,
+						status: 401, // unauthorized
+						path: uri.path,
+					};
 			}
 		} catch {
 			// noop
 		}
 
-		return this._send('did-load-resource', {
+		return {
 			id,
 			status: 404,
 			path: uri.path,
-		});
+		};
 	}
 
-	private async localLocalhost(id: string, origin: string) {
+	private async getLocalhostRedirect(id: string, origin: string) {
 		const authority = this._environmentService.remoteAuthority;
 		const resolveAuthority = authority ? await this._remoteAuthorityResolverService.resolveAuthority(authority) : undefined;
-		const redirect = resolveAuthority ? await this._portMappingManager.getRedirect(resolveAuthority.authority, origin) : undefined;
-		return this._send('did-load-localhost', {
-			id,
-			origin,
-			location: redirect
-		});
+		return resolveAuthority ? this._portMappingManager.getRedirect(resolveAuthority.authority, origin) : undefined;
 	}
 
 	public focus(): void {

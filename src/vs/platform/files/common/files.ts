@@ -136,12 +136,12 @@ export interface IFileService {
 	/**
 	 * Read the contents of the provided resource unbuffered.
 	 */
-	readFile(resource: URI, options?: IReadFileOptions): Promise<IFileContent>;
+	readFile(resource: URI, options?: IReadFileOptions, token?: CancellationToken): Promise<IFileContent>;
 
 	/**
 	 * Read the contents of the provided resource buffered as stream.
 	 */
-	readFileStream(resource: URI, options?: IReadFileStreamOptions): Promise<IFileStreamContent>;
+	readFileStream(resource: URI, options?: IReadFileStreamOptions, token?: CancellationToken): Promise<IFileStreamContent>;
 
 	/**
 	 * Updates the content replacing its previous value.

@@ -38,6 +38,31 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 			app = undefined;
 		});
 
+		it.only('verifies editors can save and restore', async function () {
+			app = await startApp(this.defaultOptions);
+
+			const appJs = 'app.js';
+			const textToType = 'Hello, Code';
+
+			// open editor and type
+			await app.workbench.quickaccess.openFile(appJs);
+			await app.workbench.editor.waitForTypeInEditor(appJs, textToType);
+			await app.workbench.editors.waitForTab(appJs, true);
+
+			// save
+			await app.workbench.editors.saveOpenedFile();
+			await app.workbench.editors.waitForTab(appJs, false);
+
+			// restart
+			await app.restart();
+
+			// verify contents
+			await app.workbench.editor.waitForEditorContents(appJs, contents => contents.indexOf(textToType) > -1);
+
+			await app.stop();
+			app = undefined;
+		});
+
 		it('verifies that "hot exit" works for dirty files (without delay)', function () {
 			return testHotExit.call(this, undefined);
 		});

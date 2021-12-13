@@ -123,7 +123,7 @@ export class Search extends Viewlet {
 	}
 
 	async waitForNoResultText(retryCount?: number): Promise<void> {
-		await this.code.waitForTextContent(`${VIEWLET} .messages`, '', undefined, retryCount);
+		await this.code.waitForTextContent(`${VIEWLET} .messages`, undefined, text => text === '' || text.startsWith('Search was canceled before any results could be found'), retryCount);
 	}
 
 	private async waitForInputFocus(selector: string): Promise<void> {

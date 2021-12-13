@@ -5,6 +5,7 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { raceCancellation } from 'vs/base/common/async';
+import { Event } from 'vs/base/common/event';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -112,18 +113,19 @@ export class CodeCell extends Disposable {
 
 		this.updateForCollapseState();
 
-		this.updateForOutputs();
-		this._register(viewCell.onDidChangeOutputs(_e => this.updateForOutputs()));
+		this._register(Event.runAndSubscribe(viewCell.onDidChangeOutputs, this.updateForOutputs.bind(this)));
+		this._register(Event.runAndSubscribe(viewCell.onDidChangeLayout, this.updateForLayout.bind(this)));
 	}
 
-	layoutCellParts() {
-		this.cellParts.forEach(part => {
-			part.updateInternalLayoutNow(this.viewCell);
-		});
+	private updateForLayout(): void {
+		this.templateData.elementDisposables.add(DOM.scheduleAtNextAnimationFrame(() => {
+			this.cellParts.forEach(part => {
+				part.updateInternalLayoutNow(this.viewCell);
+			});
 
-		// this.cellsParts are parted created on the template while output container is created by the `CodeCell`
-
-		this._outputContainerRenderer.updateInternalLayoutNow(this.viewCell);
+			// this.cellsParts are parted created on the template while output container is created by the `CodeCell`
+			this._outputContainerRenderer.updateInternalLayoutNow(this.viewCell);
+		}));
 	}
 
 	private updateForOutputHover() {

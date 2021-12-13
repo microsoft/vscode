@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon, iconRegistry } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 import { hash } from 'vs/base/common/hash';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionTerminalProfile, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
+import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -94,7 +95,7 @@ export function getUriClasses(terminal: ITerminalInstance | IExtensionTerminalPr
 	let uri = undefined;
 
 	if (extensionContributed) {
-		if (typeof icon === 'string' && (icon.startsWith('$(') || iconRegistry.get(icon))) {
+		if (typeof icon === 'string' && (icon.startsWith('$(') || getIconRegistry().getIcon(icon))) {
 			return iconClasses;
 		} else if (typeof icon === 'string') {
 			uri = URI.parse(icon);
