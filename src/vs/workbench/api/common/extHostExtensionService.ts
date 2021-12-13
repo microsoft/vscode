@@ -422,6 +422,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			const that = this;
 			let extension: vscode.Extension<any> | undefined;
 
+			const messagePort = this._initData.messagePorts?.get(ExtensionIdentifier.toKey(extensionDescription.identifier));
+
 			return Object.freeze<vscode.ExtensionContext>({
 				globalState,
 				workspaceState,
@@ -448,7 +450,10 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 					return that.extensionRuntime;
 				},
 				get environmentVariableCollection() { return that._extHostTerminalService.getEnvironmentVariableCollection(extensionDescription); },
-				messagePort: this._initData.messagePorts?.get(ExtensionIdentifier.toKey(extensionDescription.identifier))
+				messagePassingProtocol: messagePort && {
+					onDidReceiveMessage: Event.fromDOMEventEmitter(messagePort, 'message', (e: MessageEvent) => e.data),
+					postMessage: messagePort.postMessage.bind(messagePort) as any
+				}
 			});
 		});
 	}
