@@ -15,9 +15,12 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	'connection-token': { type: 'string', cat: 'o', deprecates: 'connectionToken', description: nls.localize('connection-token', "A secret that must be included by the web client with all requests.") },
 	'connection-secret': { type: 'string', cat: 'o', description: nls.localize('connection-secret', "Path to file that contains the connection token. This will require that all incoming connections know the secret.") },
 	'host': { type: 'string' },
+	'tls-key': { type: 'string' },
+	'tls-cert': { type: 'string' },
 	'socket-path': { type: 'string' },
 	'driver': { type: 'string' },
 	'start-server': { type: 'boolean' },
+	'tls': { type: 'boolean' },
 	'print-startup-performance': { type: 'boolean' },
 	'print-ip-address': { type: 'boolean' },
 	'disable-websocket-compression': { type: 'boolean' },
@@ -86,6 +89,8 @@ export interface ServerParsedArgs {
 	 */
 	'connection-secret'?: string;
 	host?: string;
+	'tls-key'?: string;
+	'tls-cert'?: string;
 	'socket-path'?: string;
 	driver?: string;
 	'print-startup-performance'?: boolean;
@@ -94,6 +99,7 @@ export interface ServerParsedArgs {
 	'disable-telemetry'?: boolean;
 	fileWatcherPolling?: string;
 	'start-server'?: boolean;
+	tls?: boolean
 
 	'enable-remote-auto-shutdown'?: boolean;
 	'remote-auto-shutdown-without-delay'?: boolean;
