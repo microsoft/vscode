@@ -11,7 +11,7 @@ import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifec
 import { isThenable } from 'vs/base/common/async';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector, asCSSPropertyValue } from 'vs/base/browser/dom';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
@@ -21,7 +21,7 @@ import { hash } from 'vs/base/common/hash';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { asArray, distinct } from 'vs/base/common/arrays';
 import { asCssVariableName } from 'vs/platform/theme/common/colorRegistry';
-import { getIconRegistry, IconContribution } from 'vs/platform/theme/common/iconRegistry';
+import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 
 class DecorationRule {
 
@@ -48,7 +48,7 @@ class DecorationRule {
 
 	private _refCounter: number = 0;
 
-	constructor(data: IDecorationData | IDecorationData[], key: string) {
+	constructor(readonly themeService: IThemeService, data: IDecorationData | IDecorationData[], key: string) {
 		this.data = data;
 		const suffix = hash(key).toString(36);
 		this.itemColorClassName = `${DecorationRule._classNamesPrefix}-itemColor-${suffix}`;
@@ -129,7 +129,7 @@ class DecorationRule {
 		if (!iconContribution) {
 			return;
 		}
-		const definition = IconContribution.getDefinition(iconContribution, getIconRegistry());
+		const definition = this.themeService.getProductIconTheme().getIcon(iconContribution);
 		if (!definition) {
 			return;
 		}
@@ -137,7 +137,7 @@ class DecorationRule {
 			`.${this.iconBadgeClassName}::after`,
 			`content: '${definition.fontCharacter}';
 			color: ${getColor(color)};
-			font-family: ${asCSSPropertyValue(definition.fontId ?? 'codicon')};
+			font-family: ${asCSSPropertyValue(definition.font?.id ?? 'codicon')};
 			font-size: 16px;
 			margin-right: 14px;
 			font-weight: normal;
@@ -161,6 +161,9 @@ class DecorationStyles {
 	private readonly _decorationRules = new Map<string, DecorationRule>();
 	private readonly _dispoables = new DisposableStore();
 
+	constructor(private readonly _themeService: IThemeService) {
+	}
+
 	dispose(): void {
 		this._dispoables.dispose();
 		this._styleElement.remove();
@@ -176,7 +179,7 @@ class DecorationStyles {
 
 		if (!rule) {
 			// new css rule
-			rule = new DecorationRule(data, key);
+			rule = new DecorationRule(this._themeService, data, key);
 			this._decorationRules.set(key, rule);
 			rule.appendCSSRules(this._styleElement);
 		}
@@ -253,8 +256,9 @@ export class DecorationsService implements IDecorationsService {
 
 	constructor(
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@IThemeService themeService: IThemeService,
 	) {
-		this._decorationStyles = new DecorationStyles();
+		this._decorationStyles = new DecorationStyles(themeService);
 		this._data = TernarySearchTree.forUris(key => uriIdentityService.extUri.ignorePathCasing(key));
 
 		this._onDidChangeDecorationsDelayed.event(event => { this._onDidChangeDecorations.fire(new FileDecorationChangeEvent(event)); });

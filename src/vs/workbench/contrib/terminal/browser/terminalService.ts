@@ -19,7 +19,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ICreateContributedTerminalProfileOptions, IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalLocationString } from 'vs/platform/terminal/common/terminal';
 import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
-import { getIconRegistry, IconContribution } from 'vs/platform/theme/common/iconRegistry';
+import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
@@ -1105,6 +1105,8 @@ class TerminalEditorStyle extends Themable {
 		// TODO: add a rule collector to avoid duplication
 		let css = '';
 
+		const productIconTheme = this._themeService.getProductIconTheme();
+
 		// Add icons
 		for (const instance of this._terminalService.instances) {
 			const icon = instance.icon;
@@ -1128,11 +1130,11 @@ class TerminalEditorStyle extends Themable {
 				const iconRegistry = getIconRegistry();
 				const iconContribution = iconRegistry.getIcon(icon.id);
 				if (iconContribution) {
-					const def = IconContribution.getDefinition(iconContribution, iconRegistry);
+					const def = productIconTheme.getIcon(iconContribution);
 					if (def) {
 						css += (
 							`.monaco-workbench .terminal-tab.codicon-${icon.id}::before` +
-							`{content: '${def.fontCharacter}' !important; font-family: ${dom.asCSSPropertyValue(def.fontId ?? 'codicon')} !important;}`
+							`{content: '${def.fontCharacter}' !important; font-family: ${dom.asCSSPropertyValue(def.font?.id ?? 'codicon')} !important;}`
 						);
 					}
 				}
