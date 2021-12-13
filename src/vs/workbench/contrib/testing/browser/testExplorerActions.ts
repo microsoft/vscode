@@ -733,22 +733,47 @@ abstract class ExecuteTestAtCursor extends Action2 {
 		const profileService = accessor.get(ITestProfileService);
 
 		let bestNodes: InternalTestItem[] = [];
+		let bestNodesBefore: InternalTestItem[] = [];
 		let bestRange: IRange | undefined;
+		let bestRangeBefore: IRange | undefined;
 
 		// testsInFile will descend in the test tree. We assume that as we go
 		// deeper, ranges get more specific. We'll want to run all tests whose
 		// range is equal to the most specific range we find (see #133519)
+		//
+		// If we don't find any test whose range contains the position, we pick
+		// the closest one before the position. Again, if we find several tests
+		// whose range is equal to the closest one, we run them all.
 		await showDiscoveringWhile(accessor.get(IProgressService), (async () => {
 			for await (const test of testsInFile(testService.collection, model.uri)) {
-				if (!test.item.range || !Range.containsPosition(test.item.range, position) || !(profileService.capabilitiesForTest(test) & this.group)) {
+				if (!test.item.range || !(profileService.capabilitiesForTest(test) & this.group)) {
 					continue;
 				}
 
-				if (bestRange && Range.equalsRange(test.item.range, bestRange)) {
-					bestNodes.push(test);
-				} else {
-					bestRange = test.item.range;
-					bestNodes = [test];
+				if (Range.containsPosition(test.item.range, position)) {
+					if (bestRange && Range.equalsRange(test.item.range, bestRange)) {
+						bestNodes.push(test);
+					} else {
+						bestRange = test.item.range;
+						bestNodes = [test];
+					}
+				}
+				else if (test.item.range.startLineNumber < position.lineNumber
+					|| (test.item.range.startLineNumber === position.lineNumber
+						&& test.item.range.startColumn < position.column)) {
+					if (bestRangeBefore) {
+						if (Range.equalsRange(test.item.range, bestRangeBefore)) {
+							bestNodesBefore.push(test);
+						} else if (test.item.range.startLineNumber > bestRangeBefore.startLineNumber
+							|| (test.item.range.startLineNumber === bestRangeBefore.startLineNumber
+								&& test.item.range.startColumn > bestRangeBefore.startColumn)) {
+							bestRangeBefore = test.item.range;
+							bestNodesBefore = [test];
+						}
+					} else {
+						bestRangeBefore = test.item.range;
+						bestNodesBefore = [test];
+					}
 				}
 			}
 		})());
@@ -758,6 +783,12 @@ abstract class ExecuteTestAtCursor extends Action2 {
 			await testService.runTests({
 				group: this.group,
 				tests: bestNodes,
+			});
+		}
+		else if (bestNodesBefore.length) {
+			await testService.runTests({
+				group: this.group,
+				tests: bestNodesBefore,
 			});
 		}
 	}
