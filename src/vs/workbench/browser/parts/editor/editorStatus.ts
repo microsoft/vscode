@@ -25,7 +25,7 @@ import { BinaryResourceDiffEditor } from 'vs/workbench/browser/parts/editor/bina
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFileService, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
+import { ILanguageService, ILanguageSelection } from 'vs/editor/common/services/languageService';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
@@ -318,7 +318,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -739,7 +739,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			const textModel = editorWidget.getModel();
 			if (textModel) {
 				const languageId = textModel.getLanguageId();
-				info.mode = withNullAsUndefined(this.modeService.getLanguageName(languageId));
+				info.mode = withNullAsUndefined(this.languageService.getLanguageName(languageId));
 			}
 		}
 
@@ -1080,7 +1080,7 @@ export class ChangeModeAction extends Action {
 	constructor(
 		actionId: string,
 		actionLabel: string,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -1108,7 +1108,7 @@ export class ChangeModeAction extends Action {
 		let currentModeId: string | undefined;
 		if (textModel) {
 			currentModeId = textModel.getLanguageId();
-			currentLanguageId = withNullAsUndefined(this.modeService.getLanguageName(currentModeId));
+			currentLanguageId = withNullAsUndefined(this.languageService.getLanguageName(currentModeId));
 		}
 
 		let hasLanguageSupport = !!resource;
@@ -1117,11 +1117,11 @@ export class ChangeModeAction extends Action {
 		}
 
 		// All languages are valid picks
-		const languages = this.modeService.getRegisteredLanguageNames();
+		const languages = this.languageService.getRegisteredLanguageNames();
 		const picks: QuickPickInput[] = languages.sort()
 			.map(lang => {
-				const languageId = this.modeService.getModeIdForLanguageName(lang.toLowerCase()) || 'unknown';
-				const extensions = this.modeService.getExtensions(lang).join(' ');
+				const languageId = this.languageService.getLanguageIdForLanguageName(lang.toLowerCase()) || 'unknown';
+				const extensions = this.languageService.getExtensions(lang).join(' ');
 				let description: string;
 				if (currentLanguageId === lang) {
 					description = localize('languageDescription', "({0}) - Configured Language", languageId);
@@ -1201,24 +1201,25 @@ export class ChangeModeAction extends Action {
 						const resource = EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 						if (resource) {
 							// Detect languages since we are in an untitled file
-							let languageId: string | undefined = withNullAsUndefined(this.modeService.getModeIdByFilepathOrFirstLine(resource, textModel.getLineContent(1)));
+							let languageId: string | undefined = withNullAsUndefined(this.languageService.getLanguageIdByFilepathOrFirstLine(resource, textModel.getLineContent(1)));
 							if (!languageId) {
 								detectedLanguage = await this.languageDetectionService.detectLanguage(resource);
 								languageId = detectedLanguage;
 							}
 							if (languageId) {
-								languageSelection = this.modeService.create(languageId);
+								languageSelection = this.languageService.createById(languageId);
 							}
 						}
 					}
 				} else {
-					languageSelection = this.modeService.createByLanguageName(pick.label);
+					const languageId = this.languageService.getLanguageIdForLanguageName(pick.label.toLowerCase());
+					languageSelection = this.languageService.createById(languageId);
 
 					if (resource) {
 						// fire and forget to not slow things down
 						this.languageDetectionService.detectLanguage(resource).then(detectedModeId => {
-							const chosenModeId = this.modeService.getModeIdForLanguageName(pick.label.toLowerCase()) || 'unknown';
-							if (detectedModeId === currentModeId && currentModeId !== chosenModeId) {
+							const chosenLanguageId = this.languageService.getLanguageIdForLanguageName(pick.label.toLowerCase()) || 'unknown';
+							if (detectedModeId === currentModeId && currentModeId !== chosenLanguageId) {
 								// If they didn't choose the detected language (which should also be the active language if automatic detection is enabled)
 								// then the automatic language detection was likely wrong and the user is correcting it. In this case, we want telemetry.
 								this.telemetryService.publicLog2<IAutomaticLanguageDetectionLikelyWrongData, AutomaticLanguageDetectionLikelyWrongClassification>(AutomaticLanguageDetectionLikelyWrongId, {
@@ -1247,11 +1248,11 @@ export class ChangeModeAction extends Action {
 	private configureFileAssociation(resource: URI): void {
 		const extension = extname(resource);
 		const base = basename(resource);
-		const currentAssociation = this.modeService.getModeIdByFilepathOrFirstLine(URI.file(base));
+		const currentAssociation = this.languageService.getLanguageIdByFilepathOrFirstLine(URI.file(base));
 
-		const languages = this.modeService.getRegisteredLanguageNames();
+		const languages = this.languageService.getRegisteredLanguageNames();
 		const picks: IQuickPickItem[] = languages.sort().map((lang, index) => {
-			const id = withNullAsUndefined(this.modeService.getModeIdForLanguageName(lang.toLowerCase())) || 'unknown';
+			const id = withNullAsUndefined(this.languageService.getLanguageIdForLanguageName(lang.toLowerCase())) || 'unknown';
 
 			return {
 				id,

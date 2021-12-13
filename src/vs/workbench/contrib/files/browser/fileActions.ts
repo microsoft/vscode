@@ -23,7 +23,7 @@ import { REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, NEW_UNTITL
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -753,13 +753,13 @@ export class CompareWithClipboardAction extends Action {
 class ClipboardContentProvider implements ITextModelContentProvider {
 	constructor(
 		@IClipboardService private readonly clipboardService: IClipboardService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IModelService private readonly modelService: IModelService
 	) { }
 
 	async provideTextContent(resource: URI): Promise<ITextModel> {
 		const text = await this.clipboardService.readText();
-		const model = this.modelService.createModel(text, this.modeService.createByFilepathOrFirstLine(resource), resource);
+		const model = this.modelService.createModel(text, this.languageService.createByFilepathOrFirstLine(resource), resource);
 
 		return model;
 	}

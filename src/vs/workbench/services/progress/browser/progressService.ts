@@ -512,7 +512,9 @@ export class ProgressService extends Disposable implements IProgressService {
 
 		const createDialog = (message: string) => {
 			const buttons = options.buttons || [];
-			buttons.push(options.cancellable ? localize('cancel', "Cancel") : localize('dismiss', "Dismiss"));
+			if (!options.sticky) {
+				buttons.push(options.cancellable ? localize('cancel', "Cancel") : localize('dismiss', "Dismiss"));
+			}
 
 			dialog = new Dialog(
 				this.layoutService.container,
@@ -522,6 +524,8 @@ export class ProgressService extends Disposable implements IProgressService {
 					type: 'pending',
 					detail: options.detail,
 					cancelId: buttons.length - 1,
+					disableCloseAction: options.sticky,
+					disableDefaultAction: options.sticky,
 					keyEventProcessor: (event: StandardKeyboardEvent) => {
 						const resolved = this.keybindingService.softDispatch(event, this.layoutService.container);
 						if (resolved?.commandId) {

@@ -54,7 +54,7 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
-import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
 
 suite('MainThreadEditors', () => {
 
@@ -88,7 +88,7 @@ suite('MainThreadEditors', () => {
 			new TestThemeService(),
 			new NullLogService(),
 			undoRedoService,
-			disposables.add(new ModeServiceImpl()),
+			disposables.add(new LanguageService()),
 			new TestLanguageConfigurationService()
 		);
 

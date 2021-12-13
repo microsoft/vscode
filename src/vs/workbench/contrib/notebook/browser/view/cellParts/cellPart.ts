@@ -23,11 +23,11 @@ export abstract class CellPart extends Disposable {
 	abstract prepareLayout(): void;
 
 	/**
-	 * Update DOM (top positions) per cell layout info change
+	 * Update internal DOM (top positions) per cell layout info change
 	 * Note that a cell part doesn't need to call `DOM.scheduleNextFrame`,
 	 * the list view will ensure that layout call is invoked in the right frame
 	 */
-	abstract updateLayoutNow(element: ICellViewModel): void;
+	abstract updateInternalLayoutNow(element: ICellViewModel): void;
 
 	/**
 	 * Update per cell state change

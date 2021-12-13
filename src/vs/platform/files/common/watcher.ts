@@ -9,7 +9,7 @@ import { isLinux } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
 import { FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
 
-export interface IWatcherService {
+export interface IRecursiveWatcher {
 
 	/**
 	 * A normalized file change event from the raw events
@@ -25,15 +25,15 @@ export interface IWatcherService {
 	/**
 	 * An event to indicate an error occured from the watcher
 	 * that is unrecoverable. Listeners should restart the
-	 * service if possible.
+	 * watcher if possible.
 	 */
 	readonly onDidError: Event<string>;
 
 	/**
-	 * Configures the watcher service to watch according
-	 * to the requests. Any existing watched path that
-	 * is not in the array, will be removed from watching
-	 * and any new path will be added to watching.
+	 * Configures the watcher to watch according to the
+	 * requests. Any existing watched path that is not
+	 * in the array, will be removed from watching and
+	 * any new path will be added to watching.
 	 */
 	watch(requests: IWatchRequest[]): Promise<void>;
 
@@ -48,12 +48,12 @@ export interface IWatcherService {
 	stop(): Promise<void>;
 }
 
-export abstract class AbstractWatcherService extends Disposable {
+export abstract class AbstractRecursiveWatcherClient extends Disposable {
 
 	private static readonly MAX_RESTARTS = 5;
 
-	private service: IWatcherService | undefined;
-	private readonly serviceDisposables = this._register(new MutableDisposable());
+	private watcher: IRecursiveWatcher | undefined;
+	private readonly watcherDisposables = this._register(new MutableDisposable());
 
 	private requests: IWatchRequest[] | undefined = undefined;
 
@@ -67,28 +67,28 @@ export abstract class AbstractWatcherService extends Disposable {
 		super();
 	}
 
-	protected abstract createService(disposables: DisposableStore): IWatcherService;
+	protected abstract createWatcher(disposables: DisposableStore): IRecursiveWatcher;
 
 	protected init(): void {
 
-		// Associate disposables to the service
+		// Associate disposables to the watcher
 		const disposables = new DisposableStore();
-		this.serviceDisposables.value = disposables;
+		this.watcherDisposables.value = disposables;
 
-		// Ask implementors to create the service
-		this.service = this.createService(disposables);
-		this.service.setVerboseLogging(this.verboseLogging);
+		// Ask implementors to create the watcher
+		this.watcher = this.createWatcher(disposables);
+		this.watcher.setVerboseLogging(this.verboseLogging);
 
 		// Wire in event handlers
-		disposables.add(this.service.onDidChangeFile(e => this.onFileChanges(e)));
-		disposables.add(this.service.onDidLogMessage(e => this.onLogMessage(e)));
-		disposables.add(this.service.onDidError(e => this.onError(e)));
+		disposables.add(this.watcher.onDidChangeFile(e => this.onFileChanges(e)));
+		disposables.add(this.watcher.onDidLogMessage(e => this.onLogMessage(e)));
+		disposables.add(this.watcher.onDidError(e => this.onError(e)));
 	}
 
 	protected onError(error: string): void {
 
 		// Restart up to N times
-		if (this.restartCounter < AbstractWatcherService.MAX_RESTARTS && this.requests) {
+		if (this.restartCounter < AbstractRecursiveWatcherClient.MAX_RESTARTS && this.requests) {
 			this.error(`restarting watcher after error: ${error}`);
 			this.restart(this.requests);
 		}
@@ -109,13 +109,13 @@ export abstract class AbstractWatcherService extends Disposable {
 	async watch(requests: IWatchRequest[]): Promise<void> {
 		this.requests = requests;
 
-		await this.service?.watch(requests);
+		await this.watcher?.watch(requests);
 	}
 
 	async setVerboseLogging(verboseLogging: boolean): Promise<void> {
 		this.verboseLogging = verboseLogging;
 
-		await this.service?.setVerboseLogging(verboseLogging);
+		await this.watcher?.setVerboseLogging(verboseLogging);
 	}
 
 	private error(message: string) {
@@ -124,29 +124,11 @@ export abstract class AbstractWatcherService extends Disposable {
 
 	override dispose(): void {
 
-		// Render the serve invalid from here
-		this.service = undefined;
+		// Render the watcher invalid from here
+		this.watcher = undefined;
 
 		return super.dispose();
 	}
-}
-
-/**
- * Base class of any watcher service we support.
- *
- * TODO@bpasero delete and replace with `AbstractWatcherService`
- */
-export abstract class WatcherService extends Disposable {
-
-	/**
-	 * Asks to watch the provided folders.
-	 */
-	abstract watch(requests: IWatchRequest[]): Promise<void>;
-
-	/**
-	 * Enable verbose logging from the watcher.
-	 */
-	abstract setVerboseLogging(verboseLogging: boolean): Promise<void>;
 }
 
 export interface IWatchRequest {

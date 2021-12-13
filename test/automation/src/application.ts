@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
 import { Workbench } from './workbench';
-import { Code, spawn, SpawnOptions } from './code';
+import { Code, launch, LaunchOptions } from './code';
 import { Logger } from './logger';
 
 export const enum Quality {
@@ -15,11 +13,10 @@ export const enum Quality {
 	Stable
 }
 
-export interface ApplicationOptions extends SpawnOptions {
+export interface ApplicationOptions extends LaunchOptions {
 	quality: Quality;
 	workspacePath: string;
 	waitTime: number;
-	screenshotsPath: string | null;
 }
 
 export class Application {
@@ -77,8 +74,9 @@ export class Application {
 
 	private async _start(workspaceOrFolder = this.workspacePathOrFolder, extraArgs: string[] = []): Promise<any> {
 		this._workspacePathOrFolder = workspaceOrFolder;
-		await this.startApplication(extraArgs);
-		await this.checkWindowReady();
+
+		const code = await this.startApplication(extraArgs);
+		await this.checkWindowReady(code);
 	}
 
 	async stop(): Promise<any> {
@@ -91,39 +89,31 @@ export class Application {
 		}
 	}
 
-	async captureScreenshot(name: string): Promise<void> {
-		if (this.options.screenshotsPath) {
-			const raw = await this.code.capturePage();
-			const buffer = Buffer.from(raw, 'base64');
-			const screenshotPath = path.join(this.options.screenshotsPath, `${name}.png`);
-			if (this.options.log) {
-				this.logger.log('*** Screenshot recorded:', screenshotPath);
-			}
-
-			fs.writeFileSync(screenshotPath, buffer);
-		}
+	async startTracing(name: string): Promise<void> {
+		await this._code?.startTracing(name);
 	}
 
-	private async startApplication(extraArgs: string[] = []): Promise<any> {
-		this._code = await spawn({
+	async stopTracing(name: string, persist: boolean): Promise<void> {
+		await this._code?.stopTracing(name, persist);
+	}
+
+	private async startApplication(extraArgs: string[] = []): Promise<Code> {
+		const code = this._code = await launch({
 			...this.options,
 			extraArgs: [...(this.options.extraArgs || []), ...extraArgs],
 		});
 
 		this._workbench = new Workbench(this._code, this.userDataPath);
+
+		return code;
 	}
 
-	private async checkWindowReady(): Promise<any> {
-		if (!this.code) {
-			console.error('No code instance found');
-			return;
-		}
-
-		await this.code.waitForWindowIds(ids => ids.length > 0);
-		await this.code.waitForElement('.monaco-workbench');
+	private async checkWindowReady(code: Code): Promise<any> {
+		await code.waitForWindowIds(ids => ids.length > 0);
+		await code.waitForElement('.monaco-workbench');
 
 		if (this.remote) {
-			await this.code.waitForTextContent('.monaco-workbench .statusbar-item[id="status.host"]', ' TestResolver', undefined, 2000);
+			await code.waitForTextContent('.monaco-workbench .statusbar-item[id="status.host"]', ' TestResolver', undefined, 2000);
 		}
 
 		// wait a bit, since focus might be stolen off widgets

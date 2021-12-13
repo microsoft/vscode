@@ -241,11 +241,6 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': false,
 				'description': localize('perEditorGroup', "Controls if the limit of maximum opened editors should apply per editor group or across all editor groups.")
 			},
-			'workbench.editor.experimentalDisableClearInputOnSetInput': {
-				'type': 'boolean',
-				'default': false,
-				'description': localize('experimentalDisableClearInputOnSetInput', "Experimental setting: do not change unless instructed.")
-			},
 			'workbench.commandPalette.history': {
 				'type': 'number',
 				'description': localize('commandHistory', "Controls the number of recently used commands to keep in history for the command palette. Set to 0 to disable command history."),

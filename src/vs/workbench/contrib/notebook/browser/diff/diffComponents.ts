@@ -13,7 +13,7 @@ import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, Dif
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { CellEditType, CellUri, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -303,7 +303,7 @@ abstract class AbstractElementRenderer extends Disposable {
 		readonly templateData: CellDiffSingleSideRenderTemplate | CellDiffSideBySideRenderTemplate,
 		readonly style: 'left' | 'right' | 'full',
 		protected readonly instantiationService: IInstantiationService,
-		protected readonly modeService: IModeService,
+		protected readonly languageService: ILanguageService,
 		protected readonly modelService: IModelService,
 		protected readonly textModelService: ITextModelService,
 		protected readonly contextMenuService: IContextMenuService,
@@ -596,7 +596,7 @@ abstract class AbstractElementRenderer extends Disposable {
 			this.layout({ metadataHeight: true });
 			this._metadataEditorDisposeStore.add(this._metadataEditor);
 
-			const mode = this.modeService.create('jsonc');
+			const mode = this.languageService.createById('jsonc');
 			const originalMetadataSource = getFormatedMetadataJSON(this.notebookEditor.textModel!,
 				this.cell.type === 'insert'
 					? this.cell.modified!.metadata || {}
@@ -630,7 +630,7 @@ abstract class AbstractElementRenderer extends Disposable {
 			const originalOutputsSource = getFormatedOutputJSON(this.cell.original?.outputs || []);
 			const modifiedOutputsSource = getFormatedOutputJSON(this.cell.modified?.outputs || []);
 			if (originalOutputsSource !== modifiedOutputsSource) {
-				const mode = this.modeService.create('json');
+				const mode = this.languageService.createById('json');
 				const originalModel = this.modelService.createModel(originalOutputsSource, mode, undefined, true);
 				const modifiedModel = this.modelService.createModel(modifiedOutputsSource, mode, undefined, true);
 				this._outputEditorDisposeStore.add(originalModel);
@@ -690,7 +690,7 @@ abstract class AbstractElementRenderer extends Disposable {
 		}, {});
 		this._outputEditorDisposeStore.add(this._outputEditor);
 
-		const mode = this.modeService.create('json');
+		const mode = this.languageService.createById('json');
 		const originaloutputSource = getFormatedOutputJSON(
 			this.notebookEditor.textModel!.transientOptions.transientOutputs
 				? []
@@ -755,7 +755,7 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 		templateData: CellDiffSingleSideRenderTemplate,
 		style: 'left' | 'right' | 'full',
 		instantiationService: IInstantiationService,
-		modeService: IModeService,
+		languageService: ILanguageService,
 		modelService: IModelService,
 		textModelService: ITextModelService,
 		contextMenuService: IContextMenuService,
@@ -771,7 +771,7 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 			templateData,
 			style,
 			instantiationService,
-			modeService,
+			languageService,
 			modelService,
 			textModelService,
 			contextMenuService,
@@ -946,7 +946,7 @@ export class DeletedElement extends SingleSideDiffElement {
 		notebookEditor: INotebookTextDiffEditor,
 		cell: SingleSideDiffElementViewModel,
 		templateData: CellDiffSingleSideRenderTemplate,
-		@IModeService modeService: IModeService,
+		@ILanguageService languageService: ILanguageService,
 		@IModelService modelService: IModelService,
 		@ITextModelService textModelService: ITextModelService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -958,7 +958,7 @@ export class DeletedElement extends SingleSideDiffElement {
 		@IConfigurationService configurationService: IConfigurationService,
 
 	) {
-		super(notebookEditor, cell, templateData, 'left', instantiationService, modeService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService);
+		super(notebookEditor, cell, templateData, 'left', instantiationService, languageService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService);
 	}
 
 	styleContainer(container: HTMLElement) {
@@ -1099,7 +1099,7 @@ export class InsertElement extends SingleSideDiffElement {
 		cell: SingleSideDiffElementViewModel,
 		templateData: CellDiffSingleSideRenderTemplate,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IModeService modeService: IModeService,
+		@ILanguageService languageService: ILanguageService,
 		@IModelService modelService: IModelService,
 		@ITextModelService textModelService: ITextModelService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -1109,7 +1109,7 @@ export class InsertElement extends SingleSideDiffElement {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(notebookEditor, cell, templateData, 'right', instantiationService, modeService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService);
+		super(notebookEditor, cell, templateData, 'right', instantiationService, languageService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService);
 	}
 
 	styleContainer(container: HTMLElement): void {
@@ -1257,7 +1257,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 		cell: SideBySideDiffElementViewModel,
 		templateData: CellDiffSideBySideRenderTemplate,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IModeService modeService: IModeService,
+		@ILanguageService languageService: ILanguageService,
 		@IModelService modelService: IModelService,
 		@ITextModelService textModelService: ITextModelService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -1267,7 +1267,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(notebookEditor, cell, templateData, 'full', instantiationService, modeService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService);
+		super(notebookEditor, cell, templateData, 'full', instantiationService, languageService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService);
 		this.cell = cell;
 		this.templateData = templateData;
 	}

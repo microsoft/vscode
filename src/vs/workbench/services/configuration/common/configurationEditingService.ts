@@ -181,7 +181,8 @@ export class ConfigurationEditingService {
 		const reference = await this.resolveModelReference(resource);
 		try {
 			const formattingOptions = this.getFormattingOptions(reference.object.textEditorModel);
-			if (this.uriIdentityService.extUri.isEqual(resource, this.environmentService.settingsResource)) {
+			if (!this.textFileService.isDirty(resource) /* go through text model save if the model is dirty */
+				&& this.uriIdentityService.extUri.isEqual(resource, this.environmentService.settingsResource)) {
 				await this.userConfigurationFileService.updateSettings({ path: operation.jsonPath, value: operation.value }, formattingOptions);
 			} else {
 				await this.updateConfiguration(operation, reference.object.textEditorModel, formattingOptions);

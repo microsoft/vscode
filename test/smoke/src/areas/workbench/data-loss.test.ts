@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application, ApplicationOptions, Quality } from '../../../../automation';
-import { ParsedArgs } from 'minimist';
-import { afterSuite, getRandomUserDataDir, startApp, timeout } from '../../utils';
+import { Application, ApplicationOptions, Logger, Quality } from '../../../../automation';
+import { getRandomUserDataDir, startApp, timeout, installDiagnosticsHandler, installAppAfterHandler } from '../../utils';
 
-export function setup(opts: ParsedArgs) {
-
-	describe('Data Migration (insiders -> insiders)', () => {
+export function setup(ensureStableCode: () => string | undefined, logger: Logger) {
+	describe('Data Loss (insiders -> insiders)', () => {
 
 		let app: Application | undefined = undefined;
 
-		afterSuite(opts, () => app);
+		// Shared before/after handling
+		installDiagnosticsHandler(logger, () => app);
+		installAppAfterHandler(() => app);
 
-		it(`verifies opened editors are restored`, async function () {
-			app = await startApp(opts, this.defaultOptions);
+		it('verifies opened editors are restored', async function () {
+			app = await startApp(this.defaultOptions);
 
 			// Open 3 editors and pin 2 of them
 			await app.workbench.quickaccess.openFile('www');
@@ -38,8 +38,49 @@ export function setup(opts: ParsedArgs) {
 			app = undefined;
 		});
 
-		it(`verifies that 'hot exit' works for dirty files`, async function () {
-			app = await startApp(opts, this.defaultOptions);
+		it.only('verifies editors can save and restore', async function () {
+			app = await startApp(this.defaultOptions);
+
+			const appJs = 'app.js';
+			const textToType = 'Hello, Code';
+
+			// open editor and type
+			await app.workbench.quickaccess.openFile(appJs);
+			await app.workbench.editor.waitForTypeInEditor(appJs, textToType);
+			await app.workbench.editors.waitForTab(appJs, true);
+
+			// save
+			await app.workbench.editors.saveOpenedFile();
+			await app.workbench.editors.waitForTab(appJs, false);
+
+			// restart
+			await app.restart();
+
+			// verify contents
+			await app.workbench.editor.waitForEditorContents(appJs, contents => contents.indexOf(textToType) > -1);
+
+			await app.stop();
+			app = undefined;
+		});
+
+		it('verifies that "hot exit" works for dirty files (without delay)', function () {
+			return testHotExit.call(this, undefined);
+		});
+
+		it('verifies that "hot exit" works for dirty files (with delay)', function () {
+			return testHotExit.call(this, 2000);
+		});
+
+		it('verifies that auto save triggers on shutdown', function () {
+			return testHotExit.call(this, undefined, true);
+		});
+
+		async function testHotExit(restartDelay: number | undefined, autoSave: boolean | undefined) {
+			app = await startApp(this.defaultOptions);
+
+			if (autoSave) {
+				await app.workbench.settingsEditor.addUserSetting('files.autoSave', '"afterDelay"');
+			}
 
 			await app.workbench.editors.newUntitledFile();
 
@@ -52,33 +93,43 @@ export function setup(opts: ParsedArgs) {
 			const textToType = 'Hello, Code';
 			await app.workbench.quickaccess.openFile(readmeMd);
 			await app.workbench.editor.waitForTypeInEditor(readmeMd, textToType);
-			await app.workbench.editors.waitForTab(readmeMd, true);
+			await app.workbench.editors.waitForTab(readmeMd, !autoSave);
+
+			if (typeof restartDelay === 'number') {
+				// this is an OK use of a timeout in a smoke test
+				// we want to simulate a user having typed into
+				// the editor and pausing for a moment before
+				// terminating
+				await timeout(restartDelay);
+			}
 
 			await app.restart();
 
-			await app.workbench.editors.waitForTab(readmeMd, true);
+			await app.workbench.editors.waitForTab(readmeMd, !autoSave);
 			await app.workbench.quickaccess.openFile(readmeMd);
-			await app.workbench.editor.waitForEditorContents(readmeMd, c => c.indexOf(textToType) > -1);
+			await app.workbench.editor.waitForEditorContents(readmeMd, contents => contents.indexOf(textToType) > -1);
 
 			await app.workbench.editors.waitForTab(untitled, true);
 			await app.workbench.quickaccess.openFile(untitled, textToTypeInUntitled);
-			await app.workbench.editor.waitForEditorContents(untitled, c => c.indexOf(textToTypeInUntitled) > -1);
+			await app.workbench.editor.waitForEditorContents(untitled, contents => contents.indexOf(textToTypeInUntitled) > -1);
 
 			await app.stop();
 			app = undefined;
-		});
+		}
 	});
 
-	describe('Data Migration (stable -> insiders)', () => {
+	describe('Data Loss (stable -> insiders)', () => {
 
 		let insidersApp: Application | undefined = undefined;
 		let stableApp: Application | undefined = undefined;
 
-		afterSuite(opts, () => insidersApp ?? stableApp, async () => stableApp?.stop());
+		// Shared before/after handling
+		installDiagnosticsHandler(logger, () => insidersApp ?? stableApp);
+		installAppAfterHandler(() => insidersApp ?? stableApp, async () => stableApp?.stop());
 
-		it(`verifies opened editors are restored`, async function () {
-			const stableCodePath = opts['stable-build'];
-			if (!stableCodePath || opts.remote) {
+		it('verifies opened editors are restored', async function () {
+			const stableCodePath = ensureStableCode();
+			if (!stableCodePath) {
 				this.skip();
 			}
 
@@ -126,9 +177,17 @@ export function setup(opts: ParsedArgs) {
 			insidersApp = undefined;
 		});
 
-		it(`verifies that 'hot exit' works for dirty files`, async function () {
-			const stableCodePath = opts['stable-build'];
-			if (!stableCodePath || opts.remote) {
+		it.skip('verifies that "hot exit" works for dirty files (without delay)', async function () { // TODO@bpasero enable test once 1.64 shipped
+			return testHotExit.call(this, undefined);
+		});
+
+		it('verifies that "hot exit" works for dirty files (with delay)', async function () {
+			return testHotExit.call(this, 2000);
+		});
+
+		async function testHotExit(restartDelay: number | undefined) {
+			const stableCodePath = ensureStableCode();
+			if (!stableCodePath) {
 				this.skip();
 			}
 
@@ -155,7 +214,13 @@ export function setup(opts: ParsedArgs) {
 			await stableApp.workbench.editor.waitForTypeInEditor(readmeMd, textToType);
 			await stableApp.workbench.editors.waitForTab(readmeMd, true);
 
-			await timeout(2000); // TODO@bpasero https://github.com/microsoft/vscode/issues/138055
+			if (typeof restartDelay === 'number') {
+				// this is an OK use of a timeout in a smoke test
+				// we want to simulate a user having typed into
+				// the editor and pausing for a moment before
+				// terminating
+				await timeout(restartDelay);
+			}
 
 			await stableApp.stop();
 			stableApp = undefined;
@@ -168,14 +233,14 @@ export function setup(opts: ParsedArgs) {
 
 			await insidersApp.workbench.editors.waitForTab(readmeMd, true);
 			await insidersApp.workbench.quickaccess.openFile(readmeMd);
-			await insidersApp.workbench.editor.waitForEditorContents(readmeMd, c => c.indexOf(textToType) > -1);
+			await insidersApp.workbench.editor.waitForEditorContents(readmeMd, contents => contents.indexOf(textToType) > -1);
 
 			await insidersApp.workbench.editors.waitForTab(untitled, true);
 			await insidersApp.workbench.quickaccess.openFile(untitled, textToTypeInUntitled);
-			await insidersApp.workbench.editor.waitForEditorContents(untitled, c => c.indexOf(textToTypeInUntitled) > -1);
+			await insidersApp.workbench.editor.waitForEditorContents(untitled, contents => contents.indexOf(textToTypeInUntitled) > -1);
 
 			await insidersApp.stop();
 			insidersApp = undefined;
-		});
+		}
 	});
 }

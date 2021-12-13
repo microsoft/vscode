@@ -9,7 +9,7 @@ import { isWindows } from 'vs/base/common/platform';
 import { Emitter } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { FileDeleteOptions, IFileChange, IWatchOptions, createFileSystemProviderError, FileSystemProviderErrorCode } from 'vs/platform/files/common/files';
-import { FileWatcher as NodeJSWatcherService } from 'vs/platform/files/node/watcher/nodejs/watcherService';
+import { NodeJSFileWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { basename, normalize } from 'vs/base/common/path';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -88,7 +88,7 @@ class SessionFileWatcher extends Disposable implements ISessionFileWatcher {
 		this.watcherRequests.set(req, disposable);
 		disposable.add(toDisposable(() => this.watcherRequests.delete(req)));
 
-		const watcher = disposable.add(new NodeJSWatcherService(
+		const watcher = disposable.add(new NodeJSFileWatcher(
 			normalize(resource.fsPath),
 			changes => this.sessionEmitter.fire(toFileChanges(changes)),
 			msg => this.onWatcherLogMessage(msg),

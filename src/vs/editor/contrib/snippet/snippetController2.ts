@@ -45,7 +45,7 @@ export class SnippetController2 implements IEditorContribution {
 
 	public static readonly ID = 'snippetController2';
 
-	static get(editor: ICodeEditor): SnippetController2 {
+	static get(editor: ICodeEditor): SnippetController2 | null {
 		return editor.getContribution<SnippetController2>(SnippetController2.ID);
 	}
 

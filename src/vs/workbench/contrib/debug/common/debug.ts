@@ -729,6 +729,7 @@ export interface IConfigurationManager {
 	getLaunches(): ReadonlyArray<ILaunch>;
 	getLaunch(workspaceUri: uri | undefined): ILaunch | undefined;
 	getAllConfigurations(): { launch: ILaunch, name: string, presentation?: IConfigPresentation }[];
+	removeRecentDynamicConfigurations(name: string, type: string): void;
 	getRecentDynamicConfigurations(): { name: string, type: string }[];
 
 	/**

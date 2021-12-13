@@ -185,9 +185,6 @@ export class SuggestModel implements IDisposable {
 			this._updateTriggerCharacters();
 			this._updateActiveSuggestSession();
 		}));
-		this._toDispose.add(this._editor.onDidChangeCursorSelection(e => {
-			this._onCursorChange(e);
-		}));
 
 		let editorIsComposing = false;
 		this._toDispose.add(this._editor.onDidCompositionStart(() => {
@@ -196,6 +193,12 @@ export class SuggestModel implements IDisposable {
 		this._toDispose.add(this._editor.onDidCompositionEnd(() => {
 			editorIsComposing = false;
 			this._onCompositionEnd();
+		}));
+		this._toDispose.add(this._editor.onDidChangeCursorSelection(e => {
+			// only trigger suggest when the editor isn't composing a character
+			if (!editorIsComposing) {
+				this._onCursorChange(e);
+			}
 		}));
 		this._toDispose.add(this._editor.onDidChangeModelContent(() => {
 			// only filter completions when the editor isn't composing a character
@@ -291,7 +294,7 @@ export class SuggestModel implements IDisposable {
 		};
 
 		this._triggerCharacterListener.add(this._editor.onDidType(checkTriggerCharacter));
-		this._triggerCharacterListener.add(this._editor.onDidCompositionEnd(checkTriggerCharacter));
+		this._triggerCharacterListener.add(this._editor.onDidCompositionEnd(() => checkTriggerCharacter()));
 	}
 
 	// --- trigger/retrigger/cancel suggest
@@ -375,7 +378,7 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		if (this._editor.getOption(EditorOption.suggest).snippetsPreventQuickSuggestions && SnippetController2.get(this._editor).isInSnippet()) {
+		if (this._editor.getOption(EditorOption.suggest).snippetsPreventQuickSuggestions && SnippetController2.get(this._editor)?.isInSnippet()) {
 			// no quick suggestion when in snippet mode
 			return;
 		}

@@ -22,7 +22,7 @@ class ViewportSemanticTokensContribution extends Disposable implements IEditorCo
 
 	public static readonly ID = 'editor.contrib.viewportSemanticTokens';
 
-	public static get(editor: ICodeEditor): ViewportSemanticTokensContribution {
+	public static get(editor: ICodeEditor): ViewportSemanticTokensContribution | null {
 		return editor.getContribution<ViewportSemanticTokensContribution>(ViewportSemanticTokensContribution.ID);
 	}
 

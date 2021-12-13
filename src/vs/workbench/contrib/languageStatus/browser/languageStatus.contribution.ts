@@ -188,7 +188,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			const props = EditorStatusContribution._asStatusbarEntry(status);
 			let entry = this._dedicatedEntries.get(status.id);
 			if (!entry) {
-				entry = this._statusBarService.addEntry(props, status.id, StatusbarAlignment.RIGHT, 100.09999);
+				entry = this._statusBarService.addEntry(props, status.id, StatusbarAlignment.RIGHT, { id: 'status.editor.mode', alignment: StatusbarAlignment.RIGHT });
 			} else {
 				entry.update(props);
 				this._dedicatedEntries.delete(status.id);

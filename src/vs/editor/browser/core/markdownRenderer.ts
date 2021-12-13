@@ -6,7 +6,7 @@
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { renderMarkdown, MarkdownRenderOptions, MarkedOptions } from 'vs/base/browser/markdownRenderer';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -44,7 +44,7 @@ export class MarkdownRenderer {
 
 	constructor(
 		private readonly _options: IMarkdownRendererOptions,
-		@IModeService private readonly _modeService: IModeService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
 
@@ -75,19 +75,19 @@ export class MarkdownRenderer {
 				// it is possible no alias is given in which case we fall back to the current editor lang
 				let languageId: string | undefined | null;
 				if (languageAlias) {
-					languageId = this._modeService.getModeIdForLanguageName(languageAlias);
+					languageId = this._languageService.getLanguageIdForLanguageName(languageAlias);
 				} else if (this._options.editor) {
 					languageId = this._options.editor.getModel()?.getLanguageId();
 				}
 				if (!languageId) {
 					languageId = 'plaintext';
 				}
-				this._modeService.triggerMode(languageId);
+				this._languageService.triggerMode(languageId);
 				const tokenization = await TokenizationRegistry.getPromise(languageId) ?? undefined;
 
 				const element = document.createElement('span');
 
-				element.innerHTML = (MarkdownRenderer._ttpTokenizer?.createHTML(value, this._modeService.languageIdCodec, tokenization) ?? tokenizeToString(value, this._modeService.languageIdCodec, tokenization)) as string;
+				element.innerHTML = (MarkdownRenderer._ttpTokenizer?.createHTML(value, this._languageService.languageIdCodec, tokenization) ?? tokenizeToString(value, this._languageService.languageIdCodec, tokenization)) as string;
 
 				// use "good" font
 				if (this._options.editor) {

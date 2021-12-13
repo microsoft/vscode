@@ -103,6 +103,8 @@ export class Menu extends ActionBar {
 
 		this.menuDisposables = this._register(new DisposableStore());
 
+		this.initializeOrUpdateStyleSheet(container, {});
+
 		this._register(Gesture.addTarget(menuElement));
 
 		addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {

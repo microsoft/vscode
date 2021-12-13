@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { localize } from 'vs/nls';
 import { MenuId, MenuItemAction, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -371,13 +371,13 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 		const topItems: ILanguagePickInput[] = [];
 		const mainItems: ILanguagePickInput[] = [];
 
-		const modeService = accessor.get(IModeService);
+		const languageService = accessor.get(ILanguageService);
 		const modelService = accessor.get(IModelService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const languageDetectionService = accessor.get(ILanguageDetectionService);
 
 		const providerLanguages = new Set([
-			...(context.notebookEditor.activeKernel?.supportedLanguages ?? modeService.getRegisteredModes()),
+			...(context.notebookEditor.activeKernel?.supportedLanguages ?? languageService.getRegisteredLanguageIds()),
 			'markdown'
 		]);
 
@@ -389,7 +389,7 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 				description = localize('languageDescriptionConfigured', "({0})", languageId);
 			}
 
-			const languageName = modeService.getLanguageName(languageId);
+			const languageName = languageService.getLanguageName(languageId);
 			if (!languageName) {
 				// Notebook has unrecognized language
 				return;
@@ -397,7 +397,7 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 
 			const item = <ILanguagePickInput>{
 				label: languageName,
-				iconClasses: getIconClasses(modelService, modeService, this.getFakeResource(languageName, modeService)),
+				iconClasses: getIconClasses(modelService, languageService, this.getFakeResource(languageName, languageService)),
 				description,
 				languageId
 			};
@@ -459,14 +459,14 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 	/**
 	 * Copied from editorStatus.ts
 	 */
-	private getFakeResource(lang: string, modeService: IModeService): URI | undefined {
+	private getFakeResource(lang: string, languageService: ILanguageService): URI | undefined {
 		let fakeResource: URI | undefined;
 
-		const extensions = modeService.getExtensions(lang);
+		const extensions = languageService.getExtensions(lang);
 		if (extensions?.length) {
 			fakeResource = URI.file(extensions[0]);
 		} else {
-			const filenames = modeService.getFilenames(lang);
+			const filenames = languageService.getFilenames(lang);
 			if (filenames?.length) {
 				fakeResource = URI.file(filenames[0]);
 			}

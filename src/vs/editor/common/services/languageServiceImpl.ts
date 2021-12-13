@@ -8,9 +8,10 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
 import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
-import { ILanguageSelection, IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageSelection, ILanguageService } from 'vs/editor/common/services/languageService';
 import { firstOrDefault } from 'vs/base/common/arrays';
 import { ILanguageIdCodec } from 'vs/editor/common/modes';
+import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 
 class LanguageSelection implements ILanguageSelection {
 
@@ -47,7 +48,7 @@ class LanguageSelection implements ILanguageSelection {
 	}
 }
 
-export class ModeServiceImpl extends Disposable implements IModeService {
+export class LanguageService extends Disposable implements ILanguageService {
 	public _serviceBrand: undefined;
 
 	static instanceCount = 0;
@@ -64,7 +65,7 @@ export class ModeServiceImpl extends Disposable implements IModeService {
 
 	constructor(warnOnOverwrite = false) {
 		super();
-		ModeServiceImpl.instanceCount++;
+		LanguageService.instanceCount++;
 		this._encounteredLanguages = new Set<string>();
 		this._registry = this._register(new LanguagesRegistry(true, warnOnOverwrite));
 		this.languageIdCodec = this._registry.languageIdCodec;
@@ -72,16 +73,16 @@ export class ModeServiceImpl extends Disposable implements IModeService {
 	}
 
 	public override dispose(): void {
-		ModeServiceImpl.instanceCount--;
+		LanguageService.instanceCount--;
 		super.dispose();
 	}
 
-	public isRegisteredMode(mimetypeOrModeId: string): boolean {
-		return this._registry.isRegisteredMode(mimetypeOrModeId);
+	public isRegisteredLanguageId(languageId: string | null | undefined): boolean {
+		return this._registry.isRegisteredLanguageId(languageId);
 	}
 
-	public getRegisteredModes(): string[] {
-		return this._registry.getRegisteredModes();
+	public getRegisteredLanguageIds(): string[] {
+		return this._registry.getRegisteredLanguageIds();
 	}
 
 	public getRegisteredLanguageNames(): string[] {
@@ -96,24 +97,28 @@ export class ModeServiceImpl extends Disposable implements IModeService {
 		return this._registry.getFilenames(alias);
 	}
 
-	public getMimeForMode(languageId: string): string | null {
-		return this._registry.getMimeForMode(languageId);
+	public getMimeTypeForLanguageId(languageId: string): string | null {
+		return this._registry.getMimeTypeForLanguageId(languageId);
 	}
 
 	public getLanguageName(languageId: string): string | null {
 		return this._registry.getLanguageName(languageId);
 	}
 
-	public getModeIdForLanguageName(alias: string): string | null {
-		return this._registry.getModeIdForLanguageNameLowercase(alias);
+	public getLanguageIdForLanguageName(alias: string): string | null {
+		return this._registry.getLanguageIdForLanguageName(alias);
 	}
 
-	public getModeIdByFilepathOrFirstLine(resource: URI | null, firstLine?: string): string | null {
-		const modeIds = this._registry.getModeIdsFromFilepathOrFirstLine(resource, firstLine);
+	public getLanguageIdForMimeType(mimeType: string | null | undefined): string | null {
+		return this._registry.getLanguageIdForMimeType(mimeType);
+	}
+
+	public getLanguageIdByFilepathOrFirstLine(resource: URI | null, firstLine?: string): string | null {
+		const modeIds = this._registry.getLanguageIdByFilepathOrFirstLine(resource, firstLine);
 		return firstOrDefault(modeIds, null);
 	}
 
-	public getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string | undefined): string | null {
+	private getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string | undefined): string | null {
 		const modeIds = this._registry.extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds);
 		return firstOrDefault(modeIds, null);
 	}
@@ -128,28 +133,29 @@ export class ModeServiceImpl extends Disposable implements IModeService {
 
 	// --- instantiation
 
-	public create(commaSeparatedMimetypesOrCommaSeparatedIds: string | undefined): ILanguageSelection {
+	public createById(languageId: string | null | undefined): ILanguageSelection {
 		return new LanguageSelection(this.onLanguagesMaybeChanged, () => {
-			const languageId = this.getModeId(commaSeparatedMimetypesOrCommaSeparatedIds);
-			return this._createModeAndGetLanguageIdentifier(languageId);
+			const validLanguageId = (languageId && this.isRegisteredLanguageId(languageId) ? languageId : PLAINTEXT_MODE_ID);
+			this._getOrCreateMode(validLanguageId);
+			return validLanguageId;
 		});
 	}
 
-	public createByLanguageName(languageName: string): ILanguageSelection {
+	public createByMimeType(mimeType: string | null | undefined): ILanguageSelection {
 		return new LanguageSelection(this.onLanguagesMaybeChanged, () => {
-			const languageId = this._getModeIdByLanguageName(languageName);
+			const languageId = this.getLanguageIdForMimeType(mimeType);
 			return this._createModeAndGetLanguageIdentifier(languageId);
 		});
 	}
 
 	public createByFilepathOrFirstLine(resource: URI | null, firstLine?: string): ILanguageSelection {
 		return new LanguageSelection(this.onLanguagesMaybeChanged, () => {
-			const languageId = this.getModeIdByFilepathOrFirstLine(resource, firstLine);
+			const languageId = this.getLanguageIdByFilepathOrFirstLine(resource, firstLine);
 			return this._createModeAndGetLanguageIdentifier(languageId);
 		});
 	}
 
-	private _createModeAndGetLanguageIdentifier(languageId: string | null): string {
+	private _createModeAndGetLanguageIdentifier(languageId: string | null | undefined): string {
 		// Fall back to plain text if no mode was found
 		const validLanguageId = this.validateLanguageId(languageId || 'plaintext') || NULL_MODE_ID;
 		this._getOrCreateMode(validLanguageId);
@@ -160,10 +166,6 @@ export class ModeServiceImpl extends Disposable implements IModeService {
 		const languageId = this.getModeId(commaSeparatedMimetypesOrCommaSeparatedIds);
 		// Fall back to plain text if no mode was found
 		this._getOrCreateMode(languageId || 'plaintext');
-	}
-
-	private _getModeIdByLanguageName(languageName: string): string | null {
-		return this._registry.getModeIdFromLanguageName(languageName);
 	}
 
 	private _getOrCreateMode(languageId: string): void {

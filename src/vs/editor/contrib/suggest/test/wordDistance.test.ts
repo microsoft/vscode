@@ -22,6 +22,7 @@ import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('suggest, word distance', function () {
@@ -65,7 +66,7 @@ suite('suggest, word distance', function () {
 			private _worker = new EditorSimpleWorker(new class extends mock<EditorWorkerHost>() { }, null);
 
 			constructor() {
-				super(modelService, new class extends mock<ITextResourceConfigurationService>() { }, new NullLogService());
+				super(modelService, new class extends mock<ITextResourceConfigurationService>() { }, new NullLogService(), new TestLanguageConfigurationService());
 				this._worker.acceptNewModel({
 					url: model.uri.toString(),
 					lines: model.getLinesContent(),

@@ -21,7 +21,7 @@ export class TerminalInputSerializer implements IEditorSerializer {
 	}
 
 	public serialize(editorInput: TerminalEditorInput): string | undefined {
-		if (!editorInput.terminalInstance?.persistentProcessId) {
+		if (!editorInput.terminalInstance?.persistentProcessId || !editorInput.terminalInstance.shouldPersist) {
 			return;
 		}
 		const term = JSON.stringify(this._toJson(editorInput.terminalInstance));

@@ -5,7 +5,7 @@
 
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { URI } from 'vs/base/common/uri';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { WorkspaceEditMetadata } from 'vs/editor/common/modes';
@@ -366,7 +366,7 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 
 	constructor(
 		private readonly _operations: BulkFileOperations,
-		@IModeService private readonly _modeService: IModeService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@IModelService private readonly _modelService: IModelService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService
 	) {
@@ -416,7 +416,7 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 				const sourceModel = ref.object.textEditorModel;
 				model = this._modelService.createModel(
 					createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()),
-					this._modeService.create(sourceModel.getLanguageId()),
+					this._languageService.createById(sourceModel.getLanguageId()),
 					previewUri
 				);
 				ref.dispose();
@@ -425,7 +425,7 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 				// create NEW model
 				model = this._modelService.createModel(
 					'',
-					this._modeService.createByFilepathOrFirstLine(previewUri),
+					this._languageService.createByFilepathOrFirstLine(previewUri),
 					previewUri
 				);
 			}

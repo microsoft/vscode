@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as utils from '../utils';
 
-suite.skip('Notebook Editor', function () {
+suite('Notebook Editor', function () {
 
 	const contentSerializer = new class implements vscode.NotebookSerializer {
 		deserializeNotebook() {
@@ -77,7 +77,8 @@ suite.skip('Notebook Editor', function () {
 		assert.strictEqual(editor2.viewColumn, vscode.ViewColumn.Two);
 	});
 
-	test('Opening a notebook should fire activeNotebook event changed only once', async function () {
+	// #138683
+	test.skip('Opening a notebook should fire activeNotebook event changed only once', async function () {
 		const openedEditor = utils.asPromise(vscode.window.onDidChangeActiveNotebookEditor);
 		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		const editor = await vscode.window.showNotebookDocument(resource);

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from 'vs/base/common/async';
-import * as Codicons from 'vs/base/common/codicons';
+import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { URI } from 'vs/base/common/uri';
@@ -25,6 +25,20 @@ export type IconDefaults = ThemeIcon | IconDefinition;
 export interface IconDefinition {
 	fontId?: string;
 	fontCharacter: string;
+}
+
+export namespace IconContribution {
+	export function getDefinition(contribution: IconContribution, registry: IIconRegistry): IconDefinition | undefined {
+		let definition = contribution.defaults;
+		while (ThemeIcon.isThemeIcon(definition)) {
+			const c = iconRegistry.getIcon(definition.id);
+			if (!c) {
+				return undefined;
+			}
+			definition = c.defaults;
+		}
+		return definition;
+	}
 }
 
 export interface IconContribution {
@@ -124,7 +138,7 @@ class IconRegistry implements IIconRegistry {
 		type: 'object',
 		properties: {}
 	};
-	private iconReferenceSchema: IJSONSchema & { enum: string[], enumDescriptions: string[] } = { type: 'string', pattern: `^${Codicons.CSSIcon.iconNameExpression}$`, enum: [], enumDescriptions: [] };
+	private iconReferenceSchema: IJSONSchema & { enum: string[], enumDescriptions: string[] } = { type: 'string', pattern: `^${CSSIcon.iconNameExpression}$`, enum: [], enumDescriptions: [] };
 
 	private iconFontsById: { [key: string]: IconFontContribution };
 
@@ -261,10 +275,9 @@ export function getIconRegistry(): IIconRegistry {
 }
 
 function initialize() {
-	for (const icon of Codicons.iconRegistry.all) {
+	for (const icon of Codicon.getAll()) {
 		iconRegistry.registerIcon(icon.id, icon.definition, icon.description);
 	}
-	Codicons.iconRegistry.onDidRegister(icon => iconRegistry.registerIcon(icon.id, icon.definition, icon.description));
 }
 initialize();
 
@@ -286,10 +299,10 @@ iconRegistry.onDidChange(() => {
 
 // common icons
 
-export const widgetClose = registerIcon('widget-close', Codicons.Codicon.close, localize('widgetClose', 'Icon for the close action in widgets.'));
+export const widgetClose = registerIcon('widget-close', Codicon.close, localize('widgetClose', 'Icon for the close action in widgets.'));
 
-export const gotoPreviousLocation = registerIcon('goto-previous-location', Codicons.Codicon.arrowUp, localize('previousChangeIcon', 'Icon for goto previous editor location.'));
-export const gotoNextLocation = registerIcon('goto-next-location', Codicons.Codicon.arrowDown, localize('nextChangeIcon', 'Icon for goto next editor location.'));
+export const gotoPreviousLocation = registerIcon('goto-previous-location', Codicon.arrowUp, localize('previousChangeIcon', 'Icon for goto previous editor location.'));
+export const gotoNextLocation = registerIcon('goto-next-location', Codicon.arrowDown, localize('nextChangeIcon', 'Icon for goto next editor location.'));
 
-export const syncing = ThemeIcon.modify(Codicons.Codicon.sync, 'spin');
-export const spinningLoading = ThemeIcon.modify(Codicons.Codicon.loading, 'spin');
+export const syncing = ThemeIcon.modify(Codicon.sync, 'spin');
+export const spinningLoading = ThemeIcon.modify(Codicon.loading, 'spin');

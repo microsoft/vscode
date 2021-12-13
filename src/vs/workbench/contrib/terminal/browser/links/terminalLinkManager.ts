@@ -78,7 +78,15 @@ export class TerminalLinkManager extends DisposableStore {
 				wrappedTextLinkActivateCallback,
 				this._wrapLinkHandler.bind(this),
 				this._tooltipCallback.bind(this),
-				async (link, cb) => cb(await this._resolvePath(link)));
+				async (linkCandidates, cb) => {
+					for (const link of linkCandidates) {
+						const result = await this._resolvePath(link);
+						if (result) {
+							return cb(result);
+						}
+					}
+					return cb(undefined);
+				});
 			this._standardLinkProviders.push(validatedProvider);
 		}
 
@@ -323,7 +331,7 @@ export class TerminalLinkManager extends DisposableStore {
 		return link;
 	}
 
-	private async _resolvePath(link: string): Promise<{ uri: URI, isDirectory: boolean } | undefined> {
+	private async _resolvePath(link: string): Promise<{ uri: URI, link: string, isDirectory: boolean } | undefined> {
 		if (!this._processManager) {
 			throw new Error('Process manager is required');
 		}
@@ -352,7 +360,7 @@ export class TerminalLinkManager extends DisposableStore {
 
 			try {
 				const stat = await this._fileService.resolve(uri);
-				return { uri, isDirectory: stat.isDirectory };
+				return { uri, link, isDirectory: stat.isDirectory };
 			}
 			catch (e) {
 				// Does not exist

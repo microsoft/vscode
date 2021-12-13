@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation';
 
-import { ParsedArgs } from 'minimist';
-import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation/out';
-
-export function setup(opts: ParsedArgs) {
+export function setup() {
 	describe('Terminal Tabs', () => {
 		// Acquire automation API
 		let terminal: Terminal;

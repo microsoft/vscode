@@ -381,12 +381,6 @@ interface IWorkbenchConstructionOptions {
 	readonly webviewEndpoint?: string;
 
 	/**
-	 * An URL pointing to the web worker extension host <iframe> src.
-	 * @deprecated. This will be removed soon.
-	 */
-	readonly webWorkerExtensionHostIframeSrc?: string;
-
-	/**
 	 * A factory for web sockets.
 	 */
 	readonly webSocketFactory?: IWebSocketFactory;
@@ -451,13 +445,6 @@ interface IWorkbenchConstructionOptions {
 	 * Note: This will not install extensions if not installed.
 	 */
 	readonly enabledExtensions?: readonly ExtensionId[];
-
-	/**
-	 * [TEMPORARY]: This will be removed soon.
-	 * Enable inlined extensions.
-	 * Defaults to true.
-	 */
-	readonly _enableBuiltinExtensions?: boolean;
 
 	/**
 	 * Additional domains allowed to open from the workbench without the

@@ -12,7 +12,8 @@
   "icon": "icons/json.png",
   "activationEvents": [
     "onLanguage:json",
-    "onLanguage:jsonc"
+    "onLanguage:jsonc",
+    "onCommand:json.clearCache"
   ],
   "main": "./client/out/node/jsonClientMain",
   "browser": "./client/dist/browser/jsonClientMain",
@@ -133,7 +134,12 @@
         "fileMatch": "*.schema.json",
         "url": "http://json-schema.org/draft-07/schema#"
       }
-    ]
+    ],
+    "commands": [{
+      "command": "json.clearCache",
+      "title": "%json.command.clearCache%",
+      "category": "JSON"
+    }]
   },
   "dependencies": {
     "request-light": "^0.5.5",

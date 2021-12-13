@@ -29,7 +29,7 @@ export class MarkerController implements IEditorContribution {
 
 	static readonly ID = 'editor.contrib.markerController';
 
-	static get(editor: ICodeEditor): MarkerController {
+	static get(editor: ICodeEditor): MarkerController | null {
 		return editor.getContribution<MarkerController>(MarkerController.ID);
 	}
 
@@ -154,8 +154,8 @@ export class MarkerController implements IEditorContribution {
 				}, this._editor);
 
 				if (otherEditor) {
-					MarkerController.get(otherEditor).close();
-					MarkerController.get(otherEditor).nagivate(next, multiFile);
+					MarkerController.get(otherEditor)?.close();
+					MarkerController.get(otherEditor)?.nagivate(next, multiFile);
 				}
 
 			} else {
@@ -178,7 +178,7 @@ class MarkerNavigationAction extends EditorAction {
 
 	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		if (editor.hasModel()) {
-			MarkerController.get(editor).nagivate(this._next, this._multiFile);
+			MarkerController.get(editor)?.nagivate(this._next, this._multiFile);
 		}
 	}
 }

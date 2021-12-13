@@ -276,6 +276,16 @@ export class ConfigurationManager implements IConfigurationManager {
 		return getVisibleAndSorted(all);
 	}
 
+	removeRecentDynamicConfigurations(name: string, type: string) {
+		const remaining = this.getRecentDynamicConfigurations().filter(c => c.name !== name || c.type !== type);
+		this.storageService.store(DEBUG_RECENT_DYNAMIC_CONFIGURATIONS, JSON.stringify(remaining), StorageScope.WORKSPACE, StorageTarget.USER);
+		if (this.selectedConfiguration.name === name && this.selectedType === type) {
+			this.selectConfiguration(undefined, undefined);
+		} else {
+			this._onDidSelectConfigurationName.fire();
+		}
+	}
+
 	getRecentDynamicConfigurations(): { name: string, type: string }[] {
 		return JSON.parse(this.storageService.get(DEBUG_RECENT_DYNAMIC_CONFIGURATIONS, StorageScope.WORKSPACE, '[]'));
 	}

@@ -27,7 +27,7 @@ namespace VSCodeContentRequest {
 }
 
 namespace SchemaContentChangeNotification {
-	export const type: NotificationType<string> = new NotificationType('json/schemaContent');
+	export const type: NotificationType<string | string[]> = new NotificationType('json/schemaContent');
 }
 
 namespace ResultLimitReachedNotification {
@@ -264,8 +264,18 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	});
 
 	// A schema has changed
-	connection.onNotification(SchemaContentChangeNotification.type, uri => {
-		if (languageService.resetSchema(uri)) {
+	connection.onNotification(SchemaContentChangeNotification.type, uriOrUris => {
+		let needsRevalidation = false;
+		if (Array.isArray(uriOrUris)) {
+			for (const uri of uriOrUris) {
+				if (languageService.resetSchema(uri)) {
+					needsRevalidation = true;
+				}
+			}
+		} else {
+			needsRevalidation = languageService.resetSchema(uriOrUris);
+		}
+		if (needsRevalidation) {
 			for (const doc of documents.all()) {
 				triggerValidation(doc);
 			}
