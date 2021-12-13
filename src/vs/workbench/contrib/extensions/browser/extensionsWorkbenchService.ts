@@ -1005,41 +1005,27 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			.then(undefined, err => null);
 	}
 
-	private async syncWithGallery(): Promise<void> {
-		const ids: string[] = [], preReleaseIds: string[] = [], names: string[] = [], preReleaseNames: string[] = [];
+	private syncWithGallery(): Promise<void> {
+		const ids: string[] = [], names: string[] = [];
 		for (const installed of this.local) {
 			if (installed.type === ExtensionType.User) {
 				if (installed.identifier.uuid) {
-					if (installed.local?.isPreReleaseVersion || installed.local?.preRelease) {
-						preReleaseIds.push(installed.identifier.uuid);
-					} else {
-						ids.push(installed.identifier.uuid);
-					}
+					ids.push(installed.identifier.uuid);
 				} else {
-					if (installed.local?.isPreReleaseVersion || installed.local?.preRelease) {
-						preReleaseNames.push(installed.identifier.id);
-					} else {
-						names.push(installed.identifier.id);
-					}
+					names.push(installed.identifier.id);
 				}
 			}
 		}
 
 		const promises: Promise<IPager<IExtension>>[] = [];
 		if (ids.length) {
-			promises.push(this.queryGallery({ ids, pageSize: ids.length, includePreRelease: false }, CancellationToken.None));
-		}
-		if (preReleaseIds.length) {
-			promises.push(this.queryGallery({ ids: preReleaseIds, pageSize: preReleaseIds.length, includePreRelease: true }, CancellationToken.None));
+			promises.push(this.queryGallery({ ids, pageSize: ids.length }, CancellationToken.None));
 		}
 		if (names.length) {
-			promises.push(this.queryGallery({ names, pageSize: names.length, includePreRelease: false }, CancellationToken.None));
-		}
-		if (preReleaseNames.length) {
-			promises.push(this.queryGallery({ names: preReleaseNames, pageSize: names.length, includePreRelease: true }, CancellationToken.None));
+			promises.push(this.queryGallery({ names, pageSize: names.length }, CancellationToken.None));
 		}
 
-		await Promises.settled(promises);
+		return Promises.settled(promises).then(() => undefined);
 	}
 
 	private eventuallyAutoUpdateExtensions(): void {
