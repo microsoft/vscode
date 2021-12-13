@@ -16,7 +16,7 @@ export function setup() {
 
 		it.skip('clicking the plus button should create a terminal and display the tabs view showing no split decorations', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
-			await terminal.runCommandWithValue(TerminalCommandIdWithValue.CreateNew);
+			await terminal.runCommand(TerminalCommandId.CreateNew);
 			await terminal.clickPlusButton();
 			await terminal.assertTerminalGroups([[{}], [{}]]);
 		});
@@ -100,14 +100,14 @@ export function setup() {
 
 		it('should join tabs when more than one non-split terminal', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
-			await terminal.runCommandWithValue(TerminalCommandIdWithValue.CreateNew);
+			await terminal.runCommand(TerminalCommandId.CreateNew);
 			await terminal.runCommand(TerminalCommandId.Join);
 			await terminal.assertTerminalGroups([[{}, {}]]);
 		});
 
 		it('should do nothing when unsplit tabs called with no splits', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
-			await terminal.runCommandWithValue(TerminalCommandIdWithValue.CreateNew);
+			await terminal.runCommand(TerminalCommandId.CreateNew);
 			await terminal.assertTerminalGroups([[{}], [{}]]);
 			await terminal.runCommand(TerminalCommandId.Unsplit);
 			await terminal.assertTerminalGroups([[{}], [{}]]);

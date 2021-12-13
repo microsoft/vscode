@@ -16,8 +16,8 @@ export function setup() {
 
 		describe('detach/attach', () => {
 			// https://github.com/microsoft/vscode/issues/137799
-			it.skip('should support basic reconnection', async () => {
-				await terminal.runCommandWithValue(TerminalCommandIdWithValue.CreateNew);
+			it('should support basic reconnection', async () => {
+				await terminal.runCommand(TerminalCommandId.CreateNew);
 				// TODO: Handle passing in an actual regex, not string
 				await terminal.assertTerminalGroups([
 					[{ name: '.*' }]
@@ -41,7 +41,7 @@ export function setup() {
 			});
 
 			it.skip('should persist buffer content', async () => {
-				await terminal.runCommandWithValue(TerminalCommandIdWithValue.CreateNew);
+				await terminal.runCommand(TerminalCommandId.CreateNew);
 				// TODO: Handle passing in an actual regex, not string
 				await terminal.assertTerminalGroups([
 					[{ name: '.*' }]
@@ -71,7 +71,7 @@ export function setup() {
 
 			// TODO: This is currently flaky because it takes time to send over the new icon to the backend
 			it.skip('should persist terminal icon', async () => {
-				await terminal.runCommandWithValue(TerminalCommandIdWithValue.CreateNew);
+				await terminal.runCommand(TerminalCommandId.CreateNew);
 				// TODO: Handle passing in an actual regex, not string
 				await terminal.assertTerminalGroups([
 					[{ name: '.*' }]
