@@ -328,6 +328,12 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 				this._disposeOfWebglRenderer();
 				this.raw.options.rendererType = 'dom';
 			});
+			// Uncomment to add the texture atlas to the DOM
+			// setTimeout(() => {
+			// 	if (this._webglAddon?.textureAtlas) {
+			// 		document.body.appendChild(this._webglAddon?.textureAtlas);
+			// 	}
+			// }, 5000);
 		} catch (e) {
 			this._logService.warn(`Webgl could not be loaded. Falling back to the canvas renderer type.`, e);
 			const neverMeasureRenderTime = this._storageService.getBoolean(TerminalStorageKeys.NeverMeasureRenderTime, StorageScope.GLOBAL, false);
