@@ -185,7 +185,7 @@ export function registerTerminalActions() {
 				title: terminalStrings.moveToEditor,
 				f1: true,
 				category,
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.terminalEditorActive.toNegated(), TerminalContextKeys.viewShowing)
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -224,7 +224,7 @@ export function registerTerminalActions() {
 				title: terminalStrings.moveToTerminalPanel,
 				f1: true,
 				category,
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.terminalEditorActive),
 			});
 		}
 		async run(accessor: ServicesAccessor, resource: unknown) {
