@@ -686,14 +686,6 @@ export class PersistentTerminalProcess extends Disposable {
 		this._autoReplies.delete(match);
 	}
 
-	// TODO: Remove
-	// private _setupAutoResponder() {
-	// 	if (isWindows) {
-	// 		this._eventListeners.push(this._register(new TerminalAutoResponder(this._terminalProcess, 'Terminate batch job (Y/N)', 'Y\r')));
-	// 	}
-	// 	this._eventListeners.push(this._register(new TerminalAutoResponder(this._terminalProcess, 'foo', 'bar')));
-	// }
-
 	sendCommandResult(reqId: number, isError: boolean, serializedPayload: any): void {
 		const data = this._pendingCommands.get(reqId);
 		if (!data) {

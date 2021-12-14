@@ -16,6 +16,11 @@ import { ITerminalChildProcess } from 'vs/platform/terminal/common/terminal';
 export class TerminalAutoResponder extends Disposable {
 	private _pointer = 0;
 	private _paused = false;
+
+	/**
+	 * Each reply is throttled by a second to avoid resource starvation and responding to screen
+	 * reprints on Winodws.
+	 */
 	private _throttled = false;
 
 	constructor(
