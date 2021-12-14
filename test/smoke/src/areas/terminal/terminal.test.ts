@@ -6,6 +6,7 @@
 import { Application, Terminal, TerminalCommandId, Logger } from '../../../../automation';
 import { installAllHandlers } from '../../utils';
 import { setup as setupTerminalEditorsTests } from './terminal-editors.test';
+import { setup as setupTerminalInputTests } from './terminal-input.test';
 import { setup as setupTerminalPersistenceTests } from './terminal-persistence.test';
 import { setup as setupTerminalProfileTests } from './terminal-profiles.test';
 import { setup as setupTerminalTabsTests } from './terminal-tabs.test';
@@ -38,6 +39,7 @@ export function setup(logger: Logger) {
 		});
 
 		setupTerminalEditorsTests();
+		setupTerminalInputTests();
 		setupTerminalPersistenceTests();
 		setupTerminalProfileTests();
 		setupTerminalTabsTests();

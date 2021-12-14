@@ -82,9 +82,11 @@ export class Terminal {
 		await this.quickinput.waitForQuickInputClosed();
 	}
 
-	async runCommandInTerminal(commandText: string): Promise<void> {
+	async runCommandInTerminal(commandText: string, skipEnter?: boolean): Promise<void> {
 		await this.code.writeInTerminal(Selector.Xterm, commandText);
-		await this.code.dispatchKeybinding('enter');
+		if (!skipEnter) {
+			await this.code.dispatchKeybinding('enter');
+		}
 	}
 
 	async assertEditorGroupCount(count: number): Promise<void> {

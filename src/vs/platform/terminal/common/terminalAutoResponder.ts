@@ -6,14 +6,14 @@
 import { timeout } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isWindows } from 'vs/base/common/platform';
-import { ITerminalChildProcess, ITerminalEventListener } from 'vs/platform/terminal/common/terminal';
+import { ITerminalChildProcess } from 'vs/platform/terminal/common/terminal';
 
 /**
  * Tracks a terminal process's data stream and responds immediately when a matching string is
  * received. This is done in a low overhead way and is ideally run on the same process as the
  * where the process is handled to minimize latency.
  */
-export class TerminalAutoResponder extends Disposable implements ITerminalEventListener {
+export class TerminalAutoResponder extends Disposable {
 	private _pointer = 0;
 	private _paused = false;
 	private _throttled = false;
@@ -30,6 +30,7 @@ export class TerminalAutoResponder extends Disposable implements ITerminalEventL
 				return;
 			}
 			const data = typeof e === 'string' ? e : e.data;
+			console.log('data ' + data);
 			for (let i = 0; i < data.length; i++) {
 				if (data[i] === matchWord[this._pointer]) {
 					this._pointer++;
