@@ -840,7 +840,7 @@ export const enum GroupChangeKind {
 	EDITOR_PIN,
 	EDITOR_STICKY,
 	EDITOR_DIRTY, // TO BE DONE
-	EDITOR_WILL_DISPOSE // TO BE DONE
+	EDITOR_WILL_DISPOSE
 }
 
 export interface IWorkbenchEditorConfiguration {
