@@ -1147,7 +1147,7 @@ class TestMessageElement implements ITreeElement {
 		this.id = this.uri.toString();
 
 		const asPlaintext = renderStringAsPlaintext(message);
-		const lines = count(asPlaintext.trimEnd(), '\n');
+		const lines = count(asPlaintext.trimRight(), '\n');
 		this.label = firstLine(asPlaintext);
 		if (lines > 0) {
 			this.description = lines > 1
