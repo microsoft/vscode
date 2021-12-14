@@ -61,6 +61,7 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 		private readonly _wrapLinkHandler: (handler: (event: MouseEvent | undefined, link: string) => void) => XtermLinkMatcherHandler,
 		private readonly _tooltipCallback: (link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => void,
 		private readonly _validationCallback: (link: string[], callback: (result: { uri: URI, link: string, isDirectory: boolean } | undefined) => void) => void,
+		private readonly _testing: boolean,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
@@ -68,9 +69,11 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService
 	) {
 		super();
-		setInterval(function () {
-			map.clear();
-		}, 10000);
+		if (!this._testing) {
+			setInterval(function () {
+				map.clear();
+			}, 10000);
+		}
 	}
 
 	protected async _provideLinks(y: number): Promise<TerminalLink[]> {
@@ -112,7 +115,7 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 			}
 			const originalLink = link;
 			const cachedLinkResult = map.get(originalLink);
-			if (cachedLinkResult) {
+			if (cachedLinkResult && !this._testing) {
 				if (typeof cachedLinkResult !== 'string') {
 					result.push(cachedLinkResult);
 				}

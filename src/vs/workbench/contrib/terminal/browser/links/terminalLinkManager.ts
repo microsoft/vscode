@@ -86,7 +86,8 @@ export class TerminalLinkManager extends DisposableStore {
 						}
 					}
 					return cb(undefined);
-				});
+				},
+				false);
 			this._standardLinkProviders.push(validatedProvider);
 		}
 

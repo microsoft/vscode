@@ -94,7 +94,8 @@ suite('Workbench - TerminalValidatedLocalLinkProvider', () => {
 			() => { },
 			(linkCandidates: string, cb: (result: { uri: URI, link: string, isDirectory: boolean } | undefined) => void) => {
 				cb({ uri: URI.file('/'), link: linkCandidates[0], isDirectory: false });
-			}
+			},
+			true
 		);
 
 		// Write the text and wait for the parser to finish
