@@ -180,6 +180,14 @@ body.web {
 	cursor: default;
 }
 
+.monaco-workbench .codicon[class*='codicon-'] {
+	font-size: 16px; /* sets font-size for codicons in workbench (https://github.com/microsoft/vscode/issues/98495) */
+}
+
+.monaco-workbench.modal-dialog-visible .monaco-progress-container.infinite .progress-bit {
+	display: none; /* stop progress animations when dialogs are visible (https://github.com/microsoft/vscode/issues/138396) */
+}
+
 /* Custom Dropdown (select) Arrows */
 
 .monaco-workbench select {
@@ -208,7 +216,7 @@ body.web {
 	pointer-events: none;
 }
 
-/* START Keyboard Focus Indication Styles */
+/* Keyboard Focus Indication Styles */
 
 .monaco-workbench [tabindex="0"]:focus,
 .monaco-workbench [tabindex="-1"]:focus,
@@ -270,8 +278,4 @@ body.web {
 
 .monaco-workbench .monaco-list:focus {
 	outline: 0 !important; /* tree indicates focus not via outline but through the focused item */
-}
-
-.monaco-workbench .codicon[class*='codicon-'] {
-	font-size: 16px; /* sets font-size for codicons in workbench https://github.com/microsoft/vscode/issues/98495 */
 }
