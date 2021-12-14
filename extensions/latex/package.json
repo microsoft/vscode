@@ -52,11 +52,13 @@
       },
       {
         "id": "cpp_embedded_latex",
-        "configuration": "latex-cpp-embedded-language-configuration.json"
+        "configuration": "latex-cpp-embedded-language-configuration.json",
+        "aliases": []
       },
       {
         "id": "markdown_latex_combined",
-        "configuration": "markdown-latex-combined-language-configuration.json"
+        "configuration": "markdown-latex-combined-language-configuration.json",
+        "aliases": []
       }
     ],
     "grammars": [
