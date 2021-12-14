@@ -65,7 +65,6 @@
     "@vscode/vscode-languagedetection": "1.0.21",
     "applicationinsights": "1.0.8",
     "cookie": "^0.4.1",
-    "forwarded-parse": "^2.1.2",
     "graceful-fs": "4.2.8",
     "http-proxy-agent": "^2.1.0",
     "https-proxy-agent": "^2.2.3",

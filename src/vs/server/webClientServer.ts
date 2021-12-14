@@ -9,7 +9,6 @@ import * as url from 'url';
 import * as util from 'util';
 import * as cookie from 'cookie';
 import * as crypto from 'crypto';
-import parseForwardHeader = require('forwarded-parse');
 import { isEqualOrParent, sanitizeFilePath } from 'vs/base/common/extpath';
 import { getMediaMime } from 'vs/base/common/mime';
 import { isLinux } from 'vs/base/common/platform';
@@ -27,7 +26,6 @@ import type { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.a
 import { editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ClientTheme, getOriginalUrl, HTTPNotFoundError, relativePath, relativeRoot, WebManifest } from 'vs/server/common/net';
 import { IServerThemeService } from 'vs/server/serverThemeService';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 
 const textMimeType = {
 	'.html': 'text/html',
@@ -167,29 +165,6 @@ export class WebClientServer {
 
 	private _iconSizes = [192, 512];
 
-	private getRemoteAuthority(req: http.IncomingMessage): URL {
-		if (req.headers.forwarded) {
-			const [parsedHeader] = parseForwardHeader(req.headers.forwarded);
-			return new URL(`${parsedHeader.proto}://${parsedHeader.host}`);
-		}
-
-		/* Return first non-empty header. */
-		const parseHeaders = (headerNames: string[]): string | undefined => {
-			for (const headerName of headerNames) {
-				const header = req.headers[headerName]?.toString();
-				if (!isFalsyOrWhitespace(header)) {
-					return header;
-				}
-			}
-			return undefined;
-		};
-
-		const proto = parseHeaders(['X-Forwarded-Proto']) || 'http';
-		const host = parseHeaders(['X-Forwarded-Host', 'host']) || 'localhost';
-
-		return new URL(`${proto}://${host}`);
-	}
-
 	/**
 	 * PWA manifest file. This informs the browser that the app may be installed.
 	 */
@@ -292,9 +267,15 @@ export class WebClientServer {
 		// 	return this.serveError(req, res, 403, `Forbidden.`, parsedUrl);
 		// }
 
-		const remoteAuthority = this.getRemoteAuthority(req);
-
-		const transformer = createRemoteURITransformer(remoteAuthority.host);
+		/**
+		 * It is not possible to reliably detect the remote authority on the server
+		 * in all cases.  Set this to something invalid to make sure we catch code
+		 * that is using this when it should not.
+		 *
+		 * @author coder
+		 */
+		const remoteAuthority = 'remote';
+		const transformer = createRemoteURITransformer(remoteAuthority);
 		const { workspacePath, isFolder } = await this._getWorkspaceFromCLI();
 
 		function escapeAttribute(value: string): string {
@@ -343,8 +324,7 @@ export class WebClientServer {
 				},
 				folderUri: (workspacePath && isFolder) ? transformer.transformOutgoing(URI.file(workspacePath)) : undefined,
 				workspaceUri: (workspacePath && !isFolder) ? transformer.transformOutgoing(URI.file(workspacePath)) : undefined,
-				// Add port to prevent client-side mismatch for reverse proxies.
-				remoteAuthority: `${remoteAuthority.hostname}:${remoteAuthority.port || (remoteAuthority.protocol === 'https:' ? '443' : '80')}`,
+				remoteAuthority,
 				_wrapWebWorkerExtHostInIframe,
 				developmentOptions: {
 					enableSmokeTestDriver: this._environmentService.driverHandle === 'web' ? true : undefined,
