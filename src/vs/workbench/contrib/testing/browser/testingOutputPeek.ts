@@ -420,6 +420,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		@ITestResultService private readonly testResults: ITestResultService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		this.visible = TestingContextKeys.isPeekVisible.bindTo(contextKeyService);
@@ -446,6 +447,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		}
 
 		const options = { pinned: false, revealIfOpened: true };
+		const message = current.messages[current.messageIndex];
 
 		if (current.isDiffable) {
 			this.editorService.openEditor({
@@ -453,8 +455,10 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 				modified: { resource: current.actualUri },
 				options,
 			});
-		} else {
+		} else if (typeof message.message === 'string') {
 			this.editorService.openEditor({ resource: current.messageUri, options });
+		} else {
+			this.commandService.executeCommand('markdown.showPreview', current.messageUri);
 		}
 	}
 
