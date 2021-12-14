@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, workspace, Disposable, TextDocument, Position, SnippetString, TextDocumentChangeEvent, TextDocumentChangeReason, Selection, TextDocumentContentChangeEvent } from 'vscode';
+import { window, workspace, Disposable, TextDocument, Position, SnippetString, TextDocumentChangeEvent, TextDocumentChangeReason, TextDocumentContentChangeEvent } from 'vscode';
 import { Runtime } from './htmlClient';
 
 export function activateAutoInsertion(provider: (kind: 'autoQuote' | 'autoClose', document: TextDocument, position: Position) => Thenable<string>, supportedLanguages: { [id: string]: boolean }, runtime: Runtime): Disposable {
@@ -36,8 +36,9 @@ export function activateAutoInsertion(provider: (kind: 'autoQuote' | 'autoClose'
 		if (!supportedLanguages[document.languageId]) {
 			return;
 		}
-		isEnabled['autoQuote'] = workspace.getConfiguration(undefined, document.uri).get<boolean>('html.autoCreateQuotes') ?? false;
-		isEnabled['autoClose'] = workspace.getConfiguration(undefined, document.uri).get<boolean>('html.autoClosingTags') ?? false;
+		const configurations = workspace.getConfiguration(undefined, document.uri);
+		isEnabled['autoQuote'] = configurations.get<boolean>('html.autoCreateQuotes') ?? false;
+		isEnabled['autoClose'] = configurations.get<boolean>('html.autoClosingTags') ?? false;
 		anyIsEnabled = isEnabled['autoQuote'] || isEnabled['autoClose'];
 	}
 
@@ -76,10 +77,6 @@ export function activateAutoInsertion(provider: (kind: 'autoQuote' | 'autoClose'
 							const selections = activeEditor.selections;
 							if (selections.length && selections.some(s => s.active.isEqual(position))) {
 								activeEditor.insertSnippet(new SnippetString(text), selections.map(s => s.active));
-								if (kind === 'autoQuote') {
-									// Move all cursors one forward
-									activeEditor.selections = selections.map(s => new Selection(s.active.translate(0, 1), s.active.translate(0, 1)));
-								}
 							} else {
 								activeEditor.insertSnippet(new SnippetString(text), position);
 							}
