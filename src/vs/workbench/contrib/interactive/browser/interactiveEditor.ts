@@ -126,7 +126,7 @@ export class InteractiveEditor extends EditorPane {
 		this.#menuService = menuService;
 		this.#contextMenuService = contextMenuService;
 
-		this.#notebookOptions = new NotebookOptions(configurationService, { cellToolbarInteraction: 'hover', globalToolbar: true });
+		this.#notebookOptions = new NotebookOptions(configurationService, { cellToolbarInteraction: 'hover', globalToolbar: true, defaultCellCollapseConfig: { codeCell: { inputCollapsed: true }} });
 
 		codeEditorService.registerDecorationType('interactive-decoration', DECORATION_KEY, {});
 		this._register(this.#keybindingService.onDidUpdateKeybindings(this.#updateInputDecoration, this));
@@ -319,6 +319,7 @@ export class InteractiveEditor extends EditorPane {
 
 		this.#notebookWidget.value?.setParentContextKeyService(this.#contextKeyService);
 		await this.#notebookWidget.value!.setModel(model.notebook, undefined);
+		model.notebook.setCellCollapseDefault(this.#notebookOptions.getCellDefaultCollapseConfig());
 		this.#notebookWidget.value!.setOptions({
 			isReadOnly: true
 		});
