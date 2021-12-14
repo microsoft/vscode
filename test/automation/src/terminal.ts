@@ -96,9 +96,13 @@ export class Terminal {
 		}
 	}
 
-	async createTerminal(assertLocation?: 'editor' | 'panel'): Promise<void> {
+	/**
+	 * Creates a terminal using the new terminal command.
+	 * @param location The location to check the terminal for, defaults to panel.
+	 */
+	async createTerminal(location?: 'editor' | 'panel'): Promise<void> {
 		await this.runCommand(TerminalCommandId.CreateNew);
-		await this._waitForTerminal(assertLocation);
+		await this._waitForTerminal(location);
 	}
 
 	async assertEditorGroupCount(count: number): Promise<void> {
@@ -208,8 +212,12 @@ export class Terminal {
 		return (this.code.driver as any).page;
 	}
 
-	private async _waitForTerminal(value?: 'editor' | 'panel'): Promise<void> {
+	/**
+	 * Waits for the terminal to be focused and to contain content.
+	 * @param location The location to check the terminal for, defaults to panel.
+	 */
+	private async _waitForTerminal(location?: 'editor' | 'panel'): Promise<void> {
 		await this.code.waitForElement(Selector.XtermFocused);
-		await this.code.waitForTerminalBuffer(value === 'editor' ? Selector.XtermEditor : Selector.Xterm, lines => lines.some(line => line.length > 0));
+		await this.code.waitForTerminalBuffer(location === 'editor' ? Selector.XtermEditor : Selector.Xterm, lines => lines.some(line => line.length > 0));
 	}
 }
