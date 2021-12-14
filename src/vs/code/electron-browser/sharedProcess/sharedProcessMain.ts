@@ -206,7 +206,7 @@ class SharedProcessMain extends Disposable {
 		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
-		const userDataFileSystemProvider = this._register(new IPCFileSystemProvider(mainProcessService.getChannel('localFilesystem'), { pathCaseSensitive: !isLinux }));
+		const userDataFileSystemProvider = this._register(new IPCFileSystemProvider(mainProcessService.getChannel('localFilesystem'), { pathCaseSensitive: isLinux }));
 		fileService.registerProvider(Schemas.userData, userDataFileSystemProvider);
 
 		// Configuration
