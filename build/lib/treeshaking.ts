@@ -327,6 +327,29 @@ function isSymbolWithDeclarations(symbol: ts.Symbol | undefined | null): symbol 
 	return !!(symbol && symbol.declarations);
 }
 
+function isVariableStatementWithSideEffects(ts: typeof import('typescript'), node: ts.Node): boolean {
+	if (!ts.isVariableStatement(node)) {
+		return false;
+	}
+	let hasSideEffects = false;
+	const visitNode = (node: ts.Node) => {
+		if (hasSideEffects) {
+			// no need to go on
+			return;
+		}
+		if (ts.isCallExpression(node)) {
+			// TODO: assuming `createDecorator` and `refineServiceDecorator` calls are side-effect free
+			const isSideEffectFree = /(createDecorator|refineServiceDecorator)/.test(node.getText());
+			if (!isSideEffectFree) {
+				hasSideEffects = true;
+			}
+		}
+		node.forEachChild(visitNode);
+	};
+	node.forEachChild(visitNode);
+	return hasSideEffects;
+}
+
 function markNodes(ts: typeof import('typescript'), languageService: ts.LanguageService, options: ITreeShakingOptions) {
 	const program = languageService.getProgram();
 	if (!program) {
@@ -370,6 +393,10 @@ function markNodes(ts: typeof import('typescript'), languageService: ts.Language
 					}
 				}
 				return;
+			}
+
+			if (isVariableStatementWithSideEffects(ts, node)) {
+				enqueue_black(node);
 			}
 
 			if (
