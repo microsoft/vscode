@@ -33,6 +33,7 @@ import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
 ModesRegistry.registerLanguage({
 	id: 'scminput',
 	extensions: [],
+	aliases: [], // hide from language selector
 	mimetypes: ['text/x-scm-input']
 });
 
