@@ -164,14 +164,14 @@ class InsertSnippetAction extends EditorAction {
 					detail: snippet.description,
 					snippet
 				};
-				if (!prevSnippet || prevSnippet.snippetSource !== snippet.snippetSource) {
+				if (!prevSnippet || prevSnippet.snippetSource !== snippet.snippetSource || prevSnippet.source !== snippet.source) {
 					let label = '';
 					switch (snippet.snippetSource) {
 						case SnippetSource.User:
 							label = nls.localize('sep.userSnippet', "User Snippets");
 							break;
 						case SnippetSource.Extension:
-							label = nls.localize('sep.extSnippet', "Extension Snippets");
+							label = snippet.source;
 							break;
 						case SnippetSource.Workspace:
 							label = nls.localize('sep.workspaceSnippet', "Workspace Snippets");
