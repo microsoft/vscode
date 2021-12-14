@@ -87,10 +87,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
 
-	private readonly _onDidGroupChange = this._register(new Emitter<IGroupChangeEvent>());
-	/** @deprecated */
-	readonly onDidGroupChange = this._onDidGroupChange.event;
-
 	private readonly _onDidModelChange = this._register(new Emitter<IGroupChangeEvent>());
 	readonly onDidModelChange = this._onDidModelChange.event;
 

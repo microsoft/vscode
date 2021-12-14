@@ -405,13 +405,6 @@ export const enum OpenEditorContext {
 export interface IEditorGroup {
 
 	/**
-	 * An aggregated event for when the group changes in any way.
-	 *
-	 * @deprecated use `onDidModelChange` instead if possible.
-	 */
-	readonly onDidGroupChange: Event<IGroupChangeEvent>;
-
-	/**
 	 * An event which fires whenever the underlying group model changes.
 	 */
 	readonly onDidModelChange: Event<IGroupChangeEvent>;
@@ -465,7 +458,7 @@ export interface IEditorGroup {
 	/**
 	 * A human readable label for the group. This label can change depending
 	 * on the layout of all editor groups. Clients should listen on the
-	 * `onDidGroupChange` event to react to that.
+	 * `onDidGroupModelChange` event to react to that.
 	 */
 	readonly label: string;
 
