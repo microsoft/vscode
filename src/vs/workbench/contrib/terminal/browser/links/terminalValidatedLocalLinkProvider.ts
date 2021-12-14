@@ -54,6 +54,8 @@ const InvalidLinkResult = 'Invalid Link Result';
 const MAX_LENGTH = 2000;
 let map = new Map<string, TerminalLink | string>();
 export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider {
+	private _cacheTilTimeout = 0;
+	_enableCaching: boolean = true;
 	constructor(
 		private readonly _xterm: Terminal,
 		private readonly _processOperatingSystem: OperatingSystem,
@@ -61,7 +63,6 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 		private readonly _wrapLinkHandler: (handler: (event: MouseEvent | undefined, link: string) => void) => XtermLinkMatcherHandler,
 		private readonly _tooltipCallback: (link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => void,
 		private readonly _validationCallback: (link: string[], callback: (result: { uri: URI, link: string, isDirectory: boolean } | undefined) => void) => void,
-		private readonly _testing: boolean,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
@@ -69,18 +70,18 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService
 	) {
 		super();
-		if (!this._testing) {
-			setInterval(function () {
-				map.clear();
-			}, 10000);
-		}
 	}
 
 	protected async _provideLinks(y: number): Promise<TerminalLink[]> {
 		const result: TerminalLink[] = [];
 		let startLine = y - 1;
 		let endLine = startLine;
-
+		if (this._enableCaching) {
+			if (this._cacheTilTimeout) {
+				window.clearTimeout(this._cacheTilTimeout);
+			}
+			this._cacheTilTimeout = window.setTimeout(() => map.clear(), 10000);
+		}
 		const lines: IBufferLine[] = [
 			this._xterm.buffer.active.getLine(startLine)!
 		];
@@ -114,9 +115,9 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 				break;
 			}
 			const originalLink = link;
-			const cachedLinkResult = map.get(originalLink);
-			if (cachedLinkResult && !this._testing) {
-				if (typeof cachedLinkResult !== 'string') {
+			if (this._enableCaching) {
+				const cachedLinkResult = map.get(originalLink);
+				if (!!cachedLinkResult && typeof cachedLinkResult !== 'string') {
 					result.push(cachedLinkResult);
 				}
 				break;
@@ -176,11 +177,15 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 					}
 				});
 			});
+			if (this._enableCaching) {
+				if (validatedLink) {
+					map.set(originalLink, validatedLink);
+				} else {
+					map.set(originalLink, InvalidLinkResult);
+				}
+			}
 			if (validatedLink) {
-				map.set(originalLink, validatedLink);
 				result.push(validatedLink);
-			} else {
-				map.set(originalLink, InvalidLinkResult);
 			}
 		}
 

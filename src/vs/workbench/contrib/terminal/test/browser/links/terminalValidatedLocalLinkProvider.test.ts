@@ -45,6 +45,10 @@ const windowsLinks = [
 	'foo\\bar+more',
 ];
 
+class TestTerminalValidatedLocalLinkProvider extends TerminalValidatedLocalLinkProvider {
+	override _enableCaching: boolean = false;
+}
+
 interface LinkFormatInfo {
 	urlFormat: string;
 	line?: string;
@@ -86,7 +90,7 @@ suite('Workbench - TerminalValidatedLocalLinkProvider', () => {
 	async function assertLink(text: string, os: OperatingSystem, expected: { text: string, range: [number, number][] }[]) {
 		const xterm = new Terminal();
 		const provider = instantiationService.createInstance(
-			TerminalValidatedLocalLinkProvider,
+			TestTerminalValidatedLocalLinkProvider,
 			xterm,
 			os,
 			() => { },
@@ -94,10 +98,8 @@ suite('Workbench - TerminalValidatedLocalLinkProvider', () => {
 			() => { },
 			(linkCandidates: string, cb: (result: { uri: URI, link: string, isDirectory: boolean } | undefined) => void) => {
 				cb({ uri: URI.file('/'), link: linkCandidates[0], isDirectory: false });
-			},
-			true
+			}
 		);
-
 		// Write the text and wait for the parser to finish
 		await new Promise<void>(r => xterm.write(text, r));
 
