@@ -427,6 +427,11 @@ export interface IEditorGroup {
 	readonly onWillCloseEditor: Event<IEditorCloseEvent>;
 
 	/**
+	 * An event that is fired when an editor is closed.
+	 */
+	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
+
+	/**
 	 * An event that is fired when an editor is about to move to
 	 * a different group.
 	 */

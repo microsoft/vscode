@@ -417,6 +417,10 @@ suite('EditorGroupsService', () => {
 			} else if (e.kind === GroupChangeKind.EDITOR_CAPABILITIES) {
 				assert.ok(e.editor);
 				editorCapabilitiesCounter++;
+			} else if (e.kind === GroupChangeKind.EDITOR_CLOSE) {
+				assert.ok(e.editor);
+				editorCloseCounter++;
+				editorCloseEvents.push(e);
 			}
 		});
 		const editorGroupChangeListener = group.onDidGroupChange(e => {
@@ -427,10 +431,6 @@ suite('EditorGroupsService', () => {
 			} else if (e.kind === GroupChangeKind.EDITOR_ACTIVE) {
 				assert.ok(e.editor);
 				activeEditorChangeCounter++;
-			} else if (e.kind === GroupChangeKind.EDITOR_CLOSE) {
-				assert.ok(e.editor);
-				editorCloseCounter++;
-				editorCloseEvents.push(e);
 			}
 		});
 
@@ -442,6 +442,11 @@ suite('EditorGroupsService', () => {
 		let editorWillCloseCounter = 0;
 		const editorWillCloseListener = group.onWillCloseEditor(() => {
 			editorWillCloseCounter++;
+		});
+
+		let editorDidCloseCounter = 0;
+		const editorDidCloseListener = group.onDidCloseEditor(() => {
+			editorDidCloseCounter++;
 		});
 
 		const input = new TestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
@@ -503,6 +508,7 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(editorCloseEvents[0].editor, inputInactive);
 		assert.strictEqual(editorCloseCounter1, 1);
 		assert.strictEqual(editorWillCloseCounter, 1);
+		assert.strictEqual(editorDidCloseCounter, 1);
 
 		assert.ok(inputInactive.gotDisposed);
 
@@ -516,6 +522,7 @@ suite('EditorGroupsService', () => {
 
 		editorCloseListener.dispose();
 		editorWillCloseListener.dispose();
+		editorDidCloseListener.dispose();
 		editorGroupChangeListener.dispose();
 		editorGroupModelChangeListener.dispose();
 	});

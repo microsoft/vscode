@@ -832,7 +832,7 @@ export const enum GroupChangeKind {
 
 	/* Editor Changes */
 	EDITOR_OPEN, // TO BE DONE
-	EDITOR_CLOSE, // TO BE DONE
+	EDITOR_CLOSE,
 	EDITOR_MOVE,
 	EDITOR_ACTIVE, // TO BE DONE
 	EDITOR_LABEL,

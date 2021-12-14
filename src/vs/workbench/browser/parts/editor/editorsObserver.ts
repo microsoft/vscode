@@ -129,6 +129,10 @@ export class EditorsObserver extends Disposable {
 			}
 		}));
 
+		groupDisposables.add(group.onDidCloseEditor(e => {
+			this.removeMostRecentEditor(group, e.editor);
+		}));
+
 		groupDisposables.add(group.onDidGroupChange(e => {
 			switch (e.kind) {
 
@@ -150,15 +154,6 @@ export class EditorsObserver extends Disposable {
 					if (e.editor) {
 						this.addMostRecentEditor(group, e.editor, false /* is not active */, true /* is new */);
 						this.ensureOpenedEditorsLimit({ groupId: group.id, editor: e.editor }, group.id);
-					}
-
-					break;
-				}
-
-				// Editor closes: remove from recently opened
-				case GroupChangeKind.EDITOR_CLOSE: {
-					if (e.editor) {
-						this.removeMostRecentEditor(group, e.editor);
 					}
 
 					break;
