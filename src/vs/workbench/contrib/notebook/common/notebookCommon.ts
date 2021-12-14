@@ -114,6 +114,11 @@ export interface NotebookCellCollapseState {
 	outputCollapsed?: boolean;
 }
 
+export interface NotebookCellDefaultCollapseConfig {
+	codeCell?: NotebookCellCollapseState;
+	markupCell?: NotebookCellCollapseState;
+}
+
 export type TransientCellMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
 export type TransientDocumentMetadata = { [K in keyof NotebookDocumentMetadata]?: boolean };
 
