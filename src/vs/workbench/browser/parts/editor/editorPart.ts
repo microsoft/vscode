@@ -550,7 +550,16 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 			this.doSetGroupActive(groupView);
 		}));
 
-		// Track editor change
+		// Track group changes
+		groupDisposables.add(groupView.onDidModelChange(e => {
+			switch (e.kind) {
+				case GroupChangeKind.GROUP_LOCKED:
+					this._onDidChangeGroupLocked.fire(groupView);
+					break;
+			}
+		}));
+
+		// Track group changes (legacy)
 		groupDisposables.add(groupView.onDidGroupChange(e => {
 			switch (e.kind) {
 				case GroupChangeKind.EDITOR_ACTIVE:
@@ -558,9 +567,6 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 					break;
 				case GroupChangeKind.GROUP_INDEX:
 					this._onDidChangeGroupIndex.fire(groupView);
-					break;
-				case GroupChangeKind.GROUP_LOCKED:
-					this._onDidChangeGroupLocked.fire(groupView);
 					break;
 			}
 		}));

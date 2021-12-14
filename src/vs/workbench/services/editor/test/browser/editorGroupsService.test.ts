@@ -1480,14 +1480,14 @@ suite('EditorGroupsService', () => {
 		});
 
 		let leftFiredCountFromGroup = 0;
-		const leftGroupListener = group.onDidGroupChange(e => {
+		const leftGroupListener = group.onDidModelChange(e => {
 			if (e.kind === GroupChangeKind.GROUP_LOCKED) {
 				leftFiredCountFromGroup++;
 			}
 		});
 
 		let rightFiredCountFromGroup = 0;
-		const rightGroupListener = rightGroup.onDidGroupChange(e => {
+		const rightGroupListener = rightGroup.onDidModelChange(e => {
 			if (e.kind === GroupChangeKind.GROUP_LOCKED) {
 				rightFiredCountFromGroup++;
 			}

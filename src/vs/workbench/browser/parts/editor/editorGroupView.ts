@@ -88,6 +88,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	readonly onWillDispose = this._onWillDispose.event;
 
 	private readonly _onDidGroupChange = this._register(new Emitter<IGroupChangeEvent>());
+	/** @deprecated */
 	readonly onDidGroupChange = this._onDidGroupChange.event;
 
 	private readonly _onDidModelChange = this._register(new Emitter<IGroupChangeEvent>());
@@ -266,6 +267,15 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		};
 
 		// Update group contexts based on group changes
+		this._register(this.onDidModelChange(e => {
+			switch (e.kind) {
+				case GroupChangeKind.GROUP_LOCKED:
+					groupLockedContext.set(this.isLocked);
+					break;
+			}
+		}));
+
+		// Update group contexts based on group changes (legacy)
 		this._register(this.onDidGroupChange(e => {
 			switch (e.kind) {
 				case GroupChangeKind.EDITOR_ACTIVE:
@@ -282,9 +292,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 					if (e.editor && e.editor === this.model.activeEditor) {
 						groupActiveEditorStickyContext.set(this.model.isSticky(this.model.activeEditor));
 					}
-					break;
-				case GroupChangeKind.GROUP_LOCKED:
-					groupLockedContext.set(this.isLocked);
 					break;
 			}
 
@@ -542,11 +549,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Handle within
 
-		if (e.kind === GroupChangeKind.GROUP_LOCKED) {
-			this.onDidChangeGroupLocked();
-			return;
-		}
-
 		if (!e.editor) {
 			return;
 		}
@@ -586,10 +588,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				this.onDidChangeEditorCapabilities(e.editor);
 				break;
 		}
-	}
-
-	private onDidChangeGroupLocked(): void {
-		this._onDidGroupChange.fire({ kind: GroupChangeKind.GROUP_LOCKED });
 	}
 
 	private onDidChangeEditorPinned(editor: EditorInput): void {
