@@ -49,8 +49,10 @@ export const unixLineAndColumnMatchIndex = 11;
 // Each line and column clause have 6 groups (ie no. of expressions in round brackets)
 export const lineAndColumnClauseGroupCount = 6;
 
-const MAX_LENGTH = 2000;
+const InvalidLinkResult = 'Invalid Link Result';
 
+const MAX_LENGTH = 2000;
+let map = new Map<string, TerminalLink | string>();
 export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider {
 	constructor(
 		private readonly _xterm: Terminal,
@@ -66,6 +68,9 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService
 	) {
 		super();
+		setInterval(function () {
+			map.clear();
+		}, 10000);
 	}
 
 	protected async _provideLinks(y: number): Promise<TerminalLink[]> {
@@ -103,6 +108,14 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 				// something matched but does not comply with the given matchIndex
 				// since this is most likely a bug the regex itself we simply do nothing here
 				// this._logService.debug('match found without corresponding matchIndex', match, matcher);
+				break;
+			}
+			const originalLink = link;
+			const cachedLinkResult = map.get(originalLink);
+			if (cachedLinkResult) {
+				if (typeof cachedLinkResult !== 'string') {
+					result.push(cachedLinkResult);
+				}
 				break;
 			}
 
@@ -161,7 +174,10 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 				});
 			});
 			if (validatedLink) {
+				map.set(originalLink, validatedLink);
 				result.push(validatedLink);
+			} else {
+				map.set(originalLink, InvalidLinkResult);
 			}
 		}
 
