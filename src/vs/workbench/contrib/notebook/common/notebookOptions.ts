@@ -6,7 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { NotebookCellInternalMetadata, NotebookSetting, ShowCellStatusBarType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookCellDefaultCollapseConfig, NotebookCellInternalMetadata, NotebookSetting, ShowCellStatusBarType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const SCROLLABLE_ELEMENT_PADDING_TOP = 18;
 
@@ -106,10 +106,11 @@ const compactConfigConstants = Object.freeze({
 
 export class NotebookOptions extends Disposable {
 	private _layoutConfiguration: NotebookLayoutConfiguration;
+	private _cellDefaultCollapseConfig: NotebookCellDefaultCollapseConfig | undefined;
 	protected readonly _onDidChangeOptions = this._register(new Emitter<NotebookOptionsChangeEvent>());
 	readonly onDidChangeOptions = this._onDidChangeOptions.event;
 
-	constructor(private readonly configurationService: IConfigurationService, private readonly overrides?: { cellToolbarInteraction: string, globalToolbar: boolean }) {
+	constructor(private readonly configurationService: IConfigurationService, private readonly overrides?: { cellToolbarInteraction: string, globalToolbar: boolean, defaultCellCollapseConfig?: NotebookCellDefaultCollapseConfig }) {
 		super();
 		const showCellStatusBar = this.configurationService.getValue<ShowCellStatusBarType>(NotebookSetting.showCellStatusBar);
 		const globalToolbar = overrides?.globalToolbar ?? this.configurationService.getValue<boolean | undefined>(NotebookSetting.globalToolbar) ?? true;
@@ -170,6 +171,8 @@ export class NotebookOptions extends Disposable {
 			this._layoutConfiguration = configuration;
 			this._onDidChangeOptions.fire({ editorTopPadding: true });
 		}));
+
+		this._cellDefaultCollapseConfig = overrides?.defaultCellCollapseConfig;
 	}
 
 	private _updateConfiguration(e: IConfigurationChangeEvent) {
@@ -310,6 +313,10 @@ export class NotebookOptions extends Disposable {
 
 	private _computeFocusIndicatorOption() {
 		return this.configurationService.getValue<'border' | 'gutter'>(NotebookSetting.focusIndicator) ?? 'gutter';
+	}
+
+	getCellDefaultCollapseConfig(): NotebookCellDefaultCollapseConfig | undefined {
+		return this._cellDefaultCollapseConfig;
 	}
 
 	getLayoutConfiguration(): NotebookLayoutConfiguration {
