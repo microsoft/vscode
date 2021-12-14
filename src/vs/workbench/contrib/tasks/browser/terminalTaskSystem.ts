@@ -526,7 +526,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			}
 		}
 
-		if ((ContributedTask.is(task) || CustomTask.is(task)) && (task.command)) {
+		if ((ContributedTask.is(task) || CustomTask.is(task)) && (task.command.name)) {
 			return Promise.all(promises).then((summaries): Promise<ITaskSummary> | ITaskSummary => {
 				encounteredDependencies.delete(task.getCommonTaskId());
 				for (let summary of summaries) {
