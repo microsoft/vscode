@@ -559,12 +559,6 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 				case GroupChangeKind.GROUP_INDEX:
 					this._onDidChangeGroupIndex.fire(groupView);
 					break;
-			}
-		}));
-
-		// Track group changes (legacy)
-		groupDisposables.add(groupView.onDidGroupChange(e => {
-			switch (e.kind) {
 				case GroupChangeKind.EDITOR_ACTIVE:
 					this.updateContainer();
 					break;

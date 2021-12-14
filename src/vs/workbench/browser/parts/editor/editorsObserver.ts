@@ -142,22 +142,16 @@ export class EditorsObserver extends Disposable {
 			}
 		}));
 
+		// Editor closes: remove from recently opened
 		groupDisposables.add(group.onDidCloseEditor(e => {
 			this.removeMostRecentEditor(group, e.editor);
 		}));
 
-		groupDisposables.add(group.onDidGroupChange(e => {
-			switch (e.kind) {
-
-				// Editor gets active: put active editor as most recent
-				// if group is active, otherwise second most recent
-				case GroupChangeKind.EDITOR_ACTIVE: {
-					if (e.editor) {
-						this.addMostRecentEditor(group, e.editor, this.editorGroupsService.activeGroup === group, false /* editor already opened */);
-					}
-
-					break;
-				}
+		// Editor gets active: put active editor as most recent
+		// if group is active, otherwise second most recent
+		groupDisposables.add(group.onDidActiveEditorChange(e => {
+			if (e.editor) {
+				this.addMostRecentEditor(group, e.editor, this.editorGroupsService.activeGroup === group, false /* editor already opened */);
 			}
 		}));
 

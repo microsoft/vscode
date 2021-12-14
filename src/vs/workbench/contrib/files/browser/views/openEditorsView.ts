@@ -27,7 +27,7 @@ import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListDragAn
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, IMenu, Action2, registerAction2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { OpenEditorsDirtyEditorContext, OpenEditorsGroupContext, OpenEditorsReadonlyEditorContext, SAVE_ALL_LABEL, SAVE_ALL_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
@@ -149,6 +149,7 @@ export class OpenEditorsView extends ViewPane {
 
 				const index = this.getIndex(group, e.editor);
 				switch (e.kind) {
+					case GroupChangeKind.EDITOR_ACTIVE:
 					case GroupChangeKind.GROUP_ACTIVE:
 						this.focusActiveEditor();
 						break;
@@ -172,22 +173,7 @@ export class OpenEditorsView extends ViewPane {
 						break;
 				}
 			});
-			const legacyGroupChangeListener = group.onDidGroupChange(e => {
-				if (this.listRefreshScheduler.isScheduled()) {
-					return;
-				}
-				if (!this.isBodyVisible() || !this.list) {
-					this.needsRefresh = true;
-					return;
-				}
-
-				switch (e.kind) {
-					case GroupChangeKind.EDITOR_ACTIVE:
-						this.focusActiveEditor();
-						break;
-				}
-			});
-			groupDisposables.set(group.id, combinedDisposable(groupModelChangeListener, legacyGroupChangeListener));
+			groupDisposables.set(group.id, groupModelChangeListener);
 			this._register(groupDisposables.get(group.id)!);
 		};
 

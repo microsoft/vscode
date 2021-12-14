@@ -427,11 +427,9 @@ suite('EditorGroupsService', () => {
 				editorCloseEvents.push(e);
 			}
 		});
-		const editorGroupChangeListener = group.onDidGroupChange(e => {
-			if (e.kind === GroupChangeKind.EDITOR_ACTIVE) {
-				assert.ok(e.editor);
-				activeEditorChangeCounter++;
-			}
+		const activeEditorChangeListener = group.onDidActiveEditorChange(e => {
+			assert.ok(e.editor);
+			activeEditorChangeCounter++;
 		});
 
 		let editorCloseCounter1 = 0;
@@ -523,7 +521,7 @@ suite('EditorGroupsService', () => {
 		editorCloseListener.dispose();
 		editorWillCloseListener.dispose();
 		editorDidCloseListener.dispose();
-		editorGroupChangeListener.dispose();
+		activeEditorChangeListener.dispose();
 		editorGroupModelChangeListener.dispose();
 	});
 

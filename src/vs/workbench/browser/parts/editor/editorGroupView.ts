@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/editorgroupview';
 import { EditorGroupModel, IEditorOpenOptions, IGroupChangeEvent, ISerializedEditorGroupModel, isGroupEditorCloseEvent, isGroupEditorOpenEvent, isSerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
-import { GroupIdentifier, CloseDirection, IEditorCloseEvent, ActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, ActiveEditorStickyContext, ActiveEditorPinnedContext, EditorResourceAccessor, EditorInputCapabilities, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, ActiveEditorGroupLockedContext, SideBySideEditor, EditorCloseContext, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, GroupChangeKind } from 'vs/workbench/common/editor';
+import { GroupIdentifier, CloseDirection, IEditorCloseEvent, ActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, ActiveEditorStickyContext, ActiveEditorPinnedContext, EditorResourceAccessor, EditorInputCapabilities, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, ActiveEditorGroupLockedContext, SideBySideEditor, EditorCloseContext, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, GroupChangeKind, IActiveEditorChangeEvent } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
@@ -93,6 +93,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private readonly _onDidModelChange = this._register(new Emitter<IGroupChangeEvent>());
 	readonly onDidModelChange = this._onDidModelChange.event;
+
+	private readonly _onDidActiveEditorChange = this._register(new Emitter<IActiveEditorChangeEvent>());
+	readonly onDidActiveEditorChange = this._onDidActiveEditorChange.event;
 
 	private readonly _onDidOpenEditorFail = this._register(new Emitter<EditorInput>());
 	readonly onDidOpenEditorFail = this._onDidOpenEditorFail.event;
@@ -283,20 +286,15 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 					}
 					break;
 			}
-		}));
-
-		// Update group contexts based on group changes (legacy)
-		this._register(this.onDidGroupChange(e => {
-			switch (e.kind) {
-				case GroupChangeKind.EDITOR_ACTIVE:
-					// Track the active editor and update context key that reflects
-					// the dirty state of this editor
-					observeActiveEditor();
-					break;
-			}
 
 			// Group editors count context
 			groupEditorsCountContext.set(this.count);
+		}));
+
+		// Track the active editor and update context key that reflects
+		// the dirty state of this editor
+		this._register(this.onDidActiveEditorChange(() => {
+			observeActiveEditor();
 		}));
 
 		observeActiveEditor();
@@ -1070,7 +1068,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 				// Editor change event
 				if (changed) {
-					this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_ACTIVE, editor });
+					this._onDidActiveEditorChange.fire({ editor });
 				}
 
 				// Handle errors but do not bubble them up
@@ -1486,7 +1484,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			}
 
 			// Events
-			this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_ACTIVE });
+			this._onDidActiveEditorChange.fire({ editor: undefined });
 
 			// Remove empty group if we should
 			if (closeEmptyGroup) {

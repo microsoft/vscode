@@ -785,6 +785,14 @@ export interface IEditorCloseEvent extends IEditorIdentifier {
 	readonly sticky: boolean;
 }
 
+export interface IActiveEditorChangeEvent {
+
+	/**
+	 * The new active editor or `undefined` if the group is empty.
+	 */
+	editor: EditorInput | undefined;
+ }
+
 export interface IEditorWillMoveEvent extends IEditorIdentifier {
 
 	/**
@@ -834,7 +842,7 @@ export const enum GroupChangeKind {
 	EDITOR_OPEN,
 	EDITOR_CLOSE,
 	EDITOR_MOVE,
-	EDITOR_ACTIVE, // TO BE DONE
+	EDITOR_ACTIVE,
 	EDITOR_LABEL,
 	EDITOR_CAPABILITIES,
 	EDITOR_PIN,
