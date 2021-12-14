@@ -38,7 +38,7 @@ import { testingRunAllIcon, testingRunIcon, testingStatesToIcons } from 'vs/work
 import { testMessageSeverityColors } from 'vs/workbench/contrib/testing/browser/theme';
 import { DefaultGutterClickAction, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { labelForTestInState, Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { IncrementalTestCollectionItem, InternalTestItem, IRichLocation, ITestMessage, ITestRunProfile, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { IncrementalTestCollectionItem, InternalTestItem, IRichLocation, ITestMessage, ITestRunProfile, TestDiffOpType, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestDecoration as IPublicTestDecoration, ITestingDecorationsService, TestDecorations } from 'vs/workbench/contrib/testing/common/testingDecorations';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { isFailedState, maxPriority } from 'vs/workbench/contrib/testing/common/testingStates';
@@ -73,6 +73,9 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 	private generation = 0;
 	private readonly changeEmitter = new Emitter<void>();
 	private readonly decorationCache = new ResourceMap<{
+		/** Whether tests in the resource have been updated, requiring rerendering */
+		testRangesUpdated: boolean;
+		/** Counter for the results rendered in the document */
 		generation: number;
 		value: TestDecorations<ITestDecoration>;
 	}>();
@@ -105,12 +108,34 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 
 		const debounceInvalidate = this._register(new RunOnceScheduler(() => this.invalidate(), 100));
 
+		// If ranges were updated in the document, mark that we should explicitly
+		// sync decorations to the published lines, since we assume that everything
+		// is up to date. This prevents issues, as in #138632, #138835, #138922.
+		this._register(this.testService.onWillProcessDiff(diff => {
+			for (const entry of diff) {
+				let uri: URI | undefined;
+				if (entry[0] === TestDiffOpType.Add || entry[0] === TestDiffOpType.Update) {
+					uri = entry[1].item?.uri;
+				} else if (entry[0] === TestDiffOpType.Remove) {
+					uri = this.testService.collection.getNodeById(entry[1])?.item.uri;
+				}
+
+				const rec = uri && this.decorationCache.get(uri);
+				if (rec) {
+					rec.testRangesUpdated = true;
+				}
+			}
+
+			if (!debounceInvalidate.isScheduled()) {
+				debounceInvalidate.schedule();
+			}
+		}));
+
 		this._register(Event.any(
 			this.results.onResultsChanged,
 			this.results.onTestChanged,
 			this.testService.excluded.onTestExclusionsChanged,
 			this.testService.showInlineOutput.onDidChange,
-			this.testService.onDidProcessDiff,
 			Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(TestingConfigKeys.GutterEnabled)),
 		)(() => {
 			if (!debounceInvalidate.isScheduled()) {
@@ -133,7 +158,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 		}
 
 		const cached = this.decorationCache.get(resource);
-		if (cached?.generation === this.generation) {
+		if (cached && cached.generation === this.generation && !cached.testRangesUpdated) {
 			return cached.value;
 		}
 
@@ -166,7 +191,9 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 	private applyDecorations(model: ITextModel) {
 		const gutterEnabled = getTestingConfiguration(this.configurationService, TestingConfigKeys.GutterEnabled);
 		const uriStr = model.uri.toString();
-		const lastDecorations = this.decorationCache.get(model.uri)?.value ?? new TestDecorations();
+		const cached = this.decorationCache.get(model.uri);
+		const testRangesUpdated = cached?.testRangesUpdated;
+		const lastDecorations = cached?.value ?? new TestDecorations();
 		const newDecorations = new TestDecorations<ITestDecoration>();
 
 		model.changeDecorations(accessor => {
@@ -183,7 +210,13 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 
 			for (const [line, tests] of runDecorations.lines()) {
 				const multi = tests.length > 1;
-				const existing = lastDecorations.findOnLine(line, d => multi ? d instanceof MultiRunTestDecoration : d instanceof RunSingleTestDecoration) as RunTestDecoration;
+				let existing = lastDecorations.findOnLine(line, d => multi ? d instanceof MultiRunTestDecoration : d instanceof RunSingleTestDecoration) as RunTestDecoration | undefined;
+
+				// see comment in the constructor for what's going on here
+				if (existing && testRangesUpdated && model.getDecorationRange(existing.id)?.startLineNumber !== line) {
+					existing = undefined;
+				}
+
 				if (existing) {
 					if (existing.replaceOptions(tests, gutterEnabled)) {
 						accessor.changeDecorationOptions(existing.id, existing.editorDecoration.options);
@@ -193,7 +226,6 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 					newDecorations.push(multi
 						? this.instantiationService.createInstance(MultiRunTestDecoration, tests, gutterEnabled, model)
 						: this.instantiationService.createInstance(RunSingleTestDecoration, tests[0].test, tests[0].resultItem, model, gutterEnabled));
-
 				}
 			}
 
@@ -262,7 +294,11 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 				}
 			}
 
-			this.decorationCache.set(model.uri, { generation: this.generation, value: newDecorations });
+			this.decorationCache.set(model.uri, {
+				generation: this.generation,
+				testRangesUpdated: false,
+				value: newDecorations,
+			});
 		});
 
 		return newDecorations;
@@ -568,7 +604,7 @@ abstract class RunTestDecoration {
 	public editorDecoration: IModelDeltaDecoration;
 
 	constructor(
-		protected readonly tests: {
+		protected tests: readonly {
 			test: IncrementalTestCollectionItem,
 			resultItem: TestResultItem | undefined,
 		}[],
@@ -628,6 +664,7 @@ abstract class RunTestDecoration {
 			return false;
 		}
 
+		this.tests = newTests;
 		this.visible = visible;
 		this.editorDecoration.options = createRunTestDecoration(newTests.map(t => t.test), newTests.map(t => t.resultItem), visible).options;
 		return true;

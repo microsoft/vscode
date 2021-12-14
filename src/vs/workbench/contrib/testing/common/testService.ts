@@ -220,6 +220,11 @@ export interface ITestService {
 	readonly collection: IMainThreadTestCollection;
 
 	/**
+	 * Event that fires immediately before a diff is processed.
+	 */
+	readonly onWillProcessDiff: Event<TestsDiff>;
+
+	/**
 	 * Event that fires after a diff is processed.
 	 */
 	readonly onDidProcessDiff: Event<TestsDiff>;
