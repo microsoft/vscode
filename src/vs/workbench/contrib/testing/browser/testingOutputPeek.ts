@@ -725,6 +725,10 @@ class TestingOutputPeek extends PeekViewWidget {
 		const message = dto.messages[dto.messageIndex];
 		const previous = this.current;
 
+		if (message.type !== TestMessageType.Error) {
+			return Promise.resolve();
+		}
+
 		if (!dto.revealLocation && !previous) {
 			return Promise.resolve();
 		}
@@ -810,8 +814,8 @@ const diffEditorOptions: IDiffEditorConstructionOptions = {
 	modifiedAriaLabel: localize('testingOutputActual', 'Actual result'),
 };
 
-const isDiffable = (message: ITestMessage): message is ITestErrorMessage & { actualOutput: string; expectedOutput: string } =>
-	message.type === TestMessageType.Error && message.actual !== undefined && message.expected !== undefined;
+const isDiffable = (message: ITestErrorMessage): message is ITestErrorMessage & { actualOutput: string; expectedOutput: string } =>
+	message.actual !== undefined && message.expected !== undefined;
 
 class DiffContentProvider extends Disposable implements IPeekOutputRenderer {
 	private readonly widget = this._register(new MutableDisposable<EmbeddedDiffEditorWidget>());
@@ -984,7 +988,7 @@ class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
 	}
 }
 
-const hintMessagePeekHeight = (msg: ITestMessage) =>
+const hintMessagePeekHeight = (msg: ITestErrorMessage) =>
 	isDiffable(msg)
 		? Math.max(hintPeekStrHeight(msg.actual), hintPeekStrHeight(msg.expected))
 		: hintPeekStrHeight(typeof msg.message === 'string' ? msg.message : msg.message.value);
@@ -1124,8 +1128,7 @@ class TestMessageElement implements ITreeElement {
 	public readonly id: string;
 	public readonly label: string;
 	public readonly uri: URI;
-	public readonly location?: IRichLocation;
-	public readonly description?: string;
+	public readonly location: IRichLocation | undefined;
 
 	constructor(
 		public readonly result: ITestResult,
@@ -1145,15 +1148,7 @@ class TestMessageElement implements ITreeElement {
 		});
 
 		this.id = this.uri.toString();
-
-		const asPlaintext = renderStringAsPlaintext(message);
-		const lines = count(asPlaintext.trimEnd(), '\n');
-		this.label = firstLine(asPlaintext);
-		if (lines > 0) {
-			this.description = lines > 1
-				? localize('messageMoreLinesN', '+ {0} more lines', lines)
-				: localize('messageMoreLines1', '+ 1 more line');
-		}
+		this.label = firstLine(renderStringAsPlaintext(message));
 	}
 }
 
