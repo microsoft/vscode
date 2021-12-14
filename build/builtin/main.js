@@ -31,8 +31,7 @@ app.once('ready', () => {
 			contextIsolation: false,
 			enableWebSQL: false,
 			nativeWindowOpen: true
-		},
-		experimentalDarkMode: true
+		}
 	});
 	window.setMenuBarVisibility(false);
 	window.loadURL(url.format({ pathname: path.join(__dirname, 'index.html'), protocol: 'file:', slashes: true }));

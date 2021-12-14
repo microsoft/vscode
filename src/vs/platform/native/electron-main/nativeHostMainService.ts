@@ -69,6 +69,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	private registerListeners(): void {
+
 		// Color Scheme changes
 		nativeTheme.on('updated', () => {
 			this._onDidChangeColorScheme.fire(this.osColorScheme);
