@@ -272,6 +272,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				case GroupChangeKind.GROUP_LOCKED:
 					groupLockedContext.set(this.isLocked);
 					break;
+				case GroupChangeKind.EDITOR_PIN:
+					if (e.editor && e.editor === this.model.activeEditor) {
+						groupActiveEditorPinnedContext.set(this.model.isPinned(this.model.activeEditor));
+					}
+					break;
 			}
 		}));
 
@@ -282,11 +287,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 					// Track the active editor and update context key that reflects
 					// the dirty state of this editor
 					observeActiveEditor();
-					break;
-				case GroupChangeKind.EDITOR_PIN:
-					if (e.editor && e.editor === this.model.activeEditor) {
-						groupActiveEditorPinnedContext.set(this.model.isPinned(this.model.activeEditor));
-					}
 					break;
 				case GroupChangeKind.EDITOR_STICKY:
 					if (e.editor && e.editor === this.model.activeEditor) {
@@ -554,9 +554,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		switch (e.kind) {
-			case GroupChangeKind.EDITOR_PIN:
-				this.onDidChangeEditorPinned(e.editor);
-				break;
 			case GroupChangeKind.EDITOR_STICKY:
 				this.onDidChangeEditorSticky(e.editor);
 				break;
@@ -588,10 +585,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				this.onDidChangeEditorCapabilities(e.editor);
 				break;
 		}
-	}
-
-	private onDidChangeEditorPinned(editor: EditorInput): void {
-		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_PIN, editor });
 	}
 
 	private onDidChangeEditorSticky(editor: EditorInput): void {

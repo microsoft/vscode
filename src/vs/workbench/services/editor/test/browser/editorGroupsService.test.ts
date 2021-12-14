@@ -407,6 +407,12 @@ suite('EditorGroupsService', () => {
 		let editorPinCounter = 0;
 		let editorStickyCounter = 0;
 		let editorCapabilitiesCounter = 0;
+		const editorGroupModelChangeListener = group.onDidModelChange(e => {
+			if (e.kind === GroupChangeKind.EDITOR_PIN) {
+				assert.ok(e.editor);
+				editorPinCounter++;
+			}
+		});
 		const editorGroupChangeListener = group.onDidGroupChange(e => {
 			if (e.kind === GroupChangeKind.EDITOR_OPEN) {
 				assert.ok(e.editor);
@@ -419,9 +425,6 @@ suite('EditorGroupsService', () => {
 				assert.ok(e.editor);
 				editorCloseCounter++;
 				editorCloseEvents.push(e);
-			} else if (e.kind === GroupChangeKind.EDITOR_PIN) {
-				assert.ok(e.editor);
-				editorPinCounter++;
 			} else if (e.kind === GroupChangeKind.EDITOR_CAPABILITIES) {
 				assert.ok(e.editor);
 				editorCapabilitiesCounter++;
@@ -514,6 +517,7 @@ suite('EditorGroupsService', () => {
 		editorCloseListener.dispose();
 		editorWillCloseListener.dispose();
 		editorGroupChangeListener.dispose();
+		editorGroupModelChangeListener.dispose();
 	});
 
 	test('openEditors / closeEditors', async () => {
