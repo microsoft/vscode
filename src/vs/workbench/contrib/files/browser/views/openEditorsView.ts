@@ -165,6 +165,7 @@ export class OpenEditorsView extends ViewPane {
 						this.list.splice(index, 1, [new OpenEditor(e.editor!, group)]);
 						this.focusActiveEditor();
 						break;
+					case GroupChangeKind.EDITOR_OPEN:
 					case GroupChangeKind.EDITOR_MOVE:
 					case GroupChangeKind.EDITOR_CLOSE:
 						updateWholeList();
@@ -183,9 +184,6 @@ export class OpenEditorsView extends ViewPane {
 				switch (e.kind) {
 					case GroupChangeKind.EDITOR_ACTIVE:
 						this.focusActiveEditor();
-						break;
-					case GroupChangeKind.EDITOR_OPEN:
-						updateWholeList();
 						break;
 				}
 			});

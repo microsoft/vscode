@@ -80,6 +80,8 @@ suite('EditorGroupModel', () => {
 
 	interface GroupEvents {
 		locked: number[],
+		active: number[],
+		index: number[],
 		opened: IEditorOpenEvent[];
 		activated: EditorInput[];
 		closed: IEditorCloseEvent[];
@@ -93,6 +95,8 @@ suite('EditorGroupModel', () => {
 
 	function groupListener(group: EditorGroupModel): GroupEvents {
 		const groupEvents: GroupEvents = {
+			active: [],
+			index: [],
 			locked: [],
 			opened: [],
 			closed: [],
@@ -108,6 +112,12 @@ suite('EditorGroupModel', () => {
 		group.onDidModelChange(e => {
 			if (e.kind === GroupChangeKind.GROUP_LOCKED) {
 				groupEvents.locked.push(group.id);
+				return;
+			} else if (e.kind === GroupChangeKind.GROUP_ACTIVE) {
+				groupEvents.active.push(group.id);
+				return;
+			} else if (e.kind === GroupChangeKind.GROUP_INDEX) {
+				groupEvents.index.push(group.id);
 				return;
 			}
 			if (!e.editor) {
@@ -728,7 +738,6 @@ suite('EditorGroupModel', () => {
 
 	test('group serialization (locked group)', function () {
 		const group = createEditorGroupModel();
-
 		const events = groupListener(group);
 
 		assert.strictEqual(events.locked.length, 0);
@@ -758,6 +767,28 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(group.id, deserialized.id);
 		assert.strictEqual(deserialized.count, 0);
 		assert.strictEqual(deserialized.isLocked, false);
+	});
+
+	test('index', function () {
+		const group = createEditorGroupModel();
+		const events = groupListener(group);
+
+		assert.strictEqual(events.index.length, 0);
+
+		group.setIndex(4);
+
+		assert.strictEqual(events.index.length, 1);
+	});
+
+	test('active', function () {
+		const group = createEditorGroupModel();
+		const events = groupListener(group);
+
+		assert.strictEqual(events.active.length, 0);
+
+		group.setActive(undefined);
+
+		assert.strictEqual(events.active.length, 1);
 	});
 
 	test('One Editor', function () {

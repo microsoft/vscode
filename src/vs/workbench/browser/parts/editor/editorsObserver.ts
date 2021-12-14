@@ -126,6 +126,19 @@ export class EditorsObserver extends Disposable {
 
 					break;
 				}
+
+				// Editor opens: put it as second most recent
+				//
+				// Also check for maximum allowed number of editors and
+				// start to close oldest ones if needed.
+				case GroupChangeKind.EDITOR_OPEN: {
+					if (e.editor) {
+						this.addMostRecentEditor(group, e.editor, false /* is not active */, true /* is new */);
+						this.ensureOpenedEditorsLimit({ groupId: group.id, editor: e.editor }, group.id);
+					}
+
+					break;
+				}
 			}
 		}));
 
@@ -141,19 +154,6 @@ export class EditorsObserver extends Disposable {
 				case GroupChangeKind.EDITOR_ACTIVE: {
 					if (e.editor) {
 						this.addMostRecentEditor(group, e.editor, this.editorGroupsService.activeGroup === group, false /* editor already opened */);
-					}
-
-					break;
-				}
-
-				// Editor opens: put it as second most recent
-				//
-				// Also check for maximum allowed number of editors and
-				// start to close oldest ones if needed.
-				case GroupChangeKind.EDITOR_OPEN: {
-					if (e.editor) {
-						this.addMostRecentEditor(group, e.editor, false /* is not active */, true /* is new */);
-						this.ensureOpenedEditorsLimit({ groupId: group.id, editor: e.editor }, group.id);
 					}
 
 					break;

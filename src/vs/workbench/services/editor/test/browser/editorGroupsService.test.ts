@@ -408,7 +408,11 @@ suite('EditorGroupsService', () => {
 		let editorStickyCounter = 0;
 		let editorCapabilitiesCounter = 0;
 		const editorGroupModelChangeListener = group.onDidModelChange(e => {
-			if (e.kind === GroupChangeKind.EDITOR_PIN) {
+			if (e.kind === GroupChangeKind.EDITOR_OPEN) {
+				assert.ok(e.editor);
+				editorDidOpenCounter++;
+				editorOpenEvents.push(e);
+			} else if (e.kind === GroupChangeKind.EDITOR_PIN) {
 				assert.ok(e.editor);
 				editorPinCounter++;
 			} else if (e.kind === GroupChangeKind.EDITOR_STICKY) {
@@ -424,11 +428,7 @@ suite('EditorGroupsService', () => {
 			}
 		});
 		const editorGroupChangeListener = group.onDidGroupChange(e => {
-			if (e.kind === GroupChangeKind.EDITOR_OPEN) {
-				assert.ok(e.editor);
-				editorDidOpenCounter++;
-				editorOpenEvents.push(e);
-			} else if (e.kind === GroupChangeKind.EDITOR_ACTIVE) {
+			if (e.kind === GroupChangeKind.EDITOR_ACTIVE) {
 				assert.ok(e.editor);
 				activeEditorChangeCounter++;
 			}
