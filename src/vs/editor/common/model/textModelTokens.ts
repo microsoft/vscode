@@ -15,7 +15,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { MultilineTokensBuilder, countEOL } from 'vs/editor/common/model/tokensStore';
-import { runWhenIdle, IdleDeadline } from 'vs/base/common/async';
+import { setImmediate } from 'vs/base/common/platform';
 
 const enum Constants {
 	CHEAP_TOKENIZATION_LENGTH_LIMIT = 2048
@@ -262,7 +262,7 @@ export class TextModelTokenization extends Disposable {
 		}
 
 		this._isScheduled = true;
-		runWhenIdle((deadline) => {
+		setImmediate(() => {
 			this._isScheduled = false;
 
 			if (this._isDisposed) {
@@ -270,11 +270,11 @@ export class TextModelTokenization extends Disposable {
 				return;
 			}
 
-			this._revalidateTokensNow(deadline);
+			this._revalidateTokensNow();
 		});
 	}
 
-	private _revalidateTokensNow(deadline: IdleDeadline): void {
+	private _revalidateTokensNow(): void {
 		const textModelLastLineNumber = this._textModel.getLineCount();
 
 		const MAX_ALLOWED_TIME = 1;
@@ -293,7 +293,7 @@ export class TextModelTokenization extends Disposable {
 			if (tokenizedLineNumber >= textModelLastLineNumber) {
 				break;
 			}
-		} while (this._hasLinesToTokenize() && deadline.timeRemaining() > 0);
+		} while (this._hasLinesToTokenize());
 
 		this._beginBackgroundTokenization();
 		this._textModel.setTokens(builder.tokens, !this._hasLinesToTokenize());
