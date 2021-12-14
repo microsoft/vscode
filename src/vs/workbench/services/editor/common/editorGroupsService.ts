@@ -406,6 +406,8 @@ export interface IEditorGroup {
 
 	/**
 	 * An aggregated event for when the group changes in any way.
+	 *
+	 * @deprecated use `onDidModelChange` instead if possible.
 	 */
 	readonly onDidGroupChange: Event<IGroupChangeEvent>;
 
