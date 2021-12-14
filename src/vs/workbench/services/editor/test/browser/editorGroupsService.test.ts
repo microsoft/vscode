@@ -944,7 +944,7 @@ suite('EditorGroupsService', () => {
 		const inputInactive = new TestFileEditorInput(URI.file('foo/bar/inactive'), TEST_EDITOR_INPUT_ID);
 
 		const moveEvents: IGroupChangeEvent[] = [];
-		const editorGroupChangeListener = group.onDidGroupChange(e => {
+		const editorGroupChangeListener = group.onDidModelChange(e => {
 			if (e.kind === GroupChangeKind.EDITOR_MOVE) {
 				assert.ok(e.editor);
 				moveEvents.push(e);
@@ -1316,7 +1316,7 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, { excludeSticky: true }).length, 2);
 
 		let editorMoveCounter = 0;
-		const editorGroupChangeListener = group.onDidGroupChange(e => {
+		const editorGroupChangeListener = group.onDidModelChange(e => {
 			if (e.kind === GroupChangeKind.EDITOR_MOVE) {
 				assert.ok(e.editor);
 				editorMoveCounter++;

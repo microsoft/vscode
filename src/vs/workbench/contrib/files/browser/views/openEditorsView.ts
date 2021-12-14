@@ -165,6 +165,9 @@ export class OpenEditorsView extends ViewPane {
 						this.list.splice(index, 1, [new OpenEditor(e.editor!, group)]);
 						this.focusActiveEditor();
 						break;
+					case GroupChangeKind.EDITOR_MOVE:
+						updateWholeList();
+						break;
 				}
 			});
 			const legacyGroupChangeListener = group.onDidGroupChange(e => {
@@ -182,7 +185,6 @@ export class OpenEditorsView extends ViewPane {
 						break;
 					case GroupChangeKind.EDITOR_OPEN:
 					case GroupChangeKind.EDITOR_CLOSE:
-					case GroupChangeKind.EDITOR_MOVE:
 						updateWholeList();
 						break;
 				}

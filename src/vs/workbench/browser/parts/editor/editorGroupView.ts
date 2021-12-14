@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/editorgroupview';
-import { EditorGroupModel, IEditorOpenOptions, IGroupChangeEvent, IGroupEditorCloseEvent, IGroupEditorMoveEvent, IGroupEditorOpenEvent, ISerializedEditorGroupModel, isGroupEditorCloseEvent, isGroupEditorMoveEvent, isGroupEditorOpenEvent, isSerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
+import { EditorGroupModel, IEditorOpenOptions, IGroupChangeEvent, IGroupEditorCloseEvent, IGroupEditorOpenEvent, ISerializedEditorGroupModel, isGroupEditorCloseEvent, isGroupEditorOpenEvent, isSerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { GroupIdentifier, CloseDirection, IEditorCloseEvent, ActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, ActiveEditorStickyContext, ActiveEditorPinnedContext, EditorResourceAccessor, EditorInputCapabilities, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, ActiveEditorGroupLockedContext, SideBySideEditor, EditorCloseContext, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, GroupChangeKind } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
@@ -554,11 +554,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		switch (e.kind) {
-			case GroupChangeKind.EDITOR_MOVE:
-				if (isGroupEditorMoveEvent(e)) {
-					this.onDidMoveEditor(e.editor, e.oldEditorIndex, e.editorIndex);
-				}
-				break;
 			case GroupChangeKind.EDITOR_OPEN:
 				if (isGroupEditorOpenEvent(e)) {
 					this.onDidOpenEditor(e.editor, e.editorIndex);
@@ -579,11 +574,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				this.onDidChangeEditorLabel(e.editor);
 				break;
 		}
-	}
-
-	private onDidMoveEditor(editor: EditorInput, oldEditorIndex: number, editorIndex: number): void {
-		const event: IGroupEditorMoveEvent = { kind: GroupChangeKind.EDITOR_MOVE, editor, oldEditorIndex, editorIndex };
-		this._onDidGroupChange.fire(event);
 	}
 
 	private onDidOpenEditor(editor: EditorInput, editorIndex: number): void {
