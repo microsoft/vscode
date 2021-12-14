@@ -28,6 +28,7 @@ import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsServ
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadService } from 'vs/platform/download/common/downloadService';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { SharedProcessEnvironmentService } from 'vs/platform/sharedProcess/node/sharedProcessEnvironmentService';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IExtensionGalleryService, IExtensionManagementService, IExtensionTipsService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -96,7 +97,6 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { IPCFileSystemProvider } from 'vs/platform/files/common/ipcFileSystemProvider';
 import { isLinux } from 'vs/base/common/platform';
-import { SharedProcessEnvironmentService } from 'vs/code/electron-browser/sharedProcess/environmentService';
 
 class SharedProcessMain extends Disposable {
 
