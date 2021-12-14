@@ -64,6 +64,9 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 			return [];
 		}
 		const colorDetector = ColorDetector.get(this._editor);
+		if (!colorDetector) {
+			return [];
+		}
 		for (const d of lineDecorations) {
 			if (!colorDetector.isColorDecorationId(d.id)) {
 				continue;

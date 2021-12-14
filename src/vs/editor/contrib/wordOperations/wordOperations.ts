@@ -18,7 +18,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel } from 'vs/editor/common/model';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import * as nls from 'vs/nls';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -331,6 +331,8 @@ export abstract class DeleteWordCommand extends EditorCommand {
 	}
 
 	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		const languageConfigurationService = accessor.get(ILanguageConfigurationService);
+
 		if (!editor.hasModel()) {
 			return;
 		}
@@ -339,7 +341,7 @@ export abstract class DeleteWordCommand extends EditorCommand {
 		const selections = editor.getSelections();
 		const autoClosingBrackets = editor.getOption(EditorOption.autoClosingBrackets);
 		const autoClosingQuotes = editor.getOption(EditorOption.autoClosingQuotes);
-		const autoClosingPairs = LanguageConfigurationRegistry.getAutoClosingPairs(model.getLanguageId());
+		const autoClosingPairs = languageConfigurationService.getLanguageConfiguration(model.getLanguageId()).getAutoClosingPairs();
 		const viewModel = editor._getViewModel();
 
 		const commands = selections.map((sel) => {

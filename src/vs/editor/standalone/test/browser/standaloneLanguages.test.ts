@@ -11,12 +11,13 @@ import { Token } from 'vs/editor/common/core/token';
 import { IState, LanguageId, MetadataConsts } from 'vs/editor/common/modes';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { TokenTheme } from 'vs/editor/common/modes/supports/tokenization';
-import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
 import { ILineTokens, IToken, TokenizationSupport2Adapter, TokensProvider } from 'vs/editor/standalone/browser/standaloneLanguages';
 import { IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
+import { UnthemedProductIconTheme } from 'vs/platform/theme/browser/iconsStyleSheet';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IFileIconTheme, IColorTheme, ITokenStyle } from 'vs/platform/theme/common/themeService';
+import { IFileIconTheme, IColorTheme, ITokenStyle, IProductIconTheme } from 'vs/platform/theme/common/themeService';
 
 suite('TokenizationSupport2Adapter', () => {
 
@@ -83,8 +84,15 @@ suite('TokenizationSupport2Adapter', () => {
 				hidesExplorerArrows: false
 			};
 		}
+
+		private _builtInProductIconTheme = new UnthemedProductIconTheme();
+
+		public getProductIconTheme(): IProductIconTheme {
+			return this._builtInProductIconTheme;
+		}
 		public readonly onDidColorThemeChange = new Emitter<IColorTheme>().event;
 		public readonly onDidFileIconThemeChange = new Emitter<IFileIconTheme>().event;
+		public readonly onDidProductIconThemeChange = new Emitter<IProductIconTheme>().event;
 	}
 
 	class MockState implements IState {
@@ -113,12 +121,12 @@ suite('TokenizationSupport2Adapter', () => {
 		}
 
 		const disposables = new DisposableStore();
-		const modeService = disposables.add(new ModeServiceImpl());
+		const languageService = disposables.add(new LanguageService());
 		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
 		const adapter = new TokenizationSupport2Adapter(
 			languageId,
 			new BadTokensProvider(),
-			modeService,
+			languageService,
 			new MockThemeService()
 		);
 
@@ -132,7 +140,7 @@ suite('TokenizationSupport2Adapter', () => {
 		}
 
 		// Add the encoded language id to the expected tokens
-		const encodedLanguageId = modeService.languageIdCodec.encodeLanguageId(languageId);
+		const encodedLanguageId = languageService.languageIdCodec.encodeLanguageId(languageId);
 		const tokenLanguageMetadata = (encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET);
 		for (let i = 1; i < expectedModernTokens.length; i += 2) {
 			expectedModernTokens[i] |= tokenLanguageMetadata;

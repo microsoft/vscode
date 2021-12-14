@@ -110,4 +110,9 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 		await configurationService.setUserConfiguration('terminal', { integrated: { wordSeparators: ' ' } });
 		await assertLink('', []);
 	});
+	test('should support file scheme links', async () => {
+		await configurationService.setUserConfiguration('terminal', { integrated: { wordSeparators: ' ' } });
+		await assertLink('file:///C:/users/test/file.txt ', [{ range: [[1, 1], [30, 1]], text: 'file:///C:/users/test/file.txt' }]);
+		await assertLink('file:///C:/users/test/file.txt:1:10 ', [{ range: [[1, 1], [35, 1]], text: 'file:///C:/users/test/file.txt:1:10' }]);
+	});
 });

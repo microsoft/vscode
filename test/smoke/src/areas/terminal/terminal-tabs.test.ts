@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation';
 
-import { ParsedArgs } from 'minimist';
-import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation/out';
-
-export function setup(opts: ParsedArgs) {
+export function setup() {
 	describe('Terminal Tabs', () => {
 		// Acquire automation API
 		let terminal: Terminal;
@@ -18,7 +16,7 @@ export function setup(opts: ParsedArgs) {
 
 		it('clicking the plus button should create a terminal and display the tabs view showing no split decorations', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
-			await terminal.runCommand(TerminalCommandId.CreateNew);
+			await terminal.createTerminal();
 			await terminal.clickPlusButton();
 			await terminal.assertTerminalGroups([[{}], [{}]]);
 		});
@@ -60,12 +58,12 @@ export function setup(opts: ParsedArgs) {
 			await terminal.assertSingleTab({ name });
 		});
 
-		// Flaky: https://github.com/microsoft/vscode/issues/137795
-		it.skip('should reset the tab name to the default value when no name is provided', async () => {
+		it('should reset the tab name to the default value when no name is provided', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
 			const defaultName = await terminal.getSingleTabName();
 			const name = 'my terminal name';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.Rename, name);
+			await terminal.assertSingleTab({ name });
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.Rename, undefined);
 			await terminal.assertSingleTab({ name: defaultName });
 		});
@@ -90,19 +88,26 @@ export function setup(opts: ParsedArgs) {
 		it('should do nothing when join tabs is run with only one terminal', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
 			await terminal.runCommand(TerminalCommandId.Join);
-			await terminal.assertSingleTab({});
+			await terminal.assertTerminalGroups([[{}]]);
 		});
 
-		it('should join tabs when more than one terminal', async () => {
+		it('should do nothing when join tabs is run with only split terminals', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
-			await terminal.runCommand(TerminalCommandId.CreateNew);
+			await terminal.runCommand(TerminalCommandId.Split);
+			await terminal.runCommand(TerminalCommandId.Join);
+			await terminal.assertTerminalGroups([[{}], [{}]]);
+		});
+
+		it('should join tabs when more than one non-split terminal', async () => {
+			await terminal.runCommand(TerminalCommandId.Show);
+			await terminal.createTerminal();
 			await terminal.runCommand(TerminalCommandId.Join);
 			await terminal.assertTerminalGroups([[{}, {}]]);
 		});
 
 		it('should do nothing when unsplit tabs called with no splits', async () => {
 			await terminal.runCommand(TerminalCommandId.Show);
-			await terminal.runCommand(TerminalCommandId.CreateNew);
+			await terminal.createTerminal();
 			await terminal.assertTerminalGroups([[{}], [{}]]);
 			await terminal.runCommand(TerminalCommandId.Unsplit);
 			await terminal.assertTerminalGroups([[{}], [{}]]);

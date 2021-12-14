@@ -11,7 +11,7 @@ import * as strings from 'vs/base/common/strings';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorModel } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -53,7 +53,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		@ICommandService private readonly commandService: ICommandService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
@@ -308,7 +308,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 			model = activeTextEditorControl.getModel();
 			const language = model ? model.getLanguageId() : undefined;
 			if (language) {
-				languageLabel = this.modeService.getLanguageName(language);
+				languageLabel = this.languageService.getLanguageName(language);
 			}
 			const adapters = this.debuggers
 				.filter(a => a.enabled)

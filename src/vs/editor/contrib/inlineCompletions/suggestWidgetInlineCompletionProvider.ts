@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { compareBy, findMaxBy, numberComparator } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -16,7 +17,6 @@ import { CompletionItem } from 'vs/editor/contrib/suggest/suggest';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { minimizeInlineCompletion } from './inlineCompletionsModel';
 import { NormalizedInlineCompletion, normalizedInlineCompletionsEquals } from './inlineCompletionToGhostText';
-import { compareBy, compareByNumber, findMaxBy } from './utils';
 
 export interface SuggestWidgetState {
 	/**
@@ -108,7 +108,7 @@ export class SuggestWidgetInlineCompletionProvider extends Disposable {
 
 					const result = findMaxBy(
 						candidates,
-						compareBy(s => s!.prefixLength, compareByNumber())
+						compareBy(s => s!.prefixLength, numberComparator)
 					);
 					return result ? result.index : - 1;
 				}

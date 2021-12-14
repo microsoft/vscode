@@ -12,12 +12,12 @@ import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Promises, RimRafMode } from 'vs/base/node/pfs';
 import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileChangeType } from 'vs/platform/files/common/files';
-import { IWatcher, ParcelWatcherService } from 'vs/platform/files/node/watcher/parcel/parcelWatcherService';
+import { IParcelWatcherInstance, ParcelWatcher } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
 import { IWatchRequest } from 'vs/platform/files/common/watcher';
 
 flakySuite('Recursive Watcher (parcel)', () => {
 
-	class TestParcelWatcherService extends ParcelWatcherService {
+	class TestParcelWatcher extends ParcelWatcher {
 
 		testNormalizePaths(paths: string[]): string[] {
 
@@ -44,33 +44,33 @@ flakySuite('Recursive Watcher (parcel)', () => {
 			return super.toExcludePaths(path, excludes);
 		}
 
-		override  restartWatching(watcher: IWatcher, delay = 10): void {
+		override  restartWatching(watcher: IParcelWatcherInstance, delay = 10): void {
 			return super.restartWatching(watcher, delay);
 		}
 	}
 
 	let testDir: string;
-	let service: TestParcelWatcherService;
+	let watcher: TestParcelWatcher;
 
 	let loggingEnabled = false;
 
 	function enableLogging(enable: boolean) {
 		loggingEnabled = enable;
-		service?.setVerboseLogging(enable);
+		watcher?.setVerboseLogging(enable);
 	}
 
 	enableLogging(false);
 
 	setup(async () => {
-		service = new TestParcelWatcherService();
+		watcher = new TestParcelWatcher();
 
-		service.onDidLogMessage(e => {
+		watcher.onDidLogMessage(e => {
 			if (loggingEnabled) {
 				console.log(`[recursive watcher test message] ${e.message}`);
 			}
 		});
 
-		service.onDidError(e => {
+		watcher.onDidError(e => {
 			if (loggingEnabled) {
 				console.log(`[recursive watcher test error] ${e}`);
 			}
@@ -84,7 +84,7 @@ flakySuite('Recursive Watcher (parcel)', () => {
 	});
 
 	teardown(async () => {
-		await service.stop();
+		await watcher.stop();
 
 		// Possible that the file watcher is still holding
 		// onto the folders on Windows specifically and the
@@ -101,7 +101,7 @@ flakySuite('Recursive Watcher (parcel)', () => {
 		}
 	}
 
-	async function awaitEvent(service: TestParcelWatcherService, path: string, type: FileChangeType, failOnEventReason?: string): Promise<void> {
+	async function awaitEvent(service: TestParcelWatcher, path: string, type: FileChangeType, failOnEventReason?: string): Promise<void> {
 		if (loggingEnabled) {
 			console.log(`Awaiting change type '${toMsg(type)}' on file '${path}'`);
 		}
@@ -130,7 +130,7 @@ flakySuite('Recursive Watcher (parcel)', () => {
 		await timeout(1);
 	}
 
-	function awaitMessage(service: TestParcelWatcherService, type: 'trace' | 'warn' | 'error' | 'info' | 'debug'): Promise<void> {
+	function awaitMessage(service: TestParcelWatcher, type: 'trace' | 'warn' | 'error' | 'info' | 'debug'): Promise<void> {
 		if (loggingEnabled) {
 			console.log(`Awaiting message of type ${type}`);
 		}
@@ -147,25 +147,25 @@ flakySuite('Recursive Watcher (parcel)', () => {
 	}
 
 	test('basics', async function () {
-		await service.watch([{ path: testDir, excludes: [] }]);
+		await watcher.watch([{ path: testDir, excludes: [] }]);
 
 		// New file
 		const newFilePath = join(testDir, 'deep', 'newFile.txt');
-		let changeFuture: Promise<unknown> = awaitEvent(service, newFilePath, FileChangeType.ADDED);
+		let changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.ADDED);
 		await Promises.writeFile(newFilePath, 'Hello World');
 		await changeFuture;
 
 		// New folder
 		const newFolderPath = join(testDir, 'deep', 'New Folder');
-		changeFuture = awaitEvent(service, newFolderPath, FileChangeType.ADDED);
+		changeFuture = awaitEvent(watcher, newFolderPath, FileChangeType.ADDED);
 		await Promises.mkdir(newFolderPath);
 		await changeFuture;
 
 		// Rename file
 		let renamedFilePath = join(testDir, 'deep', 'renamedFile.txt');
 		changeFuture = Promise.all([
-			awaitEvent(service, newFilePath, FileChangeType.DELETED),
-			awaitEvent(service, renamedFilePath, FileChangeType.ADDED)
+			awaitEvent(watcher, newFilePath, FileChangeType.DELETED),
+			awaitEvent(watcher, renamedFilePath, FileChangeType.ADDED)
 		]);
 		await Promises.rename(newFilePath, renamedFilePath);
 		await changeFuture;
@@ -173,8 +173,8 @@ flakySuite('Recursive Watcher (parcel)', () => {
 		// Rename folder
 		let renamedFolderPath = join(testDir, 'deep', 'Renamed Folder');
 		changeFuture = Promise.all([
-			awaitEvent(service, newFolderPath, FileChangeType.DELETED),
-			awaitEvent(service, renamedFolderPath, FileChangeType.ADDED)
+			awaitEvent(watcher, newFolderPath, FileChangeType.DELETED),
+			awaitEvent(watcher, renamedFolderPath, FileChangeType.ADDED)
 		]);
 		await Promises.rename(newFolderPath, renamedFolderPath);
 		await changeFuture;
@@ -182,8 +182,8 @@ flakySuite('Recursive Watcher (parcel)', () => {
 		// Rename file (same name, different case)
 		const caseRenamedFilePath = join(testDir, 'deep', 'RenamedFile.txt');
 		changeFuture = Promise.all([
-			awaitEvent(service, renamedFilePath, FileChangeType.DELETED),
-			awaitEvent(service, caseRenamedFilePath, FileChangeType.ADDED)
+			awaitEvent(watcher, renamedFilePath, FileChangeType.DELETED),
+			awaitEvent(watcher, caseRenamedFilePath, FileChangeType.ADDED)
 		]);
 		await Promises.rename(renamedFilePath, caseRenamedFilePath);
 		await changeFuture;
@@ -192,8 +192,8 @@ flakySuite('Recursive Watcher (parcel)', () => {
 		// Rename folder (same name, different case)
 		const caseRenamedFolderPath = join(testDir, 'deep', 'REnamed Folder');
 		changeFuture = Promise.all([
-			awaitEvent(service, renamedFolderPath, FileChangeType.DELETED),
-			awaitEvent(service, caseRenamedFolderPath, FileChangeType.ADDED)
+			awaitEvent(watcher, renamedFolderPath, FileChangeType.DELETED),
+			awaitEvent(watcher, caseRenamedFolderPath, FileChangeType.ADDED)
 		]);
 		await Promises.rename(renamedFolderPath, caseRenamedFolderPath);
 		await changeFuture;
@@ -202,8 +202,8 @@ flakySuite('Recursive Watcher (parcel)', () => {
 		// Move file
 		const movedFilepath = join(testDir, 'movedFile.txt');
 		changeFuture = Promise.all([
-			awaitEvent(service, renamedFilePath, FileChangeType.DELETED),
-			awaitEvent(service, movedFilepath, FileChangeType.ADDED)
+			awaitEvent(watcher, renamedFilePath, FileChangeType.DELETED),
+			awaitEvent(watcher, movedFilepath, FileChangeType.ADDED)
 		]);
 		await Promises.rename(renamedFilePath, movedFilepath);
 		await changeFuture;
@@ -211,32 +211,32 @@ flakySuite('Recursive Watcher (parcel)', () => {
 		// Move folder
 		const movedFolderpath = join(testDir, 'Moved Folder');
 		changeFuture = Promise.all([
-			awaitEvent(service, renamedFolderPath, FileChangeType.DELETED),
-			awaitEvent(service, movedFolderpath, FileChangeType.ADDED)
+			awaitEvent(watcher, renamedFolderPath, FileChangeType.DELETED),
+			awaitEvent(watcher, movedFolderpath, FileChangeType.ADDED)
 		]);
 		await Promises.rename(renamedFolderPath, movedFolderpath);
 		await changeFuture;
 
 		// Copy file
 		const copiedFilepath = join(testDir, 'deep', 'copiedFile.txt');
-		changeFuture = awaitEvent(service, copiedFilepath, FileChangeType.ADDED);
+		changeFuture = awaitEvent(watcher, copiedFilepath, FileChangeType.ADDED);
 		await Promises.copyFile(movedFilepath, copiedFilepath);
 		await changeFuture;
 
 		// Copy folder
 		const copiedFolderpath = join(testDir, 'deep', 'Copied Folder');
-		changeFuture = awaitEvent(service, copiedFolderpath, FileChangeType.ADDED);
+		changeFuture = awaitEvent(watcher, copiedFolderpath, FileChangeType.ADDED);
 		await Promises.copy(movedFolderpath, copiedFolderpath, { preserveSymlinks: false });
 		await changeFuture;
 
 		// Change file
-		changeFuture = awaitEvent(service, copiedFilepath, FileChangeType.UPDATED);
+		changeFuture = awaitEvent(watcher, copiedFilepath, FileChangeType.UPDATED);
 		await Promises.writeFile(copiedFilepath, 'Hello Change');
 		await changeFuture;
 
 		// Create new file
 		const anotherNewFilePath = join(testDir, 'deep', 'anotherNewFile.txt');
-		changeFuture = awaitEvent(service, anotherNewFilePath, FileChangeType.ADDED);
+		changeFuture = awaitEvent(watcher, anotherNewFilePath, FileChangeType.ADDED);
 		await Promises.writeFile(anotherNewFilePath, 'Hello Another World');
 		await changeFuture;
 
@@ -246,65 +246,65 @@ flakySuite('Recursive Watcher (parcel)', () => {
 		if (!isMacintosh) {
 
 			// Read file does not emit event
-			changeFuture = awaitEvent(service, anotherNewFilePath, FileChangeType.UPDATED, 'unexpected-event-from-read-file');
+			changeFuture = awaitEvent(watcher, anotherNewFilePath, FileChangeType.UPDATED, 'unexpected-event-from-read-file');
 			await Promises.readFile(anotherNewFilePath);
 			await Promise.race([timeout(100), changeFuture]);
 
 			// Stat file does not emit event
-			changeFuture = awaitEvent(service, anotherNewFilePath, FileChangeType.UPDATED, 'unexpected-event-from-stat');
+			changeFuture = awaitEvent(watcher, anotherNewFilePath, FileChangeType.UPDATED, 'unexpected-event-from-stat');
 			await Promises.stat(anotherNewFilePath);
 			await Promise.race([timeout(100), changeFuture]);
 
 			// Stat folder does not emit event
-			changeFuture = awaitEvent(service, copiedFolderpath, FileChangeType.UPDATED, 'unexpected-event-from-stat');
+			changeFuture = awaitEvent(watcher, copiedFolderpath, FileChangeType.UPDATED, 'unexpected-event-from-stat');
 			await Promises.stat(copiedFolderpath);
 			await Promise.race([timeout(100), changeFuture]);
 		}
 
 		// Delete file
-		changeFuture = awaitEvent(service, copiedFilepath, FileChangeType.DELETED);
+		changeFuture = awaitEvent(watcher, copiedFilepath, FileChangeType.DELETED);
 		await Promises.unlink(copiedFilepath);
 		await changeFuture;
 
 		// Delete folder
-		changeFuture = awaitEvent(service, copiedFolderpath, FileChangeType.DELETED);
+		changeFuture = awaitEvent(watcher, copiedFolderpath, FileChangeType.DELETED);
 		await Promises.rmdir(copiedFolderpath);
 		await changeFuture;
 	});
 
 	(isMacintosh /* this test seems not possible with fsevents backend */ ? test.skip : test)('basics (atomic writes)', async function () {
-		await service.watch([{ path: testDir, excludes: [] }]);
+		await watcher.watch([{ path: testDir, excludes: [] }]);
 
 		// Delete + Recreate file
 		const newFilePath = join(testDir, 'deep', 'conway.js');
-		let changeFuture: Promise<unknown> = awaitEvent(service, newFilePath, FileChangeType.UPDATED);
+		let changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.UPDATED);
 		await Promises.unlink(newFilePath);
 		Promises.writeFile(newFilePath, 'Hello Atomic World');
 		await changeFuture;
 	});
 
 	(!isLinux /* polling is only used in linux environments (WSL) */ ? test.skip : test)('basics (polling)', async function () {
-		await service.watch([{ path: testDir, excludes: [], pollingInterval: 100 }]);
+		await watcher.watch([{ path: testDir, excludes: [], pollingInterval: 100 }]);
 
 		// New file
 		const newFilePath = join(testDir, 'deep', 'newFile.txt');
-		let changeFuture: Promise<unknown> = awaitEvent(service, newFilePath, FileChangeType.ADDED);
+		let changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.ADDED);
 		await Promises.writeFile(newFilePath, 'Hello World');
 		await changeFuture;
 
 		// Change file
-		changeFuture = awaitEvent(service, newFilePath, FileChangeType.UPDATED);
+		changeFuture = awaitEvent(watcher, newFilePath, FileChangeType.UPDATED);
 		await Promises.writeFile(newFilePath, 'Hello Change');
 		await changeFuture;
 
 		// Delete file
-		changeFuture = awaitEvent(service, newFilePath, FileChangeType.DELETED);
+		changeFuture = awaitEvent(watcher, newFilePath, FileChangeType.DELETED);
 		await Promises.unlink(newFilePath);
 		await changeFuture;
 	});
 
 	test('multiple events', async function () {
-		await service.watch([{ path: testDir, excludes: [] }]);
+		await watcher.watch([{ path: testDir, excludes: [] }]);
 		await Promises.mkdir(join(testDir, 'deep-multiple'));
 
 		// multiple add
@@ -316,12 +316,12 @@ flakySuite('Recursive Watcher (parcel)', () => {
 		const newFilePath5 = join(testDir, 'deep-multiple', 'newFile-2.txt');
 		const newFilePath6 = join(testDir, 'deep-multiple', 'newFile-3.txt');
 
-		const addedFuture1: Promise<unknown> = awaitEvent(service, newFilePath1, FileChangeType.ADDED);
-		const addedFuture2: Promise<unknown> = awaitEvent(service, newFilePath2, FileChangeType.ADDED);
-		const addedFuture3: Promise<unknown> = awaitEvent(service, newFilePath3, FileChangeType.ADDED);
-		const addedFuture4: Promise<unknown> = awaitEvent(service, newFilePath4, FileChangeType.ADDED);
-		const addedFuture5: Promise<unknown> = awaitEvent(service, newFilePath5, FileChangeType.ADDED);
-		const addedFuture6: Promise<unknown> = awaitEvent(service, newFilePath6, FileChangeType.ADDED);
+		const addedFuture1: Promise<unknown> = awaitEvent(watcher, newFilePath1, FileChangeType.ADDED);
+		const addedFuture2: Promise<unknown> = awaitEvent(watcher, newFilePath2, FileChangeType.ADDED);
+		const addedFuture3: Promise<unknown> = awaitEvent(watcher, newFilePath3, FileChangeType.ADDED);
+		const addedFuture4: Promise<unknown> = awaitEvent(watcher, newFilePath4, FileChangeType.ADDED);
+		const addedFuture5: Promise<unknown> = awaitEvent(watcher, newFilePath5, FileChangeType.ADDED);
+		const addedFuture6: Promise<unknown> = awaitEvent(watcher, newFilePath6, FileChangeType.ADDED);
 
 		await Promise.all([
 			await Promises.writeFile(newFilePath1, 'Hello World 1'),
@@ -336,12 +336,12 @@ flakySuite('Recursive Watcher (parcel)', () => {
 
 		// multiple change
 
-		const changeFuture1: Promise<unknown> = awaitEvent(service, newFilePath1, FileChangeType.UPDATED);
-		const changeFuture2: Promise<unknown> = awaitEvent(service, newFilePath2, FileChangeType.UPDATED);
-		const changeFuture3: Promise<unknown> = awaitEvent(service, newFilePath3, FileChangeType.UPDATED);
-		const changeFuture4: Promise<unknown> = awaitEvent(service, newFilePath4, FileChangeType.UPDATED);
-		const changeFuture5: Promise<unknown> = awaitEvent(service, newFilePath5, FileChangeType.UPDATED);
-		const changeFuture6: Promise<unknown> = awaitEvent(service, newFilePath6, FileChangeType.UPDATED);
+		const changeFuture1: Promise<unknown> = awaitEvent(watcher, newFilePath1, FileChangeType.UPDATED);
+		const changeFuture2: Promise<unknown> = awaitEvent(watcher, newFilePath2, FileChangeType.UPDATED);
+		const changeFuture3: Promise<unknown> = awaitEvent(watcher, newFilePath3, FileChangeType.UPDATED);
+		const changeFuture4: Promise<unknown> = awaitEvent(watcher, newFilePath4, FileChangeType.UPDATED);
+		const changeFuture5: Promise<unknown> = awaitEvent(watcher, newFilePath5, FileChangeType.UPDATED);
+		const changeFuture6: Promise<unknown> = awaitEvent(watcher, newFilePath6, FileChangeType.UPDATED);
 
 		await Promise.all([
 			await Promises.writeFile(newFilePath1, 'Hello Update 1'),
@@ -356,10 +356,10 @@ flakySuite('Recursive Watcher (parcel)', () => {
 
 		// copy with multiple files
 
-		const copyFuture1: Promise<unknown> = awaitEvent(service, join(testDir, 'deep-multiple-copy', 'newFile-1.txt'), FileChangeType.ADDED);
-		const copyFuture2: Promise<unknown> = awaitEvent(service, join(testDir, 'deep-multiple-copy', 'newFile-2.txt'), FileChangeType.ADDED);
-		const copyFuture3: Promise<unknown> = awaitEvent(service, join(testDir, 'deep-multiple-copy', 'newFile-3.txt'), FileChangeType.ADDED);
-		const copyFuture4: Promise<unknown> = awaitEvent(service, join(testDir, 'deep-multiple-copy'), FileChangeType.ADDED);
+		const copyFuture1: Promise<unknown> = awaitEvent(watcher, join(testDir, 'deep-multiple-copy', 'newFile-1.txt'), FileChangeType.ADDED);
+		const copyFuture2: Promise<unknown> = awaitEvent(watcher, join(testDir, 'deep-multiple-copy', 'newFile-2.txt'), FileChangeType.ADDED);
+		const copyFuture3: Promise<unknown> = awaitEvent(watcher, join(testDir, 'deep-multiple-copy', 'newFile-3.txt'), FileChangeType.ADDED);
+		const copyFuture4: Promise<unknown> = awaitEvent(watcher, join(testDir, 'deep-multiple-copy'), FileChangeType.ADDED);
 
 		await Promises.copy(join(testDir, 'deep-multiple'), join(testDir, 'deep-multiple-copy'), { preserveSymlinks: false });
 
@@ -367,12 +367,12 @@ flakySuite('Recursive Watcher (parcel)', () => {
 
 		// multiple delete (single files)
 
-		const deleteFuture1: Promise<unknown> = awaitEvent(service, newFilePath1, FileChangeType.DELETED);
-		const deleteFuture2: Promise<unknown> = awaitEvent(service, newFilePath2, FileChangeType.DELETED);
-		const deleteFuture3: Promise<unknown> = awaitEvent(service, newFilePath3, FileChangeType.DELETED);
-		const deleteFuture4: Promise<unknown> = awaitEvent(service, newFilePath4, FileChangeType.DELETED);
-		const deleteFuture5: Promise<unknown> = awaitEvent(service, newFilePath5, FileChangeType.DELETED);
-		const deleteFuture6: Promise<unknown> = awaitEvent(service, newFilePath6, FileChangeType.DELETED);
+		const deleteFuture1: Promise<unknown> = awaitEvent(watcher, newFilePath1, FileChangeType.DELETED);
+		const deleteFuture2: Promise<unknown> = awaitEvent(watcher, newFilePath2, FileChangeType.DELETED);
+		const deleteFuture3: Promise<unknown> = awaitEvent(watcher, newFilePath3, FileChangeType.DELETED);
+		const deleteFuture4: Promise<unknown> = awaitEvent(watcher, newFilePath4, FileChangeType.DELETED);
+		const deleteFuture5: Promise<unknown> = awaitEvent(watcher, newFilePath5, FileChangeType.DELETED);
+		const deleteFuture6: Promise<unknown> = awaitEvent(watcher, newFilePath6, FileChangeType.DELETED);
 
 		await Promise.all([
 			await Promises.unlink(newFilePath1),
@@ -387,8 +387,8 @@ flakySuite('Recursive Watcher (parcel)', () => {
 
 		// multiple delete (folder)
 
-		const deleteFolderFuture1: Promise<unknown> = awaitEvent(service, join(testDir, 'deep-multiple'), FileChangeType.DELETED);
-		const deleteFolderFuture2: Promise<unknown> = awaitEvent(service, join(testDir, 'deep-multiple-copy'), FileChangeType.DELETED);
+		const deleteFolderFuture1: Promise<unknown> = awaitEvent(watcher, join(testDir, 'deep-multiple'), FileChangeType.DELETED);
+		const deleteFolderFuture2: Promise<unknown> = awaitEvent(watcher, join(testDir, 'deep-multiple-copy'), FileChangeType.DELETED);
 
 		await Promise.all([Promises.rm(join(testDir, 'deep-multiple'), RimRafMode.UNLINK), Promises.rm(join(testDir, 'deep-multiple-copy'), RimRafMode.UNLINK)]);
 
@@ -396,35 +396,35 @@ flakySuite('Recursive Watcher (parcel)', () => {
 	});
 
 	test('subsequent watch updates watchers (path)', async function () {
-		await service.watch([{ path: testDir, excludes: [join(realpathSync(testDir), 'unrelated')] }]);
+		await watcher.watch([{ path: testDir, excludes: [join(realpathSync(testDir), 'unrelated')] }]);
 
 		// New file (*.txt)
 		let newTextFilePath = join(testDir, 'deep', 'newFile.txt');
-		let changeFuture: Promise<unknown> = awaitEvent(service, newTextFilePath, FileChangeType.ADDED);
+		let changeFuture: Promise<unknown> = awaitEvent(watcher, newTextFilePath, FileChangeType.ADDED);
 		await Promises.writeFile(newTextFilePath, 'Hello World');
 		await changeFuture;
 
-		await service.watch([{ path: join(testDir, 'deep'), excludes: [join(realpathSync(testDir), 'unrelated')] }]);
+		await watcher.watch([{ path: join(testDir, 'deep'), excludes: [join(realpathSync(testDir), 'unrelated')] }]);
 		newTextFilePath = join(testDir, 'deep', 'newFile2.txt');
-		changeFuture = awaitEvent(service, newTextFilePath, FileChangeType.ADDED);
+		changeFuture = awaitEvent(watcher, newTextFilePath, FileChangeType.ADDED);
 		await Promises.writeFile(newTextFilePath, 'Hello World');
 		await changeFuture;
 
-		await service.watch([{ path: join(testDir, 'deep'), excludes: [realpathSync(testDir)] }]);
-		await service.watch([{ path: join(testDir, 'deep'), excludes: [] }]);
+		await watcher.watch([{ path: join(testDir, 'deep'), excludes: [realpathSync(testDir)] }]);
+		await watcher.watch([{ path: join(testDir, 'deep'), excludes: [] }]);
 		newTextFilePath = join(testDir, 'deep', 'newFile3.txt');
-		changeFuture = awaitEvent(service, newTextFilePath, FileChangeType.ADDED);
+		changeFuture = awaitEvent(watcher, newTextFilePath, FileChangeType.ADDED);
 		await Promises.writeFile(newTextFilePath, 'Hello World');
 		await changeFuture;
 	});
 
 	test('subsequent watch updates watchers (excludes)', async function () {
-		await service.watch([{ path: testDir, excludes: [realpathSync(testDir)] }]);
-		await service.watch([{ path: testDir, excludes: [] }]);
+		await watcher.watch([{ path: testDir, excludes: [realpathSync(testDir)] }]);
+		await watcher.watch([{ path: testDir, excludes: [] }]);
 
 		// New file (*.txt)
 		let newTextFilePath = join(testDir, 'deep', 'newFile.txt');
-		let changeFuture: Promise<unknown> = awaitEvent(service, newTextFilePath, FileChangeType.ADDED);
+		let changeFuture: Promise<unknown> = awaitEvent(watcher, newTextFilePath, FileChangeType.ADDED);
 		await Promises.writeFile(newTextFilePath, 'Hello World');
 		await changeFuture;
 	});
@@ -434,11 +434,11 @@ flakySuite('Recursive Watcher (parcel)', () => {
 		const linkTarget = join(testDir, 'deep');
 		await Promises.symlink(linkTarget, link);
 
-		await service.watch([{ path: link, excludes: [] }]);
+		await watcher.watch([{ path: link, excludes: [] }]);
 
 		// New file
 		const newFilePath = join(link, 'newFile.txt');
-		let changeFuture: Promise<unknown> = awaitEvent(service, newFilePath, FileChangeType.ADDED);
+		let changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.ADDED);
 		await Promises.writeFile(newFilePath, 'Hello World');
 		await changeFuture;
 	});
@@ -448,11 +448,11 @@ flakySuite('Recursive Watcher (parcel)', () => {
 		const linkTarget = join(testDir, 'deep');
 		await Promises.symlink(linkTarget, link);
 
-		await service.watch([{ path: testDir, excludes: [] }, { path: link, excludes: [] }]);
+		await watcher.watch([{ path: testDir, excludes: [] }, { path: link, excludes: [] }]);
 
 		// New file
 		const newFilePath = join(link, 'newFile.txt');
-		let changeFuture: Promise<unknown> = awaitEvent(service, newFilePath, FileChangeType.ADDED);
+		let changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.ADDED);
 		await Promises.writeFile(newFilePath, 'Hello World');
 		await changeFuture;
 	});
@@ -460,11 +460,11 @@ flakySuite('Recursive Watcher (parcel)', () => {
 	(isLinux /* linux: is case sensitive */ ? test.skip : test)('wrong casing', async function () {
 		const deepWrongCasedPath = join(testDir, 'DEEP');
 
-		await service.watch([{ path: deepWrongCasedPath, excludes: [] }]);
+		await watcher.watch([{ path: deepWrongCasedPath, excludes: [] }]);
 
 		// New file
 		const newFilePath = join(deepWrongCasedPath, 'newFile.txt');
-		let changeFuture: Promise<unknown> = awaitEvent(service, newFilePath, FileChangeType.ADDED);
+		let changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.ADDED);
 		await Promises.writeFile(newFilePath, 'Hello World');
 		await changeFuture;
 	});
@@ -472,54 +472,54 @@ flakySuite('Recursive Watcher (parcel)', () => {
 	test('invalid folder does not explode', async function () {
 		const invalidPath = join(testDir, 'invalid');
 
-		await service.watch([{ path: invalidPath, excludes: [] }]);
+		await watcher.watch([{ path: invalidPath, excludes: [] }]);
 	});
 
 	test('deleting watched path is handled properly', async function () {
 		const watchedPath = join(testDir, 'deep');
 
-		await service.watch([{ path: watchedPath, excludes: [] }]);
+		await watcher.watch([{ path: watchedPath, excludes: [] }]);
 
 		// Delete watched path and await
-		const warnFuture = awaitMessage(service, 'warn');
+		const warnFuture = awaitMessage(watcher, 'warn');
 		await Promises.rm(watchedPath, RimRafMode.UNLINK);
 		await warnFuture;
 
 		// Restore watched path
 		await Promises.mkdir(watchedPath);
 		await timeout(1500); // restart is delayed
-		await service.whenReady();
+		await watcher.whenReady();
 
 		// Verify events come in again
 		const newFilePath = join(watchedPath, 'newFile.txt');
-		const changeFuture = awaitEvent(service, newFilePath, FileChangeType.ADDED);
+		const changeFuture = awaitEvent(watcher, newFilePath, FileChangeType.ADDED);
 		await Promises.writeFile(newFilePath, 'Hello World');
 		await changeFuture;
 	});
 
 	test('should not exclude roots that do not overlap', () => {
 		if (isWindows) {
-			assert.deepStrictEqual(service.testNormalizePaths(['C:\\a']), ['C:\\a']);
-			assert.deepStrictEqual(service.testNormalizePaths(['C:\\a', 'C:\\b']), ['C:\\a', 'C:\\b']);
-			assert.deepStrictEqual(service.testNormalizePaths(['C:\\a', 'C:\\b', 'C:\\c\\d\\e']), ['C:\\a', 'C:\\b', 'C:\\c\\d\\e']);
+			assert.deepStrictEqual(watcher.testNormalizePaths(['C:\\a']), ['C:\\a']);
+			assert.deepStrictEqual(watcher.testNormalizePaths(['C:\\a', 'C:\\b']), ['C:\\a', 'C:\\b']);
+			assert.deepStrictEqual(watcher.testNormalizePaths(['C:\\a', 'C:\\b', 'C:\\c\\d\\e']), ['C:\\a', 'C:\\b', 'C:\\c\\d\\e']);
 		} else {
-			assert.deepStrictEqual(service.testNormalizePaths(['/a']), ['/a']);
-			assert.deepStrictEqual(service.testNormalizePaths(['/a', '/b']), ['/a', '/b']);
-			assert.deepStrictEqual(service.testNormalizePaths(['/a', '/b', '/c/d/e']), ['/a', '/b', '/c/d/e']);
+			assert.deepStrictEqual(watcher.testNormalizePaths(['/a']), ['/a']);
+			assert.deepStrictEqual(watcher.testNormalizePaths(['/a', '/b']), ['/a', '/b']);
+			assert.deepStrictEqual(watcher.testNormalizePaths(['/a', '/b', '/c/d/e']), ['/a', '/b', '/c/d/e']);
 		}
 	});
 
 	test('should remove sub-folders of other paths', () => {
 		if (isWindows) {
-			assert.deepStrictEqual(service.testNormalizePaths(['C:\\a', 'C:\\a\\b']), ['C:\\a']);
-			assert.deepStrictEqual(service.testNormalizePaths(['C:\\a', 'C:\\b', 'C:\\a\\b']), ['C:\\a', 'C:\\b']);
-			assert.deepStrictEqual(service.testNormalizePaths(['C:\\b\\a', 'C:\\a', 'C:\\b', 'C:\\a\\b']), ['C:\\a', 'C:\\b']);
-			assert.deepStrictEqual(service.testNormalizePaths(['C:\\a', 'C:\\a\\b', 'C:\\a\\c\\d']), ['C:\\a']);
+			assert.deepStrictEqual(watcher.testNormalizePaths(['C:\\a', 'C:\\a\\b']), ['C:\\a']);
+			assert.deepStrictEqual(watcher.testNormalizePaths(['C:\\a', 'C:\\b', 'C:\\a\\b']), ['C:\\a', 'C:\\b']);
+			assert.deepStrictEqual(watcher.testNormalizePaths(['C:\\b\\a', 'C:\\a', 'C:\\b', 'C:\\a\\b']), ['C:\\a', 'C:\\b']);
+			assert.deepStrictEqual(watcher.testNormalizePaths(['C:\\a', 'C:\\a\\b', 'C:\\a\\c\\d']), ['C:\\a']);
 		} else {
-			assert.deepStrictEqual(service.testNormalizePaths(['/a', '/a/b']), ['/a']);
-			assert.deepStrictEqual(service.testNormalizePaths(['/a', '/b', '/a/b']), ['/a', '/b']);
-			assert.deepStrictEqual(service.testNormalizePaths(['/b/a', '/a', '/b', '/a/b']), ['/a', '/b']);
-			assert.deepStrictEqual(service.testNormalizePaths(['/a', '/a/b', '/a/c/d']), ['/a']);
+			assert.deepStrictEqual(watcher.testNormalizePaths(['/a', '/a/b']), ['/a']);
+			assert.deepStrictEqual(watcher.testNormalizePaths(['/a', '/b', '/a/b']), ['/a', '/b']);
+			assert.deepStrictEqual(watcher.testNormalizePaths(['/b/a', '/a', '/b', '/a/b']), ['/a', '/b']);
+			assert.deepStrictEqual(watcher.testNormalizePaths(['/a', '/a/b', '/a/c/d']), ['/a']);
 		}
 	});
 
@@ -527,16 +527,16 @@ flakySuite('Recursive Watcher (parcel)', () => {
 
 		// undefined / empty
 
-		assert.strictEqual(service.toExcludePaths(testDir, undefined), undefined);
-		assert.strictEqual(service.toExcludePaths(testDir, []), undefined);
+		assert.strictEqual(watcher.toExcludePaths(testDir, undefined), undefined);
+		assert.strictEqual(watcher.toExcludePaths(testDir, []), undefined);
 
 		// absolute paths
 
-		let excludes = service.toExcludePaths(testDir, [testDir]);
+		let excludes = watcher.toExcludePaths(testDir, [testDir]);
 		assert.strictEqual(excludes?.length, 1);
 		assert.strictEqual(excludes[0], testDir);
 
-		excludes = service.toExcludePaths(testDir, [`${testDir}${sep}`, join(testDir, 'foo', 'bar'), `${join(testDir, 'other', 'deep')}${sep}`]);
+		excludes = watcher.toExcludePaths(testDir, [`${testDir}${sep}`, join(testDir, 'foo', 'bar'), `${join(testDir, 'other', 'deep')}${sep}`]);
 		assert.strictEqual(excludes?.length, 3);
 		assert.strictEqual(excludes[0], testDir);
 		assert.strictEqual(excludes[1], join(testDir, 'foo', 'bar'));
@@ -544,22 +544,22 @@ flakySuite('Recursive Watcher (parcel)', () => {
 
 		// wrong casing is normalized for root
 		if (!isLinux) {
-			excludes = service.toExcludePaths(testDir, [join(testDir.toUpperCase(), 'node_modules', '**')]);
+			excludes = watcher.toExcludePaths(testDir, [join(testDir.toUpperCase(), 'node_modules', '**')]);
 			assert.strictEqual(excludes?.length, 1);
 			assert.strictEqual(excludes[0], join(testDir, 'node_modules'));
 		}
 
 		// exclude ignored if not parent of watched dir
-		excludes = service.toExcludePaths(testDir, [join(dirname(testDir), 'node_modules', '**')]);
+		excludes = watcher.toExcludePaths(testDir, [join(dirname(testDir), 'node_modules', '**')]);
 		assert.strictEqual(excludes, undefined);
 
 		// relative paths
 
-		excludes = service.toExcludePaths(testDir, ['.']);
+		excludes = watcher.toExcludePaths(testDir, ['.']);
 		assert.strictEqual(excludes?.length, 1);
 		assert.strictEqual(excludes[0], testDir);
 
-		excludes = service.toExcludePaths(testDir, ['foo', `bar${sep}`, join('foo', 'bar'), `${join('other', 'deep')}${sep}`]);
+		excludes = watcher.toExcludePaths(testDir, ['foo', `bar${sep}`, join('foo', 'bar'), `${join('other', 'deep')}${sep}`]);
 		assert.strictEqual(excludes?.length, 4);
 		assert.strictEqual(excludes[0], join(testDir, 'foo'));
 		assert.strictEqual(excludes[1], join(testDir, 'bar'));
@@ -568,51 +568,51 @@ flakySuite('Recursive Watcher (parcel)', () => {
 
 		// simple globs (relative)
 
-		excludes = service.toExcludePaths(testDir, ['**']);
+		excludes = watcher.toExcludePaths(testDir, ['**']);
 		assert.strictEqual(excludes?.length, 1);
 		assert.strictEqual(excludes[0], testDir);
 
-		excludes = service.toExcludePaths(testDir, ['**/**']);
+		excludes = watcher.toExcludePaths(testDir, ['**/**']);
 		assert.strictEqual(excludes?.length, 1);
 		assert.strictEqual(excludes[0], testDir);
 
-		excludes = service.toExcludePaths(testDir, ['**\\**']);
+		excludes = watcher.toExcludePaths(testDir, ['**\\**']);
 		assert.strictEqual(excludes?.length, 1);
 		assert.strictEqual(excludes[0], testDir);
 
-		excludes = service.toExcludePaths(testDir, ['**/node_modules/**']);
+		excludes = watcher.toExcludePaths(testDir, ['**/node_modules/**']);
 		assert.strictEqual(excludes?.length, 1);
 		assert.strictEqual(excludes[0], join(testDir, 'node_modules'));
 
-		excludes = service.toExcludePaths(testDir, ['**/.git/objects/**']);
+		excludes = watcher.toExcludePaths(testDir, ['**/.git/objects/**']);
 		assert.strictEqual(excludes?.length, 1);
 		assert.strictEqual(excludes[0], join(testDir, '.git', 'objects'));
 
-		excludes = service.toExcludePaths(testDir, ['**/node_modules']);
+		excludes = watcher.toExcludePaths(testDir, ['**/node_modules']);
 		assert.strictEqual(excludes?.length, 1);
 		assert.strictEqual(excludes[0], join(testDir, 'node_modules'));
 
-		excludes = service.toExcludePaths(testDir, ['**/.git/objects']);
+		excludes = watcher.toExcludePaths(testDir, ['**/.git/objects']);
 		assert.strictEqual(excludes?.length, 1);
 		assert.strictEqual(excludes[0], join(testDir, '.git', 'objects'));
 
-		excludes = service.toExcludePaths(testDir, ['node_modules/**']);
+		excludes = watcher.toExcludePaths(testDir, ['node_modules/**']);
 		assert.strictEqual(excludes?.length, 1);
 		assert.strictEqual(excludes[0], join(testDir, 'node_modules'));
 
-		excludes = service.toExcludePaths(testDir, ['.git/objects/**']);
+		excludes = watcher.toExcludePaths(testDir, ['.git/objects/**']);
 		assert.strictEqual(excludes?.length, 1);
 		assert.strictEqual(excludes[0], join(testDir, '.git', 'objects'));
 
 		// simple globs (absolute)
 
-		excludes = service.toExcludePaths(testDir, [join(testDir, 'node_modules', '**')]);
+		excludes = watcher.toExcludePaths(testDir, [join(testDir, 'node_modules', '**')]);
 		assert.strictEqual(excludes?.length, 1);
 		assert.strictEqual(excludes[0], join(testDir, 'node_modules'));
 
 		// Linux: more restrictive glob treatment
 		if (isLinux) {
-			excludes = service.toExcludePaths(testDir, ['**/node_modules/*/**']);
+			excludes = watcher.toExcludePaths(testDir, ['**/node_modules/*/**']);
 			assert.strictEqual(excludes?.length, 1);
 			assert.strictEqual(excludes[0], join(testDir, 'node_modules'));
 		}
@@ -620,17 +620,17 @@ flakySuite('Recursive Watcher (parcel)', () => {
 		// unsupported globs
 
 		else {
-			excludes = service.toExcludePaths(testDir, ['**/node_modules/*/**']);
+			excludes = watcher.toExcludePaths(testDir, ['**/node_modules/*/**']);
 			assert.strictEqual(excludes, undefined);
 		}
 
-		excludes = service.toExcludePaths(testDir, ['**/*.js']);
+		excludes = watcher.toExcludePaths(testDir, ['**/*.js']);
 		assert.strictEqual(excludes, undefined);
 
-		excludes = service.toExcludePaths(testDir, ['*.js']);
+		excludes = watcher.toExcludePaths(testDir, ['*.js']);
 		assert.strictEqual(excludes, undefined);
 
-		excludes = service.toExcludePaths(testDir, ['*']);
+		excludes = watcher.toExcludePaths(testDir, ['*']);
 		assert.strictEqual(excludes, undefined);
 	});
 });

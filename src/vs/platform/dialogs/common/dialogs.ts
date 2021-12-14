@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
 import { Codicon } from 'vs/base/common/codicons';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { basename } from 'vs/base/common/resources';
@@ -107,6 +108,7 @@ export interface IPickAndOpenOptions {
 }
 
 export interface ISaveDialogOptions {
+
 	/**
 	 * A human-readable string for the dialog title
 	 */
@@ -136,6 +138,7 @@ export interface ISaveDialogOptions {
 }
 
 export interface IOpenDialogOptions {
+
 	/**
 	 * A human-readable string for the dialog title
 	 */
@@ -211,6 +214,7 @@ export interface IInput {
  * A handler to bring up modal dialogs.
  */
 export interface IDialogHandler {
+
 	/**
 	 * Ask the user for confirmation with a modal dialog.
 	 */
@@ -250,6 +254,16 @@ export interface IDialogHandler {
 export interface IDialogService {
 
 	readonly _serviceBrand: undefined;
+
+	/**
+	 * An event that fires when a dialog is about to show.
+	 */
+	onWillShowDialog: Event<void>;
+
+	/**
+	 * An event that fires when a dialog did show (closed).
+	 */
+	onDidShowDialog: Event<void>;
 
 	/**
 	 * Ask the user for confirmation with a modal dialog.

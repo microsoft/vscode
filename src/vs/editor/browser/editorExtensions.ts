@@ -229,7 +229,7 @@ export abstract class EditorCommand extends Command {
 	/**
 	 * Create a command class that is bound to a certain editor contribution.
 	 */
-	public static bindToContribution<T extends IEditorContribution>(controllerGetter: (editor: ICodeEditor) => T): EditorControllerCommand<T> {
+	public static bindToContribution<T extends IEditorContribution>(controllerGetter: (editor: ICodeEditor) => T | null): EditorControllerCommand<T> {
 		return class EditorControllerCommandImpl extends EditorCommand {
 			private readonly _callback: (controller: T, args: any) => void;
 
@@ -242,7 +242,7 @@ export abstract class EditorCommand extends Command {
 			public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 				const controller = controllerGetter(editor);
 				if (controller) {
-					this._callback(controllerGetter(editor), args);
+					this._callback(controller, args);
 				}
 			}
 		};

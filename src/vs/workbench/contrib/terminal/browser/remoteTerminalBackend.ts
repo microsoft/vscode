@@ -166,6 +166,22 @@ class RemoteTerminalBackend extends Disposable implements ITerminalBackend {
 				const result = await Promise.all(resolveCalls);
 				channel.acceptPtyHostResolvedVariables(e.requestId, result);
 			}));
+
+			// Listen for config changes
+			const initialConfig = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
+			for (const match of Object.keys(initialConfig.autoReplies)) {
+				channel.installAutoReply(match, initialConfig.autoReplies[match]);
+			}
+			// TODO: Could simplify update to a single call
+			this._register(this._configurationService.onDidChangeConfiguration(async e => {
+				if (e.affectsConfiguration(TerminalSettingId.AutoReplies)) {
+					channel.uninstallAllAutoReplies();
+					const config = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
+					for (const match of Object.keys(config.autoReplies)) {
+						await channel.installAutoReply(match, config.autoReplies[match]);
+					}
+				}
+			}));
 		} else {
 			this._remoteTerminalChannel = null;
 		}
@@ -361,7 +377,7 @@ class RemoteTerminalBackend extends Disposable implements ITerminalBackend {
 		const serializedState = this._storageService.get(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
 		if (serializedState) {
 			try {
-				await this._remoteTerminalChannel.reviveTerminalProcesses(serializedState);
+				await this._remoteTerminalChannel.reviveTerminalProcesses(serializedState, Intl.DateTimeFormat().resolvedOptions().locale);
 				this._storageService.remove(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
 				// If reviving processes, send the terminal layout info back to the pty host as it
 				// will not have been persisted on application exit

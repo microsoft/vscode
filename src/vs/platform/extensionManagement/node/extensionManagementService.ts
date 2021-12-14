@@ -148,7 +148,11 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 
 	async updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {
 		this.logService.trace('ExtensionManagementService#updateMetadata', local.identifier.id);
-		local = await this.extensionsScanner.saveMetadataForLocalExtension(local, { ...((<ILocalExtensionManifest>local.manifest).__metadata || {}), ...metadata });
+		const localMetadata: Metadata = { ...((<ILocalExtensionManifest>local.manifest).__metadata || {}), ...metadata };
+		if (metadata.isPreReleaseVersion) {
+			localMetadata.preRelease = true;
+		}
+		local = await this.extensionsScanner.saveMetadataForLocalExtension(local, localMetadata);
 		this.manifestCache.invalidate();
 		return local;
 	}
@@ -354,7 +358,7 @@ class InstallVSIXTask extends AbstractInstallExtensionTask {
 		const identifierWithVersion = new ExtensionIdentifierWithVersion(this.identifier, this.manifest.version);
 		const installedExtensions = await this.extensionsScanner.scanExtensions(ExtensionType.User);
 		const existing = installedExtensions.find(i => areSameExtensions(this.identifier, i.identifier));
-		const metadata = await this.getMetadata(this.identifier.id, token);
+		const metadata = await this.getMetadata(this.identifier.id, this.manifest.version, token);
 		metadata.isMachineScoped = this.options.isMachineScoped || existing?.isMachineScoped;
 		metadata.isBuiltin = this.options.isBuiltin || existing?.isBuiltin;
 
@@ -385,11 +389,14 @@ class InstallVSIXTask extends AbstractInstallExtensionTask {
 		return this.installExtension({ zipPath: path.resolve(this.location.fsPath), identifierWithVersion, metadata }, token);
 	}
 
-	private async getMetadata(name: string, token: CancellationToken): Promise<Metadata> {
+	private async getMetadata(id: string, version: string, token: CancellationToken): Promise<Metadata> {
 		try {
-			const galleryExtension = (await this.galleryService.query({ names: [name], pageSize: 1 }, token)).firstPage[0];
+			let [galleryExtension] = await this.galleryService.getExtensions([{ id, version }], token);
+			if (!galleryExtension) {
+				[galleryExtension] = await this.galleryService.getExtensions([{ id }], token);
+			}
 			if (galleryExtension) {
-				return { id: galleryExtension.identifier.uuid, publisherDisplayName: galleryExtension.publisherDisplayName, publisherId: galleryExtension.publisherId };
+				return { id: galleryExtension.identifier.uuid, publisherDisplayName: galleryExtension.publisherDisplayName, publisherId: galleryExtension.publisherId, isPreReleaseVersion: galleryExtension.properties.isPreReleaseVersion, preRelease: galleryExtension.properties.isPreReleaseVersion };
 			}
 		} catch (error) {
 			/* Ignore Error */

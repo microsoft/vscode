@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
@@ -27,12 +27,12 @@ suite('NotebookCellList focus/selection', () => {
 
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
-	let modeService: IModeService;
+	let languageService: ILanguageService;
 
 	suiteSetup(() => {
 		disposables = new DisposableStore();
 		instantiationService = setupInstantiationService(disposables);
-		modeService = instantiationService.get(IModeService);
+		languageService = instantiationService.get(ILanguageService);
 	});
 
 	suiteTeardown(() => disposables.dispose());
@@ -219,8 +219,8 @@ suite('NotebookCellList focus/selection', () => {
 				// mimic undo
 				editor.textModel.applyEdits([{
 					editType: CellEditType.Replace, index: 0, count: 0, cells: [
-						new TestCell(viewModel.viewType, 7, '# header f', 'markdown', CellKind.Code, [], modeService),
-						new TestCell(viewModel.viewType, 8, 'var g = 5;', 'javascript', CellKind.Code, [], modeService)
+						new TestCell(viewModel.viewType, 7, '# header f', 'markdown', CellKind.Code, [], languageService),
+						new TestCell(viewModel.viewType, 8, 'var g = 5;', 'javascript', CellKind.Code, [], languageService)
 					]
 				}], true, undefined, () => undefined, undefined, false);
 				viewModel.updateFoldingRanges(foldingModel.regions);

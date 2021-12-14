@@ -228,6 +228,10 @@ export interface IExtensionIdentifierWithVersion extends IExtensionIdentifier {
 	version: string;
 }
 
+export interface IExtensionIdentifierWithPreRelease extends IExtensionIdentifier {
+	preRelease: boolean;
+}
+
 export interface IGalleryExtensionIdentifier extends IExtensionIdentifier {
 	uuid: string;
 }
@@ -257,6 +261,7 @@ export interface IGalleryExtension {
 	lastUpdated: number;
 	preview: boolean;
 	hasPreReleaseVersion: boolean;
+	hasReleaseVersion: boolean;
 	allTargetPlatforms: TargetPlatform[];
 	assets: IGalleryExtensionAssets;
 	properties: IGalleryExtensionProperties;
@@ -267,7 +272,10 @@ export interface IGalleryMetadata {
 	id: string;
 	publisherId: string;
 	publisherDisplayName: string;
+	isPreReleaseVersion: boolean,
 }
+
+export type Metadata = Partial<IGalleryMetadata & { isMachineScoped: boolean; isBuiltin: boolean; preRelease: boolean, installedTimestamp: number }>;
 
 export interface ILocalExtension extends IExtension {
 	isMachineScoped: boolean;
@@ -334,6 +342,7 @@ export interface IExtensionGalleryService {
 	query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>>;
 	getExtensions(identifiers: ReadonlyArray<IExtensionIdentifier | IExtensionIdentifierWithVersion>, token: CancellationToken): Promise<IGalleryExtension[]>;
 	getExtensions(identifiers: ReadonlyArray<IExtensionIdentifier | IExtensionIdentifierWithVersion>, includePreRelease: boolean, token: CancellationToken): Promise<IGalleryExtension[]>;
+	getExtensions2(identifiers: ReadonlyArray<IExtensionIdentifierWithPreRelease>): Promise<IGalleryExtension[]>;
 	download(extension: IGalleryExtension, location: URI, operation: InstallOperation): Promise<void>;
 	reportStatistic(publisher: string, name: string, version: string, type: StatisticType): Promise<void>;
 	getReadme(extension: IGalleryExtension, token: CancellationToken): Promise<string>;
@@ -388,7 +397,6 @@ export class ExtensionManagementError extends Error {
 	}
 }
 
-export type Metadata = Partial<IGalleryMetadata & { isMachineScoped: boolean; isBuiltin: boolean; isPreReleaseVersion: boolean, preRelease: boolean, installedTimestamp: number }>;
 export type InstallOptions = { isBuiltin?: boolean, isMachineScoped?: boolean, donotIncludePackAndDependencies?: boolean, installGivenVersion?: boolean, installPreReleaseVersion?: boolean };
 export type InstallVSIXOptions = Omit<InstallOptions, 'installGivenVersion'> & { installOnlyNewlyAddedFromExtensionPack?: boolean };
 export type UninstallOptions = { donotIncludePack?: boolean, donotCheckDependents?: boolean };

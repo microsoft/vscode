@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event, AsyncEmitter, IWaitUntil } from 'vs/base/common/event';
+import { Emitter, Event, AsyncEmitter, IWaitUntil, IWaitUntilData } from 'vs/base/common/event';
 import { IRelativePattern, parse } from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
@@ -189,7 +189,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 		return undefined;
 	}
 
-	private async _fireWillEvent<E extends IWaitUntil>(emitter: AsyncEmitter<E>, data: Omit<E, 'waitUntil'>, timeout: number, token: CancellationToken): Promise<IWillRunFileOperationParticipation | undefined> {
+	private async _fireWillEvent<E extends IWaitUntil>(emitter: AsyncEmitter<E>, data: IWaitUntilData<E>, timeout: number, token: CancellationToken): Promise<IWillRunFileOperationParticipation | undefined> {
 
 		const extensionNames = new Set<string>();
 		const edits: WorkspaceEdit[] = [];

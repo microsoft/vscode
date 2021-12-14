@@ -34,6 +34,36 @@ export interface BeforeShutdownEvent {
 	readonly reason: ShutdownReason;
 }
 
+export interface InternalBeforeShutdownEvent extends BeforeShutdownEvent {
+
+	/**
+	 * Allows to set a veto operation to run after all other
+	 * vetos have been handled from the `BeforeShutdownEvent`
+	 *
+	 * This method is hidden from the API because it is intended
+	 * to be only used once internally.
+	 */
+	finalVeto(vetoFn: () => boolean | Promise<boolean>, id: string): void;
+}
+
+/**
+ * An event that signals an error happened during `onBeforeShutdown` veto handling.
+ * In this case the shutdown operation will not proceed because this is an unexpected
+ * condition that is treated like a veto.
+ */
+export interface BeforeShutdownErrorEvent {
+
+	/**
+	 * The reason why the application is shutting down.
+	 */
+	readonly reason: ShutdownReason;
+
+	/**
+	 * The error that happened during shutdown handling.
+	 */
+	readonly error: Error;
+}
+
 /**
  * An event that is send out when the window closes. Clients have a chance to join the closing
  * by providing a promise from the join method. Returning a promise is useful in cases of long
@@ -155,6 +185,15 @@ export interface ILifecycleService {
 	readonly onBeforeShutdown: Event<BeforeShutdownEvent>;
 
 	/**
+	 * Fired when an error happened during `onBeforeShutdown` veto handling.
+	 * In this case the shutdown operation will not proceed because this is
+	 * an unexpected condition that is treated like a veto.
+	 *
+	 * The event carries a shutdown reason that indicates how the shutdown was triggered.
+	 */
+	readonly onBeforeShutdownError: Event<BeforeShutdownErrorEvent>;
+
+	/**
 	 * Fired when no client is preventing the shutdown from happening (from `onBeforeShutdown`).
 	 *
 	 * This event can be joined with a long running operation via `WillShutdownEvent#join()` to
@@ -193,6 +232,7 @@ export const NullLifecycleService: ILifecycleService = {
 	_serviceBrand: undefined,
 
 	onBeforeShutdown: Event.None,
+	onBeforeShutdownError: Event.None,
 	onWillShutdown: Event.None,
 	onDidShutdown: Event.None,
 

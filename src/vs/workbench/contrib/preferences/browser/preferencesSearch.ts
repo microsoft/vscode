@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISettingsEditorModel, ISetting, ISettingsGroup, IFilterMetadata, ISearchResult, IGroupFilter, ISettingMatcher, IScoredResults, ISettingMatch, IRemoteSetting, IExtensionSetting } from 'vs/workbench/services/preferences/common/preferences';
+import { ISettingsEditorModel, ISetting, ISettingsGroup, IFilterMetadata, ISearchResult, IGroupFilter, ISettingMatcher, IScoredResults, ISettingMatch, IRemoteSetting, IExtensionSetting, SettingMatchType } from 'vs/workbench/services/preferences/common/preferences';
 import { IRange } from 'vs/editor/common/core/range';
 import { distinct, top } from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
@@ -114,7 +114,7 @@ export class LocalSearchProvider implements ISearchProvider {
 
 		let orderedScore = LocalSearchProvider.START_SCORE; // Sort is not stable
 		const settingMatcher = (setting: ISetting) => {
-			const matches = new SettingMatches(this._filter, setting, true, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
+			const { matches, matchType } = new SettingMatches(this._filter, setting, true, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting));
 			const score = this._filter === setting.key ?
 				LocalSearchProvider.EXACT_MATCH_SCORE :
 				orderedScore--;
@@ -122,6 +122,7 @@ export class LocalSearchProvider implements ISearchProvider {
 			return matches && matches.length ?
 				{
 					matches,
+					matchType,
 					score
 				} :
 				null;
@@ -210,7 +211,8 @@ class RemoteSearchProvider implements ISearchProvider {
 						return <ISettingMatch>{
 							setting,
 							score: remoteSetting.score,
-							matches: [] // TODO
+							matches: [], // TODO
+							matchType: SettingMatchType.None
 						};
 					});
 
@@ -338,8 +340,8 @@ class RemoteSearchProvider implements ISearchProvider {
 				scoredResults[getSettingKey(setting.key, 'core')] || // core setting
 				scoredResults[getSettingKey(setting.key)]; // core setting from original prod endpoint
 			if (remoteSetting && remoteSetting.score >= minScore) {
-				const settingMatches = new SettingMatches(this.options.filter, setting, false, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
-				return { matches: settingMatches, score: remoteSetting.score };
+				const { matches, matchType } = new SettingMatches(this.options.filter, setting, false, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting));
+				return { matches, matchType, score: remoteSetting.score };
 			}
 
 			return null;
@@ -448,6 +450,7 @@ export class SettingMatches {
 	private readonly valueMatchingWords: Map<string, IRange[]> = new Map<string, IRange[]>();
 
 	readonly matches: IRange[];
+	matchType: SettingMatchType = SettingMatchType.None;
 
 	constructor(searchString: string, setting: ISetting, private requireFullQueryMatch: boolean, private searchDescription: boolean, private valuesMatcher: (filter: string, setting: ISetting) => IRange[]) {
 		this.matches = distinct(this._findMatchesInSetting(searchString, setting), (match) => `${match.startLineNumber}_${match.startColumn}_${match.endLineNumber}_${match.endColumn}_`);
@@ -465,6 +468,8 @@ export class SettingMatches {
 				const subSettingValueRanges: IRange[] = this.getRangesForWords(words, subSettingMatches.valueMatchingWords, [this.descriptionMatchingWords, this.keyMatchingWords, subSettingMatches.keyMatchingWords]);
 				result.push(...descriptionRanges, ...keyRanges, ...subSettingKeyRanges, ...subSettingValueRanges);
 				result.push(...subSettingMatches.matches);
+				this.refreshMatchType(keyRanges.length + subSettingKeyRanges.length);
+				this.matchType |= subSettingMatches.matchType;
 			}
 		}
 		return result;
@@ -478,12 +483,14 @@ export class SettingMatches {
 		const settingKeyAsWords: string = setting.key.split('.').join(' ');
 
 		for (const word of words) {
+			// Whole word match attempts also take place within this loop.
 			if (this.searchDescription) {
 				for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {
 					const descriptionMatches = matchesWords(word, setting.description[lineIndex], true);
 					if (descriptionMatches) {
 						this.descriptionMatchingWords.set(word, descriptionMatches.map(match => this.toDescriptionRange(setting, match, lineIndex)));
 					}
+					this.checkForWholeWordMatchType(word, setting.description[lineIndex]);
 				}
 			}
 
@@ -491,12 +498,16 @@ export class SettingMatches {
 			if (keyMatches) {
 				this.keyMatchingWords.set(word, keyMatches.map(match => this.toKeyRange(setting, match)));
 			}
+			this.checkForWholeWordMatchType(word, settingKeyAsWords);
 
 			const valueMatches = typeof setting.value === 'string' ? matchesContiguousSubString(word, setting.value) : null;
 			if (valueMatches) {
 				this.valueMatchingWords.set(word, valueMatches.map(match => this.toValueRange(setting, match)));
 			} else if (schema && schema.enum && schema.enum.some(enumValue => typeof enumValue === 'string' && !!matchesContiguousSubString(word, enumValue))) {
 				this.valueMatchingWords.set(word, []);
+			}
+			if (typeof setting.value === 'string') {
+				this.checkForWholeWordMatchType(word, setting.value);
 			}
 		}
 
@@ -522,7 +533,24 @@ export class SettingMatches {
 			valueRanges = this.valuesMatcher(searchString, setting);
 		}
 
+		this.refreshMatchType(keyRanges.length);
 		return [...descriptionRanges, ...keyRanges, ...valueRanges];
+	}
+
+	private checkForWholeWordMatchType(singleWordQuery: string, lineToSearch: string) {
+		// Trim excess ending characters off the query.
+		singleWordQuery = singleWordQuery.toLowerCase().replace(/[\s-\._]+$/, '');
+		lineToSearch = lineToSearch.toLowerCase();
+		const singleWordRegex = new RegExp(`\\b${singleWordQuery}\\b`);
+		if (singleWordRegex.test(lineToSearch)) {
+			this.matchType |= SettingMatchType.WholeWordMatch;
+		}
+	}
+
+	private refreshMatchType(keyRangesLength: number) {
+		if (keyRangesLength) {
+			this.matchType |= SettingMatchType.KeyMatch;
+		}
 	}
 
 	private getRangesForWords(words: string[], from: Map<string, IRange[]>, others: Map<string, IRange[]>[]): IRange[] {

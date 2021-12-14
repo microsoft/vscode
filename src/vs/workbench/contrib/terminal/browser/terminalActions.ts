@@ -46,6 +46,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { isAbsolute } from 'vs/base/common/path';
+import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
 import { ITerminalQuickPickItem } from 'vs/workbench/contrib/terminal/browser/terminalProfileQuickpick';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { getIconId, getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
@@ -184,7 +185,7 @@ export function registerTerminalActions() {
 				title: terminalStrings.moveToEditor,
 				f1: true,
 				category,
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.terminalEditorActive.toNegated(), TerminalContextKeys.viewShowing)
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -223,7 +224,7 @@ export function registerTerminalActions() {
 				title: terminalStrings.moveToTerminalPanel,
 				f1: true,
 				category,
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.terminalEditorActive),
 			});
 		}
 		async run(accessor: ServicesAccessor, resource: unknown) {
@@ -1598,8 +1599,10 @@ export function registerTerminalActions() {
 		async run(accessor: ServicesAccessor) {
 			const themeService = accessor.get(IThemeService);
 			const groupService = accessor.get(ITerminalGroupService);
+			const notificationService = accessor.get(INotificationService);
 			const picks: ITerminalQuickPickItem[] = [];
-			if (!groupService.activeInstance || groupService.instances.length === 1) {
+			if (groupService.instances.length <= 1) {
+				notificationService.warn(localize('workbench.action.terminal.join.insufficientTerminals', 'Insufficient terminals for the join action'));
 				return;
 			}
 			const otherInstances = groupService.instances.filter(i => i.instanceId !== groupService.activeInstance?.instanceId);
@@ -1623,6 +1626,10 @@ export function registerTerminalActions() {
 						iconClasses
 					});
 				}
+			}
+			if (picks.length === 0) {
+				notificationService.warn(localize('workbench.action.terminal.join.onlySplits', 'All terminals are joined already'));
+				return;
 			}
 			const result = await accessor.get(IQuickInputService).pick(picks, {});
 			if (result) {
@@ -1739,7 +1746,7 @@ export function registerTerminalActions() {
 					eventOrOptions.cwd = workspace.uri;
 					const cwdConfig = configurationService.getValue(TerminalSettingId.Cwd, { resource: workspace.uri });
 					if (typeof cwdConfig === 'string' && cwdConfig.length > 0) {
-						if (isAbsolute(cwdConfig)) {
+						if (isAbsolute(cwdConfig) || cwdConfig.startsWith(AbstractVariableResolverService.VARIABLE_LHS)) {
 							eventOrOptions.cwd = URI.from({
 								scheme: workspace.uri.scheme,
 								path: cwdConfig
@@ -1798,9 +1805,11 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
+			const disposePromises: Promise<void>[] = [];
 			for (const instance of terminalService.instances) {
-				await terminalService.safeDisposeTerminal(instance);
+				disposePromises.push(terminalService.safeDisposeTerminal(instance));
 			}
+			await Promise.all(disposePromises);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1850,9 +1859,11 @@ export function registerTerminalActions() {
 				return;
 			}
 			const terminalService = accessor.get(ITerminalService);
+			const disposePromises: Promise<void>[] = [];
 			for (const instance of selectedInstances) {
-				terminalService.safeDisposeTerminal(instance);
+				disposePromises.push(terminalService.safeDisposeTerminal(instance));
 			}
+			await Promise.all(disposePromises);
 			if (terminalService.instances.length > 0) {
 				accessor.get(ITerminalGroupService).focusTabs();
 				focusNext(accessor);

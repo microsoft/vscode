@@ -8,7 +8,6 @@ import { isWeb } from 'vs/base/common/platform';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { URI } from 'vs/base/common/uri';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { FileAccess } from 'vs/base/common/network';
 import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
@@ -32,7 +31,7 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
 		if (isWeb) {
-			const builtinExtensionsServiceUrl = this._getBuiltinExtensionsUrl(environmentService);
+			const builtinExtensionsServiceUrl = FileAccess.asBrowserUri('../../../../../../extensions', require);
 			if (builtinExtensionsServiceUrl) {
 				let bundledExtensions: IBundledExtension[] = [];
 
@@ -61,19 +60,6 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 				}));
 			}
 		}
-	}
-
-	private _getBuiltinExtensionsUrl(environmentService: IWorkbenchEnvironmentService): URI | undefined {
-		let enableBuiltinExtensions: boolean;
-		if (environmentService.options && typeof environmentService.options._enableBuiltinExtensions !== 'undefined') {
-			enableBuiltinExtensions = environmentService.options._enableBuiltinExtensions;
-		} else {
-			enableBuiltinExtensions = true;
-		}
-		if (enableBuiltinExtensions) {
-			return FileAccess.asBrowserUri('../../../../../../extensions', require);
-		}
-		return undefined;
 	}
 
 	async scanBuiltinExtensions(): Promise<IExtension[]> {

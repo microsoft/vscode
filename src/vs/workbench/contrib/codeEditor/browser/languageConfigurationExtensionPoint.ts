@@ -10,7 +10,7 @@ import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { CharacterPair, CommentRule, EnterAction, ExplicitLanguageConfiguration, FoldingRules, IAutoClosingPair, IAutoClosingPairConditional, IndentAction, IndentationRule, OnEnterRule } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -82,14 +82,14 @@ export class LanguageConfigurationFileHandler {
 
 	constructor(
 		@ITextMateService textMateService: ITextMateService,
-		@IModeService private readonly _modeService: IModeService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@IExtensionResourceLoaderService private readonly _extensionResourceLoaderService: IExtensionResourceLoaderService,
 		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
 		this._done = new Set<string>();
 
 		// Listen for hints that a language configuration is needed/usefull and then load it once
-		this._modeService.onDidEncounterLanguage((languageIdentifier) => {
+		this._languageService.onDidEncounterLanguage((languageIdentifier) => {
 			// Modes can be instantiated before the extension points have finished registering
 			this._extensionService.whenInstalledExtensionsRegistered().then(() => {
 				this._loadConfigurationsForMode(languageIdentifier);
@@ -106,7 +106,7 @@ export class LanguageConfigurationFileHandler {
 		}
 		this._done.add(languageId);
 
-		const configurationFiles = this._modeService.getConfigurationFiles(languageId);
+		const configurationFiles = this._languageService.getConfigurationFiles(languageId);
 		configurationFiles.forEach((configFileLocation) => this._handleConfigFile(languageId, configFileLocation));
 	}
 

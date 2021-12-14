@@ -23,6 +23,7 @@
   "activationEvents": [
     "onResolveRemoteAuthority:test",
     "onCommand:vscode-testresolver.newWindow",
+    "onCommand:vscode-testresolver.currentWindow",
     "onCommand:vscode-testresolver.newWindowWithError",
     "onCommand:vscode-testresolver.showLog",
     "onCommand:vscode-testresolver.openTunnel",
@@ -58,6 +59,11 @@
         "title": "New TestResolver Window",
         "category": "Remote-TestResolver",
         "command": "vscode-testresolver.newWindow"
+      },
+      {
+        "title": "Connect to TestResolver in Current Window",
+        "category": "Remote-TestResolver",
+        "command": "vscode-testresolver.currentWindow"
       },
       {
         "title": "Show TestResolver Log",

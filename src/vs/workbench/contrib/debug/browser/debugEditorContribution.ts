@@ -295,7 +295,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 					if (debugHoverWasVisible && this.hoverRange) {
 						// If the debug hover was visible immediately show the editor hover for the alt transition to be smooth
 						const hoverController = this.editor.getContribution<ModesHoverController>(ModesHoverController.ID);
-						hoverController.showContentHover(this.hoverRange, HoverStartMode.Immediate, false);
+						hoverController?.showContentHover(this.hoverRange, HoverStartMode.Immediate, false);
 					}
 
 					const onKeyUp = new DomEmitter(document, 'keyup');

@@ -46,7 +46,7 @@ import { Link } from 'vs/platform/opener/browser/link';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/contrib/markdown/browser/markdownDocumentRenderer';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { generateUuid } from 'vs/base/common/uuid';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
@@ -161,7 +161,7 @@ export class GettingStartedPage extends EditorPane {
 		@IWalkthroughsService private readonly gettingStartedService: IWalkthroughsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IFileService private readonly fileService: IFileService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
@@ -471,7 +471,7 @@ export class GettingStartedPage extends EditorPane {
 						return new Promise<string>(resolve => {
 							require([moduleId], content => {
 								const markdown = content.default();
-								resolve(renderMarkdownDocument(markdown, this.extensionService, this.modeService, true, true));
+								resolve(renderMarkdownDocument(markdown, this.extensionService, this.languageService, true, true));
 							});
 						});
 					}
@@ -500,7 +500,7 @@ export class GettingStartedPage extends EditorPane {
 								: path);
 
 					const markdown = bytes.value.toString();
-					return renderMarkdownDocument(markdown, this.extensionService, this.modeService, true, true);
+					return renderMarkdownDocument(markdown, this.extensionService, this.languageService, true, true);
 				} catch (e) {
 					this.notificationService.error('Error reading markdown document at `' + path + '`: ' + e);
 					return '';
@@ -1050,7 +1050,10 @@ export class GettingStartedPage extends EditorPane {
 			link.setAttribute('aria-label', localize('welcomePage.openFolderWithPath', "Open folder {0} with path {1}", name, parentPath));
 			link.addEventListener('click', e => {
 				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'openRecent', argument: undefined });
-				this.hostService.openWindow([windowOpenable], { forceNewWindow: e.ctrlKey || e.metaKey, remoteAuthority: recent.remoteAuthority });
+				this.hostService.openWindow([windowOpenable], {
+					forceNewWindow: e.ctrlKey || e.metaKey,
+					remoteAuthority: recent.remoteAuthority || null // local window if remoteAuthority is not set or can not be deducted from the openable
+				});
 				e.preventDefault();
 				e.stopPropagation();
 			});

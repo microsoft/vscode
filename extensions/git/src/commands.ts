@@ -14,7 +14,7 @@ import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
 import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri } from './uri';
-import { grep, isDescendant, pathEquals } from './util';
+import { grep, isDescendant, logTimestamp, pathEquals } from './util';
 import { Log, LogLevel } from './log';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
@@ -353,7 +353,7 @@ export class CommandCenter {
 		}
 
 		Log.logLevel = choice.logLevel;
-		this.outputChannel.appendLine(localize('changed', "Log level changed to: {0}", LogLevel[Log.logLevel]));
+		this.outputChannel.appendLine(localize('changed', "{0} Log level changed to: {1}", logTimestamp(), LogLevel[Log.logLevel]));
 	}
 
 	@command('git.refresh', { repository: true })
@@ -686,6 +686,10 @@ export class CommandCenter {
 		}
 
 		const activeTextEditor = window.activeTextEditor;
+		// Must extract these now because opening a new document will change the activeTextEditor reference
+		const previousVisibleRange = activeTextEditor?.visibleRanges[0];
+		const previousURI = activeTextEditor?.document.uri;
+		const previousSelection = activeTextEditor?.selection;
 
 		for (const uri of uris) {
 			const opts: TextDocumentShowOptions = {
@@ -702,18 +706,21 @@ export class CommandCenter {
 			const document = window.activeTextEditor?.document;
 
 			// If the document doesn't match what we opened then don't attempt to select the range
-			if (document?.uri.toString() !== uri.toString()) {
+			// Additioanlly if there was no previous document we don't have information to select a range
+			if (document?.uri.toString() !== uri.toString() || !activeTextEditor || !previousURI || !previousSelection) {
 				continue;
 			}
 
 			// Check if active text editor has same path as other editor. we cannot compare via
 			// URI.toString() here because the schemas can be different. Instead we just go by path.
-			if (activeTextEditor && activeTextEditor.document.uri.path === uri.path && document) {
+			if (previousURI.path === uri.path && document) {
 				// preserve not only selection but also visible range
-				opts.selection = activeTextEditor.selection;
-				const previousVisibleRanges = activeTextEditor.visibleRanges;
+				opts.selection = previousSelection;
 				const editor = await window.showTextDocument(document, opts);
-				editor.revealRange(previousVisibleRanges[0]);
+				// This should always be defined but just in case
+				if (previousVisibleRange) {
+					editor.revealRange(previousVisibleRange);
+				}
 			}
 		}
 	}
@@ -757,6 +764,7 @@ export class CommandCenter {
 	}
 
 	@command('git.openChange')
+	@command('git.openChangeEditor')
 	async openChange(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		let resources: Resource[] | undefined = undefined;
 
@@ -813,14 +821,14 @@ export class CommandCenter {
 
 	@command('git.stage')
 	async stage(...resourceStates: SourceControlResourceState[]): Promise<void> {
-		this.outputChannel.appendLine(`git.stage ${resourceStates.length}`);
+		this.outputChannel.appendLine(`${logTimestamp()} git.stage ${resourceStates.length}`);
 
 		resourceStates = resourceStates.filter(s => !!s);
 
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
 			const resource = this.getSCMResource();
 
-			this.outputChannel.appendLine(`git.stage.getSCMResource ${resource ? resource.resourceUri.toString() : null}`);
+			this.outputChannel.appendLine(`${logTimestamp()} git.stage.getSCMResource ${resource ? resource.resourceUri.toString() : null}`);
 
 			if (!resource) {
 				return;
@@ -863,7 +871,7 @@ export class CommandCenter {
 		const untracked = selection.filter(s => s.resourceGroupType === ResourceGroupType.Untracked);
 		const scmResources = [...workingTree, ...untracked, ...resolved, ...unresolved];
 
-		this.outputChannel.appendLine(`git.stage.scmResources ${scmResources.length}`);
+		this.outputChannel.appendLine(`${logTimestamp()} git.stage.scmResources ${scmResources.length}`);
 		if (!scmResources.length) {
 			return;
 		}
@@ -2870,10 +2878,10 @@ export class CommandCenter {
 	private getSCMResource(uri?: Uri): Resource | undefined {
 		uri = uri ? uri : (window.activeTextEditor && window.activeTextEditor.document.uri);
 
-		this.outputChannel.appendLine(`git.getSCMResource.uri ${uri && uri.toString()}`);
+		this.outputChannel.appendLine(`${logTimestamp()} git.getSCMResource.uri ${uri && uri.toString()}`);
 
 		for (const r of this.model.repositories.map(r => r.root)) {
-			this.outputChannel.appendLine(`repo root ${r}`);
+			this.outputChannel.appendLine(`${logTimestamp()} repo root ${r}`);
 		}
 
 		if (!uri) {

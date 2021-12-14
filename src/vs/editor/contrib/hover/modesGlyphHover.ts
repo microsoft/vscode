@@ -10,7 +10,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
@@ -105,7 +105,7 @@ export class ModesGlyphHoverWidget extends Widget implements IOverlayWidget {
 
 	constructor(
 		editor: ICodeEditor,
-		modeService: IModeService,
+		languageService: ILanguageService,
 		openerService: IOpenerService = NullOpenerService,
 	) {
 		super();
@@ -118,7 +118,7 @@ export class ModesGlyphHoverWidget extends Widget implements IOverlayWidget {
 		this._hover = this._register(new HoverWidget());
 		this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
 
-		this._markdownRenderer = this._register(new MarkdownRenderer({ editor: this._editor }, modeService, openerService));
+		this._markdownRenderer = this._register(new MarkdownRenderer({ editor: this._editor }, languageService, openerService));
 		this._computer = new MarginComputer(this._editor);
 		this._hoverOperation = new HoverOperation(
 			this._computer,

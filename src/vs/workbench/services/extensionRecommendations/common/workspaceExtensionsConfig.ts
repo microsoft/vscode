@@ -14,7 +14,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { isWorkspace, IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { IJSONEditingService, IJSONValue } from 'vs/workbench/services/configuration/common/jsonEditing';
@@ -53,7 +53,7 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 		@IFileService private readonly fileService: IFileService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
 	) {
 		super();
@@ -223,7 +223,7 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 				label: workspaceFolder.name,
 				description: localize('workspace folder', "Workspace Folder"),
 				workspaceOrFolder: workspaceFolder,
-				iconClasses: getIconClasses(this.modelService, this.modeService, workspaceFolder.uri, FileKind.ROOT_FOLDER)
+				iconClasses: getIconClasses(this.modelService, this.languageService, workspaceFolder.uri, FileKind.ROOT_FOLDER)
 			};
 		});
 

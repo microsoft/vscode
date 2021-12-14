@@ -6,7 +6,7 @@
 import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { AbstractTextMateService } from 'vs/workbench/services/textMate/browser/abstractTextMateService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -27,6 +27,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { FileAccess } from 'vs/base/common/network';
 import { ILanguageIdCodec } from 'vs/editor/common/modes';
+import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 const RUN_TEXTMATE_IN_WORKER = false;
 
@@ -149,7 +150,7 @@ export class TextMateService extends AbstractTextMateService {
 	private _tokenizers: { [uri: string]: ModelWorkerTextMateTokenizer; };
 
 	constructor(
-		@IModeService modeService: IModeService,
+		@ILanguageService languageService: ILanguageService,
 		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
 		@IExtensionResourceLoaderService extensionResourceLoaderService: IExtensionResourceLoaderService,
 		@INotificationService notificationService: INotificationService,
@@ -158,8 +159,9 @@ export class TextMateService extends AbstractTextMateService {
 		@IProgressService progressService: IProgressService,
 		@IModelService private readonly _modelService: IModelService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 	) {
-		super(modeService, themeService, extensionResourceLoaderService, notificationService, logService, configurationService, progressService);
+		super(languageService, themeService, extensionResourceLoaderService, notificationService, logService, configurationService, progressService);
 		this._worker = null;
 		this._workerProxy = null;
 		this._tokenizers = Object.create(null);
@@ -176,7 +178,7 @@ export class TextMateService extends AbstractTextMateService {
 			return;
 		}
 		const key = model.uri.toString();
-		const tokenizer = new ModelWorkerTextMateTokenizer(this._workerProxy, this._modeService.languageIdCodec, model);
+		const tokenizer = new ModelWorkerTextMateTokenizer(this._workerProxy, this._languageService.languageIdCodec, model);
 		this._tokenizers[key] = tokenizer;
 	}
 
@@ -200,7 +202,7 @@ export class TextMateService extends AbstractTextMateService {
 
 		if (RUN_TEXTMATE_IN_WORKER) {
 			const workerHost = new TextMateWorkerHost(this, this._extensionResourceLoaderService);
-			const worker = createWebWorker<TextMateWorker>(this._modelService, {
+			const worker = createWebWorker<TextMateWorker>(this._modelService, this._languageConfigurationService, {
 				createData: {
 					grammarDefinitions
 				},

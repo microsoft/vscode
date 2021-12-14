@@ -6,7 +6,7 @@
 import { ISaveOptions } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { URI } from 'vs/base/common/uri';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
@@ -129,7 +129,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		private readonly initialValue: string | undefined,
 		private preferredMode: string | undefined,
 		private preferredEncoding: string | undefined,
-		@IModeService modeService: IModeService,
+		@ILanguageService languageService: ILanguageService,
 		@IModelService modelService: IModelService,
 		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
 		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
@@ -140,7 +140,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		@ILanguageDetectionService languageDetectionService: ILanguageDetectionService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 	) {
-		super(modelService, modeService, languageDetectionService, accessibilityService);
+		super(modelService, languageService, languageDetectionService, accessibilityService);
 
 		// Make known to working copy service
 		this._register(this.workingCopyService.registerWorkingCopy(this));

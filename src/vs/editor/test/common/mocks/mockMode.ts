@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { ILanguageSelection } from 'vs/editor/common/services/modeService';
+import { ILanguageSelection } from 'vs/editor/common/services/languageService';
 
 export class MockMode extends Disposable {
 	constructor(

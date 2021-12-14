@@ -12,6 +12,7 @@ import * as resources from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { mock } from 'vs/base/test/common/mock';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 suite('DecorationsService', function () {
 
@@ -24,7 +25,8 @@ suite('DecorationsService', function () {
 		service = new DecorationsService(
 			new class extends mock<IUriIdentityService>() {
 				override extUri = resources.extUri;
-			}
+			},
+			new TestThemeService()
 		);
 	});
 

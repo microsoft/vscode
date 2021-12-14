@@ -6,7 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -23,7 +23,7 @@ class CellStatusBarLanguagePickerProvider implements INotebookCellStatusBarItemP
 
 	constructor(
 		@INotebookService private readonly _notebookService: INotebookService,
-		@IModeService private readonly _modeService: IModeService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 	) { }
 
 	async provideCellStatusBarItems(uri: URI, index: number, _token: CancellationToken): Promise<INotebookCellStatusBarItemList | undefined> {
@@ -35,8 +35,8 @@ class CellStatusBarLanguagePickerProvider implements INotebookCellStatusBarItemP
 
 		const languageId = cell.cellKind === CellKind.Markup ?
 			'markdown' :
-			(this._modeService.getModeIdForLanguageName(cell.language) || cell.language);
-		const text = this._modeService.getLanguageName(languageId) || languageId;
+			(this._languageService.getLanguageIdForLanguageName(cell.language) || cell.language);
+		const text = this._languageService.getLanguageName(languageId) || languageId;
 		const item = <INotebookCellStatusBarItem>{
 			text,
 			command: CHANGE_CELL_LANGUAGE,

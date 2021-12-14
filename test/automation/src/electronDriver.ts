@@ -13,15 +13,18 @@ import { promisify } from 'util';
 import * as kill from 'tree-kill';
 import { copyExtension } from './extensions';
 import { URI } from 'vscode-uri';
+import { Logger, measureAndLog } from './logger';
+import type { LaunchOptions } from './code';
 
 const repoPath = path.join(__dirname, '../../..');
 
-export async function launch(codePath: string | undefined, userDataDir: string, extensionsPath: string, workspacePath: string, verbose: boolean, remote: boolean, log: string | undefined, extraArgs: string[] | undefined): Promise<{ electronProcess: ChildProcess, client: IDisposable, driver: IDriver }> {
+export async function launch(options: LaunchOptions): Promise<{ electronProcess: ChildProcess, client: IDisposable, driver: IDriver, kill: () => Promise<void> }> {
+	const { codePath, workspacePath, extensionsPath, userDataDir, remote, logger, verbose, extraArgs } = options;
 	const env = { ...process.env };
 	const logsPath = path.join(repoPath, '.build', 'logs', remote ? 'smoke-tests-remote' : 'smoke-tests');
 	const outPath = codePath ? getBuildOutPath(codePath) : getDevOutPath();
 
-	const driverIPCHandle = await createDriverHandle();
+	const driverIPCHandle = await measureAndLog(createDriverHandle(), 'createDriverHandle', logger);
 
 	const args = [
 		workspacePath,
@@ -49,7 +52,7 @@ export async function launch(codePath: string | undefined, userDataDir: string, 
 
 		if (codePath) {
 			// running against a build: copy the test resolver extension
-			await copyExtension(repoPath, extensionsPath, 'vscode-test-resolver');
+			await measureAndLog(copyExtension(repoPath, extensionsPath, 'vscode-test-resolver'), 'copyExtension(vscode-test-resolver)', logger);
 		}
 		args.push('--enable-proposed-api=vscode.vscode-test-resolver');
 		const remoteDataDir = `${userDataDir}-server`;
@@ -59,7 +62,7 @@ export async function launch(codePath: string | undefined, userDataDir: string, 
 			// running against a build: copy the test resolver extension into remote extensions dir
 			const remoteExtensionsDir = path.join(remoteDataDir, 'extensions');
 			mkdirp.sync(remoteExtensionsDir);
-			await copyExtension(repoPath, remoteExtensionsDir, 'vscode-notebook-tests');
+			await measureAndLog(copyExtension(repoPath, remoteExtensionsDir, 'vscode-notebook-tests'), 'copyExtension(vscode-notebook-tests)', logger);
 		}
 
 		env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
@@ -79,10 +82,6 @@ export async function launch(codePath: string | undefined, userDataDir: string, 
 		spawnOptions.stdio = ['ignore', 'inherit', 'inherit'];
 	}
 
-	if (log) {
-		args.push('--log', log);
-	}
-
 	if (extraArgs) {
 		args.push(...extraArgs);
 	}
@@ -90,41 +89,26 @@ export async function launch(codePath: string | undefined, userDataDir: string, 
 	const electronPath = codePath ? getBuildElectronPath(codePath) : getDevElectronPath();
 	const electronProcess = spawn(electronPath, args, spawnOptions);
 
-	if (verbose) {
-		console.info(`*** Started electron for desktop smoke tests on pid ${electronProcess.pid}`);
-	}
-
-	let electronProcessDidExit = false;
-	electronProcess.once('exit', (code, signal) => {
-		if (verbose) {
-			console.info(`*** Electron for desktop smoke tests terminated (pid: ${electronProcess.pid}, code: ${code}, signal: ${signal})`);
-		}
-		electronProcessDidExit = true;
-	});
-
-	process.once('exit', () => {
-		if (!electronProcessDidExit) {
-			electronProcess.kill();
-		}
-	});
+	logger.log(`Started electron for desktop smoke tests on pid ${electronProcess.pid}`);
 
 	let retries = 0;
 
 	while (true) {
 		try {
-			const { client, driver } = await connectElectronDriver(outPath, driverIPCHandle);
-			return { electronProcess, client, driver };
+			const { client, driver } = await measureAndLog(connectElectronDriver(outPath, driverIPCHandle), 'connectElectronDriver()', logger);
+			return {
+				electronProcess,
+				client,
+				driver,
+				kill: () => teardown(electronProcess, options.logger)
+			};
 		} catch (err) {
 
 			// give up
 			if (++retries > 30) {
-				console.error(`*** Error connecting driver: ${err}. Giving up...`);
+				logger.log(`Error connecting driver: ${err}. Giving up...`);
 
-				try {
-					await promisify(kill)(electronProcess.pid!);
-				} catch (error) {
-					console.warn(`*** Error tearing down electron client (pid: ${electronProcess.pid}): ${error}`);
-				}
+				await measureAndLog(teardown(electronProcess, logger), 'Kill Electron after failing to connect', logger);
 
 				throw err;
 			}
@@ -132,13 +116,38 @@ export async function launch(codePath: string | undefined, userDataDir: string, 
 			// retry
 			else {
 				if ((err as NodeJS.ErrnoException).code !== 'ENOENT' /* ENOENT is expected for as long as the server has not started on the socket */) {
-					console.error(`*** Error connecting driver: ${err}. Attempting to retry...`);
+					logger.log(`Error connecting driver: ${err}. Attempting to retry...`);
 				}
 
 				await new Promise(resolve => setTimeout(resolve, 1000));
 			}
 		}
 	}
+}
+
+async function teardown(electronProcess: ChildProcess, logger: Logger): Promise<void> {
+	const electronPid = electronProcess.pid;
+	if (typeof electronPid !== 'number') {
+		return;
+	}
+
+	let retries = 0;
+	while (retries < 3) {
+		retries++;
+
+		try {
+			return await promisify(kill)(electronPid);
+		} catch (error) {
+			try {
+				process.kill(electronPid, 0); // throws an exception if the process doesn't exist anymore
+				logger.log(`Error tearing down electron client (pid: ${electronPid}, attempt: ${retries}): ${error}`);
+			} catch (error) {
+				return; // Expected when process is gone
+			}
+		}
+	}
+
+	logger.log(`Gave up tearing down electron client after ${retries} attempts...`);
 }
 
 function getDevElectronPath(): string {

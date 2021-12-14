@@ -115,9 +115,21 @@ export interface IFilterResult {
 	exactMatch?: boolean;
 }
 
+/**
+ * The ways a setting could match a query,
+ * sorted in increasing order of relevance.
+ * For now, ignore description and value matches.
+ */
+export enum SettingMatchType {
+	None = 0,
+	WholeWordMatch = 1 << 0,
+	KeyMatch = 1 << 1
+}
+
 export interface ISettingMatch {
 	setting: ISetting;
 	matches: IRange[] | null;
+	matchType: SettingMatchType;
 	score: number;
 }
 
@@ -157,7 +169,7 @@ export interface IPreferencesEditorModel<T> {
 }
 
 export type IGroupFilter = (group: ISettingsGroup) => boolean | null;
-export type ISettingMatcher = (setting: ISetting, group: ISettingsGroup) => { matches: IRange[], score: number } | null;
+export type ISettingMatcher = (setting: ISetting, group: ISettingsGroup) => { matches: IRange[], matchType: SettingMatchType, score: number } | null;
 
 export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> {
 	readonly onDidChangeGroups: Event<void>;

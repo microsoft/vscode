@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert = require('assert');
-import { Length, lengthAdd, lengthDiffNonNegative, lengthToObj, toLength } from 'vs/editor/common/model/bracketPairs/bracketPairsTree/length';
+import { Length, lengthAdd, lengthDiffNonNegative, lengthToObj, toLength } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
 
 suite('Bracket Pair Colorizer - Length', () => {
 	function toStr(length: Length): string {

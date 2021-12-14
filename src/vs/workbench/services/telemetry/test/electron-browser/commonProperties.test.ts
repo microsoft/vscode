@@ -70,7 +70,7 @@ suite('Telemetry - common properties', function () {
 		assert.ok(!('common.source' in props_1));
 	});
 
-	test('lastSessionDate when aviablale', async function () {
+	test('lastSessionDate when available', async function () {
 
 		testStorageService.store('telemetry.lastSessionDate', new Date().toUTCString(), StorageScope.GLOBAL, StorageTarget.MACHINE);
 

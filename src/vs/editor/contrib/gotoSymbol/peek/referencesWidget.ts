@@ -24,7 +24,7 @@ import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/
 import { ModelDecorationOptions, TextModel } from 'vs/editor/common/model/textModel';
 import { Location } from 'vs/editor/common/modes';
 import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { AccessibilityProvider, DataSource, Delegate, FileReferencesRenderer, IdentityProvider, OneReferenceRenderer, StringRepresentationProvider, TreeElement } from 'vs/editor/contrib/gotoSymbol/peek/referencesTree';
 import * as peekView from 'vs/editor/contrib/peekView/peekView';
@@ -223,7 +223,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		@ILabelService private readonly _uriLabel: ILabelService,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IModeService private readonly _modeService: IModeService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 	) {
 		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true, supportOnTitleClick: true }, _instantiationService);
@@ -313,7 +313,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		};
 		this._preview = this._instantiationService.createInstance(EmbeddedCodeEditorWidget, this._previewContainer, options, this.editor);
 		dom.hide(this._previewContainer);
-		this._previewNotAvailableMessage = new TextModel(nls.localize('missingPreviewMessage', "no preview available"), TextModel.DEFAULT_CREATION_OPTIONS, null, null, this._undoRedoService, this._modeService, this._languageConfigurationService);
+		this._previewNotAvailableMessage = new TextModel(nls.localize('missingPreviewMessage', "no preview available"), TextModel.DEFAULT_CREATION_OPTIONS, null, null, this._undoRedoService, this._languageService, this._languageConfigurationService);
 
 		// tree
 		this._treeContainer = dom.append(containerElement, dom.$('div.ref-tree.inline'));

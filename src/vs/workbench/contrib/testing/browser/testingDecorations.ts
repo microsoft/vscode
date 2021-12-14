@@ -48,6 +48,8 @@ import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { getContextForTestItem, ITestService, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
 
+const MAX_INLINE_MESSAGE_LENGTH = 128;
+
 function isOriginalInDiffEditor(codeEditorService: ICodeEditorService, codeEditor: ICodeEditor): boolean {
 	const diffEditors = codeEditorService.listDiffEditors();
 
@@ -271,7 +273,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 	/**
 	 * Gets the decorations associated with the given code editor.
 	 */
-	public static get(editor: ICodeEditor): TestingDecorations {
+	public static get(editor: ICodeEditor): TestingDecorations | null {
 		return editor.getContribution<TestingDecorations>(Testing.DecorationsContributionId);
 	}
 
@@ -661,15 +663,16 @@ abstract class RunTestDecoration {
 		let actions = this.getContextMenuActions(e);
 		const editor = this.codeEditorService.listCodeEditors().find(e => e.getModel() === this.model);
 		if (editor) {
-			actions = {
-				dispose: actions.dispose,
-				object: Separator.join(
-					actions.object,
-					editor
-						.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID)
-						.getContextMenuActionsAtPosition(this.line, this.model)
-				)
-			};
+			const contribution = editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID);
+			if (contribution) {
+				actions = {
+					dispose: actions.dispose,
+					object: Separator.join(
+						actions.object,
+						contribution.getContextMenuActionsAtPosition(this.line, this.model)
+					)
+				};
+			}
 		}
 
 		this.contextMenuService.showContextMenu({
@@ -840,8 +843,14 @@ class TestMessageDecoration implements ITestDecoration {
 		options.isWholeLine = true;
 		options.stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 		options.collapseOnReplaceEdit = true;
+
+		let inlineText = renderStringAsPlaintext(message);
+		if (inlineText.length > MAX_INLINE_MESSAGE_LENGTH) {
+			inlineText = inlineText.slice(0, MAX_INLINE_MESSAGE_LENGTH - 1) + '…';
+		}
+
 		options.after = {
-			content: ' '.repeat(4) + renderStringAsPlaintext(message),
+			content: ' '.repeat(4) + inlineText,
 			inlineClassName: `test-message-inline-content test-message-inline-content-s${severity} ${this.contentIdClass}`
 		};
 		options.showIfCollapsed = true;

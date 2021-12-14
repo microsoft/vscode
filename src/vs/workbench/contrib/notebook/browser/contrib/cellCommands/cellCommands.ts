@@ -344,6 +344,10 @@ registerAction2(class CollapseCellInputAction extends NotebookMultiCellAction {
 		});
 	}
 
+	override parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookCommandContext | undefined {
+		return parseMultiCellExecutionArgs(accessor, ...args);
+	}
+
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void> {
 		if (context.ui) {
 			context.cell.isInputCollapsed = true;
@@ -370,6 +374,10 @@ registerAction2(class ExpandCellInputAction extends NotebookMultiCellAction {
 				order: 1
 			}
 		});
+	}
+
+	override parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookCommandContext | undefined {
+		return parseMultiCellExecutionArgs(accessor, ...args);
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void> {

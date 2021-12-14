@@ -17,7 +17,7 @@ export const IOutputChannelModelService = createDecorator<IOutputChannelModelSer
 export interface IOutputChannelModelService {
 	readonly _serviceBrand: undefined;
 
-	createOutputChannelModel(id: string, modelUri: URI, mimeType: string, file?: URI): IOutputChannelModel;
+	createOutputChannelModel(id: string, modelUri: URI, mimeType: 'text/x-code-log-output' | 'text/x-code-output', file?: URI): IOutputChannelModel;
 
 }
 
@@ -31,7 +31,7 @@ export abstract class AbstractOutputChannelModelService {
 		@IInstantiationService protected readonly instantiationService: IInstantiationService
 	) { }
 
-	createOutputChannelModel(id: string, modelUri: URI, mimeType: string, file?: URI): IOutputChannelModel {
+	createOutputChannelModel(id: string, modelUri: URI, mimeType: 'text/x-code-log-output' | 'text/x-code-output', file?: URI): IOutputChannelModel {
 		return file ? this.instantiationService.createInstance(FileOutputChannelModel, modelUri, mimeType, file) : this.instantiationService.createInstance(DelegatedOutputChannelModel, id, modelUri, mimeType, this.outputDir);
 	}
 

@@ -438,4 +438,33 @@ suite('JSON - formatter', () => {
 
 		format(content, expected);
 	});
+
+	test('toFormattedString', () => {
+		const obj = {
+			a: { b: 1, d: ['hello'] }
+		};
+
+
+		const getExpected = (tab: string, eol: string) => {
+			return [
+				`{`,
+				`${tab}"a": {`,
+				`${tab}${tab}"b": 1,`,
+				`${tab}${tab}"d": [`,
+				`${tab}${tab}${tab}"hello"`,
+				`${tab}${tab}]`,
+				`${tab}}`,
+				'}'
+			].join(eol);
+		};
+
+		let actual = Formatter.toFormattedString(obj, { insertSpaces: true, tabSize: 2, eol: '\n' });
+		assert.strictEqual(actual, getExpected('  ', '\n'));
+
+		actual = Formatter.toFormattedString(obj, { insertSpaces: true, tabSize: 2, eol: '\r\n' });
+		assert.strictEqual(actual, getExpected('  ', '\r\n'));
+
+		actual = Formatter.toFormattedString(obj, { insertSpaces: false, eol: '\r\n' });
+		assert.strictEqual(actual, getExpected('\t', '\r\n'));
+	});
 });

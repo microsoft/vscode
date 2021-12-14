@@ -381,12 +381,6 @@ interface IWorkbenchConstructionOptions {
 	readonly webviewEndpoint?: string;
 
 	/**
-	 * An URL pointing to the web worker extension host <iframe> src.
-	 * @deprecated. This will be removed soon.
-	 */
-	readonly webWorkerExtensionHostIframeSrc?: string;
-
-	/**
 	 * A factory for web sockets.
 	 */
 	readonly webSocketFactory?: IWebSocketFactory;
@@ -411,6 +405,12 @@ interface IWorkbenchConstructionOptions {
 	 * Endpoints to be used for proxying authentication code exchange calls in the browser.
 	 */
 	readonly codeExchangeProxyEndpoints?: { [providerId: string]: string }
+
+	/**
+	 * [TEMPORARY]: This will be removed soon.
+	 * Endpoints to be used for proxying repository tarball download calls in the browser.
+	 */
+	readonly _tarballProxyEndpoints?: { [providerId: string]: string }
 
 	//#endregion
 
@@ -445,13 +445,6 @@ interface IWorkbenchConstructionOptions {
 	 * Note: This will not install extensions if not installed.
 	 */
 	readonly enabledExtensions?: readonly ExtensionId[];
-
-	/**
-	 * [TEMPORARY]: This will be removed soon.
-	 * Enable inlined extensions.
-	 * Defaults to true.
-	 */
-	readonly _enableBuiltinExtensions?: boolean;
 
 	/**
 	 * Additional domains allowed to open from the workbench without the
@@ -673,6 +666,8 @@ function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions)
 			}
 		}
 	}
+
+	CommandsRegistry.registerCommand('_workbench.getTarballProxyEndpoints', () => (options._tarballProxyEndpoints ?? {}));
 
 	// Startup workbench and resolve waiters
 	let instantiatedWorkbench: IWorkbench | undefined = undefined;
