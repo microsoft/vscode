@@ -27,7 +27,7 @@ import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListDragAn
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, IMenu, Action2, registerAction2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { OpenEditorsDirtyEditorContext, OpenEditorsGroupContext, OpenEditorsReadonlyEditorContext, SAVE_ALL_LABEL, SAVE_ALL_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
@@ -138,7 +138,7 @@ export class OpenEditorsView extends ViewPane {
 
 		const groupDisposables = new Map<number, IDisposable>();
 		const addGroupListener = (group: IEditorGroup) => {
-			groupDisposables.set(group.id, group.onDidGroupChange(e => {
+			const groupModelChangeListener = group.onDidModelChange(e => {
 				if (this.listRefreshScheduler.isScheduled()) {
 					return;
 				}
@@ -155,6 +155,19 @@ export class OpenEditorsView extends ViewPane {
 						}
 						break;
 					}
+				}
+			});
+			const legacyGroupChangeListener = group.onDidGroupChange(e => {
+				if (this.listRefreshScheduler.isScheduled()) {
+					return;
+				}
+				if (!this.isBodyVisible() || !this.list) {
+					this.needsRefresh = true;
+					return;
+				}
+
+				const index = this.getIndex(group, e.editor);
+				switch (e.kind) {
 					case GroupChangeKind.GROUP_ACTIVE:
 					case GroupChangeKind.EDITOR_ACTIVE: {
 						this.focusActiveEditor();
@@ -176,7 +189,8 @@ export class OpenEditorsView extends ViewPane {
 						break;
 					}
 				}
-			}));
+			});
+			groupDisposables.set(group.id, combinedDisposable(groupModelChangeListener, legacyGroupChangeListener));
 			this._register(groupDisposables.get(group.id)!);
 		};
 

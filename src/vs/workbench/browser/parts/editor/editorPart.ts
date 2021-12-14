@@ -556,6 +556,9 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 				case GroupChangeKind.GROUP_LOCKED:
 					this._onDidChangeGroupLocked.fire(groupView);
 					break;
+				case GroupChangeKind.GROUP_INDEX:
+					this._onDidChangeGroupIndex.fire(groupView);
+					break;
 			}
 		}));
 
@@ -564,9 +567,6 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 			switch (e.kind) {
 				case GroupChangeKind.EDITOR_ACTIVE:
 					this.updateContainer();
-					break;
-				case GroupChangeKind.GROUP_INDEX:
-					this._onDidChangeGroupIndex.fire(groupView);
 					break;
 			}
 		}));

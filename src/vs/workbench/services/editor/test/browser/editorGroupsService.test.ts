@@ -254,7 +254,7 @@ suite('EditorGroupsService', () => {
 		});
 
 		let indexChangeCounter = 0;
-		const labelChangeListener = downGroup.onDidGroupChange(e => {
+		const labelChangeListener = downGroup.onDidModelChange(e => {
 			if (e.kind === GroupChangeKind.GROUP_INDEX) {
 				indexChangeCounter++;
 			}

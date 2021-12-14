@@ -827,7 +827,7 @@ export const enum GroupChangeKind {
 
 	/* Group Changes */
 	GROUP_ACTIVE, // TO BE DONE
-	GROUP_INDEX, // TO BE DONE
+	GROUP_INDEX,
 	GROUP_LOCKED,
 
 	/* Editor Changes */

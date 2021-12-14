@@ -841,8 +841,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		if (this._index !== newIndex) {
 			this._index = newIndex;
 			this.model.setIndex(newIndex);
-
-			this._onDidGroupChange.fire({ kind: GroupChangeKind.GROUP_INDEX });
 		}
 	}
 
