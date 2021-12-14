@@ -89,6 +89,8 @@ export class ProgressBar extends Disposable {
 
 		this.workedVal = 0;
 		this.totalWork = undefined;
+
+		this.longRunningScheduler.cancel();
 	}
 
 	/**
