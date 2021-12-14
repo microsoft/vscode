@@ -393,6 +393,8 @@ export class ViewModel extends Disposable implements IViewModel {
 			} finally {
 				this._eventDispatcher.endEmitViewEvents();
 			}
+
+			this._tokenizeViewportSoon.schedule();
 		}));
 
 		this._register(this.model.onDidChangeTokens((e) => {
