@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application, Terminal, TerminalCommandId, SettingsEditor } from '../../../../automation';
+import { Application, Terminal, SettingsEditor } from '../../../../automation';
 
 export function setup() {
 	describe('Terminal Input', () => {
@@ -25,14 +25,14 @@ export function setup() {
 			}
 
 			it('should automatically reply to default "Terminate batch job (Y/N)"', async () => {
-				await terminal.runCommand(TerminalCommandId.CreateNew);
+				await terminal.createTerminal();
 				await writeTextForAutoReply('Terminate batch job (Y/N)?');
 				await terminal.waitForTerminalText(buffer => buffer.some(line => line.includes('Terminate batch job (Y/N)?Y')));
 			});
 
 			it('should automatically reply to a custom entry', async () => {
 				await settingsEditor.addUserSetting('terminal.integrated.autoReplies', '{ "foo": "bar" }');
-				await terminal.runCommand(TerminalCommandId.CreateNew);
+				await terminal.createTerminal();
 				await writeTextForAutoReply('foo');
 				await terminal.waitForTerminalText(buffer => buffer.some(line => line.includes('foobar')));
 			});

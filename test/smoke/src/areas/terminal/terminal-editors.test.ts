@@ -70,7 +70,7 @@ export function setup() {
 			await app.workbench.settingsEditor.addUserSetting('terminal.integrated.defaultLocation', '"editor"');
 			// Close the settings editor
 			await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');
-			await terminal.runCommandWithValue(TerminalCommandIdWithValue.CreateNew, 'editor');
+			await terminal.createTerminal('editor');
 			await terminal.assertEditorGroupCount(1);
 			await terminal.assertTerminalViewHidden();
 		});

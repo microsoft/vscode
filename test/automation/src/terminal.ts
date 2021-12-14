@@ -21,16 +21,21 @@ export enum Selector {
 	SplitButton = '.editor .codicon-split-horizontal'
 }
 
+/**
+ * Terminal commands that accept a value in a quick input.
+ */
 export enum TerminalCommandIdWithValue {
 	Rename = 'workbench.action.terminal.rename',
 	ChangeColor = 'workbench.action.terminal.changeColor',
 	ChangeIcon = 'workbench.action.terminal.changeIcon',
 	NewWithProfile = 'workbench.action.terminal.newWithProfile',
 	SelectDefaultProfile = 'workbench.action.terminal.selectDefaultShell',
-	AttachToSession = 'workbench.action.terminal.attachToSession',
-	CreateNew = 'workbench.action.terminal.new'
+	AttachToSession = 'workbench.action.terminal.attachToSession'
 }
 
+/**
+ * Terminal commands that do not present a quick input.
+ */
 export enum TerminalCommandId {
 	Split = 'workbench.action.terminal.split',
 	KillAll = 'workbench.action.terminal.killAll',
@@ -44,6 +49,7 @@ export enum TerminalCommandId {
 	NewWithProfile = 'workbench.action.terminal.newWithProfile',
 	SelectDefaultProfile = 'workbench.action.terminal.selectDefaultShell',
 	DetachSession = 'workbench.action.terminal.detachSession',
+	CreateNew = 'workbench.action.terminal.new'
 }
 interface TerminalLabel {
 	name?: string,
@@ -79,9 +85,6 @@ export class Terminal {
 			// Reset
 			await this.code.dispatchKeybinding('Backspace');
 		}
-		if (commandId === TerminalCommandIdWithValue.CreateNew) {
-			return await this._waitForTerminal(value);
-		}
 		await this.code.dispatchKeybinding(altKey ? 'Alt+Enter' : 'enter');
 		await this.quickinput.waitForQuickInputClosed();
 	}
@@ -91,6 +94,11 @@ export class Terminal {
 		if (!skipEnter) {
 			await this.code.dispatchKeybinding('enter');
 		}
+	}
+
+	async createTerminal(assertLocation?: 'editor' | 'panel'): Promise<void> {
+		await this.runCommand(TerminalCommandId.CreateNew);
+		await this._waitForTerminal(assertLocation);
 	}
 
 	async assertEditorGroupCount(count: number): Promise<void> {
@@ -200,7 +208,7 @@ export class Terminal {
 		return (this.code.driver as any).page;
 	}
 
-	private async _waitForTerminal(value: any): Promise<void> {
+	private async _waitForTerminal(value?: 'editor' | 'panel'): Promise<void> {
 		await this.code.waitForElement(Selector.XtermFocused);
 		await this.code.waitForTerminalBuffer(value === 'editor' ? Selector.XtermEditor : Selector.Xterm, lines => lines.some(line => line.length > 0));
 	}
