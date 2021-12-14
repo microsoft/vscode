@@ -578,9 +578,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			case GroupChangeKind.EDITOR_LABEL:
 				this.onDidChangeEditorLabel(e.editor);
 				break;
-			case GroupChangeKind.EDITOR_CAPABILITIES:
-				this.onDidChangeEditorCapabilities(e.editor);
-				break;
 		}
 	}
 
@@ -772,12 +769,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Event
 		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_LABEL, editor });
-	}
-
-	private onDidChangeEditorCapabilities(editor: EditorInput): void {
-
-		// Event
-		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_CAPABILITIES, editor });
 	}
 
 	private onDidVisibilityChange(visible: boolean): void {
