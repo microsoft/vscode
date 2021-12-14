@@ -177,15 +177,15 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 		this._iconManager = this._register(this._instantiationService.createInstance(WebviewIconManager));
 
 		this._register(_editorService.onDidActiveEditorChange(() => {
-			this.updateActiveWebview();
+			this.updateActiveWebview(true);
 		}));
 
 		// The user may have switched focus between two sides of a diff editor
-		this._register(_webviewService.onDidChangeActiveWebview(() => {
-			this.updateActiveWebview();
+		this._register(_webviewService.onDidChangeActiveWebview(newActiveWebview => {
+			this.updateActiveWebview(!!newActiveWebview);
 		}));
 
-		this.updateActiveWebview();
+		this.updateActiveWebview(true);
 	}
 
 	get iconManager() {
@@ -197,7 +197,7 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 	private readonly _onDidChangeActiveWebviewEditor = this._register(new Emitter<WebviewInput | undefined>());
 	public readonly onDidChangeActiveWebviewEditor = this._onDidChangeActiveWebviewEditor.event;
 
-	private updateActiveWebview() {
+	private updateActiveWebview(isFocused: Boolean) {
 		const activeInput = this._editorService.activeEditor;
 
 		let newActiveWebview: WebviewInput | undefined;
@@ -213,7 +213,12 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 
 		if (newActiveWebview !== this._activeWebview) {
 			this._activeWebview = newActiveWebview;
+		}
+
+		if (isFocused || newActiveWebview !== this._activeWebview) {
 			this._onDidChangeActiveWebviewEditor.fire(newActiveWebview);
+		} else {
+			this._onDidChangeActiveWebviewEditor.fire(undefined);
 		}
 	}
 
