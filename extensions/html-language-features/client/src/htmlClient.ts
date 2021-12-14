@@ -12,8 +12,8 @@ import {
 	DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider, SemanticTokens, window, commands
 } from 'vscode';
 import {
-	LanguageClientOptions, RequestType, TextDocumentPositionParams, DocumentRangeFormattingParams,
-	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, TextDocumentIdentifier, RequestType0, Range as LspRange, NotificationType, CommonLanguageClient
+	LanguageClientOptions, RequestType, DocumentRangeFormattingParams,
+	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, TextDocumentIdentifier, RequestType0, Range as LspRange, Position as LspPosition, NotificationType, CommonLanguageClient
 } from 'vscode-languageclient';
 import { FileSystemProvider, serveFileSystemRequests } from './requests';
 import { getCustomDataSource } from './customData';
@@ -25,6 +25,25 @@ namespace CustomDataChangedNotification {
 
 namespace CustomDataContent {
 	export const type: RequestType<string, string, any> = new RequestType('html/customDataContent');
+}
+
+interface AutoInsertParams {
+	/**
+	 * The auto insert kind
+	 */
+	kind: 'autoQuote' | 'autoClose';
+	/**
+	 * The text document.
+	 */
+	textDocument: TextDocumentIdentifier;
+	/**
+	 * The position inside the text document.
+	 */
+	position: LspPosition;
+}
+
+namespace AutoInsertRequest {
+	export const type: RequestType<AutoInsertParams, string, any> = new RequestType('html/autoInsert');
 }
 
 // experimental: semantic tokens
@@ -130,18 +149,13 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 		client.onRequest(CustomDataContent.type, customDataSource.getContent);
 
 
-		let insertRequestor = (kind: 'autoQuote' | 'autoClose', document: TextDocument, position: Position) => {
-			let param = client.code2ProtocolConverter.asTextDocumentPositionParams(document, position);
-			let request: RequestType<TextDocumentPositionParams, string, any>;
-			switch (kind) {
-				case 'autoQuote':
-					request = new RequestType('html/quote');
-					break;
-				case 'autoClose':
-					request = new RequestType('html/tag');
-					break;
-			}
-			return client.sendRequest(request, param);
+		const insertRequestor = (kind: 'autoQuote' | 'autoClose', document: TextDocument, position: Position): Promise<string> => {
+			let param: AutoInsertParams = {
+				kind,
+				textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
+				position: client.code2ProtocolConverter.asPosition(position)
+			};
+			return client.sendRequest(AutoInsertRequest.type, param);
 		};
 		let disposable = activateAutoInsertion(insertRequestor, { html: true, handlebars: true }, runtime);
 		toDispose.push(disposable);

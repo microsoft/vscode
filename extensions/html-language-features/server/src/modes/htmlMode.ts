@@ -55,23 +55,21 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 		async getFoldingRanges(document: TextDocument): Promise<FoldingRange[]> {
 			return htmlLanguageService.getFoldingRanges(document);
 		},
-		async doAutoQuote(document: TextDocument, position: Position, settings = workspace.settings) {
-			const htmlSettings = settings?.html;
-			const options = merge(htmlSettings?.suggest, {});
-			options.attributeDefaultValue = htmlSettings?.completion?.attributeDefaultValue ?? 'doublequotes';
+		async doAutoInsert(document: TextDocument, position: Position, kind: 'autoQuote' | 'autoClose',  settings = workspace.settings) {
+			const offset = document.offsetAt(position);
+			const text = document.getText();
+			if (kind === 'autoQuote') {
+				if (offset > 0 && text.charAt(offset - 1) === '=') {
+					const htmlSettings = settings?.html;
+					const options = merge(htmlSettings?.suggest, {});
+					options.attributeDefaultValue = htmlSettings?.completion?.attributeDefaultValue ?? 'doublequotes';
 
-			const offset = document.offsetAt(position);
-			const text = document.getText();
-			if (offset > 0 && text.charAt(offset - 1) === '=') {
-				return htmlLanguageService.doQuoteComplete(document, position, htmlDocuments.get(document), options);
-			}
-			return null;
-		},
-		async doAutoClose(document: TextDocument, position: Position) {
-			const offset = document.offsetAt(position);
-			const text = document.getText();
-			if (offset > 0 && text.charAt(offset - 1).match(/[>\/]/g)) {
-				return htmlLanguageService.doTagComplete(document, position, htmlDocuments.get(document));
+					return htmlLanguageService.doQuoteComplete(document, position, htmlDocuments.get(document), options);
+				}
+			} else if (kind === 'autoClose') {
+				if (offset > 0 && text.charAt(offset - 1).match(/[>\/]/g)) {
+					return htmlLanguageService.doTagComplete(document, position, htmlDocuments.get(document));
+				}
 			}
 			return null;
 		},
