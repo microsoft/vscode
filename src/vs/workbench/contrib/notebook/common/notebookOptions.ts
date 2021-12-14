@@ -81,7 +81,6 @@ export interface NotebookOptionsChangeEvent {
 	readonly fontSize?: boolean;
 	readonly markupFontSize?: boolean;
 	readonly editorOptionsCustomizations?: boolean;
-	readonly cellBreakpointMargin?: boolean;
 }
 
 const defaultConfigConstants = Object.freeze({
@@ -501,10 +500,5 @@ export class NotebookOptions extends Disposable {
 			bottomIndicatorTop: totalHeight - bottomToolbarGap - this._layoutConfiguration.cellBottomMargin,
 			verticalIndicatorHeight: totalHeight - bottomToolbarGap
 		};
-	}
-
-	setCellBreakpointMarginActive(active: boolean) {
-		this._layoutConfiguration = { ...this._layoutConfiguration, ...{ cellBreakpointMarginActive: active } };
-		this._onDidChangeOptions.fire({ cellBreakpointMargin: true });
 	}
 }
