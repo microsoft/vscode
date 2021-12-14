@@ -277,6 +277,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 						groupActiveEditorPinnedContext.set(this.model.isPinned(this.model.activeEditor));
 					}
 					break;
+				case GroupChangeKind.EDITOR_STICKY:
+					if (e.editor && e.editor === this.model.activeEditor) {
+						groupActiveEditorStickyContext.set(this.model.isSticky(this.model.activeEditor));
+					}
+					break;
 			}
 		}));
 
@@ -287,11 +292,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 					// Track the active editor and update context key that reflects
 					// the dirty state of this editor
 					observeActiveEditor();
-					break;
-				case GroupChangeKind.EDITOR_STICKY:
-					if (e.editor && e.editor === this.model.activeEditor) {
-						groupActiveEditorStickyContext.set(this.model.isSticky(this.model.activeEditor));
-					}
 					break;
 			}
 
@@ -554,9 +554,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		switch (e.kind) {
-			case GroupChangeKind.EDITOR_STICKY:
-				this.onDidChangeEditorSticky(e.editor);
-				break;
 			case GroupChangeKind.EDITOR_MOVE:
 				if (isGroupEditorMoveEvent(e)) {
 					this.onDidMoveEditor(e.editor, e.oldEditorIndex, e.editorIndex);
@@ -585,10 +582,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				this.onDidChangeEditorCapabilities(e.editor);
 				break;
 		}
-	}
-
-	private onDidChangeEditorSticky(editor: EditorInput): void {
-		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_STICKY, editor });
 	}
 
 	private onDidMoveEditor(editor: EditorInput, oldEditorIndex: number, editorIndex: number): void {

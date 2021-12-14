@@ -152,12 +152,12 @@ export class OpenEditorsView extends ViewPane {
 					case GroupChangeKind.GROUP_ACTIVE:
 						this.focusActiveEditor();
 						break;
-					case GroupChangeKind.GROUP_INDEX: {
+					case GroupChangeKind.GROUP_INDEX:
 						if (index >= 0) {
 							this.list.splice(index, 1, [group]);
 						}
 						break;
-					}
+					case GroupChangeKind.EDITOR_STICKY:
 					case GroupChangeKind.EDITOR_PIN: {
 						this.list.splice(index, 1, [new OpenEditor(e.editor!, group)]);
 						this.focusActiveEditor();
@@ -176,24 +176,20 @@ export class OpenEditorsView extends ViewPane {
 
 				const index = this.getIndex(group, e.editor);
 				switch (e.kind) {
-					case GroupChangeKind.EDITOR_ACTIVE: {
+					case GroupChangeKind.EDITOR_ACTIVE:
 						this.focusActiveEditor();
 						break;
-					}
 					case GroupChangeKind.EDITOR_DIRTY:
 					case GroupChangeKind.EDITOR_LABEL:
 					case GroupChangeKind.EDITOR_CAPABILITIES:
-					case GroupChangeKind.EDITOR_STICKY: {
 						this.list.splice(index, 1, [new OpenEditor(e.editor!, group)]);
 						this.focusActiveEditor();
 						break;
-					}
 					case GroupChangeKind.EDITOR_OPEN:
 					case GroupChangeKind.EDITOR_CLOSE:
-					case GroupChangeKind.EDITOR_MOVE: {
+					case GroupChangeKind.EDITOR_MOVE:
 						updateWholeList();
 						break;
-					}
 				}
 			});
 			groupDisposables.set(group.id, combinedDisposable(groupModelChangeListener, legacyGroupChangeListener));

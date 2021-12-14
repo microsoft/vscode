@@ -411,6 +411,9 @@ suite('EditorGroupsService', () => {
 			if (e.kind === GroupChangeKind.EDITOR_PIN) {
 				assert.ok(e.editor);
 				editorPinCounter++;
+			} else if (e.kind === GroupChangeKind.EDITOR_STICKY) {
+				assert.ok(e.editor);
+				editorStickyCounter++;
 			}
 		});
 		const editorGroupChangeListener = group.onDidGroupChange(e => {
@@ -428,9 +431,6 @@ suite('EditorGroupsService', () => {
 			} else if (e.kind === GroupChangeKind.EDITOR_CAPABILITIES) {
 				assert.ok(e.editor);
 				editorCapabilitiesCounter++;
-			} else if (e.kind === GroupChangeKind.EDITOR_STICKY) {
-				assert.ok(e.editor);
-				editorStickyCounter++;
 			}
 		});
 
