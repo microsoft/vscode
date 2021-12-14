@@ -766,9 +766,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Forward to title control
 		this.titleAreaControl.updateEditorLabel(editor);
-
-		// Event
-		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_LABEL, editor });
 	}
 
 	private onDidVisibilityChange(visible: boolean): void {

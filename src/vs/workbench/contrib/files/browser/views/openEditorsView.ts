@@ -160,6 +160,7 @@ export class OpenEditorsView extends ViewPane {
 					case GroupChangeKind.EDITOR_STICKY:
 					case GroupChangeKind.EDITOR_CAPABILITIES:
 					case GroupChangeKind.EDITOR_PIN:
+					case GroupChangeKind.EDITOR_LABEL:
 						this.list.splice(index, 1, [new OpenEditor(e.editor!, group)]);
 						this.focusActiveEditor();
 						break;
@@ -180,7 +181,6 @@ export class OpenEditorsView extends ViewPane {
 						this.focusActiveEditor();
 						break;
 					case GroupChangeKind.EDITOR_DIRTY:
-					case GroupChangeKind.EDITOR_LABEL:
 						this.list.splice(index, 1, [new OpenEditor(e.editor!, group)]);
 						this.focusActiveEditor();
 						break;
