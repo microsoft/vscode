@@ -42,7 +42,6 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { TerminalProfileQuickpick } from 'vs/workbench/contrib/terminal/browser/terminalProfileQuickpick';
 import { IKeyMods } from 'vs/base/parts/quickinput/common/quickInput';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -152,8 +151,7 @@ export class TerminalService implements ITerminalService {
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@INotificationService private readonly _notificationService: INotificationService,
-		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService
+		@INotificationService private readonly _notificationService: INotificationService
 	) {
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper);
 		// the below avoids having to poll routinely.
@@ -897,15 +895,7 @@ export class TerminalService implements ITerminalService {
 		return instance?.target === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
 	}
 
-	private async _trust(): Promise<boolean> {
-		return (await this._workspaceTrustRequestService.requestWorkspaceTrust(
-			{
-				message: nls.localize('terminal.requestTrust', "Creating a terminal requires executing code")
-			})) === true;
-	}
-
 	async createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance> {
-		await this._trust();
 		// Await the initialization of available profiles as long as this is not a pty terminal or a
 		// local terminal in a remote workspace as profile won't be used in those cases and these
 		// terminals need to be launched before remote connections are established.
