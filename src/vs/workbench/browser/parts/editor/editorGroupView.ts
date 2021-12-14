@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/editorgroupview';
-import { EditorGroupModel, IEditorOpenOptions, IGroupChangeEvent, ISerializedEditorGroupModel, isGroupEditorCloseEvent, isGroupEditorOpenEvent, isSerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
-import { GroupIdentifier, CloseDirection, IEditorCloseEvent, ActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, ActiveEditorStickyContext, ActiveEditorPinnedContext, EditorResourceAccessor, EditorInputCapabilities, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, ActiveEditorGroupLockedContext, SideBySideEditor, EditorCloseContext, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, GroupChangeKind, IActiveEditorChangeEvent } from 'vs/workbench/common/editor';
+import { EditorGroupModel, IEditorOpenOptions, IGroupModelChangeEvent, ISerializedEditorGroupModel, isGroupEditorCloseEvent, isGroupEditorOpenEvent, isSerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
+import { GroupIdentifier, CloseDirection, IEditorCloseEvent, ActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, ActiveEditorStickyContext, ActiveEditorPinnedContext, EditorResourceAccessor, EditorInputCapabilities, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, ActiveEditorGroupLockedContext, SideBySideEditor, EditorCloseContext, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, GroupModelChangeKind, IActiveEditorChangeEvent } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
@@ -87,7 +87,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
 
-	private readonly _onDidModelChange = this._register(new Emitter<IGroupChangeEvent>());
+	private readonly _onDidModelChange = this._register(new Emitter<IGroupModelChangeEvent>());
 	readonly onDidModelChange = this._onDidModelChange.event;
 
 	private readonly _onDidActiveEditorChange = this._register(new Emitter<IActiveEditorChangeEvent>());
@@ -268,15 +268,15 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Update group contexts based on group changes
 		this._register(this.onDidModelChange(e => {
 			switch (e.kind) {
-				case GroupChangeKind.GROUP_LOCKED:
+				case GroupModelChangeKind.GROUP_LOCKED:
 					groupLockedContext.set(this.isLocked);
 					break;
-				case GroupChangeKind.EDITOR_PIN:
+				case GroupModelChangeKind.EDITOR_PIN:
 					if (e.editor && e.editor === this.model.activeEditor) {
 						groupActiveEditorPinnedContext.set(this.model.isPinned(this.model.activeEditor));
 					}
 					break;
-				case GroupChangeKind.EDITOR_STICKY:
+				case GroupModelChangeKind.EDITOR_STICKY:
 					if (e.editor && e.editor === this.model.activeEditor) {
 						groupActiveEditorStickyContext.set(this.model.isSticky(this.model.activeEditor));
 					}
@@ -536,7 +536,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._register(this.accessor.onDidVisibilityChange(e => this.onDidVisibilityChange(e)));
 	}
 
-	private onDidGroupModelChange(e: IGroupChangeEvent): void {
+	private onDidGroupModelChange(e: IGroupModelChangeEvent): void {
 
 		// Re-emit to outside
 		this._onDidModelChange.fire(e);
@@ -548,23 +548,23 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		switch (e.kind) {
-			case GroupChangeKind.EDITOR_OPEN:
+			case GroupModelChangeKind.EDITOR_OPEN:
 				if (isGroupEditorOpenEvent(e)) {
 					this.onDidOpenEditor(e.editor, e.editorIndex);
 				}
 				break;
-			case GroupChangeKind.EDITOR_CLOSE:
+			case GroupModelChangeKind.EDITOR_CLOSE:
 				if (isGroupEditorCloseEvent(e)) {
 					this.handleOnDidCloseEditor(e.editor, e.editorIndex, e.context, e.sticky);
 				}
 				break;
-			case GroupChangeKind.EDITOR_WILL_DISPOSE:
+			case GroupModelChangeKind.EDITOR_WILL_DISPOSE:
 				this.onWillDisposeEditor(e.editor);
 				break;
-			case GroupChangeKind.EDITOR_DIRTY:
+			case GroupModelChangeKind.EDITOR_DIRTY:
 				this.onDidChangeEditorDirty(e.editor);
 				break;
-			case GroupChangeKind.EDITOR_LABEL:
+			case GroupModelChangeKind.EDITOR_LABEL:
 				this.onDidChangeEditorLabel(e.editor);
 				break;
 		}

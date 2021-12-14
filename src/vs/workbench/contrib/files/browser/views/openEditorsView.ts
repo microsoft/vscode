@@ -13,7 +13,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Verbosity, EditorResourceAccessor, SideBySideEditor, EditorInputCapabilities, IEditorIdentifier, GroupChangeKind } from 'vs/workbench/common/editor';
+import { Verbosity, EditorResourceAccessor, SideBySideEditor, EditorInputCapabilities, IEditorIdentifier, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SaveAllInGroupAction, CloseGroupAction } from 'vs/workbench/contrib/files/browser/fileActions';
 import { OpenEditorsFocusedContext, ExplorerFocusedContext, IFilesConfiguration, OpenEditor } from 'vs/workbench/contrib/files/common/files';
@@ -149,26 +149,26 @@ export class OpenEditorsView extends ViewPane {
 
 				const index = this.getIndex(group, e.editor);
 				switch (e.kind) {
-					case GroupChangeKind.EDITOR_ACTIVE:
-					case GroupChangeKind.GROUP_ACTIVE:
+					case GroupModelChangeKind.EDITOR_ACTIVE:
+					case GroupModelChangeKind.GROUP_ACTIVE:
 						this.focusActiveEditor();
 						break;
-					case GroupChangeKind.GROUP_INDEX:
+					case GroupModelChangeKind.GROUP_INDEX:
 						if (index >= 0) {
 							this.list.splice(index, 1, [group]);
 						}
 						break;
-					case GroupChangeKind.EDITOR_DIRTY:
-					case GroupChangeKind.EDITOR_STICKY:
-					case GroupChangeKind.EDITOR_CAPABILITIES:
-					case GroupChangeKind.EDITOR_PIN:
-					case GroupChangeKind.EDITOR_LABEL:
+					case GroupModelChangeKind.EDITOR_DIRTY:
+					case GroupModelChangeKind.EDITOR_STICKY:
+					case GroupModelChangeKind.EDITOR_CAPABILITIES:
+					case GroupModelChangeKind.EDITOR_PIN:
+					case GroupModelChangeKind.EDITOR_LABEL:
 						this.list.splice(index, 1, [new OpenEditor(e.editor!, group)]);
 						this.focusActiveEditor();
 						break;
-					case GroupChangeKind.EDITOR_OPEN:
-					case GroupChangeKind.EDITOR_MOVE:
-					case GroupChangeKind.EDITOR_CLOSE:
+					case GroupModelChangeKind.EDITOR_OPEN:
+					case GroupModelChangeKind.EDITOR_MOVE:
+					case GroupModelChangeKind.EDITOR_CLOSE:
 						updateWholeList();
 						break;
 				}

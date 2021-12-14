@@ -144,7 +144,7 @@ import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/te
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { DeserializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
-import { IGroupChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
+import { IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
 import { env } from 'vs/base/common/process';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
@@ -817,7 +817,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	isMinimized = false;
 
 	onWillDispose: Event<void> = Event.None;
-	onDidModelChange: Event<IGroupChangeEvent> = Event.None;
+	onDidModelChange: Event<IGroupModelChangeEvent> = Event.None;
 	onWillCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	onDidOpenEditorFail: Event<EditorInput> = Event.None;

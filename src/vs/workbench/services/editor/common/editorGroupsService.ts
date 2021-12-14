@@ -13,7 +13,7 @@ import { IDimension } from 'vs/editor/common/editorCommon';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
-import { IGroupChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
+import { IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
 
@@ -407,7 +407,7 @@ export interface IEditorGroup {
 	/**
 	 * An event which fires whenever the underlying group model changes.
 	 */
-	readonly onDidModelChange: Event<IGroupChangeEvent>;
+	readonly onDidModelChange: Event<IGroupModelChangeEvent>;
 
 	/**
 	 * An event that is fired when the group gets disposed.

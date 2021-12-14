@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorFactoryRegistry, IEditorIdentifier, GroupIdentifier, EditorExtensions, IEditorPartOptionsChangeEvent, EditorsOrder, GroupChangeKind } from 'vs/workbench/common/editor';
+import { IEditorFactoryRegistry, IEditorIdentifier, GroupIdentifier, EditorExtensions, IEditorPartOptionsChangeEvent, EditorsOrder, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -119,7 +119,7 @@ export class EditorsObserver extends Disposable {
 			switch (e.kind) {
 
 				// Group gets active: put active editor as most recent
-				case GroupChangeKind.GROUP_ACTIVE: {
+				case GroupModelChangeKind.GROUP_ACTIVE: {
 					if (this.editorGroupsService.activeGroup === group && group.activeEditor) {
 						this.addMostRecentEditor(group, group.activeEditor, true /* is active */, false /* editor already opened */);
 					}
@@ -131,7 +131,7 @@ export class EditorsObserver extends Disposable {
 				//
 				// Also check for maximum allowed number of editors and
 				// start to close oldest ones if needed.
-				case GroupChangeKind.EDITOR_OPEN: {
+				case GroupModelChangeKind.EDITOR_OPEN: {
 					if (e.editor) {
 						this.addMostRecentEditor(group, e.editor, false /* is not active */, true /* is new */);
 						this.ensureOpenedEditorsLimit({ groupId: group.id, editor: e.editor }, group.id);

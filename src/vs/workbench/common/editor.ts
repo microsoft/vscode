@@ -831,7 +831,7 @@ export interface IEditorOpenEvent extends IEditorIdentifier {
 
 export type GroupIdentifier = number;
 
-export const enum GroupChangeKind {
+export const enum GroupModelChangeKind {
 
 	/* Group Changes */
 	GROUP_ACTIVE,
