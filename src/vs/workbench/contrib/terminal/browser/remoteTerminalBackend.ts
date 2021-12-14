@@ -166,6 +166,22 @@ class RemoteTerminalBackend extends Disposable implements ITerminalBackend {
 				const result = await Promise.all(resolveCalls);
 				channel.acceptPtyHostResolvedVariables(e.requestId, result);
 			}));
+
+			// Listen for config changes
+			const initialConfig = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
+			for (const match of Object.keys(initialConfig.autoReplies)) {
+				channel.installAutoReply(match, initialConfig.autoReplies[match]);
+			}
+			// TODO: Could simplify update to a single call
+			this._register(this._configurationService.onDidChangeConfiguration(async e => {
+				if (e.affectsConfiguration(TerminalSettingId.AutoReplies)) {
+					channel.uninstallAllAutoReplies();
+					const config = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
+					for (const match of Object.keys(config.autoReplies)) {
+						await channel.installAutoReply(match, config.autoReplies[match]);
+					}
+				}
+			}));
 		} else {
 			this._remoteTerminalChannel = null;
 		}
