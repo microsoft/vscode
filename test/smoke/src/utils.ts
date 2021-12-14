@@ -30,8 +30,8 @@ export function itSkipOnFail(title: string, callback: (this: Context) => any): v
 	it(title, function () {
 		return Promise.resolve().then(() => {
 			return callback.apply(this, arguments);
-		}).catch(() => {
-			console.warn(`Test "${title}" failed but was marks as skip on fail`);
+		}).catch(e => {
+			console.warn(`Test "${title}" failed but was marked as skip on fail:`, e);
 			this.skip();
 		});
 	});
