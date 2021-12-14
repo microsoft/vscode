@@ -63,23 +63,6 @@ interface IWorkbenchLayoutWindowRuntimeState {
 	},
 	zenMode: {
 		transitionDisposables: DisposableStore
-	},
-	preMoveGridInfo?: {
-		sideBar: {
-			hidden: boolean,
-			position: Position,
-		},
-		auxiliaryBar: {
-			hidden: boolean,
-		},
-		activityBar: {
-			hidden: boolean,
-		},
-		panel: {
-			hidden: boolean,
-			position: Position,
-			alignment: PanelAlignment,
-		}
 	}
 }
 
@@ -421,6 +404,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private initLayoutState(lifecycleService: ILifecycleService, fileService: IFileService): void {
 		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.parent);
 		this.stateModel.load();
+
+		// Both editor and panel should not be hidden on startup
+		if (this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN) && this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN)) {
+			this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, false);
+		}
 
 		this.stateModel.onDidChangeState(change => {
 			if (change.key === LayoutStateKeys.ACTIVITYBAR_HIDDEN) {
@@ -995,8 +983,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	getMaximumEditorDimensions(): Dimension {
-		const preMoveGridInfo = this.windowState.runtime.preMoveGridInfo;
-		const panelPosition = preMoveGridInfo?.panel.position ?? this.getPanelPosition();
+		const panelPosition = this.getPanelPosition();
 		const isColumn = panelPosition === Position.RIGHT || panelPosition === Position.LEFT;
 		const takenWidth =
 			(this.isVisible(Parts.ACTIVITYBAR_PART) ? this.activityBarPartView.minimumWidth : 0) +
@@ -1061,8 +1048,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			zenModeExitInfo.wasVisible.sideBar = this.isVisible(Parts.SIDEBAR_PART);
 			zenModeExitInfo.wasVisible.panel = this.isVisible(Parts.PANEL_PART);
 			zenModeExitInfo.wasVisible.auxiliaryBar = this.isVisible(Parts.AUXILIARYBAR_PART);
-			zenModeExitInfo.wasVisible.activityBar = this.isVisible(Parts.AUXILIARYBAR_PART);
-			zenModeExitInfo.wasVisible.statusBar = this.isVisible(Parts.STATUSBAR_PART);
 			this.stateModel.setRuntimeValue(LayoutStateKeys.ZEN_MODE_EXIT_INFO, zenModeExitInfo);
 
 			this.setPanelHidden(true, true);
@@ -1115,11 +1100,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.setSideBarHidden(false, true);
 			}
 
-			if (zenModeExitInfo.wasVisible.activityBar) {
+			if (!this.stateModel.getRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN, true)) {
 				this.setActivityBarHidden(false, true);
 			}
 
-			if (zenModeExitInfo.wasVisible.statusBar) {
+			if (!this.stateModel.getRuntimeValue(LayoutStateKeys.STATUSBAR_HIDDEN, true)) {
 				this.setStatusBarHidden(false, true);
 			}
 

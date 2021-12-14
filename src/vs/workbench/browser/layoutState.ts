@@ -14,10 +14,9 @@ interface IWorkbenchLayoutStateKey {
 	name: string,
 	runtime: boolean,
 	defaultValue: any,
-	storage?: {
-		scope: StorageScope,
-		target: StorageTarget
-	},
+	scope: StorageScope,
+	target: StorageTarget
+	zenModeIgnore?: boolean,
 }
 
 type StorageKeyType = string | boolean | number | object;
@@ -28,6 +27,9 @@ abstract class WorkbenchLayoutStateKey<T extends StorageKeyType> implements IWor
 
 class RuntimeStateKey<T extends StorageKeyType> extends WorkbenchLayoutStateKey<T> {
 	readonly runtime = true;
+	constructor(name: string, scope: StorageScope, target: StorageTarget, defaultValue: T, readonly zenModeIgnore?: boolean) {
+		super(name, scope, target, defaultValue);
+	}
 }
 
 class InitializationStateKey<T extends StorageKeyType> extends WorkbenchLayoutStateKey<T> {
@@ -36,10 +38,10 @@ class InitializationStateKey<T extends StorageKeyType> extends WorkbenchLayoutSt
 
 export const LayoutStateKeys = {
 	// Editor
-	EDITOR_CENTERED: new RuntimeStateKey('editor.centered', StorageScope.WORKSPACE, StorageTarget.USER, false),
+	EDITOR_CENTERED: new RuntimeStateKey<boolean>('editor.centered', StorageScope.WORKSPACE, StorageTarget.USER, false),
 
 	// Zen Mode
-	ZEN_MODE_ACTIVE: new RuntimeStateKey('zenMode.active', StorageScope.WORKSPACE, StorageTarget.USER, false),
+	ZEN_MODE_ACTIVE: new RuntimeStateKey<boolean>('zenMode.active', StorageScope.WORKSPACE, StorageTarget.USER, false),
 	ZEN_MODE_EXIT_INFO: new RuntimeStateKey('zenMode.exitInfo', StorageScope.WORKSPACE, StorageTarget.USER, {
 		transitionedToCenteredEditorLayout: false,
 		transitionedToFullScreen: false,
@@ -47,33 +49,31 @@ export const LayoutStateKeys = {
 			auxiliaryBar: false,
 			panel: false,
 			sideBar: false,
-			activityBar: true,
-			statusBar: true,
 		},
 	}),
 
 	// Part Sizing
 	GRID_SIZE: new InitializationStateKey('grid.size', StorageScope.GLOBAL, StorageTarget.MACHINE, { width: 800, height: 600 }),
-	SIDEBAR_SIZE: new InitializationStateKey('sideBar.size', StorageScope.GLOBAL, StorageTarget.MACHINE, 200),
-	AUXILIARYBAR_SIZE: new InitializationStateKey('auxiliaryBar.size', StorageScope.GLOBAL, StorageTarget.MACHINE, 200),
-	PANEL_SIZE: new InitializationStateKey('panel.size', StorageScope.GLOBAL, StorageTarget.MACHINE, 300),
+	SIDEBAR_SIZE: new InitializationStateKey<number>('sideBar.size', StorageScope.GLOBAL, StorageTarget.MACHINE, 200),
+	AUXILIARYBAR_SIZE: new InitializationStateKey<number>('auxiliaryBar.size', StorageScope.GLOBAL, StorageTarget.MACHINE, 200),
+	PANEL_SIZE: new InitializationStateKey<number>('panel.size', StorageScope.GLOBAL, StorageTarget.MACHINE, 300),
 
-	PANEL_LAST_NON_MAXIMIZED_HEIGHT: new RuntimeStateKey('panel.lastNonMaximizedHeight', StorageScope.GLOBAL, StorageTarget.MACHINE, 300),
-	PANEL_LAST_NON_MAXIMIZED_WIDTH: new RuntimeStateKey('panel.lastNonMaximizedWidth', StorageScope.GLOBAL, StorageTarget.MACHINE, 300),
-	PANEL_WAS_LAST_MAXIMIZED: new RuntimeStateKey('panel.wasLastMaximized', StorageScope.WORKSPACE, StorageTarget.USER, false),
+	PANEL_LAST_NON_MAXIMIZED_HEIGHT: new RuntimeStateKey<number>('panel.lastNonMaximizedHeight', StorageScope.GLOBAL, StorageTarget.MACHINE, 300),
+	PANEL_LAST_NON_MAXIMIZED_WIDTH: new RuntimeStateKey<number>('panel.lastNonMaximizedWidth', StorageScope.GLOBAL, StorageTarget.MACHINE, 300),
+	PANEL_WAS_LAST_MAXIMIZED: new RuntimeStateKey<boolean>('panel.wasLastMaximized', StorageScope.WORKSPACE, StorageTarget.USER, false),
 
 	// Part Positions
-	SIDEBAR_POSITON: new RuntimeStateKey('sideBar.position', StorageScope.GLOBAL, StorageTarget.USER, Position.LEFT as Position),
-	PANEL_POSITION: new RuntimeStateKey('panel.position', StorageScope.WORKSPACE, StorageTarget.USER, Position.BOTTOM as Position),
-	PANEL_ALIGNMENT: new RuntimeStateKey('panel.alignment', StorageScope.GLOBAL, StorageTarget.USER, 'center' as PanelAlignment),
+	SIDEBAR_POSITON: new RuntimeStateKey<Position>('sideBar.position', StorageScope.GLOBAL, StorageTarget.USER, Position.LEFT),
+	PANEL_POSITION: new RuntimeStateKey<Position>('panel.position', StorageScope.WORKSPACE, StorageTarget.USER, Position.BOTTOM),
+	PANEL_ALIGNMENT: new RuntimeStateKey<PanelAlignment>('panel.alignment', StorageScope.GLOBAL, StorageTarget.USER, 'center'),
 
 	// Part Visibility
-	ACTIVITYBAR_HIDDEN: new RuntimeStateKey('activityBar.hidden', StorageScope.GLOBAL, StorageTarget.USER, false),
-	SIDEBAR_HIDDEN: new RuntimeStateKey('sideBar.hidden', StorageScope.WORKSPACE, StorageTarget.USER, false),
-	EDITOR_HIDDEN: new RuntimeStateKey('editor.hidden', StorageScope.WORKSPACE, StorageTarget.USER, false),
-	PANEL_HIDDEN: new RuntimeStateKey('panel.hidden', StorageScope.WORKSPACE, StorageTarget.USER, true),
-	AUXILIARYBAR_HIDDEN: new RuntimeStateKey('auxiliaryBar.hidden', StorageScope.WORKSPACE, StorageTarget.USER, true),
-	STATUSBAR_HIDDEN: new RuntimeStateKey('statusBar.hidden', StorageScope.GLOBAL, StorageTarget.USER, false),
+	ACTIVITYBAR_HIDDEN: new RuntimeStateKey<boolean>('activityBar.hidden', StorageScope.GLOBAL, StorageTarget.USER, false, true),
+	SIDEBAR_HIDDEN: new RuntimeStateKey<boolean>('sideBar.hidden', StorageScope.WORKSPACE, StorageTarget.USER, false),
+	EDITOR_HIDDEN: new RuntimeStateKey<boolean>('editor.hidden', StorageScope.WORKSPACE, StorageTarget.USER, false),
+	PANEL_HIDDEN: new RuntimeStateKey<boolean>('panel.hidden', StorageScope.WORKSPACE, StorageTarget.USER, true),
+	AUXILIARYBAR_HIDDEN: new RuntimeStateKey<boolean>('auxiliaryBar.hidden', StorageScope.WORKSPACE, StorageTarget.USER, true),
+	STATUSBAR_HIDDEN: new RuntimeStateKey<boolean>('statusBar.hidden', StorageScope.GLOBAL, StorageTarget.USER, false, true),
 } as const;
 
 
@@ -102,11 +102,13 @@ export class LayoutStateModel extends Disposable {
 	}
 
 	private updateStateFromLegacySettings(configurationChangeEvent: IConfigurationChangeEvent): void {
-		if (configurationChangeEvent.affectsConfiguration(LegacyWorkbenchLayoutSettings.ACTIVITYBAR_VISIBLE)) {
+		const isZenMode = this.getRuntimeValue(LayoutStateKeys.ZEN_MODE_ACTIVE);
+
+		if (configurationChangeEvent.affectsConfiguration(LegacyWorkbenchLayoutSettings.ACTIVITYBAR_VISIBLE) && !isZenMode) {
 			this.setRuntimeValueAndFire(LayoutStateKeys.ACTIVITYBAR_HIDDEN, !this.configurationService.getValue(LegacyWorkbenchLayoutSettings.ACTIVITYBAR_VISIBLE));
 		}
 
-		if (configurationChangeEvent.affectsConfiguration(LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE)) {
+		if (configurationChangeEvent.affectsConfiguration(LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE) && !isZenMode) {
 			this.setRuntimeValueAndFire(LayoutStateKeys.STATUSBAR_HIDDEN, !this.configurationService.getValue(LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE));
 		}
 
@@ -120,6 +122,11 @@ export class LayoutStateModel extends Disposable {
 	}
 
 	private updateLegacySettingsFromState<T extends StorageKeyType>(key: RuntimeStateKey<T>, value: T): void {
+		const isZenMode = this.getRuntimeValue(LayoutStateKeys.ZEN_MODE_ACTIVE);
+		if (key.zenModeIgnore && isZenMode) {
+			return;
+		}
+
 		if (key === LayoutStateKeys.ACTIVITYBAR_HIDDEN) {
 			this.configurationService.updateValue(LegacyWorkbenchLayoutSettings.ACTIVITYBAR_VISIBLE, !value);
 		} else if (key === LayoutStateKeys.STATUSBAR_HIDDEN) {
@@ -136,20 +143,13 @@ export class LayoutStateModel extends Disposable {
 
 		// Load stored values for all keys
 		for (key in LayoutStateKeys) {
-			const stateKey = LayoutStateKeys[key];
-			let value: any = this.storageService.get(`${LayoutStateModel.STORAGE_PREFIX}${stateKey.name}`, stateKey.scope);
+			const stateKey = LayoutStateKeys[key] as WorkbenchLayoutStateKey<StorageKeyType>;
+			const value = this.loadKeyFromStorage(stateKey);
 
 			if (value !== undefined) {
-				switch (typeof stateKey.defaultValue) {
-					case 'boolean': value = value === 'true'; break;
-					case 'number': value = parseInt(value); break;
-					case 'object': value = JSON.parse(value); break;
-				}
-
 				this.stateCache.set(stateKey.name, value);
 			}
 		}
-
 
 		// Apply sizing defaults
 		const workbenchDimensions = getClientArea(this.container);
@@ -183,10 +183,17 @@ export class LayoutStateModel extends Disposable {
 	save(workspace: boolean, global: boolean): void {
 		let key: keyof typeof LayoutStateKeys;
 
+		const isZenMode = this.getRuntimeValue(LayoutStateKeys.ZEN_MODE_ACTIVE);
+
 		for (key in LayoutStateKeys) {
 			const stateKey = LayoutStateKeys[key] as WorkbenchLayoutStateKey<StorageKeyType>;
 			if ((workspace && stateKey.scope === StorageScope.WORKSPACE) ||
 				(global && stateKey.scope === StorageScope.GLOBAL)) {
+				// Don't write out specific keys while in zen mode
+				if (isZenMode && stateKey instanceof RuntimeStateKey && stateKey.zenModeIgnore) {
+					continue;
+				}
+
 				this.saveKeyToStorage(stateKey);
 			}
 		}
@@ -200,16 +207,24 @@ export class LayoutStateModel extends Disposable {
 		this.stateCache.set(key.name, value);
 	}
 
-	getRuntimeValue<T extends StorageKeyType>(key: RuntimeStateKey<T>): T {
+	getRuntimeValue<T extends StorageKeyType>(key: RuntimeStateKey<T>, readFromDisk?: boolean): T {
+		if (readFromDisk) {
+			const fromDiskValue = this.loadKeyFromStorage(key);
+			this.stateCache.set(key.name, fromDiskValue ?? key.defaultValue);
+		}
+
 		return this.stateCache.get(key.name) as T;
 	}
 
 	setRuntimeValue<T extends StorageKeyType>(key: RuntimeStateKey<T>, value: T): void {
 		this.stateCache.set(key.name, value);
+		const isZenMode = this.getRuntimeValue(LayoutStateKeys.ZEN_MODE_ACTIVE);
 
 		if (key.scope === StorageScope.GLOBAL) {
-			this.saveKeyToStorage<T>(key);
-			this.updateLegacySettingsFromState(key, value);
+			if (!isZenMode || !key.zenModeIgnore) {
+				this.saveKeyToStorage<T>(key);
+				this.updateLegacySettingsFromState(key, value);
+			}
 		}
 	}
 
@@ -226,6 +241,20 @@ export class LayoutStateModel extends Disposable {
 	private saveKeyToStorage<T extends StorageKeyType>(key: WorkbenchLayoutStateKey<T>): void {
 		const value = this.stateCache.get(key.name) as T;
 		this.storageService.store(`${LayoutStateModel.STORAGE_PREFIX}${key.name}`, typeof value === 'object' ? JSON.stringify(value) : value, key.scope, key.target);
+	}
+
+	private loadKeyFromStorage<T extends StorageKeyType>(key: WorkbenchLayoutStateKey<T>): T | undefined {
+		let value: any = this.storageService.get(`${LayoutStateModel.STORAGE_PREFIX}${key.name}`, key.scope);
+
+		if (value !== undefined) {
+			switch (typeof key.defaultValue) {
+				case 'boolean': value = value === 'true'; break;
+				case 'number': value = parseInt(value); break;
+				case 'object': value = JSON.parse(value); break;
+			}
+		}
+
+		return value as T | undefined;
 	}
 }
 
