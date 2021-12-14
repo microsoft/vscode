@@ -21,7 +21,7 @@ suite('NotebookCellList', () => {
 		disposables = new DisposableStore();
 		instantiationService = setupInstantiationService(disposables);
 		notebookDefaultOptions = new NotebookOptions(instantiationService.get(IConfigurationService));
-		topInsertToolbarHeight = notebookDefaultOptions.computeTopInserToolbarHeight();
+		topInsertToolbarHeight = notebookDefaultOptions.computeTopInsertToolbarHeight();
 
 	});
 

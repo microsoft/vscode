@@ -425,7 +425,7 @@ export class NotebookOptions extends Disposable {
 		return 'right';
 	}
 
-	computeTopInserToolbarHeight(viewType?: string): number {
+	computeTopInsertToolbarHeight(viewType?: string): number {
 		if (this._layoutConfiguration.insertToolbarPosition === 'betweenCells' || this._layoutConfiguration.insertToolbarPosition === 'both') {
 			return SCROLLABLE_ELEMENT_PADDING_TOP;
 		}
