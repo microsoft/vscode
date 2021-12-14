@@ -6,9 +6,10 @@
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { Color } from 'vs/base/common/color';
-import { IColorTheme, IThemeService, IFileIconTheme } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService, IFileIconTheme, IProductIconTheme } from 'vs/platform/theme/common/themeService';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { isBoolean, isString } from 'vs/base/common/types';
+import { IconContribution, IconDefinition } from 'vs/platform/theme/common/iconRegistry';
 
 export const IWorkbenchThemeService = refineServiceDecorator<IThemeService, IWorkbenchThemeService>(IThemeService);
 
@@ -59,8 +60,10 @@ export interface IColorMap {
 export interface IWorkbenchFileIconTheme extends IWorkbenchTheme, IFileIconTheme {
 }
 
-export interface IWorkbenchProductIconTheme extends IWorkbenchTheme {
+export interface IWorkbenchProductIconTheme extends IWorkbenchTheme, IProductIconTheme {
 	readonly settingsId: string;
+
+	getIcon(icon: IconContribution): IconDefinition | undefined;
 }
 
 export type ThemeSettingTarget = ConfigurationTarget | undefined | 'auto' | 'preview';
@@ -200,7 +203,7 @@ export namespace ExtensionData {
 		}
 		return undefined;
 	}
-	export function fromName(publisher: string, name: string, isBuiltin = false) : ExtensionData {
+	export function fromName(publisher: string, name: string, isBuiltin = false): ExtensionData {
 		return { extensionPublisher: publisher, extensionId: `${publisher}.${name}`, extensionName: name, extensionIsBuiltin: isBuiltin };
 	}
 }

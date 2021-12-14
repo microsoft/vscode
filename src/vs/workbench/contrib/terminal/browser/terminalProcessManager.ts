@@ -223,7 +223,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				// this is a copy of what the merged environment collection is on the remote side
 				await this._setupEnvVariableInfo(backend, variableResolver, shellLaunchConfig);
 
-				const shouldPersist = !shellLaunchConfig.isFeatureTerminal && this._configHelper.config.enablePersistentSessions;
+				const shouldPersist = !shellLaunchConfig.isFeatureTerminal && this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.disablePersistence;
 				if (shellLaunchConfig.attachPersistentProcess) {
 					const result = await backend.attachToProcess(shellLaunchConfig.attachPersistentProcess.id);
 					if (result) {

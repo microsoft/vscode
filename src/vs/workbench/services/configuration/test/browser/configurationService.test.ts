@@ -1133,7 +1133,9 @@ suite('WorkspaceConfigurationService - Folder', () => {
 
 	test('change event when there are global tasks', async () => {
 		await fileService.writeFile(joinPath(environmentService.userRoamingDataHome, 'tasks.json'), VSBuffer.fromString('{ "version": "1.0.0", "tasks": [{ "taskName": "myTask" }'));
-		return new Promise<void>((c) => testObject.onDidChangeConfiguration(() => c()));
+		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+		await testObject.reloadLocalUserConfiguration();
+		await promise;
 	});
 
 	test('creating workspace settings', async () => {

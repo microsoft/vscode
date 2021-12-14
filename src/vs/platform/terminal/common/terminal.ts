@@ -467,6 +467,11 @@ export interface IShellLaunchConfig {
 	 * or via Size to Content Width
 	 */
 	fixedDimensions?: IFixedTerminalDimensions;
+
+	/**
+	 * Opt-out of the default terminal persistence on restart and reload
+	 */
+	disablePersistence?: boolean;
 }
 
 export interface ICreateContributedTerminalProfileOptions {
