@@ -5,20 +5,21 @@
 
 import * as fs from 'fs';
 import { gracefulify } from 'graceful-fs';
-import { retry } from 'vs/base/common/async';
+import { Barrier, retry } from 'vs/base/common/async';
+import { ResourceMap } from 'vs/base/common/map';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { isEqual } from 'vs/base/common/extpath';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { basename, dirname } from 'vs/base/common/path';
 import { isLinux, isWindows } from 'vs/base/common/platform';
-import { joinPath } from 'vs/base/common/resources';
+import { extUriBiasedIgnorePathCase, joinPath } from 'vs/base/common/resources';
 import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { IDirent, Promises, RimRafMode, SymlinkSupport } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
-import { createFileSystemProviderError, FileDeleteOptions, FileOpenOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat } from 'vs/platform/files/common/files';
+import { createFileSystemProviderError, FileAtomicReadOptions, FileDeleteOptions, FileOpenOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat } from 'vs/platform/files/common/files';
 import { readFileIntoStream } from 'vs/platform/files/common/io';
 import { NodeJSFileWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
 import { ParcelWatcherClient } from 'vs/platform/files/node/watcher/parcel/parcelWatcherClient';
@@ -68,7 +69,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	IFileSystemProviderWithFileReadWriteCapability,
 	IFileSystemProviderWithOpenReadWriteCloseCapability,
 	IFileSystemProviderWithFileReadStreamCapability,
-	IFileSystemProviderWithFileFolderCopyCapability {
+	IFileSystemProviderWithFileFolderCopyCapability,
+	IFileSystemProviderWithFileAtomicReadCapability {
 
 	constructor(
 		logService: ILogService,
@@ -89,7 +91,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 				FileSystemProviderCapabilities.FileOpenReadWriteClose |
 				FileSystemProviderCapabilities.FileReadStream |
 				FileSystemProviderCapabilities.FileFolderCopy |
-				FileSystemProviderCapabilities.FileWriteUnlock;
+				FileSystemProviderCapabilities.FileWriteUnlock |
+				FileSystemProviderCapabilities.FileAtomicRead;
 
 			if (isLinux) {
 				this._capabilities |= FileSystemProviderCapabilities.PathCaseSensitive;
@@ -172,13 +175,57 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 	//#region File Reading/Writing
 
-	async readFile(resource: URI): Promise<Uint8Array> {
+	private readonly writeBarriers = new ResourceMap<Barrier>(resource => extUriBiasedIgnorePathCase.getComparisonKey(resource));
+
+	private async createWriteBarrier(resource: URI): Promise<IDisposable> {
+
+		// Await pending barriers for resource
+		// It is possible for a new barrier being
+		// added right after opening, so we have
+		// to loop over barriers until no barrier
+		// remains.
+		let existingWriteBarrier: Barrier | undefined = undefined;
+		while (existingWriteBarrier = this.writeBarriers.get(resource)) {
+			await existingWriteBarrier.wait();
+		}
+
+		// Store new
+		const newWriteBarrier = new Barrier();
+		this.writeBarriers.set(resource, newWriteBarrier);
+
+		return toDisposable(() => {
+
+			// Only delete barrier when we are still the owner
+			const writeBarrierForResource = this.writeBarriers.get(resource);
+			if (writeBarrierForResource === newWriteBarrier) {
+				this.writeBarriers.delete(resource);
+			}
+
+			// Finally open our barrier
+			newWriteBarrier.open();
+		});
+	}
+
+	async readFile(resource: URI, options?: FileAtomicReadOptions): Promise<Uint8Array> {
+		let barrier: IDisposable | undefined = undefined;
 		try {
+			if (options?.atomic) {
+				// When the read should be atomic, make sure
+				// to await any pending write and block writes
+				// for as long as we read.
+				barrier = await this.createWriteBarrier(resource);
+			}
+
 			const filePath = this.toFilePath(resource);
 
 			return await Promises.readFile(filePath);
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
+		} finally {
+
+			// Release any barrier we created if the
+			// read was supposed to be atomic
+			barrier?.dispose();
 		}
 	}
 
@@ -227,11 +274,21 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	}
 
 	private readonly mapHandleToPos = new Map<number, number>();
+	private readonly mapHandleToBarrier = new Map<number, IDisposable>();
 
 	private readonly writeHandles = new Map<number, URI>();
 	private canFlush: boolean = true;
 
 	async open(resource: URI, opts: FileOpenOptions): Promise<number> {
+
+		// Writes: guard multiple writes to the same resource
+		// behind a single barrier to prevent races when writing
+		// from multiple places at the same time to the same file
+		let barrier: IDisposable | undefined = undefined;
+		if (isFileOpenForWriteOptions(opts)) {
+			barrier = await this.createWriteBarrier(resource);
+		}
+
 		try {
 			const filePath = this.toFilePath(resource);
 
@@ -294,8 +351,19 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 				this.writeHandles.set(handle, resource);
 			}
 
+			// remember that this handle has an associated barrier
+			if (barrier) {
+				this.mapHandleToBarrier.set(handle, barrier);
+			}
+
 			return handle;
 		} catch (error) {
+
+			// Release barrier because we have no valid handle
+			// if we did open a barrier during this operation
+			barrier?.dispose();
+
+			// Rethrow as file system provider error
 			if (isFileOpenForWriteOptions(opts)) {
 				throw await this.toFileSystemProviderWriteError(resource, error);
 			} else {
@@ -326,6 +394,15 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			return await Promises.close(fd);
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
+		} finally {
+
+			// Release any known barrier for the file handle
+			// since the handle has been closed and is invalid
+			const barrierForHandle = this.mapHandleToBarrier.get(fd);
+			if (barrierForHandle) {
+				barrierForHandle.dispose();
+				this.mapHandleToBarrier.delete(fd);
+			}
 		}
 	}
 
