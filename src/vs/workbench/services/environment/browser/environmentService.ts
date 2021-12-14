@@ -116,8 +116,19 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	@memoize
 	get logFile(): URI { return joinPath(this.options.logsPath, 'window.log'); }
 
+	/**
+	 * Use the local disk. This solves two problems:
+	 *  1. Extensions running in the browser (like Vim) might use these paths
+	 *     directly instead of using the file service and most likely can't write
+	 *     to `/User` on disk.
+	 *  2. Settings will be stored in the file system instead of in browser
+	 *     storage. Using browser storage makes sharing or seeding settings
+	 *     between browsers difficult. We may want to revisit this once/if we get
+	 *     settings sync.
+	 * @author coder
+	 */
 	@memoize
-	get userRoamingDataHome(): URI { return URI.file('/User').with({ scheme: Schemas.userData }); }
+	get userRoamingDataHome(): URI { return joinPath(URI.file(this.userDataPath).with({ scheme: Schemas.vscodeRemote }), 'User'); }
 
 	@memoize
 	get settingsResource(): URI { return joinPath(this.userRoamingDataHome, 'settings.json'); }
@@ -256,7 +267,12 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	get ignoreLastOpened(): boolean {
 		return !!this.options.ignoreLastOpened;
 	}
-
+	get userDataPath(): string {
+		if (!this.options.userDataPath) {
+			throw new Error('userDataPath was not provided to the browser');
+		}
+		return this.options.userDataPath;
+	}
 	//#endregion
 
 	private payload: Map<string, string> | undefined;

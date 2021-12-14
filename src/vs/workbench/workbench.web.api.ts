@@ -345,6 +345,10 @@ interface IWorkbenchConstructionOptions {
 	 * @see `BrowserMain#initServices`
 	 */
 	readonly ignoreLastOpened?: boolean
+	/**
+	 * Path to the user data directory.
+	 */
+	readonly userDataPath?: string
 
 	//#endregion
 
