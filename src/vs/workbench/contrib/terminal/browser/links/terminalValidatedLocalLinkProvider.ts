@@ -55,7 +55,7 @@ const MAX_LENGTH = 2000;
 let map = new Map<string, TerminalLink | string>();
 export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider {
 	private _cacheTilTimeout = 0;
-	protected static _enableCaching = true;
+	_enableCaching: boolean = true;
 	constructor(
 		private readonly _xterm: Terminal,
 		private readonly _processOperatingSystem: OperatingSystem,
@@ -76,7 +76,7 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 		const result: TerminalLink[] = [];
 		let startLine = y - 1;
 		let endLine = startLine;
-		if (TerminalValidatedLocalLinkProvider._enableCaching) {
+		if (this._enableCaching) {
 			if (this._cacheTilTimeout) {
 				window.clearTimeout(this._cacheTilTimeout);
 			}
@@ -115,7 +115,7 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 				break;
 			}
 			const originalLink = link;
-			if (TerminalValidatedLocalLinkProvider._enableCaching) {
+			if (this._enableCaching) {
 				const cachedLinkResult = map.get(originalLink);
 				if (!!cachedLinkResult && typeof cachedLinkResult !== 'string') {
 					result.push(cachedLinkResult);
@@ -177,13 +177,15 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 					}
 				});
 			});
-			if (TerminalValidatedLocalLinkProvider._enableCaching) {
+			if (this._enableCaching) {
 				if (validatedLink) {
 					map.set(originalLink, validatedLink);
-					result.push(validatedLink);
 				} else {
 					map.set(originalLink, InvalidLinkResult);
 				}
+			}
+			if (validatedLink) {
+				result.push(validatedLink);
 			}
 		}
 

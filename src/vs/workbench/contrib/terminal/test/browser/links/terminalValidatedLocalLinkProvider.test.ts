@@ -46,7 +46,7 @@ const windowsLinks = [
 ];
 
 class TestTerminalValidatedLocalLinkProvider extends TerminalValidatedLocalLinkProvider {
-	static override _enableCaching: boolean = false;
+	override _enableCaching: boolean = false;
 }
 
 interface LinkFormatInfo {
