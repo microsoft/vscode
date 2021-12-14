@@ -149,6 +149,9 @@ export class OpenEditorsView extends ViewPane {
 
 				const index = this.getIndex(group, e.editor);
 				switch (e.kind) {
+					case GroupChangeKind.GROUP_ACTIVE:
+						this.focusActiveEditor();
+						break;
 					case GroupChangeKind.GROUP_INDEX: {
 						if (index >= 0) {
 							this.list.splice(index, 1, [group]);
@@ -168,7 +171,6 @@ export class OpenEditorsView extends ViewPane {
 
 				const index = this.getIndex(group, e.editor);
 				switch (e.kind) {
-					case GroupChangeKind.GROUP_ACTIVE:
 					case GroupChangeKind.EDITOR_ACTIVE: {
 						this.focusActiveEditor();
 						break;

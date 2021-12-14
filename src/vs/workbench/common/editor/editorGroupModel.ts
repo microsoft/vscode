@@ -566,7 +566,27 @@ export class EditorGroupModel extends Disposable {
 		return editor;
 	}
 
-	setActive(candidate: EditorInput): EditorInput | undefined {
+	setActive(candidate: EditorInput | undefined): EditorInput | undefined {
+		let result: EditorInput | undefined = undefined;
+
+		if (!candidate) {
+			this.setGroupActive();
+		} else {
+			result = this.setEditorActive(candidate);
+		}
+
+		return result;
+	}
+
+	private setGroupActive(): void {
+		// We do not really keep the `active` state in our model because
+		// it has no special meaning to us here. But for consistency
+		// we emit a `onDidModelChange` event so that components can
+		// react.
+		this._onDidModelChange.fire({ kind: GroupChangeKind.GROUP_ACTIVE });
+	}
+
+	private setEditorActive(candidate: EditorInput): EditorInput | undefined {
 		const res = this.findEditor(candidate);
 		if (!res) {
 			return; // not found

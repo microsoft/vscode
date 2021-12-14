@@ -188,15 +188,15 @@ export class MainThreadEditorTabs {
 	// 	let eventString = '[';
 	// 	events.forEach(event => {
 	// 		switch (event.kind) {
-	// 			case GroupChangeKind.GROUP_INDEX: eventString += 'GROUP_INDEX, '; break;
-	// 			case GroupChangeKind.EDITOR_ACTIVE: eventString += 'EDITOR_ACTIVE, '; break;
-	// 			case GroupChangeKind.EDITOR_PIN: eventString += 'EDITOR_PIN, '; break;
-	// 			case GroupChangeKind.EDITOR_OPEN: eventString += 'EDITOR_OPEN, '; break;
-	// 			case GroupChangeKind.EDITOR_CLOSE: eventString += 'EDITOR_CLOSE, '; break;
-	// 			case GroupChangeKind.EDITOR_MOVE: eventString += 'EDITOR_MOVE, '; break;
-	// 			case GroupChangeKind.EDITOR_LABEL: eventString += 'EDITOR_LABEL, '; break;
-	// 			case GroupChangeKind.GROUP_ACTIVE: eventString += 'GROUP_ACTIVE, '; break;
-	// 			case GroupChangeKind.GROUP_LOCKED: eventString += 'GROUP_LOCKED, '; break;
+	// 			case GroupChangeKind.GROUP__INDEX: eventString += 'GROUP__INDEX, '; break;
+	// 			case GroupChangeKind.EDITOR__ACTIVE: eventString += 'EDITOR__ACTIVE, '; break;
+	// 			case GroupChangeKind.EDITOR__PIN: eventString += 'EDITOR__PIN, '; break;
+	// 			case GroupChangeKind.EDITOR__OPEN: eventString += 'EDITOR__OPEN, '; break;
+	// 			case GroupChangeKind.EDITOR__CLOSE: eventString += 'EDITOR__CLOSE, '; break;
+	// 			case GroupChangeKind.EDITOR__MOVE: eventString += 'EDITOR__MOVE, '; break;
+	// 			case GroupChangeKind.EDITOR__LABEL: eventString += 'EDITOR__LABEL, '; break;
+	// 			case GroupChangeKind.GROUP__ACTIVE: eventString += 'GROUP__ACTIVE, '; break;
+	// 			case GroupChangeKind.GROUP__LOCKED: eventString += 'GROUP__LOCKED, '; break;
 	// 			default: eventString += 'UNKNOWN, '; break;
 	// 		}
 	// 	});

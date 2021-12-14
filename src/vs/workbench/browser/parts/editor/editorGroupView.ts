@@ -857,8 +857,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Update styles
 		this.updateStyles();
 
-		// Event
-		this._onDidGroupChange.fire({ kind: GroupChangeKind.GROUP_ACTIVE });
+		// Update model
+		this.model.setActive(undefined /* entire group got active */);
 	}
 
 	//#endregion

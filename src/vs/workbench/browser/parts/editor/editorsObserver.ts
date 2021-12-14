@@ -115,7 +115,7 @@ export class EditorsObserver extends Disposable {
 
 	private registerGroupListeners(group: IEditorGroup): void {
 		const groupDisposables = new DisposableStore();
-		groupDisposables.add(group.onDidGroupChange(e => {
+		groupDisposables.add(group.onDidModelChange(e => {
 			switch (e.kind) {
 
 				// Group gets active: put active editor as most recent
@@ -126,6 +126,11 @@ export class EditorsObserver extends Disposable {
 
 					break;
 				}
+			}
+		}));
+
+		groupDisposables.add(group.onDidGroupChange(e => {
+			switch (e.kind) {
 
 				// Editor gets active: put active editor as most recent
 				// if group is active, otherwise second most recent

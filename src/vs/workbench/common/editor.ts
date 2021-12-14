@@ -826,7 +826,7 @@ export type GroupIdentifier = number;
 export const enum GroupChangeKind {
 
 	/* Group Changes */
-	GROUP_ACTIVE, // TO BE DONE
+	GROUP_ACTIVE,
 	GROUP_INDEX,
 	GROUP_LOCKED,
 

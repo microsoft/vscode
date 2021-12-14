@@ -93,14 +93,14 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(activeGroupChangeCounter, 0);
 
 		let rootGroupActiveChangeCounter = 0;
-		const rootGroupChangeListener = rootGroup.onDidGroupChange(e => {
+		const rootGroupChangeListener = rootGroup.onDidModelChange(e => {
 			if (e.kind === GroupChangeKind.GROUP_ACTIVE) {
 				rootGroupActiveChangeCounter++;
 			}
 		});
 
 		let rightGroupActiveChangeCounter = 0;
-		const rightGroupChangeListener = rightGroup.onDidGroupChange(e => {
+		const rightGroupChangeListener = rightGroup.onDidModelChange(e => {
 			if (e.kind === GroupChangeKind.GROUP_ACTIVE) {
 				rightGroupActiveChangeCounter++;
 			}
