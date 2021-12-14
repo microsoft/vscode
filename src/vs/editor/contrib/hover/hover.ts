@@ -87,7 +87,14 @@ export class ModesHoverController implements IEditorContribution {
 			this._toUnhook.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
 		}
 
-		this._toUnhook.add(this._editor.onMouseLeave(hideWidgetsEventHandler));
+		this._toUnhook.add(this._editor.onMouseLeave((e) => {
+			const targetEm = (e.event.browserEvent.relatedTarget) as HTMLElement;
+			if (this._contentWidget?.getDomNode()?.contains(targetEm)) {
+				// when the mouse is inside hoverWidget
+				return;
+			}
+			hideWidgetsEventHandler();
+		}));
 		this._toUnhook.add(this._editor.onDidChangeModel(hideWidgetsEventHandler));
 		this._toUnhook.add(this._editor.onDidScrollChange((e: IScrollEvent) => this._onEditorScrollChanged(e)));
 	}
