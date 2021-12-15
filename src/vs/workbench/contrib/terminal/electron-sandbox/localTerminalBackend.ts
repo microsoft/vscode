@@ -10,19 +10,20 @@ import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationHandle, INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IProcessPropertyMap, IShellLaunchConfig, ITerminalChildProcess, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { IProcessPropertyMap, IShellLaunchConfig, ITerminalChildProcess, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ITerminalBackend, ITerminalBackendRegistry, TerminalExtensions } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalBackend, ITerminalBackendRegistry, ITerminalConfiguration, TerminalExtensions, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { LocalPty } from 'vs/workbench/contrib/terminal/electron-sandbox/localPty';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -65,6 +66,7 @@ class LocalTerminalBackend extends Disposable implements ITerminalBackend {
 		@IStorageService private readonly _storageService: IStorageService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
 		@IHistoryService historyService: IHistoryService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -137,6 +139,22 @@ class LocalTerminalBackend extends Disposable implements ITerminalBackend {
 				this._localPtyService.acceptPtyHostResolvedVariables?.(e.requestId, result);
 			}));
 		}
+
+		// Listen for config changes
+		const initialConfig = configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
+		for (const match of Object.keys(initialConfig.autoReplies)) {
+			this._localPtyService.installAutoReply(match, initialConfig.autoReplies[match]);
+		}
+		// TODO: Could simplify update to a single call
+		this._register(configurationService.onDidChangeConfiguration(async e => {
+			if (e.affectsConfiguration(TerminalSettingId.AutoReplies)) {
+				this._localPtyService.uninstallAllAutoReplies();
+				const config = configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
+				for (const match of Object.keys(config.autoReplies)) {
+					await this._localPtyService.installAutoReply(match, config.autoReplies[match]);
+				}
+			}
+		}));
 	}
 
 	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {

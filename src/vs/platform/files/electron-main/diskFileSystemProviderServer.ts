@@ -15,12 +15,11 @@ import { basename, normalize } from 'vs/base/common/path';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILogMessage, toFileChanges } from 'vs/platform/files/common/watcher';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { AbstractDiskFileSystemProviderChannel, ISessionFileWatcher } from 'vs/platform/files/node/diskFileSystemProviderIpc';
+import { AbstractDiskFileSystemProviderChannel, ISessionFileWatcher } from 'vs/platform/files/node/diskFileSystemProviderServer';
 import { DefaultURITransformer, IURITransformer } from 'vs/base/common/uriIpc';
 
 /**
- * A server implementation for a IPC based file system provider (see `IPCFileSystemProvider`)
- * client.
+ * A server implementation for a IPC based file system provider client.
  */
 export class DiskFileSystemProviderChannel extends AbstractDiskFileSystemProviderChannel<unknown> {
 

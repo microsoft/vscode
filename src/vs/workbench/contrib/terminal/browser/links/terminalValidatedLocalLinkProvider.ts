@@ -49,9 +49,13 @@ export const unixLineAndColumnMatchIndex = 11;
 // Each line and column clause have 6 groups (ie no. of expressions in round brackets)
 export const lineAndColumnClauseGroupCount = 6;
 
-const MAX_LENGTH = 2000;
+const InvalidLinkResult = 'Invalid Link Result';
 
+const MAX_LENGTH = 2000;
+let map = new Map<string, TerminalLink | string>();
 export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider {
+	private _cacheTilTimeout = 0;
+	_enableCaching: boolean = true;
 	constructor(
 		private readonly _xterm: Terminal,
 		private readonly _processOperatingSystem: OperatingSystem,
@@ -72,7 +76,12 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 		const result: TerminalLink[] = [];
 		let startLine = y - 1;
 		let endLine = startLine;
-
+		if (this._enableCaching) {
+			if (this._cacheTilTimeout) {
+				window.clearTimeout(this._cacheTilTimeout);
+			}
+			this._cacheTilTimeout = window.setTimeout(() => map.clear(), 10000);
+		}
 		const lines: IBufferLine[] = [
 			this._xterm.buffer.active.getLine(startLine)!
 		];
@@ -103,6 +112,14 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 				// something matched but does not comply with the given matchIndex
 				// since this is most likely a bug the regex itself we simply do nothing here
 				// this._logService.debug('match found without corresponding matchIndex', match, matcher);
+				break;
+			}
+			const originalLink = link;
+			if (this._enableCaching) {
+				const cachedLinkResult = map.get(originalLink);
+				if (!!cachedLinkResult && typeof cachedLinkResult !== 'string') {
+					result.push(cachedLinkResult);
+				}
 				break;
 			}
 
@@ -160,6 +177,13 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 					}
 				});
 			});
+			if (this._enableCaching) {
+				if (validatedLink) {
+					map.set(originalLink, validatedLink);
+				} else {
+					map.set(originalLink, InvalidLinkResult);
+				}
+			}
 			if (validatedLink) {
 				result.push(validatedLink);
 			}

@@ -14,7 +14,7 @@ import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/con
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewState, INotebookViewCellsUpdateEvent, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, NotebookCellMetadata, IOrderedMimeType, INotebookRendererInfo, ICellOutput, INotebookCellStatusBarItem, NotebookCellInternalMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, IOrderedMimeType, INotebookRendererInfo, ICellOutput, INotebookCellStatusBarItem, NotebookCellInternalMetadata, NotebookDocumentMetadata, NotebookCellCollapseState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange, cellRangesToIndexes, reduceCellRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -330,6 +330,7 @@ export interface INotebookEditorOptions extends ITextEditorOptions {
 	readonly cellSelections?: ICellRange[];
 	readonly isReadOnly?: boolean;
 	readonly viewState?: INotebookEditorViewState;
+	readonly defaultCellCollapseState?: NotebookCellCollapseState;
 }
 
 export type INotebookEditorContributionCtor = IConstructorSignature1<INotebookEditor, INotebookEditorContribution>;

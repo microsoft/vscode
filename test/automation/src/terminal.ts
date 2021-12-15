@@ -18,19 +18,26 @@ export enum Selector {
 	EditorTab = '.terminal-tab',
 	SingleTab = '.single-terminal-tab',
 	Tabs = '.tabs-list .monaco-list-row',
-	SplitButton = '.editor .codicon-split-horizontal'
+	SplitButton = '.editor .codicon-split-horizontal',
+	XtermSplitIndex0 = '#terminal .terminal-groups-container .split-view-view:nth-child(1) .terminal-wrapper',
+	XtermSplitIndex1 = '#terminal .terminal-groups-container .split-view-view:nth-child(2) .terminal-wrapper'
 }
 
+/**
+ * Terminal commands that accept a value in a quick input.
+ */
 export enum TerminalCommandIdWithValue {
 	Rename = 'workbench.action.terminal.rename',
 	ChangeColor = 'workbench.action.terminal.changeColor',
 	ChangeIcon = 'workbench.action.terminal.changeIcon',
 	NewWithProfile = 'workbench.action.terminal.newWithProfile',
 	SelectDefaultProfile = 'workbench.action.terminal.selectDefaultShell',
-	AttachToSession = 'workbench.action.terminal.attachToSession',
-	CreateNew = 'workbench.action.terminal.new'
+	AttachToSession = 'workbench.action.terminal.attachToSession'
 }
 
+/**
+ * Terminal commands that do not present a quick input.
+ */
 export enum TerminalCommandId {
 	Split = 'workbench.action.terminal.split',
 	KillAll = 'workbench.action.terminal.killAll',
@@ -44,6 +51,7 @@ export enum TerminalCommandId {
 	NewWithProfile = 'workbench.action.terminal.newWithProfile',
 	SelectDefaultProfile = 'workbench.action.terminal.selectDefaultShell',
 	DetachSession = 'workbench.action.terminal.detachSession',
+	CreateNew = 'workbench.action.terminal.new'
 }
 interface TerminalLabel {
 	name?: string,
@@ -79,16 +87,24 @@ export class Terminal {
 			// Reset
 			await this.code.dispatchKeybinding('Backspace');
 		}
-		if (commandId === TerminalCommandIdWithValue.CreateNew) {
-			return await this._waitForTerminal(value);
-		}
 		await this.code.dispatchKeybinding(altKey ? 'Alt+Enter' : 'enter');
 		await this.quickinput.waitForQuickInputClosed();
 	}
 
-	async runCommandInTerminal(commandText: string): Promise<void> {
+	async runCommandInTerminal(commandText: string, skipEnter?: boolean): Promise<void> {
 		await this.code.writeInTerminal(Selector.Xterm, commandText);
-		await this.code.dispatchKeybinding('enter');
+		if (!skipEnter) {
+			await this.code.dispatchKeybinding('enter');
+		}
+	}
+
+	/**
+	 * Creates a terminal using the new terminal command.
+	 * @param location The location to check the terminal for, defaults to panel.
+	 */
+	async createTerminal(location?: 'editor' | 'panel'): Promise<void> {
+		await this.runCommand(TerminalCommandId.CreateNew);
+		await this._waitForTerminal(location);
 	}
 
 	async assertEditorGroupCount(count: number): Promise<void> {
@@ -183,9 +199,13 @@ export class Terminal {
 		await this.code.waitAndClick(Selector.SingleTab);
 	}
 
-	async waitForTerminalText(accept: (buffer: string[]) => boolean, message?: string): Promise<void> {
+	async waitForTerminalText(accept: (buffer: string[]) => boolean, message?: string, splitIndex?: 0 | 1): Promise<void> {
 		try {
-			await this.code.waitForTerminalBuffer(Selector.Xterm, accept);
+			let selector: string = Selector.Xterm;
+			if (splitIndex !== undefined) {
+				selector = splitIndex === 0 ? Selector.XtermSplitIndex0 : Selector.XtermSplitIndex1;
+			}
+			await this.code.waitForTerminalBuffer(selector, accept);
 		} catch (err: any) {
 			if (message) {
 				throw new Error(`${message} \n\nInner exception: \n${err.message} `);
@@ -198,8 +218,12 @@ export class Terminal {
 		return (this.code.driver as any).page;
 	}
 
-	private async _waitForTerminal(value: any): Promise<void> {
+	/**
+	 * Waits for the terminal to be focused and to contain content.
+	 * @param location The location to check the terminal for, defaults to panel.
+	 */
+	private async _waitForTerminal(location?: 'editor' | 'panel'): Promise<void> {
 		await this.code.waitForElement(Selector.XtermFocused);
-		await this.code.waitForTerminalBuffer(value === 'editor' ? Selector.XtermEditor : Selector.Xterm, lines => lines.some(line => line.length > 0));
+		await this.code.waitForTerminalBuffer(location === 'editor' ? Selector.XtermEditor : Selector.Xterm, lines => lines.some(line => line.length > 0));
 	}
 }

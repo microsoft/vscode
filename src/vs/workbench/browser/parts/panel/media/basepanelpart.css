@@ -72,6 +72,12 @@
 	display: flex;
 }
 
+.monaco-workbench .part.basepanel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.icon {
+	padding-left: 2px;
+	padding-right: 2px;
+	border-radius: 0px !important;
+}
+
 .monaco-workbench .part.basepanel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item::before,
 .monaco-workbench .part.basepanel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item::after {
 	content: '';
@@ -131,7 +137,7 @@
 	padding: 2px;
 }
 
-.monaco-workbench .part.basepanel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item .action-label:not(.codicon) {
+.monaco-workbench .part.basepanel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item .action-label {
 	background: none !important;
 	border-radius: 0;
 }

@@ -16,16 +16,20 @@ import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { createFileSystemProviderError, FileChangeType, FileDeleteOptions, FileOpenOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileChange, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 
 /**
- * An implementation of a file system provider that is backed by a `IChannel`
- * and thus implemented via IPC on a different process.
+ * An implementation of a local disk file system provider
+ * that is backed by a `IChannel` and thus implemented via
+ * IPC on a different process.
  */
-export class IPCFileSystemProvider extends Disposable implements
+export class DiskFileSystemProviderClient extends Disposable implements
 	IFileSystemProviderWithFileReadWriteCapability,
 	IFileSystemProviderWithOpenReadWriteCloseCapability,
 	IFileSystemProviderWithFileReadStreamCapability,
 	IFileSystemProviderWithFileFolderCopyCapability {
 
-	constructor(private readonly channel: IChannel, private readonly extraCapabilities: { trash?: boolean, pathCaseSensitive?: boolean }) {
+	constructor(
+		private readonly channel: IChannel,
+		private readonly extraCapabilities: { trash?: boolean, pathCaseSensitive?: boolean }
+	) {
 		super();
 
 		this.registerFileChangeListeners();

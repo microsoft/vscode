@@ -243,6 +243,12 @@ export class RemoteTerminalChannelClient {
 		return this._channel.call('$sendCommandResult', [reqId, isError, payload]);
 	}
 
+	installAutoReply(match: string, reply: string): Promise<void> {
+		return this._channel.call('$installAutoReply', [match, reply]);
+	}
+	uninstallAllAutoReplies(): Promise<void> {
+		return this._channel.call('$uninstallAllAutoReplies', []);
+	}
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
 		return this._channel.call('$getDefaultSystemShell', [osOverride]);
 	}

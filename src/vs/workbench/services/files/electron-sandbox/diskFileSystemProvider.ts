@@ -11,7 +11,7 @@ import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ReadableStreamEvents } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
-import { IPCFileSystemProvider } from 'vs/platform/files/common/ipcFileSystemProvider';
+import { DiskFileSystemProviderClient } from 'vs/platform/files/common/diskFileSystemProviderClient';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IDiskFileChange, ILogMessage, AbstractRecursiveWatcherClient } from 'vs/platform/files/common/watcher';
 import { ParcelWatcherClient } from 'vs/workbench/services/files/electron-sandbox/parcelWatcherClient';
@@ -20,8 +20,8 @@ import { ISharedProcessWorkerWorkbenchService } from 'vs/workbench/services/shar
 
 /**
  * A sandbox ready disk file system provider that delegates almost all calls
- * to the main process via `IPCFileSystemProvider` except for recursive file
- * watching that is done via shared process workers due to CPU intensity.
+ * to the main process via `DiskFileSystemProviderServer` except for recursive
+ * file watching that is done via shared process workers due to CPU intensity.
  */
 export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider implements
 	IFileSystemProviderWithFileReadWriteCapability,
@@ -29,7 +29,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	IFileSystemProviderWithFileReadStreamCapability,
 	IFileSystemProviderWithFileFolderCopyCapability {
 
-	private readonly provider = this._register(new IPCFileSystemProvider(this.mainProcessService.getChannel('localFilesystem'), { pathCaseSensitive: isLinux, trash: true }));
+	private readonly provider = this._register(new DiskFileSystemProviderClient(this.mainProcessService.getChannel('localFilesystem'), { pathCaseSensitive: isLinux, trash: true }));
 
 	constructor(
 		private readonly mainProcessService: IMainProcessService,

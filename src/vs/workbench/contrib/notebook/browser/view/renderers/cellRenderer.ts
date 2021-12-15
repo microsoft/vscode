@@ -353,7 +353,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		private renderedEditors: Map<ICellViewModel, ICodeEditor>,
 		dndController: CellDragAndDropController,
 		contextKeyServiceProvider: (container: HTMLElement) => IContextKeyService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IMenuService menuService: IMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -561,17 +561,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		return combinedDisposable(dragHandleListener, collapsedPartListener, clickHandler);
 	}
 
-	private updateFocusIndicatorsForTitleMenu(templateData: CodeCellRenderTemplate): void {
-		const layoutInfo = this.notebookEditor.notebookOptions.getLayoutConfiguration();
-		if (templateData.titleToolbar.hasActions) {
-			templateData.focusIndicator.left.domNode.style.transform = `translateY(${layoutInfo.editorToolbarHeight + layoutInfo.cellTopMargin}px)`;
-			templateData.focusIndicator.right.domNode.style.transform = `translateY(${layoutInfo.editorToolbarHeight + layoutInfo.cellTopMargin}px)`;
-		} else {
-			templateData.focusIndicator.left.domNode.style.transform = `translateY(${layoutInfo.cellTopMargin}px)`;
-			templateData.focusIndicator.right.domNode.style.transform = `translateY(${layoutInfo.cellTopMargin}px)`;
-		}
-	}
-
 	renderElement(element: CodeCellViewModel, index: number, templateData: CodeCellRenderTemplate, height: number | undefined): void {
 		if (!this.notebookEditor.hasModel()) {
 			throw new Error('The notebook editor is not attached with view model yet.');
@@ -589,7 +578,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		templateData.outputContainer.domNode.appendChild(templateData.cellOutputCollapsedContainer);
 
 		const elementDisposables = templateData.elementDisposables;
-		const cellEditorOptions = elementDisposables.add(new CellEditorOptions(this.notebookEditor, this.notebookEditor.notebookOptions, this.configurationService, element.language));
 
 		const codeCellView = elementDisposables.add(templateData.instantiationService.createInstance(CodeCell, this.notebookEditor, element, templateData, [
 			templateData.focusIndicator,
@@ -598,16 +586,11 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			templateData.progressBar,
 			templateData.titleToolbar,
 			templateData.runToolbar,
-			cellEditorOptions,
 			templateData.cellExecution,
 			templateData.dragHandle
 		]));
 
 		this.renderedEditors.set(element, templateData.editor);
-
-		elementDisposables.add(cellEditorOptions.onDidChange(() => templateData.editor.updateOptions(cellEditorOptions.getUpdatedValue(element.internalMetadata))));
-		templateData.editor.updateOptions(cellEditorOptions.getUpdatedValue(element.internalMetadata));
-		cellEditorOptions.setLineNumbers(element.lineNumbers);
 
 		this.updateFocusIndicatorsForTitleMenuAndSubscribe(element, templateData, codeCellView);
 	}
@@ -627,6 +610,17 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		templateData.elementDisposables.add(templateData.titleToolbar.onDidUpdateActions(() => {
 			this.updateFocusIndicatorsForTitleMenu(templateData);
 		}));
+	}
+
+	private updateFocusIndicatorsForTitleMenu(templateData: CodeCellRenderTemplate): void {
+		const layoutInfo = this.notebookEditor.notebookOptions.getLayoutConfiguration();
+		if (templateData.titleToolbar.hasActions) {
+			templateData.focusIndicator.left.domNode.style.transform = `translateY(${layoutInfo.editorToolbarHeight + layoutInfo.cellTopMargin}px)`;
+			templateData.focusIndicator.right.domNode.style.transform = `translateY(${layoutInfo.editorToolbarHeight + layoutInfo.cellTopMargin}px)`;
+		} else {
+			templateData.focusIndicator.left.domNode.style.transform = `translateY(${layoutInfo.cellTopMargin}px)`;
+			templateData.focusIndicator.right.domNode.style.transform = `translateY(${layoutInfo.cellTopMargin}px)`;
+		}
 	}
 
 	disposeTemplate(templateData: CodeCellRenderTemplate): void {

@@ -38,7 +38,7 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 			app = undefined;
 		});
 
-		it.only('verifies editors can save and restore', async function () {
+		it('verifies editors can save and restore', async function () {
 			app = await startApp(this.defaultOptions);
 
 			const appJs = 'app.js';

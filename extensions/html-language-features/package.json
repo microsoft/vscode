@@ -197,6 +197,12 @@
           "default": true,
           "description": "%html.validate.styles%"
         },
+        "html.autoCreateQuotes": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": true,
+          "description": "%html.autoCreateQuotes%"
+        },
         "html.autoClosingTags": {
           "type": "boolean",
           "scope": "resource",

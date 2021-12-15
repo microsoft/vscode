@@ -8,14 +8,14 @@ import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecyc
 import { Schemas } from 'vs/base/common/network';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IPCFileSystemProvider } from 'vs/platform/files/common/ipcFileSystemProvider';
+import { DiskFileSystemProviderClient } from 'vs/platform/files/common/diskFileSystemProviderClient';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export const REMOTE_FILE_SYSTEM_CHANNEL_NAME = 'remoteFilesystem';
 
-export class RemoteFileSystemProvider extends IPCFileSystemProvider {
+export class RemoteFileSystemProvider extends DiskFileSystemProviderClient {
 
 	static register(remoteAgentService: IRemoteAgentService, fileService: IFileService, logService: ILogService): IDisposable {
 		const connection = remoteAgentService.getConnection();
