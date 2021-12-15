@@ -139,18 +139,11 @@ export class GitHubServer implements IGitHubServer {
 		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate`));
 
 		if (this.isTestEnvironment(callbackUri)) {
-			let token: string | undefined;
-			if (this._supportDeviceCodeFlow) {
-				try {
-					token = await this.doDeviceCodeFlow(scopes);
-				} catch (ex) {
-					this._logger.error(ex.message);
-				}
-			} else {
-				token = await vscode.window.showInputBox({ prompt: 'GitHub Personal Access Token', ignoreFocusOut: true });
-			}
+			const token = this._supportDeviceCodeFlow
+				? await this.doDeviceCodeFlow(scopes)
+				: await vscode.window.showInputBox({ prompt: 'GitHub Personal Access Token', ignoreFocusOut: true });
 
-			if (!token) { throw new Error('Sign in failed: No token provided'); }
+			if (!token) { throw new Error('No token provided'); }
 
 			const tokenScopes = await getScopes(token, this.getServerUri('/'), this._logger); // Example: ['repo', 'user']
 			const scopesList = scopes.split(' '); // Example: 'read:user repo user:email'
@@ -214,7 +207,7 @@ export class GitHubServer implements IGitHubServer {
 			}
 		});
 		if (!result.ok) {
-			throw new Error(`Failed to get device code: ${await result.text()}`);
+			throw new Error(`Failed to get one-time code: ${await result.text()}`);
 		}
 
 		const json = await result.json() as IGitHubDeviceCodeResponse;
@@ -225,10 +218,10 @@ export class GitHubServer implements IGitHubServer {
 			localize('code.title', "Your Code: {0}", json.user_code),
 			{
 				modal: true,
-				detail: localize('code.detail', "The above one-time code has been copied to your clipboard. Continue to {0}  to finish authenticating?", json.verification_uri)
-			}, 'OK');
+				detail: localize('code.detail', "The above one-time code has been copied to your clipboard. To finish authenticating, paste it on GitHub.")
+			}, 'Continue to GitHub');
 
-		if (modalResult !== 'OK') {
+		if (modalResult !== 'Continue to GitHub') {
 			throw new Error('Cancelled');
 		}
 
@@ -238,15 +231,14 @@ export class GitHubServer implements IGitHubServer {
 		return await vscode.window.withProgress<string>({
 			location: vscode.ProgressLocation.Notification,
 			cancellable: true,
-			title: localize('progress', "• Code: {0} • Url: {1} • Polling GitHub to finish authenticating", json.user_code, json.verification_uri)
-		}, async (progress, token) => {
-			return await this.waitForDeviceCodeAccessToken(json, progress, token);
+			title: localize('progress', "• Code: {0} • Url: [{1}]({1}) • Polling GitHub to finish authenticating", json.user_code, json.verification_uri)
+		}, async (_, token) => {
+			return await this.waitForDeviceCodeAccessToken(json, token);
 		});
 	}
 
 	private async waitForDeviceCodeAccessToken(
 		json: IGitHubDeviceCodeResponse,
-		progress: vscode.Progress<{ message?: string | undefined; increment?: number | undefined; }>,
 		token: vscode.CancellationToken
 	): Promise<string> {
 
@@ -254,9 +246,8 @@ export class GitHubServer implements IGitHubServer {
 		const attempts = 120 / json.interval;
 		for (let i = 0; i < attempts; i++) {
 			await new Promise(resolve => setTimeout(resolve, json.interval * 1000));
-			progress.report({ message: localize('progress.update', "attempt {0} of {1}", i + 1, attempts + 1) });
 			if (token.isCancellationRequested) {
-				throw new Error(localize('cancelled', "Cancelled"));
+				throw new Error('Cancelled');
 			}
 			let accessTokenResult;
 			try {
@@ -287,7 +278,7 @@ export class GitHubServer implements IGitHubServer {
 			return accessTokenJson.access_token;
 		}
 
-		throw new Error('Failed to get access token');
+		throw new Error('Cancelled');
 	}
 
 	private exchangeCodeForToken: (scopes: string) => PromiseAdapter<vscode.Uri, string> =

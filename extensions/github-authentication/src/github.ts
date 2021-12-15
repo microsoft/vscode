@@ -219,7 +219,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			return session;
 		} catch (e) {
 			// If login was cancelled, do not notify user.
-			if (e === 'Cancelled') {
+			if (e === 'Cancelled' || e.message === 'Cancelled') {
 				/* __GDPR__
 					"loginCancelled" : { }
 				*/
