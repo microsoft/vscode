@@ -295,9 +295,6 @@ jobs:
       - name: Run Valid Layers Checks
         run: yarn valid-layers-check
 
-      - name: Compile /build/
-        run: yarn --cwd build compile
-
       - name: Run eslint
         run: yarn eslint
 

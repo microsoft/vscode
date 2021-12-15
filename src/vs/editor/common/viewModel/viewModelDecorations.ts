@@ -169,18 +169,31 @@ export class ViewModelDecorations implements IDisposable {
 }
 
 export function isModelDecorationVisible(model: ITextModel, decoration: IModelDecoration): boolean {
-	if (decoration.options.hideInCommentTokens) {
-		const allTokensAreComments = testTokensInRange(
-			model,
-			decoration.range,
-			(tokenType) => tokenType === StandardTokenType.Comment
-		);
-		if (allTokensAreComments) {
-			return false;
-		}
+	if (decoration.options.hideInCommentTokens && isModelDecorationInComment(model, decoration)) {
+		return false;
+	}
+
+	if (decoration.options.hideInStringTokens && isModelDecorationInString(model, decoration)) {
+		return false;
 	}
 
 	return true;
+}
+
+export function isModelDecorationInComment(model: ITextModel, decoration: IModelDecoration): boolean {
+	return testTokensInRange(
+		model,
+		decoration.range,
+		(tokenType) => tokenType === StandardTokenType.Comment
+	);
+}
+
+export function isModelDecorationInString(model: ITextModel, decoration: IModelDecoration): boolean {
+	return testTokensInRange(
+		model,
+		decoration.range,
+		(tokenType) => tokenType === StandardTokenType.String
+	);
 }
 
 /**

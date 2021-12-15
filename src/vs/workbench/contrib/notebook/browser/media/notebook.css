@@ -16,6 +16,7 @@
 	display: none;
 	margin-top: 2px;
 	margin-bottom: 2px;
+	contain: style;
 }
 
 .monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item {

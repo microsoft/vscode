@@ -1047,7 +1047,7 @@ export class SearchModel extends Disposable {
 		return this._searchResult;
 	}
 
-	search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
+	async search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
 		this.cancelSearch(true);
 
 		this._searchQuery = query;
@@ -1091,14 +1091,16 @@ export class SearchModel extends Disposable {
 			value => this.onSearchCompleted(value, Date.now() - start),
 			e => this.onSearchError(e, Date.now() - start));
 
-		return currentRequest.finally(() => {
+		try {
+			return await currentRequest;
+		} finally {
 			/* __GDPR__
 				"searchResultsFinished" : {
 					"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 				}
 			*/
 			this.telemetryService.publicLog('searchResultsFinished', { duration: Date.now() - start });
-		});
+		}
 	}
 
 	private onSearchCompleted(completed: ISearchComplete | null, duration: number): ISearchComplete | null {

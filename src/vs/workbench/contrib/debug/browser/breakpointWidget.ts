@@ -290,6 +290,9 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		const editorConfig = this._configurationService.getValue<IEditorOptions>('editor');
 		const options = getSimpleEditorOptions();
 		options.fontSize = editorConfig.fontSize;
+		options.fontFamily = editorConfig.fontFamily;
+		options.lineHeight = editorConfig.lineHeight;
+		options.fontLigatures = editorConfig.fontLigatures;
 		return options;
 	}
 

@@ -281,7 +281,8 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(editor.document.cellCount, 2);
 	});
 
-	test('#98841, initialzation should not emit cell change events.', async function () {
+	// #126371
+	test.skip('#98841, initialzation should not emit cell change events.', async function () {
 		let count = 0;
 
 		testDisposables.push(vscode.notebooks.onDidChangeNotebookCells(() => {
@@ -462,7 +463,8 @@ suite('Notebook API tests', function () {
 		});
 	});
 
-	test('cell execute command takes arguments ICellRange[]', async () => {
+	// #126371
+	test.skip('cell execute command takes arguments ICellRange[]', async () => {
 		const resource = await createRandomNotebookFile();
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 

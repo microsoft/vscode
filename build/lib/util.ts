@@ -6,7 +6,7 @@
 'use strict';
 
 import * as es from 'event-stream';
-import debounce = require('debounce');
+import _debounce = require('debounce');
 import * as _filter from 'gulp-filter';
 import * as rename from 'gulp-rename';
 import * as _ from 'underscore';
@@ -56,7 +56,7 @@ export function incremental(streamProvider: IStreamProvider, initial: NodeJS.Rea
 		run(initial, false);
 	}
 
-	const eventuallyRun = debounce(() => {
+	const eventuallyRun = _debounce(() => {
 		const paths = Object.keys(buffer);
 
 		if (paths.length === 0) {
@@ -73,6 +73,41 @@ export function incremental(streamProvider: IStreamProvider, initial: NodeJS.Rea
 
 		if (state === 'idle') {
 			eventuallyRun();
+		}
+	});
+
+	return es.duplex(input, output);
+}
+
+export function debounce(task: () => NodeJS.ReadWriteStream): NodeJS.ReadWriteStream {
+	const input = es.through();
+	const output = es.through();
+	let state = 'idle';
+
+	const run = () => {
+		state = 'running';
+
+		task()
+			.pipe(es.through(undefined, () => {
+				const shouldRunAgain = state === 'stale';
+				state = 'idle';
+
+				if (shouldRunAgain) {
+					eventuallyRun();
+				}
+			}))
+			.pipe(output);
+	};
+
+	run();
+
+	const eventuallyRun = _debounce(() => run(), 500);
+
+	input.on('data', () => {
+		if (state === 'idle') {
+			eventuallyRun();
+		} else {
+			state = 'stale';
 		}
 	});
 
