@@ -15,7 +15,7 @@ import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeText
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel';
-import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellOutput, IOutputDto, IOutputItemDto, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellOutput, IOutputDto, IOutputItemDto, NotebookCellCollapseState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
 	private readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
@@ -192,14 +192,15 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 
 	constructor(
 		readonly uri: URI,
-		public handle: number,
+		public readonly handle: number,
 		private _source: string,
 		private _language: string,
 		private _mime: string | undefined,
-		public cellKind: CellKind,
+		public readonly cellKind: CellKind,
 		outputs: IOutputDto[],
 		metadata: NotebookCellMetadata | undefined,
 		internalMetadata: NotebookCellInternalMetadata | undefined,
+		public readonly collapseState: NotebookCellCollapseState | undefined,
 		public readonly transientOptions: TransientOptions,
 		private readonly _modeService: IModeService
 	) {

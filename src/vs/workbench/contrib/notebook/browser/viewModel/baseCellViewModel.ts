@@ -198,6 +198,14 @@ export abstract class BaseCellViewModel extends Disposable {
 				this.lineNumbers = 'inherit';
 			}
 		}));
+
+		if (this.model.collapseState?.inputCollapsed) {
+			this._inputCollapsed = true;
+		}
+
+		if (this.model.collapseState?.outputCollapsed) {
+			this._outputCollapsed = true;
+		}
 	}
 
 
