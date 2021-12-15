@@ -280,6 +280,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			lock = await this.createResourceLock(resource);
 		}
 
+		let handle: number | undefined = undefined;
 		try {
 			const filePath = this.toFilePath(resource);
 
@@ -328,26 +329,9 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 				flags = 'r';
 			}
 
-			const handle = await Promises.open(filePath, flags);
+			// Finally open handle to file path
+			handle = await Promises.open(filePath, flags);
 
-			// remember this handle to track file position of the handle
-			// we init the position to 0 since the file descriptor was
-			// just created and the position was not moved so far (see
-			// also http://man7.org/linux/man-pages/man2/open.2.html -
-			// "The file offset is set to the beginning of the file.")
-			this.mapHandleToPos.set(handle, 0);
-
-			// remember that this handle was used for writing
-			if (isFileOpenForWriteOptions(opts)) {
-				this.writeHandles.set(handle, resource);
-			}
-
-			// remember that this handle has an associated lock
-			if (lock) {
-				this.mapHandleToLock.set(handle, lock);
-			}
-
-			return handle;
 		} catch (error) {
 
 			// Release lock because we have no valid handle
@@ -361,6 +345,25 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 				throw this.toFileSystemProviderError(error);
 			}
 		}
+
+		// remember this handle to track file position of the handle
+		// we init the position to 0 since the file descriptor was
+		// just created and the position was not moved so far (see
+		// also http://man7.org/linux/man-pages/man2/open.2.html -
+		// "The file offset is set to the beginning of the file.")
+		this.mapHandleToPos.set(handle, 0);
+
+		// remember that this handle was used for writing
+		if (isFileOpenForWriteOptions(opts)) {
+			this.writeHandles.set(handle, resource);
+		}
+
+		// remember that this handle has an associated lock
+		if (lock) {
+			this.mapHandleToLock.set(handle, lock);
+		}
+
+		return handle;
 	}
 
 	async close(fd: number): Promise<void> {
