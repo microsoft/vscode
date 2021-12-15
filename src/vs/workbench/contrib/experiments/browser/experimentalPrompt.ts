@@ -6,7 +6,7 @@
 import { INotificationService, Severity, IPromptChoice } from 'vs/platform/notification/common/notification';
 import { IExperimentService, IExperiment, ExperimentActionType, IExperimentActionPromptProperties, IExperimentActionPromptCommand, ExperimentState } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { language } from 'vs/base/common/platform';
@@ -73,7 +73,7 @@ export class ExperimentalPrompts extends Disposable implements IWorkbenchContrib
 					if (command.externalLink) {
 						this.openerService.open(URI.parse(command.externalLink));
 					} else if (command.curatedExtensionsKey && Array.isArray(command.curatedExtensionsList)) {
-						this.paneCompositeService.openPaneComposite('workbench.view.extensions', ViewContainerLocation.Sidebar, true)
+						this.paneCompositeService.openPaneComposite(EXTENSIONS_VIEWLET_ID, ViewContainerLocation.Sidebar, true)
 							.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 							.then(viewlet => {
 								if (viewlet) {
