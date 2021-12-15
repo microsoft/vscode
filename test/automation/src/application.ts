@@ -115,7 +115,7 @@ export class Application {
 		if (this.remote) {
 			await code.waitForTextContent('.monaco-workbench .statusbar-item[id="status.host"]', ' TestResolver', undefined, 2000);
 		}
-    
+
 		if (this.web) {
 			await code.waitForTextContent('.monaco-workbench .statusbar-item[id="status.host"]', undefined, s => !s.includes('Opening Remote'), 2000);
 		}
