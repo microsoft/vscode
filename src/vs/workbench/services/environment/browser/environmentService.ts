@@ -264,9 +264,6 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	get disableWorkspaceTrust(): boolean { return true; }
 
 	//#region @coder
-	get ignoreLastOpened(): boolean {
-		return !!this.options.ignoreLastOpened;
-	}
 	get userDataPath(): string {
 		if (!this.options.userDataPath) {
 			throw new Error('userDataPath was not provided to the browser');

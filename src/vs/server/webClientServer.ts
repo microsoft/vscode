@@ -79,7 +79,7 @@ export class WebClientServer {
 		private readonly _environmentService: IServerEnvironmentService,
 		private readonly _logService: ILogService,
 		private readonly _themeService: IServerThemeService,
-		private readonly _productService: IProductService
+		private readonly _productService: IProductService,
 	) { }
 
 	async handle(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
@@ -329,7 +329,6 @@ export class WebClientServer {
 					enableSmokeTestDriver: this._environmentService.driverHandle === 'web' ? true : undefined,
 					logLevel: this._logService.getLevel(),
 				},
-				ignoreLastOpened: this._environmentService.ignoreLastOpened,
 				userDataPath: this._environmentService.userDataPath,
 				settingsSyncOptions: !this._environmentService.isBuilt && this._environmentService.args['enable-sync'] ? { enabled: true } : undefined,
 			})))

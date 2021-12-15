@@ -16,7 +16,6 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	//#region @coder
 	'auth': { type: 'string' },
 	'port': { type: 'string' },
-	'ignore-last-opened': { type: 'boolean' },
 	//#endregion
 
 	'pick-port': { type: 'string' },
@@ -73,7 +72,6 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 export interface ServerParsedArgs {
 	//#region
 	auth?: AuthType;
-	'ignore-last-opened'?: boolean;
 	//#endregion
 
 	port?: string;
@@ -165,7 +163,6 @@ export interface IServerEnvironmentService extends INativeEnvironmentService {
 	readonly serviceWorkerPath: string;
 	readonly proxyUri: string;
 	readonly auth: AuthType;
-	readonly ignoreLastOpened: boolean;
 	//#endregion
 }
 
@@ -188,10 +185,6 @@ export class ServerEnvironmentService extends NativeEnvironmentService implement
 
 	public get proxyUri(): string {
 		return '/proxy/{port}';
-	}
-
-	public get ignoreLastOpened(): boolean {
-		return !!this.args['ignore-last-opened'];
 	}
 
 	//#endregion

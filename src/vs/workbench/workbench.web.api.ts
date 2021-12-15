@@ -341,11 +341,6 @@ interface IWorkbenchConstructionOptions {
 	//#region @coder
 
 	/**
-	 * Ignore the last opened folder in the browser.
-	 * @see `BrowserMain#initServices`
-	 */
-	readonly ignoreLastOpened?: boolean
-	/**
 	 * Path to the user data directory.
 	 */
 	readonly userDataPath?: string

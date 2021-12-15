@@ -18,7 +18,6 @@ declare global {
 		export interface ServerParsedArgs {
 			//#region
 			auth?: AuthType;
-			'ignore-last-opened'?: boolean;
 			//#endregion
 
 			port?: string;
