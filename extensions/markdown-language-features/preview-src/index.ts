@@ -124,7 +124,7 @@ window.addEventListener('message', async event => {
 			}
 			return;
 
-		case 'updateContent':
+		case 'updateContent': {
 			const root = document.querySelector('.markdown-body')!;
 
 			const parser = new DOMParser();
@@ -216,6 +216,7 @@ window.addEventListener('message', async event => {
 
 			window.dispatchEvent(new CustomEvent('vscode.markdown.updateContent'));
 			break;
+		}
 	}
 }, false);
 

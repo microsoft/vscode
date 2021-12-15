@@ -16,6 +16,7 @@
 		"eqeqeq": "warn",
 		"no-buffer-constructor": "warn",
 		"no-caller": "warn",
+		"no-case-declarations": "warn",
 		"no-debugger": "warn",
 		"no-duplicate-case": "warn",
 		"no-duplicate-imports": "warn",

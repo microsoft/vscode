@@ -251,13 +251,13 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 		// don't show the peek if the user asked to only auto-open peeks for visible tests,
 		// and this test is not in any of the editors' models.
 		switch (cfg) {
-			case AutoOpenPeekViewWhen.FailureVisible:
+			case AutoOpenPeekViewWhen.FailureVisible: {
 				const editorUris = new Set(editors.map(e => e.getModel()?.uri.toString()));
 				if (!Iterable.some(resultItemParents(evt.result, evt.item), i => i.item.uri && editorUris.has(i.item.uri.toString()))) {
 					return;
 				}
 				break; //continue
-
+			}
 			case AutoOpenPeekViewWhen.FailureAnywhere:
 				break; //continue
 

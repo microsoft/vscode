@@ -1690,7 +1690,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Otherwise, handle accordingly
 		switch (confirmation) {
-			case ConfirmResult.SAVE:
+			case ConfirmResult.SAVE: {
 				const result = await editor.save(this.id, { reason: saveReason });
 				if (!result && autoSave) {
 					// Save failed and we need to signal this back to the user, so
@@ -1701,6 +1701,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				}
 
 				return editor.isDirty(); // veto if still dirty
+			}
 			case ConfirmResult.DONT_SAVE:
 				try {
 

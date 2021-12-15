@@ -675,12 +675,13 @@ export function searchMatchComparer(elementA: RenderableMatch, elementB: Rendera
 				return compareFileExtensions(elementA.name(), elementB.name());
 			case SearchSortOrder.FileNames:
 				return compareFileNames(elementA.name(), elementB.name());
-			case SearchSortOrder.Modified:
+			case SearchSortOrder.Modified: {
 				const fileStatA = elementA.fileStat;
 				const fileStatB = elementB.fileStat;
 				if (fileStatA && fileStatB) {
 					return fileStatB.mtime - fileStatA.mtime;
 				}
+			}
 			// Fall through otherwise
 			default:
 				return comparePaths(elementA.resource.fsPath, elementB.resource.fsPath) || compareFileNames(elementA.name(), elementB.name());

@@ -237,20 +237,21 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 			case GroupsOrder.CREATION_TIME:
 				return this.groups;
 
-			case GroupsOrder.MOST_RECENTLY_ACTIVE:
+			case GroupsOrder.MOST_RECENTLY_ACTIVE: {
 				const mostRecentActive = coalesce(this.mostRecentActiveGroups.map(groupId => this.getGroup(groupId)));
 
 				// there can be groups that got never active, even though they exist. in this case
 				// make sure to just append them at the end so that all groups are returned properly
 				return distinct([...mostRecentActive, ...this.groups]);
-
-			case GroupsOrder.GRID_APPEARANCE:
+			}
+			case GroupsOrder.GRID_APPEARANCE: {
 				const views: IEditorGroupView[] = [];
 				if (this.gridWidget) {
 					this.fillGridNodes(views, this.gridWidget.getViews());
 				}
 
 				return views;
+			}
 		}
 	}
 
@@ -301,20 +302,22 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 				return groups[0];
 			case GroupLocation.LAST:
 				return groups[groups.length - 1];
-			case GroupLocation.NEXT:
+			case GroupLocation.NEXT: {
 				let nextGroup: IEditorGroupView | undefined = groups[index + 1];
 				if (!nextGroup && wrap) {
 					nextGroup = this.doFindGroupByLocation(GroupLocation.FIRST, source);
 				}
 
 				return nextGroup;
-			case GroupLocation.PREVIOUS:
+			}
+			case GroupLocation.PREVIOUS: {
 				let previousGroup: IEditorGroupView | undefined = groups[index - 1];
 				if (!previousGroup && wrap) {
 					previousGroup = this.doFindGroupByLocation(GroupLocation.LAST, source);
 				}
 
 				return previousGroup;
+			}
 		}
 	}
 

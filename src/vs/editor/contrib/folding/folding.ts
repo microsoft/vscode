@@ -396,7 +396,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		const range = e.target.range;
 		let iconClicked = false;
 		switch (e.target.type) {
-			case MouseTargetType.GUTTER_LINE_DECORATIONS:
+			case MouseTargetType.GUTTER_LINE_DECORATIONS: {
 				const data = e.target.detail as IMarginData;
 				const offsetLeftInGutter = (e.target.element as HTMLElement).offsetLeft;
 				const gutterOffsetX = data.offsetX - offsetLeftInGutter;
@@ -410,6 +410,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 
 				iconClicked = true;
 				break;
+			}
 			case MouseTargetType.CONTENT_EMPTY: {
 				if (this._unfoldOnClickAfterEndOfLine && this.hiddenRangeModel.hasRanges()) {
 					const data = e.target.detail as IEmptyContentData;
