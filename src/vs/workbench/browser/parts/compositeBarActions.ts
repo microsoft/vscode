@@ -183,7 +183,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 
 		if (this.label) {
 			if (this.options.icon) {
-				const foreground = this._action.checked ? colors.activeBackgroundColor || colors.activeForegroundColor : colors.inactiveBackgroundColor || colors.inactiveForegroundColor;
+				const foreground = this._action.checked ? colors.activeForegroundColor : colors.inactiveForegroundColor;
 				if (this.activity.iconUrl) {
 					// Apply background color to activity bar item provided with iconUrls
 					this.label.style.backgroundColor = foreground ? foreground.toString() : '';
