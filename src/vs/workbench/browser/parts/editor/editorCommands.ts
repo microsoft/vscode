@@ -507,11 +507,12 @@ function registerOpenEditorAPICommands(): void {
 
 			let input: IResourceEditorInput | IUntitledTextResourceEditorInput;
 			if (resource.scheme === Schemas.untitled && resource.path.length > 1) {
-				// special case for untitled: we are getting a resource from an extension
-				// to use for the untitled editor. as such, we have to assume it as an
-				// associated resource to use when saving. we do so by setting the
-				// `forceUntitled: true` and changing the scheme to a file based one. the
-				// untitled editor service takes care to associate the path properly then.
+				// special case for untitled: we are getting a resource with meaningful
+				// path from an extension to use for the untitled editor. as such, we
+				// have to assume it as an associated resource to use when saving. we
+				// do so by setting the `forceUntitled: true` and changing the scheme
+				// to a file based one. the untitled editor service takes care to
+				// associate the path properly then.
 				input = { resource: resource.with({ scheme: pathService.defaultUriScheme }), forceUntitled: true, options, label };
 			} else {
 				// use any other resource as is
