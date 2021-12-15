@@ -102,6 +102,10 @@ export class ExplorerService implements IExplorerService {
 
 		this.disposables.add(this.fileService.onDidFilesChange(e => {
 			this.fileChangeEvents.push(e);
+			// Don't mess with the file tree while in the process of editing. #112293
+			if (this.editable) {
+				return;
+			}
 			if (!this.onFileChangesScheduler.isScheduled()) {
 				this.onFileChangesScheduler.schedule();
 			}
@@ -200,6 +204,10 @@ export class ExplorerService implements IExplorerService {
 		}
 		const isEditing = this.isEditable(stat);
 		await this.view.setEditable(stat, isEditing);
+
+		if (!this.editable && this.fileChangeEvents.length && !this.onFileChangesScheduler.isScheduled()) {
+			this.onFileChangesScheduler.schedule();
+		}
 	}
 
 	async setToCopy(items: ExplorerItem[], cut: boolean): Promise<void> {

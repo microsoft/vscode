@@ -20,6 +20,7 @@ export interface IDialogHandle {
 
 export interface IDialogsModel {
 
+	readonly onWillShowDialog: Event<void>;
 	readonly onDidShowDialog: Event<void>;
 
 	readonly dialogs: IDialogViewItem[];
@@ -30,6 +31,9 @@ export interface IDialogsModel {
 export class DialogsModel extends Disposable implements IDialogsModel {
 
 	readonly dialogs: IDialogViewItem[] = [];
+
+	private readonly _onWillShowDialog = this._register(new Emitter<void>());
+	readonly onWillShowDialog = this._onWillShowDialog.event;
 
 	private readonly _onDidShowDialog = this._register(new Emitter<void>());
 	readonly onDidShowDialog = this._onDidShowDialog.event;
@@ -42,11 +46,12 @@ export class DialogsModel extends Disposable implements IDialogsModel {
 			close: result => {
 				this.dialogs.splice(0, 1);
 				promise.complete(result);
+				this._onDidShowDialog.fire();
 			}
 		};
 
 		this.dialogs.push(item);
-		this._onDidShowDialog.fire();
+		this._onWillShowDialog.fire();
 
 		return {
 			item,

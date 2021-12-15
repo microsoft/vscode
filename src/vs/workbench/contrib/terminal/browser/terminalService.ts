@@ -19,7 +19,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ICreateContributedTerminalProfileOptions, IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalLocationString } from 'vs/platform/terminal/common/terminal';
 import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
-import { getIconRegistry, IconContribution } from 'vs/platform/theme/common/iconRegistry';
+import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
@@ -47,6 +47,8 @@ export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
 
 	private _hostActiveTerminals: Map<ITerminalInstanceHost, ITerminalInstance | undefined> = new Map();
+
+	private _terminalEditorActive: IContextKey<boolean>;
 
 	private _isShuttingDown: boolean = false;
 	private _backgroundedTerminalInstances: ITerminalInstance[] = [];
@@ -181,6 +183,11 @@ export class TerminalService implements ITerminalService {
 		this._processSupportContextKey.set(!isWeb || this._remoteAgentService.getConnection() !== null);
 		this._terminalHasBeenCreated = TerminalContextKeys.terminalHasBeenCreated.bindTo(this._contextKeyService);
 		this._terminalCountContextKey = TerminalContextKeys.count.bindTo(this._contextKeyService);
+		this._terminalEditorActive = TerminalContextKeys.terminalEditorActive.bindTo(this._contextKeyService);
+
+		this.onDidChangeActiveInstance(instance => {
+			this._terminalEditorActive.set(!!instance?.target && instance.target === TerminalLocation.Editor);
+		});
 
 		lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal'));
 		lifecycleService.onWillShutdown(e => this._onWillShutdown(e));
@@ -1105,6 +1112,8 @@ class TerminalEditorStyle extends Themable {
 		// TODO: add a rule collector to avoid duplication
 		let css = '';
 
+		const productIconTheme = this._themeService.getProductIconTheme();
+
 		// Add icons
 		for (const instance of this._terminalService.instances) {
 			const icon = instance.icon;
@@ -1128,11 +1137,11 @@ class TerminalEditorStyle extends Themable {
 				const iconRegistry = getIconRegistry();
 				const iconContribution = iconRegistry.getIcon(icon.id);
 				if (iconContribution) {
-					const def = IconContribution.getDefinition(iconContribution, iconRegistry);
+					const def = productIconTheme.getIcon(iconContribution);
 					if (def) {
 						css += (
 							`.monaco-workbench .terminal-tab.codicon-${icon.id}::before` +
-							`{content: '${def.fontCharacter}' !important; font-family: ${dom.asCSSPropertyValue(def.fontId ?? 'codicon')} !important;}`
+							`{content: '${def.fontCharacter}' !important; font-family: ${dom.asCSSPropertyValue(def.font?.id ?? 'codicon')} !important;}`
 						);
 					}
 				}
