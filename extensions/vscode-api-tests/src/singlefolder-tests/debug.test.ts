@@ -120,7 +120,7 @@ suite('vscode API - debug', function () {
 		disposeAll(toDispose);
 	});
 
-	test.skip('start debugging failure', async function () {
+	test('start debugging failure', async function () {
 		let errorCount = 0;
 		try {
 			await debug.startDebugging(workspace.workspaceFolders![0], 'non existent');
