@@ -28,7 +28,7 @@ import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsServ
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadService } from 'vs/platform/download/common/downloadService';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { SharedProcessEnvironmentService } from 'vs/platform/sharedProcess/node/sharedProcessEnvironmentService';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IExtensionGalleryService, IExtensionManagementService, IExtensionTipsService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -95,6 +95,9 @@ import { IUserConfigurationFileService, UserConfigurationFileServiceId } from 'v
 import { AssignmentService } from 'vs/platform/assignment/common/assignmentService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { IPCFileSystemProvider } from 'vs/platform/files/common/ipcFileSystemProvider';
+import { isLinux } from 'vs/base/common/platform';
+import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
 
 class SharedProcessMain extends Disposable {
 
@@ -176,7 +179,7 @@ class SharedProcessMain extends Disposable {
 		services.set(IMainProcessService, mainProcessService);
 
 		// Environment
-		const environmentService = new NativeEnvironmentService(this.configuration.args, productService);
+		const environmentService = new SharedProcessEnvironmentService(this.configuration.args, productService);
 		services.set(INativeEnvironmentService, environmentService);
 
 		// Logger
@@ -203,6 +206,10 @@ class SharedProcessMain extends Disposable {
 
 		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
+
+		const localFileSystemProviderFromMain = this._register(new IPCFileSystemProvider(mainProcessService.getChannel('localFilesystem'), { pathCaseSensitive: isLinux }));
+		const userDataFileSystemProvider = this._register(new FileUserDataProvider(Schemas.file, localFileSystemProviderFromMain, Schemas.userData, logService));
+		fileService.registerProvider(Schemas.userData, userDataFileSystemProvider);
 
 		// Configuration
 		const configurationService = this._register(new ConfigurationService(environmentService.settingsResource, fileService));

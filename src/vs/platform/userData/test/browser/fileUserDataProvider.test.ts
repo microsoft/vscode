@@ -9,23 +9,23 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
+import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
 import { dirname, isEqual, joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { DisposableStore, IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { TestProductService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
+import { AbstractNativeEnvironmentService } from 'vs/platform/environment/common/environmentService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import product from 'vs/platform/product/common/product';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
-class TestWorkbenchEnvironmentService extends BrowserWorkbenchEnvironmentService {
-	constructor(private readonly appSettingsHome: URI) {
-		super(Object.create(null), TestProductService);
+class TestEnvironmentService extends AbstractNativeEnvironmentService {
+	constructor(private readonly _appSettingsHome: URI) {
+		super(Object.create(null), Object.create(null), { _serviceBrand: undefined, ...product });
 	}
-	override get userRoamingDataHome() { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
+	override get userRoamingDataHome() { return this._appSettingsHome.with({ scheme: Schemas.userData }); }
 }
 
 suite('FileUserDataProvider', () => {
@@ -33,7 +33,7 @@ suite('FileUserDataProvider', () => {
 	let testObject: IFileService;
 	let userDataHomeOnDisk: URI;
 	let backupWorkspaceHomeOnDisk: URI;
-	let environmentService: IWorkbenchEnvironmentService;
+	let environmentService: IEnvironmentService;
 	const disposables = new DisposableStore();
 	let fileUserDataProvider: FileUserDataProvider;
 
@@ -49,7 +49,7 @@ suite('FileUserDataProvider', () => {
 		await testObject.createFolder(userDataHomeOnDisk);
 		await testObject.createFolder(backupWorkspaceHomeOnDisk);
 
-		environmentService = new TestWorkbenchEnvironmentService(userDataHomeOnDisk);
+		environmentService = new TestEnvironmentService(userDataHomeOnDisk);
 
 		fileUserDataProvider = new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.userData, logService);
 		disposables.add(fileUserDataProvider);

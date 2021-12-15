@@ -12,6 +12,11 @@ import { ReadableStreamEvents } from 'vs/base/common/stream';
 import { ILogService } from 'vs/platform/log/common/log';
 import { TernarySearchTree } from 'vs/base/common/map';
 
+/**
+ * This is a wrapper on top of the local filesystem provider which will
+ * 	- Convert the user data resources to file system scheme and vice-versa
+ *  - Enforces atomic reads for user data
+ */
 export class FileUserDataProvider extends Disposable implements
 	IFileSystemProviderWithFileReadWriteCapability,
 	IFileSystemProviderWithOpenReadWriteCloseCapability,
