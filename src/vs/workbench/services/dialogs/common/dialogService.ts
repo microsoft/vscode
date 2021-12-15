@@ -15,6 +15,10 @@ export class DialogService extends Disposable implements IDialogService {
 
 	readonly model = this._register(new DialogsModel());
 
+	readonly onWillShowDialog = this.model.onWillShowDialog;
+
+	readonly onDidShowDialog = this.model.onDidShowDialog;
+
 	async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
 		const handle = this.model.show({ confirmArgs: { confirmation } });
 

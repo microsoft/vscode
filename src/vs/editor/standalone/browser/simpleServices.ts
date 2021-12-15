@@ -186,6 +186,9 @@ export class SimpleDialogService implements IDialogService {
 
 	public _serviceBrand: undefined;
 
+	readonly onWillShowDialog = Event.None;
+	readonly onDidShowDialog = Event.None;
+
 	public confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
 		return this.doConfirm(confirmation).then(confirmed => {
 			return {

@@ -458,7 +458,11 @@ registerAction2(class extends Action2 {
 								language,
 								source: value,
 								outputs: [],
-								metadata: {}
+								metadata: {},
+								collapseState: {
+									inputCollapsed: false,
+									outputCollapsed: false
+								}
 							}]
 						}
 					)

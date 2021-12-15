@@ -52,7 +52,7 @@ import { ISharedProcessWorkerWorkbenchService, SharedProcessWorkerWorkbenchServi
 import { isMacintosh } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files/electron-sandbox/diskFileSystemProvider';
-import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
+import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
 
 export class DesktopMain extends Disposable {
 

@@ -757,7 +757,7 @@ import { assertNoRpc } from '../utils';
 				terminal.sendText('echo $C');
 			});
 
-			test('should respect clearing entries', (done) => {
+			test.skip('should respect clearing entries', (done) => {
 				// Text to match on before passing the test
 				const expectedText = [
 					'~a1~',

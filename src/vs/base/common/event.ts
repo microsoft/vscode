@@ -119,16 +119,45 @@ export namespace Event {
 		return emitter.event;
 	}
 
+	export function debouncedListener<T, O = T>(event: Event<T>, listener: (data: O) => any, merge: (last: O | undefined, event: T) => O, delay: number = 100, leading: boolean = false): IDisposable {
+
+		let output: O | undefined = undefined;
+		let handle: any = undefined;
+		let numDebouncedCalls = 0;
+
+		return event(cur => {
+			numDebouncedCalls++;
+			output = merge(output, cur);
+
+			if (leading && !handle) {
+				listener(output);
+				output = undefined;
+			}
+
+			clearTimeout(handle);
+			handle = setTimeout(() => {
+				const _output = output;
+				output = undefined;
+				handle = undefined;
+				if (!leading || numDebouncedCalls > 1) {
+					listener(_output!);
+				}
+
+				numDebouncedCalls = 0;
+			}, delay);
+		});
+	}
+
 	/**
-	 * @deprecated DO NOT use, this leaks memory
+	 * @deprecated this leaks memory, {@link debouncedListener} or {@link DebounceEmitter} instead
 	 */
 	export function debounce<T>(event: Event<T>, merge: (last: T | undefined, event: T) => T, delay?: number, leading?: boolean, leakWarningThreshold?: number): Event<T>;
 	/**
-	 * @deprecated DO NOT use, this leaks memory
+	 * @deprecated this leaks memory, {@link debouncedListener} or {@link DebounceEmitter} instead
 	 */
 	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay?: number, leading?: boolean, leakWarningThreshold?: number): Event<O>;
 	/**
-	 * @deprecated DO NOT use, this leaks memory
+	 * @deprecated this leaks memory, {@link debouncedListener} or {@link DebounceEmitter} instead
 	 */
 	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay: number = 100, leading = false, leakWarningThreshold?: number): Event<O> {
 

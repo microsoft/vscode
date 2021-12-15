@@ -724,7 +724,6 @@ export function splitEditor(editorGroupService: IEditorGroupsService, direction:
 
 	// Focus
 	newGroup.focus();
-
 }
 
 function registerSplitEditorCommands() {

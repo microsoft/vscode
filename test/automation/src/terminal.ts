@@ -18,7 +18,9 @@ export enum Selector {
 	EditorTab = '.terminal-tab',
 	SingleTab = '.single-terminal-tab',
 	Tabs = '.tabs-list .monaco-list-row',
-	SplitButton = '.editor .codicon-split-horizontal'
+	SplitButton = '.editor .codicon-split-horizontal',
+	XtermSplitIndex0 = '#terminal .terminal-groups-container .split-view-view:nth-child(1) .terminal-wrapper',
+	XtermSplitIndex1 = '#terminal .terminal-groups-container .split-view-view:nth-child(2) .terminal-wrapper'
 }
 
 /**
@@ -197,9 +199,13 @@ export class Terminal {
 		await this.code.waitAndClick(Selector.SingleTab);
 	}
 
-	async waitForTerminalText(accept: (buffer: string[]) => boolean, message?: string): Promise<void> {
+	async waitForTerminalText(accept: (buffer: string[]) => boolean, message?: string, splitIndex?: 0 | 1): Promise<void> {
 		try {
-			await this.code.waitForTerminalBuffer(Selector.Xterm, accept);
+			let selector: string = Selector.Xterm;
+			if (splitIndex !== undefined) {
+				selector = splitIndex === 0 ? Selector.XtermSplitIndex0 : Selector.XtermSplitIndex1;
+			}
+			await this.code.waitForTerminalBuffer(selector, accept);
 		} catch (err: any) {
 			if (message) {
 				throw new Error(`${message} \n\nInner exception: \n${err.message} `);

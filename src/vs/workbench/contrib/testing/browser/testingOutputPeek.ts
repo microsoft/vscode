@@ -420,6 +420,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		@ITestResultService private readonly testResults: ITestResultService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		this.visible = TestingContextKeys.isPeekVisible.bindTo(contextKeyService);
@@ -446,6 +447,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		}
 
 		const options = { pinned: false, revealIfOpened: true };
+		const message = current.messages[current.messageIndex];
 
 		if (current.isDiffable) {
 			this.editorService.openEditor({
@@ -453,8 +455,10 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 				modified: { resource: current.actualUri },
 				options,
 			});
-		} else {
+		} else if (typeof message.message === 'string') {
 			this.editorService.openEditor({ resource: current.messageUri, options });
+		} else {
+			this.commandService.executeCommand('markdown.showPreview', current.messageUri);
 		}
 	}
 
@@ -725,10 +729,6 @@ class TestingOutputPeek extends PeekViewWidget {
 		const message = dto.messages[dto.messageIndex];
 		const previous = this.current;
 
-		if (message.type !== TestMessageType.Error) {
-			return Promise.resolve();
-		}
-
 		if (!dto.revealLocation && !previous) {
 			return Promise.resolve();
 		}
@@ -814,8 +814,8 @@ const diffEditorOptions: IDiffEditorConstructionOptions = {
 	modifiedAriaLabel: localize('testingOutputActual', 'Actual result'),
 };
 
-const isDiffable = (message: ITestErrorMessage): message is ITestErrorMessage & { actualOutput: string; expectedOutput: string } =>
-	message.actual !== undefined && message.expected !== undefined;
+const isDiffable = (message: ITestMessage): message is ITestErrorMessage & { actualOutput: string; expectedOutput: string } =>
+	message.type === TestMessageType.Error && message.actual !== undefined && message.expected !== undefined;
 
 class DiffContentProvider extends Disposable implements IPeekOutputRenderer {
 	private readonly widget = this._register(new MutableDisposable<EmbeddedDiffEditorWidget>());
@@ -929,8 +929,8 @@ class MarkdownTestMessagePeek extends Disposable implements IPeekOutputRenderer 
 		);
 	}
 
-	public layout(): void {
-		// no-op
+	public layout(dimension: dom.IDimension): void {
+		this.textPreview.value?.layout(dimension.height, dimension.width);
 	}
 }
 
@@ -988,7 +988,7 @@ class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
 	}
 }
 
-const hintMessagePeekHeight = (msg: ITestErrorMessage) =>
+const hintMessagePeekHeight = (msg: ITestMessage) =>
 	isDiffable(msg)
 		? Math.max(hintPeekStrHeight(msg.actual), hintPeekStrHeight(msg.expected))
 		: hintPeekStrHeight(typeof msg.message === 'string' ? msg.message : msg.message.value);
@@ -1128,7 +1128,8 @@ class TestMessageElement implements ITreeElement {
 	public readonly id: string;
 	public readonly label: string;
 	public readonly uri: URI;
-	public readonly location: IRichLocation | undefined;
+	public readonly location?: IRichLocation;
+	public readonly description?: string;
 
 	constructor(
 		public readonly result: ITestResult,
@@ -1148,7 +1149,15 @@ class TestMessageElement implements ITreeElement {
 		});
 
 		this.id = this.uri.toString();
-		this.label = firstLine(renderStringAsPlaintext(message));
+
+		const asPlaintext = renderStringAsPlaintext(message);
+		const lines = count(asPlaintext.trimRight(), '\n');
+		this.label = firstLine(asPlaintext);
+		if (lines > 0) {
+			this.description = lines > 1
+				? localize('messageMoreLinesN', '+ {0} more lines', lines)
+				: localize('messageMoreLines1', '+ 1 more line');
+		}
 	}
 }
 

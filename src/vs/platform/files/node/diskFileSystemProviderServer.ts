@@ -20,8 +20,7 @@ export interface ISessionFileWatcher extends IDisposable {
 }
 
 /**
- * A server implementation for a IPC based file system provider
- * (see `IPCFileSystemProvider`) client.
+ * A server implementation for a IPC based file system provider client.
  */
 export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposable implements IServerChannel<T> {
 

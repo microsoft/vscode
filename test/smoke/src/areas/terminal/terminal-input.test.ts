@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Application, Terminal, SettingsEditor } from '../../../../automation';
+import { itSkipOnFail } from '../../utils';
 
 export function setup() {
 	describe('Terminal Input', () => {
@@ -24,13 +25,13 @@ export function setup() {
 				await terminal.runCommandInTerminal(`"\r${text}`, true);
 			}
 
-			it('should automatically reply to default "Terminate batch job (Y/N)"', async () => {
+			itSkipOnFail('should automatically reply to default "Terminate batch job (Y/N)"', async () => {
 				await terminal.createTerminal();
 				await writeTextForAutoReply('Terminate batch job (Y/N)?');
 				await terminal.waitForTerminalText(buffer => buffer.some(line => line.includes('Terminate batch job (Y/N)?Y')));
 			});
 
-			it('should automatically reply to a custom entry', async () => {
+			itSkipOnFail('should automatically reply to a custom entry', async () => {
 				await settingsEditor.addUserSetting('terminal.integrated.autoReplies', '{ "foo": "bar" }');
 				await terminal.createTerminal();
 				await writeTextForAutoReply('foo');
