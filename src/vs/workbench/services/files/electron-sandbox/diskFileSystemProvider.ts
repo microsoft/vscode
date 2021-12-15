@@ -11,7 +11,7 @@ import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ReadableStreamEvents } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
-import { DiskFileSystemProviderClient } from 'vs/platform/files/common/diskFileSystemProviderClient';
+import { DiskFileSystemProviderClient, LOCAL_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/files/common/diskFileSystemProviderClient';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IDiskFileChange, ILogMessage, AbstractRecursiveWatcherClient } from 'vs/platform/files/common/watcher';
 import { ParcelWatcherClient } from 'vs/workbench/services/files/electron-sandbox/parcelWatcherClient';
@@ -30,7 +30,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	IFileSystemProviderWithFileFolderCopyCapability,
 	IFileSystemProviderWithFileAtomicReadCapability {
 
-	private readonly provider = this._register(new DiskFileSystemProviderClient(this.mainProcessService.getChannel('localFilesystem'), { pathCaseSensitive: isLinux, trash: true }));
+	private readonly provider = this._register(new DiskFileSystemProviderClient(this.mainProcessService.getChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME), { pathCaseSensitive: isLinux, trash: true }));
 
 	constructor(
 		private readonly mainProcessService: IMainProcessService,

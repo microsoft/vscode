@@ -96,7 +96,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { isLinux } from 'vs/base/common/platform';
 import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
-import { DiskFileSystemProviderClient } from 'vs/platform/files/common/diskFileSystemProviderClient';
+import { DiskFileSystemProviderClient, LOCAL_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/files/common/diskFileSystemProviderClient';
 
 class SharedProcessMain extends Disposable {
 
@@ -206,8 +206,16 @@ class SharedProcessMain extends Disposable {
 		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
-		const localFileSystemProviderFromMain = this._register(new DiskFileSystemProviderClient(mainProcessService.getChannel('localFilesystem'), { pathCaseSensitive: isLinux }));
-		const userDataFileSystemProvider = this._register(new FileUserDataProvider(Schemas.file, localFileSystemProviderFromMain, Schemas.userData, logService));
+		const userDataFileSystemProvider = this._register(new FileUserDataProvider(
+			Schemas.file,
+			// Specifically for user data, use the disk file system provider
+			// from the main process to enable atomic read/write operations.
+			// Since user data can change very frequently across multiple
+			// processes, we want a single process handling these operations.
+			this._register(new DiskFileSystemProviderClient(mainProcessService.getChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME), { pathCaseSensitive: isLinux })),
+			Schemas.userData,
+			logService
+		));
 		fileService.registerProvider(Schemas.userData, userDataFileSystemProvider);
 
 		// Configuration

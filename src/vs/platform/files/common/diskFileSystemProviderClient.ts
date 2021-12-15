@@ -15,6 +15,8 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { createFileSystemProviderError, FileAtomicReadOptions, FileChangeType, FileDeleteOptions, FileOpenOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileChange, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 
+export const LOCAL_FILE_SYSTEM_CHANNEL_NAME = 'localFilesystem';
+
 /**
  * An implementation of a local disk file system provider
  * that is backed by a `IChannel` and thus implemented via

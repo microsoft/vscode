@@ -47,6 +47,7 @@ import { IExtensionHostStarter, ipcExtensionHostStarterChannelName } from 'vs/pl
 import { WorkerMainProcessExtensionHostStarter } from 'vs/platform/extensions/electron-main/workerMainProcessExtensionHostStarter';
 import { IExternalTerminalMainService } from 'vs/platform/externalTerminal/common/externalTerminal';
 import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
+import { LOCAL_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/files/common/diskFileSystemProviderClient';
 import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProviderChannel } from 'vs/platform/files/electron-main/diskFileSystemProviderServer';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
@@ -569,8 +570,8 @@ export class CodeApplication extends Disposable {
 		const diskFileSystemProvider = this.fileService.getProvider(Schemas.file);
 		assertType(diskFileSystemProvider instanceof DiskFileSystemProvider);
 		const fileSystemProviderChannel = new DiskFileSystemProviderChannel(diskFileSystemProvider, this.logService);
-		mainProcessElectronServer.registerChannel('localFilesystem', fileSystemProviderChannel);
-		sharedProcessClient.then(client => client.registerChannel('localFilesystem', fileSystemProviderChannel));
+		mainProcessElectronServer.registerChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME, fileSystemProviderChannel);
+		sharedProcessClient.then(client => client.registerChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME, fileSystemProviderChannel));
 
 		// Update
 		const updateChannel = new UpdateChannel(accessor.get(IUpdateService));
