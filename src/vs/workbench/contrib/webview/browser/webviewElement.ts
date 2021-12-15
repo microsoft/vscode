@@ -318,47 +318,51 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			swPort.onmessage = async (e) => {
 				switch (e.data.channel) {
 					case ServiceWorkerMessages.loadResource:
-						const entry = e.data;
-						try {
-							// Restore the authority we previously encoded
-							const authority = decodeAuthority(entry.authority);
-							const uri = URI.from({
-								scheme: entry.scheme,
-								authority: authority,
-								path: decodeURIComponent(entry.path), // This gets re-encoded
-								query: entry.query ? decodeURIComponent(entry.query) : entry.query,
-							});
+						{
+							const entry = e.data;
+							try {
+								// Restore the authority we previously encoded
+								const authority = decodeAuthority(entry.authority);
+								const uri = URI.from({
+									scheme: entry.scheme,
+									authority: authority,
+									path: decodeURIComponent(entry.path), // This gets re-encoded
+									query: entry.query ? decodeURIComponent(entry.query) : entry.query,
+								});
 
-							const body = await this.loadResource(entry.id, uri, entry.ifNoneMatch);
-							return swPort.postMessage({
-								channel: ServiceWorkerMessages.didLoadResource,
-								...body
-							});
-						} catch (e) {
-							return swPort.postMessage({
-								channel: ServiceWorkerMessages.didLoadResource,
-								id: entry.id,
-								status: 404,
-								path: entry.path,
-							});
+								const body = await this.loadResource(entry.id, uri, entry.ifNoneMatch);
+								return swPort.postMessage({
+									channel: ServiceWorkerMessages.didLoadResource,
+									...body
+								});
+							} catch (e) {
+								return swPort.postMessage({
+									channel: ServiceWorkerMessages.didLoadResource,
+									id: entry.id,
+									status: 404,
+									path: entry.path,
+								});
+							}
 						}
-
 					case ServiceWorkerMessages.loadLocalhost:
-						try {
-							const redirect = await this.getLocalhostRedirect(entry.id, entry.origin);
-							return swPort.postMessage({
-								chanel: ServiceWorkerMessages.didLoadLocalHost,
-								id: entry.id,
-								origin: entry.origin,
-								location: redirect
-							});
-						} catch (e) {
-							return swPort.postMessage({
-								chanel: ServiceWorkerMessages.didLoadLocalHost,
-								id: entry.id,
-								origin: entry.origin,
-								location: undefined
-							});
+						{
+							const entry = e.data;
+							try {
+								const redirect = await this.getLocalhostRedirect(entry.id, entry.origin);
+								return swPort.postMessage({
+									channel: ServiceWorkerMessages.didLoadLocalHost,
+									id: entry.id,
+									origin: entry.origin,
+									location: redirect
+								});
+							} catch (e) {
+								return swPort.postMessage({
+									channel: ServiceWorkerMessages.didLoadLocalHost,
+									id: entry.id,
+									origin: entry.origin,
+									location: undefined
+								});
+							}
 						}
 				}
 			};
