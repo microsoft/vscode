@@ -506,7 +506,7 @@ function registerOpenEditorAPICommands(): void {
 			const [options, column] = mixinContext(context, optionsArg, columnArg);
 
 			let input: IResourceEditorInput | IUntitledTextResourceEditorInput;
-			if (resource.scheme === Schemas.untitled) {
+			if (resource.scheme === Schemas.untitled && resource.path.length > 1) {
 				// special case for untitled: we are getting a resource from an extension
 				// to use for the untitled editor. as such, we have to assume it as an
 				// associated resource to use when saving. we do so by setting the

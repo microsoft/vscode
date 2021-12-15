@@ -116,4 +116,12 @@ suite('vscode API - commands', () => {
 
 		return Promise.all([a, b, c, d]);
 	});
+
+	test('api-command: vscode.open with untitled supports associated resource (#138925)', async function () {
+		let uri = Uri.parse(workspace.workspaceFolders![0].uri.toString() + '/far-copy.js').with({ scheme: 'untitled' });
+		await commands.executeCommand('vscode.open', uri).then(() => assert.ok(true), () => assert.ok(false));
+
+		// untitled with associated resource are dirty from the beginning
+		assert.ok(window.activeTextEditor?.document.isDirty);
+	});
 });
