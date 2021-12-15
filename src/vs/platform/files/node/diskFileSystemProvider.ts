@@ -175,45 +175,39 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 	//#region File Reading/Writing
 
-	private readonly writeBarriers = new ResourceMap<Barrier>(resource => extUriBiasedIgnorePathCase.getComparisonKey(resource));
+	private readonly resourceLocks = new ResourceMap<Barrier>(resource => extUriBiasedIgnorePathCase.getComparisonKey(resource));
 
-	private async createWriteBarrier(resource: URI): Promise<IDisposable> {
+	private async createResourceLock(resource: URI): Promise<IDisposable> {
 
-		// Await pending barriers for resource
-		// It is possible for a new barrier being
+		// Await pending locks for resource
+		// It is possible for a new lock being
 		// added right after opening, so we have
-		// to loop over barriers until no barrier
-		// remains.
-		let existingWriteBarrier: Barrier | undefined = undefined;
-		while (existingWriteBarrier = this.writeBarriers.get(resource)) {
-			await existingWriteBarrier.wait();
+		// to loop over locks until no lock remains
+		let existingLock: Barrier | undefined = undefined;
+		while (existingLock = this.resourceLocks.get(resource)) {
+			await existingLock.wait();
 		}
 
 		// Store new
-		const newWriteBarrier = new Barrier();
-		this.writeBarriers.set(resource, newWriteBarrier);
+		const newLock = new Barrier();
+		this.resourceLocks.set(resource, newLock);
 
 		return toDisposable(() => {
 
-			// Only delete barrier when we are still the owner
-			const writeBarrierForResource = this.writeBarriers.get(resource);
-			if (writeBarrierForResource === newWriteBarrier) {
-				this.writeBarriers.delete(resource);
-			}
-
-			// Finally open our barrier
-			newWriteBarrier.open();
+			// Delete and open lock
+			this.resourceLocks.delete(resource);
+			newLock.open();
 		});
 	}
 
 	async readFile(resource: URI, options?: FileAtomicReadOptions): Promise<Uint8Array> {
-		let barrier: IDisposable | undefined = undefined;
+		let lock: IDisposable | undefined = undefined;
 		try {
 			if (options?.atomic) {
 				// When the read should be atomic, make sure
-				// to await any pending write and block writes
-				// for as long as we read.
-				barrier = await this.createWriteBarrier(resource);
+				// to await any pending locks for the resource
+				// and lock for the duration of the read.
+				lock = await this.createResourceLock(resource);
 			}
 
 			const filePath = this.toFilePath(resource);
@@ -222,10 +216,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		} finally {
-
-			// Release any barrier we created if the
-			// read was supposed to be atomic
-			barrier?.dispose();
+			lock?.dispose();
 		}
 	}
 
@@ -274,7 +265,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	}
 
 	private readonly mapHandleToPos = new Map<number, number>();
-	private readonly mapHandleToBarrier = new Map<number, IDisposable>();
+	private readonly mapHandleToLock = new Map<number, IDisposable>();
 
 	private readonly writeHandles = new Map<number, URI>();
 	private canFlush: boolean = true;
@@ -282,11 +273,11 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	async open(resource: URI, opts: FileOpenOptions): Promise<number> {
 
 		// Writes: guard multiple writes to the same resource
-		// behind a single barrier to prevent races when writing
+		// behind a single lock to prevent races when writing
 		// from multiple places at the same time to the same file
-		let barrier: IDisposable | undefined = undefined;
+		let lock: IDisposable | undefined = undefined;
 		if (isFileOpenForWriteOptions(opts)) {
-			barrier = await this.createWriteBarrier(resource);
+			lock = await this.createResourceLock(resource);
 		}
 
 		try {
@@ -351,17 +342,17 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 				this.writeHandles.set(handle, resource);
 			}
 
-			// remember that this handle has an associated barrier
-			if (barrier) {
-				this.mapHandleToBarrier.set(handle, barrier);
+			// remember that this handle has an associated lock
+			if (lock) {
+				this.mapHandleToLock.set(handle, lock);
 			}
 
 			return handle;
 		} catch (error) {
 
-			// Release barrier because we have no valid handle
-			// if we did open a barrier during this operation
-			barrier?.dispose();
+			// Release lock because we have no valid handle
+			// if we did open a lock during this operation
+			lock?.dispose();
 
 			// Rethrow as file system provider error
 			if (isFileOpenForWriteOptions(opts)) {
@@ -396,12 +387,12 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			throw this.toFileSystemProviderError(error);
 		} finally {
 
-			// Release any known barrier for the file handle
+			// Release any known lock for the file handle
 			// since the handle has been closed and is invalid
-			const barrierForHandle = this.mapHandleToBarrier.get(fd);
-			if (barrierForHandle) {
-				barrierForHandle.dispose();
-				this.mapHandleToBarrier.delete(fd);
+			const lockForHandle = this.mapHandleToLock.get(fd);
+			if (lockForHandle) {
+				lockForHandle.dispose();
+				this.mapHandleToLock.delete(fd);
 			}
 		}
 	}
