@@ -216,6 +216,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		}));
 
 		// Intercept touch events
+		// The following implementation is slightly different from the mouse event handlers above.
 		// Use the following helper variable, otherwise the list flickers.
 		let listIsVisibleOnTouchStart: boolean;
 		this._register(dom.addDisposableListener(this.selectElement, 'touchstart', (e) => {
@@ -777,8 +778,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 		// SetUp list mouse controller - control navigation, disabled items, focus
 
-		this._register(dom.addDisposableListener(this.selectList.getHTMLElement(), dom.EventType.MOUSE_UP, e => this.onMouseUpOrTouchEnd(e)));
-		this._register(dom.addDisposableListener(this.selectList.getHTMLElement(), 'touchend', e => this.onMouseUpOrTouchEnd(e)));
+		this._register(dom.addDisposableListener(this.selectList.getHTMLElement(), dom.EventType.POINTER_DOWN, e => this.onPointerDown(e)));
 
 		this._register(this.selectList.onMouseOver(e => typeof e.index !== 'undefined' && this.selectList.setFocus([e.index])));
 		this._register(this.selectList.onDidChangeFocus(e => this.onListFocus(e)));
@@ -800,7 +800,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 	// List mouse controller - active exit, select option, fire onDidSelect if change, return focus to parent select
 	// Also takes in touchend events
-	private onMouseUpOrTouchEnd(e: MouseEvent | TouchEvent): void {
+	private onPointerDown(e: PointerEvent): void {
 
 		if (!this.selectList.length) {
 			return;
