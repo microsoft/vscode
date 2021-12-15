@@ -32,7 +32,6 @@ import { localize } from 'vs/nls';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { UserConfigurationFileService, UserConfigurationFileServiceId } from 'vs/platform/configuration/common/userConfigurationFileService';
 import { ElectronExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/electron-main/extensionHostDebugIpc';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
 import { DialogMainService, IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
@@ -572,11 +571,6 @@ export class CodeApplication extends Disposable {
 		const fileSystemProviderChannel = new DiskFileSystemProviderChannel(diskFileSystemProvider, this.logService);
 		mainProcessElectronServer.registerChannel('localFilesystem', fileSystemProviderChannel);
 		sharedProcessClient.then(client => client.registerChannel('localFilesystem', fileSystemProviderChannel));
-
-		// User Configuration File
-		const userConfigurationFileService = new UserConfigurationFileService(this.environmentMainService, this.fileService, this.logService);
-		mainProcessElectronServer.registerChannel(UserConfigurationFileServiceId, ProxyChannel.fromService(userConfigurationFileService));
-		sharedProcessClient.then(client => client.registerChannel(UserConfigurationFileServiceId, ProxyChannel.fromService(userConfigurationFileService)));
 
 		// Update
 		const updateChannel = new UpdateChannel(accessor.get(IUpdateService));

@@ -15,7 +15,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService, IConfigurationUpdateOverrides } from 'vs/platform/configuration/common/configuration';
 import { FOLDER_SETTINGS_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY, USER_STANDALONE_CONFIGURATIONS, TASKS_DEFAULT, FOLDER_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
-import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, keyFromOverrideIdentifiers, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -24,7 +24,6 @@ import { IOpenSettingsOptions, IPreferencesService } from 'vs/workbench/services
 import { withUndefinedAsNull, withNullAsUndefined } from 'vs/base/common/types';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IUserConfigurationFileService, UserConfigurationErrorCode } from 'vs/platform/configuration/common/userConfigurationFileService';
 import { ITextModel } from 'vs/editor/common/model';
 import { IReference } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
@@ -153,7 +152,6 @@ export class ConfigurationEditingService {
 		@IEditorService private readonly editorService: IEditorService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IUserConfigurationFileService private readonly userConfigurationFileService: IUserConfigurationFileService,
 	) {
 		this.queue = new Queue<void>();
 		remoteAgentService.getEnvironment().then(environment => {
@@ -181,20 +179,7 @@ export class ConfigurationEditingService {
 		const reference = await this.resolveModelReference(resource);
 		try {
 			const formattingOptions = this.getFormattingOptions(reference.object.textEditorModel);
-			if (!this.textFileService.isDirty(resource) /* go through text model save if the model is dirty */
-				&& this.uriIdentityService.extUri.isEqual(resource, this.environmentService.settingsResource)) {
-				await this.userConfigurationFileService.updateSettings({ path: operation.jsonPath, value: operation.value }, formattingOptions);
-			} else {
-				await this.updateConfiguration(operation, reference.object.textEditorModel, formattingOptions);
-			}
-		} catch (error) {
-			if ((<Error>error).message === UserConfigurationErrorCode.ERROR_INVALID_FILE) {
-				throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION, operation.target, operation);
-			}
-			if ((<Error>error).message === UserConfigurationErrorCode.ERROR_FILE_MODIFIED_SINCE || (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
-				throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_MODIFIED_SINCE, operation.target, operation);
-			}
-			throw error;
+			await this.updateConfiguration(operation, reference.object.textEditorModel, formattingOptions);
 		} finally {
 			reference.dispose();
 		}
