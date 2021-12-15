@@ -538,6 +538,54 @@ interface IDisableUnicodeHighlightAction {
 	shortLabel: string;
 }
 
+export class DisableHighlightingInCommentsAction extends EditorAction implements IDisableUnicodeHighlightAction {
+	public static ID = 'editor.action.unicodeHighlight.disableHighlightingInComments';
+	public readonly shortLabel = nls.localize('unicodeHighlight.disableHighlightingInComments.shortLabel', 'Disable Highlight In Comments');
+	constructor() {
+		super({
+			id: DisableHighlightingOfAmbiguousCharactersAction.ID,
+			label: nls.localize('action.unicodeHighlight.disableHighlightingInComments', 'Disable highlighting of characters in comments'),
+			alias: 'Disable highlighting of characters in comments',
+			precondition: undefined
+		});
+	}
+
+	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor, args: any): Promise<void> {
+		let configurationService = accessor?.get(IConfigurationService);
+		if (configurationService) {
+			this.runAction(configurationService);
+		}
+	}
+
+	public async runAction(configurationService: IConfigurationService): Promise<void> {
+		await configurationService.updateValue(unicodeHighlightConfigKeys.includeComments, false, ConfigurationTarget.USER);
+	}
+}
+
+export class DisableHighlightingInStringsAction extends EditorAction implements IDisableUnicodeHighlightAction {
+	public static ID = 'editor.action.unicodeHighlight.disableHighlightingInStrings';
+	public readonly shortLabel = nls.localize('unicodeHighlight.disableHighlightingInStrings.shortLabel', 'Disable Highlight In Strings');
+	constructor() {
+		super({
+			id: DisableHighlightingOfAmbiguousCharactersAction.ID,
+			label: nls.localize('action.unicodeHighlight.disableHighlightingInStrings', 'Disable highlighting of characters in strings'),
+			alias: 'Disable highlighting of characters in strings',
+			precondition: undefined
+		});
+	}
+
+	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor, args: any): Promise<void> {
+		let configurationService = accessor?.get(IConfigurationService);
+		if (configurationService) {
+			this.runAction(configurationService);
+		}
+	}
+
+	public async runAction(configurationService: IConfigurationService): Promise<void> {
+		await configurationService.updateValue(unicodeHighlightConfigKeys.includeStrings, false, ConfigurationTarget.USER);
+	}
+}
+
 export class DisableHighlightingOfAmbiguousCharactersAction extends EditorAction implements IDisableUnicodeHighlightAction {
 	public static ID = 'editor.action.unicodeHighlight.disableHighlightingOfAmbiguousCharacters';
 	public readonly shortLabel = nls.localize('unicodeHighlight.disableHighlightingOfAmbiguousCharacters.shortLabel', 'Disable Ambiguous Highlight');
@@ -629,7 +677,7 @@ export class ShowExcludeOptions extends EditorAction {
 	}
 
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor, args: any): Promise<void> {
-		const { codePoint, reason } = args as ShowExcludeOptionsArgs;
+		const { codePoint, reason, inString, inComment } = args as ShowExcludeOptionsArgs;
 
 		const char = String.fromCodePoint(codePoint);
 
@@ -653,6 +701,14 @@ export class ShowExcludeOptions extends EditorAction {
 				run: () => excludeCharFromBeingHighlighted(configurationService, [codePoint])
 			},
 		];
+
+		if (inComment) {
+			const action = new DisableHighlightingInCommentsAction();
+			options.push({ label: action.label, run: async () => action.runAction(configurationService) });
+		} else if (inString) {
+			const action = new DisableHighlightingInStringsAction();
+			options.push({ label: action.label, run: async () => action.runAction(configurationService) });
+		}
 
 		if (reason === UnicodeHighlighterReasonKind.Ambiguous) {
 			const action = new DisableHighlightingOfAmbiguousCharactersAction();
