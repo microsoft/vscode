@@ -43,7 +43,10 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		this._telemetryReporter = new ExperimentationTelemetry(context, new TelemetryReporter(name, version, aiKey));
 
 		if (this.type === AuthProviderType.github) {
-			this._githubServer = new GitHubServer(this._logger, this._telemetryReporter);
+			this._githubServer = new GitHubServer(
+				context.extension.extensionKind === vscode.ExtensionKind.Workspace,
+				this._logger,
+				this._telemetryReporter);
 		} else {
 			this._githubServer = new GitHubEnterpriseServer(this._logger, this._telemetryReporter);
 		}

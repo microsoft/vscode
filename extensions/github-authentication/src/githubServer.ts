@@ -13,6 +13,7 @@ import { AuthProviderType } from './github';
 import { Log } from './common/logger';
 
 const localize = nls.loadMessageBundle();
+const CLIENT_ID = '01ab8ac9400c4e429b23';
 
 const NETWORK_ERROR = 'network error';
 const AUTH_RELAY_SERVER = 'vscode-auth.github.com';
@@ -43,6 +44,13 @@ export interface IGitHubServer extends vscode.Disposable {
 	sendAdditionalTelemetryInfo(token: string): Promise<void>;
 	friendlyName: string;
 	type: AuthProviderType;
+}
+
+interface IGitHubDeviceCodeResponse {
+	device_code: string;
+	user_code: string;
+	verification_uri: string;
+	interval: number;
 }
 
 async function getScopes(token: string, serverUri: vscode.Uri, logger: Log): Promise<string[]> {
@@ -105,7 +113,7 @@ export class GitHubServer implements IGitHubServer {
 	private _disposable: vscode.Disposable;
 	private _uriHandler = new UriEventHandler(this._logger);
 
-	constructor(private readonly _logger: Log, private readonly _telemetryReporter: ExperimentationTelemetry) {
+	constructor(private readonly _supportDeviceCodeFlow: boolean, private readonly _logger: Log, private readonly _telemetryReporter: ExperimentationTelemetry) {
 		this._disposable = vscode.Disposable.from(
 			vscode.commands.registerCommand(this._statusBarCommandId, () => this.manuallyProvideUri()),
 			vscode.window.registerUriHandler(this._uriHandler));
@@ -131,13 +139,17 @@ export class GitHubServer implements IGitHubServer {
 		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate`));
 
 		if (this.isTestEnvironment(callbackUri)) {
-			let token;
-			try {
-				token = await vscode.commands.executeCommand<string>('authentication.github.device.code', scopes);
-			} catch (ex) {
-				this._logger.error(ex.message);
+			let token: string | undefined;
+			if (this._supportDeviceCodeFlow) {
+				try {
+					token = await this.doDeviceCodeFlow(scopes);
+				} catch (ex) {
+					this._logger.error(ex.message);
+				}
+			} else {
 				token = await vscode.window.showInputBox({ prompt: 'GitHub Personal Access Token', ignoreFocusOut: true });
 			}
+
 			if (!token) { throw new Error('Sign in failed: No token provided'); }
 
 			const tokenScopes = await getScopes(token, this.getServerUri('/'), this._logger); // Example: ['repo', 'user']
@@ -191,6 +203,91 @@ export class GitHubServer implements IGitHubServer {
 			this._codeExchangePromises.delete(scopes);
 			this.updateStatusBarItem(false);
 		});
+	}
+
+	private async doDeviceCodeFlow(scopes: string): Promise<string> {
+		const uri = `https://github.com/login/device/code?client_id=${CLIENT_ID}&scope=${scopes}`;
+		const result = await fetch(uri, {
+			method: 'POST',
+			headers: {
+				Accept: 'application/json'
+			}
+		});
+		if (!result.ok) {
+			throw new Error(`Failed to get device code: ${await result.text()}`);
+		}
+
+		const json = await result.json() as IGitHubDeviceCodeResponse;
+
+		await vscode.env.clipboard.writeText(json.user_code);
+
+		const modalResult = await vscode.window.showInformationMessage(
+			localize('code.title', "Your Code: {0}", json.user_code),
+			{
+				modal: true,
+				detail: localize('code.detail', "The above one-time code has been copied to your clipboard. Continue to {0}  to finish authenticating?", json.verification_uri)
+			}, 'OK');
+
+		if (modalResult !== 'OK') {
+			throw new Error('Cancelled');
+		}
+
+		const uriToOpen = await vscode.env.asExternalUri(vscode.Uri.parse(json.verification_uri));
+		await vscode.env.openExternal(uriToOpen);
+
+		return await vscode.window.withProgress<string>({
+			location: vscode.ProgressLocation.Notification,
+			cancellable: true,
+			title: localize('progress', "• Code: {0} • Url: {1} • Polling GitHub to finish authenticating", json.user_code, json.verification_uri)
+		}, async (progress, token) => {
+			return await this.waitForDeviceCodeAccessToken(json, progress, token);
+		});
+	}
+
+	private async waitForDeviceCodeAccessToken(
+		json: IGitHubDeviceCodeResponse,
+		progress: vscode.Progress<{ message?: string | undefined; increment?: number | undefined; }>,
+		token: vscode.CancellationToken
+	): Promise<string> {
+
+		const refreshTokenUri = `https://github.com/login/oauth/access_token?client_id=${CLIENT_ID}&device_code=${json.device_code}&grant_type=urn:ietf:params:oauth:grant-type:device_code`;
+		const attempts = 120 / json.interval;
+		for (let i = 0; i < attempts; i++) {
+			await new Promise(resolve => setTimeout(resolve, json.interval * 1000));
+			progress.report({ message: localize('progress.update', "attempt {0} of {1}", i + 1, attempts + 1) });
+			if (token.isCancellationRequested) {
+				throw new Error(localize('cancelled', "Cancelled"));
+			}
+			let accessTokenResult;
+			try {
+				accessTokenResult = await fetch(refreshTokenUri, {
+					method: 'POST',
+					headers: {
+						Accept: 'application/json'
+					}
+				});
+			} catch {
+				continue;
+			}
+
+			if (!accessTokenResult.ok) {
+				continue;
+			}
+
+			const accessTokenJson = await accessTokenResult.json();
+
+			if (accessTokenJson.error === 'authorization_pending') {
+				continue;
+			}
+
+			if (accessTokenJson.error) {
+				throw new Error(accessTokenJson.error_description);
+			}
+
+			return accessTokenJson.access_token;
+		}
+
+		throw new Error('Failed to get access token');
 	}
 
 	private exchangeCodeForToken: (scopes: string) => PromiseAdapter<vscode.Uri, string> =
