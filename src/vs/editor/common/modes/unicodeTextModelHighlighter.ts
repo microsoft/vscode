@@ -211,5 +211,6 @@ export interface UnicodeHighlighterOptions {
 	ambiguousCharacters: boolean;
 	invisibleCharacters: boolean;
 	includeComments: boolean;
+	includeStrings: boolean;
 	allowedCodePoints: number[];
 }
