@@ -9,7 +9,7 @@ import { IProgressRunner, IProgressIndicator, emptyProgressRunner } from 'vs/pla
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { IViewsService } from 'vs/workbench/common/views';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { GroupChangeKind } from 'vs/workbench/common/editor';
+import { GroupModelChangeKind } from 'vs/workbench/common/editor';
 
 class ProgressBarIndicator extends Disposable implements IProgressIndicator {
 
@@ -77,8 +77,8 @@ export class EditorProgressIndicator extends ProgressBarIndicator {
 		// track active editor progress and replay it later (yet).
 		this._register(this.group.onDidModelChange(e => {
 			if (
-				e.kind === GroupChangeKind.EDITOR_ACTIVE ||
-				(e.kind === GroupChangeKind.EDITOR_CLOSE && this.group.isEmpty)
+				e.kind === GroupModelChangeKind.EDITOR_ACTIVE ||
+				(e.kind === GroupModelChangeKind.EDITOR_CLOSE && this.group.isEmpty)
 			) {
 				this.progressbar.stop().hide();
 			}

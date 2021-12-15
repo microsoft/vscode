@@ -11,7 +11,7 @@ import { contrastBorder, editorBackground } from 'vs/platform/theme/common/color
 import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorGroupsService, IEditorSideGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
-import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent, GroupChangeKind } from 'vs/workbench/common/editor';
+import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from 'vs/workbench/common/theme';
 import { distinct, coalesce, firstOrDefault } from 'vs/base/common/arrays';
 import { IEditorGroupsAccessor, IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions } from 'vs/workbench/browser/parts/editor/editor';
@@ -550,19 +550,21 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 			this.doSetGroupActive(groupView);
 		}));
 
-		// Track editor change
-		groupDisposables.add(groupView.onDidGroupChange(e => {
+		// Track group changes
+		groupDisposables.add(groupView.onDidModelChange(e => {
 			switch (e.kind) {
-				case GroupChangeKind.EDITOR_ACTIVE:
-					this.updateContainer();
-					break;
-				case GroupChangeKind.GROUP_INDEX:
-					this._onDidChangeGroupIndex.fire(groupView);
-					break;
-				case GroupChangeKind.GROUP_LOCKED:
+				case GroupModelChangeKind.GROUP_LOCKED:
 					this._onDidChangeGroupLocked.fire(groupView);
 					break;
+				case GroupModelChangeKind.GROUP_INDEX:
+					this._onDidChangeGroupIndex.fire(groupView);
+					break;
 			}
+		}));
+
+		// Track active editor change after it occurred
+		groupDisposables.add(groupView.onDidActiveEditorChange(() => {
+			this.updateContainer();
 		}));
 
 		// Track dispose
