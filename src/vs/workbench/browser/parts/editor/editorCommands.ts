@@ -33,6 +33,7 @@ import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEdit
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -494,6 +495,7 @@ function registerOpenEditorAPICommands(): void {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const openerService = accessor.get(IOpenerService);
+		const pathService = accessor.get(IPathService);
 
 		const resource = URI.revive(resourceArg);
 		const [columnArg, optionsArg] = columnAndOptions ?? [];
@@ -510,7 +512,7 @@ function registerOpenEditorAPICommands(): void {
 				// associated resource to use when saving. we do so by setting the
 				// `forceUntitled: true` and changing the scheme to a file based one. the
 				// untitled editor service takes care to associate the path properly then.
-				input = { resource: resource.with({ scheme: Schemas.file }), forceUntitled: true, options, label };
+				input = { resource: resource.with({ scheme: pathService.defaultUriScheme }), forceUntitled: true, options, label };
 			} else {
 				// use any other resource as is
 				input = { resource, options, label };
