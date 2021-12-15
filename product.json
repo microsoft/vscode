@@ -1,6 +1,6 @@
 {
-	"nameShort": "Code Server",
-	"nameLong": "Code Server",
+	"nameShort": "code-server",
+	"nameLong": "code-server",
 	"applicationName": "code-server",
 	"dataFolderName": ".code-server",
 	"win32MutexName": "codeserver",
