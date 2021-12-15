@@ -95,9 +95,9 @@ import { IUserConfigurationFileService, UserConfigurationFileServiceId } from 'v
 import { AssignmentService } from 'vs/platform/assignment/common/assignmentService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { IPCFileSystemProvider } from 'vs/platform/files/common/ipcFileSystemProvider';
 import { isLinux } from 'vs/base/common/platform';
 import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
+import { DiskFileSystemProviderClient } from 'vs/platform/files/common/diskFileSystemProviderClient';
 
 class SharedProcessMain extends Disposable {
 
@@ -207,7 +207,7 @@ class SharedProcessMain extends Disposable {
 		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
-		const localFileSystemProviderFromMain = this._register(new IPCFileSystemProvider(mainProcessService.getChannel('localFilesystem'), { pathCaseSensitive: isLinux }));
+		const localFileSystemProviderFromMain = this._register(new DiskFileSystemProviderClient(mainProcessService.getChannel('localFilesystem'), { pathCaseSensitive: isLinux }));
 		const userDataFileSystemProvider = this._register(new FileUserDataProvider(Schemas.file, localFileSystemProviderFromMain, Schemas.userData, logService));
 		fileService.registerProvider(Schemas.userData, userDataFileSystemProvider);
 
