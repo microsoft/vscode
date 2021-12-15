@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import 'mocha';
 import { join } from 'path';
 import { commands, Position, Range, Uri, ViewColumn, window, workspace } from 'vscode';
-import { assertNoRpc } from '../utils';
+import { assertNoRpc, closeAllEditors } from '../utils';
 
 suite('vscode API - commands', () => {
 
@@ -118,10 +118,12 @@ suite('vscode API - commands', () => {
 	});
 
 	test('api-command: vscode.open with untitled supports associated resource (#138925)', async function () {
-		let uri = Uri.parse(workspace.workspaceFolders![0].uri.toString() + '/far-copy.js').with({ scheme: 'untitled' });
+		let uri = Uri.parse(workspace.workspaceFolders![0].uri.toString() + '/untitled-file.txt').with({ scheme: 'untitled' });
 		await commands.executeCommand('vscode.open', uri).then(() => assert.ok(true), () => assert.ok(false));
 
 		// untitled with associated resource are dirty from the beginning
 		assert.ok(window.activeTextEditor?.document.isDirty);
+
+		return closeAllEditors();
 	});
 });
