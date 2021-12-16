@@ -12,7 +12,15 @@ export function setup(logger: Logger) {
 		// Shared before/after handling
 		installAllHandlers(logger);
 
-		it('verifies quick outline', async function () {
+		it('verifies quick outline (js)', async function () {
+			const app = this.app as Application;
+			await app.workbench.quickaccess.openFile('www');
+
+			await app.workbench.quickaccess.openQuickOutline();
+			await app.workbench.quickinput.waitForQuickInputElements(names => names.length >= 6);
+		});
+
+		it('verifies quick outline (css)', async function () {
 			const app = this.app as Application;
 			await app.workbench.quickaccess.openFile('style.css');
 
@@ -20,7 +28,7 @@ export function setup(logger: Logger) {
 			await app.workbench.quickinput.waitForQuickInputElements(names => names.length === 2);
 		});
 
-		it('verifies problems view', async function () {
+		it('verifies problems view (css)', async function () {
 			const app = this.app as Application;
 			await app.workbench.quickaccess.openFile('style.css');
 			await app.workbench.editor.waitForTypeInEditor('style.css', '.foo{}');
@@ -32,7 +40,7 @@ export function setup(logger: Logger) {
 			await app.workbench.problems.hideProblemsView();
 		});
 
-		it('verifies settings', async function () {
+		it('verifies settings (css)', async function () {
 			const app = this.app as Application;
 			await app.workbench.settingsEditor.addUserSetting('css.lint.emptyRules', '"error"');
 			await app.workbench.quickaccess.openFile('style.css');

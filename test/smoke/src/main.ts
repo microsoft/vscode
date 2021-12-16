@@ -21,7 +21,6 @@ import { setup as setupPreferencesTests } from './areas/preferences/preferences.
 import { setup as setupSearchTests } from './areas/search/search.test';
 import { setup as setupNotebookTests } from './areas/notebook/notebook.test';
 import { setup as setupLanguagesTests } from './areas/languages/languages.test';
-import { setup as setupEditorTests } from './areas/editor/editor.test';
 import { setup as setupStatusbarTests } from './areas/statusbar/statusbar.test';
 import { setup as setupExtensionTests } from './areas/extensions/extensions.test';
 import { setup as setupMultirootTests } from './areas/multiroot/multiroot.test';
@@ -374,7 +373,6 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	setupSearchTests(logger);
 	setupNotebookTests(logger);
 	setupLanguagesTests(logger);
-	setupEditorTests(logger);
 	if (opts.web) { setupTerminalTests(logger); } // TODO@daniel TODO@meggan: Enable terminal tests for non-web when the desktop driver is moved to playwright
 	setupStatusbarTests(!!opts.web, logger);
 	if (quality !== Quality.Dev) { setupExtensionTests(logger); }
