@@ -59,6 +59,7 @@ import { EditorResolution } from 'vs/platform/editor/common/editor';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 import { MarkdownString } from 'vs/base/common/htmlContent';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', '');
 
@@ -128,6 +129,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUserDataInitializationService private readonly userDataInitializationService: IUserDataInitializationService,
+		@IHostService private readonly hostService: IHostService,
 	) {
 		super();
 
@@ -428,6 +430,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			return;
 		}
 		if (source !== SyncResource.Settings && source !== SyncResource.Keybindings) {
+			return;
+		}
+		if (!this.hostService.hasFocus) {
 			return;
 		}
 		const resource = source === SyncResource.Settings ? this.environmentService.settingsResource : this.environmentService.keybindingsResource;
