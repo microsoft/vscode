@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepEqual, deepStrictEqual, doesNotThrow, equal, strictEqual, throws } from 'assert';
+import { deepStrictEqual, doesNotThrow, equal, strictEqual, throws } from 'assert';
 import { ConfigurationTarget, Disposable, env, EnvironmentVariableMutator, EnvironmentVariableMutatorType, EventEmitter, ExtensionContext, extensions, ExtensionTerminalOptions, Pseudoterminal, Terminal, TerminalDimensions, TerminalOptions, TerminalState, UIKind, window, workspace } from 'vscode';
-import { assertNoRpc } from '../utils';
+import { assertNoRpc, poll } from '../utils';
 
 // Disable terminal tests:
 // - Web https://github.com/microsoft/vscode/issues/92826
@@ -220,7 +220,7 @@ import { assertNoRpc } from '../utils';
 			await new Promise<void>(r => {
 				disposables.push(window.onDidCloseTerminal(t => {
 					if (t === terminal) {
-						deepEqual(t.exitStatus, { code: undefined });
+						deepStrictEqual(t.exitStatus, { code: undefined });
 						r();
 					}
 				}));
@@ -364,13 +364,13 @@ import { assertNoRpc } from '../utils';
 					closeEvents.push(e.name);
 					try {
 						if (closeEvents.length === 1) {
-							deepEqual(openEvents, ['test1']);
-							deepEqual(dataEvents, [{ name: 'test1', data: 'write1' }]);
-							deepEqual(closeEvents, ['test1']);
+							deepStrictEqual(openEvents, ['test1']);
+							deepStrictEqual(dataEvents, [{ name: 'test1', data: 'write1' }]);
+							deepStrictEqual(closeEvents, ['test1']);
 						} else if (closeEvents.length === 2) {
-							deepEqual(openEvents, ['test1', 'test2']);
-							deepEqual(dataEvents, [{ name: 'test1', data: 'write1' }, { name: 'test2', data: 'write2' }]);
-							deepEqual(closeEvents, ['test1', 'test2']);
+							deepStrictEqual(openEvents, ['test1', 'test2']);
+							deepStrictEqual(dataEvents, [{ name: 'test1', data: 'write1' }, { name: 'test2', data: 'write2' }]);
+							deepStrictEqual(closeEvents, ['test1', 'test2']);
 						}
 						resolveOnceClosed!();
 					} catch (e) {
@@ -667,29 +667,8 @@ import { assertNoRpc } from '../utils';
 		});
 
 		suite('environmentVariableCollection', () => {
-			test.skip('should have collection variables apply to terminals immediately after setting', (done) => {
-				// Text to match on before passing the test
-				const expectedText = [
-					'~a2~',
-					'b1~b2~',
-					'~c2~c1'
-				];
-				let data = '';
-				disposables.push(window.onDidWriteTerminalData(e => {
-					if (terminal !== e.terminal) {
-						return;
-					}
-					data += sanitizeData(e.data);
-					// Multiple expected could show up in the same data event
-					while (expectedText.length > 0 && data.indexOf(expectedText[0]) >= 0) {
-						expectedText.shift();
-						// Check if all string are found, if so finish the test
-						if (expectedText.length === 0) {
-							disposables.push(window.onDidCloseTerminal(() => done()));
-							terminal.dispose();
-						}
-					}
-				}));
+			test('should have collection variables apply to terminals immediately after setting', async () => {
+				// Setup collection and create terminal
 				const collection = extensionContext.environmentVariableCollection;
 				disposables.push({ dispose: () => collection.clear() });
 				collection.replace('A', '~a2~');
@@ -702,6 +681,16 @@ import { assertNoRpc } from '../utils';
 						C: 'c1'
 					}
 				});
+
+				// Listen for all data events
+				let data = '';
+				disposables.push(window.onDidWriteTerminalData(e => {
+					if (terminal !== e.terminal) {
+						return;
+					}
+					data += sanitizeData(e.data);
+				}));
+
 				// Run both PowerShell and sh commands, errors don't matter we're just looking for
 				// the correct output
 				terminal.sendText('$env:A');
@@ -710,31 +699,21 @@ import { assertNoRpc } from '../utils';
 				terminal.sendText('echo $B');
 				terminal.sendText('$env:C');
 				terminal.sendText('echo $C');
+
+				// Poll for the echo results to show up
+				await poll<void>(() => Promise.resolve(), () => data.includes('~a2~'), '~a2~ should be printed');
+				await poll<void>(() => Promise.resolve(), () => data.includes('b1~b2~'), 'b1~b2~ should be printed');
+				await poll<void>(() => Promise.resolve(), () => data.includes('~c2~c1'), '~c2~c1 should be printed');
+
+				// Wait for terminal to be disposed
+				await new Promise<void>(r => {
+					disposables.push(window.onDidCloseTerminal(() => r()));
+					terminal.dispose();
+				});
 			});
 
-			test('should have collection variables apply to environment variables that don\'t exist', (done) => {
-				// Text to match on before passing the test
-				const expectedText = [
-					'~a2~',
-					'~b2~',
-					'~c2~'
-				];
-				let data = '';
-				disposables.push(window.onDidWriteTerminalData(e => {
-					if (terminal !== e.terminal) {
-						return;
-					}
-					data += sanitizeData(e.data);
-					// Multiple expected could show up in the same data event
-					while (expectedText.length > 0 && data.indexOf(expectedText[0]) >= 0) {
-						expectedText.shift();
-						// Check if all string are found, if so finish the test
-						if (expectedText.length === 0) {
-							disposables.push(window.onDidCloseTerminal(() => done()));
-							terminal.dispose();
-						}
-					}
-				}));
+			test('should have collection variables apply to environment variables that don\'t exist', async () => {
+				// Setup collection and create terminal
 				const collection = extensionContext.environmentVariableCollection;
 				disposables.push({ dispose: () => collection.clear() });
 				collection.replace('A', '~a2~');
@@ -747,6 +726,16 @@ import { assertNoRpc } from '../utils';
 						C: null
 					}
 				});
+
+				// Listen for all data events
+				let data = '';
+				disposables.push(window.onDidWriteTerminalData(e => {
+					if (terminal !== e.terminal) {
+						return;
+					}
+					data += sanitizeData(e.data);
+				}));
+
 				// Run both PowerShell and sh commands, errors don't matter we're just looking for
 				// the correct output
 				terminal.sendText('$env:A');
@@ -755,30 +744,21 @@ import { assertNoRpc } from '../utils';
 				terminal.sendText('echo $B');
 				terminal.sendText('$env:C');
 				terminal.sendText('echo $C');
+
+				// Poll for the echo results to show up
+				await poll<void>(() => Promise.resolve(), () => data.includes('~a2~'), '~a2~ should be printed');
+				await poll<void>(() => Promise.resolve(), () => data.includes('~b2~'), '~b2~ should be printed');
+				await poll<void>(() => Promise.resolve(), () => data.includes('~c2~'), '~c2~ should be printed');
+
+				// Wait for terminal to be disposed
+				await new Promise<void>(r => {
+					disposables.push(window.onDidCloseTerminal(() => r()));
+					terminal.dispose();
+				});
 			});
 
-			test.skip('should respect clearing entries', (done) => {
-				// Text to match on before passing the test
-				const expectedText = [
-					'~a1~',
-					'~b1~'
-				];
-				let data = '';
-				disposables.push(window.onDidWriteTerminalData(e => {
-					if (terminal !== e.terminal) {
-						return;
-					}
-					data += sanitizeData(e.data);
-					// Multiple expected could show up in the same data event
-					while (expectedText.length > 0 && data.indexOf(expectedText[0]) >= 0) {
-						expectedText.shift();
-						// Check if all string are found, if so finish the test
-						if (expectedText.length === 0) {
-							disposables.push(window.onDidCloseTerminal(() => done()));
-							terminal.dispose();
-						}
-					}
-				}));
+			test('should respect clearing entries', async () => {
+				// Setup collection and create terminal
 				const collection = extensionContext.environmentVariableCollection;
 				disposables.push({ dispose: () => collection.clear() });
 				collection.replace('A', '~a2~');
@@ -790,36 +770,36 @@ import { assertNoRpc } from '../utils';
 						B: '~b1~'
 					}
 				});
-				// Run both PowerShell and sh commands, errors don't matter we're just looking for
-				// the correct output
-				terminal.sendText('$env:A');
-				terminal.sendText('echo $A');
-				terminal.sendText('$env:B');
-				terminal.sendText('echo $B');
-			});
 
-			test('should respect deleting entries', (done) => {
-				// Text to match on before passing the test
-				const expectedText = [
-					'~a1~',
-					'~b2~'
-				];
+				// Listen for all data events
 				let data = '';
 				disposables.push(window.onDidWriteTerminalData(e => {
 					if (terminal !== e.terminal) {
 						return;
 					}
 					data += sanitizeData(e.data);
-					// Multiple expected could show up in the same data event
-					while (expectedText.length > 0 && data.indexOf(expectedText[0]) >= 0) {
-						expectedText.shift();
-						// Check if all string are found, if so finish the test
-						if (expectedText.length === 0) {
-							disposables.push(window.onDidCloseTerminal(() => done()));
-							terminal.dispose();
-						}
-					}
 				}));
+
+				// Run both PowerShell and sh commands, errors don't matter we're just looking for
+				// the correct output
+				terminal.sendText('$env:A');
+				terminal.sendText('echo $A');
+				terminal.sendText('$env:B');
+				terminal.sendText('echo $B');
+
+				// Poll for the echo results to show up
+				await poll<void>(() => Promise.resolve(), () => data.includes('~a1~'), '~a1~ should be printed');
+				await poll<void>(() => Promise.resolve(), () => data.includes('~b1~'), '~b1~ should be printed');
+
+				// Wait for terminal to be disposed
+				await new Promise<void>(r => {
+					disposables.push(window.onDidCloseTerminal(() => r()));
+					terminal.dispose();
+				});
+			});
+
+			test('should respect deleting entries', async () => {
+				// Setup collection and create terminal
 				const collection = extensionContext.environmentVariableCollection;
 				disposables.push({ dispose: () => collection.clear() });
 				collection.replace('A', '~a2~');
@@ -831,12 +811,32 @@ import { assertNoRpc } from '../utils';
 						B: '~b2~'
 					}
 				});
+
+				// Listen for all data events
+				let data = '';
+				disposables.push(window.onDidWriteTerminalData(e => {
+					if (terminal !== e.terminal) {
+						return;
+					}
+					data += sanitizeData(e.data);
+				}));
+
 				// Run both PowerShell and sh commands, errors don't matter we're just looking for
 				// the correct output
 				terminal.sendText('$env:A');
 				terminal.sendText('echo $A');
 				terminal.sendText('$env:B');
 				terminal.sendText('echo $B');
+
+				// Poll for the echo results to show up
+				await poll<void>(() => Promise.resolve(), () => data.includes('~a1~'), '~a1~ should be printed');
+				await poll<void>(() => Promise.resolve(), () => data.includes('~b2~'), '~b2~ should be printed');
+
+				// Wait for terminal to be disposed
+				await new Promise<void>(r => {
+					disposables.push(window.onDidCloseTerminal(() => r()));
+					terminal.dispose();
+				});
 			});
 
 			test('get and forEach should work', () => {
@@ -847,14 +847,14 @@ import { assertNoRpc } from '../utils';
 				collection.prepend('C', '~c2~');
 
 				// Verify get
-				deepEqual(collection.get('A'), { value: '~a2~', type: EnvironmentVariableMutatorType.Replace });
-				deepEqual(collection.get('B'), { value: '~b2~', type: EnvironmentVariableMutatorType.Append });
-				deepEqual(collection.get('C'), { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend });
+				deepStrictEqual(collection.get('A'), { value: '~a2~', type: EnvironmentVariableMutatorType.Replace });
+				deepStrictEqual(collection.get('B'), { value: '~b2~', type: EnvironmentVariableMutatorType.Append });
+				deepStrictEqual(collection.get('C'), { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend });
 
 				// Verify forEach
 				const entries: [string, EnvironmentVariableMutator][] = [];
 				collection.forEach((v, m) => entries.push([v, m]));
-				deepEqual(entries, [
+				deepStrictEqual(entries, [
 					['A', { value: '~a2~', type: EnvironmentVariableMutatorType.Replace }],
 					['B', { value: '~b2~', type: EnvironmentVariableMutatorType.Append }],
 					['C', { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend }]
