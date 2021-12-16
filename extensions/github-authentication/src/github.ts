@@ -44,6 +44,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 		if (this.type === AuthProviderType.github) {
 			this._githubServer = new GitHubServer(
+				// We only can use the Device Code flow when we are running with a remote extension host.
 				context.extension.extensionKind === vscode.ExtensionKind.Workspace,
 				this._logger,
 				this._telemetryReporter);
