@@ -126,14 +126,14 @@
       "explorer/context": [
         {
           "command": "markdown.showPreview",
-          "when": "resourceLangId == markdown",
+          "when": "resourceLangId == markdown && !hasCustomMarkdownPreview",
           "group": "navigation"
         }
       ],
       "editor/title/context": [
         {
           "command": "markdown.showPreview",
-          "when": "resourceLangId == markdown",
+          "when": "resourceLangId == markdown && !hasCustomMarkdownPreview",
           "group": "1_open"
         }
       ],

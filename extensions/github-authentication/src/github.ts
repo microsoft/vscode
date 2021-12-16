@@ -43,7 +43,11 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		this._telemetryReporter = new ExperimentationTelemetry(context, new TelemetryReporter(name, version, aiKey));
 
 		if (this.type === AuthProviderType.github) {
-			this._githubServer = new GitHubServer(this._logger, this._telemetryReporter);
+			this._githubServer = new GitHubServer(
+				// We only can use the Device Code flow when we are running with a remote extension host.
+				context.extension.extensionKind === vscode.ExtensionKind.Workspace,
+				this._logger,
+				this._telemetryReporter);
 		} else {
 			this._githubServer = new GitHubEnterpriseServer(this._logger, this._telemetryReporter);
 		}
@@ -216,7 +220,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			return session;
 		} catch (e) {
 			// If login was cancelled, do not notify user.
-			if (e === 'Cancelled') {
+			if (e === 'Cancelled' || e.message === 'Cancelled') {
 				/* __GDPR__
 					"loginCancelled" : { }
 				*/

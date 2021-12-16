@@ -473,11 +473,13 @@ export class PersistentTerminalProcess extends Disposable {
 	get fixedDimensions(): IFixedTerminalDimensions | undefined { return this._fixedDimensions; }
 
 	setTitle(title: string, titleSource: TitleEventSource): void {
+		this._hasWrittenData = true;
 		this._title = title;
 		this._titleSource = titleSource;
 	}
 
 	setIcon(icon: TerminalIcon, color?: string): void {
+		this._hasWrittenData = true;
 		this._icon = icon;
 		this._color = color;
 	}

@@ -2162,7 +2162,7 @@ export function parseExitResult(
 	// Create exit code message
 	let message: string | undefined = undefined;
 	switch (typeof exitCodeOrError) {
-		case 'number':
+		case 'number': {
 			let commandLine: string | undefined = undefined;
 			if (shellLaunchConfig.executable) {
 				commandLine = shellLaunchConfig.executable;
@@ -2187,7 +2187,8 @@ export function parseExitResult(
 				}
 			}
 			break;
-		case 'object':
+		}
+		case 'object': {
 			// Ignore internal errors
 			if (exitCodeOrError.message.toString().includes('Could not find pty with id')) {
 				break;
@@ -2211,6 +2212,7 @@ export function parseExitResult(
 			}
 			message = nls.localize('launchFailed.errorMessage', "The terminal process failed to launch: {0}.", innerMessage);
 			break;
+		}
 	}
 
 	return { code, message };

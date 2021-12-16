@@ -645,7 +645,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 							case 'text':
 								text = iv.text;
 								break;
-							case 'variable':
+							case 'variable': {
 								let va = iv.variableName;
 								if (!va) {
 									const lineContent = model.getLineContent(iv.range.startLineNumber);
@@ -656,7 +656,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 									text = strings.format(var_value_format, va, value);
 								}
 								break;
-							case 'expression':
+							}
+							case 'expression': {
 								let expr = iv.expression;
 								if (!expr) {
 									const lineContent = model.getLineContent(iv.range.startLineNumber);
@@ -670,6 +671,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 									}
 								}
 								break;
+							}
 						}
 
 						if (text) {

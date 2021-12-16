@@ -617,17 +617,18 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			let theme = new ColorThemeData('', '', '');
 			for (let key in data) {
 				switch (key) {
-					case 'colorMap':
+					case 'colorMap': {
 						let colorMapData = data[key];
 						for (let id in colorMapData) {
 							theme.colorMap[id] = Color.fromHex(colorMapData[id]);
 						}
 						break;
+					}
 					case 'themeTokenColors':
 					case 'id': case 'label': case 'settingsId': case 'watch': case 'themeSemanticHighlighting':
 						(theme as any)[key] = data[key];
 						break;
-					case 'semanticTokenRules':
+					case 'semanticTokenRules': {
 						const rulesData = data[key];
 						if (Array.isArray(rulesData)) {
 							for (let d of rulesData) {
@@ -638,6 +639,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 							}
 						}
 						break;
+					}
 					case 'location':
 						// ignore, no longer restore
 						break;

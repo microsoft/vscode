@@ -59,6 +59,7 @@ import { EditorResolution } from 'vs/platform/editor/common/editor';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 import { MarkdownString } from 'vs/base/common/htmlContent';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', '');
 
@@ -128,6 +129,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUserDataInitializationService private readonly userDataInitializationService: IUserDataInitializationService,
+		@IHostService private readonly hostService: IHostService,
 	) {
 		super();
 
@@ -333,7 +335,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				break;
 			case UserDataSyncErrorCode.IncompatibleLocalContent:
 			case UserDataSyncErrorCode.Gone:
-			case UserDataSyncErrorCode.UpgradeRequired:
+			case UserDataSyncErrorCode.UpgradeRequired: {
 				const message = localize('error upgrade required', "Settings sync is disabled because the current version ({0}, {1}) is not compatible with the sync service. Please update before turning on sync.", this.productService.version, this.productService.commit);
 				const operationId = error.operationId ? localize('operationId', "Operation Id: {0}", error.operationId) : undefined;
 				this.notificationService.notify({
@@ -341,6 +343,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					message: operationId ? `${message} ${operationId}` : message,
 				});
 				break;
+			}
 			case UserDataSyncErrorCode.IncompatibleRemoteContent:
 				this.notificationService.notify({
 					severity: Severity.Error,
@@ -407,12 +410,13 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					case UserDataSyncErrorCode.LocalInvalidContent:
 						this.handleInvalidContentError(source);
 						break;
-					default:
+					default: {
 						const disposable = this.invalidContentErrorDisposables.get(source);
 						if (disposable) {
 							disposable.dispose();
 							this.invalidContentErrorDisposables.delete(source);
 						}
+					}
 				}
 			}
 		} else {
@@ -426,6 +430,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			return;
 		}
 		if (source !== SyncResource.Settings && source !== SyncResource.Keybindings) {
+			return;
+		}
+		if (!this.hostService.hasFocus) {
 			return;
 		}
 		const resource = source === SyncResource.Settings ? this.environmentService.settingsResource : this.environmentService.keybindingsResource;
@@ -537,7 +544,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 						break;
 					case UserDataSyncErrorCode.IncompatibleLocalContent:
 					case UserDataSyncErrorCode.Gone:
-					case UserDataSyncErrorCode.UpgradeRequired:
+					case UserDataSyncErrorCode.UpgradeRequired: {
 						const message = localize('error upgrade required while starting sync', "Settings sync cannot be turned on because the current version ({0}, {1}) is not compatible with the sync service. Please update before turning on sync.", this.productService.version, this.productService.commit);
 						const operationId = e.operationId ? localize('operationId', "Operation Id: {0}", e.operationId) : undefined;
 						this.notificationService.notify({
@@ -545,6 +552,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 							message: operationId ? `${message} ${operationId}` : message,
 						});
 						return;
+					}
 					case UserDataSyncErrorCode.IncompatibleRemoteContent:
 						this.notificationService.notify({
 							severity: Severity.Error,

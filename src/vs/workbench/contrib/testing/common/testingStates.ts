@@ -43,7 +43,7 @@ export const maxPriority = (...states: TestResultState[]) => {
 			return states[0];
 		case 2:
 			return statePriority[states[0]] > statePriority[states[1]] ? states[0] : states[1];
-		default:
+		default: {
 			let max = states[0];
 			for (let i = 1; i < states.length; i++) {
 				if (statePriority[max] < statePriority[states[i]]) {
@@ -52,6 +52,7 @@ export const maxPriority = (...states: TestResultState[]) => {
 			}
 
 			return max;
+		}
 	}
 };
 

@@ -137,10 +137,7 @@ class PlaywrightDriver implements IDriver {
 	}
 
 	async doubleClick(windowId: number, selector: string) {
-		await this.click(windowId, selector, 0, 0);
-		await this.timeout(60);
-		await this.click(windowId, selector, 0, 0);
-		await this.timeout(100);
+		throw new Error('Unsupported');
 	}
 
 	async setValue(windowId: number, selector: string, text: string) {
