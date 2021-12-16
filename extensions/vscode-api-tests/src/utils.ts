@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as crypto from 'crypto';
 import * as vscode from 'vscode';
 import { TestFS } from './memfs';
 
 export function rndName() {
-	return Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10);
+	return crypto.randomBytes(8).toString('hex');
 }
 
 export const testFs = new TestFS('fake-fs', true);
