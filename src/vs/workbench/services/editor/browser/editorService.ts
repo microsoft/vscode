@@ -443,7 +443,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				return this.editorsObserver.editors;
 
 			// Sequential
-			case EditorsOrder.SEQUENTIAL:
+			case EditorsOrder.SEQUENTIAL: {
 				const editors: IEditorIdentifier[] = [];
 
 				for (const group of this.editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE)) {
@@ -451,6 +451,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				}
 
 				return editors;
+			}
 		}
 	}
 

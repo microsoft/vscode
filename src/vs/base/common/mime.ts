@@ -119,10 +119,11 @@ export function guessMimeTypes(resource: URI | null, firstLine?: string): string
 			case Schemas.file:
 				path = resource.fsPath;
 				break;
-			case Schemas.data:
+			case Schemas.data: {
 				const metadata = DataUri.parseMetaData(resource);
 				path = metadata.get(DataUri.META_DATA_LABEL);
 				break;
+			}
 			default:
 				path = resource.path;
 		}

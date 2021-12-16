@@ -60,7 +60,7 @@ export class TestingContentProvider implements IWorkbenchContribution, ITextMode
 				if (message?.type === TestMessageType.Error) { text = message.expected; }
 				break;
 			}
-			case TestUriType.ResultMessage:
+			case TestUriType.ResultMessage: {
 				const message = test.tasks[parsed.taskIndex].messages[parsed.messageIndex]?.message;
 				if (typeof message === 'string') {
 					text = message;
@@ -69,6 +69,7 @@ export class TestingContentProvider implements IWorkbenchContribution, ITextMode
 					language = this.languageService.createById('markdown');
 				}
 				break;
+			}
 		}
 
 		if (text === undefined) {

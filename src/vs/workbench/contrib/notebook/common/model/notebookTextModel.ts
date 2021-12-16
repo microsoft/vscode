@@ -500,7 +500,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				case CellEditType.Replace:
 					this._replaceCells(edit.index, edit.count, edit.cells, synchronous, computeUndoRedo);
 					break;
-				case CellEditType.Output:
+				case CellEditType.Output: {
 					this._assertIndex(cellIndex);
 					const cell = this._cells[cellIndex];
 					if (edit.append) {
@@ -509,6 +509,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 						this._spliceNotebookCellOutputs2(cell, edit.outputs.map(op => new NotebookCellOutputTextModel(op)), computeUndoRedo);
 					}
 					break;
+				}
 				case CellEditType.OutputItems:
 					{
 						this._assertIndex(cellIndex);

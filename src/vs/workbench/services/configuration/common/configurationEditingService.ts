@@ -358,7 +358,7 @@ export class ConfigurationEditingService {
 						return nls.localize('errorInvalidRemoteConfiguration', "Unable to write into remote user settings. Please open the remote user settings to correct errors/warnings in it and try again.");
 					case EditableConfigurationTarget.WORKSPACE:
 						return nls.localize('errorInvalidConfigurationWorkspace', "Unable to write into workspace settings. Please open the workspace settings to correct errors/warnings in the file and try again.");
-					case EditableConfigurationTarget.WORKSPACE_FOLDER:
+					case EditableConfigurationTarget.WORKSPACE_FOLDER: {
 						let workspaceFolderName: string = '<<unknown>>';
 						if (operation.resource) {
 							const folder = this.contextService.getWorkspaceFolder(operation.resource);
@@ -367,6 +367,7 @@ export class ConfigurationEditingService {
 							}
 						}
 						return nls.localize('errorInvalidConfigurationFolder', "Unable to write into folder settings. Please open the '{0}' folder settings to correct errors/warnings in it and try again.", workspaceFolderName);
+					}
 					default:
 						return '';
 				}
@@ -385,7 +386,7 @@ export class ConfigurationEditingService {
 						return nls.localize('errorRemoteConfigurationFileDirty', "Unable to write into remote user settings because the file has unsaved changes. Please save the remote user settings file first and then try again.");
 					case EditableConfigurationTarget.WORKSPACE:
 						return nls.localize('errorConfigurationFileDirtyWorkspace', "Unable to write into workspace settings because the file has unsaved changes. Please save the workspace settings file first and then try again.");
-					case EditableConfigurationTarget.WORKSPACE_FOLDER:
+					case EditableConfigurationTarget.WORKSPACE_FOLDER: {
 						let workspaceFolderName: string = '<<unknown>>';
 						if (operation.resource) {
 							const folder = this.contextService.getWorkspaceFolder(operation.resource);
@@ -394,6 +395,7 @@ export class ConfigurationEditingService {
 							}
 						}
 						return nls.localize('errorConfigurationFileDirtyFolder', "Unable to write into folder settings because the file has unsaved changes. Please save the '{0}' folder settings file first and then try again.", workspaceFolderName);
+					}
 					default:
 						return '';
 				}

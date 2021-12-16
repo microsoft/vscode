@@ -103,10 +103,10 @@ export class UnicodeTextModelHighlighter {
 			case SimpleHighlightReason.Invisible:
 				return { kind: UnicodeHighlighterReasonKind.Invisible };
 
-			case SimpleHighlightReason.Ambiguous:
+			case SimpleHighlightReason.Ambiguous: {
 				const primaryConfusable = strings.AmbiguousCharacters.getPrimaryConfusable(char.codePointAt(0)!)!;
 				return { kind: UnicodeHighlighterReasonKind.Ambiguous, confusableWith: String.fromCodePoint(primaryConfusable) };
-
+			}
 			case SimpleHighlightReason.NonBasicASCII:
 				return { kind: UnicodeHighlighterReasonKind.NonBasicAscii };
 		}

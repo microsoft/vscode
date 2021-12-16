@@ -148,7 +148,7 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 					}
 					break;
 
-				case 'event':
+				case 'event': {
 					const event = message as Proto.Event;
 					if (event.event === 'requestCompleted') {
 						const seq = (event as Proto.RequestCompletedEvent).body.request_seq;
@@ -162,7 +162,7 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 						this._onEvent.fire(event);
 					}
 					break;
-
+				}
 				default:
 					throw new Error(`Unknown message type ${message.type} received`);
 			}
