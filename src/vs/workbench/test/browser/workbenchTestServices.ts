@@ -1640,6 +1640,11 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 	override async rename(): Promise<IMoveResult | undefined> { return this.movedEditor; }
 }
 
+export class TestSingletonFileEditorInput extends TestFileEditorInput {
+
+	override get capabilities(): EditorInputCapabilities { return EditorInputCapabilities.Singleton; }
+}
+
 export class TestEditorPart extends EditorPart {
 
 	override saveState(): void {
