@@ -69,7 +69,7 @@ export class RangeUtil {
 		return result;
 	}
 
-	private static _createHorizontalRangesFromClientRects(clientRects: DOMRectList | null, clientRectDeltaLeft: number): FloatHorizontalRange[] | null {
+	private static _createHorizontalRangesFromClientRects(clientRects: DOMRectList | null, clientRectDeltaLeft: number, clientRectScale: number): FloatHorizontalRange[] | null {
 		if (!clientRects || clientRects.length === 0) {
 			return null;
 		}
@@ -80,13 +80,13 @@ export class RangeUtil {
 		const result: FloatHorizontalRange[] = [];
 		for (let i = 0, len = clientRects.length; i < len; i++) {
 			const clientRect = clientRects[i];
-			result[i] = new FloatHorizontalRange(Math.max(0, clientRect.left - clientRectDeltaLeft), clientRect.width);
+			result[i] = new FloatHorizontalRange(Math.max(0, (clientRect.left - clientRectDeltaLeft) / clientRectScale), clientRect.width / clientRectScale);
 		}
 
 		return this._mergeAdjacentRanges(result);
 	}
 
-	public static readHorizontalRanges(domNode: HTMLElement, startChildIndex: number, startOffset: number, endChildIndex: number, endOffset: number, clientRectDeltaLeft: number, endNode: HTMLElement): FloatHorizontalRange[] | null {
+	public static readHorizontalRanges(domNode: HTMLElement, startChildIndex: number, startOffset: number, endChildIndex: number, endOffset: number, clientRectDeltaLeft: number, clientRectScale: number, endNode: HTMLElement): FloatHorizontalRange[] | null {
 		// Panic check
 		const min = 0;
 		const max = domNode.children.length - 1;
@@ -100,7 +100,7 @@ export class RangeUtil {
 			// We must find the position at the beginning of a <span>
 			// To cover cases of empty <span>s, avoid using a range and use the <span>'s bounding box
 			const clientRects = domNode.children[startChildIndex].getClientRects();
-			return this._createHorizontalRangesFromClientRects(clientRects, clientRectDeltaLeft);
+			return this._createHorizontalRangesFromClientRects(clientRects, clientRectDeltaLeft, clientRectScale);
 		}
 
 		// If crossing over to a span only to select offset 0, then use the previous span's maximum offset
@@ -135,6 +135,6 @@ export class RangeUtil {
 		endOffset = Math.min(endElement.textContent!.length, Math.max(0, endOffset));
 
 		const clientRects = this._readClientRects(startElement, startOffset, endElement, endOffset, endNode);
-		return this._createHorizontalRangesFromClientRects(clientRects, clientRectDeltaLeft);
+		return this._createHorizontalRangesFromClientRects(clientRects, clientRectDeltaLeft, clientRectScale);
 	}
 }

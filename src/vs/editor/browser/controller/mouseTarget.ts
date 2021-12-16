@@ -5,7 +5,7 @@
 
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
 import { IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { ClientCoordinates, EditorMouseEvent, EditorPagePosition, PageCoordinates } from 'vs/editor/browser/editorDom';
+import { ClientCoordinates, EditorMouseEvent, EditorPagePosition, PageCoordinates, CoordinatesRelativeToEditor } from 'vs/editor/browser/editorDom';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { ViewLine } from 'vs/editor/browser/viewParts/lines/viewLine';
 import { IViewCursorRenderData } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
@@ -374,6 +374,7 @@ abstract class BareHitTestRequest {
 
 	public readonly editorPos: EditorPagePosition;
 	public readonly pos: PageCoordinates;
+	public readonly relativePos: CoordinatesRelativeToEditor;
 	public readonly mouseVerticalOffset: number;
 	public readonly isInMarginArea: boolean;
 	public readonly isInContentArea: boolean;
@@ -381,13 +382,14 @@ abstract class BareHitTestRequest {
 
 	protected readonly mouseColumn: number;
 
-	constructor(ctx: HitTestContext, editorPos: EditorPagePosition, pos: PageCoordinates) {
+	constructor(ctx: HitTestContext, editorPos: EditorPagePosition, pos: PageCoordinates, relativePos: CoordinatesRelativeToEditor) {
 		this.editorPos = editorPos;
 		this.pos = pos;
+		this.relativePos = relativePos;
 
-		this.mouseVerticalOffset = Math.max(0, ctx.getCurrentScrollTop() + pos.y - editorPos.y);
-		this.mouseContentHorizontalOffset = ctx.getCurrentScrollLeft() + pos.x - editorPos.x - ctx.layoutInfo.contentLeft;
-		this.isInMarginArea = (pos.x - editorPos.x < ctx.layoutInfo.contentLeft && pos.x - editorPos.x >= ctx.layoutInfo.glyphMarginLeft);
+		this.mouseVerticalOffset = Math.max(0, ctx.getCurrentScrollTop() + this.relativePos.y);
+		this.mouseContentHorizontalOffset = ctx.getCurrentScrollLeft() + this.relativePos.x - ctx.layoutInfo.contentLeft;
+		this.isInMarginArea = (this.relativePos.x < ctx.layoutInfo.contentLeft && this.relativePos.x >= ctx.layoutInfo.glyphMarginLeft);
 		this.isInContentArea = !this.isInMarginArea;
 		this.mouseColumn = Math.max(0, MouseTargetFactory._getMouseColumn(this.mouseContentHorizontalOffset, ctx.typicalHalfwidthCharacterWidth));
 	}
@@ -398,8 +400,8 @@ class HitTestRequest extends BareHitTestRequest {
 	public readonly target: Element | null;
 	public readonly targetPath: Uint8Array;
 
-	constructor(ctx: HitTestContext, editorPos: EditorPagePosition, pos: PageCoordinates, target: Element | null) {
-		super(ctx, editorPos, pos);
+	constructor(ctx: HitTestContext, editorPos: EditorPagePosition, pos: PageCoordinates, relativePos: CoordinatesRelativeToEditor, target: Element | null) {
+		super(ctx, editorPos, pos, relativePos);
 		this._ctx = ctx;
 
 		if (target) {
@@ -412,7 +414,7 @@ class HitTestRequest extends BareHitTestRequest {
 	}
 
 	public override toString(): string {
-		return `pos(${this.pos.x},${this.pos.y}), editorPos(${this.editorPos.x},${this.editorPos.y}), mouseVerticalOffset: ${this.mouseVerticalOffset}, mouseContentHorizontalOffset: ${this.mouseContentHorizontalOffset}\n\ttarget: ${this.target ? (<HTMLElement>this.target).outerHTML : null}`;
+		return `pos(${this.pos.x},${this.pos.y}), editorPos(${this.editorPos.x},${this.editorPos.y}), relativePos(${this.relativePos.x},${this.relativePos.y}), mouseVerticalOffset: ${this.mouseVerticalOffset}, mouseContentHorizontalOffset: ${this.mouseContentHorizontalOffset}\n\ttarget: ${this.target ? (<HTMLElement>this.target).outerHTML : null}`;
 	}
 
 	public fulfill(type: MouseTargetType.UNKNOWN, position?: Position | null, range?: EditorRange | null): MouseTarget;
@@ -436,7 +438,7 @@ class HitTestRequest extends BareHitTestRequest {
 	}
 
 	public withTarget(target: Element | null): HitTestRequest {
-		return new HitTestRequest(this._ctx, this.editorPos, this.pos, target);
+		return new HitTestRequest(this._ctx, this.editorPos, this.pos, this.relativePos, target);
 	}
 }
 
@@ -480,9 +482,9 @@ export class MouseTargetFactory {
 		return false;
 	}
 
-	public createMouseTarget(lastRenderData: PointerHandlerLastRenderData, editorPos: EditorPagePosition, pos: PageCoordinates, target: HTMLElement | null): IMouseTarget {
+	public createMouseTarget(lastRenderData: PointerHandlerLastRenderData, editorPos: EditorPagePosition, pos: PageCoordinates, relativePos: CoordinatesRelativeToEditor, target: HTMLElement | null): IMouseTarget {
 		const ctx = new HitTestContext(this._context, this._viewHelper, lastRenderData);
-		const request = new HitTestRequest(ctx, editorPos, pos, target);
+		const request = new HitTestRequest(ctx, editorPos, pos, relativePos, target);
 		try {
 			const r = MouseTargetFactory._createMouseTarget(ctx, request, false);
 			// console.log(r.toString());
@@ -632,7 +634,7 @@ export class MouseTargetFactory {
 		if (request.isInMarginArea) {
 			const res = ctx.getFullLineRangeAtCoord(request.mouseVerticalOffset);
 			const pos = res.range.getStartPosition();
-			let offset = Math.abs(request.pos.x - request.editorPos.x);
+			let offset = Math.abs(request.relativePos.x);
 			const detail: IMarginData = {
 				isAfterLines: res.isAfterLines,
 				glyphMarginLeft: ctx.layoutInfo.glyphMarginLeft,
@@ -745,10 +747,10 @@ export class MouseTargetFactory {
 		return null;
 	}
 
-	public getMouseColumn(editorPos: EditorPagePosition, pos: PageCoordinates): number {
+	public getMouseColumn(relativePos: CoordinatesRelativeToEditor): number {
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
-		const mouseContentHorizontalOffset = this._context.viewLayout.getCurrentScrollLeft() + pos.x - editorPos.x - layoutInfo.contentLeft;
+		const mouseContentHorizontalOffset = this._context.viewLayout.getCurrentScrollLeft() + relativePos.x - layoutInfo.contentLeft;
 		return MouseTargetFactory._getMouseColumn(mouseContentHorizontalOffset, options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth);
 	}
 
@@ -834,8 +836,8 @@ export class MouseTargetFactory {
 		if (adjustedPageY <= request.editorPos.y) {
 			adjustedPageY = request.editorPos.y + 1;
 		}
-		if (adjustedPageY >= request.editorPos.y + ctx.layoutInfo.height) {
-			adjustedPageY = request.editorPos.y + ctx.layoutInfo.height - 1;
+		if (adjustedPageY >= request.editorPos.y + request.editorPos.height) {
+			adjustedPageY = request.editorPos.y + request.editorPos.height - 1;
 		}
 
 		const adjustedPage = new PageCoordinates(request.pos.x, adjustedPageY);
