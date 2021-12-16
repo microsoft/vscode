@@ -175,7 +175,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
 
-			const options: BrowserWindowConstructorOptions = {
+			const options: BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
 				width: this.windowState.width,
 				height: this.windowState.height,
 				x: this.windowState.x,
@@ -205,7 +205,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 							nodeIntegration: true,
 							contextIsolation: false
 						}
-				}
+				},
+				experimentalDarkMode: true
 			};
 
 			// Apply icon to window
