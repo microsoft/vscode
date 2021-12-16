@@ -11,6 +11,7 @@ import { PromiseAdapter, promiseFromEvent } from './common/utils';
 import { ExperimentationTelemetry } from './experimentationService';
 import { AuthProviderType } from './github';
 import { Log } from './common/logger';
+import { isSupportedEnvironment } from './common/env';
 
 const localize = nls.loadMessageBundle();
 const CLIENT_ID = '01ab8ac9400c4e429b23';
@@ -123,10 +124,6 @@ export class GitHubServer implements IGitHubServer {
 		this._disposable.dispose();
 	}
 
-	private isTestEnvironment(url: vscode.Uri): boolean {
-		return /\.azurewebsites\.net$/.test(url.authority) || url.authority.startsWith('localhost:');
-	}
-
 	// TODO@joaomoreno TODO@TylerLeonhardt
 	private async isNoCorsEnvironment(): Promise<boolean> {
 		const uri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/dummy`));
@@ -138,7 +135,7 @@ export class GitHubServer implements IGitHubServer {
 
 		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate`));
 
-		if (this.isTestEnvironment(callbackUri)) {
+		if (!isSupportedEnvironment(callbackUri)) {
 			const token = this._supportDeviceCodeFlow
 				? await this.doDeviceCodeFlow(scopes)
 				: await vscode.window.showInputBox({ prompt: 'GitHub Personal Access Token', ignoreFocusOut: true });
@@ -199,6 +196,7 @@ export class GitHubServer implements IGitHubServer {
 	}
 
 	private async doDeviceCodeFlow(scopes: string): Promise<string> {
+		// Get initial device code
 		const uri = `https://github.com/login/device/code?client_id=${CLIENT_ID}&scope=${scopes}`;
 		const result = await fetch(uri, {
 			method: 'POST',
@@ -231,7 +229,11 @@ export class GitHubServer implements IGitHubServer {
 		return await vscode.window.withProgress<string>({
 			location: vscode.ProgressLocation.Notification,
 			cancellable: true,
-			title: localize('progress', "• Code: {0} • Url: [{1}]({1}) • Polling GitHub to finish authenticating", json.user_code, json.verification_uri)
+			title: localize(
+				'progress',
+				"Open [{0}]({0}) in a new tab and paste your one-time code: {1}",
+				json.verification_uri,
+				json.user_code)
 		}, async (_, token) => {
 			return await this.waitForDeviceCodeAccessToken(json, token);
 		});
@@ -243,6 +245,8 @@ export class GitHubServer implements IGitHubServer {
 	): Promise<string> {
 
 		const refreshTokenUri = `https://github.com/login/oauth/access_token?client_id=${CLIENT_ID}&device_code=${json.device_code}&grant_type=urn:ietf:params:oauth:grant-type:device_code`;
+
+		// Try for 2 minutes
 		const attempts = 120 / json.interval;
 		for (let i = 0; i < attempts; i++) {
 			await new Promise(resolve => setTimeout(resolve, json.interval * 1000));
