@@ -167,7 +167,7 @@ class BufferSynchronizer {
 
 	private updatePending(resource: vscode.Uri, op: BufferOperation): boolean {
 		switch (op.type) {
-			case BufferOperationType.Close:
+			case BufferOperationType.Close: {
 				const existing = this._pending.get(resource);
 				switch (existing?.type) {
 					case BufferOperationType.Open:
@@ -175,6 +175,7 @@ class BufferSynchronizer {
 						return false; // Open then close. No need to do anything
 				}
 				break;
+			}
 		}
 
 		if (this._pending.has(resource)) {

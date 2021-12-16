@@ -175,6 +175,12 @@ export interface IModelDecorationOptions {
 	 * @internal
 	*/
 	hideInCommentTokens?: boolean | null;
+
+	/**
+	 * If set, this decoration will not be rendered for string tokens.
+	 * @internal
+	*/
+	hideInStringTokens?: boolean | null;
 }
 
 /**

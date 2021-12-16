@@ -226,7 +226,7 @@ class ViewPaneDropOverlay extends Themable {
 			case DropDirection.RIGHT:
 				this.doPositionOverlay({ top: '0', right: '0', width: '50%', height: '100%' });
 				break;
-			default:
+			default: {
 				// const top = this.bounds?.top || 0;
 				// const left = this.bounds?.bottom || 0;
 
@@ -243,6 +243,7 @@ class ViewPaneDropOverlay extends Themable {
 				}
 
 				this.doPositionOverlay({ top, left, width, height });
+			}
 		}
 
 		if ((this.orientation === Orientation.VERTICAL && paneHeight <= 25) ||

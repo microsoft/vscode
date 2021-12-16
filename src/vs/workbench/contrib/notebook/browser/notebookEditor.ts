@@ -140,7 +140,7 @@ export class NotebookEditor extends EditorPane {
 		if (group) {
 			this._groupListener.clear();
 			this._groupListener.add(group.onWillCloseEditor(e => this._saveEditorViewState(e.editor)));
-			this._groupListener.add(group.onDidGroupChange(() => {
+			this._groupListener.add(group.onDidModelChange(() => {
 				if (this._editorGroupService.activeGroup !== group) {
 					this._widget?.value?.updateEditorFocus();
 				}

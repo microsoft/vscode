@@ -5,6 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { Constants } from 'vs/base/common/uint';
 import 'vs/css!./codelensWidget';
 import { ContentWidgetPositionPreference, IActiveCodeEditor, IContentWidget, IContentWidgetPosition, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
@@ -19,6 +20,11 @@ class CodeLensViewZone implements IViewZone {
 	readonly domNode: HTMLElement;
 
 	afterLineNumber: number;
+	/**
+	 * We want that this view zone, which reserves space for a code lens appears
+	 * as close as possible to the next line, so we use a very large value here.
+	 */
+	readonly afterColumn = Constants.MAX_SAFE_SMALL_INTEGER;
 	heightInPx: number;
 
 	private _lastHeight?: number;

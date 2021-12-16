@@ -1,0 +1,38 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "jlelong/vscode-latex-basics",
+					"repositoryUrl": "https://github.com/jlelong/vscode-latex-basics",
+					"commitHash": "e1bb99ae10eae344e7c72f5b17e81ff7377991c4"
+				}
+			},
+			"license": "MIT",
+			"version": "1.0.0",
+			"description": "The files in syntaxes/ were originally part of https://github.com/James-Yu/LaTeX-Workshop. They have been extracted in the hope that they can useful outside of the LaTeX-Workshop extension.",
+			"licenseDetail": [
+				"Copyright (c) vscode-latex-basics authors",
+				"",
+				"If not otherwise specified (see below), files in this repository fall under the MIT License",
+				"",
+				"",
+				"The file syntaxes/LaTeX.tmLanguage.json is based on https://github.com/textmate/latex.tmbundle/blob/master/Syntaxes/LaTeX.plist",
+				"but has been largely modified. The original file falls under the following license",
+				"",
+				"Permission to copy, use, modify, sell and distribute this",
+				"software is granted. This software is provided \"as is\" without",
+				"express or implied warranty, and with no claim as to its",
+				"suitability for any purpose.",
+				"",
+				"The file syntaxes/markdown-latex-combined.tmLanguage.json is generated from the Markdown grammar",
+				"included in VSCode and falls under the license described in markdown-latex-combined-license.txt.",
+				"",
+				"The file syntaxes/cpp-grammar-bailout.tmLanguage.json is generated from https://github.com/jeff-hykin/better-cpp-syntax",
+				"and falls under the license described in cpp-bailout-license.txt."
+			]
+		}
+	],
+	"version": 1
+}

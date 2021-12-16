@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions } from 'vs/workbench/common/editor';
+import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, IActiveEditorChangeEvent } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -13,7 +13,7 @@ import { IDimension } from 'vs/editor/common/editorCommon';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
-import { IGroupChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
+import { IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
 
@@ -405,14 +405,9 @@ export const enum OpenEditorContext {
 export interface IEditorGroup {
 
 	/**
-	 * An aggregated event for when the group changes in any way.
-	 */
-	readonly onDidGroupChange: Event<IGroupChangeEvent>;
-
-	/**
 	 * An event which fires whenever the underlying group model changes.
 	 */
-	readonly onDidModelChange: Event<IGroupChangeEvent>;
+	readonly onDidModelChange: Event<IGroupModelChangeEvent>;
 
 	/**
 	 * An event that is fired when the group gets disposed.
@@ -420,9 +415,19 @@ export interface IEditorGroup {
 	readonly onWillDispose: Event<void>;
 
 	/**
+	 * An event that is fired when the active editor in the group changed.
+	 */
+	readonly onDidActiveEditorChange: Event<IActiveEditorChangeEvent>;
+
+	/**
 	 * An event that is fired when an editor is about to close.
 	 */
 	readonly onWillCloseEditor: Event<IEditorCloseEvent>;
+
+	/**
+	 * An event that is fired when an editor is closed.
+	 */
+	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
 
 	/**
 	 * An event that is fired when an editor is about to move to
@@ -453,7 +458,7 @@ export interface IEditorGroup {
 	/**
 	 * A human readable label for the group. This label can change depending
 	 * on the layout of all editor groups. Clients should listen on the
-	 * `onDidGroupChange` event to react to that.
+	 * `onDidGroupModelChange` event to react to that.
 	 */
 	readonly label: string;
 

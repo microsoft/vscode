@@ -757,7 +757,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			}, this._fileService, this._logService, this._resourceLoadingCts.token);
 
 			switch (result.type) {
-				case WebviewResourceResponse.Type.Success:
+				case WebviewResourceResponse.Type.Success: {
 					const { buffer } = await streamToBuffer(result.stream);
 					return {
 						id,
@@ -768,7 +768,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 						etag: result.etag,
 						mtime: result.mtime
 					};
-
+				}
 				case WebviewResourceResponse.Type.NotModified:
 					return {
 						id,

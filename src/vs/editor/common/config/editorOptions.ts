@@ -3300,6 +3300,8 @@ export interface IUnicodeHighlightOptions {
 	invisibleCharacters?: boolean;
 	ambiguousCharacters?: boolean;
 	includeComments?: boolean | InUntrustedWorkspace;
+	includeStrings?: boolean | InUntrustedWorkspace;
+
 	/**
 	 * A map of allowed characters (true: allowed).
 	*/
@@ -3320,6 +3322,7 @@ export const unicodeHighlightConfigKeys = {
 	nonBasicASCII: 'editor.unicodeHighlight.nonBasicASCII',
 	ambiguousCharacters: 'editor.unicodeHighlight.ambiguousCharacters',
 	includeComments: 'editor.unicodeHighlight.includeComments',
+	includeStrings: 'editor.unicodeHighlight.includeStrings',
 };
 
 class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting, InternalUnicodeHighlightOptions> {
@@ -3329,6 +3332,7 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 			invisibleCharacters: true,
 			ambiguousCharacters: true,
 			includeComments: inUntrustedWorkspace,
+			includeStrings: true,
 			allowedCharacters: {},
 		};
 
@@ -3360,6 +3364,13 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 					enum: [true, false, inUntrustedWorkspace],
 					default: defaults.includeComments,
 					description: nls.localize('unicodeHighlight.includeComments', "Controls whether characters in comments should also be subject to unicode highlighting.")
+				},
+				[unicodeHighlightConfigKeys.includeStrings]: {
+					restricted: true,
+					type: ['boolean', 'string'],
+					enum: [true, false, inUntrustedWorkspace],
+					default: defaults.includeStrings,
+					description: nls.localize('unicodeHighlight.includeStrings', "Controls whether characters in strings should also be subject to unicode highlighting.")
 				},
 				[unicodeHighlightConfigKeys.allowedCharacters]: {
 					restricted: true,
@@ -3401,6 +3412,7 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 			invisibleCharacters: boolean(input.invisibleCharacters, this.defaultValue.invisibleCharacters),
 			ambiguousCharacters: boolean(input.ambiguousCharacters, this.defaultValue.ambiguousCharacters),
 			includeComments: primitiveSet<boolean | InUntrustedWorkspace>(input.includeComments, inUntrustedWorkspace, [true, false, inUntrustedWorkspace]),
+			includeStrings: primitiveSet<boolean | InUntrustedWorkspace>(input.includeStrings, inUntrustedWorkspace, [true, false, inUntrustedWorkspace]),
 			allowedCharacters: this.validateAllowedCharacters(_input.allowedCharacters, this.defaultValue.allowedCharacters),
 		};
 	}

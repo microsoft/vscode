@@ -387,13 +387,14 @@ export function toCanonicalName(enc: string): string {
 			return 'x-mac-roman';
 		case 'utf8bom':
 			return 'utf8';
-		default:
+		default: {
 			const m = enc.match(/windows(\d+)/);
 			if (m) {
 				return 'windows-' + m[1];
 			}
 
 			return enc;
+		}
 	}
 }
 

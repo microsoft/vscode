@@ -44,7 +44,7 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens
 			const charCode = text.charCodeAt(charIndex);
 
 			switch (charCode) {
-				case CharCode.Tab:
+				case CharCode.Tab: {
 					let insertSpacesCount = tabSize - (charIndex + tabsCharDelta) % tabSize;
 					tabsCharDelta += insertSpacesCount - 1;
 					while (insertSpacesCount > 0) {
@@ -58,7 +58,7 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens
 						insertSpacesCount--;
 					}
 					break;
-
+				}
 				case CharCode.LessThan:
 					partContent += '&lt;';
 					prevIsSpace = false;

@@ -177,7 +177,7 @@ function parseRegExp(pattern: string): string {
 						inBrackets = true;
 						continue;
 
-					case '}':
+					case '}': {
 						const choices = splitGlobAware(braceVal, ',');
 
 						// Converts {foo,bar} => [foo|bar]
@@ -189,7 +189,7 @@ function parseRegExp(pattern: string): string {
 						braceVal = '';
 
 						break;
-
+					}
 					case ']':
 						regEx += ('[' + bracketVal + ']');
 

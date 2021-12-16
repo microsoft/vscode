@@ -399,20 +399,22 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	async refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]> {
 		switch (type) {
-			case ProcessPropertyType.Cwd:
+			case ProcessPropertyType.Cwd: {
 				const newCwd = await this.getCwd();
 				if (newCwd !== this._properties.cwd) {
 					this._properties.cwd = newCwd;
 					this._onDidChangeProperty.fire({ type: ProcessPropertyType.Cwd, value: this._properties.cwd });
 				}
 				return newCwd as IProcessPropertyMap[T];
-			case ProcessPropertyType.InitialCwd:
+			}
+			case ProcessPropertyType.InitialCwd: {
 				const initialCwd = await this.getInitialCwd();
 				if (initialCwd !== this._properties.initialCwd) {
 					this._properties.initialCwd = initialCwd;
 					this._onDidChangeProperty.fire({ type: ProcessPropertyType.InitialCwd, value: this._properties.initialCwd });
 				}
 				return initialCwd as IProcessPropertyMap[T];
+			}
 			case ProcessPropertyType.Title:
 				return this.currentTitle as IProcessPropertyMap[T];
 			default:

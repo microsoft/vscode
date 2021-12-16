@@ -15,7 +15,7 @@ import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/servic
 
 export const REMOTE_FILE_SYSTEM_CHANNEL_NAME = 'remoteFilesystem';
 
-export class RemoteFileSystemProvider extends DiskFileSystemProviderClient {
+export class RemoteFileSystemProviderClient extends DiskFileSystemProviderClient {
 
 	static register(remoteAgentService: IRemoteAgentService, fileService: IFileService, logService: ILogService): IDisposable {
 		const connection = remoteAgentService.getConnection();
@@ -32,7 +32,7 @@ export class RemoteFileSystemProvider extends DiskFileSystemProviderClient {
 					// Register remote fsp even before it is asked to activate
 					// because, some features (configuration) wait for its
 					// registration before making fs calls.
-					fileService.registerProvider(Schemas.vscodeRemote, disposables.add(new RemoteFileSystemProvider(environment, connection)));
+					fileService.registerProvider(Schemas.vscodeRemote, disposables.add(new RemoteFileSystemProviderClient(environment, connection)));
 				} else {
 					logService.error('Cannot register remote filesystem provider. Remote environment doesnot exist.');
 				}

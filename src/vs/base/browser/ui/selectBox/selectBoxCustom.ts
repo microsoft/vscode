@@ -215,6 +215,23 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			dom.EventHelper.stop(e);
 		}));
 
+		// Intercept touch events
+		// The following implementation is slightly different from the mouse event handlers above.
+		// Use the following helper variable, otherwise the list flickers.
+		let listIsVisibleOnTouchStart: boolean;
+		this._register(dom.addDisposableListener(this.selectElement, 'touchstart', (e) => {
+			listIsVisibleOnTouchStart = this._isVisible;
+		}));
+		this._register(dom.addDisposableListener(this.selectElement, 'touchend', (e) => {
+			dom.EventHelper.stop(e);
+
+			if (listIsVisibleOnTouchStart) {
+				this.hideSelectDropDown(true);
+			} else {
+				this.showSelectDropDown();
+			}
+		}));
+
 		// Intercept keyboard handling
 
 		this._register(dom.addDisposableListener(this.selectElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
@@ -761,10 +778,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 		// SetUp list mouse controller - control navigation, disabled items, focus
 
-		const onMouseUp = this._register(new DomEmitter(this.selectList.getHTMLElement(), 'mouseup'));
-		this._register(Event.chain(onMouseUp.event)
-			.filter(() => this.selectList.length > 0)
-			.on(e => this.onMouseUp(e), this));
+		this._register(dom.addDisposableListener(this.selectList.getHTMLElement(), dom.EventType.POINTER_DOWN, e => this.onPointerDown(e)));
 
 		this._register(this.selectList.onMouseOver(e => typeof e.index !== 'undefined' && this.selectList.setFocus([e.index])));
 		this._register(this.selectList.onDidChangeFocus(e => this.onListFocus(e)));
@@ -785,7 +799,12 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	// List methods
 
 	// List mouse controller - active exit, select option, fire onDidSelect if change, return focus to parent select
-	private onMouseUp(e: MouseEvent): void {
+	// Also takes in touchend events
+	private onPointerDown(e: PointerEvent): void {
+
+		if (!this.selectList.length) {
+			return;
+		}
 
 		dom.EventHelper.stop(e);
 

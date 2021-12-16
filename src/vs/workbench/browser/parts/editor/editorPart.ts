@@ -11,7 +11,7 @@ import { contrastBorder, editorBackground } from 'vs/platform/theme/common/color
 import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorGroupsService, IEditorSideGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
-import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent, GroupChangeKind } from 'vs/workbench/common/editor';
+import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from 'vs/workbench/common/theme';
 import { distinct, coalesce, firstOrDefault } from 'vs/base/common/arrays';
 import { IEditorGroupsAccessor, IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions } from 'vs/workbench/browser/parts/editor/editor';
@@ -237,20 +237,21 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 			case GroupsOrder.CREATION_TIME:
 				return this.groups;
 
-			case GroupsOrder.MOST_RECENTLY_ACTIVE:
+			case GroupsOrder.MOST_RECENTLY_ACTIVE: {
 				const mostRecentActive = coalesce(this.mostRecentActiveGroups.map(groupId => this.getGroup(groupId)));
 
 				// there can be groups that got never active, even though they exist. in this case
 				// make sure to just append them at the end so that all groups are returned properly
 				return distinct([...mostRecentActive, ...this.groups]);
-
-			case GroupsOrder.GRID_APPEARANCE:
+			}
+			case GroupsOrder.GRID_APPEARANCE: {
 				const views: IEditorGroupView[] = [];
 				if (this.gridWidget) {
 					this.fillGridNodes(views, this.gridWidget.getViews());
 				}
 
 				return views;
+			}
 		}
 	}
 
@@ -301,20 +302,22 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 				return groups[0];
 			case GroupLocation.LAST:
 				return groups[groups.length - 1];
-			case GroupLocation.NEXT:
+			case GroupLocation.NEXT: {
 				let nextGroup: IEditorGroupView | undefined = groups[index + 1];
 				if (!nextGroup && wrap) {
 					nextGroup = this.doFindGroupByLocation(GroupLocation.FIRST, source);
 				}
 
 				return nextGroup;
-			case GroupLocation.PREVIOUS:
+			}
+			case GroupLocation.PREVIOUS: {
 				let previousGroup: IEditorGroupView | undefined = groups[index - 1];
 				if (!previousGroup && wrap) {
 					previousGroup = this.doFindGroupByLocation(GroupLocation.LAST, source);
 				}
 
 				return previousGroup;
+			}
 		}
 	}
 
@@ -550,19 +553,21 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 			this.doSetGroupActive(groupView);
 		}));
 
-		// Track editor change
-		groupDisposables.add(groupView.onDidGroupChange(e => {
+		// Track group changes
+		groupDisposables.add(groupView.onDidModelChange(e => {
 			switch (e.kind) {
-				case GroupChangeKind.EDITOR_ACTIVE:
-					this.updateContainer();
-					break;
-				case GroupChangeKind.GROUP_INDEX:
-					this._onDidChangeGroupIndex.fire(groupView);
-					break;
-				case GroupChangeKind.GROUP_LOCKED:
+				case GroupModelChangeKind.GROUP_LOCKED:
 					this._onDidChangeGroupLocked.fire(groupView);
 					break;
+				case GroupModelChangeKind.GROUP_INDEX:
+					this._onDidChangeGroupIndex.fire(groupView);
+					break;
 			}
+		}));
+
+		// Track active editor change after it occurred
+		groupDisposables.add(groupView.onDidActiveEditorChange(() => {
+			this.updateContainer();
 		}));
 
 		// Track dispose

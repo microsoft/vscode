@@ -1593,11 +1593,12 @@ class InnerMinimap extends Disposable {
 						this.renderDecorationOnLine(canvasContext, lineOffsetMap, decoration.range, decorationColor, layout, line, lineHeight, lineHeight, tabSize, characterWidth, canvasInnerWidth);
 						continue;
 
-					case MinimapPosition.Gutter:
+					case MinimapPosition.Gutter: {
 						const y = (line - layout.startLineNumber) * lineHeight;
 						const x = 2;
 						this.renderDecoration(canvasContext, decorationColor, x, y, GUTTER_DECORATION_WIDTH, lineHeight);
 						continue;
+					}
 				}
 			}
 		}
