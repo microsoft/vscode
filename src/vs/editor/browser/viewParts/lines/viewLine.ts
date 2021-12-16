@@ -61,12 +61,16 @@ export class DomReadingContext {
 	}
 
 	public get clientRectDeltaLeft(): number {
-		if (!this._clientRectRead) this.readClientRect();
+		if (!this._clientRectRead) {
+			this.readClientRect();
+		}
 		return this._clientRectDeltaLeft;
 	}
 
 	public get clientRectScale(): number {
-		if (!this._clientRectRead) this.readClientRect();
+		if (!this._clientRectRead) {
+			this.readClientRect();
+		}
 		return this._clientRectScale;
 	}
 

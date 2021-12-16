@@ -391,8 +391,8 @@ abstract class BareHitTestRequest {
 		const scaleY = editorPos.height / ctx.layoutInfo.height;
 
 		// Adjust mouse offsets if editor appears to be scaled via transforms
-		if (scaleX != 1) { x = editorPos.x + (x - editorPos.x) / scaleX; }
-		if (scaleY != 1) { y = editorPos.y + (y - editorPos.y) / scaleY; }
+		if (scaleX !== 1) { x = editorPos.x + (x - editorPos.x) / scaleX; }
+		if (scaleY !== 1) { y = editorPos.y + (y - editorPos.y) / scaleY; }
 
 		this.mouseVerticalOffset = Math.max(0, ctx.getCurrentScrollTop() + y - editorPos.y);
 		this.mouseContentHorizontalOffset = ctx.getCurrentScrollLeft() + x - editorPos.x - ctx.layoutInfo.contentLeft;
