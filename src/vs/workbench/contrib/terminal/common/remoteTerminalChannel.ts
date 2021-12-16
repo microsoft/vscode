@@ -18,7 +18,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { Schemas } from 'vs/base/common/network';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IRequestResolveVariablesEvent, IShellLaunchConfigDto, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, IProcessProperty, ProcessPropertyType, ProcessCapability, IProcessPropertyMap, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IRequestResolveVariablesEvent, IShellLaunchConfigDto, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, IProcessProperty, ProcessPropertyType, ProcessCapability, IProcessPropertyMap, TitleEventSource, ISerializedTerminalState, IPtyHostEventHandler } from 'vs/platform/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { ICompleteTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -55,10 +55,10 @@ export interface ICreateTerminalProcessResult {
 	resolvedShellLaunchConfig: IShellLaunchConfigDto;
 }
 
-export class RemoteTerminalChannelClient {
+export class RemoteTerminalChannelClient implements IPtyHostEventHandler {
 
-	get onPtyHostExit(): Event<void> {
-		return this._channel.listen<void>('$onPtyHostExitEvent');
+	get onPtyHostExit(): Event<number> {
+		return this._channel.listen<number>('$onPtyHostExitEvent');
 	}
 	get onPtyHostStart(): Event<void> {
 		return this._channel.listen<void>('$onPtyHostStartEvent');
@@ -284,8 +284,8 @@ export class RemoteTerminalChannelClient {
 		return this._channel.call<ITerminalsLayoutInfo>('$getTerminalLayoutInfo', args);
 	}
 
-	reviveTerminalProcesses(state: string, dateTimeFormatLocate: string): Promise<void> {
-		return this._channel.call('$reviveTerminalProcesses', [state, dateTimeFormatLocate]);
+	reviveTerminalProcesses(parsed: ISerializedTerminalState[], dateTimeFormatLocate: string): Promise<void> {
+		return this._channel.call('$reviveTerminalProcesses', [parsed, dateTimeFormatLocate]);
 	}
 
 	serializeTerminalState(ids: number[]): Promise<string> {
