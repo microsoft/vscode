@@ -6,7 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
+import { IProcessEnvironment, isMacintosh, isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -17,18 +17,21 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationHandle, INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IProcessPropertyMap, IShellLaunchConfig, ITerminalChildProcess, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { ICrossVersionSerializedTerminalState, IProcessPropertyMap, ISerializedTerminalState, IShellLaunchConfig, ITerminalChildProcess, ITerminalEnvironment, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ITerminalBackend, ITerminalBackendRegistry, ITerminalConfiguration, TerminalExtensions, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalBackend, ITerminalBackendRegistry, ITerminalConfiguration, ITerminalProfileResolverService, TerminalExtensions, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { LocalPty } from 'vs/workbench/contrib/terminal/electron-sandbox/localPty';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 
 export class LocalTerminalBackendContribution implements IWorkbenchContribution {
 	constructor(
@@ -64,9 +67,14 @@ class LocalTerminalBackend extends Disposable implements ITerminalBackend {
 		@INotificationService notificationService: INotificationService,
 		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
+		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
 		@IHistoryService historyService: IHistoryService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IProductService private readonly _productService: IProductService,
+		@IHistoryService private readonly _historyService: IHistoryService,
+		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
+		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
 	) {
 		super();
 
@@ -133,7 +141,7 @@ class LocalTerminalBackend extends Disposable implements ITerminalBackend {
 				const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
 				const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
 				const resolveCalls: Promise<string>[] = e.originalText.map(t => {
-					return configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, t);
+					return _configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, t);
 				});
 				const result = await Promise.all(resolveCalls);
 				this._localPtyService.acceptPtyHostResolvedVariables?.(e.requestId, result);
@@ -197,7 +205,11 @@ class LocalTerminalBackend extends Disposable implements ITerminalBackend {
 		windowsEnableConpty: boolean,
 		shouldPersist: boolean
 	): Promise<ITerminalChildProcess> {
+
 		const executableEnv = await this._shellEnvironmentService.getShellEnv();
+
+		this._logService.info('env', env);
+
 		const id = await this._localPtyService.createProcess(shellLaunchConfig, cwd, cols, rows, unicodeVersion, env, executableEnv, windowsEnableConpty, shouldPersist, this._getWorkspaceId(), this._getWorkspaceName());
 		const pty = this._instantiationService.createInstance(LocalPty, id, shouldPersist);
 		this._ptys.set(id, pty);
@@ -264,7 +276,32 @@ class LocalTerminalBackend extends Disposable implements ITerminalBackend {
 		const serializedState = this._storageService.get(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
 		if (serializedState) {
 			try {
-				await this._localPtyService.reviveTerminalProcesses(serializedState, Intl.DateTimeFormat().resolvedOptions().locale);
+				// Deserialize the state
+				const parsedUnknown = JSON.parse(serializedState);
+				if (!('version' in parsedUnknown) || !('state' in parsedUnknown) || !Array.isArray(parsedUnknown.state)) {
+					this._logService.warn('Could not revive serialized processes, wrong format', parsedUnknown);
+					return;
+				}
+				const parsedCrossVersion = parsedUnknown as ICrossVersionSerializedTerminalState;
+				if (parsedCrossVersion.version !== 1) {
+					this._logService.warn(`Could not revive serialized processes, wrong version "${parsedCrossVersion.version}"`, parsedCrossVersion);
+					return;
+				}
+				const parsed = parsedCrossVersion.state as ISerializedTerminalState[];
+
+				// Create variable resolver
+				const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
+				const lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
+				const variableResolver = terminalEnvironment.createVariableResolver(lastActiveWorkspace, await this._terminalProfileResolverService.getEnvironment(this.remoteAuthority), this._configurationResolverService);
+
+				// Re-resolve the environments and replace it on the state so local terminals use a fresh
+				// environment
+				for (const state of parsed) {
+					const freshEnv = await this._resolveEnvironmentForRevive(variableResolver, state.shellLaunchConfig);
+					state.processLaunchOptions.env = freshEnv;
+				}
+
+				await this._localPtyService.reviveTerminalProcesses(parsed, Intl.DateTimeFormat().resolvedOptions().locale);
 				this._storageService.remove(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
 				// If reviving processes, send the terminal layout info back to the pty host as it
 				// will not have been persisted on application exit
@@ -279,6 +316,17 @@ class LocalTerminalBackend extends Disposable implements ITerminalBackend {
 		}
 
 		return this._localPtyService.getTerminalLayoutInfo(layoutArgs);
+	}
+
+	private async _resolveEnvironmentForRevive(variableResolver: terminalEnvironment.VariableResolver | undefined, shellLaunchConfig: IShellLaunchConfig): Promise<IProcessEnvironment> {
+		const platformKey = isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
+		const envFromConfigValue = this._configurationService.getValue<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
+		const baseEnv = await (shellLaunchConfig.useShellEnvironment ? this.getShellEnvironment() : this.getEnvironment());
+		const env = terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, envFromConfigValue, variableResolver, this._productService.version, this._configurationService.getValue(TerminalSettingId.DetectLocale), baseEnv);
+		if (!shellLaunchConfig.strictEnv && !shellLaunchConfig.hideFromUser) {
+			this._environmentVariableService.mergedCollection.applyToProcessEnvironment(env, variableResolver);
+		}
+		return env;
 	}
 
 	private _getWorkspaceId(): string {
