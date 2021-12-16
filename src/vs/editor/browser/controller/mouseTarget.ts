@@ -385,9 +385,18 @@ abstract class BareHitTestRequest {
 		this.editorPos = editorPos;
 		this.pos = pos;
 
-		this.mouseVerticalOffset = Math.max(0, ctx.getCurrentScrollTop() + pos.y - editorPos.y);
-		this.mouseContentHorizontalOffset = ctx.getCurrentScrollLeft() + pos.x - editorPos.x - ctx.layoutInfo.contentLeft;
-		this.isInMarginArea = (pos.x - editorPos.x < ctx.layoutInfo.contentLeft && pos.x - editorPos.x >= ctx.layoutInfo.glyphMarginLeft);
+		let { x, y } = pos;
+
+		const scaleX = editorPos.width / ctx.layoutInfo.width;
+		const scaleY = editorPos.height / ctx.layoutInfo.height;
+
+		// Adjust mouse offsets if editor appears to be scaled via transforms
+		if (scaleX != 1) { x = editorPos.x + (x - editorPos.x) / scaleX; }
+		if (scaleY != 1) { y = editorPos.y + (y - editorPos.y) / scaleY; }
+
+		this.mouseVerticalOffset = Math.max(0, ctx.getCurrentScrollTop() + y - editorPos.y);
+		this.mouseContentHorizontalOffset = ctx.getCurrentScrollLeft() + x - editorPos.x - ctx.layoutInfo.contentLeft;
+		this.isInMarginArea = (x - editorPos.x < ctx.layoutInfo.contentLeft && x - editorPos.x >= ctx.layoutInfo.glyphMarginLeft);
 		this.isInContentArea = !this.isInMarginArea;
 		this.mouseColumn = Math.max(0, MouseTargetFactory._getMouseColumn(this.mouseContentHorizontalOffset, ctx.typicalHalfwidthCharacterWidth));
 	}
