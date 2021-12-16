@@ -124,35 +124,35 @@ export class PtyService extends Disposable implements IPtyService {
 		return JSON.stringify(serialized);
 	}
 
-	async reviveTerminalProcesses(parsed: ISerializedTerminalState[], dateTimeFormatLocate: string) {
-		for (const state of parsed) {
+	async reviveTerminalProcesses(state: ISerializedTerminalState[], dateTimeFormatLocate: string) {
+		for (const terminal of state) {
 			const restoreMessage = localize({
 				key: 'terminal-session-restore',
 				comment: ['date the snapshot was taken', 'time the snapshot was taken']
-			}, "Session contents restored from {0} at {1}", new Date(state.timestamp).toLocaleDateString(dateTimeFormatLocate), new Date(state.timestamp).toLocaleTimeString(dateTimeFormatLocate));
+			}, "Session contents restored from {0} at {1}", new Date(terminal.timestamp).toLocaleDateString(dateTimeFormatLocate), new Date(terminal.timestamp).toLocaleTimeString(dateTimeFormatLocate));
 			const newId = await this.createProcess(
 				{
-					...state.shellLaunchConfig,
-					cwd: state.processDetails.cwd,
-					color: state.processDetails.color,
-					icon: state.processDetails.icon,
-					name: state.processDetails.titleSource === TitleEventSource.Api ? state.processDetails.title : undefined,
-					initialText: state.replayEvent.events[0].data + '\x1b[0m\n\n\r\x1b[1;48;5;252;38;5;234m ' + restoreMessage + ' \x1b[K\x1b[0m\n\r'
+					...terminal.shellLaunchConfig,
+					cwd: terminal.processDetails.cwd,
+					color: terminal.processDetails.color,
+					icon: terminal.processDetails.icon,
+					name: terminal.processDetails.titleSource === TitleEventSource.Api ? terminal.processDetails.title : undefined,
+					initialText: terminal.replayEvent.events[0].data + '\x1b[0m\n\n\r\x1b[1;48;5;252;38;5;234m ' + restoreMessage + ' \x1b[K\x1b[0m\n\r'
 				},
-				state.processDetails.cwd,
-				state.replayEvent.events[0].cols,
-				state.replayEvent.events[0].rows,
-				state.unicodeVersion,
-				state.processLaunchOptions.env,
-				state.processLaunchOptions.executableEnv,
-				state.processLaunchOptions.windowsEnableConpty,
+				terminal.processDetails.cwd,
+				terminal.replayEvent.events[0].cols,
+				terminal.replayEvent.events[0].rows,
+				terminal.unicodeVersion,
+				terminal.processLaunchOptions.env,
+				terminal.processLaunchOptions.executableEnv,
+				terminal.processLaunchOptions.windowsEnableConpty,
 				true,
-				state.processDetails.workspaceId,
-				state.processDetails.workspaceName,
+				terminal.processDetails.workspaceId,
+				terminal.processDetails.workspaceName,
 				true
 			);
 			// Don't start the process here as there's no terminal to answer CPR
-			this._revivedPtyIdMap.set(state.id, { newId, state });
+			this._revivedPtyIdMap.set(terminal.id, { newId, state: terminal });
 		}
 	}
 

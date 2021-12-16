@@ -284,8 +284,8 @@ export class RemoteTerminalChannelClient implements IPtyHostEventHandler {
 		return this._channel.call<ITerminalsLayoutInfo>('$getTerminalLayoutInfo', args);
 	}
 
-	reviveTerminalProcesses(parsed: ISerializedTerminalState[], dateTimeFormatLocate: string): Promise<void> {
-		return this._channel.call('$reviveTerminalProcesses', [parsed, dateTimeFormatLocate]);
+	reviveTerminalProcesses(state: ISerializedTerminalState[], dateTimeFormatLocate: string): Promise<void> {
+		return this._channel.call('$reviveTerminalProcesses', [state, dateTimeFormatLocate]);
 	}
 
 	serializeTerminalState(ids: number[]): Promise<string> {

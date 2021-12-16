@@ -276,7 +276,6 @@ class LocalTerminalBackend extends Disposable implements ITerminalBackend {
 		const serializedState = this._storageService.get(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
 		if (serializedState) {
 			try {
-				// TODO: Share code with remote backend
 				// Deserialize the state
 				const parsedUnknown = JSON.parse(serializedState);
 				if (!('version' in parsedUnknown) || !('state' in parsedUnknown) || !Array.isArray(parsedUnknown.state)) {

@@ -222,7 +222,6 @@ export interface IFixedTerminalDimensions {
 	rows?: number;
 }
 
-// TODO: Use this interface to share terminal backend code in the ctor
 export interface IPtyHostEventHandler {
 	readonly onPtyHostExit?: Event<number>;
 	readonly onPtyHostStart?: Event<void>;
@@ -302,8 +301,7 @@ export interface IPtyService extends IPtyHostEventHandler {
 	 * Revives a workspaces terminal processes, these can then be reconnected to using the normal
 	 * flow for restoring terminals after reloading.
 	 */
-	// TODO: Rename parsed everywhere to something nicer
-	reviveTerminalProcesses(parsed: ISerializedTerminalState[], dateTimeFormatLocate: string): Promise<void>;
+	reviveTerminalProcesses(state: ISerializedTerminalState[], dateTimeFormatLocate: string): Promise<void>;
 	refreshProperty<T extends ProcessPropertyType>(id: number, property: T): Promise<IProcessPropertyMap[T]>;
 	updateProperty<T extends ProcessPropertyType>(id: number, property: T, value: IProcessPropertyMap[T]): Promise<void>;
 
