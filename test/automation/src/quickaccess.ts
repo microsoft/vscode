@@ -45,27 +45,31 @@ export class QuickAccess {
 		while (++retries < 10) {
 			let retry = false;
 
-			await this.openQuickAccess(fileName);
+			try {
+				await this.openQuickAccess(fileName);
 
-			await this.quickInput.waitForQuickInputElements(names => {
-				const name = names[0];
-				if (exactMatch && name === fileName) {
-					fileFound = true;
-					return true;
-				}
+				await this.quickInput.waitForQuickInputElements(names => {
+					const name = names[0];
+					if (exactMatch && name === fileName) {
+						fileFound = true;
+						return true;
+					}
 
-				if (name === 'No matching results') {
-					retry = true;
-					return true;
-				}
+					if (name === 'No matching results') {
+						retry = true;
+						return true; // search does not seem to be ready yet
+					}
 
-				if (!exactMatch) {
-					fileFound = true;
-					return !!name;
-				} else {
-					return false;
-				}
-			});
+					if (!exactMatch) {
+						fileFound = true;
+						return !!name;
+					} else {
+						return false;
+					}
+				});
+			} catch (error) {
+				retry = true; // `waitForQuickInputElements` throws when elements not found
+			}
 
 			if (!retry) {
 				break;
