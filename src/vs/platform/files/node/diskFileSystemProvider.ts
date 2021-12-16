@@ -397,13 +397,10 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		} finally {
-
-			// Release any known lock for the file handle
-			// since the handle has been closed and is invalid
 			const lockForHandle = this.mapHandleToLock.get(fd);
 			if (lockForHandle) {
-				lockForHandle.dispose();
 				this.mapHandleToLock.delete(fd);
+				lockForHandle.dispose();
 			}
 		}
 	}
