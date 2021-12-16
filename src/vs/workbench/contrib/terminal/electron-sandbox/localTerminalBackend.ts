@@ -297,11 +297,8 @@ class LocalTerminalBackend extends Disposable implements ITerminalBackend {
 				// Re-resolve the environments and replace it on the state so local terminals use a fresh
 				// environment
 				for (const state of parsed) {
-					this._logService.info('env before', state.processLaunchOptions.env);
 					const freshEnv = await this._resolveEnvironmentForRevive(variableResolver, state.shellLaunchConfig);
-					this._logService.info('fresh env', freshEnv);
 					state.processLaunchOptions.env = freshEnv;
-					this._logService.info('env after', state.processLaunchOptions.env);
 				}
 
 				await this._localPtyService.reviveTerminalProcesses(parsed, Intl.DateTimeFormat().resolvedOptions().locale);
