@@ -164,7 +164,8 @@ class StandaloneTheme implements IStandaloneTheme {
 			foreground: foreground,
 			italic: Boolean(fontStyle & FontStyle.Italic),
 			bold: Boolean(fontStyle & FontStyle.Bold),
-			underline: Boolean(fontStyle & FontStyle.Underline)
+			underline: Boolean(fontStyle & FontStyle.Underline),
+			strikethrough: Boolean(fontStyle & FontStyle.Strikethrough)
 		};
 	}
 

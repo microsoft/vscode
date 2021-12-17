@@ -105,6 +105,7 @@ export interface ITokenStyle {
 	readonly bold?: boolean;
 	readonly underline?: boolean;
 	readonly italic?: boolean;
+	readonly strikethrough?: boolean;
 }
 
 export interface IColorTheme {
