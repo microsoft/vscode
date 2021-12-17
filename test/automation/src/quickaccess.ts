@@ -125,18 +125,6 @@ export class QuickAccess {
 		await this.editors.selectTab(fileName);
 	}
 
-	async runCommand(commandId: string, keepOpen?: boolean): Promise<void> {
-
-		// open commands picker
-		await this.openCommands(`>${commandId}`);
-
-		// wait for best choice to be focused
-		await this.code.waitForTextContent(QuickInput.QUICK_INPUT_FOCUSED_ELEMENT);
-
-		// wait and click on best choice
-		await this.quickInput.selectQuickInputElement(0, keepOpen);
-	}
-
 	private async openFileQuickAccess(value: string): Promise<void> {
 		let retries = 0;
 
@@ -161,6 +149,18 @@ export class QuickAccess {
 		}
 
 		await this.quickInput.type(value);
+	}
+
+	async runCommand(commandId: string, keepOpen?: boolean): Promise<void> {
+
+		// open commands picker
+		await this.openCommands(`>${commandId}`);
+
+		// wait for best choice to be focused
+		await this.code.waitForTextContent(QuickInput.QUICK_INPUT_FOCUSED_ELEMENT);
+
+		// wait and click on best choice
+		await this.quickInput.selectQuickInputElement(0, keepOpen);
 	}
 
 	private async openCommands(value: string): Promise<void> {
