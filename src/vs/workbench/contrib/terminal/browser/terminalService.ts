@@ -42,6 +42,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { TerminalProfileQuickpick } from 'vs/workbench/contrib/terminal/browser/terminalProfileQuickpick';
 import { IKeyMods } from 'vs/base/parts/quickinput/common/quickInput';
 import { ILogService } from 'vs/platform/log/common/log';
+import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -1103,7 +1104,11 @@ class TerminalEditorStyle extends Themable {
 		this._register(this._terminalService.onDidChangeInstanceIcon(() => this.updateStyles()));
 		this._register(this._terminalService.onDidChangeInstanceColor(() => this.updateStyles()));
 		this._register(this._terminalService.onDidCreateInstance(() => this.updateStyles()));
-		this._register(this._editorService.onDidActiveEditorChange(() => this.updateStyles()));
+		this._register(this._editorService.onDidActiveEditorChange(e => {
+			if (this._editorService.activeEditor instanceof TerminalEditorInput) {
+				this.updateStyles();
+			}
+		}));
 		this._register(this._terminalProfileService.onDidChangeAvailableProfiles(() => this.updateStyles()));
 	}
 
