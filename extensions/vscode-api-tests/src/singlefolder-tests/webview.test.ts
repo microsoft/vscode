@@ -151,7 +151,7 @@ suite('vscode API - webview', () => {
 		assert.strictEqual(secondResponse.value, 1);
 	});
 
-	test('webviews with retainContextWhenHidden should preserve their context when they are hidden', async function () {
+	test.skip('webviews with retainContextWhenHidden should preserve their context when they are hidden', async function () {
 		this.retries(3);
 
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true }));
