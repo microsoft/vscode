@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Application, Terminal, SettingsEditor } from '../../../../automation';
+import { itSkipOnFail } from '../../utils';
 
 export function setup() {
 	describe('Terminal Input', () => {
@@ -30,7 +31,7 @@ export function setup() {
 				await terminal.waitForTerminalText(buffer => buffer.some(line => line.includes('Terminate batch job (Y/N)?Y')));
 			});
 
-			it('should automatically reply to a custom entry', async () => {
+			itSkipOnFail('should automatically reply to a custom entry', async () => { // TODO@daniel https://github.com/microsoft/vscode/issues/139349
 				await settingsEditor.addUserSetting('terminal.integrated.autoReplies', '{ "foo": "bar" }');
 				await terminal.createTerminal();
 				await writeTextForAutoReply('foo');
