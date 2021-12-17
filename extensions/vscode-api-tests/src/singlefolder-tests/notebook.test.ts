@@ -899,7 +899,7 @@ suite('statusbar', () => {
 		suiteDisposables.push(vscode.workspace.registerNotebookContentProvider('notebookCoreTest', apiTestContentProvider));
 	});
 
-	test('provideCellStatusBarItems called on metadata change', async function () {
+	test.skip('provideCellStatusBarItems called on metadata change', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/139324
 		const provideCalled = asPromise(onDidCallProvide);
 		const resource = await createRandomNotebookFile();
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');

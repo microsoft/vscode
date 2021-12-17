@@ -106,7 +106,7 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 			await app.workbench.editor.waitForEditorContents('readme.md', contents => contents.indexOf(textToType) > -1);
 
 			await app.workbench.editors.waitForTab('Untitled-1', true);
-			await app.workbench.quickaccess.openUntitled(textToTypeInUntitled);
+			await app.workbench.editors.selectTab('Untitled-1');
 			await app.workbench.editor.waitForEditorContents('Untitled-1', contents => contents.indexOf(textToTypeInUntitled) > -1);
 
 			await app.stop();
@@ -228,7 +228,7 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 			await insidersApp.workbench.editor.waitForEditorContents('readme.md', contents => contents.indexOf(textToType) > -1);
 
 			await insidersApp.workbench.editors.waitForTab('Untitled-1', true);
-			await insidersApp.workbench.quickaccess.openUntitled(textToTypeInUntitled);
+			await insidersApp.workbench.editors.selectTab('Untitled-1');
 			await insidersApp.workbench.editor.waitForEditorContents('Untitled-1', contents => contents.indexOf(textToTypeInUntitled) > -1);
 
 			await insidersApp.stop();

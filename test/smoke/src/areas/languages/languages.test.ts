@@ -19,6 +19,7 @@ export function setup(logger: Logger) {
 
 			await app.workbench.quickaccess.openQuickOutline();
 			await app.workbench.quickinput.waitForQuickInputElements(names => names.length >= 6);
+			await app.workbench.quickinput.closeQuickInput();
 		});
 
 		it('verifies quick outline (css)', async function () {
@@ -27,6 +28,7 @@ export function setup(logger: Logger) {
 
 			await app.workbench.quickaccess.openQuickOutline();
 			await app.workbench.quickinput.waitForQuickInputElements(names => names.length === 2);
+			await app.workbench.quickinput.closeQuickInput();
 		});
 
 		it('verifies problems view (css)', async function () {
