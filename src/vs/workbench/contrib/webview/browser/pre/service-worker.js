@@ -124,27 +124,7 @@ const notFound = () =>
 const methodNotAllowed = () =>
 	new Response('Method Not Allowed', { status: 405, });
 
-const vscodeMessageChannel = new MessageChannel();
-
-sw.addEventListener('message', event => {
-	switch (event.data.channel) {
-		case 'init':
-			{
-				const source = /** @type {Client} */ (event.source);
-				sw.clients.get(source.id).then(client => {
-					client?.postMessage({
-						channel: 'init',
-						version: VERSION
-					}, [vscodeMessageChannel.port2]);
-				});
-				return;
-			}
-	}
-
-	console.log('Unknown message');
-});
-
-vscodeMessageChannel.port1.onmessage = (event) => {
+const onChannelMessage = (event) => {
 	switch (event.data.channel) {
 		case 'did-load-resource':
 			{
@@ -168,6 +148,28 @@ vscodeMessageChannel.port1.onmessage = (event) => {
 
 	console.log('Unknown message');
 };
+
+let vscodeMessageChannel;
+
+sw.addEventListener('message', event => {
+	switch (event.data.channel) {
+		case 'init':
+			{
+				vscodeMessageChannel = new MessageChannel();
+				vscodeMessageChannel.port1.onmessage = onChannelMessage;
+				const source = /** @type {Client} */ (event.source);
+				sw.clients.get(source.id).then(client => {
+					client?.postMessage({
+						channel: 'init',
+						version: VERSION
+					}, [vscodeMessageChannel.port2]);
+				});
+				return;
+			}
+	}
+
+	console.log('Unknown message');
+});
 
 sw.addEventListener('fetch', (event) => {
 	const requestUrl = new URL(event.request.url);
