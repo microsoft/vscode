@@ -90,9 +90,9 @@ export function setup(logger: Logger) {
 				'jsconfig.json'
 			];
 
-			await app.workbench.quickaccess.openQuickAccessAndWait('.js', 8);
-			await app.workbench.quickinput.waitForQuickInputElements(names => expectedNames.every(n => names.some(m => n === m)));
-			await app.code.dispatchKeybinding('escape');
+			await app.workbench.quickaccess.openFileQuickAccessAndWait('.js', 8);
+			await app.workbench.quickinput.waitForQuickInputElements(names => expectedNames.every(expectedName => names.some(name => expectedName === name)));
+			await app.workbench.quickinput.closeQuickInput();
 		});
 
 		it('quick open respects fuzzy matching', async function () {
@@ -103,9 +103,9 @@ export function setup(logger: Logger) {
 				'package.json'
 			];
 
-			await app.workbench.quickaccess.openQuickAccessAndWait('a.s', 3);
-			await app.workbench.quickinput.waitForQuickInputElements(names => expectedNames.every(n => names.some(m => n === m)));
-			await app.code.dispatchKeybinding('escape');
+			await app.workbench.quickaccess.openFileQuickAccessAndWait('a.s', 3);
+			await app.workbench.quickinput.waitForQuickInputElements(names => expectedNames.every(expectedName => names.some(name => expectedName === name)));
+			await app.workbench.quickinput.closeQuickInput();
 		});
 	});
 }
