@@ -16,8 +16,8 @@ export class QuickInput {
 
 	constructor(private code: Code) { }
 
-	async type(text: string): Promise<void> {
-		await this.code.waitForSetValue(QuickInput.QUICK_INPUT_INPUT, text);
+	async type(value: string): Promise<void> {
+		await this.code.waitForSetValue(QuickInput.QUICK_INPUT_INPUT, value);
 	}
 
 	async closeQuickInput(): Promise<void> {
