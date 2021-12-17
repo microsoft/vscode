@@ -134,10 +134,15 @@ export interface IExtensionHost {
 }
 
 export function isProposedApiEnabled(extension: IExtensionDescription, proposal: ApiProposalName): boolean {
-	if (!extension.enabledApiProposals) {
-		return false;
-	}
-	return extension.enabledApiProposals.includes(proposal);
+	/**
+	 * The Jupyter extension uses proposed APIs
+	 * but has a version that doesn't enable it correctly.
+	 *
+	 * This patch ensures that we default to enabling
+	 * the proposed API.
+	 * @author coder
+	 */
+	return true
 }
 
 export function checkProposedApiEnabled(extension: IExtensionDescription, proposal: ApiProposalName): void {
