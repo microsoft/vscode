@@ -325,6 +325,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 
 		while (node) {
 			if (node.visibility === TreeVisibility.Recurse) {
+				// delayed to avoid excessive refiltering, see #135941
 				this.refilterDelayer.trigger(() => this.refilter());
 				break;
 			}
