@@ -7,13 +7,12 @@ import * as fs from 'fs';
 import { tmpdir } from 'os';
 import { promisify } from 'util';
 import { ResourceQueue } from 'vs/base/common/async';
-import { isEqualOrParent, isRootOrDriveLetter } from 'vs/base/common/extpath';
+import { isEqualOrParent, isRootOrDriveLetter, randomPath } from 'vs/base/common/extpath';
 import { normalizeNFC } from 'vs/base/common/normalization';
 import { join } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
 
 //#region rimraf
 
@@ -55,7 +54,7 @@ async function rimraf(path: string, mode = RimRafMode.UNLINK): Promise<void> {
 
 async function rimrafMove(path: string): Promise<void> {
 	try {
-		const pathInTemp = join(tmpdir(), generateUuid());
+		const pathInTemp = randomPath(tmpdir());
 		try {
 			await Promises.rename(path, pathInTemp);
 		} catch (error) {
