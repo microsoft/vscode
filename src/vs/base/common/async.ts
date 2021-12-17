@@ -210,6 +210,43 @@ export class SequencerByKey<TKey> {
 	}
 }
 
+interface IScheduledLater extends IDisposable {
+	isTriggered(): boolean;
+}
+
+const timeoutDeferred = (timeout: number, fn: () => void): IScheduledLater => {
+	let scheduled = true;
+	const handle = setTimeout(() => {
+		scheduled = false;
+		fn();
+	}, timeout);
+	return {
+		isTriggered: () => scheduled,
+		dispose: () => {
+			clearTimeout(handle);
+			scheduled = false;
+		},
+	};
+};
+
+const microtaskDeferred = (fn: () => void): IScheduledLater => {
+	let scheduled = true;
+	queueMicrotask(() => {
+		if (scheduled) {
+			scheduled = false;
+			fn();
+		}
+	});
+
+	return {
+		isTriggered: () => scheduled,
+		dispose: () => { scheduled = false; },
+	};
+};
+
+/** Can be passed into the Delayed to defer using a microtask */
+export const MicrotaskDelay = Symbol('MicrotaskDelay');
+
 /**
  * A helper to delay (debounce) execution of a task that is being requested often.
  *
@@ -235,21 +272,21 @@ export class SequencerByKey<TKey> {
  */
 export class Delayer<T> implements IDisposable {
 
-	private timeout: any;
+	private deferred: IScheduledLater | null;
 	private completionPromise: Promise<any> | null;
 	private doResolve: ((value?: any | Promise<any>) => void) | null;
 	private doReject: ((err: any) => void) | null;
 	private task: ITask<T | Promise<T>> | null;
 
-	constructor(public defaultDelay: number) {
-		this.timeout = null;
+	constructor(public defaultDelay: number | typeof MicrotaskDelay) {
+		this.deferred = null;
 		this.completionPromise = null;
 		this.doResolve = null;
 		this.doReject = null;
 		this.task = null;
 	}
 
-	trigger(task: ITask<T | Promise<T>>, delay: number = this.defaultDelay): Promise<T> {
+	trigger(task: ITask<T | Promise<T>>, delay = this.defaultDelay): Promise<T> {
 		this.task = task;
 		this.cancelTimeout();
 
@@ -269,18 +306,18 @@ export class Delayer<T> implements IDisposable {
 			});
 		}
 
-		this.timeout = setTimeout(() => {
-			this.timeout = null;
-			if (this.doResolve) {
-				this.doResolve(null);
-			}
-		}, delay);
+		const fn = () => {
+			this.deferred = null;
+			this.doResolve?.(null);
+		};
+
+		this.deferred = delay === MicrotaskDelay ? microtaskDeferred(fn) : timeoutDeferred(delay, fn);
 
 		return this.completionPromise;
 	}
 
 	isTriggered(): boolean {
-		return this.timeout !== null;
+		return !!this.deferred?.isTriggered();
 	}
 
 	cancel(): void {
@@ -295,10 +332,8 @@ export class Delayer<T> implements IDisposable {
 	}
 
 	private cancelTimeout(): void {
-		if (this.timeout !== null) {
-			clearTimeout(this.timeout);
-			this.timeout = null;
-		}
+		this.deferred?.dispose();
+		this.deferred = null;
 	}
 
 	dispose(): void {
