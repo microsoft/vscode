@@ -157,7 +157,7 @@ export class QuickAccess {
 		await this.openCommands(`>${commandId}`);
 
 		// wait for best choice to be focused
-		await this.code.waitForTextContent(QuickInput.QUICK_INPUT_FOCUSED_ELEMENT);
+		await this.quickInput.waitForQuickInputElementFocused();
 
 		// wait and click on best choice
 		await this.quickInput.selectQuickInputElement(0, keepOpen);
@@ -172,8 +172,10 @@ export class QuickAccess {
 			await this.code.dispatchKeybinding('ctrl+shift+p');
 		}
 
-		await this.code.waitForTextContent(QuickInput.QUICK_INPUT_ENTRY_LABEL_SPAN);
+		// wait for commands
+		await this.quickInput.waitForQuickInputElementFocused();
 
+		// narrow down to provided value
 		await this.quickInput.type(value);
 	}
 
@@ -189,7 +191,7 @@ export class QuickAccess {
 				await this.code.dispatchKeybinding('ctrl+shift+o');
 			}
 
-			const text = await this.code.waitForTextContent(QuickInput.QUICK_INPUT_ENTRY_LABEL_SPAN);
+			const text = await this.quickInput.waitForQuickInputElementText();
 
 			// Retry for as long as no symbols are found
 			if (text === 'No symbol information for the file') {
