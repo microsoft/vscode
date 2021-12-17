@@ -658,6 +658,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._container = undefined;
 	}
 
+
 	attachToElement(container: HTMLElement): Promise<void> | void {
 		// The container did not change, do nothing
 		if (this._container === container) {
@@ -666,11 +667,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._attachBarrier.open();
 
+		this.xterm?.attachToElement(container);
+
 		// Attach has not occurred yet
 		if (!this._wrapperElement) {
 			return this._attachToElement(container);
 		}
-		this.xterm?.attachToElement(this._wrapperElement);
 
 		// The container changed, reattach
 		this._container = container;
