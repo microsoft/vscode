@@ -40,43 +40,73 @@ export class QuickAccess {
 		}
 	}
 
-	async openFileQuickAccessAndWait(searchValue: string, expectedFirstElementName?: string): Promise<void> {
+	async openQuickAccessAndWait(searchValue: string, expectedFirstElementNameOrExpectedResultCount: string | number): Promise<void> {
+
+		const PollingStrategy = {
+			Stop: true,
+			Continue: false
+		};
+
 		let retries = 0;
-		let fileFound = false;
+		let success = false;
+
 		while (++retries < 10) {
 			let retry = false;
 
 			try {
 				await this.openQuickAccess(searchValue);
-
 				await this.quickInput.waitForQuickInputElements(elementNames => {
 					const firstElementName = elementNames[0];
 
-					// We found our result as first element -> return
-					if (expectedFirstElementName && firstElementName === expectedFirstElementName) {
-						fileFound = true;
-						return true; // this leaves the `waitForQuickInputElements` polling loop
-					}
-
 					// Quick access does not seem healthy/ready -> retry
-					if (firstElementName === 'No matching results') {
+					if (firstElementName.startsWith('No matching ')) {
+						this.code.logger.log(`QuickAccess: search returned "No matching", specifically: ${firstElementName}, will retry...`);
+
 						retry = true;
-						return true; // this leaves the `waitForQuickInputElements` polling loop
+
+						return PollingStrategy.Stop;
 					}
 
-					// We got results and were not asked for a specific
-					// first element, so assume we found our files and
-					// if we have a first element name
-					if (!expectedFirstElementName && firstElementName) {
-						fileFound = true;
-						return true; // this leaves the `waitForQuickInputElements` polling loop
+					// Expected: number of results
+					if (typeof expectedFirstElementNameOrExpectedResultCount === 'number') {
+						if (elementNames.length === expectedFirstElementNameOrExpectedResultCount) {
+							success = true;
+
+							return PollingStrategy.Stop;
+						}
+
+						if (elementNames.length === 0) {
+							this.code.logger.log('QuickAccess: search returned 0 elements, will continue polling...');
+
+							return PollingStrategy.Continue;
+						}
+
+						this.code.logger.log(`QuickAccess: search returned ${elementNames.length} results but was expecting ${expectedFirstElementNameOrExpectedResultCount}, will retry...`);
+
+						retry = true;
+
+						return PollingStrategy.Stop;
 					}
 
-					// We did not find our result -> keep on polling
-					return false;
+					// Expected: string
+					else {
+						if (firstElementName === expectedFirstElementNameOrExpectedResultCount) {
+							success = true;
+
+							return PollingStrategy.Stop;
+						}
+
+						this.code.logger.log(`QuickAccess: search returned ${firstElementName} as first result but was expecting ${expectedFirstElementNameOrExpectedResultCount}, will retry...`);
+
+						retry = true;
+
+						return PollingStrategy.Stop;
+					}
 				});
 			} catch (error) {
-				retry = true; // `waitForQuickInputElements` throws when elements not found
+				this.code.logger.log(`QuickAccess: waitForQuickInputElements threw an error ${error}, will retry...`);
+
+				retry = true;
 			}
 
 			if (!retry) {
@@ -86,8 +116,12 @@ export class QuickAccess {
 			await this.quickInput.closeQuickInput();
 		}
 
-		if (!fileFound) {
-			throw new Error(`Quick open file search was unable to find '${expectedFirstElementName}' after 10 attempts, giving up.`);
+		if (!success) {
+			if (typeof expectedFirstElementNameOrExpectedResultCount === 'string') {
+				throw new Error(`Quick open file search was unable to find '${expectedFirstElementNameOrExpectedResultCount}' after 10 attempts, giving up.`);
+			} else {
+				throw new Error(`Quick open file search was unable to find ${expectedFirstElementNameOrExpectedResultCount} result items after 10 attempts, giving up.`);
+			}
 		}
 	}
 
@@ -103,7 +137,7 @@ export class QuickAccess {
 		const fileName = basename(path);
 
 		// quick access shows files with the basename of the path
-		await this.openFileQuickAccessAndWait(path, basename(path));
+		await this.openQuickAccessAndWait(path, basename(path));
 
 		// file editors appear with the basename of the path
 		return this.doOpenAndWait(fileName);
@@ -112,7 +146,7 @@ export class QuickAccess {
 	async openUntitled(untitledFirstLineContents: string, untitledEditorId = 'Untitled-1'): Promise<void> {
 
 		// untitled appear with their first line contents
-		await this.openFileQuickAccessAndWait(untitledFirstLineContents, untitledFirstLineContents);
+		await this.openQuickAccessAndWait(untitledFirstLineContents, untitledFirstLineContents);
 
 		// untitled editors appear with their id (e.g. Untitled-1)
 		return this.doOpenAndWait(untitledEditorId);

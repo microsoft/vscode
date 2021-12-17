@@ -82,6 +82,7 @@ export function setup(logger: Logger) {
 			const expectedNames = [
 				'.eslintrc.json',
 				'tasks.json',
+				'settings.json',
 				'app.js',
 				'index.js',
 				'users.js',
@@ -89,7 +90,7 @@ export function setup(logger: Logger) {
 				'jsconfig.json'
 			];
 
-			await app.workbench.quickaccess.openFileQuickAccessAndWait('.js');
+			await app.workbench.quickaccess.openQuickAccessAndWait('.js', 8);
 			await app.workbench.quickinput.waitForQuickInputElements(names => expectedNames.every(n => names.some(m => n === m)));
 			await app.code.dispatchKeybinding('escape');
 		});
@@ -102,7 +103,7 @@ export function setup(logger: Logger) {
 				'package.json'
 			];
 
-			await app.workbench.quickaccess.openFileQuickAccessAndWait('a.s');
+			await app.workbench.quickaccess.openQuickAccessAndWait('a.s', 3);
 			await app.workbench.quickinput.waitForQuickInputElements(names => expectedNames.every(n => names.some(m => n === m)));
 			await app.code.dispatchKeybinding('escape');
 		});
