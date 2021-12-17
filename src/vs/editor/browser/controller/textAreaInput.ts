@@ -94,7 +94,7 @@ export class InMemoryClipboardMetadataManager {
 }
 
 export interface ICompositionStartEvent {
-	revealDeltaColumns: number;
+	data: string;
 }
 
 export interface ICompleteTextAreaWrapper extends ITextAreaWrapper {
@@ -270,22 +270,22 @@ export class TextAreaInput extends Disposable {
 			) {
 				// Handling long press case on Chromium/Safari macOS + arrow key => pretend the character was selected
 				if (_debugComposition) {
-					console.log(`[compositionstart] Handling long press case on macOS + arrow key or Firefox`, e);
+					console.log(`[compositionstart] Handling long press case on macOS + arrow key`, e);
 				}
 				// Pretend the previous character was composed (in order to get it removed by subsequent compositionupdate events)
 				currentComposition.handleCompositionUpdate('x');
-				this._onCompositionStart.fire({ revealDeltaColumns: -1 });
+				this._onCompositionStart.fire({ data: e.data });
 				return;
 			}
 
 			if (this._browser.isAndroid) {
 				// when tapping on the editor, Android enters composition mode to edit the current word
 				// so we cannot clear the textarea on Android and we must pretend the current word was selected
-				this._onCompositionStart.fire({ revealDeltaColumns: -this._textAreaState.selectionStart });
+				this._onCompositionStart.fire({ data: e.data });
 				return;
 			}
 
-			this._onCompositionStart.fire({ revealDeltaColumns: 0 });
+			this._onCompositionStart.fire({ data: e.data });
 		}));
 
 		this._register(this._textArea.onCompositionUpdate((e) => {
