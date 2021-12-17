@@ -755,7 +755,7 @@ export class ExtensionEditor extends EditorPane {
 				return Promise.resolve(null);
 			}
 
-			const webview = this.contentDisposables.add(this.webviewService.createWebviewOverlay('extensionEditor', {
+			const webview = this.contentDisposables.add(this.webviewService.createWebviewOverlay(generateUuid(), {
 				enableFindWidget: true,
 				tryRestoreScrollPosition: true,
 			}, {}, undefined));
