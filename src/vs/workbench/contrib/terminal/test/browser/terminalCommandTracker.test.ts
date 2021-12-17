@@ -28,7 +28,7 @@ async function writeP(terminal: TestTerminal, data: string): Promise<void> {
 	});
 }
 
-suite('Workbench - TerminalCommandTracker', function () {
+suite.skip('Workbench - TerminalCommandTracker', function () { // TODO@daniel https://github.com/microsoft/vscode/issues/139366
 	let xterm: TestTerminal;
 	let commandTracker: CommandTrackerAddon;
 
