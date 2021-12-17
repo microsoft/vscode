@@ -181,6 +181,31 @@ suite('Async', () => {
 			});
 		});
 
+		test('microtask delay simple', () => {
+			let count = 0;
+			let factory = () => {
+				return Promise.resolve(++count);
+			};
+
+			let delayer = new async.Delayer(async.MicrotaskDelay);
+			let promises: Promise<any>[] = [];
+
+			assert(!delayer.isTriggered());
+
+			promises.push(delayer.trigger(factory).then((result) => { assert.strictEqual(result, 1); assert(!delayer.isTriggered()); }));
+			assert(delayer.isTriggered());
+
+			promises.push(delayer.trigger(factory).then((result) => { assert.strictEqual(result, 1); assert(!delayer.isTriggered()); }));
+			assert(delayer.isTriggered());
+
+			promises.push(delayer.trigger(factory).then((result) => { assert.strictEqual(result, 1); assert(!delayer.isTriggered()); }));
+			assert(delayer.isTriggered());
+
+			return Promise.all(promises).then(() => {
+				assert(!delayer.isTriggered());
+			});
+		});
+
 		suite('ThrottledDelayer', () => {
 			test('promise should resolve if disposed', async () => {
 				const throttledDelayer = new async.ThrottledDelayer<void>(100);
@@ -203,6 +228,29 @@ suite('Async', () => {
 			};
 
 			let delayer = new async.Delayer(0);
+
+			assert(!delayer.isTriggered());
+
+			const p = delayer.trigger(factory).then(() => {
+				assert(false);
+			}, () => {
+				assert(true, 'yes, it was cancelled');
+			});
+
+			assert(delayer.isTriggered());
+			delayer.cancel();
+			assert(!delayer.isTriggered());
+
+			return p;
+		});
+
+		test('simple cancel microtask', function () {
+			let count = 0;
+			let factory = () => {
+				return Promise.resolve(++count);
+			};
+
+			let delayer = new async.Delayer(async.MicrotaskDelay);
 
 			assert(!delayer.isTriggered());
 
