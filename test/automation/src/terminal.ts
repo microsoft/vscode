@@ -69,8 +69,7 @@ export class Terminal {
 		if (commandId === TerminalCommandId.Show) {
 			return await this._waitForTerminal(undefined);
 		}
-		await this.code.dispatchKeybinding('enter');
-		await this.quickinput.waitForQuickInputClosed();
+		await this.quickinput.selectQuickInputElement(0);
 	}
 
 	async runCommandWithValue(commandId: TerminalCommandIdWithValue, value?: string, altKey?: boolean): Promise<void> {
@@ -82,7 +81,7 @@ export class Terminal {
 		// new quick input shows.
 		await this.quickinput.waitForQuickInputOpened();
 		if (value) {
-			await this.code.waitForSetValue(QuickInput.QUICK_INPUT_INPUT, value);
+			await this.quickinput.type(value);
 		} else if (commandId === TerminalCommandIdWithValue.Rename) {
 			// Reset
 			await this.code.dispatchKeybinding('Backspace');

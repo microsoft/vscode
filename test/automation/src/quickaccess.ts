@@ -36,7 +36,7 @@ export class QuickAccess {
 		}
 
 		if (value) {
-			await this.code.waitForSetValue(QuickInput.QUICK_INPUT_INPUT, value);
+			await this.quickInput.type(value);
 		}
 	}
 
@@ -87,7 +87,7 @@ export class QuickAccess {
 		}
 
 		if (!fileFound) {
-			throw new Error(`Quick open file search was unable to find '${expectedFirstElementName}' after 10 attempts, giving up.`);
+			throw new Error(`Quick open was unable to find '${expectedFirstElementName}' after 10 attempts, giving up.`);
 		}
 	}
 
@@ -119,9 +119,9 @@ export class QuickAccess {
 	}
 
 	private async doOpenAndWait(editorName: string): Promise<void> {
-		await this.code.dispatchKeybinding('enter');
+		await this.quickInput.selectQuickInputElement(0);
 		await this.editors.waitForActiveTab(editorName);
-		await this.editors.waitForEditorFocus(editorName);
+		await this.editors.selectTab(editorName);
 	}
 
 	async runCommand(commandId: string, keepOpen?: boolean): Promise<void> {
