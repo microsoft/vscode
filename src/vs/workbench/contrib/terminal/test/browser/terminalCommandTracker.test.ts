@@ -28,7 +28,7 @@ async function writeP(terminal: TestTerminal, data: string): Promise<void> {
 	});
 }
 
-suite.skip('Workbench - TerminalCommandTracker', function () { // TODO@daniel https://github.com/microsoft/vscode/issues/139366
+suite('Workbench - TerminalCommandTracker', function () {
 	let xterm: TestTerminal;
 	let commandTracker: CommandTrackerAddon;
 
@@ -80,9 +80,7 @@ suite.skip('Workbench - TerminalCommandTracker', function () { // TODO@daniel ht
 			xterm._core._onKey.fire({ key: '\x0d' }); // Mark line #10
 			assert.strictEqual(xterm.markers[0].line, 9);
 
-			for (let i = 0; i < 20; i++) {
-				await writeP(xterm, `\r\n`);
-			}
+			await writeP(xterm, `\r\n`.repeat(20));
 			assert.strictEqual(xterm.buffer.active.baseY, 20);
 			assert.strictEqual(xterm.buffer.active.viewportY, 20);
 
