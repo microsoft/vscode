@@ -327,7 +327,14 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		} else {
 			resourceMarkers = this.markersModel.resourceMarkers;
 		}
-		this.tree.setChildren(null, Iterable.map(resourceMarkers, m => ({ element: m, children: createResourceMarkersIterator(m) })));
+		this.tree.setChildren(null, Iterable.map(resourceMarkers, m => ({ element: m, children: createResourceMarkersIterator(m) })), {
+			diffIdentityProvider: {
+				getId(element: MarkerElement): string {
+					console.log('ident', JSON.parse(JSON.stringify(element)));
+					return element.id;
+				}
+			}
+		});
 	}
 
 	private updateFilter() {

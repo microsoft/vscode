@@ -222,15 +222,18 @@ export interface IFixedTerminalDimensions {
 	rows?: number;
 }
 
-export interface IPtyHostEventHandler {
+export interface IPtyHostController {
 	readonly onPtyHostExit?: Event<number>;
 	readonly onPtyHostStart?: Event<void>;
 	readonly onPtyHostUnresponsive?: Event<void>;
 	readonly onPtyHostResponsive?: Event<void>;
 	readonly onPtyHostRequestResolveVariables?: Event<IRequestResolveVariablesEvent>;
+
+	restartPtyHost?(): Promise<void>;
+	acceptPtyHostResolvedVariables?(requestId: number, resolved: string[]): Promise<void>;
 }
 
-export interface IPtyService extends IPtyHostEventHandler {
+export interface IPtyService extends IPtyHostController {
 	readonly _serviceBrand: undefined;
 
 	readonly onProcessData: Event<{ id: number, event: IProcessDataEvent | string }>;

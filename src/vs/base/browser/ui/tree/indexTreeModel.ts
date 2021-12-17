@@ -6,6 +6,7 @@
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ICollapseStateChangeEvent, ITreeElement, ITreeFilter, ITreeFilterDataResult, ITreeModel, ITreeModelSpliceEvent, ITreeNode, TreeError, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { splice, tail2 } from 'vs/base/common/arrays';
+import { Delayer, MicrotaskDelay } from 'vs/base/common/async';
 import { LcsDiff } from 'vs/base/common/diff/diff';
 import { Emitter, Event, EventBufferer } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
@@ -110,6 +111,8 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 
 	private readonly _onDidSplice = new Emitter<ITreeModelSpliceEvent<T, TFilterData>>();
 	readonly onDidSplice = this._onDidSplice.event;
+
+	private readonly refilterDelayer = new Delayer(MicrotaskDelay);
 
 	constructor(
 		private user: string,
@@ -322,7 +325,8 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 
 		while (node) {
 			if (node.visibility === TreeVisibility.Recurse) {
-				this.refilter();
+				// delayed to avoid excessive refiltering, see #135941
+				this.refilterDelayer.trigger(() => this.refilter());
 				break;
 			}
 
@@ -487,6 +491,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		const previousRenderNodeCount = this.root.renderNodeCount;
 		const toInsert = this.updateNodeAfterFilterChange(this.root);
 		this.list.splice(0, previousRenderNodeCount, toInsert);
+		this.refilterDelayer.cancel();
 	}
 
 	private createTreeNode(

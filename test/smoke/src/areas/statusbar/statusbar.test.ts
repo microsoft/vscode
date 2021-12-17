@@ -68,7 +68,6 @@ export function setup(isWeb: boolean, logger: Logger) {
 			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'app.js'));
 			await app.workbench.statusbar.clickOn(StatusBarElement.EOL_STATUS);
 
-			await app.workbench.quickinput.waitForQuickInputOpened();
 			await app.workbench.quickinput.selectQuickInputElement(1);
 
 			await app.workbench.statusbar.waitForEOL('CRLF');
