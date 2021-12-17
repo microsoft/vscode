@@ -205,11 +205,7 @@ class LocalTerminalBackend extends Disposable implements ITerminalBackend {
 		windowsEnableConpty: boolean,
 		shouldPersist: boolean
 	): Promise<ITerminalChildProcess> {
-
 		const executableEnv = await this._shellEnvironmentService.getShellEnv();
-
-		this._logService.info('env', env);
-
 		const id = await this._localPtyService.createProcess(shellLaunchConfig, cwd, cols, rows, unicodeVersion, env, executableEnv, windowsEnableConpty, shouldPersist, this._getWorkspaceId(), this._getWorkspaceName());
 		const pty = this._instantiationService.createInstance(LocalPty, id, shouldPersist);
 		this._ptys.set(id, pty);
