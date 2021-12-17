@@ -35,7 +35,6 @@ export class TerminalAutoResponder extends Disposable {
 				return;
 			}
 			const data = typeof e === 'string' ? e : e.data;
-			console.log('data ' + data);
 			for (let i = 0; i < data.length; i++) {
 				if (data[i] === matchWord[this._pointer]) {
 					this._pointer++;
