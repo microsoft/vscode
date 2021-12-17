@@ -15,7 +15,7 @@ export function setup() {
 			terminal = app.workbench.terminal;
 		});
 
-		it('should update color of the tab', async () => {
+		it.skip('should update color of the tab', async () => {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
 			const color = 'Cyan';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeColor, color);
