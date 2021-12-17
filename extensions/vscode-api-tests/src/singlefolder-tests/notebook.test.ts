@@ -568,7 +568,7 @@ suite('Notebook API tests', function () {
 		});
 	});
 
-	test('onDidChangeCellExecutionState is fired', async () => {
+	test.skip('onDidChangeCellExecutionState is fired', async () => { // TODO@rebornix https://github.com/microsoft/vscode/issues/139350
 		const resource = await createRandomNotebookFile();
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		const editor = vscode.window.activeNotebookEditor!;
