@@ -1254,7 +1254,7 @@ declare module 'vscode' {
 	export class Uri {
 
 		/**
-		 * Create an URI from a string, e.g. `http://www.msft.com/some/path`,
+		 * Create an URI from a string, e.g. `http://www.example.com/some/path`,
 		 * `file:///usr/home`, or `scheme:with/path`.
 		 *
 		 * *Note* that for a while uris without a `scheme` were accepted. That is not correct
@@ -1330,29 +1330,29 @@ declare module 'vscode' {
 		private constructor(scheme: string, authority: string, path: string, query: string, fragment: string);
 
 		/**
-		 * Scheme is the `http` part of `http://www.msft.com/some/path?query#fragment`.
+		 * Scheme is the `http` part of `http://www.example.com/some/path?query#fragment`.
 		 * The part before the first colon.
 		 */
 		readonly scheme: string;
 
 		/**
-		 * Authority is the `www.msft.com` part of `http://www.msft.com/some/path?query#fragment`.
+		 * Authority is the `www.example.com` part of `http://www.example.com/some/path?query#fragment`.
 		 * The part between the first double slashes and the next slash.
 		 */
 		readonly authority: string;
 
 		/**
-		 * Path is the `/some/path` part of `http://www.msft.com/some/path?query#fragment`.
+		 * Path is the `/some/path` part of `http://www.example.com/some/path?query#fragment`.
 		 */
 		readonly path: string;
 
 		/**
-		 * Query is the `query` part of `http://www.msft.com/some/path?query#fragment`.
+		 * Query is the `query` part of `http://www.example.com/some/path?query#fragment`.
 		 */
 		readonly query: string;
 
 		/**
-		 * Fragment is the `fragment` part of `http://www.msft.com/some/path?query#fragment`.
+		 * Fragment is the `fragment` part of `http://www.example.com/some/path?query#fragment`.
 		 */
 		readonly fragment: string;
 
