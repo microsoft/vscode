@@ -85,8 +85,9 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		if (!options || !options.treeDataProvider) {
 			throw new Error('Options with treeDataProvider is mandatory');
 		}
-		const dragAndDropMimeTypes = options.dragAndDropController?.supportedMimeTypes;
-		const registerPromise = this._proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany, dragAndDropMimeTypes });
+		const dragAndDropMimeTypes = options.dragAndDropController?.dropMimeTypes;
+		const willDropMimeTypes = options.dragAndDropController?.willDropMimeTypes;
+		const registerPromise = this._proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany, dragAndDropMimeTypes, willDropMimeTypes });
 		const treeView = this.createExtHostTreeView(viewId, options, extension);
 		return {
 			get onDidCollapseElement() { return treeView.onDidCollapseElement; },
@@ -147,6 +148,29 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 			}
 		}
 		return treeView.onDrop(treeDataTransfer, newParentItemHandle);
+	}
+
+	async $onWillDrop(sourceViewId: string, sourceTreeItemHandles: string[]): Promise<TreeDataTransferDTO | undefined> {
+		const treeView = this.treeViews.get(sourceViewId);
+		if (!treeView) {
+			return Promise.reject(new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', sourceViewId)));
+		}
+
+		if (!treeView.hasOnWillDrop) {
+			return;
+		}
+
+		const additionalTransferItems = await treeView.onWillDrop(sourceTreeItemHandles);
+		if (!additionalTransferItems) {
+			return;
+		}
+		const treeDataTransfer = new Map();
+		additionalTransferItems.forEach((value, key) => {
+			if (value) {
+				treeDataTransfer.set(key, value);
+			}
+		});
+		return TreeDataTransferConverter.toTreeDataTransferDTO(treeDataTransfer);
 	}
 
 	async $hasResolve(treeViewId: string): Promise<boolean> {
@@ -416,6 +440,10 @@ class ExtHostTreeView<T> extends Disposable {
 			return;
 		}
 		return this.dndController.onWillDrop(extensionTreeItems);
+	}
+
+	get hasOnWillDrop(): boolean {
+		return !!this.dndController?.onWillDrop;
 	}
 
 	async onDrop(treeDataTransfer: vscode.TreeDataTransfer, targetHandleOrNode: TreeItemHandle): Promise<void> {
