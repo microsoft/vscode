@@ -7,58 +7,73 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/62783 @matthewjamesadam
 
-	/**
-	 * A badge presenting a number
-	 */
-	export interface NumberBadge {
 
-		/**
-		 * The number to present
-		 */
-		number: number;
-
+	export abstract class Badge {
 		/**
 		 * A label to present in tooltips
 		 */
 		label: string;
+	}
+
+	/**
+	 * A badge presenting a number
+	 */
+	export class NumberBadge extends Badge {
+
+		/**
+		 * @param number The number to present
+		 * @param label A label to present in tooltips
+		 */
+		constructor(number: number, label: string);
+
+		/**
+		 * The number to present
+		 */
+		readonly number: number;
 	}
 
 	/**
 	 * A badge presenting text
 	 */
-	export interface TextBadge {
+	export class TextBadge extends Badge {
+
+		/**
+		 * @param text The text to present
+		 * @param label The label to present in tooltips
+		 */
+		constructor(text: string, label: string)
 
 		/**
 		 * The text to present
 		 */
-		text: string;
-
-		/**
-		 * A label to present in tooltips
-		 */
-		label: string;
+		readonly text: string;
 	}
 
 	/**
 	 * A badge presenting an icon
 	 */
-	export interface IconBadge {
+	export class IconBadge extends Badge {
+
+		/**
+		 * @param icon The icon to present
+		 * @param label The label to present in tooltips
+		 */
+		constructor(icon: ThemeIcon, label: string);
 
 		/**
 		 * The icon to present
 		 */
 		icon: ThemeIcon;
-
-		/**
-		 * A label to present in tooltips
-		 */
-		label: string;
 	}
 
 	/**
 	 * A badge presenting a progress indicator
 	 */
-	export interface ProgressBadge {
+	export class ProgressBadge extends Badge {
+		/**
+		 * @param label The label to present in tooltips
+		 */
+		constructor(label: string);
 	}
 
 	export interface ActivityProvider {
@@ -66,7 +81,7 @@ declare module 'vscode' {
 		 * Provide activity indication.
 		 * To remove the activity data, pass undefined or null.
 		 */
-		onDidChangeActivity?: Event<NumberBadge | TextBadge | IconBadge | ProgressBadge | undefined | null>;
+		onDidChangeActivity?: Event<Badge | undefined | null>;
 	}
 
 	export namespace window {
