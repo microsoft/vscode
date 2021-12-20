@@ -8,6 +8,12 @@ import { Code } from './code';
 import { QuickInput } from './quickinput';
 import { basename, isAbsolute } from 'path';
 
+enum QuickAccessKind {
+	Files = 1,
+	Commands,
+	Symbols
+}
+
 export class QuickAccess {
 
 	constructor(private code: Code, private editors: Editors, private quickInput: QuickInput) { }
@@ -30,7 +36,7 @@ export class QuickAccess {
 			let retry = false;
 
 			try {
-				await this.openFileQuickAccess(searchValue);
+				await this.openQuickAccessWithRetry(QuickAccessKind.Files, searchValue);
 				await this.quickInput.waitForQuickInputElements(elementNames => {
 					this.code.logger.log('QuickAccess: resulting elements: ', elementNames);
 
@@ -125,36 +131,49 @@ export class QuickAccess {
 		await this.editors.selectTab(fileName);
 	}
 
-	private async openFileQuickAccess(value: string): Promise<void> {
+	private async openQuickAccessWithRetry(kind: QuickAccessKind, value?: string): Promise<void> {
 		let retries = 0;
 
-		// other parts of code might steal focus away from quickinput :(
+		// Other parts of code might steal focus away from quickinput :(
 		while (retries < 5) {
-			if (process.platform === 'darwin') {
-				await this.code.dispatchKeybinding('cmd+p');
-			} else {
-				await this.code.dispatchKeybinding('ctrl+p');
+
+			// Open via keybinding
+			switch (kind) {
+				case QuickAccessKind.Files:
+					await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+p' : 'ctrl+p');
+					break;
+				case QuickAccessKind.Symbols:
+					await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+shift+o' : 'ctrl+shift+o');
+					break;
+				case QuickAccessKind.Commands:
+					await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+shift+p' : 'ctrl+shift+p');
+					break;
 			}
 
+			// Await for quick input widget opened
 			try {
 				await this.quickInput.waitForQuickInputOpened(10);
 				break;
 			} catch (err) {
 				if (++retries > 5) {
-					throw err;
+					throw new Error(`QuickAccess.openQuickAccessWithRetry(kind: ${kind}) failed: ${err}`);
 				}
 
+				// Retry
 				await this.code.dispatchKeybinding('escape');
 			}
 		}
 
-		await this.quickInput.type(value);
+		// Type value if any
+		if (value) {
+			await this.quickInput.type(value);
+		}
 	}
 
 	async runCommand(commandId: string, keepOpen?: boolean): Promise<void> {
 
 		// open commands picker
-		await this.openCommands(`>${commandId}`);
+		await this.openQuickAccessWithRetry(QuickAccessKind.Commands, `>${commandId}`);
 
 		// wait for best choice to be focused
 		await this.quickInput.waitForQuickInputElementFocused();
@@ -163,33 +182,13 @@ export class QuickAccess {
 		await this.quickInput.selectQuickInputElement(0, keepOpen);
 	}
 
-	private async openCommands(value: string): Promise<void> {
-
-		// open commands via keybinding
-		if (process.platform === 'darwin') {
-			await this.code.dispatchKeybinding('cmd+shift+p');
-		} else {
-			await this.code.dispatchKeybinding('ctrl+shift+p');
-		}
-
-		// wait for commands
-		await this.quickInput.waitForQuickInputElementFocused();
-
-		// narrow down to provided value
-		await this.quickInput.type(value);
-	}
-
 	async openQuickOutline(): Promise<void> {
 		let retries = 0;
 
 		while (++retries < 10) {
 
 			// open quick outline via keybinding
-			if (process.platform === 'darwin') {
-				await this.code.dispatchKeybinding('cmd+shift+o');
-			} else {
-				await this.code.dispatchKeybinding('ctrl+shift+o');
-			}
+			await this.openQuickAccessWithRetry(QuickAccessKind.Symbols);
 
 			const text = await this.quickInput.waitForQuickInputElementText();
 
