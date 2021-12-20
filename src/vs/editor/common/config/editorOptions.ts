@@ -3306,6 +3306,7 @@ export interface IUnicodeHighlightOptions {
 	 * A map of allowed characters (true: allowed).
 	*/
 	allowedCharacters?: Record<string, true>;
+	allowedLocales?: Record<string | '_os' | '_vscode', true>;
 }
 
 /**
@@ -3323,6 +3324,7 @@ export const unicodeHighlightConfigKeys = {
 	ambiguousCharacters: 'editor.unicodeHighlight.ambiguousCharacters',
 	includeComments: 'editor.unicodeHighlight.includeComments',
 	includeStrings: 'editor.unicodeHighlight.includeStrings',
+	allowedLocales: 'editor.unicodeHighlight.allowedLocales',
 };
 
 class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting, InternalUnicodeHighlightOptions> {
@@ -3334,6 +3336,7 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 			includeComments: inUntrustedWorkspace,
 			includeStrings: true,
 			allowedCharacters: {},
+			allowedLocales: { _os: true, _vscode: true },
 		};
 
 		super(
@@ -3381,6 +3384,15 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 						type: 'boolean'
 					}
 				},
+				[unicodeHighlightConfigKeys.allowedLocales]: {
+					restricted: true,
+					type: 'object',
+					additionalProperties: {
+						type: 'boolean'
+					},
+					default: defaults.allowedLocales,
+					description: nls.localize('unicodeHighlight.allowedLocales', "Unicode characters that are common in allowed locales are not being highlighted.")
+				},
 			}
 		);
 	}
@@ -3391,6 +3403,13 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 			// Treat allowedCharacters atomically
 			if (!objects.equals(value.allowedCharacters, update.allowedCharacters)) {
 				value = { ...value, allowedCharacters: update.allowedCharacters };
+				didChange = true;
+			}
+		}
+		if (update.allowedLocales) {
+			// Treat allowedLocales atomically
+			if (!objects.equals(value.allowedLocales, update.allowedLocales)) {
+				value = { ...value, allowedLocales: update.allowedLocales };
 				didChange = true;
 			}
 		}
@@ -3413,11 +3432,12 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 			ambiguousCharacters: boolean(input.ambiguousCharacters, this.defaultValue.ambiguousCharacters),
 			includeComments: primitiveSet<boolean | InUntrustedWorkspace>(input.includeComments, inUntrustedWorkspace, [true, false, inUntrustedWorkspace]),
 			includeStrings: primitiveSet<boolean | InUntrustedWorkspace>(input.includeStrings, inUntrustedWorkspace, [true, false, inUntrustedWorkspace]),
-			allowedCharacters: this.validateAllowedCharacters(_input.allowedCharacters, this.defaultValue.allowedCharacters),
+			allowedCharacters: this.validateBooleanMap(_input.allowedCharacters, this.defaultValue.allowedCharacters),
+			allowedLocales: this.validateBooleanMap(_input.allowedLocales, this.defaultValue.allowedLocales),
 		};
 	}
 
-	private validateAllowedCharacters(map: unknown, defaultValue: Record<string, true>): Record<string, true> {
+	private validateBooleanMap(map: unknown, defaultValue: Record<string, true>): Record<string, true> {
 		if ((typeof map !== 'object') || !map) {
 			return defaultValue;
 		}

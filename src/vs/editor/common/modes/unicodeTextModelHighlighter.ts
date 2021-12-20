@@ -104,8 +104,16 @@ export class UnicodeTextModelHighlighter {
 				return { kind: UnicodeHighlighterReasonKind.Invisible };
 
 			case SimpleHighlightReason.Ambiguous: {
-				const primaryConfusable = strings.AmbiguousCharacters.getPrimaryConfusable(char.codePointAt(0)!)!;
-				return { kind: UnicodeHighlighterReasonKind.Ambiguous, confusableWith: String.fromCodePoint(primaryConfusable) };
+				const codePoint = char.codePointAt(0)!;
+				const primaryConfusable = codePointHighlighter.ambiguousCharacters.getPrimaryConfusable(codePoint)!;
+				const notAmbiguousInLocales =
+					strings.AmbiguousCharacters.getLocales().filter(
+						(l) =>
+							!strings.AmbiguousCharacters.getInstance(
+								new Set([...options.allowedLocales, l])
+							).isAmbiguous(codePoint)
+					);
+				return { kind: UnicodeHighlighterReasonKind.Ambiguous, confusableWith: String.fromCodePoint(primaryConfusable), notAmbiguousInLocales };
 			}
 			case SimpleHighlightReason.NonBasicASCII:
 				return { kind: UnicodeHighlighterReasonKind.NonBasicAscii };
@@ -127,6 +135,7 @@ export const enum UnicodeHighlighterReasonKind {
 export type UnicodeHighlighterReason = {
 	kind: UnicodeHighlighterReasonKind.Ambiguous;
 	confusableWith: string;
+	notAmbiguousInLocales: string[];
 } | {
 	kind: UnicodeHighlighterReasonKind.Invisible;
 } | {
@@ -135,8 +144,10 @@ export type UnicodeHighlighterReason = {
 
 class CodePointHighlighter {
 	private readonly allowedCodePoints: Set<number>;
+	public readonly ambiguousCharacters: strings.AmbiguousCharacters;
 	constructor(private readonly options: UnicodeHighlighterOptions) {
 		this.allowedCodePoints = new Set(options.allowedCodePoints);
+		this.ambiguousCharacters = strings.AmbiguousCharacters.getInstance(new Set(options.allowedLocales));
 	}
 
 	public getCandidateCodePoints(): Set<number> | 'allNonBasicAscii' {
@@ -153,7 +164,7 @@ class CodePointHighlighter {
 		}
 
 		if (this.options.ambiguousCharacters) {
-			for (const cp of strings.AmbiguousCharacters.getPrimaryConfusableCodePoints()) {
+			for (const cp of this.ambiguousCharacters.getConfusableCodePoints()) {
 				set.add(cp);
 			}
 		}
@@ -185,7 +196,7 @@ class CodePointHighlighter {
 		}
 
 		if (this.options.ambiguousCharacters) {
-			if (strings.AmbiguousCharacters.isAmbiguous(codePoint)) {
+			if (this.ambiguousCharacters.isAmbiguous(codePoint)) {
 				return SimpleHighlightReason.Ambiguous;
 			}
 		}
@@ -213,4 +224,5 @@ export interface UnicodeHighlighterOptions {
 	includeComments: boolean;
 	includeStrings: boolean;
 	allowedCodePoints: number[];
+	allowedLocales: string[];
 }

@@ -8,6 +8,7 @@ import { CharCode } from 'vs/base/common/charCode';
 import { Codicon } from 'vs/base/common/codicons';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import * as platform from 'vs/base/common/platform';
 import { InvisibleCharacters } from 'vs/base/common/strings';
 import 'vs/css!./unicodeHighlighter';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -162,6 +163,15 @@ export class UnicodeHighlighter extends Disposable implements IEditorContributio
 			includeComments: options.includeComments,
 			includeStrings: options.includeStrings,
 			allowedCodePoints: Object.keys(options.allowedCharacters).map(c => c.codePointAt(0)!),
+			allowedLocales: Object.keys(options.allowedLocales).map(locale => {
+				if (locale === '_os') {
+					let osLocale = new Intl.NumberFormat().resolvedOptions().locale;
+					return osLocale;
+				} else if (locale === '_vscode') {
+					return platform.language;
+				}
+				return locale;
+			}),
 		};
 
 		if (this._editorWorkerService.canComputeUnicodeHighlights(this._editor.getModel().uri)) {
@@ -185,8 +195,11 @@ export interface UnicodeHighlighterDecorationInfo {
 	inString: boolean;
 }
 
-type RemoveTrueIfUntrusted<T> = T extends InUntrustedWorkspace ? never : T;
-type ResolvedOptions = { [TKey in keyof InternalUnicodeHighlightOptions]: RemoveTrueIfUntrusted<InternalUnicodeHighlightOptions[TKey]> };
+type Resolve<T> =
+	T extends InUntrustedWorkspace ? never
+	: T extends 'auto' ? never : T;
+
+type ResolvedOptions = { [TKey in keyof InternalUnicodeHighlightOptions]: Resolve<InternalUnicodeHighlightOptions[TKey]> };
 
 function resolveOptions(trusted: boolean, options: InternalUnicodeHighlightOptions): ResolvedOptions {
 	return {
@@ -195,7 +208,8 @@ function resolveOptions(trusted: boolean, options: InternalUnicodeHighlightOptio
 		invisibleCharacters: options.invisibleCharacters,
 		includeComments: options.includeComments === inUntrustedWorkspace ? !trusted : options.includeComments,
 		includeStrings: options.includeStrings === inUntrustedWorkspace ? !trusted : options.includeStrings,
-		allowedCharacters: options.allowedCharacters ?? {},
+		allowedCharacters: options.allowedCharacters,
+		allowedLocales: options.allowedLocales,
 	};
 }
 
@@ -471,7 +485,7 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 
 			const adjustSettingsArgs: ShowExcludeOptionsArgs = {
 				codePoint: codePoint,
-				reason: highlightInfo.reason.kind,
+				reason: highlightInfo.reason,
 				inComment: highlightInfo.inComment,
 				inString: highlightInfo.inString,
 			};
@@ -660,7 +674,7 @@ export class DisableHighlightingOfNonBasicAsciiCharactersAction extends EditorAc
 
 interface ShowExcludeOptionsArgs {
 	codePoint: number;
-	reason: UnicodeHighlighterReason['kind'];
+	reason: UnicodeHighlighterReason;
 	inComment: boolean;
 	inString: boolean;
 }
@@ -695,12 +709,25 @@ export class ShowExcludeOptions extends EditorAction {
 			return nls.localize('unicodeHighlight.excludeCharFromBeingHighlighted', 'Exclude {0} from being highlighted', `U+${codePoint.toString(16)} "${char}"`);
 		}
 
-		const options: ExtendedOptions[] = [
+		const options: ExtendedOptions[] = [];
+
+		if (reason.kind === UnicodeHighlighterReasonKind.Ambiguous) {
+			for (const locale of reason.notAmbiguousInLocales) {
+				options.push({
+					label: nls.localize("unicodeHighlight.allowCommonCharactersInLanguage", "Allow unicode characters that are more common in the language \"{0}\".", locale),
+					run: async () => {
+						excludeLocaleFromBeingHighlighted(configurationService, [locale]);
+					},
+				});
+			}
+		}
+
+		options.push(
 			{
 				label: getExcludeCharFromBeingHighlightedLabel(codePoint),
 				run: () => excludeCharFromBeingHighlighted(configurationService, [codePoint])
-			},
-		];
+			}
+		);
 
 		if (inComment) {
 			const action = new DisableHighlightingInCommentsAction();
@@ -710,15 +737,14 @@ export class ShowExcludeOptions extends EditorAction {
 			options.push({ label: action.label, run: async () => action.runAction(configurationService) });
 		}
 
-		if (reason === UnicodeHighlighterReasonKind.Ambiguous) {
+		if (reason.kind === UnicodeHighlighterReasonKind.Ambiguous) {
 			const action = new DisableHighlightingOfAmbiguousCharactersAction();
 			options.push({ label: action.label, run: async () => action.runAction(configurationService) });
-		}
-		else if (reason === UnicodeHighlighterReasonKind.Invisible) {
+		} else if (reason.kind === UnicodeHighlighterReasonKind.Invisible) {
 			const action = new DisableHighlightingOfInvisibleCharactersAction();
 			options.push({ label: action.label, run: async () => action.runAction(configurationService) });
 		}
-		else if (reason === UnicodeHighlighterReasonKind.NonBasicAscii) {
+		else if (reason.kind === UnicodeHighlighterReasonKind.NonBasicAscii) {
 			const action = new DisableHighlightingOfNonBasicAsciiCharactersAction();
 			options.push({ label: action.label, run: async () => action.runAction(configurationService) });
 		} else {
@@ -751,6 +777,24 @@ async function excludeCharFromBeingHighlighted(configurationService: IConfigurat
 	}
 
 	await configurationService.updateValue(unicodeHighlightConfigKeys.allowedCharacters, value, ConfigurationTarget.USER);
+}
+
+async function excludeLocaleFromBeingHighlighted(configurationService: IConfigurationService, locales: string[]) {
+	const existingValue = configurationService.inspect(unicodeHighlightConfigKeys.allowedLocales).user?.value;
+
+	let value: Record<string, boolean>;
+	if ((typeof existingValue === 'object') && existingValue) {
+		// Copy value, as the existing value is read only
+		value = Object.assign({}, existingValue as any);
+	} else {
+		value = {};
+	}
+
+	for (const locale of locales) {
+		value[locale] = true;
+	}
+
+	await configurationService.updateValue(unicodeHighlightConfigKeys.allowedLocales, value, ConfigurationTarget.USER);
 }
 
 function expectNever(value: never) {

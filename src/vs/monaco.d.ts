@@ -3888,6 +3888,7 @@ declare namespace monaco.editor {
 		 * A map of allowed characters (true: allowed).
 		*/
 		allowedCharacters?: Record<string, true>;
+		allowedLocales?: Record<string | '_os' | '_vscode', true>;
 	}
 
 	export interface IInlineSuggestOptions {
