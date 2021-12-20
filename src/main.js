@@ -231,6 +231,9 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		}
 	});
 
+	// Enable Font Access API (eg. for terminal ligatures)
+	app.commandLine.appendSwitch('enable-features', 'FontAccess');
+
 	// Support JS Flags
 	const jsFlags = getJSFlags(cliArgs);
 	if (jsFlags) {

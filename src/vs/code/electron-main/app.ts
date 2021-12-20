@@ -140,7 +140,8 @@ export class CodeApplication extends Disposable {
 				return callback(allowedPermissionsInWebview.has(permission));
 			}
 
-			return callback(false);
+			// TODO: Remove as any when Electron updates to include this permission
+			return callback(permission as any === 'font-access');
 		});
 
 		session.defaultSession.setPermissionCheckHandler((_webContents, permission /* 'media' */, _origin, details) => {

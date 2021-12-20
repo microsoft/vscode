@@ -265,6 +265,23 @@ file-uri-to-path@2:
   resolved "https://registry.yarnpkg.com/file-uri-to-path/-/file-uri-to-path-2.0.0.tgz#7b415aeba227d575851e0a5b0c640d7656403fba"
   integrity sha512-hjPFI8oE/2iQPVe4gbrJ73Pp+Xfub2+WI2LlXDbsaJBwT5wuMh35WNWVYYTpnz895shtwfyutMFLFywpQAFdLg==
 
+font-finder@^1.0.3, font-finder@^1.1.0:
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/font-finder/-/font-finder-1.1.0.tgz#2bff2b2762acba720239c8bec898a96daae90858"
+  integrity sha512-wpCL2uIbi6GurJbU7ZlQ3nGd61Ho+dSU6U83/xJT5UPFfN35EeCW/rOtS+5k+IuEZu2SYmHzDIPL9eA5tSYRAw==
+  dependencies:
+    get-system-fonts "^2.0.0"
+    promise-stream-reader "^1.0.1"
+
+font-ligatures@^1.4.0:
+  version "1.4.0"
+  resolved "https://registry.yarnpkg.com/font-ligatures/-/font-ligatures-1.4.0.tgz#6a7b370d96be1358dddfad67830e82fbfd59e6dc"
+  integrity sha512-n7DFnnEpJ0NrVoLqZIL4tMGVs+CnFwQc92m80LWyrbgAFO4x234+t2/H9o4eOYA1eh6ta9dZAEEsJAwsBdNezA==
+  dependencies:
+    font-finder "^1.0.3"
+    lru-cache "^6.0.0"
+    opentype.js "^0.8.0"
+
 fs-extra@^8.1.0:
   version "8.1.0"
   resolved "https://registry.yarnpkg.com/fs-extra/-/fs-extra-8.1.0.tgz#49d43c45a88cd9677668cb7be1b46efdb8d2e1c0"
@@ -281,6 +298,11 @@ ftp@^0.3.10:
   dependencies:
     readable-stream "1.1.x"
     xregexp "2.0.0"
+
+get-system-fonts@^2.0.0:
+  version "2.0.2"
+  resolved "https://registry.yarnpkg.com/get-system-fonts/-/get-system-fonts-2.0.2.tgz#7ada3cc41322daf17c204a6f07c6588341cbc9cb"
+  integrity sha512-zzlgaYnHMIEgHRrfC7x0Qp0Ylhw/sHpM6MHXeVBTYIsvGf5GpbnClB+Q6rAPdn+0gd2oZZIo6Tj3EaWrt4VhDQ==
 
 get-uri@^3.0.2:
   version "3.0.2"
@@ -377,6 +399,13 @@ jsonfile@^4.0.0:
   optionalDependencies:
     graceful-fs "^4.1.6"
 
+lru-cache@^6.0.0:
+  version "6.0.0"
+  resolved "https://registry.yarnpkg.com/lru-cache/-/lru-cache-6.0.0.tgz#6d6fe6570ebd96aaf90fcad1dafa3b2566db3a94"
+  integrity sha512-Jo6dJ04CmSjuznwJSS3pUeWmd/H0ffTlkXXgwZi+eq1UCmqQwCh+eLsYOYCwY991i2Fah4h1BEMCx4qThGbsiA==
+  dependencies:
+    yallist "^4.0.0"
+
 minimist@^1.2.5:
   version "1.2.5"
   resolved "https://registry.yarnpkg.com/minimist/-/minimist-1.2.5.tgz#67d66014b66a6a8aaa0c083c5fd58df4e4e97602"
@@ -436,10 +465,22 @@ node-pty@0.11.0-beta11:
   dependencies:
     nan "^2.14.0"
 
+opentype.js@^0.8.0:
+  version "0.8.0"
+  resolved "https://registry.yarnpkg.com/opentype.js/-/opentype.js-0.8.0.tgz#acabcfa1642fbe894a3e4d759e43ba694e02bd35"
+  integrity sha1-rKvPoWQvvolKPk11nkO6aU4CvTU=
+  dependencies:
+    tiny-inflate "^1.0.2"
+
 pend@~1.2.0:
   version "1.2.0"
   resolved "https://registry.yarnpkg.com/pend/-/pend-1.2.0.tgz#7a57eb550a6783f9115331fcf4663d5c8e007a50"
   integrity sha1-elfrVQpng/kRUzH89GY9XI4AelA=
+
+promise-stream-reader@^1.0.1:
+  version "1.0.1"
+  resolved "https://registry.yarnpkg.com/promise-stream-reader/-/promise-stream-reader-1.0.1.tgz#4e793a79c9d49a73ccd947c6da9c127f12923649"
+  integrity sha512-Tnxit5trUjBAqqZCGWwjyxhmgMN4hGrtpW3Oc/tRI4bpm/O2+ej72BB08l6JBnGQgVDGCLvHFGjGgQS6vzhwXg==
 
 proxy-from-env@^1.1.0:
   version "1.1.0"
@@ -517,6 +558,11 @@ tas-client-umd@0.1.4:
   resolved "https://registry.yarnpkg.com/tas-client-umd/-/tas-client-umd-0.1.4.tgz#49db4130dd63a8342fabf77185a740fc6a7bea80"
   integrity sha512-1hFqJeLD3ryNikniIaO7TItlXhS5vx7bJ+wbPDf8o+IifgwwOWK2ARisdEM9SnJd0ccfcwNPG6Po+RiKn5L2hg==
 
+tiny-inflate@^1.0.2:
+  version "1.0.3"
+  resolved "https://registry.yarnpkg.com/tiny-inflate/-/tiny-inflate-1.0.3.tgz#122715494913a1805166aaf7c93467933eea26c4"
+  integrity sha512-pkY1fj1cKHb2seWDy0B16HeWyczlJA9/WW3u3c4z/NiWDsO3DOU5D7nhTLE9CF0yXv/QZFY7sEJmj24dK+Rrqw==
+
 universalify@^0.1.0:
   version "0.1.2"
   resolved "https://registry.yarnpkg.com/universalify/-/universalify-0.1.2.tgz#b646f69be3942dabcecc9d6639c80dc105efaa66"
@@ -584,6 +630,14 @@ xregexp@2.0.0:
   resolved "https://registry.yarnpkg.com/xregexp/-/xregexp-2.0.0.tgz#52a63e56ca0b84a7f3a5f3d61872f126ad7a5943"
   integrity sha1-UqY+VsoLhKfzpfPWGHLxJq16WUM=
 
+xterm-addon-ligatures@0.6.0-beta.3:
+  version "0.6.0-beta.3"
+  resolved "https://registry.yarnpkg.com/xterm-addon-ligatures/-/xterm-addon-ligatures-0.6.0-beta.3.tgz#b8b3780947031ec5239b329f4422a179d5708f8b"
+  integrity sha512-CU+si3CNFoUsaBHMhxVVLn0zZks/MY8wKjwTvf1IZmYrDo2TfCB3RSHIvFgb2SxzM80NeeF1LePjpyQ4CFOtpw==
+  dependencies:
+    font-finder "^1.1.0"
+    font-ligatures "^1.4.0"
+
 xterm-addon-search@0.9.0-beta.6:
   version "0.9.0-beta.6"
   resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.9.0-beta.6.tgz#8b016baac5580dc0ba93bb52610bc4f5776d3b17"
@@ -604,15 +658,20 @@ xterm-addon-webgl@0.12.0-beta.19:
   resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.12.0-beta.19.tgz#b3dcaff6a37d77dacce5c1ad3481d22326b15160"
   integrity sha512-eJ4+SYsZ1ooeluS1GaJbctiPCMlHTEaUPzFSKuWx7PLO6ryHAqqzfjE/8GQvMRN/ec72aABmbHB1TWRKrGrA3A==
 
-xterm-headless@4.16.0-beta.8:
-  version "4.16.0-beta.8"
-  resolved "https://registry.yarnpkg.com/xterm-headless/-/xterm-headless-4.16.0-beta.8.tgz#f129f09771a69d617ff2c2fb9c9a790b826a749b"
-  integrity sha512-aYSOBToT710RCqFHPzGmcijldoX2IFGkWMCmDr2qtmjQwUyKer3nXJQrTf2yWIRQVE7KSKfkbpOLsfx6UFmn+Q==
+xterm-headless@4.16.0-beta.9:
+  version "4.16.0-beta.9"
+  resolved "https://registry.yarnpkg.com/xterm-headless/-/xterm-headless-4.16.0-beta.9.tgz#69f2432006c757a65fafef125adcbfb6bce81f44"
+  integrity sha512-VUz5x8s7eMqpBDdZjW7QMkO4hGbI+HGkNB30gf8wgribAOZmoGm6fhHxiaC3jSTP8iXQ3+wVSCl2xP8e0Ldn0Q==
 
-xterm@4.16.0-beta.8:
-  version "4.16.0-beta.8"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.16.0-beta.8.tgz#ff55015fa568e5a66e12f9dfa511a633b944e438"
-  integrity sha512-PNXTQt8s6aXX5TUmZJkC2sOxFCYgjU3QgUjze/j/WAB5kBVZtFFxADb9ATZbhbogXzkgD0TRgcl3Rk3rCxJSuQ==
+xterm@4.16.0-beta.9:
+  version "4.16.0-beta.9"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.16.0-beta.9.tgz#31c9576d4e66534fe9777e56cada3f4e68bf72d3"
+  integrity sha512-U+HQBnzmTcG5pRe5by3/B0HQehcmIRf+azulO/2dnPK0antVMwth5n+yyqLwcPqMWPQnRKS+4fd9TdW9L1rgRw==
+
+yallist@^4.0.0:
+  version "4.0.0"
+  resolved "https://registry.yarnpkg.com/yallist/-/yallist-4.0.0.tgz#9bb92790d9c0effec63be73519e11a35019a3a72"
+  integrity sha512-3wdGidZyq5PB084XLES5TpOSRA3wjXAlIWMhum2kRcv/41Sn2emQ0dycQW4uZXLejwKvg6EsvbdlVL+FYEct7A==
 
 yauzl@^2.9.2:
   version "2.10.0"

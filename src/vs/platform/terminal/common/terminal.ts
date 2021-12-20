@@ -58,6 +58,7 @@ export const enum TerminalSettingId {
 	FastScrollSensitivity = 'terminal.integrated.fastScrollSensitivity',
 	MouseWheelScrollSensitivity = 'terminal.integrated.mouseWheelScrollSensitivity',
 	BellDuration = 'terminal.integrated.bellDuration',
+	FontLigatures = 'terminal.integrated.fontLigatures',
 	FontWeight = 'terminal.integrated.fontWeight',
 	FontWeightBold = 'terminal.integrated.fontWeightBold',
 	CursorBlinking = 'terminal.integrated.cursorBlinking',
