@@ -49,6 +49,8 @@ const CORE_TYPES = [
 	'encode',
 	'decode',
 	'self',
+	'trimStart',
+	'trimEnd',
 	'trimLeft',
 	'trimRight',
 	'queueMicrotask'

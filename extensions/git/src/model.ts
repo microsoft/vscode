@@ -146,7 +146,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 
 		await Promise.all((workspace.workspaceFolders || []).map(async folder => {
 			const root = folder.uri.fsPath;
-			const children = await new Promise<string[]>((c, e) => fs.readdir(root, (err, r) => err ? e(err) : c(r)));
+			const children = (await fs.promises.readdir(root, { withFileTypes: true })).filter(dirent => dirent.isDirectory()).map(dirent => dirent.name);
 			const subfolders = new Set(children.filter(child => child !== '.git').map(child => path.join(root, child)));
 
 			const scanPaths = (workspace.isTrusted ? workspace.getConfiguration('git', folder.uri) : config).get<string[]>('scanRepositories') || [];

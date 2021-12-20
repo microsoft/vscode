@@ -255,6 +255,10 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 					opts.execArgv = ['--inspect-port=0'];
 				}
 
+				if (this._environmentService.extensionTestsLocationURI) {
+					opts.execArgv.unshift('--expose-gc');
+				}
+
 				if (this._environmentService.args['prof-v8-extensions']) {
 					opts.execArgv.unshift('--prof');
 				}

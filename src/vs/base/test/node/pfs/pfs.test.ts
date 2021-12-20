@@ -8,9 +8,9 @@ import * as fs from 'fs';
 import { tmpdir } from 'os';
 import { timeout } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { randomPath } from 'vs/base/common/extpath';
 import { join, sep } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
-import { generateUuid } from 'vs/base/common/uuid';
 import { Promises, RimRafMode, rimrafSync, SymlinkSupport, writeFileSync } from 'vs/base/node/pfs';
 import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
 
@@ -153,12 +153,10 @@ flakySuite('PFS', function () {
 	});
 
 	test('copy, move and delete', async () => {
-		const id = generateUuid();
-		const id2 = generateUuid();
 		const sourceDir = getPathFromAmdModule(require, './fixtures');
 		const parentDir = join(tmpdir(), 'vsctests', 'pfs');
-		const targetDir = join(parentDir, id);
-		const targetDir2 = join(parentDir, id2);
+		const targetDir = randomPath(parentDir);
+		const targetDir2 = randomPath(parentDir);
 
 		await Promises.copy(sourceDir, targetDir, { preserveSymlinks: true });
 
@@ -190,14 +188,9 @@ flakySuite('PFS', function () {
 	});
 
 	test('copy handles symbolic links', async () => {
-		const id1 = generateUuid();
-		const symbolicLinkTarget = join(testDir, id1);
-
-		const id2 = generateUuid();
-		const symLink = join(testDir, id2);
-
-		const id3 = generateUuid();
-		const copyTarget = join(testDir, id3);
+		const symbolicLinkTarget = randomPath(testDir);
+		const symLink = randomPath(testDir);
+		const copyTarget = randomPath(testDir);
 
 		await Promises.mkdir(symbolicLinkTarget, { recursive: true });
 
@@ -248,7 +241,7 @@ flakySuite('PFS', function () {
 	test('copy handles symbolic links when the reference is inside source', async () => {
 
 		// Source Folder
-		const sourceFolder = join(testDir, generateUuid(), 'copy-test'); 	// copy-test
+		const sourceFolder = join(randomPath(testDir), 'copy-test'); 		// copy-test
 		const sourceLinkTestFolder = join(sourceFolder, 'link-test');		// copy-test/link-test
 		const sourceLinkMD5JSFolder = join(sourceLinkTestFolder, 'md5');	// copy-test/link-test/md5
 		const sourceLinkMD5JSFile = join(sourceLinkMD5JSFolder, 'md5.js');	// copy-test/link-test/md5/md5.js
@@ -308,11 +301,8 @@ flakySuite('PFS', function () {
 	});
 
 	test('stat link', async () => {
-		const id1 = generateUuid();
-		const directory = join(testDir, id1);
-
-		const id2 = generateUuid();
-		const symbolicLink = join(testDir, id2);
+		const directory = randomPath(testDir);
+		const symbolicLink = randomPath(testDir);
 
 		await Promises.mkdir(directory, { recursive: true });
 
@@ -327,11 +317,8 @@ flakySuite('PFS', function () {
 	});
 
 	test('stat link (non existing target)', async () => {
-		const id1 = generateUuid();
-		const directory = join(testDir, id1);
-
-		const id2 = generateUuid();
-		const symbolicLink = join(testDir, id2);
+		const directory = randomPath(testDir);
+		const symbolicLink = randomPath(testDir);
 
 		await Promises.mkdir(directory, { recursive: true });
 
@@ -346,14 +333,14 @@ flakySuite('PFS', function () {
 
 	test('readdir', async () => {
 		if (typeof process.versions['electron'] !== 'undefined' /* needs electron */) {
-			const id = generateUuid();
-			const newDir = join(testDir, 'pfs', id, 'öäü');
+			const parent = randomPath(join(testDir, 'pfs'));
+			const newDir = join(parent, 'öäü');
 
 			await Promises.mkdir(newDir, { recursive: true });
 
 			assert.ok(fs.existsSync(newDir));
 
-			const children = await Promises.readdir(join(testDir, 'pfs', id));
+			const children = await Promises.readdir(parent);
 			assert.strictEqual(children.some(n => n === 'öäü'), true); // Mac always converts to NFD, so
 		}
 	});

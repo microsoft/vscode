@@ -816,10 +816,10 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 			case '#': // Workaround for https://github.com/microsoft/TypeScript/issues/36367
 				return this.client.apiVersion.lt(API.v381) ? undefined : '#';
 
-			case ' ':
+			case ' ': {
 				const space: Proto.CompletionsTriggerCharacter = ' ';
 				return this.client.apiVersion.gte(API.v430) ? space : undefined;
-
+			}
 			case '.':
 			case '"':
 			case '\'':

@@ -13,10 +13,10 @@ import { hc_black, vs, vs_dark } from 'vs/editor/standalone/common/themes';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { asCssVariableName, ColorIdentifier, Extensions, IColorRegistry } from 'vs/platform/theme/common/colorRegistry';
-import { Extensions as ThemingExtensions, ICssStyleCollector, IFileIconTheme, IThemingRegistry, ITokenStyle } from 'vs/platform/theme/common/themeService';
+import { Extensions as ThemingExtensions, ICssStyleCollector, IFileIconTheme, IProductIconTheme, IThemingRegistry, ITokenStyle } from 'vs/platform/theme/common/themeService';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
+import { getIconsStyleSheet, UnthemedProductIconTheme } from 'vs/platform/theme/browser/iconsStyleSheet';
 
 const VS_THEME_NAME = 'vs';
 const VS_DARK_THEME_NAME = 'vs-dark';
@@ -209,6 +209,9 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 	private readonly _onFileIconThemeChange = this._register(new Emitter<IFileIconTheme>());
 	public readonly onDidFileIconThemeChange = this._onFileIconThemeChange.event;
 
+	private readonly _onProductIconThemeChange = this._register(new Emitter<IProductIconTheme>());
+	public readonly onDidProductIconThemeChange = this._onProductIconThemeChange.event;
+
 	private readonly _environment: IEnvironmentService = Object.create(null);
 	private readonly _knownThemes: Map<string, StandaloneTheme>;
 	private _autoDetectHighContrast: boolean;
@@ -221,6 +224,8 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 	private _desiredTheme!: IStandaloneTheme;
 	private _theme!: IStandaloneTheme;
 
+	private _builtInProductIconTheme = new UnthemedProductIconTheme();
+
 	constructor() {
 		super();
 
@@ -231,7 +236,7 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 		this._knownThemes.set(VS_DARK_THEME_NAME, newBuiltInTheme(VS_DARK_THEME_NAME));
 		this._knownThemes.set(HC_BLACK_THEME_NAME, newBuiltInTheme(HC_BLACK_THEME_NAME));
 
-		const iconsStyleSheet = getIconsStyleSheet();
+		const iconsStyleSheet = getIconsStyleSheet(this);
 
 		this._codiconCSS = iconsStyleSheet.getCSS();
 		this._themeCSS = '';
@@ -390,4 +395,9 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 			hidesExplorerArrows: false
 		};
 	}
+
+	public getProductIconTheme(): IProductIconTheme {
+		return this._builtInProductIconTheme;
+	}
+
 }

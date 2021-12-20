@@ -69,6 +69,7 @@ export const debugRun = registerIcon('debug-run', Codicon.run, localize('debugRu
 export const debugStart = registerIcon('debug-start', Codicon.debugStart, localize('debugStart', 'Icon for the debug start action.'));
 export const debugConfigure = registerIcon('debug-configure', Codicon.gear, localize('debugConfigure', 'Icon for the debug configure action.'));
 export const debugConsole = registerIcon('debug-console', Codicon.gear, localize('debugConsole', 'Icon for the debug console open action.'));
+export const debugRemoveConfig = registerIcon('debug-remove-config', Codicon.trash, localize('debugRemoveConfig', 'Icon for removing debug configurations.'));
 
 export const debugCollapseAll = registerIcon('debug-collapse-all', Codicon.collapseAll, localize('debugCollapseAll', 'Icon for the collapse all action in the debug views.'));
 export const callstackViewSession = registerIcon('callstack-view-session', Codicon.bug, localize('callstackViewSession', 'Icon for the session icon in the call stack view.'));

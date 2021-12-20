@@ -20,6 +20,10 @@
 	display: none;
 }
 
+.monaco-hover a:hover {
+	cursor: pointer;
+}
+
 .monaco-hover .hover-contents:not(.html-hover-contents) {
 	padding: 4px 8px;
 }

@@ -8,7 +8,7 @@ import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { INotebookTextModel, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, diff, NotebookCellsChangeType, ICellDto2, TransientOptions, NotebookTextModelChangedEvent, IOutputDto, ICellOutput, IOutputItemDto, ISelectionState, NullablePartialNotebookCellMetadata, NotebookCellInternalMetadata, NullablePartialNotebookCellInternalMetadata, NotebookTextModelWillAddRemoveEvent, NotebookCellTextModelSplice, ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, diff, NotebookCellsChangeType, ICellDto2, TransientOptions, NotebookTextModelChangedEvent, IOutputDto, ICellOutput, IOutputItemDto, ISelectionState, NullablePartialNotebookCellMetadata, NotebookCellInternalMetadata, NullablePartialNotebookCellInternalMetadata, NotebookTextModelWillAddRemoveEvent, NotebookCellTextModelSplice, ICell, NotebookCellCollapseState, NotebookCellDefaultCollapseConfig, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IUndoRedoService, UndoRedoElementType, IUndoRedoElement, IResourceUndoRedoElement, UndoRedoGroup, IWorkspaceUndoRedoElement } from 'vs/platform/undoRedo/common/undoRedo';
 import { MoveCellEdit, SpliceCellsEdit, CellMetadataEdit } from 'vs/workbench/contrib/notebook/common/model/cellEdit';
 import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
@@ -168,6 +168,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _cellhandlePool: number = 0;
 	private readonly _cellListeners: Map<number, IDisposable> = new Map();
 	private _cells: NotebookCellTextModel[] = [];
+	private _defaultCollapseConfig: NotebookCellDefaultCollapseConfig | undefined;
 
 	metadata: NotebookDocumentMetadata = {};
 	transientOptions: TransientOptions = { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false };
@@ -269,6 +270,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		);
 	}
 
+	setCellCollapseDefault(collapseConfig: NotebookCellDefaultCollapseConfig | undefined) {
+		this._defaultCollapseConfig = collapseConfig;
+	}
+
 	_initialize(cells: ICellDto2[], triggerDirty?: boolean) {
 		this._cells = [];
 		this._versionId = 0;
@@ -277,7 +282,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		const mainCells = cells.map(cell => {
 			const cellHandle = this._cellhandlePool++;
 			const cellUri = CellUri.generate(this.uri, cellHandle);
-			return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.mime, cell.cellKind, cell.outputs, cell.metadata, cell.internalMetadata, this.transientOptions, this._languageService);
+			const collapseState = this._getDefaultCollapseState(cell);
+			return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.mime, cell.cellKind, cell.outputs, cell.metadata, cell.internalMetadata, collapseState, this.transientOptions, this._languageService);
 		});
 
 		for (let i = 0; i < mainCells.length; i++) {
@@ -494,7 +500,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				case CellEditType.Replace:
 					this._replaceCells(edit.index, edit.count, edit.cells, synchronous, computeUndoRedo);
 					break;
-				case CellEditType.Output:
+				case CellEditType.Output: {
 					this._assertIndex(cellIndex);
 					const cell = this._cells[cellIndex];
 					if (edit.append) {
@@ -503,6 +509,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 						this._spliceNotebookCellOutputs2(cell, edit.outputs.map(op => new NotebookCellOutputTextModel(op)), computeUndoRedo);
 					}
 					break;
+				}
 				case CellEditType.OutputItems:
 					{
 						this._assertIndex(cellIndex);
@@ -575,6 +582,11 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		return mergedEdits;
 	}
 
+	private _getDefaultCollapseState(cellDto: ICellDto2): NotebookCellCollapseState | undefined {
+		const defaultConfig = cellDto.cellKind === CellKind.Code ? this._defaultCollapseConfig?.codeCell : this._defaultCollapseConfig?.markupCell;
+		return cellDto.collapseState ?? (defaultConfig ?? undefined);
+	}
+
 	private _replaceCells(index: number, count: number, cellDtos: ICellDto2[], synchronous: boolean, computeUndoRedo: boolean): void {
 
 		if (count === 0 && cellDtos.length === 0) {
@@ -598,9 +610,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		const cells = cellDtos.map(cellDto => {
 			const cellHandle = this._cellhandlePool++;
 			const cellUri = CellUri.generate(this.uri, cellHandle);
+			const collapseState = this._getDefaultCollapseState(cellDto);
 			const cell = new NotebookCellTextModel(
 				cellUri, cellHandle,
-				cellDto.source, cellDto.language, cellDto.mime, cellDto.cellKind, cellDto.outputs || [], cellDto.metadata, cellDto.internalMetadata, this.transientOptions,
+				cellDto.source, cellDto.language, cellDto.mime, cellDto.cellKind, cellDto.outputs || [], cellDto.metadata, cellDto.internalMetadata, collapseState, this.transientOptions,
 				this._languageService
 			);
 			const textModel = this._modelService.getModel(cellUri);

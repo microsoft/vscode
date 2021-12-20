@@ -137,6 +137,10 @@
 	display: flex;
 }
 
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row:not(.focused) .monaco-icon-label {
+	color: var(--vscode-editorSuggestWidget-foreground);
+}
+
 .monaco-editor .suggest-widget:not(.frozen) .monaco-highlighted-label .highlight {
 	font-weight: bold;
 }

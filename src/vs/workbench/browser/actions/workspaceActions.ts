@@ -247,9 +247,10 @@ class SaveWorkspaceAsAction extends Action2 {
 		if (configPathUri && hasWorkspaceFileExtension(configPathUri)) {
 			switch (contextService.getWorkbenchState()) {
 				case WorkbenchState.EMPTY:
-				case WorkbenchState.FOLDER:
+				case WorkbenchState.FOLDER: {
 					const folders = contextService.getWorkspace().folders.map(folder => ({ uri: folder.uri }));
 					return workspaceEditingService.createAndEnterWorkspace(folders, configPathUri);
+				}
 				case WorkbenchState.WORKSPACE:
 					return workspaceEditingService.saveAndEnterWorkspace(configPathUri);
 			}

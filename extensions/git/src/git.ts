@@ -1196,7 +1196,7 @@ export class Repository {
 					break;
 
 				// Rename contains two paths, the second one is what the file is renamed/copied to.
-				case 'R':
+				case 'R': {
 					if (index >= entries.length) {
 						break;
 					}
@@ -1215,7 +1215,7 @@ export class Repository {
 					});
 
 					continue;
-
+				}
 				default:
 					// Unknown status
 					break entriesLoop;

@@ -405,7 +405,7 @@ function compareNullableIntegers(a?: number, b?: number) {
 	return firstElem - secondElem;
 }
 
-export async function resolveExtensionsSettings(extensionService: IExtensionService, groups: ISettingsGroup[]): Promise<ITOCEntry<ISetting>> {
+export async function createTocTreeForExtensionSettings(extensionService: IExtensionService, groups: ISettingsGroup[]): Promise<ITOCEntry<ISetting>> {
 	const extGroupTree = new Map<string, ITOCEntry<ISetting>>();
 	const addEntryToTree = (extensionId: string, extensionName: string, childEntry: ITOCEntry<ISetting>) => {
 		if (!extGroupTree.has(extensionId)) {
@@ -426,8 +426,11 @@ export async function resolveExtensionsSettings(extensionService: IExtensionServ
 		const extension = await extensionService.getExtension(extensionId);
 		const extensionName = extension!.displayName ?? extension!.name;
 
-		const childEntry = {
-			id: group.id,
+		// Each group represents a single category of settings.
+		// If the extension author forgets to specify an id for the group,
+		// fall back to the title given to the group.
+		const childEntry: ITOCEntry<ISetting> = {
+			id: group.id || group.title,
 			label: group.title,
 			order: group.order,
 			settings: flatSettings

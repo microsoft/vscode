@@ -844,7 +844,7 @@ export class PredictionTimeline {
 			const cursor = this.physicalCursor(buffer);
 			const beforeTestReaderIndex = reader.index;
 			switch (prediction.matches(reader, this._lookBehind)) {
-				case MatchResult.Success:
+				case MatchResult.Success: {
 					// if the input character matches what the next prediction expected, undo
 					// the prediction and write the real character out.
 					const eaten = input.slice(beforeTestReaderIndex, reader.index);
@@ -859,13 +859,14 @@ export class PredictionTimeline {
 					this._lookBehind = prediction;
 					this._expected.shift();
 					break;
+				}
 				case MatchResult.Buffer:
 					// on a buffer, store the remaining data and completely read data
 					// to be output as normal.
 					this._inputBuffer = input.slice(beforeTestReaderIndex);
 					reader.index = input.length;
 					break ReadLoop;
-				case MatchResult.Failure:
+				case MatchResult.Failure: {
 					// on a failure, roll back all remaining items in this generation
 					// and clear predictions, since they are no longer valid
 					const rollback = this._expected.filter(p => p.gen === startingGen).reverse();
@@ -878,6 +879,7 @@ export class PredictionTimeline {
 					this._clearPredictionState();
 					this._failedEmitter.fire(prediction);
 					break ReadLoop;
+				}
 			}
 		}
 
@@ -1253,7 +1255,7 @@ class TypeAheadStyle implements IDisposable {
 				return { applyArgs: [4], undoArgs: [24] };
 			case 'inverted':
 				return { applyArgs: [7], undoArgs: [27] };
-			default:
+			default: {
 				let color: Color;
 				try {
 					color = Color.fromHex(style);
@@ -1263,6 +1265,7 @@ class TypeAheadStyle implements IDisposable {
 
 				const { r, g, b } = color.rgba;
 				return { applyArgs: [38, 2, r, g, b], undoArgs: [39] };
+			}
 		}
 	}
 }

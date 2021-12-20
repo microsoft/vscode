@@ -180,7 +180,11 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		}));
 
 		this._register(this._webviewPanel.onDidChangeViewState(async () => {
-			if (!this._webviewPanel.active) {
+			if (this._disposed) {
+				return;
+			}
+
+			if (this._webviewPanel.active) {
 				let document: vscode.TextDocument;
 				try {
 					document = await vscode.workspace.openTextDocument(this._resource);
@@ -188,8 +192,12 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 					return;
 				}
 
+				if (this._disposed) {
+					return;
+				}
+
 				const content = await this._contentProvider.provideTextDocumentContent(document, this, this._previewConfigurations, this.line, this.state);
-				if (!this._webviewPanel.active) {
+				if (!this._webviewPanel.active && !this._disposed) {
 					// Update the html so we can show it properly when restoring it
 					this._webviewPanel.webview.html = content.html;
 				}

@@ -129,7 +129,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 			}
 
 			const symbolLabel = symbol.name;
-			const symbolLabelWithIcon = `$(symbol-${SymbolKinds.toString(symbol.kind) || 'property'}) ${symbolLabel}`;
+			const symbolLabelWithIcon = `$(${SymbolKinds.toIcon(symbol.kind).id}) ${symbolLabel}`;
 			const symbolLabelIconOffset = symbolLabelWithIcon.length - symbolLabel.length;
 
 			// Score by symbol label if searching
@@ -279,8 +279,8 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 
 		// By kind
 		if (symbolA.symbol && symbolB.symbol) {
-			const symbolAKind = SymbolKinds.toCssClassName(symbolA.symbol.kind);
-			const symbolBKind = SymbolKinds.toCssClassName(symbolB.symbol.kind);
+			const symbolAKind = SymbolKinds.toIcon(symbolA.symbol.kind).id;
+			const symbolBKind = SymbolKinds.toIcon(symbolB.symbol.kind).id;
 			return symbolAKind.localeCompare(symbolBKind);
 		}
 

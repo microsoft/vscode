@@ -8,14 +8,14 @@ import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecyc
 import { Schemas } from 'vs/base/common/network';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IPCFileSystemProvider } from 'vs/platform/files/common/ipcFileSystemProvider';
+import { DiskFileSystemProviderClient } from 'vs/platform/files/common/diskFileSystemProviderClient';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export const REMOTE_FILE_SYSTEM_CHANNEL_NAME = 'remoteFilesystem';
 
-export class RemoteFileSystemProvider extends IPCFileSystemProvider {
+export class RemoteFileSystemProviderClient extends DiskFileSystemProviderClient {
 
 	static register(remoteAgentService: IRemoteAgentService, fileService: IFileService, logService: ILogService): IDisposable {
 		const connection = remoteAgentService.getConnection();
@@ -32,7 +32,7 @@ export class RemoteFileSystemProvider extends IPCFileSystemProvider {
 					// Register remote fsp even before it is asked to activate
 					// because, some features (configuration) wait for its
 					// registration before making fs calls.
-					fileService.registerProvider(Schemas.vscodeRemote, disposables.add(new RemoteFileSystemProvider(environment, connection)));
+					fileService.registerProvider(Schemas.vscodeRemote, disposables.add(new RemoteFileSystemProviderClient(environment, connection)));
 				} else {
 					logService.error('Cannot register remote filesystem provider. Remote environment doesnot exist.');
 				}

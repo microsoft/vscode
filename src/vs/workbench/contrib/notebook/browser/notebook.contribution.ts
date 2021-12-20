@@ -504,11 +504,12 @@ class NotebookEditorManager implements IWorkbenchContribution {
 
 		// OPEN notebook editor for models that have turned dirty without being visible in an editor
 		type E = IResolvedNotebookEditorModel;
-		this._disposables.add(Event.debounce<E, E[]>(
+		this._disposables.add(Event.debouncedListener<E, E[]>(
 			this._notebookEditorModelService.onDidChangeDirty,
+			this._openMissingDirtyNotebookEditors.bind(this),
 			(last, current) => !last ? [current] : [...last, current],
 			100
-		)(this._openMissingDirtyNotebookEditors, this));
+		));
 
 		// CLOSE notebook editor for models that have no more serializer
 		this._disposables.add(notebookService.onWillRemoveViewType(e => {

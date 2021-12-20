@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorInputWithOptions, IEditorIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorPane, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, GroupIdentifier, EditorsOrder, IFileEditorInput, IEditorFactoryRegistry, IEditorSerializer, EditorExtensions, ISaveOptions, IMoveResult, ITextDiffEditorPane, IVisibleEditorPane, IEditorOpenContext, EditorExtensions as Extensions, EditorInputCapabilities, IUntypedEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent } from 'vs/workbench/common/editor';
+import { EditorInputWithOptions, IEditorIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorPane, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, GroupIdentifier, EditorsOrder, IFileEditorInput, IEditorFactoryRegistry, IEditorSerializer, EditorExtensions, ISaveOptions, IMoveResult, ITextDiffEditorPane, IVisibleEditorPane, IEditorOpenContext, EditorExtensions as Extensions, EditorInputCapabilities, IUntypedEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent, IActiveEditorChangeEvent } from 'vs/workbench/common/editor';
 import { EditorServiceImpl, IEditorGroupView, IEditorGroupsAccessor, IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
@@ -144,7 +144,7 @@ import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/te
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { DeserializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
-import { IGroupChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
+import { IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
 import { env } from 'vs/base/common/process';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
@@ -817,8 +817,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	isMinimized = false;
 
 	onWillDispose: Event<void> = Event.None;
-	onDidGroupChange: Event<IGroupChangeEvent> = Event.None;
-	onDidModelChange: Event<IGroupChangeEvent> = Event.None;
+	onDidModelChange: Event<IGroupModelChangeEvent> = Event.None;
 	onWillCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	onDidOpenEditorFail: Event<EditorInput> = Event.None;
@@ -826,6 +825,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	onDidChange: Event<{ width: number; height: number; }> = Event.None;
 	onWillMoveEditor: Event<IEditorWillMoveEvent> = Event.None;
 	onWillOpenEditor: Event<IEditorWillOpenEvent> = Event.None;
+	onDidActiveEditorChange: Event<IActiveEditorChangeEvent> = Event.None;
 
 	getEditors(_order?: EditorsOrder): readonly EditorInput[] { return []; }
 	findEditors(_resource: URI): readonly EditorInput[] { return []; }
@@ -1296,36 +1296,36 @@ export class TestTextResourceConfigurationService implements ITextResourceConfig
 
 export class RemoteFileSystemProvider implements IFileSystemProvider {
 
-	constructor(private readonly diskFileSystemProvider: IFileSystemProvider, private readonly remoteAuthority: string) { }
+	constructor(private readonly wrappedFsp: IFileSystemProvider, private readonly remoteAuthority: string) { }
 
-	readonly capabilities: FileSystemProviderCapabilities = this.diskFileSystemProvider.capabilities;
-	readonly onDidChangeCapabilities: Event<void> = this.diskFileSystemProvider.onDidChangeCapabilities;
+	readonly capabilities: FileSystemProviderCapabilities = this.wrappedFsp.capabilities;
+	readonly onDidChangeCapabilities: Event<void> = this.wrappedFsp.onDidChangeCapabilities;
 
-	readonly onDidChangeFile: Event<readonly IFileChange[]> = Event.map(this.diskFileSystemProvider.onDidChangeFile, changes => changes.map((c): IFileChange => {
+	readonly onDidChangeFile: Event<readonly IFileChange[]> = Event.map(this.wrappedFsp.onDidChangeFile, changes => changes.map((c): IFileChange => {
 		return {
 			type: c.type,
 			resource: c.resource.with({ scheme: Schemas.vscodeRemote, authority: this.remoteAuthority }),
 		};
 	}));
-	watch(resource: URI, opts: IWatchOptions): IDisposable { return this.diskFileSystemProvider.watch(this.toFileResource(resource), opts); }
+	watch(resource: URI, opts: IWatchOptions): IDisposable { return this.wrappedFsp.watch(this.toFileResource(resource), opts); }
 
-	stat(resource: URI): Promise<IStat> { return this.diskFileSystemProvider.stat(this.toFileResource(resource)); }
-	mkdir(resource: URI): Promise<void> { return this.diskFileSystemProvider.mkdir(this.toFileResource(resource)); }
-	readdir(resource: URI): Promise<[string, FileType][]> { return this.diskFileSystemProvider.readdir(this.toFileResource(resource)); }
-	delete(resource: URI, opts: FileDeleteOptions): Promise<void> { return this.diskFileSystemProvider.delete(this.toFileResource(resource), opts); }
+	stat(resource: URI): Promise<IStat> { return this.wrappedFsp.stat(this.toFileResource(resource)); }
+	mkdir(resource: URI): Promise<void> { return this.wrappedFsp.mkdir(this.toFileResource(resource)); }
+	readdir(resource: URI): Promise<[string, FileType][]> { return this.wrappedFsp.readdir(this.toFileResource(resource)); }
+	delete(resource: URI, opts: FileDeleteOptions): Promise<void> { return this.wrappedFsp.delete(this.toFileResource(resource), opts); }
 
-	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { return this.diskFileSystemProvider.rename(this.toFileResource(from), this.toFileResource(to), opts); }
-	copy(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { return this.diskFileSystemProvider.copy!(this.toFileResource(from), this.toFileResource(to), opts); }
+	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { return this.wrappedFsp.rename(this.toFileResource(from), this.toFileResource(to), opts); }
+	copy(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { return this.wrappedFsp.copy!(this.toFileResource(from), this.toFileResource(to), opts); }
 
-	readFile(resource: URI): Promise<Uint8Array> { return this.diskFileSystemProvider.readFile!(this.toFileResource(resource)); }
-	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> { return this.diskFileSystemProvider.writeFile!(this.toFileResource(resource), content, opts); }
+	readFile(resource: URI): Promise<Uint8Array> { return this.wrappedFsp.readFile!(this.toFileResource(resource)); }
+	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> { return this.wrappedFsp.writeFile!(this.toFileResource(resource), content, opts); }
 
-	open(resource: URI, opts: FileOpenOptions): Promise<number> { return this.diskFileSystemProvider.open!(this.toFileResource(resource), opts); }
-	close(fd: number): Promise<void> { return this.diskFileSystemProvider.close!(fd); }
-	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return this.diskFileSystemProvider.read!(fd, pos, data, offset, length); }
-	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return this.diskFileSystemProvider.write!(fd, pos, data, offset, length); }
+	open(resource: URI, opts: FileOpenOptions): Promise<number> { return this.wrappedFsp.open!(this.toFileResource(resource), opts); }
+	close(fd: number): Promise<void> { return this.wrappedFsp.close!(fd); }
+	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return this.wrappedFsp.read!(fd, pos, data, offset, length); }
+	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return this.wrappedFsp.write!(fd, pos, data, offset, length); }
 
-	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> { return this.diskFileSystemProvider.readFileStream!(this.toFileResource(resource), opts, token); }
+	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> { return this.wrappedFsp.readFileStream!(this.toFileResource(resource), opts, token); }
 
 	private toFileResource(resource: URI): URI { return resource.with({ scheme: Schemas.file, authority: '' }); }
 }
@@ -1638,6 +1638,11 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 	}
 	movedEditor: IMoveResult | undefined = undefined;
 	override async rename(): Promise<IMoveResult | undefined> { return this.movedEditor; }
+}
+
+export class TestSingletonFileEditorInput extends TestFileEditorInput {
+
+	override get capabilities(): EditorInputCapabilities { return EditorInputCapabilities.Singleton; }
 }
 
 export class TestEditorPart extends EditorPart {

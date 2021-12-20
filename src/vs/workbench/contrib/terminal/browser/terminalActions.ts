@@ -46,6 +46,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { isAbsolute } from 'vs/base/common/path';
+import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
 import { ITerminalQuickPickItem } from 'vs/workbench/contrib/terminal/browser/terminalProfileQuickpick';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { getIconId, getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
@@ -184,7 +185,7 @@ export function registerTerminalActions() {
 				title: terminalStrings.moveToEditor,
 				f1: true,
 				category,
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.terminalEditorActive.toNegated(), TerminalContextKeys.viewShowing)
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -223,7 +224,7 @@ export function registerTerminalActions() {
 				title: terminalStrings.moveToTerminalPanel,
 				f1: true,
 				category,
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.terminalEditorActive),
 			});
 		}
 		async run(accessor: ServicesAccessor, resource: unknown) {
@@ -1745,7 +1746,7 @@ export function registerTerminalActions() {
 					eventOrOptions.cwd = workspace.uri;
 					const cwdConfig = configurationService.getValue(TerminalSettingId.Cwd, { resource: workspace.uri });
 					if (typeof cwdConfig === 'string' && cwdConfig.length > 0) {
-						if (isAbsolute(cwdConfig)) {
+						if (isAbsolute(cwdConfig) || cwdConfig.startsWith(AbstractVariableResolverService.VARIABLE_LHS)) {
 							eventOrOptions.cwd = URI.from({
 								scheme: workspace.uri.scheme,
 								path: cwdConfig

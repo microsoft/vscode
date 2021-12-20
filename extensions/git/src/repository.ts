@@ -664,7 +664,7 @@ class ResourceCommandResolver {
 			case Status.MODIFIED:
 			case Status.UNTRACKED:
 			case Status.IGNORED:
-			case Status.INTENT_TO_ADD:
+			case Status.INTENT_TO_ADD: {
 				const uriString = resource.resourceUri.toString();
 				const [indexStatus] = this.repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
 
@@ -673,7 +673,7 @@ class ResourceCommandResolver {
 				}
 
 				return resource.resourceUri;
-
+			}
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
 				return resource.resourceUri;

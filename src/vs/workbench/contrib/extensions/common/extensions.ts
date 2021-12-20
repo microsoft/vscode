@@ -68,11 +68,11 @@ export interface IExtension {
 	readonly extensionPack: string[];
 	readonly telemetryData: any;
 	readonly preview: boolean;
-	getManifest(preRelease: boolean, token: CancellationToken): Promise<IExtensionManifest | null>;
+	getManifest(token: CancellationToken): Promise<IExtensionManifest | null>;
 	hasReadme(): boolean;
-	getReadme(preRelease: boolean, token: CancellationToken): Promise<string>;
+	getReadme(token: CancellationToken): Promise<string>;
 	hasChangelog(): boolean;
-	getChangelog(preRelease: boolean, token: CancellationToken): Promise<string>;
+	getChangelog(token: CancellationToken): Promise<string>;
 	readonly server?: IExtensionManagementServer;
 	readonly local?: ILocalExtension;
 	gallery?: IGalleryExtension;

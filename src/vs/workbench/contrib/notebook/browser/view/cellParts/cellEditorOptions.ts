@@ -60,7 +60,7 @@ export class CellEditorOptions extends CellPart {
 		}));
 
 		this._register(notebookOptions.onDidChangeOptions(e => {
-			if (e.cellStatusBarVisibility || e.editorTopPadding || e.editorOptionsCustomizations || e.cellBreakpointMargin) {
+			if (e.cellStatusBarVisibility || e.editorTopPadding || e.editorOptionsCustomizations) {
 				this._recomputeOptions();
 			}
 		}));
@@ -94,7 +94,7 @@ export class CellEditorOptions extends CellPart {
 	prepareLayout(): void {
 		// nothing to read
 	}
-	updateLayoutNow(element: ICellViewModel): void {
+	updateInternalLayoutNow(element: ICellViewModel): void {
 		// nothing to update
 	}
 

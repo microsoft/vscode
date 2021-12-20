@@ -181,7 +181,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		const codiconStyleSheet = createStyleSheet();
 		codiconStyleSheet.id = 'codiconStyles';
 
-		const iconsStyleSheet = getIconsStyleSheet();
+		const iconsStyleSheet = getIconsStyleSheet(this);
 		function updateAll() {
 			codiconStyleSheet.textContent = iconsStyleSheet.getCSS();
 		}

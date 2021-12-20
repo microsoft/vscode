@@ -776,7 +776,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const scrollHeight = this.view.scrollHeight;
 		const scrollTop = this.getViewScrollTop();
 		const wrapperBottom = this.getViewScrollBottom();
-		const topInsertToolbarHeight = this._viewContext.notebookOptions.computeTopInserToolbarHeight(this.viewModel?.viewType);
+		const topInsertToolbarHeight = this._viewContext.notebookOptions.computeTopInsertToolbarHeight(this.viewModel?.viewType);
 
 		this.view.setScrollTop(scrollHeight - (wrapperBottom - scrollTop) - topInsertToolbarHeight);
 	}
@@ -896,6 +896,12 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this.view.triggerScrollFromMouseWheelEvent(browserEvent);
 	}
 
+	isElementAboveViewport(index: number) {
+		const elementTop = this.view.elementTop(index);
+		const elementBottom = elementTop + this.view.elementHeight(index);
+
+		return elementBottom < this.scrollTop;
+	}
 
 	updateElementHeight2(element: ICellViewModel, size: number): void {
 		const index = this._getViewIndexUpperBound(element);
@@ -903,7 +909,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			return;
 		}
 
-		if (index < this.firstVisibleIndex) {
+		if (this.isElementAboveViewport(index)) {
 			// update element above viewport
 			const oldHeight = this.elementHeight(element);
 			const delta = oldHeight - size;
@@ -977,7 +983,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	getViewScrollBottom() {
-		const topInsertToolbarHeight = this._viewContext.notebookOptions.computeTopInserToolbarHeight(this.viewModel?.viewType);
+		const topInsertToolbarHeight = this._viewContext.notebookOptions.computeTopInsertToolbarHeight(this.viewModel?.viewType);
 		return this.getViewScrollTop() + this.view.renderHeight - topInsertToolbarHeight;
 	}
 

@@ -273,7 +273,9 @@ export class StandardAutoClosingPairConditional {
 
 	readonly open: string;
 	readonly close: string;
-	private readonly _standardTokenMask: number;
+	private readonly _inString: boolean;
+	private readonly _inComment: boolean;
+	private readonly _inRegEx: boolean;
 	private _neutralCharacter: string | null = null;
 	private _neutralCharacterSearched: boolean = false;
 
@@ -282,20 +284,22 @@ export class StandardAutoClosingPairConditional {
 		this.close = source.close;
 
 		// initially allowed in all tokens
-		this._standardTokenMask = 0;
+		this._inString = true;
+		this._inComment = true;
+		this._inRegEx = true;
 
 		if (Array.isArray(source.notIn)) {
 			for (let i = 0, len = source.notIn.length; i < len; i++) {
 				const notIn: string = source.notIn[i];
 				switch (notIn) {
 					case 'string':
-						this._standardTokenMask |= StandardTokenType.String;
+						this._inString = false;
 						break;
 					case 'comment':
-						this._standardTokenMask |= StandardTokenType.Comment;
+						this._inComment = false;
 						break;
 					case 'regex':
-						this._standardTokenMask |= StandardTokenType.RegEx;
+						this._inRegEx = false;
 						break;
 				}
 			}
@@ -303,7 +307,16 @@ export class StandardAutoClosingPairConditional {
 	}
 
 	public isOK(standardToken: StandardTokenType): boolean {
-		return (this._standardTokenMask & <number>standardToken) === 0;
+		switch (standardToken) {
+			case StandardTokenType.Other:
+				return true;
+			case StandardTokenType.Comment:
+				return this._inComment;
+			case StandardTokenType.String:
+				return this._inString;
+			case StandardTokenType.RegEx:
+				return this._inRegEx;
+		}
 	}
 
 	public shouldAutoClose(context: ScopedLineTokens, column: number): boolean {

@@ -14,7 +14,7 @@ import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAg
 import { DiskFileSystemProvider, IWatcherOptions } from 'vs/platform/files/node/diskFileSystemProvider';
 import { posix, delimiter } from 'vs/base/common/path';
 import { IServerEnvironmentService } from 'vs/server/serverEnvironmentService';
-import { AbstractDiskFileSystemProviderChannel, ISessionFileWatcher } from 'vs/platform/files/node/diskFileSystemProviderIpc';
+import { AbstractDiskFileSystemProviderChannel, ISessionFileWatcher } from 'vs/platform/files/node/diskFileSystemProviderServer';
 
 export class RemoteAgentFileSystemProviderChannel extends AbstractDiskFileSystemProviderChannel<RemoteAgentConnectionContext> {
 

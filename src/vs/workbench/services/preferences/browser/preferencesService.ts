@@ -450,9 +450,10 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			case ConfigurationTarget.USER:
 			case ConfigurationTarget.USER_LOCAL:
 				return this.userSettingsResource;
-			case ConfigurationTarget.USER_REMOTE:
+			case ConfigurationTarget.USER_REMOTE: {
 				const remoteEnvironment = await this.remoteAgentService.getEnvironment();
 				return remoteEnvironment ? remoteEnvironment.settingsPath : null;
+			}
 			case ConfigurationTarget.WORKSPACE:
 				return this.workspaceSettingsResource;
 			case ConfigurationTarget.WORKSPACE_FOLDER:

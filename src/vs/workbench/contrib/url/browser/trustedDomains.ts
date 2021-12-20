@@ -118,7 +118,7 @@ export async function configureOpenerTrustedDomainsHandler(
 					options: { pinned: true }
 				});
 				return trustedDomains;
-			case 'trust':
+			case 'trust': {
 				const itemToTrust = pickedResult.toTrust;
 				if (trustedDomains.indexOf(itemToTrust) === -1) {
 					storageService.remove(TRUSTED_DOMAINS_CONTENT_STORAGE_KEY, StorageScope.GLOBAL);
@@ -131,6 +131,7 @@ export async function configureOpenerTrustedDomainsHandler(
 
 					return [...trustedDomains, itemToTrust];
 				}
+			}
 		}
 	}
 

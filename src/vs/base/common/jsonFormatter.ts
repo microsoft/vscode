@@ -203,8 +203,9 @@ export function format(documentText: string, range: Range | undefined, options: 
 }
 
 /**
- *
- * @param any Creates a formatted string out of the object passed as argeument
+ * Creates a formatted string out of the object passed as argument, using the given formatting options
+ * @param any The object to stringify and format
+ * @param options The formatting options to use
  */
 export function toFormattedString(obj: any, options: FormattingOptions) {
 	const content = JSON.stringify(obj, undefined, options.insertSpaces ? options.tabSize || 4 : '\t');

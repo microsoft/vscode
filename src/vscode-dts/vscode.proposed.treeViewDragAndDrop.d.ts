@@ -79,8 +79,7 @@ declare module 'vscode' {
 	/**
 	 * Provides support for drag and drop in `TreeView`.
 	 */
-	// TODO@api why disposable?
-	export interface DragAndDropController<T> extends Disposable {
+	export interface DragAndDropController<T> {
 
 		/**
 		 * The mime types that this `DragAndDropController` supports. This could be well-defined, existing, mime types,
@@ -108,7 +107,6 @@ declare module 'vscode' {
 		 * @param source The data transfer items of the source of the drag.
 		 * @param target The target tree element that the drop is occuring on.
 		 */
-		// TODO@api NIT - allow to return `Thenable<void> | void`
-		onDrop(source: TreeDataTransfer, target: T): Thenable<void>;
+		onDrop(source: TreeDataTransfer, target: T): Thenable<void> | void;
 	}
 }

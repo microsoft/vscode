@@ -198,7 +198,7 @@ export function convertToVSCPaths(message: DebugProtocol.ProtocolMessage, toUri:
 function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: boolean, source: PathContainer | undefined) => void): void {
 
 	switch (msg.type) {
-		case 'event':
+		case 'event': {
 			const event = <DebugProtocol.Event>msg;
 			switch (event.event) {
 				case 'output':
@@ -214,7 +214,8 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: 
 					break;
 			}
 			break;
-		case 'request':
+		}
+		case 'request': {
 			const request = <DebugProtocol.Request>msg;
 			switch (request.command) {
 				case 'setBreakpoints':
@@ -236,7 +237,8 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: 
 					break;
 			}
 			break;
-		case 'response':
+		}
+		case 'response': {
 			const response = <DebugProtocol.Response>msg;
 			if (response.success && response.body) {
 				switch (response.command) {
@@ -260,6 +262,7 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: 
 				}
 			}
 			break;
+		}
 	}
 }
 

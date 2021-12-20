@@ -281,7 +281,8 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(editor.document.cellCount, 2);
 	});
 
-	test('#98841, initialzation should not emit cell change events.', async function () {
+	// #126371
+	test.skip('#98841, initialzation should not emit cell change events.', async function () {
 		let count = 0;
 
 		testDisposables.push(vscode.notebooks.onDidChangeNotebookCells(() => {
@@ -462,7 +463,8 @@ suite('Notebook API tests', function () {
 		});
 	});
 
-	test('cell execute command takes arguments ICellRange[]', async () => {
+	// #126371
+	test.skip('cell execute command takes arguments ICellRange[]', async () => {
 		const resource = await createRandomNotebookFile();
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 
@@ -566,7 +568,7 @@ suite('Notebook API tests', function () {
 		});
 	});
 
-	test('onDidChangeCellExecutionState is fired', async () => {
+	test.skip('onDidChangeCellExecutionState is fired', async () => { // TODO@rebornix https://github.com/microsoft/vscode/issues/139350
 		const resource = await createRandomNotebookFile();
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		const editor = vscode.window.activeNotebookEditor!;
@@ -897,7 +899,7 @@ suite('statusbar', () => {
 		suiteDisposables.push(vscode.workspace.registerNotebookContentProvider('notebookCoreTest', apiTestContentProvider));
 	});
 
-	test('provideCellStatusBarItems called on metadata change', async function () {
+	test.skip('provideCellStatusBarItems called on metadata change', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/139324
 		const provideCalled = asPromise(onDidCallProvide);
 		const resource = await createRandomNotebookFile();
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');

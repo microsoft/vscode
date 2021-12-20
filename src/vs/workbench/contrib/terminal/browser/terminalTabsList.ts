@@ -95,7 +95,8 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 				smoothScrolling: _configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: true,
 				additionalScrollHeight: TerminalTabsListSizes.TabHeight,
-				dnd: instantiationService.createInstance(TerminalTabsDragAndDrop)
+				dnd: instantiationService.createInstance(TerminalTabsDragAndDrop),
+				openOnSingleClick: true
 			},
 			contextKeyService,
 			listService,

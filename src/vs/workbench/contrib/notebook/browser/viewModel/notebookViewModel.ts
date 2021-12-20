@@ -412,7 +412,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	// selection change from list view's `setFocus` and `setSelection` should always use `source: view` to prevent events breaking the list view focus/selection change transaction
 	updateSelectionsState(state: ISelectionState, source: 'view' | 'model' = 'model') {
-		if (this._focused) {
+		if (this._focused || source === 'model') {
 			if (state.kind === SelectionStateType.Handle) {
 				const primaryIndex = state.primary !== null ? this.getCellIndexByHandle(state.primary) : null;
 				const primarySelection = primaryIndex !== null ? this.validateRange({ start: primaryIndex, end: primaryIndex + 1 }) : null;

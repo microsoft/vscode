@@ -520,7 +520,7 @@ function createCodiconStyleSheet() {
 	const codiconStyleSheet = createStyleSheet();
 	codiconStyleSheet.id = 'codiconStyles';
 
-	const iconsStyleSheet = getIconsStyleSheet();
+	const iconsStyleSheet = getIconsStyleSheet(undefined);
 	function updateAll() {
 		codiconStyleSheet.textContent = iconsStyleSheet.getCSS();
 	}

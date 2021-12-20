@@ -1,11 +1,12 @@
-name: "Deep Classifier: Monitor"
+name: "Deep Classifier: Assign Monitor"
 on:
   issues:
-    types: [unassigned]
+    types: [assigned]
 
 jobs:
   main:
     runs-on: ubuntu-latest
+    if: ${{ contains(github.event.issue.labels.*.name, 'triage-needed') }}
     steps:
       - name: Checkout Actions
         uses: actions/checkout@v2

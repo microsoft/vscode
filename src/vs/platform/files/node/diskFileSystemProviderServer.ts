@@ -12,7 +12,7 @@ import { IURITransformer } from 'vs/base/common/uriIpc';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ReadableStreamEventPayload, listenStream } from 'vs/base/common/stream';
-import { IStat, FileReadStreamOptions, FileWriteOptions, FileOpenOptions, FileDeleteOptions, FileOverwriteOptions, IFileChange, IWatchOptions, FileType } from 'vs/platform/files/common/files';
+import { IStat, FileReadStreamOptions, FileWriteOptions, FileOpenOptions, FileDeleteOptions, FileOverwriteOptions, IFileChange, IWatchOptions, FileType, FileAtomicReadOptions } from 'vs/platform/files/common/files';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export interface ISessionFileWatcher extends IDisposable {
@@ -20,8 +20,7 @@ export interface ISessionFileWatcher extends IDisposable {
 }
 
 /**
- * A server implementation for a IPC based file system provider
- * (see `IPCFileSystemProvider`) client.
+ * A server implementation for a IPC based file system provider client.
  */
 export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposable implements IServerChannel<T> {
 
@@ -41,7 +40,7 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 			case 'open': return this.open(uriTransformer, arg[0], arg[1]);
 			case 'close': return this.close(arg[0]);
 			case 'read': return this.read(arg[0], arg[1], arg[2]);
-			case 'readFile': return this.readFile(uriTransformer, arg[0]);
+			case 'readFile': return this.readFile(uriTransformer, arg[0], arg[1]);
 			case 'write': return this.write(arg[0], arg[1], arg[2], arg[3], arg[4]);
 			case 'writeFile': return this.writeFile(uriTransformer, arg[0], arg[1], arg[2]);
 			case 'rename': return this.rename(uriTransformer, arg[0], arg[1], arg[2]);
@@ -88,9 +87,9 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 
 	//#region File Reading/Writing
 
-	private async readFile(uriTransformer: IURITransformer, _resource: UriComponents): Promise<VSBuffer> {
+	private async readFile(uriTransformer: IURITransformer, _resource: UriComponents, opts?: FileAtomicReadOptions): Promise<VSBuffer> {
 		const resource = this.transformIncoming(uriTransformer, _resource, true);
-		const buffer = await this.provider.readFile(resource);
+		const buffer = await this.provider.readFile(resource, opts);
 
 		return VSBuffer.wrap(buffer);
 	}

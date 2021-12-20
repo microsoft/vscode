@@ -300,7 +300,7 @@ export function coalesceInPlace<T>(array: Array<T | undefined | null>): void {
 }
 
 /**
- * Moves the element in the array for the provided positions.
+ * @deprecated Use `Array.copyWithin` instead
  */
 export function move(array: any[], from: number, to: number): void {
 	array.splice(to, 0, array.splice(from, 1)[0]);

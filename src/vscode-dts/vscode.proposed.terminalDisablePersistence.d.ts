@@ -3,7 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
-import { IUserConfigurationFileService, UserConfigurationFileServiceId } from 'vs/platform/configuration/common/userConfigurationFileService';
-
-registerMainProcessRemoteService(IUserConfigurationFileService, UserConfigurationFileServiceId);
+declare module 'vscode' {
+	export interface TerminalOptions {
+		/**
+		 * Opt-out of the default terminal persistence on restart and reload
+		 */
+		disablePersistence?: boolean;
+	}
+	export interface ExtensionTerminalOptions {
+		/**
+		 * Opt-out of the default terminal persistence on restart and reload
+		 */
+		disablePersistence?: boolean;
+	}
+}

@@ -16,6 +16,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { MultilineTokensBuilder, countEOL } from 'vs/editor/common/model/tokensStore';
 import { runWhenIdle, IdleDeadline } from 'vs/base/common/async';
+import { setTimeout0 } from 'vs/base/common/platform';
 
 const enum Constants {
 	CHEAP_TOKENIZATION_LENGTH_LIMIT = 2048
@@ -265,37 +266,61 @@ export class TextModelTokenization extends Disposable {
 		runWhenIdle((deadline) => {
 			this._isScheduled = false;
 
-			if (this._isDisposed) {
-				// disposed in the meantime
-				return;
-			}
-
-			this._revalidateTokensNow(deadline);
+			this._backgroundTokenizeWithDeadline(deadline);
 		});
 	}
 
-	private _revalidateTokensNow(deadline: IdleDeadline): void {
-		const textModelLastLineNumber = this._textModel.getLineCount();
+	/**
+	 * Tokenize until the deadline occurs, but try to yield every 1-2ms.
+	 */
+	private _backgroundTokenizeWithDeadline(deadline: IdleDeadline): void {
+		// Read the time remaining from the `deadline` immediately because it is unclear
+		// if the `deadline` object will be valid after execution leaves this function.
+		const endTime = Date.now() + deadline.timeRemaining();
 
-		const MAX_ALLOWED_TIME = 1;
+		const execute = () => {
+			if (this._isDisposed || !this._textModel.isAttachedToEditor() || !this._hasLinesToTokenize()) {
+				// disposed in the meantime or detached or finished
+				return;
+			}
+
+			this._backgroundTokenizeForAtLeast1ms();
+
+			if (Date.now() < endTime) {
+				// There is still time before reaching the deadline, so yield to the browser and then
+				// continue execution
+				setTimeout0(execute);
+			} else {
+				// The deadline has been reached, so schedule a new idle callback if necessary
+				this._beginBackgroundTokenization();
+			}
+		};
+		execute();
+	}
+
+	/**
+	 * Tokenize for at least 1ms.
+	 */
+	private _backgroundTokenizeForAtLeast1ms(): void {
+		const lineCount = this._textModel.getLineCount();
 		const builder = new MultilineTokensBuilder();
 		const sw = StopWatch.create(false);
-		let tokenizedLineNumber = -1;
 
 		do {
-			if (sw.elapsed() > MAX_ALLOWED_TIME) {
-				// Stop if MAX_ALLOWED_TIME is reached
+			if (sw.elapsed() > 1) {
+				// the comparison is intentionally > 1 and not >= 1 to ensure that
+				// a full millisecond has elapsed, given how microseconds are rounded
+				// to milliseconds
 				break;
 			}
 
-			tokenizedLineNumber = this._tokenizeOneInvalidLine(builder);
+			const tokenizedLineNumber = this._tokenizeOneInvalidLine(builder);
 
-			if (tokenizedLineNumber >= textModelLastLineNumber) {
+			if (tokenizedLineNumber >= lineCount) {
 				break;
 			}
-		} while (this._hasLinesToTokenize() && deadline.timeRemaining() > 0);
+		} while (this._hasLinesToTokenize());
 
-		this._beginBackgroundTokenization();
 		this._textModel.setTokens(builder.tokens, !this._hasLinesToTokenize());
 	}
 

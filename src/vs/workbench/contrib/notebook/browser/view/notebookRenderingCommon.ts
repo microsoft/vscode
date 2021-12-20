@@ -16,11 +16,12 @@ import { Range } from 'vs/editor/common/core/range';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICellOutputViewModel, ICellViewModel, IGenericCellViewModel, INotebookCellOutputLayoutInfo, INotebookEditorCreationOptions, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { DragPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellDnd';
 import { CellExecutionPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellExecution';
 import { CellFocusIndicator } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellFocusIndicator';
 import { CellProgressBar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellProgressBar';
+import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellStatusPart';
 import { BetweenCellToolbar, CellTitleToolbarPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellToolbars';
-import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellWidgets';
 import { RunToolbar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/codeCellRunToolbar';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -126,7 +127,7 @@ export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
 	focusSinkElement: HTMLElement;
 	editor: ICodeEditor;
 	progressBar: CellProgressBar;
-	dragHandle: FastDomNode<HTMLElement>;
+	dragHandle: DragPart;
 	cellExecution: CellExecutionPart;
 }
 

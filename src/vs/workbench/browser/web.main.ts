@@ -11,7 +11,7 @@ import { ConsoleLogInAutomationLogger } from 'vs/platform/log/browser/log';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { Workbench } from 'vs/workbench/browser/workbench';
-import { RemoteFileSystemProvider } from 'vs/workbench/services/remote/common/remoteAgentFileSystemChannel';
+import { RemoteFileSystemProviderClient } from 'vs/workbench/services/remote/common/remoteFileSystemProviderClient';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
@@ -288,7 +288,7 @@ class BrowserMain extends Disposable {
 		fileService.registerProvider(Schemas.userData, userDataProvider);
 
 		// Remote file system
-		this._register(RemoteFileSystemProvider.register(remoteAgentService, fileService, logService));
+		this._register(RemoteFileSystemProviderClient.register(remoteAgentService, fileService, logService));
 
 		// Local file access (if supported by browser)
 		if (WebFileSystemAccess.supported(window)) {

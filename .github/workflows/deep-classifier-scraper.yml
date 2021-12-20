@@ -2,6 +2,7 @@ name: "Deep Classifier: Scraper"
 on:
   schedule:
     - cron: 0 0 15 * * # 15th of the month
+  workflow_dispatch:
   repository_dispatch:
     types: [trigger-deep-classifier-scraper]
 

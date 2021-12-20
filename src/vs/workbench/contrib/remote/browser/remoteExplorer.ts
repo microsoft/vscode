@@ -264,12 +264,13 @@ class OnAutoForwardedAction extends Disposable {
 					break;
 				}
 				case OnPortForward.Silent: break;
-				default:
+				default: {
 					const elapsed = new Date().getTime() - this.lastNotifyTime.getTime();
 					this.logService.trace(`ForwardedPorts: (OnAutoForwardedAction) time elapsed since last notification ${elapsed} ms`);
 					if (elapsed > OnAutoForwardedAction.NOTIFY_COOL_DOWN) {
 						await this.showNotification(tunnel);
 					}
+				}
 			}
 		}
 	}
