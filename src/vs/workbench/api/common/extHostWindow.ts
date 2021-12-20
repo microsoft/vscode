@@ -5,26 +5,31 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostWindowShape, MainContext, MainThreadWindowShape, IOpenUriOptions } from './extHost.protocol';
-import { WindowState } from 'vscode';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import type * as vscode from 'vscode';
+import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 
 export class ExtHostWindow implements ExtHostWindowShape {
 
-	private static InitialState: WindowState = {
+	private static InitialState: vscode.WindowState = {
 		focused: true
 	};
 
 	private _proxy: MainThreadWindowShape;
 
-	private readonly _onDidChangeWindowState = new Emitter<WindowState>();
-	readonly onDidChangeWindowState: Event<WindowState> = this._onDidChangeWindowState.event;
+	private readonly _onDidChangeWindowState = new Emitter<vscode.WindowState>();
+	readonly onDidChangeWindowState: Event<vscode.WindowState> = this._onDidChangeWindowState.event;
 
 	private _state = ExtHostWindow.InitialState;
-	get state(): WindowState { return this._state; }
+	get state(): vscode.WindowState { return this._state; }
+
+	private _activityProviders = new Map<string, ExtHostActivityProvider>();
 
 	constructor(@IExtHostRpcService extHostRpc: IExtHostRpcService) {
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadWindow);
@@ -65,6 +70,61 @@ export class ExtHostWindow implements ExtHostWindowShape {
 
 		const result = await this._proxy.$asExternalUri(uri, options);
 		return URI.from(result);
+	}
+
+	registerActivityProvider(viewId: string, activityProvider: any): any {
+		// One activity provider per view
+		const previousProvider = this._activityProviders.get(viewId);
+		if (previousProvider) {
+			previousProvider.dispose();
+		}
+
+		let extHostActivityProvider = new ExtHostActivityProvider(this._proxy, viewId, activityProvider);
+		this._activityProviders.set(viewId, extHostActivityProvider);
+
+		return new extHostTypes.Disposable(() => {
+			extHostActivityProvider.dispose();
+			this._activityProviders.delete(viewId);
+		});
+	}
+}
+
+class ExtHostActivityProvider extends Disposable {
+
+	constructor(private proxy: MainThreadWindowShape, private viewId: string, activityProvider: vscode.ActivityProvider) {
+		super();
+
+		// Clean up activity state when the provider is disposed
+		this._register(toDisposable(() => {
+			proxy.$setActivity(viewId, null);
+		}));
+
+		// Sign up for activity notifications
+		if (activityProvider.onDidChangeActivity) {
+			this._register(activityProvider.onDidChangeActivity(activity => { this.processActivity(activity); }));
+		}
+	}
+
+	private processActivity(badge: vscode.Badge | null | undefined) {
+		if (badge instanceof extHostTypes.NumberBadge) {
+			this.proxy.$setActivity(this.viewId, { type: 'number', number: badge.number, label: badge.label });
+		}
+
+		else if (badge instanceof extHostTypes.TextBadge) {
+			this.proxy.$setActivity(this.viewId, { type: 'text', text: badge.text, label: badge.label });
+		}
+
+		else if (badge instanceof extHostTypes.IconBadge) {
+			let color: ThemeColor | undefined;
+			if (badge.icon.color && badge.icon.color instanceof extHostTypes.ThemeColor) {
+				color = { id: badge.icon.color.id };
+			}
+			this.proxy.$setActivity(this.viewId, { type: 'icon', icon: { id: badge.icon.id, color: color }, label: badge.label });
+		}
+
+		else if (badge instanceof extHostTypes.ProgressBadge) {
+			this.proxy.$setActivity(this.viewId, { type: 'progress', label: badge.label });
+		}
 	}
 }
 

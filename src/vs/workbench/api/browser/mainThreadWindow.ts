@@ -8,8 +8,9 @@ import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ExtHostContext, ExtHostWindowShape, IExtHostContext, IOpenUriOptions, MainContext, MainThreadWindowShape } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostWindowShape, IExtHostContext, IOpenUriOptions, MainContext, MainThreadWindowShape, IBadge } from '../common/extHost.protocol';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IActivityService, NumberBadge, TextBadge, IconBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 
 @extHostNamedCustomer(MainContext.MainThreadWindow)
 export class MainThreadWindow implements MainThreadWindowShape {
@@ -17,11 +18,13 @@ export class MainThreadWindow implements MainThreadWindowShape {
 	private readonly proxy: ExtHostWindowShape;
 	private readonly disposables = new DisposableStore();
 	private readonly resolved = new Map<number, IDisposable>();
+	private readonly activities: Map<string, IDisposable> = new Map<string, IDisposable>();
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@IHostService private readonly hostService: IHostService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@IActivityService private readonly activityService: IActivityService
 	) {
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostWindow);
 
@@ -63,4 +66,40 @@ export class MainThreadWindow implements MainThreadWindowShape {
 		const result = await this.openerService.resolveExternalUri(URI.revive(uriComponents), options);
 		return result.resolved;
 	}
+
+	$setActivity(viewId: string, activity: IBadge | null | undefined): void {
+
+		const oldActivity = this.activities.get(viewId);
+		if (oldActivity) {
+			oldActivity.dispose();
+			this.activities.delete(viewId);
+		}
+
+		if (!activity) {
+			return;
+		}
+
+		switch (activity.type) {
+			case 'number':
+				this.activities.set(viewId,
+					this.activityService.showViewActivity(viewId, { badge: new NumberBadge(activity.number, () => activity.label) }));
+				break;
+
+			case 'text':
+				this.activities.set(viewId,
+					this.activityService.showViewActivity(viewId, { badge: new TextBadge(activity.text, () => activity.label) }));
+				break;
+
+			case 'icon':
+				this.activities.set(viewId,
+					this.activityService.showViewActivity(viewId, { badge: new IconBadge({ id: activity.icon.id, color: activity.icon.color }, () => activity.label) }));
+				break;
+
+			case 'progress':
+				this.activities.set(viewId,
+					this.activityService.showViewActivity(viewId, { badge: new ProgressBadge(() => activity.label) }));
+
+		}
+	}
+
 }

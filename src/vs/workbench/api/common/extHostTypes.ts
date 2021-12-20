@@ -2290,6 +2290,13 @@ export class TreeItem {
 
 }
 
+export enum BadgeType {
+	Number = 0,
+	Text = 1,
+	Icon = 2,
+	Progress = 3
+}
+
 export enum TreeItemCollapsibleState {
 	None = 0,
 	Collapsed = 1,
@@ -3504,4 +3511,54 @@ export class TypeHierarchyItem {
 		this.range = range;
 		this.selectionRange = selectionRange;
 	}
+}
+
+@es5ClassCompat
+export abstract class Badge implements vscode.Badge {
+	readonly label: string = '';
+}
+
+@es5ClassCompat
+export class NumberBadge implements vscode.NumberBadge {
+
+	constructor(number: number, label: string) {
+		this.number = number;
+		this.label = label;
+	}
+
+	readonly number: number;
+	readonly label: string;
+}
+
+@es5ClassCompat
+export class TextBadge implements vscode.TextBadge {
+
+	constructor(text: string, label: string) {
+		this.text = text;
+		this.label = label;
+	}
+
+	readonly text: string;
+	readonly label: string;
+}
+
+@es5ClassCompat
+export class IconBadge implements vscode.IconBadge {
+
+	constructor(icon: ThemeIcon, label: string) {
+		this.icon = icon;
+		this.label = label;
+	}
+
+	readonly icon: ThemeIcon;
+	readonly label: string;
+}
+
+@es5ClassCompat
+export class ProgressBadge implements vscode.ProgressBadge {
+	constructor(label: string) {
+		this.label = label;
+	}
+
+	readonly label: string;
 }

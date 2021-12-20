@@ -1158,10 +1158,36 @@ export interface IOpenUriOptions {
 	readonly allowContributedOpeners?: boolean | string;
 }
 
+export interface INumberBadge {
+	type: 'number',
+	number: number,
+	label: string
+}
+
+export interface ITextBadge {
+	type: 'text',
+	text: string,
+	label: string
+}
+
+export interface IIconBadge {
+	type: 'icon'
+	icon: ThemeIcon;
+	label: string;
+}
+
+export interface IProgressBadge {
+	type: 'progress'
+	label: string;
+}
+
+export type IBadge = INumberBadge | ITextBadge | IIconBadge | IProgressBadge;
+
 export interface MainThreadWindowShape extends IDisposable {
 	$getWindowVisibility(): Promise<boolean>;
 	$openUri(uri: UriComponents, uriString: string | undefined, options: IOpenUriOptions): Promise<boolean>;
 	$asExternalUri(uri: UriComponents, options: IOpenUriOptions): Promise<UriComponents>;
+	$setActivity(viewId: string, activity: IBadge | null | undefined): void;
 }
 
 export enum CandidatePortSource {
