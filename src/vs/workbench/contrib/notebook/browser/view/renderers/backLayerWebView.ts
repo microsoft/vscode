@@ -620,7 +620,7 @@ var requirejs = (function() {
 				case 'clicked-link':
 					{
 						let linkToOpen: URI | string | undefined;
-						if (matchesSomeScheme(data.href, Schemas.http, Schemas.https, Schemas.mailto)) {
+						if (matchesSomeScheme(data.href, Schemas.http, Schemas.https, Schemas.mailto, Schemas.command)) {
 							linkToOpen = data.href;
 						} else if (!/^[\w\-]+:/.test(data.href)) {
 							if (this.documentUri.scheme === Schemas.untitled) {
@@ -649,7 +649,7 @@ var requirejs = (function() {
 						}
 
 						if (linkToOpen) {
-							this.openerService.open(linkToOpen, { fromUserGesture: true });
+							this.openerService.open(linkToOpen, { fromUserGesture: true, allowCommands: true });
 						}
 						break;
 					}
