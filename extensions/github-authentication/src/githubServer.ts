@@ -210,7 +210,6 @@ export class GitHubServer implements IGitHubServer {
 
 		const json = await result.json() as IGitHubDeviceCodeResponse;
 
-		await vscode.env.clipboard.writeText(json.user_code);
 
 		const modalResult = await vscode.window.showInformationMessage(
 			localize('code.title', "Your Code: {0}", json.user_code),
@@ -223,6 +222,7 @@ export class GitHubServer implements IGitHubServer {
 			throw new Error('Cancelled');
 		}
 
+		await vscode.env.clipboard.writeText(json.user_code);
 		const uriToOpen = await vscode.env.asExternalUri(vscode.Uri.parse(json.verification_uri));
 		await vscode.env.openExternal(uriToOpen);
 
