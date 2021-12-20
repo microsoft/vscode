@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
@@ -68,7 +70,9 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 	private static readonly ID = 'editor.widget.untitledHint';
 
 	private domNode: HTMLElement | undefined;
+	private languageMode: HTMLElement | undefined;
 	private toDispose: IDisposable[];
+	private editorKeyDownEvent: IDisposable | undefined;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -86,11 +90,32 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 		this.onDidChangeModelContent();
 	}
 
+	private addContentWidgetToEditor(): void {
+		if (this.editor.getValue() !== '') {
+			return;
+		}
+
+		this.editorKeyDownEvent = this.editor.onKeyDown((e: IKeyboardEvent) => {
+			if (e.keyCode === KeyCode.Tab && !e.shiftKey) {
+				this.languageMode?.focus();
+				e.preventDefault();
+				e.stopPropagation();
+			}
+		});
+
+		this.editor.addContentWidget(this);
+	}
+
+	private removeContentWidgetFromEditor(): void {
+		this.editorKeyDownEvent?.dispose();
+		this.editor.removeContentWidget(this);
+	}
+
 	private onDidChangeModelContent(): void {
 		if (this.editor.getValue() === '') {
-			this.editor.addContentWidget(this);
+			this.addContentWidgetToEditor();
 		} else {
-			this.editor.removeContentWidget(this);
+			this.removeContentWidgetFromEditor();
 		}
 	}
 
@@ -104,6 +129,9 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 			this.domNode = $('.untitled-hint');
 			this.domNode.style.width = 'max-content';
 			const language = $('a.language-mode');
+			language.tabIndex = 1;
+			language.setAttribute('href', '#');
+			this.languageMode = language;
 			language.style.cursor = 'pointer';
 			language.innerText = localize('selectAlanguage2', "Select a language");
 			const languageKeyBinding = this.keybindingService.lookupKeybinding(ChangeModeAction.ID);
@@ -117,6 +145,8 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 			this.domNode.appendChild(toGetStarted);
 
 			const dontShow = $('a');
+			dontShow.tabIndex = 2;
+			dontShow.setAttribute('href', '#');
 			dontShow.style.cursor = 'pointer';
 			dontShow.innerText = localize('dontshow', "don't show");
 			this.domNode.appendChild(dontShow);
@@ -132,6 +162,21 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 				await this.commandService.executeCommand(ChangeModeAction.ID, { from: 'hint' });
 				this.editor.focus();
 			};
+			this.toDispose.push(dom.addStandardDisposableListener(this.domNode, dom.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
+				// These listed keys alone won't lead to stop tab navigation
+				const ignoredKeys = [
+					KeyCode.Tab,
+					KeyCode.Enter,
+					KeyCode.Shift,
+					KeyCode.Ctrl,
+					KeyCode.Alt,
+					KeyCode.Meta
+				];
+
+				if (!ignoredKeys.includes(e.keyCode)) {
+					this.editor.focus();
+				}
+			}));
 			this.toDispose.push(dom.addDisposableListener(language, 'click', languageOnClickOrTap));
 			this.toDispose.push(dom.addDisposableListener(language, GestureEventType.Tap, languageOnClickOrTap));
 			this.toDispose.push(Gesture.addTarget(language));
@@ -166,6 +211,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 
 	dispose(): void {
 		this.editor.removeContentWidget(this);
+		this.editorKeyDownEvent?.dispose();
 		dispose(this.toDispose);
 	}
 }
@@ -177,7 +223,8 @@ registerThemingParticipant((theme, collector) => {
 	}
 	const textLinkForegroundColor = theme.getColor(textLinkForeground);
 	if (textLinkForegroundColor) {
-		collector.addRule(`.monaco-editor .contentWidgets .untitled-hint a { color: ${textLinkForegroundColor}; }`);
+		collector.addRule(`.monaco-editor .contentWidgets .untitled-hint a { color: ${textLinkForegroundColor}; outline-offset: 0px; margin-top: 0px; padding: 0px 2px 1px 1px;}`);
+		collector.addRule(`.monaco-editor .contentWidgets .untitled-hint a:focus { outline: 1px solid ${textLinkForegroundColor}; }`);
 	}
 });
 
