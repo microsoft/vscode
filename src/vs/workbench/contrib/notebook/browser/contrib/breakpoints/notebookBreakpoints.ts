@@ -181,11 +181,13 @@ class NotebookCellPausing extends Disposable implements IWorkbenchContribution {
 				internalMetadata.didPause = true;
 			}
 
-			notebookModel?.applyEdits([{
-				editType: CellEditType.PartialInternalMetadata,
-				handle: parsed.handle,
-				internalMetadata,
-			}], true, undefined, () => undefined, undefined);
+			if (notebookModel?.checkCellExistence(parsed.handle)) {
+				notebookModel?.applyEdits([{
+					editType: CellEditType.PartialInternalMetadata,
+					handle: parsed.handle,
+					internalMetadata,
+				}], true, undefined, () => undefined, undefined);
+			}
 		}
 	}
 }
