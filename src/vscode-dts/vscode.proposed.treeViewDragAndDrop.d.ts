@@ -84,6 +84,9 @@ declare module 'vscode' {
 		/**
 		 * The mime types that the `drop` method of this `DragAndDropController` supports. This could be well-defined, existing, mime types,
 		 * and also mime types defined by the extension that are returned in the `TreeDataTransfer` from `onWillDrop`.
+		 *
+		 * Each tree will automatically support drops from it's own `DragAndDropController`. To support drops from other trees,
+		 * you will need to add the mime type of that tree. The mime type of a tree is of the format `tree/treeidlowercase`.
 		 */
 		readonly supportedMimeTypes: string[];
 
