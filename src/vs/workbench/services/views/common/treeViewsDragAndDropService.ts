@@ -3,24 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { generateUuid } from 'vs/base/common/uuid';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITreeDataTransfer } from 'vs/workbench/common/views';
 
-export const ITreeViewsDragAndDropService = createDecorator<ITreeViewsDragAndDropService>('treeViewsDragAndDropService');
-export interface ITreeViewsDragAndDropService {
+export const ITreeViewsDragAndDropService = createDecorator<ITreeViewsDragAndDropService<ITreeDataTransfer>>('treeViewsDragAndDropService');
+export interface ITreeViewsDragAndDropService<T> {
 	readonly _serviceBrand: undefined;
 
-	removeDragOperationTransfer(uuid: string | undefined): Promise<ITreeDataTransfer | undefined> | undefined;
-	addDragOperationTransfer(transferPromise: Promise<ITreeDataTransfer | undefined>): string;
+	removeDragOperationTransfer(uuid: string | undefined): Promise<T | undefined> | undefined;
+	addDragOperationTransfer(uuid: string, transferPromise: Promise<T | undefined>): void;
 }
 
-export class TreeViewsDragAndDropService implements ITreeViewsDragAndDropService {
+export class TreeViewsDragAndDropService<T> implements ITreeViewsDragAndDropService<T> {
 	_serviceBrand: undefined;
-	private _dragOperations: Map<string, Promise<ITreeDataTransfer | undefined>> = new Map();
+	private _dragOperations: Map<string, Promise<T | undefined>> = new Map();
 
-	removeDragOperationTransfer(uuid: string | undefined): Promise<ITreeDataTransfer | undefined> | undefined {
+	removeDragOperationTransfer(uuid: string | undefined): Promise<T | undefined> | undefined {
 		if ((uuid && this._dragOperations.has(uuid))) {
 			const operation = this._dragOperations.get(uuid);
 			this._dragOperations.delete(uuid);
@@ -29,10 +28,8 @@ export class TreeViewsDragAndDropService implements ITreeViewsDragAndDropService
 		return undefined;
 	}
 
-	addDragOperationTransfer(transferPromise: Promise<ITreeDataTransfer | undefined>): string {
-		const uuid = generateUuid();
+	addDragOperationTransfer(uuid: string, transferPromise: Promise<T | undefined>): void {
 		this._dragOperations.set(uuid, transferPromise);
-		return uuid;
 	}
 }
 

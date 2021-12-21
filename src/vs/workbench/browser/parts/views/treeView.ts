@@ -59,7 +59,8 @@ import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { CodeDataTransfers, fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
-import { ITreeViewsDragAndDropService } from 'vs/workbench/browser/parts/views/treeViewsDragAndDropService';
+import { ITreeViewsDragAndDropService } from 'vs/workbench/services/views/common/treeViewsDragAndDropService';
+import { generateUuid } from 'vs/base/common/uuid';
 
 export class TreeViewPane extends ViewPane {
 
@@ -1243,7 +1244,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		private readonly treeId: string,
 		@ILabelService private readonly labelService: ILabelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ITreeViewsDragAndDropService private readonly treeViewsDragAndDropService: ITreeViewsDragAndDropService) {
+		@ITreeViewsDragAndDropService private readonly treeViewsDragAndDropService: ITreeViewsDragAndDropService<ITreeDataTransfer>) {
 		this.treeMimeType = `tree/${treeId.toLowerCase()}`;
 	}
 
@@ -1256,7 +1257,8 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		if (!originalEvent.dataTransfer || !this.dndController) {
 			return;
 		}
-		const uuid = this.treeViewsDragAndDropService.addDragOperationTransfer(this.dndController.onWillDrop(itemHandles));
+		const uuid = generateUuid();
+		this.treeViewsDragAndDropService.addDragOperationTransfer(uuid, this.dndController.onWillDrop(itemHandles, uuid));
 		originalEvent.dataTransfer.setData(TREE_DRAG_UUID_MIME, uuid);
 	}
 
@@ -1382,7 +1384,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 
 		const additionalWillDropPromise = this.treeViewsDragAndDropService.removeDragOperationTransfer(willDropUuid);
 		if (!additionalWillDropPromise) {
-			return dndController.onDrop(treeDataTransfer, targetNode, treeSourceInfo?.id, treeSourceInfo?.itemHandles);
+			return dndController.onDrop(treeDataTransfer, targetNode, willDropUuid, treeSourceInfo?.id, treeSourceInfo?.itemHandles);
 		}
 		return additionalWillDropPromise.then(additionalDataTransfer => {
 			if (additionalDataTransfer) {
@@ -1390,7 +1392,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 					treeDataTransfer.set(item[0], item[1]);
 				}
 			}
-			return dndController.onDrop(treeDataTransfer, targetNode, treeSourceInfo?.id, treeSourceInfo?.itemHandles);
+			return dndController.onDrop(treeDataTransfer, targetNode, willDropUuid, treeSourceInfo?.id, treeSourceInfo?.itemHandles);
 		});
 
 	}

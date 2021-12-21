@@ -172,15 +172,15 @@ class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
 		readonly willDropMimeTypes: string[] | undefined,
 		private readonly _proxy: ExtHostTreeViewsShape) { }
 
-	async onDrop(dataTransfer: ITreeDataTransfer, targetTreeItem: ITreeItem, sourceTreeId?: string, sourceTreeItemHandles?: string[]): Promise<void> {
-		return this._proxy.$onDrop(this.treeViewId, await TreeDataTransferConverter.toTreeDataTransferDTO(dataTransfer), targetTreeItem.handle, sourceTreeId, sourceTreeItemHandles);
+	async onDrop(dataTransfer: ITreeDataTransfer, targetTreeItem: ITreeItem, operationUuid?: string, sourceTreeId?: string, sourceTreeItemHandles?: string[]): Promise<void> {
+		return this._proxy.$onDrop(this.treeViewId, await TreeDataTransferConverter.toTreeDataTransferDTO(dataTransfer), targetTreeItem.handle, operationUuid, sourceTreeId, sourceTreeItemHandles);
 	}
 
-	async onWillDrop(sourceTreeItemHandles: string[]): Promise<ITreeDataTransfer | undefined> {
+	async onWillDrop(sourceTreeItemHandles: string[], operationUuid: string): Promise<ITreeDataTransfer | undefined> {
 		if (!this.willDropMimeTypes) {
 			return;
 		}
-		const additionalTransferItems = await this._proxy.$onWillDrop(this.treeViewId, sourceTreeItemHandles);
+		const additionalTransferItems = await this._proxy.$onWillDrop(this.treeViewId, sourceTreeItemHandles, operationUuid);
 		if (!additionalTransferItems) {
 			return;
 		}
