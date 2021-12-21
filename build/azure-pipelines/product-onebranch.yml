@@ -40,4 +40,5 @@ extends:
         variables:
           ob_outputDirectory: '$(Build.SourcesDirectory)'
 
-        steps: []
+        steps:
+        - checkout: distro
