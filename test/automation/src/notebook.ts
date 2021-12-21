@@ -6,7 +6,7 @@
 import { Code } from './code';
 import { QuickAccess } from './quickaccess';
 
-const activeRowSelector = `.notebook-editor .monaco-list-row.focused`;
+const activeRowSelector = `.notebook-editor:focus-within .monaco-list-row.focused`;
 
 export class Notebook {
 
