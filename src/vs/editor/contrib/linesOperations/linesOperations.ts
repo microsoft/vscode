@@ -1151,11 +1151,35 @@ export class SnakeCaseAction extends AbstractCaseAction {
 		if (!caseBoundary || !singleLetters) {
 			// cannot support this
 			return text;
+		} else if () {
+			
 		}
 		return (text
 			.replace(caseBoundary, '$1_$2')
 			.replace(singleLetters, '$1_$2$3')
 			.toLocaleLowerCase()
+		);
+	}
+}
+
+export class PascalCaseAction extends AbstractCaseAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.transformToPascalcase',
+			label: nls.localize('editor.transformToPascalcase', "Transform to Pascal Case"),
+			alias: 'Transform to Pascal Case',
+			precondition: EditorContextKeys.writable
+		});
+	}
+
+	protected _modifyText(text: string, wordSeparators: string): string {
+		return (text
+			.split('_')
+			.map(str => {
+				str.slice(0, 1).toLocalUpperCase() + str.slice(1, str.length);
+			})
+			.join('')
 		);
 	}
 }
@@ -1187,3 +1211,4 @@ if (SnakeCaseAction.caseBoundary.isSupported() && SnakeCaseAction.singleLetters.
 if (TitleCaseAction.titleBoundary.isSupported()) {
 	registerEditorAction(TitleCaseAction);
 }
+registerEditorAction(PascalCaseAction);
