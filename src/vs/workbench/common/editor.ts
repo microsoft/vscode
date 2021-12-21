@@ -911,6 +911,16 @@ export enum SideBySideEditor {
 	ANY = 4
 }
 
+export interface IFindEditorOptions {
+
+	/**
+	 * Whether to consider a side by side primary editor as matching.
+	 * By default, side by side editors will not be considered
+	 * as matching, even if the editor is opened in one of the sides.
+	 */
+	supportSideBySide?: SideBySideEditor.PRIMARY;
+}
+
 export interface IMatchEditorOptions {
 
 	/**
