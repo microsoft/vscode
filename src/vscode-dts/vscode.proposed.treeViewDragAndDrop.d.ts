@@ -82,21 +82,25 @@ declare module 'vscode' {
 	export interface DragAndDropController<T> {
 
 		/**
-		 * The mime types that this `DragAndDropController` supports. This could be well-defined, existing, mime types,
+		 * The mime types that the `drop` method of this `DragAndDropController` supports. This could be well-defined, existing, mime types,
 		 * and also mime types defined by the extension that are returned in the `TreeDataTransfer` from `onWillDrop`.
+		 *
+		 * Each tree will automatically support drops from it's own `DragAndDropController`. To support drops from other trees,
+		 * you will need to add the mime type of that tree. The mime type of a tree is of the format `tree/treeidlowercase`.
 		 */
 		readonly supportedMimeTypes: string[];
 
 		/**
-		 * When the user drops an item from this DragAndDropController on **another tree item** in **the same tree**,
-		 * `onWillDrop` will be called with the dropped tree items. This is the DragAndDropController's opportunity to
-		 * package the data from the dropped tree item into whatever format they want the target tree item to receive.
+		 * When the user starts dragging items from this `DragAndDropController`, `onWillDrop` will be called.
+		 * Extensions can use `onWillDrop` to add their `TreeDataTransferItem`s to the drag and drop.
+		 *
+		 * When the items are dropped on **another tree item** in **the same tree**, your `TreeDataTransferItem` objects
+		 * will be preserved. See the documentation for `TreeDataTransferItem` for how best to take advantage of this.
 		 *
 		 * The returned `TreeDataTransfer` will be merged with the original`TreeDataTransfer` for the operation.
 		 *
 		 * @param source The source items for the drag and drop operation.
 		 */
-		// TODO@api I think this can be more generic, tho still constraint, e.g have something that works everywhere within VS Code
 		onWillDrop?(source: T[]): Thenable<TreeDataTransfer>;
 
 		/**
