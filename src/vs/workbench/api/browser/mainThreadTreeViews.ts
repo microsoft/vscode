@@ -168,7 +168,7 @@ type TreeItemHandle = string;
 class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
 
 	constructor(private readonly treeViewId: string,
-		readonly dropMimeTypes: string[],
+		readonly supportedMimeTypes: string[],
 		readonly willDropMimeTypes: string[] | undefined,
 		private readonly _proxy: ExtHostTreeViewsShape) { }
 

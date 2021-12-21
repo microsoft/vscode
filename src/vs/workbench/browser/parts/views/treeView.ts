@@ -1299,14 +1299,14 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 
 	onDragOver(data: IDragAndDropData, targetElement: ITreeItem, targetIndex: number, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
 		const dndController = this.dndController;
-		if (!dndController || !originalEvent.dataTransfer || (dndController.dropMimeTypes.length === 0)) {
+		if (!dndController || !originalEvent.dataTransfer || (dndController.supportedMimeTypes.length === 0)) {
 			return false;
 		}
 		const dragContainersSupportedType = originalEvent.dataTransfer.types.some((value, index) => {
 			if (value === this.treeMimeType) {
 				return true;
 			} else {
-				return dndController.dropMimeTypes.indexOf(value) >= 0;
+				return dndController.supportedMimeTypes.indexOf(value) >= 0;
 			}
 		});
 		if (dragContainersSupportedType) {
@@ -1362,7 +1362,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 			for (const dataItem of originalEvent.dataTransfer.items) {
 				const type = dataItem.type;
 				if (dataItem.kind === 'string') {
-					if ((type === this.treeMimeType) || (type === TREE_DRAG_UUID_MIME) || (dndController.dropMimeTypes.indexOf(type) >= 0)) {
+					if ((type === this.treeMimeType) || (type === TREE_DRAG_UUID_MIME) || (dndController.supportedMimeTypes.indexOf(type) >= 0)) {
 						dataItem.getAsString(dataValue => {
 							if (type === this.treeMimeType) {
 								treeSourceInfo = JSON.parse(dataValue);
