@@ -205,6 +205,7 @@ export class DynamicStandaloneServices extends Disposable {
 		const themeService = this.get(IThemeService);
 		const logService = this.get(ILogService);
 		const contextKeyService = this.get(IContextKeyService);
+		const dialogService = this.get(IDialogService);
 
 		let ensure = <T>(serviceId: ServiceIdentifier<T>, factory: () => T): T => {
 			let value: T | null = null;
@@ -232,7 +233,7 @@ export class DynamicStandaloneServices extends Disposable {
 
 		let contextViewService = ensure(IContextViewService, () => this._register(new ContextViewService(layoutService)));
 
-		ensure(IClipboardService, () => new BrowserClipboardService());
+		ensure(IClipboardService, () => new BrowserClipboardService(dialogService));
 
 		ensure(IContextMenuService, () => {
 			const contextMenuService = new ContextMenuService(telemetryService, notificationService, contextViewService, keybindingService, themeService);

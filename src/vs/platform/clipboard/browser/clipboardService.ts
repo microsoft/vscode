@@ -3,11 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isSafari } from 'vs/base/browser/browser';
 import { $ } from 'vs/base/browser/dom';
+import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 export class BrowserClipboardService implements IClipboardService {
+
+	constructor(@IDialogService private readonly dialogService: IDialogService) { }
 
 	declare readonly _serviceBrand: undefined;
 
@@ -28,31 +34,64 @@ export class BrowserClipboardService implements IClipboardService {
 		try {
 			return await navigator.clipboard.writeText(text);
 		} catch (error) {
-			console.error(error);
+			if (!isSafari) {
+				console.error(error);
+			} else {
+				const showResult = await this.dialogService.show(
+					Severity.Warning,
+					localize('unableToCopy', "The browser interrupted the copying of text to the clipboard. Press 'Copy' to copy it anyway."),
+					[
+						localize('copy', "Copy"),
+						localize('learnMore', "Learn More"),
+						localize('cancel', "Cancel")
+					],
+					{
+						cancelId: 2,
+						detail: text
+					}
+				);
+
+				switch (showResult.choice) {
+					case 0:
+						try {
+							return await navigator.clipboard.writeText(text);
+						} catch (error) {
+							console.error(error);
+						}
+						break;
+
+					case 1:
+						// await this.openerService.open(URI.parse('https://aka.ms/allow-vscode-popup'));
+						break;
+
+					default:
+						break;
+				}
+			}
+
+			// Fallback to textarea and execCommand solution
+
+			const activeElement = document.activeElement;
+
+			const textArea: HTMLTextAreaElement = document.body.appendChild($('textarea', { 'aria-hidden': true }));
+			textArea.style.height = '1px';
+			textArea.style.width = '1px';
+			textArea.style.position = 'absolute';
+
+			textArea.value = text;
+			textArea.focus();
+			textArea.select();
+
+			document.execCommand('copy');
+
+			if (activeElement instanceof HTMLElement) {
+				activeElement.focus();
+			}
+
+			document.body.removeChild(textArea);
+
+			return;
 		}
-
-		// Fallback to textarea and execCommand solution
-
-		const activeElement = document.activeElement;
-
-		const textArea: HTMLTextAreaElement = document.body.appendChild($('textarea', { 'aria-hidden': true }));
-		textArea.style.height = '1px';
-		textArea.style.width = '1px';
-		textArea.style.position = 'absolute';
-
-		textArea.value = text;
-		textArea.focus();
-		textArea.select();
-
-		document.execCommand('copy');
-
-		if (activeElement instanceof HTMLElement) {
-			activeElement.focus();
-		}
-
-		document.body.removeChild(textArea);
-
-		return;
 	}
 
 	async readText(type?: string): Promise<string> {

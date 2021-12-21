@@ -14,6 +14,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { isSafari } from 'vs/base/browser/browser';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 export class BrowserClipboardService extends BaseBrowserClipboardService {
 
@@ -21,9 +22,10 @@ export class BrowserClipboardService extends BaseBrowserClipboardService {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IDialogService dialogService: IDialogService
 	) {
-		super();
+		super(dialogService);
 	}
 
 	override async readText(type?: string): Promise<string> {
