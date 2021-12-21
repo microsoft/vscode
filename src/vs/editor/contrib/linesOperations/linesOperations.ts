@@ -1174,9 +1174,9 @@ export class PascalCaseAction extends AbstractCaseAction {
 	protected _modifyText(text: string, wordSeparators: string): string {
 		return (text
 			.split('_')
-			.map(str => {
-				str.slice(0, 1).toLocalUpperCase() + str.slice(1, str.length);
-			})
+			.map(str =>
+				str.slice(0, 1).toLocalUpperCase() + str.slice(1)
+			)
 			.join('')
 		);
 	}
