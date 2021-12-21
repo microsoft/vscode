@@ -4988,7 +4988,7 @@ export const EditorOptions = {
 	)),
 	suggestSelection: register(new EditorStringEnumOption(
 		EditorOption.suggestSelection, 'suggestSelection',
-		'recentlyUsed' as 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix',
+		'first' as 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix',
 		['first', 'recentlyUsed', 'recentlyUsedByPrefix'] as const,
 		{
 			markdownEnumDescriptions: [
