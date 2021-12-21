@@ -91,12 +91,6 @@ declare module 'vscode' {
 		readonly supportedMimeTypes: string[];
 
 		/**
-		 * The mime types that the `onWillDrop` method of this `DragAndDropController` supports returning. This could be well-defined, existing, mime types,
-		 * and also mime types defined by the extension that are returned in the `TreeDataTransfer` from `onWillDrop`.
-		 */
-		readonly willDropMimeTypes?: string[];
-
-		/**
 		 * When the user starts dragging items from this `DragAndDropController`, `onWillDrop` will be called.
 		 * Extensions can use `onWillDrop` to add their `TreeDataTransferItem`s to the drag and drop.
 		 *
