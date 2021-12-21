@@ -55,6 +55,8 @@ import { TextModelResolverService } from 'vs/workbench/services/textmodelResolve
 import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -168,8 +170,10 @@ export function setupInstantiationService(disposables = new DisposableStore()) {
 	instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 	instantiationService.stub(IContextKeyService, instantiationService.createInstance(ContextKeyService));
 	instantiationService.stub(IListService, instantiationService.createInstance(ListService));
-	instantiationService.stub(IClipboardService, new BrowserClipboardService(new TestDialogService()));
+	instantiationService.stub(IDialogService, new TestDialogService());
 	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(IOpenerService, NullOpenerService);
+	instantiationService.stub(IClipboardService, instantiationService.createInstance(BrowserClipboardService));
 	instantiationService.stub(IStorageService, new TestStorageService());
 	instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(true));
 

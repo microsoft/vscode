@@ -44,6 +44,10 @@ import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standal
 import { splitLines } from 'vs/base/common/strings';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 
@@ -58,6 +62,18 @@ function withAllStandaloneServices<T extends IEditor>(domElement: HTMLElement, o
 
 	if (!services.has(IOpenerService)) {
 		services.set(IOpenerService, new OpenerService(services.get(ICodeEditorService), services.get(ICommandService)));
+	}
+
+	if (!services.has(IClipboardService)) {
+		services.set(
+			IClipboardService,
+			new BrowserClipboardService(
+				services.get(IDialogService),
+				services.get(IOpenerService),
+				services.get(ILogService),
+				services.get(IEnvironmentService)
+			)
+		);
 	}
 
 	let result = callback(services);

@@ -34,6 +34,7 @@ import 'vs/workbench/browser/web.main';
 
 //#region --- workbench services
 
+import 'vs/platform/clipboard/browser/clipboardService';
 import 'vs/workbench/services/integrity/browser/integrityService';
 import 'vs/workbench/services/textMate/browser/textMateService';
 import 'vs/workbench/services/search/browser/searchService';
@@ -51,7 +52,6 @@ import 'vs/workbench/services/workspaces/browser/workspaceEditingService';
 import 'vs/workbench/services/dialogs/browser/fileDialogService';
 import 'vs/workbench/services/host/browser/browserHostService';
 import 'vs/workbench/services/lifecycle/browser/lifecycleService';
-import 'vs/workbench/services/clipboard/browser/clipboardService';
 import 'vs/workbench/services/extensionResourceLoader/browser/extensionResourceLoaderService';
 import 'vs/workbench/services/path/browser/pathService';
 import 'vs/workbench/services/themes/browser/browserHostColorSchemeService';

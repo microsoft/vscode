@@ -3,21 +3,83 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isSafari } from 'vs/base/browser/browser';
 import { $ } from 'vs/base/browser/dom';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export class BrowserClipboardService implements IClipboardService {
 
-	constructor(@IDialogService private readonly dialogService: IDialogService) { }
+	constructor(
+		@IDialogService private readonly dialogService: IDialogService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@ILogService private readonly logService: ILogService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+	) { }
 
 	declare readonly _serviceBrand: undefined;
 
 	private readonly mapTextToType = new Map<string, string>(); // unsupported in web (only in-memory)
+
+	// Guard access to navigator.clipboard with try/catch
+	// as we have seen DOMExceptions in certain browsers
+	// due to security policies. For example, in Safari,
+	// it has the following message:
+	//
+	// "The request to write to the clipboard must be triggered during a user gesture.
+	// A call to clipboard.write or clipboard.writeText outside the scope of a user
+	// gesture(such as "click" or "touch" event handlers) will result in the immediate
+	// rejection of the promise returned by the API call."
+	// From: https://webkit.org/blog/10855/async-clipboard-api/
+	//
+	// A similar limitation is there for Read. This is why this function later calls for a modal to be shown.
+	protected async doClipboardAction(action: 'write', text: string): Promise<void>;
+	protected async doClipboardAction(action: 'read'): Promise<string>;
+	protected async doClipboardAction(action: 'write' | 'read', text?: string) {
+		const isWrite = action === 'write';
+
+		try {
+			return isWrite ? await navigator.clipboard.writeText(text!) : await navigator.clipboard.readText();
+		} catch (error) {
+			// do not ask for input in tests (https://github.com/microsoft/vscode/issues/112264)
+			if (!!this.environmentService.extensionTestsLocationURI) {
+				throw error;
+			}
+		}
+
+		const modalText = isWrite
+			? localize('unableToWrite', "The browser interrupted the writing of text to the clipboard. Press 'Copy' to copy it anyway.")
+			: localize('unableToRead', "The browser interrupted the reading of text from the clipboard. Press 'Read' to read it anyway.");
+		const showResult = await this.dialogService.show(
+			Severity.Warning,
+			modalText,
+			[
+				isWrite ? localize('copy', "Copy") : localize('read', "Read"),
+				localize('learnMore', "Learn More"),
+				localize('cancel', "Cancel")
+			],
+			{
+				cancelId: 2,
+				detail: text
+			}
+		);
+
+		switch (showResult.choice) {
+			case 0:
+				return isWrite ? await navigator.clipboard.writeText(text!) : await navigator.clipboard.readText();
+			case 1:
+				await this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?linkid=2151362'));
+				return;
+			default:
+				return;
+		}
+	}
 
 	async writeText(text: string, type?: string): Promise<void> {
 
@@ -28,46 +90,10 @@ export class BrowserClipboardService implements IClipboardService {
 			return;
 		}
 
-		// Guard access to navigator.clipboard with try/catch
-		// as we have seen DOMExceptions in certain browsers
-		// due to security policies.
 		try {
-			return await navigator.clipboard.writeText(text);
+			return await this.doClipboardAction('write', text);
 		} catch (error) {
-			if (!isSafari) {
-				console.error(error);
-			} else {
-				const showResult = await this.dialogService.show(
-					Severity.Warning,
-					localize('unableToCopy', "The browser interrupted the copying of text to the clipboard. Press 'Copy' to copy it anyway."),
-					[
-						localize('copy', "Copy"),
-						localize('learnMore', "Learn More"),
-						localize('cancel', "Cancel")
-					],
-					{
-						cancelId: 2,
-						detail: text
-					}
-				);
-
-				switch (showResult.choice) {
-					case 0:
-						try {
-							return await navigator.clipboard.writeText(text);
-						} catch (error) {
-							console.error(error);
-						}
-						break;
-
-					case 1:
-						// await this.openerService.open(URI.parse('https://aka.ms/allow-vscode-popup'));
-						break;
-
-					default:
-						break;
-				}
-			}
+			this.logService.error(error);
 
 			// Fallback to textarea and execCommand solution
 
@@ -101,13 +127,10 @@ export class BrowserClipboardService implements IClipboardService {
 			return this.mapTextToType.get(type) || '';
 		}
 
-		// Guard access to navigator.clipboard with try/catch
-		// as we have seen DOMExceptions in certain browsers
-		// due to security policies.
 		try {
-			return await navigator.clipboard.readText();
+			return await this.doClipboardAction('read');
 		} catch (error) {
-			console.error(error);
+			this.logService.error(error);
 
 			return '';
 		}
@@ -137,3 +160,5 @@ export class BrowserClipboardService implements IClipboardService {
 		return this.resources.length > 0;
 	}
 }
+
+registerSingleton(IClipboardService, BrowserClipboardService, true);

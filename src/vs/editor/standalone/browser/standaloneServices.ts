@@ -48,8 +48,6 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
 import { AccessibilityService } from 'vs/platform/accessibility/browser/accessibilityService';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { StandaloneQuickInputServiceImpl } from 'vs/editor/standalone/browser/quickInput/standaloneQuickInputServiceImpl';
@@ -205,7 +203,6 @@ export class DynamicStandaloneServices extends Disposable {
 		const themeService = this.get(IThemeService);
 		const logService = this.get(ILogService);
 		const contextKeyService = this.get(IContextKeyService);
-		const dialogService = this.get(IDialogService);
 
 		let ensure = <T>(serviceId: ServiceIdentifier<T>, factory: () => T): T => {
 			let value: T | null = null;
@@ -232,8 +229,6 @@ export class DynamicStandaloneServices extends Disposable {
 		ensure(IQuickInputService, () => new StandaloneQuickInputServiceImpl(_instantiationService, StaticServices.codeEditorService.get(ICodeEditorService)));
 
 		let contextViewService = ensure(IContextViewService, () => this._register(new ContextViewService(layoutService)));
-
-		ensure(IClipboardService, () => new BrowserClipboardService(dialogService));
 
 		ensure(IContextMenuService, () => {
 			const contextMenuService = new ContextMenuService(telemetryService, notificationService, contextViewService, keybindingService, themeService);
