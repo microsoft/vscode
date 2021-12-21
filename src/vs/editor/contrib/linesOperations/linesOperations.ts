@@ -1151,8 +1151,6 @@ export class SnakeCaseAction extends AbstractCaseAction {
 		if (!caseBoundary || !singleLetters) {
 			// cannot support this
 			return text;
-		} else if () {
-			
 		}
 		return (text
 			.replace(caseBoundary, '$1_$2')
