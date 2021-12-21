@@ -10,12 +10,17 @@ import { timeout } from 'vs/base/common/async';
 import { dirname, join, sep } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Promises, RimRafMode } from 'vs/base/node/pfs';
-import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { IParcelWatcherInstance, ParcelWatcher } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
 import { IWatchRequest } from 'vs/platform/files/common/watcher';
 
-flakySuite('Recursive Watcher (parcel)', () => {
+// this suite has shown flaky runs in Azure pipelines where
+// tasks would just hang and timeout after a while (not in
+// mocha but generally). as such they will run only on demand
+// whenever we update the watcher library.
+
+suite.skip('Recursive Watcher (parcel)', () => {
 
 	class TestParcelWatcher extends ParcelWatcher {
 
