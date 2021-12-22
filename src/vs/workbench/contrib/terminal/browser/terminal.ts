@@ -801,12 +801,12 @@ export interface IXtermTerminal {
 	/**
 	 * Find the next instance of the term
 	*/
-	findNext(term: string, searchOptions: ISearchOptions): boolean;
+	findNext(term: string, searchOptions: ISearchOptions): Promise<boolean>;
 
 	/**
 	 * Find the previous instance of the term
 	 */
-	findPrevious(term: string, searchOptions: ISearchOptions): boolean;
+	findPrevious(term: string, searchOptions: ISearchOptions): Promise<boolean>;
 
 	/**
 	 * Forces the terminal to redraw its viewport.
