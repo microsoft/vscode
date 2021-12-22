@@ -126,7 +126,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			}
 		}
 
-		this.addEntriesFromStorage(workspaces, files);
+		await this.addEntriesFromStorage(workspaces, files);
 
 		if (workspaces.length > WorkspacesHistoryMainService.MAX_TOTAL_RECENT_ENTRIES) {
 			workspaces.length = WorkspacesHistoryMainService.MAX_TOTAL_RECENT_ENTRIES;
@@ -136,7 +136,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			files.length = WorkspacesHistoryMainService.MAX_TOTAL_RECENT_ENTRIES;
 		}
 
-		this.saveRecentlyOpened({ workspaces, files });
+		await this.saveRecentlyOpened({ workspaces, files });
 		this._onDidChangeRecentlyOpened.fire();
 
 		// Schedule update to recent documents on macOS dock
@@ -162,7 +162,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		const files = mru.files.filter(keep);
 
 		if (workspaces.length !== mru.workspaces.length || files.length !== mru.files.length) {
-			this.saveRecentlyOpened({ files, workspaces });
+			await this.saveRecentlyOpened({ files, workspaces });
 			this._onDidChangeRecentlyOpened.fire();
 
 			// Schedule update to recent documents on macOS dock
@@ -232,7 +232,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 	}
 
 	async clearRecentlyOpened(): Promise<void> {
-		this.saveRecentlyOpened({ workspaces: [], files: [] });
+		await this.saveRecentlyOpened({ workspaces: [], files: [] });
 		app.clearRecentDocuments();
 
 		// Event
@@ -264,15 +264,15 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			}
 		}
 
-		this.addEntriesFromStorage(workspaces, files);
+		await this.addEntriesFromStorage(workspaces, files);
 
 		return { workspaces, files };
 	}
 
-	private addEntriesFromStorage(workspaces: Array<IRecentFolder | IRecentWorkspace>, files: IRecentFile[]) {
+	private async addEntriesFromStorage(workspaces: Array<IRecentFolder | IRecentWorkspace>, files: IRecentFile[]): Promise<void> {
 
 		// Get from storage
-		let recents = this.getRecentlyOpenedFromStorage();
+		let recents = await this.getRecentlyOpenedFromStorage();
 		for (let recent of recents.workspaces) {
 			let index = isRecentFolder(recent) ? this.indexOfFolder(workspaces, recent.folderUri) : this.indexOfWorkspace(workspaces, recent.workspace);
 			if (index >= 0) {
@@ -292,13 +292,13 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		}
 	}
 
-	private getRecentlyOpenedFromStorage(): IRecentlyOpened {
+	private async getRecentlyOpenedFromStorage(): Promise<IRecentlyOpened> {
 		const storedRecents = this.stateMainService.getItem<RecentlyOpenedStorageData>(WorkspacesHistoryMainService.recentlyOpenedStorageKey);
 
 		return restoreRecentlyOpened(storedRecents, this.logService);
 	}
 
-	private saveRecentlyOpened(recent: IRecentlyOpened): void {
+	private async saveRecentlyOpened(recent: IRecentlyOpened): Promise<void> {
 		const serialized = toStoreData(recent);
 
 		this.stateMainService.setItem(WorkspacesHistoryMainService.recentlyOpenedStorageKey, serialized);
