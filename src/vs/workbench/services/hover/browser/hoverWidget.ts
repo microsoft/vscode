@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as dom from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -18,8 +18,6 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { isMarkdownString } from 'vs/base/common/htmlContent';
-import { CancelablePromise, timeout } from 'vs/base/common/async';
-import { Codicon } from 'vs/base/common/codicons';
 
 const $ = dom.$;
 type TargetRect = {
@@ -47,9 +45,6 @@ export class HoverWidget extends Widget {
 	private readonly _hoverContainer: HTMLElement;
 	private readonly _target: IHoverTarget;
 	private readonly _linkHandler: (url: string) => any;
-
-	private _lockElement: HTMLElement | undefined;
-	private _autoLockTimeout: CancelablePromise<void> | undefined;
 
 	private _isDisposed: boolean = false;
 	private _hoverPosition: HoverPosition;
@@ -79,20 +74,8 @@ export class HoverWidget extends Widget {
 		if (this._isLocked === value) {
 			return;
 		}
-		this._autoLockTimeout?.cancel();
-		this._autoLockTimeout = undefined;
 		this._isLocked = value;
 		this._hoverContainer.classList.toggle('locked', this._isLocked);
-		if (value) {
-			this._lockElement = document.createElement('button');
-			this._lockElement.classList.add('workbench-hover-lock');
-			this._lockElement.classList.add(...Codicon.lockSmall.classNamesArray);
-			this._lockElement.addEventListener('click', () => this.isLocked = false);
-			this._hoverContainer.append(this._lockElement);
-		} else {
-			this._lockElement?.remove();
-			this._lockElement = undefined;
-		}
 	}
 
 	constructor(
@@ -220,10 +203,6 @@ export class HoverWidget extends Widget {
 			}
 		}));
 		this._register(this._mouseTracker);
-
-		this._autoLockTimeout = timeout(5000);
-		this._autoLockTimeout.then(() => this.isLocked = true);
-		this._register(toDisposable(() => this._autoLockTimeout?.cancel()));
 	}
 
 	public render(container: HTMLElement): void {

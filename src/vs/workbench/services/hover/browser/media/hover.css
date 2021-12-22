@@ -91,21 +91,3 @@
 	margin-right: 0;
 	margin-left: 16px;
 }
-
-.monaco-workbench .workbench-hover-lock {
-	position: absolute;
-	right: 2px;
-	top: 2px;
-	z-index: 100;
-	padding: 0;
-	border: 0;
-	background: none;
-}
-.monaco-workbench .workbench-hover-lock::before {
-	opacity: 0.5;
-}
-.monaco-workbench .workbench-hover-lock:hover {
-	/* background-color: red; */
-	border-radius: 5px;
-	cursor: pointer;
-}
