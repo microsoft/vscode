@@ -28,6 +28,7 @@ import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/com
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
 import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ILogService } from 'vs/platform/log/common/log';
 
 
 export class CodeCell extends Disposable {
@@ -50,6 +51,7 @@ export class CodeCell extends Disposable {
 		@IOpenerService readonly openerService: IOpenerService,
 		@ILanguageService readonly languageService: ILanguageService,
 		@IConfigurationService private configurationService: IConfigurationService,
+		@ILogService private logService: ILogService
 	) {
 		super();
 
@@ -264,6 +266,8 @@ export class CodeCell extends Disposable {
 		};
 
 		this._register(this.templateData.editor.onDidFocusEditorWidget(() => {
+			const logInfo = (new Error()).stack ?? '';
+			this.logService.info(`[Editor Focus] ${logInfo}`);
 			updateFocusModeForEditorEvent();
 		}));
 		this._register(this.templateData.editor.onDidBlurEditorWidget(() => {
