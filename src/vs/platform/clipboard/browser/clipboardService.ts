@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from 'vs/base/browser/dom';
+import { isSafari } from 'vs/base/browser/browser';
+import { $, addDisposableListener } from 'vs/base/browser/dom';
+import { DeferredPromise } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
@@ -13,12 +15,52 @@ export class BrowserClipboardService implements IClipboardService {
 
 	private readonly mapTextToType = new Map<string, string>(); // unsupported in web (only in-memory)
 
+	constructor() {
+		if (isSafari) {
+			this.installSafariWriteTextWorkaround();
+		}
+	}
+
+	private safariPendingClipboardWritePromise: DeferredPromise<string | undefined> | undefined;
+
+	private installSafariWriteTextWorkaround(): void {
+
+
+		const handler = () => {
+			console.log('HERE, getting promise READY');
+			const myWritePromise = new DeferredPromise<string | undefined>();
+
+			this.safariPendingClipboardWritePromise?.complete(undefined);
+			this.safariPendingClipboardWritePromise = myWritePromise;
+
+			navigator.clipboard.write([new ClipboardItem({
+				'text/plain': (<Promise<string>>myWritePromise.p) // evil cast
+			})]).catch(async err => {
+				if (!(err instanceof Error) || err.name !== 'NotAllowedError' || (await myWritePromise!.p) !== undefined) {
+					console.error(err);
+				}
+			});
+		};
+
+		// todo leaks!
+		// todo use ILayoutService#body
+		addDisposableListener(document.body, 'click', handler);
+		addDisposableListener(document.body, 'keydown', handler);
+	}
+
 	async writeText(text: string, type?: string): Promise<void> {
 
 		// With type: only in-memory is supported
 		if (type) {
 			this.mapTextToType.set(type, text);
 
+			return;
+		}
+
+		// SAFARI
+		if (this.safariPendingClipboardWritePromise) {
+			console.log('HERE, resolving promise');
+			this.safariPendingClipboardWritePromise.complete(text);
 			return;
 		}
 
