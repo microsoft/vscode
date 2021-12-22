@@ -60,7 +60,7 @@ export interface TunnelProviderFeatures {
 	/**
 	 * @deprecated
 	 */
-	public: boolean;
+	public?: boolean;
 	privacyOptions: TunnelPrivacy[];
 }
 
@@ -132,7 +132,8 @@ export interface ITunnelService {
 	canTunnel(uri: URI): boolean;
 	openTunnel(addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localPort?: number, elevateIfNeeded?: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined;
 	closeTunnel(remoteHost: string, remotePort: number): Promise<void>;
-	setTunnelProvider(provider: ITunnelProvider | undefined, features: TunnelProviderFeatures): IDisposable;
+	setTunnelProvider(provider: ITunnelProvider | undefined): IDisposable;
+	setTunnelFeatures(features: TunnelProviderFeatures): void;
 }
 
 export function extractLocalHostUriMetaDataForPortMapping(uri: URI): { address: string, port: number; } | undefined {
@@ -189,7 +190,7 @@ export abstract class AbstractTunnelService implements ITunnelService {
 		return !!this._tunnelProvider;
 	}
 
-	setTunnelProvider(provider: ITunnelProvider | undefined, features: TunnelProviderFeatures): IDisposable {
+	setTunnelProvider(provider: ITunnelProvider | undefined): IDisposable {
 		this._tunnelProvider = provider;
 		if (!provider) {
 			// clear features
@@ -200,8 +201,7 @@ export abstract class AbstractTunnelService implements ITunnelService {
 				dispose: () => { }
 			};
 		}
-		this._canElevate = features.elevation;
-		this._privacyOptions = features.privacyOptions;
+
 		this._onAddedTunnelProvider.fire();
 		return {
 			dispose: () => {
@@ -210,6 +210,11 @@ export abstract class AbstractTunnelService implements ITunnelService {
 				this._privacyOptions = [];
 			}
 		};
+	}
+
+	setTunnelFeatures(features: TunnelProviderFeatures): void {
+		this._canElevate = features.elevation;
+		this._privacyOptions = features.privacyOptions;
 	}
 
 	public get canElevate(): boolean {
