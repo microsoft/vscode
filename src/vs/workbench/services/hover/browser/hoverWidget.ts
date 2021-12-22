@@ -216,7 +216,7 @@ export class HoverWidget extends Widget {
 		}));
 		this._register(this._mouseTracker);
 
-		this._autoLockTimeout = timeout(3000);
+		this._autoLockTimeout = timeout(5000);
 		this._autoLockTimeout.then(() => this.isLocked = true);
 		this._register(toDisposable(() => this._autoLockTimeout?.cancel()));
 	}
