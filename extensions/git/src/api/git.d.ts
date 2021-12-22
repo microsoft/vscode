@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Uri, Event, Disposable, ProviderResult } from 'vscode';
+import { Uri, Event, Disposable, ProviderResult, CancellationToken, Progress } from 'vscode';
 export { ProviderResult } from 'vscode';
 
 export interface Git {
@@ -99,6 +99,12 @@ export interface Change {
 	readonly originalUri: Uri;
 	readonly renameUri: Uri | undefined;
 	readonly status: Status;
+}
+
+export interface CloneOptions {
+	readonly parentPath: string;
+	readonly progress: Progress<{ increment: number }>;
+	readonly recursive?: boolean;
 }
 
 export interface RepositoryState {
@@ -272,6 +278,7 @@ export interface API {
 
 	toGitUri(uri: Uri, ref: string): Uri;
 	getRepository(uri: Uri): Repository | null;
+	clone(url: string, options: CloneOptions, cancellationToken?: CancellationToken): Promise<string>;
 	init(root: Uri): Promise<Repository | null>;
 	openRepository(root: Uri): Promise<Repository | null>
 

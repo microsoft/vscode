@@ -5,14 +5,13 @@
 
 import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher } from './git';
-import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands } from 'vscode';
+import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher, CloneOptions } from './git';
+import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands, CancellationToken } from 'vscode';
 import { combinedDisposable, mapEvent } from '../util';
 import { toGitUri } from '../uri';
 import { GitExtensionImpl } from './extension';
 import { GitBaseApi } from '../git-base';
 import { PickRemoteSourceOptions } from './git-base';
-
 class ApiInputBox implements InputBox {
 	set value(value: string) { this._inputBox.value = value; }
 	get value(): string { return this._inputBox.value; }
@@ -281,6 +280,10 @@ export class ApiImpl implements API {
 	getRepository(uri: Uri): Repository | null {
 		const result = this._model.getRepository(uri);
 		return result ? new ApiRepository(result) : null;
+	}
+
+	async clone(url: string, options: CloneOptions, cancellationToken?: CancellationToken): Promise<string> {
+		return this._model.git.clone(url, options, cancellationToken);
 	}
 
 	async init(root: Uri): Promise<Repository | null> {
