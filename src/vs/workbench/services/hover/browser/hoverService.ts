@@ -21,11 +21,6 @@ export class HoverService implements IHoverService {
 	private _currentHoverOptions: IHoverOptions | undefined;
 	private _currentHover: HoverWidget | undefined;
 
-	/**
-	 * Whether the hover is "locked" by holding the control or command keys. When locked, the hover
-	 * will not hide and can be hovered regardless of whether the `hideOnHover` hover option.
-	 */
-
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
@@ -59,12 +54,17 @@ export class HoverService implements IHoverService {
 		const focusedElement = <HTMLElement | null>document.activeElement;
 		if (focusedElement) {
 			hoverDisposables.add(addDisposableListener(focusedElement, EventType.KEY_DOWN, e => {
-				// TODO: Cmd on mac
-				if (e.key === 'Control') {
+				if (e.key === 'Alt') {
 					hover.isLocked = true;
 					return;
 				}
 				this.hideHover();
+			}));
+			hoverDisposables.add(addDisposableListener(focusedElement, EventType.KEY_UP, e => {
+				if (e.key === 'Alt') {
+					hover.isLocked = false;
+					return;
+				}
 			}));
 		}
 

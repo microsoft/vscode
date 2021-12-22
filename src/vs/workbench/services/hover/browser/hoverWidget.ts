@@ -69,6 +69,11 @@ export class HoverWidget extends Widget {
 	get anchor(): AnchorPosition { return this._hoverPosition === HoverPosition.BELOW ? AnchorPosition.BELOW : AnchorPosition.ABOVE; }
 	get x(): number { return this._x; }
 	get y(): number { return this._y; }
+
+	/**
+	 * Whether the hover is "locked" by holding the alt/option key. When locked, the hover will not
+	 * hide and can be hovered regardless of whether the `hideOnHover` hover option.
+	 */
 	get isLocked(): boolean { return this._isLocked; }
 	set isLocked(value: boolean) {
 		if (this._isLocked === value) {
