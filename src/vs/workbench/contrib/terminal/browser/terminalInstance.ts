@@ -66,6 +66,7 @@ import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
+import { isFirefox } from 'vs/base/browser/browser';
 
 const enum Constants {
 	/**
@@ -915,6 +916,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}
 		this.xterm?.dispose();
+
+		// HACK: Workaround for Firefox bug https://bugzilla.mozilla.org/show_bug.cgi?id=559561,
+		// as 'blur' event in xterm.raw.textarea is not triggered on xterm.dispose()
+		// See https://github.com/microsoft/vscode/issues/138358
+		if (isFirefox) {
+			this._terminalFocusContextKey.reset();
+			this._terminalHasTextContextKey.reset();
+			this._onDidBlur.fire(this);
+		}
 
 		if (this._pressAnyKeyToCloseListener) {
 			this._pressAnyKeyToCloseListener.dispose();
