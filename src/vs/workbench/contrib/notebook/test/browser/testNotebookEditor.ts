@@ -54,6 +54,8 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { TestLayoutService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -167,8 +169,9 @@ export function setupInstantiationService(disposables = new DisposableStore()) {
 	instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 	instantiationService.stub(IContextKeyService, instantiationService.createInstance(ContextKeyService));
 	instantiationService.stub(IListService, instantiationService.createInstance(ListService));
-	instantiationService.stub(IClipboardService, new BrowserClipboardService());
+	instantiationService.stub(ILayoutService, new TestLayoutService());
 	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(IClipboardService, instantiationService.createInstance(BrowserClipboardService));
 	instantiationService.stub(IStorageService, new TestStorageService());
 	instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(true));
 

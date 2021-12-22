@@ -6,46 +6,66 @@
 import { isSafari } from 'vs/base/browser/browser';
 import { $, addDisposableListener } from 'vs/base/browser/dom';
 import { DeferredPromise } from 'vs/base/common/async';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { ILogService } from 'vs/platform/log/common/log';
 
-export class BrowserClipboardService implements IClipboardService {
+export class BrowserClipboardService extends Disposable implements IClipboardService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private readonly mapTextToType = new Map<string, string>(); // unsupported in web (only in-memory)
 
-	constructor() {
+	constructor(
+		@ILayoutService private readonly layoutService: ILayoutService,
+		@ILogService private readonly logService: ILogService) {
+		super();
 		if (isSafari) {
 			this.installSafariWriteTextWorkaround();
 		}
 	}
 
-	private safariPendingClipboardWritePromise: DeferredPromise<string | undefined> | undefined;
+	private safariPendingClipboardWritePromise: DeferredPromise<string> | undefined;
 
+	// In Safari, it has the following note:
+	//
+	// "The request to write to the clipboard must be triggered during a user gesture.
+	// A call to clipboard.write or clipboard.writeText outside the scope of a user
+	// gesture(such as "click" or "touch" event handlers) will result in the immediate
+	// rejection of the promise returned by the API call."
+	// From: https://webkit.org/blog/10855/async-clipboard-api/
+	//
+	// Since extensions run in a web worker, and handle gestures in an asynchronous way,
+	// they are not classified by Safari as "in response to a user gesture" and will reject.
+	//
+	// This function sets up some handlers to work around that behavior.
 	private installSafariWriteTextWorkaround(): void {
-
-
 		const handler = () => {
-			console.log('HERE, getting promise READY');
-			const myWritePromise = new DeferredPromise<string | undefined>();
+			const currentWritePromise = new DeferredPromise<string>();
 
-			this.safariPendingClipboardWritePromise?.complete(undefined);
-			this.safariPendingClipboardWritePromise = myWritePromise;
+			// Cancel the previous promise since we just created a new one in response to this new event
+			if (this.safariPendingClipboardWritePromise && !this.safariPendingClipboardWritePromise.isSettled) {
+				this.safariPendingClipboardWritePromise.cancel();
+			}
+			this.safariPendingClipboardWritePromise = currentWritePromise;
 
+			// The ctor of ClipboardItem allows you to pass in a promise that will resolve to a string.
+			// This allows us to pass in a Promise that will either be resolved with undefined if it was 'cancelled'
+			// by another event or resolved with the contents of the first call to this.writeText.
+			// see https://developer.mozilla.org/en-US/docs/Web/API/ClipboardItem/ClipboardItem#parameters
 			navigator.clipboard.write([new ClipboardItem({
-				'text/plain': (<Promise<string>>myWritePromise.p) // evil cast
+				'text/plain': currentWritePromise.p,
 			})]).catch(async err => {
-				if (!(err instanceof Error) || err.name !== 'NotAllowedError' || (await myWritePromise!.p) !== undefined) {
-					console.error(err);
+				if (!(err instanceof Error) || err.name !== 'NotAllowedError' || !currentWritePromise.isRejected) {
+					this.logService.error(err);
 				}
 			});
 		};
 
-		// todo leaks!
-		// todo use ILayoutService#body
-		addDisposableListener(document.body, 'click', handler);
-		addDisposableListener(document.body, 'keydown', handler);
+		this._register(addDisposableListener(this.layoutService.container, 'click', handler));
+		this._register(addDisposableListener(this.layoutService.container, 'keydown', handler));
 	}
 
 	async writeText(text: string, type?: string): Promise<void> {
@@ -57,9 +77,10 @@ export class BrowserClipboardService implements IClipboardService {
 			return;
 		}
 
-		// SAFARI
 		if (this.safariPendingClipboardWritePromise) {
-			console.log('HERE, resolving promise');
+			// For Safari, we complete this Promise which allows the call to `navigator.clipboard.write()`
+			// above to resolve and successfully copy to the clipboard. If we let this continue, Safari
+			// would throw an error because this call stack doesn't appear to originate from a user gesture.
 			this.safariPendingClipboardWritePromise.complete(text);
 			return;
 		}
