@@ -19,6 +19,8 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
+import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IGlobalStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { IRecent, IRecentFile, IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFile, isRecentFolder, isRecentWorkspace, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, RecentlyOpenedStorageData, restoreRecentlyOpened, toStoreData, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
@@ -41,7 +43,9 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 	private static readonly MAX_TOTAL_RECENT_ENTRIES = 500;
 
-	private static readonly recentlyOpenedStorageKey = 'openedPathsList';
+	private static readonly RECENTLY_OPENED_STORAGE_KEY = 'history.recentlyOpenedPathsList';
+
+	private static readonly legacyRecentlyOpenedStorageKey = 'openedPathsList';
 
 	declare readonly _serviceBrand: undefined;
 
@@ -52,7 +56,8 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		@IStateMainService private readonly stateMainService: IStateMainService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
-		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
+		@IGlobalStorageMainService private readonly globalStorageMainService: IGlobalStorageMainService
 	) {
 		super();
 
@@ -214,15 +219,41 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 	}
 
 	private async getRecentlyOpenedFromStorage(): Promise<IRecentlyOpened> {
-		const storedRecents = this.stateMainService.getItem<RecentlyOpenedStorageData>(WorkspacesHistoryMainService.recentlyOpenedStorageKey);
 
-		return restoreRecentlyOpened(storedRecents, this.logService);
+		// Wait for global storage to be ready
+		await this.globalStorageMainService.whenReady;
+
+		let storedRecentlyOpened: object | undefined = undefined;
+
+		// First try with storage service
+		const storedRecentlyOpenedRaw = this.globalStorageMainService.get(WorkspacesHistoryMainService.RECENTLY_OPENED_STORAGE_KEY, StorageScope.GLOBAL);
+		if (typeof storedRecentlyOpenedRaw === 'string') {
+			try {
+				storedRecentlyOpened = JSON.parse(storedRecentlyOpenedRaw);
+			} catch (error) {
+				this.logService.error('Unexpected error parsing opened paths list', error);
+			}
+		}
+
+		// Fallback to state service (TODO@bpasero remove me eventually)
+		else {
+			storedRecentlyOpened = this.stateMainService.getItem<RecentlyOpenedStorageData>(WorkspacesHistoryMainService.legacyRecentlyOpenedStorageKey);
+			if (storedRecentlyOpened) {
+				this.stateMainService.removeItem(WorkspacesHistoryMainService.legacyRecentlyOpenedStorageKey);
+				this.globalStorageMainService.store(WorkspacesHistoryMainService.RECENTLY_OPENED_STORAGE_KEY, JSON.stringify(storedRecentlyOpened), StorageScope.GLOBAL, StorageTarget.MACHINE);
+			}
+		}
+
+		return restoreRecentlyOpened(storedRecentlyOpened, this.logService);
 	}
 
 	private async saveRecentlyOpened(recent: IRecentlyOpened): Promise<void> {
-		const serialized = toStoreData(recent);
 
-		this.stateMainService.setItem(WorkspacesHistoryMainService.recentlyOpenedStorageKey, serialized);
+		// Wait for global storage to be ready
+		await this.globalStorageMainService.whenReady;
+
+		// Store in global storage (but do not sync since this is mainly local paths)
+		this.globalStorageMainService.store(WorkspacesHistoryMainService.RECENTLY_OPENED_STORAGE_KEY, JSON.stringify(toStoreData(recent)), StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 
 	private location(recent: IRecent): URI {
