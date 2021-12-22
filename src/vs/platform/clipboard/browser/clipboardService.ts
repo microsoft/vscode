@@ -52,8 +52,8 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 			this.safariPendingClipboardWritePromise = currentWritePromise;
 
 			// The ctor of ClipboardItem allows you to pass in a promise that will resolve to a string.
-			// This allows us to pass in a Promise that will either be resolved with undefined if it was 'cancelled'
-			// by another event or resolved with the contents of the first call to this.writeText.
+			// This allows us to pass in a Promise that will either be cancelled by another event or
+			// resolved with the contents of the first call to this.writeText.
 			// see https://developer.mozilla.org/en-US/docs/Web/API/ClipboardItem/ClipboardItem#parameters
 			navigator.clipboard.write([new ClipboardItem({
 				'text/plain': currentWritePromise.p,
