@@ -16,7 +16,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import type { Terminal, IViewportRange, ILinkProvider, ILink } from 'xterm';
 import { Schemas } from 'vs/base/common/network';
 import { posix, win32 } from 'vs/base/common/path';
-import { ITerminalExternalLinkProvider, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalExternalLinkProvider, ITerminalInstance, TerminalLinkQuickpickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { OperatingSystem, isMacintosh, OS } from 'vs/base/common/platform';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { TerminalProtocolLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalProtocolLinkProvider';
@@ -186,7 +186,7 @@ export class TerminalLinkManager extends DisposableStore {
 			event?.preventDefault();
 
 			// Require correct modifier on click
-			if (event && !this._isLinkActivationModifierDown(event)) {
+			if (event && !(event instanceof TerminalLinkQuickpickEvent) && !this._isLinkActivationModifierDown(event)) {
 				return;
 			}
 
