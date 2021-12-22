@@ -31,12 +31,10 @@ export interface IWorkspacesHistoryMainService {
 
 	readonly onDidChangeRecentlyOpened: CommonEvent<void>;
 
-	addRecentlyOpened(recents: IRecent[]): void;
-	getRecentlyOpened(include?: ICodeWindow): IRecentlyOpened;
-	removeRecentlyOpened(paths: URI[]): void;
-	clearRecentlyOpened(): void;
-
-	updateWindowsJumpList(): void;
+	addRecentlyOpened(recents: IRecent[]): Promise<void>;
+	getRecentlyOpened(include?: ICodeWindow): Promise<IRecentlyOpened>;
+	removeRecentlyOpened(paths: URI[]): Promise<void>;
+	clearRecentlyOpened(): Promise<void>;
 }
 
 export class WorkspacesHistoryMainService extends Disposable implements IWorkspacesHistoryMainService {
@@ -83,16 +81,16 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		this._register(this.workspacesManagementMainService.onDidEnterWorkspace(event => this.addRecentlyOpened([{ workspace: event.workspace, remoteAuthority: event.window.remoteAuthority }])));
 	}
 
-	private handleWindowsJumpList(): void {
+	private async handleWindowsJumpList(): Promise<void> {
 		if (!isWindows) {
 			return; // only on windows
 		}
 
-		this.updateWindowsJumpList();
+		await this.updateWindowsJumpList();
 		this._register(this.onDidChangeRecentlyOpened(() => this.updateWindowsJumpList()));
 	}
 
-	addRecentlyOpened(recentToAdd: IRecent[]): void {
+	async addRecentlyOpened(recentToAdd: IRecent[]): Promise<void> {
 		const workspaces: Array<IRecentFolder | IRecentWorkspace> = [];
 		const files: IRecentFile[] = [];
 
@@ -147,7 +145,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		}
 	}
 
-	removeRecentlyOpened(recentToRemove: URI[]): void {
+	async removeRecentlyOpened(recentToRemove: URI[]): Promise<void> {
 		const keep = (recent: IRecent) => {
 			const uri = this.location(recent);
 			for (const resourceToRemove of recentToRemove) {
@@ -159,7 +157,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			return true;
 		};
 
-		const mru = this.getRecentlyOpened();
+		const mru = await this.getRecentlyOpened();
 		const workspaces = mru.workspaces.filter(keep);
 		const files = mru.files.filter(keep);
 
@@ -183,7 +181,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		// can get deleted on disk, this ensures that the list is always valid
 		app.clearRecentDocuments();
 
-		const mru = this.getRecentlyOpened();
+		const mru = await this.getRecentlyOpened();
 
 		// Collect max-N recent workspaces that are known to exist
 		const workspaceEntries: string[] = [];
@@ -233,7 +231,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		workspaceEntries.reverse().forEach(workspaceEntry => app.addRecentDocument(workspaceEntry));
 	}
 
-	clearRecentlyOpened(): void {
+	async clearRecentlyOpened(): Promise<void> {
 		this.saveRecentlyOpened({ workspaces: [], files: [] });
 		app.clearRecentDocuments();
 
@@ -241,7 +239,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		this._onDidChangeRecentlyOpened.fire();
 	}
 
-	getRecentlyOpened(include?: ICodeWindow): IRecentlyOpened {
+	async getRecentlyOpened(include?: ICodeWindow): Promise<IRecentlyOpened> {
 		const workspaces: Array<IRecentFolder | IRecentWorkspace> = [];
 		const files: IRecentFile[] = [];
 
@@ -306,7 +304,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		this.stateMainService.setItem(WorkspacesHistoryMainService.recentlyOpenedStorageKey, serialized);
 	}
 
-	updateWindowsJumpList(): void {
+	private async updateWindowsJumpList(): Promise<void> {
 		if (!isWindows) {
 			return; // only on windows
 		}
@@ -330,7 +328,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		});
 
 		// Recent Workspaces
-		if (this.getRecentlyOpened().workspaces.length > 0) {
+		if ((await this.getRecentlyOpened()).workspaces.length > 0) {
 
 			// The user might have meanwhile removed items from the jump list and we have to respect that
 			// so we need to update our list of recent paths with the choice of the user to not add them again
@@ -346,11 +344,11 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 					}
 				}
 			}
-			this.removeRecentlyOpened(toRemove);
+			await this.removeRecentlyOpened(toRemove);
 
 			// Add entries
 			let hasWorkspaces = false;
-			const items: JumpListItem[] = coalesce(this.getRecentlyOpened().workspaces.slice(0, WorkspacesHistoryMainService.MAX_WINDOWS_JUMP_LIST_ENTRIES).map(recent => {
+			const items: JumpListItem[] = coalesce((await this.getRecentlyOpened()).workspaces.slice(0, WorkspacesHistoryMainService.MAX_WINDOWS_JUMP_LIST_ENTRIES).map(recent => {
 				const workspace = isRecentWorkspace(recent) ? recent.workspace : recent.folderUri;
 
 				const { title, description } = this.getWindowsJumpListLabel(workspace, recent.label);
