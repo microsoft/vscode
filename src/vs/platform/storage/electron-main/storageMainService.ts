@@ -156,6 +156,17 @@ export const IGlobalStorageMainService = createDecorator<IStorageMainService>('g
  */
 export interface IGlobalStorageMainService extends IStorageService {
 
+	/**
+	 * Important: unlike other storage services in the renderer, the
+	 * main process does not await the storage to be ready, rather
+	 * storage is being initialized while a window opens to reduce
+	 * pressure on startup.
+	 *
+	 * As such, any client wanting to access global storage from the
+	 * main process needs to wait for `whenReady`, otherwise there is
+	 * a chance that the service operates on an in-memory store that
+	 * is not backed by any persistent DB.
+	 */
 	readonly whenReady: Promise<void>;
 
 	get(key: string, scope: StorageScope.GLOBAL, fallbackValue: string): string;
