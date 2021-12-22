@@ -285,6 +285,9 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 		if (fontStyle & FontStyle.Underline) {
 			r += 'underline ';
 		}
+		if (fontStyle & FontStyle.Strikethrough) {
+			r += 'strikethrough ';
+		}
 		if (r.length === 0) {
 			r = '---';
 		}

@@ -38,7 +38,8 @@ export const enum FontStyle {
 	None = 0,
 	Italic = 1,
 	Bold = 2,
-	Underline = 4
+	Underline = 4,
+	Strikethrough = 8,
 }
 
 /**
@@ -52,14 +53,14 @@ export const enum ColorId {
 }
 
 /**
- * A standard token type. Values are 2^x such that a bit mask can be used.
+ * A standard token type.
  * @internal
  */
 export const enum StandardTokenType {
 	Other = 0,
 	Comment = 1,
 	String = 2,
-	RegEx = 4
+	RegEx = 3
 }
 
 /**
@@ -74,11 +75,11 @@ export const enum StandardTokenType {
  *     1098 7654 3210 9876 5432 1098 7654 3210
  * - -------------------------------------------
  *     xxxx xxxx xxxx xxxx xxxx xxxx xxxx xxxx
- *     bbbb bbbb bfff ffff ffFF FTTT LLLL LLLL
+ *     bbbb bbbb bfff ffff ffFF FFTT LLLL LLLL
  * - -------------------------------------------
  *  - L = LanguageId (8 bits)
- *  - T = StandardTokenType (3 bits)
- *  - F = FontStyle (3 bits)
+ *  - T = StandardTokenType (2 bits)
+ *  - F = FontStyle (4 bits)
  *  - f = foreground color (9 bits)
  *  - b = background color (9 bits)
  *
@@ -86,24 +87,28 @@ export const enum StandardTokenType {
  */
 export const enum MetadataConsts {
 	LANGUAGEID_MASK = 0b00000000000000000000000011111111,
-	TOKEN_TYPE_MASK = 0b00000000000000000000011100000000,
-	FONT_STYLE_MASK = 0b00000000000000000011100000000000,
+	TOKEN_TYPE_MASK = 0b00000000000000000000001100000000,
+	FONT_STYLE_MASK = 0b00000000000000000011110000000000,
 	FOREGROUND_MASK = 0b00000000011111111100000000000000,
 	BACKGROUND_MASK = 0b11111111100000000000000000000000,
 
-	ITALIC_MASK = 0b00000000000000000000100000000000,
-	BOLD_MASK = 0b00000000000000000001000000000000,
-	UNDERLINE_MASK = 0b00000000000000000010000000000000,
+	ITALIC_MASK = 0b00000000000000000000010000000000,
+	BOLD_MASK = 0b00000000000000000000100000000000,
+	UNDERLINE_MASK = 0b00000000000000000001000000000000,
+	STRIKETHROUGH_MASK = 0b00000000000000000010000000000000,
 
+	// Semantic tokens cannot set the language id, so we can
+	// use the first 8 bits for control purposes
 	SEMANTIC_USE_ITALIC = 0b00000000000000000000000000000001,
 	SEMANTIC_USE_BOLD = 0b00000000000000000000000000000010,
 	SEMANTIC_USE_UNDERLINE = 0b00000000000000000000000000000100,
-	SEMANTIC_USE_FOREGROUND = 0b00000000000000000000000000001000,
-	SEMANTIC_USE_BACKGROUND = 0b00000000000000000000000000010000,
+	SEMANTIC_USE_STRIKETHROUGH = 0b00000000000000000000000000001000,
+	SEMANTIC_USE_FOREGROUND = 0b00000000000000000000000000010000,
+	SEMANTIC_USE_BACKGROUND = 0b00000000000000000000000000100000,
 
 	LANGUAGEID_OFFSET = 0,
 	TOKEN_TYPE_OFFSET = 8,
-	FONT_STYLE_OFFSET = 11,
+	FONT_STYLE_OFFSET = 10,
 	FOREGROUND_OFFSET = 14,
 	BACKGROUND_OFFSET = 23
 }
@@ -147,6 +152,9 @@ export class TokenMetadata {
 		if (fontStyle & FontStyle.Underline) {
 			className += ' mtku';
 		}
+		if (fontStyle & FontStyle.Strikethrough) {
+			className += ' mtks';
+		}
 
 		return className;
 	}
@@ -162,8 +170,16 @@ export class TokenMetadata {
 		if (fontStyle & FontStyle.Bold) {
 			result += 'font-weight: bold;';
 		}
+		let textDecoration = '';
 		if (fontStyle & FontStyle.Underline) {
-			result += 'text-decoration: underline;';
+			textDecoration += ' underline';
+		}
+		if (fontStyle & FontStyle.Strikethrough) {
+			textDecoration += ' line-through';
+		}
+		if (textDecoration) {
+			result += `text-decoration:${textDecoration};`;
+
 		}
 		return result;
 	}

@@ -849,6 +849,8 @@ class RunSingleTestDecoration extends RunTestDecoration implements ITestDecorati
 	}
 }
 
+const lineBreakRe = /\r?\n\s*/;
+
 class TestMessageDecoration implements ITestDecoration {
 	public static readonly inlineClassName = 'test-message-inline-content';
 	public static readonly decorationId = `testmessage-${generateUuid()}`;
@@ -881,7 +883,7 @@ class TestMessageDecoration implements ITestDecoration {
 		options.stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 		options.collapseOnReplaceEdit = true;
 
-		let inlineText = renderStringAsPlaintext(message);
+		let inlineText = renderStringAsPlaintext(message).replace(lineBreakRe, ' ');
 		if (inlineText.length > MAX_INLINE_MESSAGE_LENGTH) {
 			inlineText = inlineText.slice(0, MAX_INLINE_MESSAGE_LENGTH - 1) + '…';
 		}

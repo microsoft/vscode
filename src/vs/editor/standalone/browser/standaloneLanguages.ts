@@ -250,11 +250,11 @@ export interface IEncodedLineTokens {
 	 *     3322 2222 2222 1111 1111 1100 0000 0000
 	 *     1098 7654 3210 9876 5432 1098 7654 3210
 	 * - -------------------------------------------
-	 *     bbbb bbbb bfff ffff ffFF FTTT LLLL LLLL
+	 *     bbbb bbbb bfff ffff ffFF FFTT LLLL LLLL
 	 * - -------------------------------------------
 	 *  - L = EncodedLanguageId (8 bits): Use `getEncodedLanguageId` to get the encoded ID of a language.
-	 *  - T = StandardTokenType (3 bits): Other = 0, Comment = 1, String = 2, RegEx = 4.
-	 *  - F = FontStyle (3 bits): None = 0, Italic = 1, Bold = 2, Underline = 4.
+	 *  - T = StandardTokenType (2 bits): Other = 0, Comment = 1, String = 2, RegEx = 3.
+	 *  - F = FontStyle (4 bits): None = 0, Italic = 1, Bold = 2, Underline = 4, Strikethrough = 8.
 	 *  - f = foreground ColorId (9 bits)
 	 *  - b = background ColorId (9 bits)
 	 *  - The color value for each colorId is defined in IStandaloneThemeData.customTokenColors:
@@ -326,7 +326,9 @@ export function setColorMap(colorMap: string[] | null): void {
 }
 
 /**
- * Set the tokens provider for a language (manual implementation).
+ * Set the tokens provider for a language (manual implementation). This tokenizer will be exclusive
+ * with a tokenizer created using `setMonarchTokensProvider`, but will work together with a tokens provider
+ * set using `registerDocumentSemanticTokensProvider` or `registerDocumentRangeSemanticTokensProvider`.
  */
 export function setTokensProvider(languageId: string, provider: TokensProvider | EncodedTokensProvider | Thenable<TokensProvider | EncodedTokensProvider>): IDisposable {
 	const validLanguageId = StaticServices.languageService.get().validateLanguageId(languageId);
@@ -353,7 +355,9 @@ export function setTokensProvider(languageId: string, provider: TokensProvider |
 
 
 /**
- * Set the tokens provider for a language (monarch implementation).
+ * Set the tokens provider for a language (monarch implementation). This tokenizer will be exclusive
+ * with a tokenizer set using `setTokensProvider`, but will work together with a tokens provider
+ * set using `registerDocumentSemanticTokensProvider` or `registerDocumentRangeSemanticTokensProvider`.
  */
 export function setMonarchTokensProvider(languageId: string, languageDef: IMonarchLanguage | Thenable<IMonarchLanguage>): IDisposable {
 	const create = (languageDef: IMonarchLanguage) => {
@@ -539,14 +543,22 @@ export function registerSelectionRangeProvider(languageId: string, provider: mod
 }
 
 /**
- * Register a document semantic tokens provider
+ * Register a document semantic tokens provider. A semantic tokens provider will complement and enhance a
+ * simple top-down tokenizer. Simple top-down tokenizers can be set either via `setMonarchTokensProvider`
+ * or `setTokensProvider`.
+ *
+ * For the best user experience, register both a semantic tokens provider and a top-down tokenizer.
  */
 export function registerDocumentSemanticTokensProvider(languageId: string, provider: modes.DocumentSemanticTokensProvider): IDisposable {
 	return modes.DocumentSemanticTokensProviderRegistry.register(languageId, provider);
 }
 
 /**
- * Register a document range semantic tokens provider
+ * Register a document range semantic tokens provider. A semantic tokens provider will complement and enhance a
+ * simple top-down tokenizer. Simple top-down tokenizers can be set either via `setMonarchTokensProvider`
+ * or `setTokensProvider`.
+ *
+ * For the best user experience, register both a semantic tokens provider and a top-down tokenizer.
  */
 export function registerDocumentRangeSemanticTokensProvider(languageId: string, provider: modes.DocumentRangeSemanticTokensProvider): IDisposable {
 	return modes.DocumentRangeSemanticTokensProviderRegistry.register(languageId, provider);

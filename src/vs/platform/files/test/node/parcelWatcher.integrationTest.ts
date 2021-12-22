@@ -15,7 +15,12 @@ import { FileChangeType } from 'vs/platform/files/common/files';
 import { IParcelWatcherInstance, ParcelWatcher } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
 import { IWatchRequest } from 'vs/platform/files/common/watcher';
 
-flakySuite('Recursive Watcher (parcel)', () => {
+// this suite has shown flaky runs in Azure pipelines where
+// tasks would just hang and timeout after a while (not in
+// mocha but generally). as such they will run only on demand
+// whenever we update the watcher library.
+
+((process.env['BUILD_SOURCEVERSION'] || process.env['CI']) ? suite.skip : flakySuite)('Recursive Watcher (parcel)', () => {
 
 	class TestParcelWatcher extends ParcelWatcher {
 

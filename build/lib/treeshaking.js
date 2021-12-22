@@ -254,12 +254,36 @@ function isVariableStatementWithSideEffects(ts, node) {
             // no need to go on
             return;
         }
-        if (ts.isCallExpression(node)) {
+        if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
             // TODO: assuming `createDecorator` and `refineServiceDecorator` calls are side-effect free
             const isSideEffectFree = /(createDecorator|refineServiceDecorator)/.test(node.getText());
             if (!isSideEffectFree) {
                 hasSideEffects = true;
             }
+        }
+        node.forEachChild(visitNode);
+    };
+    node.forEachChild(visitNode);
+    return hasSideEffects;
+}
+function isStaticMemberWithSideEffects(ts, node) {
+    if (!ts.isPropertyDeclaration(node)) {
+        return false;
+    }
+    if (!node.modifiers) {
+        return false;
+    }
+    if (!node.modifiers.some(mod => mod.kind === ts.SyntaxKind.StaticKeyword)) {
+        return false;
+    }
+    let hasSideEffects = false;
+    const visitNode = (node) => {
+        if (hasSideEffects) {
+            // no need to go on
+            return;
+        }
+        if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
+            hasSideEffects = true;
         }
         node.forEachChild(visitNode);
     };
@@ -465,6 +489,9 @@ function markNodes(ts, languageService, options) {
                                 || memberName === 'dispose' // TODO: keeping all `dispose` methods
                                 || /^_(.*)Brand$/.test(memberName || '') // TODO: keeping all members ending with `Brand`...
                             ) {
+                                enqueue_black(member);
+                            }
+                            if (isStaticMemberWithSideEffects(ts, member)) {
                                 enqueue_black(member);
                             }
                         }

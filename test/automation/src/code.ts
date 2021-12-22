@@ -238,11 +238,6 @@ export class Code {
 		await poll(() => this.driver.click(windowId, selector, xoffset, yoffset), () => true, this.logger, `click '${selector}'`, retryCount);
 	}
 
-	async waitAndDoubleClick(selector: string): Promise<void> {
-		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.doubleClick(windowId, selector), () => true, this.logger, `double click '${selector}'`);
-	}
-
 	async waitForSetValue(selector: string, value: string): Promise<void> {
 		const windowId = await this.getActiveWindowId();
 		await poll(() => this.driver.setValue(windowId, selector, value), () => true, this.logger, `set value '${selector}'`);

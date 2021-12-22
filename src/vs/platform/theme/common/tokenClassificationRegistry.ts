@@ -24,7 +24,7 @@ export const typeAndModifierIdPattern = `^${idPattern}$`;
 
 export const selectorPattern = `^(${idPattern}|\\*)(\\${CLASSIFIER_MODIFIER_SEPARATOR}${idPattern})*(${TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR}${idPattern})?$`;
 
-export const fontStylePattern = '^(\\s*(italic|bold|underline))*\\s*$';
+export const fontStylePattern = '^(\\s*(italic|bold|underline|strikethrough))*\\s*$';
 
 export interface TokenSelector {
 	match(type: string, modifiers: string[], language: string): number;
@@ -41,18 +41,20 @@ export interface TokenTypeOrModifierContribution {
 
 
 export interface TokenStyleData {
-	foreground?: Color;
-	bold?: boolean;
-	underline?: boolean;
-	italic?: boolean;
+	foreground: Color | undefined;
+	bold: boolean | undefined;
+	underline: boolean | undefined;
+	strikethrough: boolean | undefined;
+	italic: boolean | undefined;
 }
 
 export class TokenStyle implements Readonly<TokenStyleData> {
 	constructor(
-		public readonly foreground?: Color,
-		public readonly bold?: boolean,
-		public readonly underline?: boolean,
-		public readonly italic?: boolean,
+		public readonly foreground: Color | undefined,
+		public readonly bold: boolean | undefined,
+		public readonly underline: boolean | undefined,
+		public readonly strikethrough: boolean | undefined,
+		public readonly italic: boolean | undefined,
 	) {
 	}
 }
@@ -64,13 +66,20 @@ export namespace TokenStyle {
 			_bold: style.bold === undefined ? null : style.bold,
 			_underline: style.underline === undefined ? null : style.underline,
 			_italic: style.italic === undefined ? null : style.italic,
+			_strikethrough: style.strikethrough === undefined ? null : style.strikethrough,
 		};
 	}
 	export function fromJSONObject(obj: any): TokenStyle | undefined {
 		if (obj) {
 			const boolOrUndef = (b: any) => (typeof b === 'boolean') ? b : undefined;
 			const colorOrUndef = (s: any) => (typeof s === 'string') ? Color.fromHex(s) : undefined;
-			return new TokenStyle(colorOrUndef(obj._foreground), boolOrUndef(obj._bold), boolOrUndef(obj._underline), boolOrUndef(obj._italic));
+			return new TokenStyle(
+				colorOrUndef(obj._foreground),
+				boolOrUndef(obj._bold),
+				boolOrUndef(obj._underline),
+				boolOrUndef(obj._strikethrough),
+				boolOrUndef(obj._italic)
+			);
 		}
 		return undefined;
 	}
@@ -82,32 +91,36 @@ export namespace TokenStyle {
 			&& (s1.foreground instanceof Color ? s1.foreground.equals(s2.foreground) : s2.foreground === undefined)
 			&& s1.bold === s2.bold
 			&& s1.underline === s2.underline
+			&& s1.strikethrough === s2.strikethrough
 			&& s1.italic === s2.italic;
 	}
 	export function is(s: any): s is TokenStyle {
 		return s instanceof TokenStyle;
 	}
-	export function fromData(data: { foreground?: Color, bold?: boolean, underline?: boolean, italic?: boolean }): TokenStyle {
-		return new TokenStyle(data.foreground, data.bold, data.underline, data.italic);
+	export function fromData(data: { foreground: Color | undefined, bold: boolean | undefined, underline: boolean | undefined, strikethrough: boolean | undefined, italic: boolean | undefined }): TokenStyle {
+		return new TokenStyle(data.foreground, data.bold, data.underline, data.strikethrough, data.italic);
 	}
-	export function fromSettings(foreground: string | undefined, fontStyle: string | undefined, bold?: boolean, underline?: boolean, italic?: boolean): TokenStyle {
+	export function fromSettings(foreground: string | undefined, fontStyle: string | undefined): TokenStyle;
+	export function fromSettings(foreground: string | undefined, fontStyle: string | undefined, bold: boolean | undefined, underline: boolean | undefined, strikethrough: boolean | undefined, italic: boolean | undefined): TokenStyle;
+	export function fromSettings(foreground: string | undefined, fontStyle: string | undefined, bold?: boolean, underline?: boolean, strikethrough?: boolean, italic?: boolean): TokenStyle {
 		let foregroundColor = undefined;
 		if (foreground !== undefined) {
 			foregroundColor = Color.fromHex(foreground);
 		}
 		if (fontStyle !== undefined) {
-			bold = italic = underline = false;
-			const expression = /italic|bold|underline/g;
+			bold = italic = underline = strikethrough = false;
+			const expression = /italic|bold|underline|strikethrough/g;
 			let match;
 			while ((match = expression.exec(fontStyle))) {
 				switch (match[0]) {
 					case 'bold': bold = true; break;
 					case 'italic': italic = true; break;
 					case 'underline': underline = true; break;
+					case 'strikethrough': strikethrough = true; break;
 				}
 			}
 		}
-		return new TokenStyle(foregroundColor, bold, underline, italic);
+		return new TokenStyle(foregroundColor, bold, underline, strikethrough, italic);
 	}
 }
 
@@ -287,10 +300,27 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 					},
 					fontStyle: {
 						type: 'string',
-						description: nls.localize('schema.token.fontStyle', 'Sets the all font styles of the rule: \'italic\', \'bold\' or \'underline\' or a combination. All styles that are not listed are unset. The empty string unsets all styles.'),
+						description: nls.localize('schema.token.fontStyle', 'Sets the all font styles of the rule: \'italic\', \'bold\', \'underline\' or \'strikethrough\' or a combination. All styles that are not listed are unset. The empty string unsets all styles.'),
 						pattern: fontStylePattern,
-						patternErrorMessage: nls.localize('schema.fontStyle.error', 'Font style must be \'italic\', \'bold\' or \'underline\' or a combination. The empty string unsets all styles.'),
-						defaultSnippets: [{ label: nls.localize('schema.token.fontStyle.none', 'None (clear inherited style)'), bodyText: '""' }, { body: 'italic' }, { body: 'bold' }, { body: 'underline' }, { body: 'italic underline' }, { body: 'bold underline' }, { body: 'italic bold underline' }]
+						patternErrorMessage: nls.localize('schema.fontStyle.error', 'Font style must be \'italic\', \'bold\', \'underline\' or \'strikethrough\' or a combination. The empty string unsets all styles.'),
+						defaultSnippets: [
+							{ label: nls.localize('schema.token.fontStyle.none', 'None (clear inherited style)'), bodyText: '""' },
+							{ body: 'italic' },
+							{ body: 'bold' },
+							{ body: 'underline' },
+							{ body: 'strikethrough' },
+							{ body: 'italic bold' },
+							{ body: 'italic underline' },
+							{ body: 'italic strikethrough' },
+							{ body: 'bold underline' },
+							{ body: 'bold strikethrough' },
+							{ body: 'underline strikethrough' },
+							{ body: 'italic bold underline' },
+							{ body: 'italic bold strikethrough' },
+							{ body: 'italic underline strikethrough' },
+							{ body: 'bold underline strikethrough' },
+							{ body: 'italic bold underline strikethrough' }
+						]
 					},
 					bold: {
 						type: 'boolean',
@@ -303,6 +333,10 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 					underline: {
 						type: 'boolean',
 						description: nls.localize('schema.token.underline', 'Sets or unsets the font style to underline. Note, the presence of \'fontStyle\' overrides this setting.'),
+					},
+					strikethrough: {
+						type: 'boolean',
+						description: nls.localize('schema.token.strikethrough', 'Sets or unsets the font style to strikethrough. Note, the presence of \'fontStyle\' overrides this setting.'),
 					}
 
 				},

@@ -92,25 +92,25 @@ declare namespace monaco {
 	export class Uri implements UriComponents {
 		static isUri(thing: any): thing is Uri;
 		/**
-		 * scheme is the 'http' part of 'http://www.msft.com/some/path?query#fragment'.
+		 * scheme is the 'http' part of 'http://www.example.com/some/path?query#fragment'.
 		 * The part before the first colon.
 		 */
 		readonly scheme: string;
 		/**
-		 * authority is the 'www.msft.com' part of 'http://www.msft.com/some/path?query#fragment'.
+		 * authority is the 'www.example.com' part of 'http://www.example.com/some/path?query#fragment'.
 		 * The part between the first double slashes and the next slash.
 		 */
 		readonly authority: string;
 		/**
-		 * path is the '/some/path' part of 'http://www.msft.com/some/path?query#fragment'.
+		 * path is the '/some/path' part of 'http://www.example.com/some/path?query#fragment'.
 		 */
 		readonly path: string;
 		/**
-		 * query is the 'query' part of 'http://www.msft.com/some/path?query#fragment'.
+		 * query is the 'query' part of 'http://www.example.com/some/path?query#fragment'.
 		 */
 		readonly query: string;
 		/**
-		 * fragment is the 'fragment' part of 'http://www.msft.com/some/path?query#fragment'.
+		 * fragment is the 'fragment' part of 'http://www.example.com/some/path?query#fragment'.
 		 */
 		readonly fragment: string;
 		/**
@@ -146,7 +146,7 @@ declare namespace monaco {
 			fragment?: string | null;
 		}): Uri;
 		/**
-		 * Creates a new Uri from a string, e.g. `http://www.msft.com/some/path`,
+		 * Creates a new Uri from a string, e.g. `http://www.example.com/some/path`,
 		 * `file:///usr/home`, or `scheme:with/path`.
 		 *
 		 * @param value A string which represents an Uri (see `Uri#toString`).
@@ -3888,6 +3888,7 @@ declare namespace monaco.editor {
 		 * A map of allowed characters (true: allowed).
 		*/
 		allowedCharacters?: Record<string, true>;
+		allowedLocales?: Record<string | '_os' | '_vscode', true>;
 	}
 
 	export interface IInlineSuggestOptions {
@@ -5293,11 +5294,11 @@ declare namespace monaco.languages {
 		 *     3322 2222 2222 1111 1111 1100 0000 0000
 		 *     1098 7654 3210 9876 5432 1098 7654 3210
 		 * - -------------------------------------------
-		 *     bbbb bbbb bfff ffff ffFF FTTT LLLL LLLL
+		 *     bbbb bbbb bfff ffff ffFF FFTT LLLL LLLL
 		 * - -------------------------------------------
 		 *  - L = EncodedLanguageId (8 bits): Use `getEncodedLanguageId` to get the encoded ID of a language.
-		 *  - T = StandardTokenType (3 bits): Other = 0, Comment = 1, String = 2, RegEx = 4.
-		 *  - F = FontStyle (3 bits): None = 0, Italic = 1, Bold = 2, Underline = 4.
+		 *  - T = StandardTokenType (2 bits): Other = 0, Comment = 1, String = 2, RegEx = 3.
+		 *  - F = FontStyle (4 bits): None = 0, Italic = 1, Bold = 2, Underline = 4, Strikethrough = 8.
 		 *  - f = foreground ColorId (9 bits)
 		 *  - b = background ColorId (9 bits)
 		 *  - The color value for each colorId is defined in IStandaloneThemeData.customTokenColors:
@@ -5351,12 +5352,16 @@ declare namespace monaco.languages {
 	export function setColorMap(colorMap: string[] | null): void;
 
 	/**
-	 * Set the tokens provider for a language (manual implementation).
+	 * Set the tokens provider for a language (manual implementation). This tokenizer will be exclusive
+	 * with a tokenizer created using `setMonarchTokensProvider`, but will work together with a tokens provider
+	 * set using `registerDocumentSemanticTokensProvider` or `registerDocumentRangeSemanticTokensProvider`.
 	 */
 	export function setTokensProvider(languageId: string, provider: TokensProvider | EncodedTokensProvider | Thenable<TokensProvider | EncodedTokensProvider>): IDisposable;
 
 	/**
-	 * Set the tokens provider for a language (monarch implementation).
+	 * Set the tokens provider for a language (monarch implementation). This tokenizer will be exclusive
+	 * with a tokenizer set using `setTokensProvider`, but will work together with a tokens provider
+	 * set using `registerDocumentSemanticTokensProvider` or `registerDocumentRangeSemanticTokensProvider`.
 	 */
 	export function setMonarchTokensProvider(languageId: string, languageDef: IMonarchLanguage | Thenable<IMonarchLanguage>): IDisposable;
 
@@ -5466,12 +5471,20 @@ declare namespace monaco.languages {
 	export function registerSelectionRangeProvider(languageId: string, provider: SelectionRangeProvider): IDisposable;
 
 	/**
-	 * Register a document semantic tokens provider
+	 * Register a document semantic tokens provider. A semantic tokens provider will complement and enhance a
+	 * simple top-down tokenizer. Simple top-down tokenizers can be set either via `setMonarchTokensProvider`
+	 * or `setTokensProvider`.
+	 *
+	 * For the best user experience, register both a semantic tokens provider and a top-down tokenizer.
 	 */
 	export function registerDocumentSemanticTokensProvider(languageId: string, provider: DocumentSemanticTokensProvider): IDisposable;
 
 	/**
-	 * Register a document range semantic tokens provider
+	 * Register a document range semantic tokens provider. A semantic tokens provider will complement and enhance a
+	 * simple top-down tokenizer. Simple top-down tokenizers can be set either via `setMonarchTokensProvider`
+	 * or `setTokensProvider`.
+	 *
+	 * For the best user experience, register both a semantic tokens provider and a top-down tokenizer.
 	 */
 	export function registerDocumentRangeSemanticTokensProvider(languageId: string, provider: DocumentRangeSemanticTokensProvider): IDisposable;
 

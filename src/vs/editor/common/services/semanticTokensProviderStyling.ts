@@ -70,6 +70,10 @@ export class SemanticTokensProviderStyling {
 						const underlineBit = (tokenStyle.underline ? FontStyle.Underline : 0) << MetadataConsts.FONT_STYLE_OFFSET;
 						metadata |= underlineBit | MetadataConsts.SEMANTIC_USE_UNDERLINE;
 					}
+					if (typeof tokenStyle.strikethrough !== 'undefined') {
+						const strikethroughBit = (tokenStyle.strikethrough ? FontStyle.Strikethrough : 0) << MetadataConsts.FONT_STYLE_OFFSET;
+						metadata |= strikethroughBit | MetadataConsts.SEMANTIC_USE_STRIKETHROUGH;
+					}
 					if (tokenStyle.foreground) {
 						const foregroundBits = (tokenStyle.foreground) << MetadataConsts.FOREGROUND_OFFSET;
 						metadata |= foregroundBits | MetadataConsts.SEMANTIC_USE_FOREGROUND;

@@ -299,6 +299,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		}
 		if (this._terminalInstances.length === 0) {
 			this._terminalInstances.push(instance);
+			this._activeInstanceIndex = 0;
 		} else {
 			this._terminalInstances.splice(parentIndex + 1, 0, instance);
 		}

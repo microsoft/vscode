@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { getSystemShell } from 'vs/base/node/shell';
 import { ILogService } from 'vs/platform/log/common/log';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
-import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, ProcessCapability } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, ProcessCapability, IPersistentTerminalProcessLaunchOptions, ICrossVersionSerializedTerminalState, ISerializedTerminalState } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { Terminal as XtermTerminal } from 'xterm-headless';
@@ -124,46 +124,35 @@ export class PtyService extends Disposable implements IPtyService {
 		return JSON.stringify(serialized);
 	}
 
-	async reviveTerminalProcesses(state: string, dateTimeFormatLocate: string) {
-		const parsedUnknown = JSON.parse(state);
-		if (!('version' in parsedUnknown) || !('state' in parsedUnknown) || !Array.isArray(parsedUnknown.state)) {
-			this._logService.warn('Could not revive serialized processes, wrong format', parsedUnknown);
-			return;
-		}
-		const parsedCrossVersion = parsedUnknown as ICrossVersionSerializedTerminalState;
-		if (parsedCrossVersion.version !== 1) {
-			this._logService.warn(`Could not revive serialized processes, wrong version "${parsedCrossVersion.version}"`, parsedCrossVersion);
-			return;
-		}
-		const parsed = parsedCrossVersion.state as ISerializedTerminalState[];
-		for (const state of parsed) {
+	async reviveTerminalProcesses(state: ISerializedTerminalState[], dateTimeFormatLocate: string) {
+		for (const terminal of state) {
 			const restoreMessage = localize({
 				key: 'terminal-session-restore',
 				comment: ['date the snapshot was taken', 'time the snapshot was taken']
-			}, "Session contents restored from {0} at {1}", new Date(state.timestamp).toLocaleDateString(dateTimeFormatLocate), new Date(state.timestamp).toLocaleTimeString(dateTimeFormatLocate));
+			}, "Session contents restored from {0} at {1}", new Date(terminal.timestamp).toLocaleDateString(dateTimeFormatLocate), new Date(terminal.timestamp).toLocaleTimeString(dateTimeFormatLocate));
 			const newId = await this.createProcess(
 				{
-					...state.shellLaunchConfig,
-					cwd: state.processDetails.cwd,
-					color: state.processDetails.color,
-					icon: state.processDetails.icon,
-					name: state.processDetails.titleSource === TitleEventSource.Api ? state.processDetails.title : undefined,
-					initialText: state.replayEvent.events[0].data + '\x1b[0m\n\n\r\x1b[1;48;5;252;38;5;234m ' + restoreMessage + ' \x1b[K\x1b[0m\n\r'
+					...terminal.shellLaunchConfig,
+					cwd: terminal.processDetails.cwd,
+					color: terminal.processDetails.color,
+					icon: terminal.processDetails.icon,
+					name: terminal.processDetails.titleSource === TitleEventSource.Api ? terminal.processDetails.title : undefined,
+					initialText: terminal.replayEvent.events[0].data + '\x1b[0m\n\n\r\x1b[1;48;5;252;38;5;234m ' + restoreMessage + ' \x1b[K\x1b[0m\n\r'
 				},
-				state.processDetails.cwd,
-				state.replayEvent.events[0].cols,
-				state.replayEvent.events[0].rows,
-				state.unicodeVersion,
-				state.processLaunchOptions.env,
-				state.processLaunchOptions.executableEnv,
-				state.processLaunchOptions.windowsEnableConpty,
+				terminal.processDetails.cwd,
+				terminal.replayEvent.events[0].cols,
+				terminal.replayEvent.events[0].rows,
+				terminal.unicodeVersion,
+				terminal.processLaunchOptions.env,
+				terminal.processLaunchOptions.executableEnv,
+				terminal.processLaunchOptions.windowsEnableConpty,
 				true,
-				state.processDetails.workspaceId,
-				state.processDetails.workspaceName,
+				terminal.processDetails.workspaceId,
+				terminal.processDetails.workspaceName,
 				true
 			);
 			// Don't start the process here as there's no terminal to answer CPR
-			this._revivedPtyIdMap.set(state.id, { newId, state });
+			this._revivedPtyIdMap.set(terminal.id, { newId, state: terminal });
 		}
 	}
 
@@ -416,13 +405,6 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 }
 
-
-interface IPersistentTerminalProcessLaunchOptions {
-	env: IProcessEnvironment;
-	executableEnv: IProcessEnvironment;
-	windowsEnableConpty: boolean;
-}
-
 export class PersistentTerminalProcess extends Disposable {
 
 	private readonly _bufferer: TerminalDataBufferer;
@@ -473,11 +455,13 @@ export class PersistentTerminalProcess extends Disposable {
 	get fixedDimensions(): IFixedTerminalDimensions | undefined { return this._fixedDimensions; }
 
 	setTitle(title: string, titleSource: TitleEventSource): void {
+		this._hasWrittenData = true;
 		this._title = title;
 		this._titleSource = titleSource;
 	}
 
 	setIcon(icon: TerminalIcon, color?: string): void {
+		this._hasWrittenData = true;
 		this._icon = icon;
 		this._color = color;
 	}
@@ -833,25 +817,6 @@ function printTime(ms: number): string {
 	const _s = s ? `${s}s` : ``;
 	const _ms = ms ? `${ms}ms` : ``;
 	return `${_h}${_m}${_s}${_ms}`;
-}
-
-/**
- * Serialized terminal state matching the interface that can be used across versions, the version
- * should be verified before using the state payload.
- */
-export interface ICrossVersionSerializedTerminalState {
-	version: number;
-	state: unknown;
-}
-
-export interface ISerializedTerminalState {
-	id: number;
-	shellLaunchConfig: IShellLaunchConfig;
-	processDetails: IProcessDetails;
-	processLaunchOptions: IPersistentTerminalProcessLaunchOptions;
-	unicodeVersion: '6' | '11';
-	replayEvent: IPtyHostProcessReplayEvent;
-	timestamp: number;
 }
 
 export interface ITerminalSerializer {

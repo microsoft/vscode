@@ -25,17 +25,17 @@ export function setup() {
 				await terminal.runCommandInTerminal(`"\r${text}`, true);
 			}
 
-			itSkipOnFail('should automatically reply to default "Terminate batch job (Y/N)"', async () => {
+			itSkipOnFail('should automatically reply to default "Terminate batch job (Y/N)"', async () => { // TODO@daniel https://github.com/microsoft/vscode/issues/139076
 				await terminal.createTerminal();
 				await writeTextForAutoReply('Terminate batch job (Y/N)?');
-				await terminal.waitForTerminalText(buffer => buffer.some(line => line.includes('Terminate batch job (Y/N)?Y')));
+				await terminal.waitForTerminalText(buffer => buffer.some(line => line.match(/\?.*Y/)));
 			});
 
-			itSkipOnFail('should automatically reply to a custom entry', async () => {
+			it('should automatically reply to a custom entry', async () => {
 				await settingsEditor.addUserSetting('terminal.integrated.autoReplies', '{ "foo": "bar" }');
 				await terminal.createTerminal();
 				await writeTextForAutoReply('foo');
-				await terminal.waitForTerminalText(buffer => buffer.some(line => line.includes('foobar')));
+				await terminal.waitForTerminalText(buffer => buffer.some(line => line.match(/foo.*bar/)));
 			});
 		});
 	});

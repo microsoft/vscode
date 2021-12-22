@@ -151,7 +151,7 @@ suite('vscode API - webview', () => {
 		assert.strictEqual(secondResponse.value, 1);
 	});
 
-	test('webviews with retainContextWhenHidden should preserve their context when they are hidden', async function () {
+	test.skip('webviews with retainContextWhenHidden should preserve their context when they are hidden', async function () {
 		this.retries(3);
 
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true }));
@@ -332,7 +332,7 @@ suite('vscode API - webview', () => {
 		}
 	});
 
-	test('webviews using hard-coded old style vscode-resource uri should work', async () => {
+	test.skip('webviews using hard-coded old style vscode-resource uri should work', async () => { // TODO@mjbvz https://github.com/microsoft/vscode/issues/139572
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, {
 			enableScripts: true,
 			localResourceRoots: [workspaceFile('sub')]

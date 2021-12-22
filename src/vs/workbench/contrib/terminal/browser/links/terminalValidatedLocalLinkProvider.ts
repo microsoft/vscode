@@ -15,6 +15,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalBaseLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalBaseLinkProvider';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -49,13 +50,13 @@ export const unixLineAndColumnMatchIndex = 11;
 // Each line and column clause have 6 groups (ie no. of expressions in round brackets)
 export const lineAndColumnClauseGroupCount = 6;
 
-const InvalidLinkResult = 'Invalid Link Result';
-
 const MAX_LENGTH = 2000;
-let map = new Map<string, TerminalLink | string>();
+const cachedValidatedLinks = new Map<string, { uri: URI, link: string, isDirectory: boolean } | null>();
+
 export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider {
 	private _cacheTilTimeout = 0;
-	_enableCaching: boolean = true;
+	protected _enableCaching = true;
+
 	constructor(
 		private readonly _xterm: Terminal,
 		private readonly _processOperatingSystem: OperatingSystem,
@@ -80,7 +81,7 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 			if (this._cacheTilTimeout) {
 				window.clearTimeout(this._cacheTilTimeout);
 			}
-			this._cacheTilTimeout = window.setTimeout(() => map.clear(), 10000);
+			this._cacheTilTimeout = window.setTimeout(() => cachedValidatedLinks.clear(), 10000);
 		}
 		const lines: IBufferLine[] = [
 			this._xterm.buffer.active.getLine(startLine)!
@@ -112,14 +113,6 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 				// something matched but does not comply with the given matchIndex
 				// since this is most likely a bug the regex itself we simply do nothing here
 				// this._logService.debug('match found without corresponding matchIndex', match, matcher);
-				break;
-			}
-			const originalLink = link;
-			if (this._enableCaching) {
-				const cachedLinkResult = map.get(originalLink);
-				if (!!cachedLinkResult && typeof cachedLinkResult !== 'string') {
-					result.push(cachedLinkResult);
-				}
 				break;
 			}
 
@@ -154,37 +147,40 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 				endLineNumber: 1
 			}, startLine);
 
-			const validatedLink = await new Promise<TerminalLink | undefined>(r => {
-				const linkCandidates = [link];
-				if (link.match(/^(\.\.[\/\\])+/)) {
-					linkCandidates.push(link.replace(/^(\.\.[\/\\])+/, ''));
-				}
-				this._validationCallback(linkCandidates, (result) => {
-					if (result) {
-						const label = result.isDirectory
-							? (this._isDirectoryInsideWorkspace(result.uri) ? FOLDER_IN_WORKSPACE_LABEL : FOLDER_NOT_IN_WORKSPACE_LABEL)
-							: OPEN_FILE_LABEL;
-						const activateCallback = this._wrapLinkHandler((event: MouseEvent | undefined, text: string) => {
-							if (result.isDirectory) {
-								this._handleLocalFolderLink(result.uri);
-							} else {
-								this._activateFileCallback(event, text);
-							}
-						});
-						r(this._instantiationService.createInstance(TerminalLink, this._xterm, bufferRange, result.link, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, true, label));
-					} else {
-						r(undefined);
+			let linkStat = cachedValidatedLinks.get(link);
+
+			// The link is cached as doesn't exist
+			if (linkStat === null) {
+				continue;
+			}
+
+			// The link isn't cached
+			if (linkStat === undefined) {
+				linkStat = await new Promise<{ uri: URI, link: string, isDirectory: boolean } | undefined>(r => {
+					const linkCandidates = [link];
+					if (link.match(/^(\.\.[\/\\])+/)) {
+						linkCandidates.push(link.replace(/^(\.\.[\/\\])+/, ''));
 					}
+					this._validationCallback(linkCandidates, (result) => r(result));
 				});
-			});
-			if (this._enableCaching) {
-				if (validatedLink) {
-					map.set(originalLink, validatedLink);
-				} else {
-					map.set(originalLink, InvalidLinkResult);
+				if (this._enableCaching) {
+					cachedValidatedLinks.set(link, withUndefinedAsNull(linkStat));
 				}
 			}
-			if (validatedLink) {
+
+			// Create the link if validated
+			if (linkStat) {
+				const label = linkStat.isDirectory
+					? (this._isDirectoryInsideWorkspace(linkStat.uri) ? FOLDER_IN_WORKSPACE_LABEL : FOLDER_NOT_IN_WORKSPACE_LABEL)
+					: OPEN_FILE_LABEL;
+				const activateCallback = this._wrapLinkHandler((event: MouseEvent | undefined, text: string) => {
+					if (linkStat!.isDirectory) {
+						this._handleLocalFolderLink(linkStat!.uri);
+					} else {
+						this._activateFileCallback(event, text);
+					}
+				});
+				const validatedLink = this._instantiationService.createInstance(TerminalLink, this._xterm, bufferRange, linkStat.link, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, true, label);
 				result.push(validatedLink);
 			}
 		}

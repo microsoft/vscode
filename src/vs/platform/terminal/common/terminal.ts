@@ -222,15 +222,19 @@ export interface IFixedTerminalDimensions {
 	rows?: number;
 }
 
-
-export interface IPtyService {
-	readonly _serviceBrand: undefined;
-
+export interface IPtyHostController {
 	readonly onPtyHostExit?: Event<number>;
 	readonly onPtyHostStart?: Event<void>;
 	readonly onPtyHostUnresponsive?: Event<void>;
 	readonly onPtyHostResponsive?: Event<void>;
 	readonly onPtyHostRequestResolveVariables?: Event<IRequestResolveVariablesEvent>;
+
+	restartPtyHost?(): Promise<void>;
+	acceptPtyHostResolvedVariables?(requestId: number, resolved: string[]): Promise<void>;
+}
+
+export interface IPtyService extends IPtyHostController {
+	readonly _serviceBrand: undefined;
 
 	readonly onProcessData: Event<{ id: number, event: IProcessDataEvent | string }>;
 	readonly onProcessReady: Event<{ id: number, event: IProcessReadyEvent }>;
@@ -300,11 +304,36 @@ export interface IPtyService {
 	 * Revives a workspaces terminal processes, these can then be reconnected to using the normal
 	 * flow for restoring terminals after reloading.
 	 */
-	reviveTerminalProcesses(state: string, dateTimeFormatLocate: string): Promise<void>;
+	reviveTerminalProcesses(state: ISerializedTerminalState[], dateTimeFormatLocate: string): Promise<void>;
 	refreshProperty<T extends ProcessPropertyType>(id: number, property: T): Promise<IProcessPropertyMap[T]>;
 	updateProperty<T extends ProcessPropertyType>(id: number, property: T, value: IProcessPropertyMap[T]): Promise<void>;
 
 	refreshIgnoreProcessNames?(names: string[]): Promise<void>;
+}
+
+/**
+ * Serialized terminal state matching the interface that can be used across versions, the version
+ * should be verified before using the state payload.
+ */
+export interface ICrossVersionSerializedTerminalState {
+	version: number;
+	state: unknown;
+}
+
+export interface ISerializedTerminalState {
+	id: number;
+	shellLaunchConfig: IShellLaunchConfig;
+	processDetails: IProcessDetails;
+	processLaunchOptions: IPersistentTerminalProcessLaunchOptions;
+	unicodeVersion: '6' | '11';
+	replayEvent: IPtyHostProcessReplayEvent;
+	timestamp: number;
+}
+
+export interface IPersistentTerminalProcessLaunchOptions {
+	env: IProcessEnvironment;
+	executableEnv: IProcessEnvironment;
+	windowsEnableConpty: boolean;
 }
 
 export interface IRequestResolveVariablesEvent {

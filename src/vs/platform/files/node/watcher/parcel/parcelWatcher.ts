@@ -10,7 +10,7 @@ import { DeferredPromise, RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
-import { isEqualOrParent } from 'vs/base/common/extpath';
+import { isEqualOrParent, randomPath } from 'vs/base/common/extpath';
 import { parse, ParsedPattern } from 'vs/base/common/glob';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
@@ -18,7 +18,6 @@ import { normalizeNFC } from 'vs/base/common/normalization';
 import { dirname, isAbsolute, join, normalize, sep } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { rtrim } from 'vs/base/common/strings';
-import { generateUuid } from 'vs/base/common/uuid';
 import { realcaseSync, realpathSync } from 'vs/base/node/extpath';
 import { watchFolder } from 'vs/base/node/watcher';
 import { FileChangeType } from 'vs/platform/files/common/files';
@@ -246,7 +245,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 
 		const instance = new DeferredPromise<void>();
 
-		const snapshotFile = join(tmpdir(), `vscode-watcher-snapshot-${generateUuid()}`);
+		const snapshotFile = randomPath(tmpdir(), 'vscode-watcher-snapshot');
 
 		// Remember as watcher instance
 		const watcher: IParcelWatcherInstance = {

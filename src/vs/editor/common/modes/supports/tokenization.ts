@@ -69,6 +69,9 @@ export function parseTokenTheme(source: ITokenThemeRule[]): ParsedTokenThemeRule
 					case 'underline':
 						fontStyle = fontStyle | FontStyle.Underline;
 						break;
+					case 'strikethrough':
+						fontStyle = fontStyle | FontStyle.Strikethrough;
+						break;
 				}
 			}
 		}
@@ -414,5 +417,7 @@ export function generateTokensCSSForColorMap(colorMap: readonly Color[]): string
 	rules.push('.mtki { font-style: italic; }');
 	rules.push('.mtkb { font-weight: bold; }');
 	rules.push('.mtku { text-decoration: underline; text-underline-position: under; }');
+	rules.push('.mtks { text-decoration: line-through; }');
+	rules.push('.mtks.mtku { text-decoration: underline line-through; text-underline-position: under; }');
 	return rules.join('\n');
 }

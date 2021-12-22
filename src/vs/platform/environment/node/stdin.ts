@@ -2,12 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-/**
- * This code is also used by standalone cli's. Avoid adding dependencies to keep the size of the cli small.
- */
-import * as fs from 'fs';
-import * as os from 'os';
-import * as paths from 'vs/base/common/path';
+
+import { createWriteStream } from 'fs';
+import { tmpdir } from 'os';
+import { randomPath } from 'vs/base/common/extpath';
 import { resolveTerminalEncoding } from 'vs/base/node/terminalEncoding';
 
 export function hasStdinWithoutTty() {
@@ -36,13 +34,13 @@ export function stdinDataListener(durationinMs: number): Promise<boolean> {
 }
 
 export function getStdinFilePath(): string {
-	return paths.join(os.tmpdir(), `code-stdin-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 3)}`);
+	return randomPath(tmpdir(), 'code-stdin', 3);
 }
 
 export async function readFromStdin(targetPath: string, verbose: boolean): Promise<void> {
 
 	// open tmp file for writing
-	const stdinFileStream = fs.createWriteStream(targetPath);
+	const stdinFileStream = createWriteStream(targetPath);
 
 	let encoding = await resolveTerminalEncoding(verbose);
 

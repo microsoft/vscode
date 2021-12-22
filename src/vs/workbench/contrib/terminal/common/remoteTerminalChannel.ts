@@ -18,28 +18,12 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { Schemas } from 'vs/base/common/network';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IRequestResolveVariablesEvent, IShellLaunchConfigDto, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, IProcessProperty, ProcessPropertyType, ProcessCapability, IProcessPropertyMap, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IRequestResolveVariablesEvent, IShellLaunchConfigDto, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, IProcessProperty, ProcessPropertyType, ProcessCapability, IProcessPropertyMap, TitleEventSource, ISerializedTerminalState, IPtyHostController } from 'vs/platform/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
+import { ICompleteTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export const REMOTE_TERMINAL_CHANNEL_NAME = 'remoteterminal';
-
-export interface ICompleteTerminalConfiguration {
-	'terminal.integrated.automationShell.windows': string;
-	'terminal.integrated.automationShell.osx': string;
-	'terminal.integrated.automationShell.linux': string;
-	'terminal.integrated.shell.windows': string;
-	'terminal.integrated.shell.osx': string;
-	'terminal.integrated.shell.linux': string;
-	'terminal.integrated.shellArgs.windows': string | string[];
-	'terminal.integrated.shellArgs.osx': string | string[];
-	'terminal.integrated.shellArgs.linux': string | string[];
-	'terminal.integrated.env.windows': ITerminalEnvironment;
-	'terminal.integrated.env.osx': ITerminalEnvironment;
-	'terminal.integrated.env.linux': ITerminalEnvironment;
-	'terminal.integrated.cwd': string;
-	'terminal.integrated.detectLocale': 'auto' | 'off' | 'on';
-}
 
 export type ITerminalEnvironmentVariableCollections = [string, ISerializableEnvironmentVariableCollection][];
 
@@ -71,10 +55,10 @@ export interface ICreateTerminalProcessResult {
 	resolvedShellLaunchConfig: IShellLaunchConfigDto;
 }
 
-export class RemoteTerminalChannelClient {
+export class RemoteTerminalChannelClient implements IPtyHostController {
 
-	get onPtyHostExit(): Event<void> {
-		return this._channel.listen<void>('$onPtyHostExitEvent');
+	get onPtyHostExit(): Event<number> {
+		return this._channel.listen<number>('$onPtyHostExitEvent');
 	}
 	get onPtyHostStart(): Event<void> {
 		return this._channel.listen<void>('$onPtyHostStartEvent');
@@ -255,7 +239,7 @@ export class RemoteTerminalChannelClient {
 	getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> {
 		return this._channel.call('$getProfiles', [this._workspaceContextService.getWorkspace().id, profiles, defaultProfile, includeDetectedProfiles]);
 	}
-	acceptPtyHostResolvedVariables(requestId: number, resolved: string[]) {
+	acceptPtyHostResolvedVariables(requestId: number, resolved: string[]): Promise<void> {
 		return this._channel.call('$acceptPtyHostResolvedVariables', [requestId, resolved]);
 	}
 
@@ -300,7 +284,7 @@ export class RemoteTerminalChannelClient {
 		return this._channel.call<ITerminalsLayoutInfo>('$getTerminalLayoutInfo', args);
 	}
 
-	reviveTerminalProcesses(state: string, dateTimeFormatLocate: string): Promise<void> {
+	reviveTerminalProcesses(state: ISerializedTerminalState[], dateTimeFormatLocate: string): Promise<void> {
 		return this._channel.call('$reviveTerminalProcesses', [state, dateTimeFormatLocate]);
 	}
 
