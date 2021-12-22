@@ -453,6 +453,8 @@ export const enum TerminalCommandId {
 	KillAll = 'workbench.action.terminal.killAll',
 	QuickKill = 'workbench.action.terminal.quickKill',
 	ConfigureTerminalSettings = 'workbench.action.terminal.openSettings',
+	ShowWordLinkQuickpick = 'workbench.action.terminal.showWordLinkQuickpick',
+	ShowValidatedLinkQuickpick = 'workbench.action.terminal.showValidatedLinkQuickpick',
 	CopySelection = 'workbench.action.terminal.copySelection',
 	SelectAll = 'workbench.action.terminal.selectAll',
 	DeleteWordLeft = 'workbench.action.terminal.deleteWordLeft',

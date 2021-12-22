@@ -13,7 +13,7 @@ import { ITerminalProcessManager, ITerminalConfiguration, TERMINAL_CONFIG_SECTIO
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFileService } from 'vs/platform/files/common/files';
-import type { Terminal, IViewportRange, ILinkProvider } from 'xterm';
+import type { Terminal, IViewportRange, ILinkProvider, ILink } from 'xterm';
 import { Schemas } from 'vs/base/common/network';
 import { posix, win32 } from 'vs/base/common/path';
 import { ITerminalExternalLinkProvider, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -97,6 +97,20 @@ export class TerminalLinkManager extends DisposableStore {
 		this._registerStandardLinkProviders();
 	}
 
+	async getLinks(type: TerminalLinkProviderType, y: number): Promise<ILink[] | undefined> {
+		let provider: ILinkProvider | undefined = undefined;
+		if (type === TerminalLinkProviderType.Word) {
+			provider = this._standardLinkProviders.find(p => p instanceof TerminalWordLinkProvider);
+		} else {
+			provider = this._standardLinkProviders.find(p => p instanceof TerminalValidatedLocalLinkProvider);
+
+		}
+		if (provider === undefined) {
+			throw new Error('no link provider of that type');
+		}
+		const links = (await new Promise<ILink[] | undefined>(r => provider?.provideLinks(y, r)))!;
+		return links;
+	}
 	private _tooltipCallback(link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) {
 		if (!this._widgetManager) {
 			return;
@@ -423,4 +437,9 @@ export class TerminalLinkManager extends DisposableStore {
 export interface LineColumnInfo {
 	lineNumber: number;
 	columnNumber: number;
+}
+
+export enum TerminalLinkProviderType {
+	Word = 'word',
+	Validated = 'validated'
 }
