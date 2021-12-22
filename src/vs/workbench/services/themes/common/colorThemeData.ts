@@ -148,12 +148,14 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			foreground: undefined,
 			bold: undefined,
 			underline: undefined,
+			strikethrough: undefined,
 			italic: undefined
 		};
 		let score = {
 			foreground: -1,
 			bold: -1,
 			underline: -1,
+			strikethrough: -1,
 			italic: -1
 		};
 
@@ -163,7 +165,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 				result.foreground = style.foreground;
 				definitions.foreground = definition;
 			}
-			for (let p of ['bold', 'underline', 'italic']) {
+			for (let p of ['bold', 'underline', 'strikethrough', 'italic']) {
 				const property = p as keyof TokenStyle;
 				const info = style[property];
 				if (info !== undefined) {
@@ -272,7 +274,8 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			foreground: this.getTokenColorIndex().get(style.foreground),
 			bold: style.bold,
 			underline: style.underline,
-			italic: style.italic
+			strikethrough: style.strikethrough,
+			italic: style.italic,
 		};
 	}
 
@@ -332,7 +335,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			if (foreground !== undefined || fontStyle !== undefined) {
 				if (definitions) {
 					definitions.foreground = foregroundThemingRule;
-					definitions.bold = definitions.italic = definitions.underline = fontStyleThemingRule;
+					definitions.bold = definitions.italic = definitions.underline = definitions.strikethrough = fontStyleThemingRule;
 					definitions.scope = scope;
 				}
 
@@ -858,7 +861,7 @@ function readSemanticTokenRule(selectorString: string, settings: ISemanticTokenC
 	if (typeof settings === 'string') {
 		style = TokenStyle.fromSettings(settings, undefined);
 	} else if (isSemanticTokenColorizationSetting(settings)) {
-		style = TokenStyle.fromSettings(settings.foreground, settings.fontStyle, settings.bold, settings.underline, settings.italic);
+		style = TokenStyle.fromSettings(settings.foreground, settings.fontStyle, settings.bold, settings.underline, settings.strikethrough, settings.italic);
 	}
 	if (style) {
 		return { selector, style };
@@ -868,7 +871,7 @@ function readSemanticTokenRule(selectorString: string, settings: ISemanticTokenC
 
 function isSemanticTokenColorizationSetting(style: any): style is ISemanticTokenColorizationSetting {
 	return style && (types.isString(style.foreground) || types.isString(style.fontStyle) || types.isBoolean(style.italic)
-		|| types.isBoolean(style.underline) || types.isBoolean(style.bold));
+		|| types.isBoolean(style.underline) || types.isBoolean(style.strikethrough) || types.isBoolean(style.bold));
 }
 
 

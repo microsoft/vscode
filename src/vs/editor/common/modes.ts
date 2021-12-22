@@ -92,16 +92,19 @@ export const enum MetadataConsts {
 	FOREGROUND_MASK = 0b00000000011111111100000000000000,
 	BACKGROUND_MASK = 0b11111111100000000000000000000000,
 
-	ITALIC_MASK         = 0b00000000000000000000010000000000,
-	BOLD_MASK           = 0b00000000000000000000100000000000,
-	UNDERLINE_MASK      = 0b00000000000000000001000000000000,
-	STRIKETHROUGH_MASK  = 0b00000000000000000010000000000000,
+	ITALIC_MASK = 0b00000000000000000000010000000000,
+	BOLD_MASK = 0b00000000000000000000100000000000,
+	UNDERLINE_MASK = 0b00000000000000000001000000000000,
+	STRIKETHROUGH_MASK = 0b00000000000000000010000000000000,
 
+	// Semantic tokens cannot set the language id, so we can
+	// use the first 8 bits for control purposes
 	SEMANTIC_USE_ITALIC = 0b00000000000000000000000000000001,
 	SEMANTIC_USE_BOLD = 0b00000000000000000000000000000010,
 	SEMANTIC_USE_UNDERLINE = 0b00000000000000000000000000000100,
-	SEMANTIC_USE_FOREGROUND = 0b00000000000000000000000000001000,
-	SEMANTIC_USE_BACKGROUND = 0b00000000000000000000000000010000,
+	SEMANTIC_USE_STRIKETHROUGH = 0b00000000000000000000000000001000,
+	SEMANTIC_USE_FOREGROUND = 0b00000000000000000000000000010000,
+	SEMANTIC_USE_BACKGROUND = 0b00000000000000000000000000100000,
 
 	LANGUAGEID_OFFSET = 0,
 	TOKEN_TYPE_OFFSET = 8,
@@ -149,6 +152,9 @@ export class TokenMetadata {
 		if (fontStyle & FontStyle.Underline) {
 			className += ' mtku';
 		}
+		if (fontStyle & FontStyle.Strikethrough) {
+			className += ' mtks';
+		}
 
 		return className;
 	}
@@ -164,8 +170,16 @@ export class TokenMetadata {
 		if (fontStyle & FontStyle.Bold) {
 			result += 'font-weight: bold;';
 		}
+		let textDecoration = '';
 		if (fontStyle & FontStyle.Underline) {
-			result += 'text-decoration: underline;';
+			textDecoration += ' underline';
+		}
+		if (fontStyle & FontStyle.Strikethrough) {
+			textDecoration += ' line-through';
+		}
+		if (textDecoration) {
+			result += `text-decoration:${textDecoration};`;
+
 		}
 		return result;
 	}

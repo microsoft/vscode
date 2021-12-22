@@ -250,11 +250,11 @@ export interface IEncodedLineTokens {
 	 *     3322 2222 2222 1111 1111 1100 0000 0000
 	 *     1098 7654 3210 9876 5432 1098 7654 3210
 	 * - -------------------------------------------
-	 *     bbbb bbbb bfff ffff ffFF FTTT LLLL LLLL
+	 *     bbbb bbbb bfff ffff ffFF FFTT LLLL LLLL
 	 * - -------------------------------------------
 	 *  - L = EncodedLanguageId (8 bits): Use `getEncodedLanguageId` to get the encoded ID of a language.
-	 *  - T = StandardTokenType (3 bits): Other = 0, Comment = 1, String = 2, RegEx = 4.
-	 *  - F = FontStyle (3 bits): None = 0, Italic = 1, Bold = 2, Underline = 4.
+	 *  - T = StandardTokenType (2 bits): Other = 0, Comment = 1, String = 2, RegEx = 3.
+	 *  - F = FontStyle (4 bits): None = 0, Italic = 1, Bold = 2, Underline = 4, Strikethrough = 8.
 	 *  - f = foreground ColorId (9 bits)
 	 *  - b = background ColorId (9 bits)
 	 *  - The color value for each colorId is defined in IStandaloneThemeData.customTokenColors:
