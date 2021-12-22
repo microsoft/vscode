@@ -8,8 +8,8 @@ import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
@@ -56,6 +56,8 @@ import { StandaloneQuickInputServiceImpl } from 'vs/editor/standalone/browser/qu
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ILanguageConfigurationService, LanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { OpenerService } from 'vs/editor/browser/services/openerService';
 
 export interface IEditorOverrideServices {
 	[index: string]: any;
@@ -150,7 +152,7 @@ export module StaticServices {
 
 	export const markerService = define(IMarkerService, () => new MarkerService());
 
-	export const modeService = define(IModeService, (o) => new ModeServiceImpl());
+	export const languageService = define(ILanguageService, (o) => new LanguageService());
 
 	export const standaloneThemeService = define(IStandaloneThemeService, () => new StandaloneThemeServiceImpl());
 
@@ -158,7 +160,7 @@ export module StaticServices {
 
 	export const undoRedoService = define(IUndoRedoService, (o) => new UndoRedoService(dialogService.get(o), notificationService.get(o)));
 
-	export const languageConfigurationService = define(ILanguageConfigurationService, (o) => new LanguageConfigurationService(configurationService.get(o), modeService.get(o)));
+	export const languageConfigurationService = define(ILanguageConfigurationService, (o) => new LanguageConfigurationService(configurationService.get(o), languageService.get(o)));
 
 	export const modelService = define(
 		IModelService,
@@ -169,7 +171,7 @@ export module StaticServices {
 				standaloneThemeService.get(o),
 				logService.get(o),
 				undoRedoService.get(o),
-				modeService.get(o),
+				languageService.get(o),
 				languageConfigurationService.get(o)
 			)
 	);
@@ -184,7 +186,7 @@ export module StaticServices {
 
 	export const storageService = define(IStorageService, () => new InMemoryStorageService());
 
-	export const editorWorkerService = define(IEditorWorkerService, (o) => new EditorWorkerServiceImpl(modelService.get(o), resourceConfigurationService.get(o), logService.get(o)));
+	export const editorWorkerService = define(IEditorWorkerService, (o) => new EditorWorkerServiceImpl(modelService.get(o), resourceConfigurationService.get(o), logService.get(o), languageConfigurationService.get(o)));
 }
 
 export class DynamicStandaloneServices extends Disposable {
@@ -205,8 +207,10 @@ export class DynamicStandaloneServices extends Disposable {
 		const themeService = this.get(IThemeService);
 		const logService = this.get(ILogService);
 		const contextKeyService = this.get(IContextKeyService);
+		const codeEditorService = this.get(ICodeEditorService);
+		const modelService = this.get(IModelService);
 
-		let ensure = <T>(serviceId: ServiceIdentifier<T>, factory: () => T): T => {
+		const ensure = <T>(serviceId: ServiceIdentifier<T>, factory: () => T): T => {
 			let value: T | null = null;
 			if (overrides) {
 				value = overrides[serviceId.toString()];
@@ -226,11 +230,13 @@ export class DynamicStandaloneServices extends Disposable {
 
 		let keybindingService = ensure(IKeybindingService, () => this._register(new StandaloneKeybindingService(contextKeyService, commandService, telemetryService, notificationService, logService, domElement)));
 
-		let layoutService = ensure(ILayoutService, () => new SimpleLayoutService(StaticServices.codeEditorService.get(ICodeEditorService), domElement));
+		let layoutService = ensure(ILayoutService, () => new SimpleLayoutService(codeEditorService, domElement));
 
-		ensure(IQuickInputService, () => new StandaloneQuickInputServiceImpl(_instantiationService, StaticServices.codeEditorService.get(ICodeEditorService)));
+		ensure(IQuickInputService, () => new StandaloneQuickInputServiceImpl(_instantiationService, codeEditorService));
 
 		let contextViewService = ensure(IContextViewService, () => this._register(new ContextViewService(layoutService)));
+
+		ensure(IOpenerService, () => new OpenerService(codeEditorService, commandService));
 
 		ensure(IClipboardService, () => new BrowserClipboardService());
 
@@ -243,7 +249,7 @@ export class DynamicStandaloneServices extends Disposable {
 
 		ensure(IMenuService, () => new MenuService(commandService));
 
-		ensure(IBulkEditService, () => new SimpleBulkEditService(StaticServices.modelService.get(IModelService)));
+		ensure(IBulkEditService, () => new SimpleBulkEditService(modelService));
 
 		ensure(IWorkspaceTrustManagementService, () => new SimpleWorkspaceTrustManagementService());
 	}

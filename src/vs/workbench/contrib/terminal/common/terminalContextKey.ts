@@ -18,9 +18,11 @@ export const enum TerminalContextKeyStrings {
 	TabsFocus = 'terminalTabsFocus',
 	WebExtensionContributedProfile = 'terminalWebExtensionContributedProfile',
 	TerminalHasBeenCreated = 'terminalHasBeenCreated',
+	TerminalEditorActive = 'terminalEditorActive',
 	TabsMouse = 'terminalTabsMouse',
 	AltBufferActive = 'terminalAltBufferActive',
 	A11yTreeFocus = 'terminalA11yTreeFocus',
+	ViewShowing = 'terminalViewShowing',
 	TextSelected = 'terminalTextSelected',
 	FindVisible = 'terminalFindVisible',
 	FindInputFocused = 'terminalFindInputFocused',
@@ -61,6 +63,9 @@ export namespace TerminalContextKeys {
 	/** Whether at least one terminal has been created */
 	export const terminalHasBeenCreated = new RawContextKey<boolean>(TerminalContextKeyStrings.TerminalHasBeenCreated, false, true);
 
+	/** Whether at least one terminal has been created */
+	export const terminalEditorActive = new RawContextKey<boolean>(TerminalContextKeyStrings.TerminalEditorActive, false, true);
+
 	/** Whether the mouse is within the terminal tabs list. */
 	export const tabsMouse = new RawContextKey<boolean>(TerminalContextKeyStrings.TabsMouse, false, true);
 
@@ -72,6 +77,9 @@ export namespace TerminalContextKeys {
 
 	/** Whether the terminal is NOT focused. */
 	export const notFocus = focus.toNegated();
+
+	/** Whether the terminal view is showing. */
+	export const viewShowing = new RawContextKey<boolean>(TerminalContextKeyStrings.ViewShowing, false, localize('terminalViewShowing', "Whether the terminal view is showing"));
 
 	/** Whether the user is navigating a terminal's the accessibility tree. */
 	export const a11yTreeFocus = new RawContextKey<boolean>(TerminalContextKeyStrings.A11yTreeFocus, false, true);

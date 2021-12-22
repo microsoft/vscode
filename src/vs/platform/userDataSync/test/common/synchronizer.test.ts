@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
-import { Change, IRemoteUserData, IResourcePreview as IBaseResourcePreview, IUserDataManifest, IUserDataSyncConfiguration, IUserDataSyncEnablementService, IUserDataSyncStoreService, MergeState, SyncResource, SyncStatus, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
+import { Change, IRemoteUserData, IResourcePreview as IBaseResourcePreview, IUserDataManifest, IUserDataSyncConfiguration, IUserDataSyncStoreService, MergeState, SyncResource, SyncStatus, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 
 interface ITestResourcePreview extends IResourcePreview {
@@ -74,6 +74,10 @@ class TestSynchroniser extends AbstractSynchroniser {
 			remoteChange: Change.Modified,
 			acceptedResource: this.localResource.with(({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' })),
 		}];
+	}
+
+	protected async hasRemoteChanged(lastSyncUserData: IRemoteUserData): Promise<boolean> {
+		return true;
 	}
 
 	protected async getMergeResult(resourcePreview: ITestResourcePreview, token: CancellationToken): Promise<IMergeResult> {
@@ -254,19 +258,6 @@ suite('TestSynchronizer - Auto Sync', () => {
 		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 
 		await testObject.stop();
-	});
-
-	test('sync should not run if disabled', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		client.instantiationService.get(IUserDataSyncEnablementService).setResourceEnablement(testObject.resource, false);
-
-		const actual: SyncStatus[] = [];
-		disposableStore.add(testObject.onDidChangeStatus(status => actual.push(status)));
-
-		await testObject.sync(await client.manifest());
-
-		assert.deepStrictEqual(actual, []);
-		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 	});
 
 	test('sync should not run if there are conflicts', async () => {

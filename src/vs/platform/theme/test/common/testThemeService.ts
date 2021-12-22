@@ -5,8 +5,9 @@
 
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
+import { IconContribution } from 'vs/platform/theme/common/iconRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IColorTheme, IFileIconTheme, IThemeService, ITokenStyle } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IFileIconTheme, IProductIconTheme, IThemeService, ITokenStyle } from 'vs/platform/theme/common/themeService';
 
 export class TestColorTheme implements IColorTheme {
 
@@ -45,17 +46,26 @@ export class TestFileIconTheme implements IFileIconTheme {
 	hidesExplorerArrows = false;
 }
 
+export class UnthemedProductIconTheme implements IProductIconTheme {
+	getIcon(contribution: IconContribution) {
+		return undefined;
+	}
+}
+
 export class TestThemeService implements IThemeService {
 
 	declare readonly _serviceBrand: undefined;
 	_colorTheme: IColorTheme;
 	_fileIconTheme: IFileIconTheme;
+	_productIconTheme: IProductIconTheme;
 	_onThemeChange = new Emitter<IColorTheme>();
 	_onFileIconThemeChange = new Emitter<IFileIconTheme>();
+	_onProductIconThemeChange = new Emitter<IProductIconTheme>();
 
-	constructor(theme = new TestColorTheme(), iconTheme = new TestFileIconTheme()) {
+	constructor(theme = new TestColorTheme(), fileIconTheme = new TestFileIconTheme(), productIconTheme = new UnthemedProductIconTheme()) {
 		this._colorTheme = theme;
-		this._fileIconTheme = iconTheme;
+		this._fileIconTheme = fileIconTheme;
+		this._productIconTheme = productIconTheme;
 	}
 
 	getColorTheme(): IColorTheme {
@@ -81,5 +91,13 @@ export class TestThemeService implements IThemeService {
 
 	public get onDidFileIconThemeChange(): Event<IFileIconTheme> {
 		return this._onFileIconThemeChange.event;
+	}
+
+	getProductIconTheme(): IProductIconTheme {
+		return this._productIconTheme;
+	}
+
+	public get onDidProductIconThemeChange(): Event<IProductIconTheme> {
+		return this._onProductIconThemeChange.event;
 	}
 }

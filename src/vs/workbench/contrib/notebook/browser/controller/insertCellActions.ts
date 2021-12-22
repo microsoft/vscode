@@ -5,7 +5,7 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { localize } from 'vs/nls';
 import { IAction2Options, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -43,14 +43,14 @@ abstract class InsertCellCommand extends NotebookAction {
 			context.notebookEditor.focus();
 		}
 
-		const modeService = accessor.get(IModeService);
+		const languageService = accessor.get(ILanguageService);
 		if (context.cell) {
 			const idx = context.notebookEditor.getCellIndex(context.cell);
-			newCell = insertCell(modeService, context.notebookEditor, idx, this.kind, this.direction, undefined, true);
+			newCell = insertCell(languageService, context.notebookEditor, idx, this.kind, this.direction, undefined, true);
 		} else {
 			const focusRange = context.notebookEditor.getFocus();
 			const next = Math.max(focusRange.end - 1, 0);
-			newCell = insertCell(modeService, context.notebookEditor, next, this.kind, this.direction, undefined, true);
+			newCell = insertCell(languageService, context.notebookEditor, next, this.kind, this.direction, undefined, true);
 		}
 
 		if (newCell) {
@@ -185,8 +185,8 @@ registerAction2(class InsertCodeCellAtTopAction extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		const modeService = accessor.get(IModeService);
-		const newCell = insertCell(modeService, context.notebookEditor, 0, CellKind.Code, 'above', undefined, true);
+		const languageService = accessor.get(ILanguageService);
+		const newCell = insertCell(languageService, context.notebookEditor, 0, CellKind.Code, 'above', undefined, true);
 
 		if (newCell) {
 			context.notebookEditor.focusNotebookCell(newCell, 'editor');
@@ -212,8 +212,8 @@ registerAction2(class InsertMarkdownCellAtTopAction extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		const modeService = accessor.get(IModeService);
-		const newCell = insertCell(modeService, context.notebookEditor, 0, CellKind.Markup, 'above', undefined, true);
+		const languageService = accessor.get(ILanguageService);
+		const newCell = insertCell(languageService, context.notebookEditor, 0, CellKind.Markup, 'above', undefined, true);
 
 		if (newCell) {
 			context.notebookEditor.focusNotebookCell(newCell, 'editor');

@@ -14,7 +14,7 @@ import * as modes from 'vs/editor/common/modes';
 import { LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { ILanguageExtensionPoint, IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageExtensionPoint, ILanguageService } from 'vs/editor/common/services/languageService';
 import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
 import { StaticServices } from 'vs/editor/standalone/browser/standaloneServices';
 import { compile } from 'vs/editor/standalone/common/monarch/monarchCompile';
@@ -40,8 +40,8 @@ export function getLanguages(): ILanguageExtensionPoint[] {
 }
 
 export function getEncodedLanguageId(languageId: string): number {
-	const modeService = StaticServices.modeService.get();
-	return modeService.languageIdCodec.encodeLanguageId(languageId);
+	const languageService = StaticServices.languageService.get();
+	return languageService.languageIdCodec.encodeLanguageId(languageId);
 }
 
 /**
@@ -49,7 +49,7 @@ export function getEncodedLanguageId(languageId: string): number {
  * @event
  */
 export function onLanguage(languageId: string, callback: () => void): IDisposable {
-	let disposable = StaticServices.modeService.get().onDidEncounterLanguage((encounteredLanguageId) => {
+	let disposable = StaticServices.languageService.get().onDidEncounterLanguage((encounteredLanguageId) => {
 		if (encounteredLanguageId === languageId) {
 			// stop listening
 			disposable.dispose();
@@ -64,7 +64,7 @@ export function onLanguage(languageId: string, callback: () => void): IDisposabl
  * Set the editing configuration for a language.
  */
 export function setLanguageConfiguration(languageId: string, configuration: LanguageConfiguration): IDisposable {
-	const validLanguageId = StaticServices.modeService.get().validateLanguageId(languageId);
+	const validLanguageId = StaticServices.languageService.get().validateLanguageId(languageId);
 	if (!validLanguageId) {
 		throw new Error(`Cannot set configuration for unknown language ${languageId}`);
 	}
@@ -109,7 +109,7 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 	constructor(
 		private readonly _languageId: string,
 		private readonly _actual: TokensProvider,
-		private readonly _modeService: IModeService,
+		private readonly _languageService: ILanguageService,
 		private readonly _standaloneThemeService: IStandaloneThemeService,
 	) {
 	}
@@ -200,7 +200,7 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 
 	public tokenize2(line: string, hasEOL: boolean, state: modes.IState, offsetDelta: number): TokenizationResult2 {
 		let actualResult = this._actual.tokenize(line, state);
-		let tokens = this._toBinaryTokens(this._modeService.languageIdCodec, actualResult.tokens, offsetDelta);
+		let tokens = this._toBinaryTokens(this._languageService.languageIdCodec, actualResult.tokens, offsetDelta);
 
 		let endState: modes.IState;
 		// try to save an object if possible
@@ -250,11 +250,11 @@ export interface IEncodedLineTokens {
 	 *     3322 2222 2222 1111 1111 1100 0000 0000
 	 *     1098 7654 3210 9876 5432 1098 7654 3210
 	 * - -------------------------------------------
-	 *     bbbb bbbb bfff ffff ffFF FTTT LLLL LLLL
+	 *     bbbb bbbb bfff ffff ffFF FFTT LLLL LLLL
 	 * - -------------------------------------------
 	 *  - L = EncodedLanguageId (8 bits): Use `getEncodedLanguageId` to get the encoded ID of a language.
-	 *  - T = StandardTokenType (3 bits): Other = 0, Comment = 1, String = 2, RegEx = 4.
-	 *  - F = FontStyle (3 bits): None = 0, Italic = 1, Bold = 2, Underline = 4.
+	 *  - T = StandardTokenType (2 bits): Other = 0, Comment = 1, String = 2, RegEx = 3.
+	 *  - F = FontStyle (4 bits): None = 0, Italic = 1, Bold = 2, Underline = 4, Strikethrough = 8.
 	 *  - f = foreground ColorId (9 bits)
 	 *  - b = background ColorId (9 bits)
 	 *  - The color value for each colorId is defined in IStandaloneThemeData.customTokenColors:
@@ -326,10 +326,12 @@ export function setColorMap(colorMap: string[] | null): void {
 }
 
 /**
- * Set the tokens provider for a language (manual implementation).
+ * Set the tokens provider for a language (manual implementation). This tokenizer will be exclusive
+ * with a tokenizer created using `setMonarchTokensProvider`, but will work together with a tokens provider
+ * set using `registerDocumentSemanticTokensProvider` or `registerDocumentRangeSemanticTokensProvider`.
  */
 export function setTokensProvider(languageId: string, provider: TokensProvider | EncodedTokensProvider | Thenable<TokensProvider | EncodedTokensProvider>): IDisposable {
-	const validLanguageId = StaticServices.modeService.get().validateLanguageId(languageId);
+	const validLanguageId = StaticServices.languageService.get().validateLanguageId(languageId);
 	if (!validLanguageId) {
 		throw new Error(`Cannot set tokens provider for unknown language ${languageId}`);
 	}
@@ -340,7 +342,7 @@ export function setTokensProvider(languageId: string, provider: TokensProvider |
 			return new TokenizationSupport2Adapter(
 				validLanguageId,
 				provider,
-				StaticServices.modeService.get(),
+				StaticServices.languageService.get(),
 				StaticServices.standaloneThemeService.get(),
 			);
 		}
@@ -353,11 +355,13 @@ export function setTokensProvider(languageId: string, provider: TokensProvider |
 
 
 /**
- * Set the tokens provider for a language (monarch implementation).
+ * Set the tokens provider for a language (monarch implementation). This tokenizer will be exclusive
+ * with a tokenizer set using `setTokensProvider`, but will work together with a tokens provider
+ * set using `registerDocumentSemanticTokensProvider` or `registerDocumentRangeSemanticTokensProvider`.
  */
 export function setMonarchTokensProvider(languageId: string, languageDef: IMonarchLanguage | Thenable<IMonarchLanguage>): IDisposable {
 	const create = (languageDef: IMonarchLanguage) => {
-		return createTokenizationSupport(StaticServices.modeService.get(), StaticServices.standaloneThemeService.get(), languageId, compile(languageId, languageDef));
+		return createTokenizationSupport(StaticServices.languageService.get(), StaticServices.standaloneThemeService.get(), languageId, compile(languageId, languageDef));
 	};
 	if (isThenable<IMonarchLanguage>(languageDef)) {
 		return modes.TokenizationRegistry.registerPromise(languageId, languageDef.then(languageDef => create(languageDef)));
@@ -539,14 +543,22 @@ export function registerSelectionRangeProvider(languageId: string, provider: mod
 }
 
 /**
- * Register a document semantic tokens provider
+ * Register a document semantic tokens provider. A semantic tokens provider will complement and enhance a
+ * simple top-down tokenizer. Simple top-down tokenizers can be set either via `setMonarchTokensProvider`
+ * or `setTokensProvider`.
+ *
+ * For the best user experience, register both a semantic tokens provider and a top-down tokenizer.
  */
 export function registerDocumentSemanticTokensProvider(languageId: string, provider: modes.DocumentSemanticTokensProvider): IDisposable {
 	return modes.DocumentSemanticTokensProviderRegistry.register(languageId, provider);
 }
 
 /**
- * Register a document range semantic tokens provider
+ * Register a document range semantic tokens provider. A semantic tokens provider will complement and enhance a
+ * simple top-down tokenizer. Simple top-down tokenizers can be set either via `setMonarchTokensProvider`
+ * or `setTokensProvider`.
+ *
+ * For the best user experience, register both a semantic tokens provider and a top-down tokenizer.
  */
 export function registerDocumentRangeSemanticTokensProvider(languageId: string, provider: modes.DocumentRangeSemanticTokensProvider): IDisposable {
 	return modes.DocumentRangeSemanticTokensProviderRegistry.register(languageId, provider);

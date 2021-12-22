@@ -8,7 +8,7 @@ import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync
 import { homedir, release, tmpdir } from 'os';
 import type { ProfilingSession, Target } from 'v8-inspect-profiler';
 import { Event } from 'vs/base/common/event';
-import { isAbsolute, join, resolve } from 'vs/base/common/path';
+import { isAbsolute, resolve } from 'vs/base/common/path';
 import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { randomPort } from 'vs/base/common/ports';
 import { isString } from 'vs/base/common/types';
@@ -22,6 +22,7 @@ import { getStdinFilePath, hasStdinWithoutTty, readFromStdin, stdinDataListener 
 import { createWaitMarkerFile } from 'vs/platform/environment/node/wait';
 import product from 'vs/platform/product/common/product';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { randomPath } from 'vs/base/common/extpath';
 
 function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 	return !!argv['install-source']
@@ -30,10 +31,6 @@ function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 		|| !!argv['uninstall-extension']
 		|| !!argv['locate-extension']
 		|| !!argv['telemetry'];
-}
-
-function createFileName(dir: string, prefix: string): string {
-	return join(dir, `${prefix}-${Math.random().toString(16).slice(-4)}`);
 }
 
 interface IMainCli {
@@ -259,7 +256,7 @@ export async function main(argv: string[]): Promise<any> {
 				throw new Error('Failed to find free ports for profiler. Make sure to shutdown all instances of the editor first.');
 			}
 
-			const filenamePrefix = createFileName(homedir(), 'prof');
+			const filenamePrefix = randomPath(homedir(), 'prof');
 
 			addArg(argv, `--inspect-brk=${portMain}`);
 			addArg(argv, `--remote-debugging-port=${portRenderer}`);
@@ -393,7 +390,7 @@ export async function main(argv: string[]): Promise<any> {
 				for (const outputType of ['stdout', 'stderr']) {
 
 					// Tmp file to target output to
-					const tmpName = createFileName(tmpdir(), `code-${outputType}`);
+					const tmpName = randomPath(tmpdir(), `code-${outputType}`);
 					writeFileSync(tmpName, '');
 					spawnArgs.push(`--${outputType}`, tmpName);
 

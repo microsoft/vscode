@@ -47,7 +47,6 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 
 	'folder': { type: 'string' },
 	'workspace': { type: 'string' },
-	'web-user-data-dir': { type: 'string' },
 	'use-host-proxy': { type: 'string' },
 	'enable-sync': { type: 'boolean' },
 	'github-auth': { type: 'string' },
@@ -123,7 +122,6 @@ export interface ServerParsedArgs {
 	// web
 	workspace: string;
 	folder: string;
-	'web-user-data-dir'?: string;
 	'enable-sync'?: boolean;
 	'github-auth'?: string;
 	'log'?: string;

@@ -10,7 +10,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { Match, FileMatch, FileMatchOrMatch, ISearchWorkbenchService } from 'vs/workbench/contrib/search/common/searchModel';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
@@ -57,7 +57,7 @@ export class ReplacePreviewContentProvider implements ITextModelContentProvider,
 class ReplacePreviewModel extends Disposable {
 	constructor(
 		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IReplaceService private readonly replaceService: IReplaceService,
 		@ISearchWorkbenchService private readonly searchWorkbenchService: ISearchWorkbenchService
@@ -71,7 +71,7 @@ class ReplacePreviewModel extends Disposable {
 		const ref = this._register(await this.textModelResolverService.createModelReference(fileResource));
 		const sourceModel = ref.object.textEditorModel;
 		const sourceModelModeId = sourceModel.getLanguageId();
-		const replacePreviewModel = this.modelService.createModel(createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()), this.modeService.create(sourceModelModeId), replacePreviewUri);
+		const replacePreviewModel = this.modelService.createModel(createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()), this.languageService.createById(sourceModelModeId), replacePreviewUri);
 		this._register(fileMatch.onChange(({ forceUpdateModel }) => this.update(sourceModel, replacePreviewModel, fileMatch, forceUpdateModel)));
 		this._register(this.searchWorkbenchService.searchModel.onReplaceTermChanged(() => this.update(sourceModel, replacePreviewModel, fileMatch)));
 		this._register(fileMatch.onDispose(() => replacePreviewModel.dispose())); // TODO@Sandeep we should not dispose a model directly but rather the reference (depends on https://github.com/microsoft/vscode/issues/17073)

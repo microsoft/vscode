@@ -130,6 +130,7 @@ export class ConfigKeysIterator implements IKeyIterator<string> {
 export class PathIterator implements IKeyIterator<string> {
 
 	private _value!: string;
+	private _valueLen!: number;
 	private _from!: number;
 	private _to!: number;
 
@@ -139,21 +140,29 @@ export class PathIterator implements IKeyIterator<string> {
 	) { }
 
 	reset(key: string): this {
-		this._value = key.replace(/\\$|\/$/, '');
 		this._from = 0;
 		this._to = 0;
+		this._value = key;
+		this._valueLen = key.length;
+		for (let pos = key.length - 1; pos >= 0; pos--, this._valueLen--) {
+			const ch = this._value.charCodeAt(pos);
+			if (!(ch === CharCode.Slash || this._splitOnBackslash && ch === CharCode.Backslash)) {
+				break;
+			}
+		}
+
 		return this.next();
 	}
 
 	hasNext(): boolean {
-		return this._to < this._value.length;
+		return this._to < this._valueLen;
 	}
 
 	next(): this {
 		// this._data = key.split(/[\\/]/).filter(s => !!s);
 		this._from = this._to;
 		let justSeps = true;
-		for (; this._to < this._value.length; this._to++) {
+		for (; this._to < this._valueLen; this._to++) {
 			const ch = this._value.charCodeAt(this._to);
 			if (ch === CharCode.Slash || this._splitOnBackslash && ch === CharCode.Backslash) {
 				if (justSeps) {

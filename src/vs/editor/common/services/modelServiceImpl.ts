@@ -16,7 +16,7 @@ import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
 import { IModelLanguageChangedEvent, IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { DocumentSemanticTokensProviderRegistry, DocumentSemanticTokensProvider, SemanticTokens, SemanticTokensEdits } from 'vs/editor/common/modes';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { ILanguageSelection, IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageSelection, ILanguageService } from 'vs/editor/common/services/languageService';
 import { IModelService, DocumentTokensProvider } from 'vs/editor/common/services/modelService';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -162,7 +162,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		@IThemeService private readonly _themeService: IThemeService,
 		@ILogService private readonly _logService: ILogService,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
-		@IModeService private readonly _modeService: IModeService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService
 	) {
 		super();
@@ -170,7 +170,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		this._models = {};
 		this._disposedModels = new Map<string, DisposedModelInfo>();
 		this._disposedModelsHeapSize = 0;
-		this._semanticStyling = this._register(new SemanticStyling(this._themeService, this._modeService, this._logService));
+		this._semanticStyling = this._register(new SemanticStyling(this._themeService, this._languageService, this._logService));
 
 		this._register(this._configurationService.onDidChangeConfiguration(() => this._updateModelOptions()));
 		this._updateModelOptions();
@@ -374,7 +374,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 			languageId,
 			resource,
 			this._undoRedoService,
-			this._modeService,
+			this._languageService,
 			this._languageConfigurationService,
 		);
 		if (resource && this._disposedModels.has(MODEL_ID(resource))) {
@@ -704,7 +704,7 @@ class SemanticStyling extends Disposable {
 
 	constructor(
 		private readonly _themeService: IThemeService,
-		private readonly _modeService: IModeService,
+		private readonly _languageService: ILanguageService,
 		private readonly _logService: ILogService
 	) {
 		super();
@@ -716,7 +716,7 @@ class SemanticStyling extends Disposable {
 
 	public get(provider: DocumentTokensProvider): SemanticTokensProviderStyling {
 		if (!this._caches.has(provider)) {
-			this._caches.set(provider, new SemanticTokensProviderStyling(provider.getLegend(), this._themeService, this._modeService, this._logService));
+			this._caches.set(provider, new SemanticTokensProviderStyling(provider.getLegend(), this._themeService, this._languageService, this._logService));
 		}
 		return this._caches.get(provider)!;
 	}

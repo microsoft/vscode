@@ -19,6 +19,7 @@ import { MultilineTokens, MultilineTokens2 } from 'vs/editor/common/model/tokens
 import { TextChange } from 'vs/editor/common/model/textChange';
 import { equals } from 'vs/base/common/objects';
 import { IBracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairs';
+import { IGuidesTextModelPart } from 'vs/editor/common/model/guidesTextModelPart';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -174,6 +175,12 @@ export interface IModelDecorationOptions {
 	 * @internal
 	*/
 	hideInCommentTokens?: boolean | null;
+
+	/**
+	 * If set, this decoration will not be rendered for string tokens.
+	 * @internal
+	*/
+	hideInStringTokens?: boolean | null;
 }
 
 /**
@@ -544,15 +551,6 @@ export const enum TrackedRangeStickiness {
 	NeverGrowsWhenTypingAtEdges = 1,
 	GrowsOnlyWhenTypingBefore = 2,
 	GrowsOnlyWhenTypingAfter = 3,
-}
-
-/**
- * @internal
- */
-export interface IActiveIndentGuideInfo {
-	startLineNumber: number;
-	endLineNumber: number;
-	indent: number;
 }
 
 /**
@@ -972,21 +970,6 @@ export interface ITextModel {
 	getWordUntilPosition(position: IPosition): IWordAtPosition;
 
 	/**
-	 * @internal
-	 */
-	getActiveIndentGuide(lineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo;
-
-	/**
-	 * @internal
-	 */
-	getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[];
-
-	/**
-	 * @internal
-	 */
-	getLinesBracketGuides(startLineNumber: number, endLineNumber: number, activePosition: IPosition | null, options: BracketGuideOptions): IndentGuide[][];
-
-	/**
 	 * Change the decorations. The callback will be called with a change accessor
 	 * that becomes invalid as soon as the callback finishes executing.
 	 * This allows for all events to be queued up until the change
@@ -1293,50 +1276,13 @@ export interface ITextModel {
 	 * Returns an object that can be used to query brackets.
 	 * @internal
 	*/
-	get bracketPairs(): IBracketPairsTextModelPart;
-}
+	readonly bracketPairs: IBracketPairsTextModelPart;
 
-/**
- * @internal
- */
-export enum HorizontalGuidesState {
-	Disabled,
-	EnabledForActive,
-	Enabled
-}
-
-/**
- * @internal
- */
-export interface BracketGuideOptions {
-	includeInactive: boolean,
-	horizontalGuides: HorizontalGuidesState,
-	highlightActive: boolean,
-}
-
-/**
- * @internal
- */
-export class IndentGuide {
-	constructor(
-		public readonly visibleColumn: number,
-		public readonly className: string,
-		/**
-		 * If set, this indent guide is a horizontal guide (no vertical part).
-		 * It starts at visibleColumn and continues until endColumn.
-		*/
-		public readonly horizontalLine: IndentGuideHorizontalLine | null,
-	) { }
-}
-
-/**
- * @internal
- */
-export class IndentGuideHorizontalLine {
-	constructor(
-		public readonly top: boolean,
-		public readonly endColumn: number,
-	) { }
+	/**
+	 * Returns an object that can be used to query indent guides.
+	 * @internal
+	*/
+	readonly guides: IGuidesTextModelPart;
 }
 
 /**

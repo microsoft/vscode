@@ -73,7 +73,7 @@ suite('MainThreadHostTreeView', function () {
 				}
 				drain(): any { return null; }
 			}, new TestViewsService(), new TestNotificationService(), testExtensionService, new NullLogService());
-		mainThreadTreeViews.$registerTreeViewDataProvider(testTreeViewId, { showCollapseAll: false, canSelectMany: false, dragAndDropMimeTypes: [] });
+		mainThreadTreeViews.$registerTreeViewDataProvider(testTreeViewId, { showCollapseAll: false, canSelectMany: false, dragAndDropMimeTypes: [], hasWillDrop: false });
 		await testExtensionService.whenInstalledExtensionsRegistered();
 	});
 

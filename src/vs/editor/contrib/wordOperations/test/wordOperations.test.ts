@@ -9,13 +9,15 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { ILanguageConfigurationService, LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { deserializePipePositions, serializePipePositions, testRepeatedActionAndExtractPositions } from 'vs/editor/contrib/wordOperations/test/wordTestUtils';
 import { CursorWordAccessibilityLeft, CursorWordAccessibilityLeftSelect, CursorWordAccessibilityRight, CursorWordAccessibilityRightSelect, CursorWordEndLeft, CursorWordEndLeftSelect, CursorWordEndRight, CursorWordEndRightSelect, CursorWordLeft, CursorWordLeftSelect, CursorWordRight, CursorWordRightSelect, CursorWordStartLeft, CursorWordStartLeftSelect, CursorWordStartRight, CursorWordStartRightSelect, DeleteInsideWord, DeleteWordEndLeft, DeleteWordEndRight, DeleteWordLeft, DeleteWordRight, DeleteWordStartLeft, DeleteWordStartRight } from 'vs/editor/contrib/wordOperations/wordOperations';
+import { StaticServiceAccessor } from 'vs/editor/contrib/wordPartOperations/test/utils';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 suite('WordOperations', () => {
 
@@ -43,8 +45,13 @@ suite('WordOperations', () => {
 	const _deleteWordEndRight = new DeleteWordEndRight();
 	const _deleteInsideWord = new DeleteInsideWord();
 
+	const serviceAccessor = new StaticServiceAccessor().withService(
+		ILanguageConfigurationService,
+		new TestLanguageConfigurationService()
+	);
+
 	function runEditorCommand(editor: ICodeEditor, command: EditorCommand): void {
-		command.runEditorCommand(null, editor, null);
+		command.runEditorCommand(serviceAccessor, editor, null);
 	}
 	function cursorWordLeft(editor: ICodeEditor, inSelectionMode: boolean = false): void {
 		runEditorCommand(editor, inSelectionMode ? _cursorWordLeftSelect : _cursorWordLeft);

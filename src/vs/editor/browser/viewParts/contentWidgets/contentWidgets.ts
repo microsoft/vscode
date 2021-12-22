@@ -195,8 +195,8 @@ class Widget {
 	private _range: IRange | null;
 	private _viewRange: Range | null;
 	private _preference: ContentWidgetPositionPreference[] | null;
-	private _cachedDomNodeClientWidth: number;
-	private _cachedDomNodeClientHeight: number;
+	private _cachedDomNodeOffsetWidth: number;
+	private _cachedDomNodeOffsetHeight: number;
 	private _maxWidth: number;
 	private _isVisible: boolean;
 
@@ -223,8 +223,8 @@ class Widget {
 		this._range = null;
 		this._viewRange = null;
 		this._preference = [];
-		this._cachedDomNodeClientWidth = -1;
-		this._cachedDomNodeClientHeight = -1;
+		this._cachedDomNodeOffsetWidth = -1;
+		this._cachedDomNodeOffsetHeight = -1;
 		this._maxWidth = this._getMaxWidth();
 		this._isVisible = false;
 		this._renderData = null;
@@ -267,7 +267,7 @@ class Widget {
 	private _getMaxWidth(): number {
 		return (
 			this.allowEditorOverflow
-				? window.innerWidth || document.documentElement!.clientWidth || document.body.clientWidth
+				? window.innerWidth || document.documentElement!.offsetWidth || document.body.offsetWidth
 				: this._contentWidth
 		);
 	}
@@ -284,8 +284,8 @@ class Widget {
 		} else {
 			this.domNode.setDisplay('none');
 		}
-		this._cachedDomNodeClientWidth = -1;
-		this._cachedDomNodeClientHeight = -1;
+		this._cachedDomNodeOffsetWidth = -1;
+		this._cachedDomNodeOffsetHeight = -1;
 	}
 
 	private _layoutBoxInViewport(topLeft: Coordinate, bottomLeft: Coordinate, width: number, height: number, ctx: RenderingContext): IBoxLayoutResult {
@@ -454,27 +454,27 @@ class Widget {
 			return null;
 		}
 
-		if (this._cachedDomNodeClientWidth === -1 || this._cachedDomNodeClientHeight === -1) {
+		if (this._cachedDomNodeOffsetWidth === -1 || this._cachedDomNodeOffsetHeight === -1) {
 
 			let preferredDimensions: IDimension | null = null;
 			if (typeof this._actual.beforeRender === 'function') {
 				preferredDimensions = safeInvoke(this._actual.beforeRender, this._actual);
 			}
 			if (preferredDimensions) {
-				this._cachedDomNodeClientWidth = preferredDimensions.width;
-				this._cachedDomNodeClientHeight = preferredDimensions.height;
+				this._cachedDomNodeOffsetWidth = preferredDimensions.width;
+				this._cachedDomNodeOffsetHeight = preferredDimensions.height;
 			} else {
 				const domNode = this.domNode.domNode;
-				this._cachedDomNodeClientWidth = domNode.clientWidth;
-				this._cachedDomNodeClientHeight = domNode.clientHeight;
+				this._cachedDomNodeOffsetWidth = domNode.offsetWidth;
+				this._cachedDomNodeOffsetHeight = domNode.offsetHeight;
 			}
 		}
 
 		let placement: IBoxLayoutResult | null;
 		if (this.allowEditorOverflow) {
-			placement = this._layoutBoxInPage(topLeft, bottomLeft, this._cachedDomNodeClientWidth, this._cachedDomNodeClientHeight, ctx);
+			placement = this._layoutBoxInPage(topLeft, bottomLeft, this._cachedDomNodeOffsetWidth, this._cachedDomNodeOffsetHeight, ctx);
 		} else {
-			placement = this._layoutBoxInViewport(topLeft, bottomLeft, this._cachedDomNodeClientWidth, this._cachedDomNodeClientHeight, ctx);
+			placement = this._layoutBoxInViewport(topLeft, bottomLeft, this._cachedDomNodeOffsetWidth, this._cachedDomNodeOffsetHeight, ctx);
 		}
 
 		// Do two passes, first for perfect fit, second picks first option

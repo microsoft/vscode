@@ -26,11 +26,11 @@
 
 .monaco-editor .codelens-decoration > a:hover {
 	cursor: pointer;
-	color: var(--vscoce-editorLink-activeForeground) !important;
+	color: var(--vscode-editorLink-activeForeground) !important;
 }
 
 .monaco-editor .codelens-decoration > a:hover .codicon {
-	color: var(--vscoce-editorLink-activeForeground) !important;
+	color: var(--vscode-editorLink-activeForeground) !important;
 }
 
 .monaco-editor .codelens-decoration .codicon {

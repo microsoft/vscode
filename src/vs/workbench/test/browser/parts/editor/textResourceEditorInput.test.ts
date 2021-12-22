@@ -31,7 +31,7 @@ suite('TextResourceEditorInput', () => {
 
 	test('basics', async () => {
 		const resource = URI.from({ scheme: 'inmemory', authority: null!, path: 'thePath' });
-		accessor.modelService.createModel('function test() {}', accessor.modeService.create('text'), resource);
+		accessor.modelService.createModel('function test() {}', accessor.languageService.createById(PLAINTEXT_MODE_ID), resource);
 
 		const input = instantiationService.createInstance(TextResourceEditorInput, resource, 'The Name', 'The Description', undefined, undefined);
 
@@ -47,7 +47,7 @@ suite('TextResourceEditorInput', () => {
 		});
 
 		const resource = URI.from({ scheme: 'inmemory', authority: null!, path: 'thePath' });
-		accessor.modelService.createModel('function test() {}', accessor.modeService.create('text'), resource);
+		accessor.modelService.createModel('function test() {}', accessor.languageService.createById(PLAINTEXT_MODE_ID), resource);
 
 		const input = instantiationService.createInstance(TextResourceEditorInput, resource, 'The Name', 'The Description', 'resource-input-test', undefined);
 
@@ -68,7 +68,7 @@ suite('TextResourceEditorInput', () => {
 		});
 
 		const resource = URI.from({ scheme: 'inmemory', authority: null!, path: 'thePath' });
-		accessor.modelService.createModel('function test() {}', accessor.modeService.create('text'), resource);
+		accessor.modelService.createModel('function test() {}', accessor.languageService.createById(PLAINTEXT_MODE_ID), resource);
 
 		const input = instantiationService.createInstance(TextResourceEditorInput, resource, 'The Name', 'The Description', undefined, undefined);
 		input.setPreferredMode('resource-input-test');
@@ -80,7 +80,7 @@ suite('TextResourceEditorInput', () => {
 
 	test('preferred contents (via ctor)', async () => {
 		const resource = URI.from({ scheme: 'inmemory', authority: null!, path: 'thePath' });
-		accessor.modelService.createModel('function test() {}', accessor.modeService.create('text'), resource);
+		accessor.modelService.createModel('function test() {}', accessor.languageService.createById(PLAINTEXT_MODE_ID), resource);
 
 		const input = instantiationService.createInstance(TextResourceEditorInput, resource, 'The Name', 'The Description', undefined, 'My Resource Input Contents');
 
@@ -97,7 +97,7 @@ suite('TextResourceEditorInput', () => {
 
 	test('preferred contents (via setPreferredContents)', async () => {
 		const resource = URI.from({ scheme: 'inmemory', authority: null!, path: 'thePath' });
-		accessor.modelService.createModel('function test() {}', accessor.modeService.create('text'), resource);
+		accessor.modelService.createModel('function test() {}', accessor.languageService.createById(PLAINTEXT_MODE_ID), resource);
 
 		const input = instantiationService.createInstance(TextResourceEditorInput, resource, 'The Name', 'The Description', undefined, undefined);
 		input.setPreferredContents('My Resource Input Contents');

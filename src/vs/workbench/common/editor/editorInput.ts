@@ -20,6 +20,7 @@ export abstract class EditorInput extends AbstractEditorInput {
 	protected readonly _onDidChangeDirty = this._register(new Emitter<void>());
 	protected readonly _onDidChangeLabel = this._register(new Emitter<void>());
 	protected readonly _onDidChangeCapabilities = this._register(new Emitter<void>());
+
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 
 	/**

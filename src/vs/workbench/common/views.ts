@@ -840,7 +840,8 @@ export interface ITreeViewDataProvider {
 
 export interface ITreeViewDragAndDropController {
 	readonly supportedMimeTypes: string[];
-	onDrop(elements: ITreeDataTransfer, target: ITreeItem, sourceTreeId?: string, sourceTreeItemHandles?: string[]): Promise<void>;
+	onWillDrop(sourceTreeItemHandles: string[], operationUuid: string): Promise<ITreeDataTransfer | undefined>;
+	onDrop(elements: ITreeDataTransfer, target: ITreeItem, operationUuid?: string, sourceTreeId?: string, sourceTreeItemHandles?: string[]): Promise<void>;
 }
 
 export interface IEditableData {

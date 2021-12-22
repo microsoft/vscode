@@ -70,7 +70,7 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 		});
 	}
 
-	private async handleBeforeShutdown(reason: ShutdownReason): Promise<boolean> {
+	protected async handleBeforeShutdown(reason: ShutdownReason): Promise<boolean> {
 		const logService = this.logService;
 
 		const vetos: (boolean | Promise<boolean>)[] = [];
@@ -149,7 +149,7 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 		this._onBeforeShutdownError.fire({ reason, error });
 	}
 
-	private async handleWillShutdown(reason: ShutdownReason): Promise<void> {
+	protected async handleWillShutdown(reason: ShutdownReason): Promise<void> {
 		const joiners: Promise<void>[] = [];
 		const pendingJoiners = new Set<string>();
 

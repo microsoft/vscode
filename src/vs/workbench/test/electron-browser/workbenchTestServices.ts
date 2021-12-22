@@ -37,7 +37,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
 import { homedir, release, tmpdir, hostname } from 'os';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -91,7 +91,7 @@ export class TestTextFileService extends NativeTextFileService {
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
 		@ILogService logService: ILogService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@IModeService modeService: IModeService,
+		@ILanguageService languageService: ILanguageService,
 		@IElevatedFileService elevatedFileService: IElevatedFileService,
 		@IDecorationsService decorationsService: IDecorationsService
 	) {
@@ -111,7 +111,7 @@ export class TestTextFileService extends NativeTextFileService {
 			pathService,
 			workingCopyFileService,
 			uriIdentityService,
-			modeService,
+			languageService,
 			elevatedFileService,
 			logService,
 			decorationsService

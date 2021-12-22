@@ -11,7 +11,7 @@ import { IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IWorkingCopyBackupService, IResolvedWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { IFileService, FileOperationError, FileOperationResult, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED, FileSystemProviderCapabilities, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { timeout, TaskSequentializer } from 'vs/base/common/async';
 import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
@@ -104,7 +104,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		readonly resource: URI,
 		private preferredEncoding: string | undefined,	// encoding as chosen by the user
 		private preferredMode: string | undefined,		// mode as chosen by the user
-		@IModeService modeService: IModeService,
+		@ILanguageService languageService: ILanguageService,
 		@IModelService modelService: IModelService,
 		@IFileService private readonly fileService: IFileService,
 		@ITextFileService private readonly textFileService: ITextFileService,
@@ -118,7 +118,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@IPathService private readonly pathService: IPathService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
-		super(modelService, modeService, languageDetectionService, accessibilityService);
+		super(modelService, languageService, languageDetectionService, accessibilityService);
 
 		// Make known to working copy service
 		this._register(this.workingCopyService.registerWorkingCopy(this));
@@ -189,7 +189,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		const firstLineText = this.getFirstLineText(this.textEditorModel);
-		const languageSelection = this.getOrCreateMode(this.resource, this.modeService, this.preferredMode, firstLineText);
+		const languageSelection = this.getOrCreateMode(this.resource, this.languageService, this.preferredMode, firstLineText);
 
 		this.modelService.setMode(this.textEditorModel, languageSelection);
 	}

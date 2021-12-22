@@ -5,13 +5,13 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceEditorInput, IEditorOptions, IResourceEditorInputIdentifier, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, ITextDiffEditorPane, IEditorIdentifier, ISaveOptions, IRevertOptions, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, ITextDiffEditorPane, IEditorIdentifier, ISaveOptions, IRevertOptions, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, IFindEditorOptions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { Event } from 'vs/base/common/event';
 import { IEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IEditorGroup, IEditorReplacement, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { URI } from 'vs/base/common/uri';
-import { IGroupChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
+import { IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
 
@@ -80,7 +80,7 @@ export interface IOpenEditorsOptions {
 	readonly validateTrust?: boolean;
 }
 
-export interface IEditorsChangeEvent extends IGroupChangeEvent {
+export interface IEditorsChangeEvent extends IGroupModelChangeEvent {
 	groupId: GroupIdentifier;
 }
 
@@ -255,10 +255,8 @@ export interface IEditorService {
 	 * same resource is opened in different editors. To find the specific
 	 * editor, use the `IResourceEditorInputIdentifier` as input.
 	 */
-	findEditors(resource: URI): readonly IEditorIdentifier[];
-	findEditors(editor: IResourceEditorInputIdentifier): readonly IEditorIdentifier[];
-	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): readonly EditorInput[];
-	findEditors(editor: IResourceEditorInputIdentifier, group: IEditorGroup | GroupIdentifier): EditorInput | undefined;
+	findEditors(resource: URI, options?: IFindEditorOptions): readonly IEditorIdentifier[];
+	findEditors(editor: IResourceEditorInputIdentifier, options?: IFindEditorOptions): readonly IEditorIdentifier[];
 
 	/**
 	 * Save the provided list of editors.

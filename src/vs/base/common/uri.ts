@@ -115,29 +115,29 @@ export class URI implements UriComponents {
 	}
 
 	/**
-	 * scheme is the 'http' part of 'http://www.msft.com/some/path?query#fragment'.
+	 * scheme is the 'http' part of 'http://www.example.com/some/path?query#fragment'.
 	 * The part before the first colon.
 	 */
 	readonly scheme: string;
 
 	/**
-	 * authority is the 'www.msft.com' part of 'http://www.msft.com/some/path?query#fragment'.
+	 * authority is the 'www.example.com' part of 'http://www.example.com/some/path?query#fragment'.
 	 * The part between the first double slashes and the next slash.
 	 */
 	readonly authority: string;
 
 	/**
-	 * path is the '/some/path' part of 'http://www.msft.com/some/path?query#fragment'.
+	 * path is the '/some/path' part of 'http://www.example.com/some/path?query#fragment'.
 	 */
 	readonly path: string;
 
 	/**
-	 * query is the 'query' part of 'http://www.msft.com/some/path?query#fragment'.
+	 * query is the 'query' part of 'http://www.example.com/some/path?query#fragment'.
 	 */
 	readonly query: string;
 
 	/**
-	 * fragment is the 'fragment' part of 'http://www.msft.com/some/path?query#fragment'.
+	 * fragment is the 'fragment' part of 'http://www.example.com/some/path?query#fragment'.
 	 */
 	readonly fragment: string;
 
@@ -259,7 +259,7 @@ export class URI implements UriComponents {
 	// ---- parse & validate ------------------------
 
 	/**
-	 * Creates a new URI from a string, e.g. `http://www.msft.com/some/path`,
+	 * Creates a new URI from a string, e.g. `http://www.example.com/some/path`,
 	 * `file:///usr/home`, or `scheme:with/path`.
 	 *
 	 * @param value A string which represents an URI (see `URI#toString`).

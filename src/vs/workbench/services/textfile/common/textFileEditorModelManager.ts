@@ -347,7 +347,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 			model = resourceOrModel;
 		}
 
-		let modelPromise: Promise<void>;
+		let modelResolve: Promise<void>;
 		let didCreateModel = false;
 
 		// Model exists
@@ -355,7 +355,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 			// Always reload if contents are provided
 			if (options?.contents) {
-				modelPromise = model.resolve(options);
+				modelResolve = model.resolve(options);
 			}
 
 			// Reload async or sync based on options
@@ -363,19 +363,25 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 				// async reload: trigger a reload but return immediately
 				if (options.reload.async) {
-					modelPromise = Promise.resolve();
-					model.resolve(options);
+					modelResolve = Promise.resolve();
+					(async () => {
+						try {
+							await model.resolve(options);
+						} catch (error) {
+							onUnexpectedError(error);
+						}
+					})();
 				}
 
 				// sync reload: do not return until model reloaded
 				else {
-					modelPromise = model.resolve(options);
+					modelResolve = model.resolve(options);
 				}
 			}
 
 			// Do not reload
 			else {
-				modelPromise = Promise.resolve();
+				modelResolve = Promise.resolve();
 			}
 		}
 
@@ -384,13 +390,13 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 			didCreateModel = true;
 
 			const newModel = model = this.instantiationService.createInstance(TextFileEditorModel, resource, options ? options.encoding : undefined, options ? options.mode : undefined);
-			modelPromise = model.resolve(options);
+			modelResolve = model.resolve(options);
 
 			this.registerModel(newModel);
 		}
 
 		// Store pending resolves to avoid race conditions
-		this.mapResourceToPendingModelResolvers.set(resource, modelPromise);
+		this.mapResourceToPendingModelResolvers.set(resource, modelResolve);
 
 		// Make known to manager (if not already known)
 		this.add(resource, model);
@@ -407,33 +413,35 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		}
 
 		try {
-			await modelPromise;
-
-			// Remove from pending resolves
-			this.mapResourceToPendingModelResolvers.delete(resource);
-
-			// Apply mode if provided
-			if (options?.mode) {
-				model.setMode(options.mode);
-			}
-
-			// Model can be dirty if a backup was restored, so we make sure to
-			// have this event delivered if we created the model here
-			if (didCreateModel && model.isDirty()) {
-				this._onDidChangeDirty.fire(model);
-			}
-
-			return model;
+			await modelResolve;
 		} catch (error) {
 
-			// Free resources of this invalid model
-			model.dispose();
+			// Automatically dispose the model if we created it
+			// because we cannot dispose a model we do not own
+			// https://github.com/microsoft/vscode/issues/138850
+			if (didCreateModel) {
+				model.dispose();
+			}
+
+			throw error;
+		} finally {
 
 			// Remove from pending resolves
 			this.mapResourceToPendingModelResolvers.delete(resource);
-
-			throw error;
 		}
+
+		// Apply mode if provided
+		if (options?.mode) {
+			model.setMode(options.mode);
+		}
+
+		// Model can be dirty if a backup was restored, so we make sure to
+		// have this event delivered if we created the model here
+		if (didCreateModel && model.isDirty()) {
+			this._onDidChangeDirty.fire(model);
+		}
+
+		return model;
 	}
 
 	private joinPendingResolves(resource: URI): Promise<void> | undefined {

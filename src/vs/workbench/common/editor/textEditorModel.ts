@@ -8,7 +8,7 @@ import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { IModeSupport } from 'vs/workbench/services/textfile/common/textfiles';
 import { URI } from 'vs/base/common/uri';
 import { ITextEditorModel, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
+import { ILanguageService, ILanguageSelection } from 'vs/editor/common/services/languageService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
@@ -34,7 +34,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 
 	constructor(
 		@IModelService protected modelService: IModelService,
-		@IModeService protected modeService: IModeService,
+		@ILanguageService protected languageService: ILanguageService,
 		@ILanguageDetectionService private readonly languageDetectionService: ILanguageDetectionService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		textEditorModelHandle?: URI
@@ -95,7 +95,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 			return;
 		}
 
-		this.modelService.setMode(this.textEditorModel, this.modeService.create(mode));
+		this.modelService.setMode(this.textEditorModel, this.languageService.createById(mode));
 	}
 
 	getMode(): string | undefined {
@@ -118,7 +118,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 		const lang = await this.languageDetectionService.detectLanguage(this.textEditorModelHandle);
 		if (lang && !this.isDisposed()) {
 			this.setModeInternal(lang);
-			const languageName = this.modeService.getLanguageName(lang);
+			const languageName = this.languageService.getLanguageName(lang);
 			if (languageName) {
 				this.accessibilityService.alert(localize('languageAutoDetected', "Language {0} was automatically detected and set as the language mode.", languageName));
 			}
@@ -131,7 +131,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 	 */
 	protected createTextEditorModel(value: ITextBufferFactory, resource: URI | undefined, preferredMode?: string): ITextModel {
 		const firstLineText = this.getFirstLineText(value);
-		const languageSelection = this.getOrCreateMode(resource, this.modeService, preferredMode, firstLineText);
+		const languageSelection = this.getOrCreateMode(resource, this.languageService, preferredMode, firstLineText);
 
 		return this.doCreateTextEditorModel(value, languageSelection, resource);
 	}
@@ -171,15 +171,15 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 	 *
 	 * @param firstLineText optional first line of the text buffer to set the mode on. This can be used to guess a mode from content.
 	 */
-	protected getOrCreateMode(resource: URI | undefined, modeService: IModeService, preferredMode: string | undefined, firstLineText?: string): ILanguageSelection {
+	protected getOrCreateMode(resource: URI | undefined, languageService: ILanguageService, preferredMode: string | undefined, firstLineText?: string): ILanguageSelection {
 
 		// lookup mode via resource path if the provided mode is unspecific
 		if (!preferredMode || preferredMode === PLAINTEXT_MODE_ID) {
-			return modeService.createByFilepathOrFirstLine(withUndefinedAsNull(resource), firstLineText);
+			return languageService.createByFilepathOrFirstLine(withUndefinedAsNull(resource), firstLineText);
 		}
 
 		// otherwise take the preferred mode for granted
-		return modeService.create(preferredMode);
+		return languageService.createById(preferredMode);
 	}
 
 	/**
@@ -197,7 +197,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 
 		// mode (only if specific and changed)
 		if (preferredMode && preferredMode !== PLAINTEXT_MODE_ID && this.textEditorModel.getLanguageId() !== preferredMode) {
-			this.modelService.setMode(this.textEditorModel, this.modeService.create(preferredMode));
+			this.modelService.setMode(this.textEditorModel, this.languageService.createById(preferredMode));
 		}
 	}
 

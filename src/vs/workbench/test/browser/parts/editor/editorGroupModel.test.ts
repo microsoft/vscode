@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { EditorGroupModel, ISerializedEditorGroupModel, isGroupEditorCloseEvent, isGroupEditorMoveEvent, isGroupEditorOpenEvent } from 'vs/workbench/common/editor/editorGroupModel';
-import { EditorExtensions, IEditorFactoryRegistry, IFileEditorInput, IEditorSerializer, CloseDirection, EditorsOrder, IResourceDiffEditorInput, IResourceSideBySideEditorInput, SideBySideEditor, EditorCloseContext, IEditorCloseEvent, IEditorOpenEvent, IEditorMoveEvent, GroupChangeKind } from 'vs/workbench/common/editor';
+import { EditorExtensions, IEditorFactoryRegistry, IFileEditorInput, IEditorSerializer, CloseDirection, EditorsOrder, IResourceDiffEditorInput, IResourceSideBySideEditorInput, SideBySideEditor, EditorCloseContext, IEditorCloseEvent, IEditorOpenEvent, IEditorMoveEvent, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { TestLifecycleService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -80,6 +80,8 @@ suite('EditorGroupModel', () => {
 
 	interface GroupEvents {
 		locked: number[],
+		active: number[],
+		index: number[],
 		opened: IEditorOpenEvent[];
 		activated: EditorInput[];
 		closed: IEditorCloseEvent[];
@@ -93,6 +95,8 @@ suite('EditorGroupModel', () => {
 
 	function groupListener(group: EditorGroupModel): GroupEvents {
 		const groupEvents: GroupEvents = {
+			active: [],
+			index: [],
 			locked: [],
 			opened: [],
 			closed: [],
@@ -106,39 +110,45 @@ suite('EditorGroupModel', () => {
 		};
 
 		group.onDidModelChange(e => {
-			if (e.kind === GroupChangeKind.GROUP_LOCKED) {
+			if (e.kind === GroupModelChangeKind.GROUP_LOCKED) {
 				groupEvents.locked.push(group.id);
+				return;
+			} else if (e.kind === GroupModelChangeKind.GROUP_ACTIVE) {
+				groupEvents.active.push(group.id);
+				return;
+			} else if (e.kind === GroupModelChangeKind.GROUP_INDEX) {
+				groupEvents.index.push(group.id);
 				return;
 			}
 			if (!e.editor) {
 				return;
 			}
 			switch (e.kind) {
-				case GroupChangeKind.EDITOR_OPEN:
+				case GroupModelChangeKind.EDITOR_OPEN:
 					if (isGroupEditorOpenEvent(e)) {
 						groupEvents.opened.push({ editor: e.editor, index: e.editorIndex, groupId: group.id });
 					}
 					break;
-				case GroupChangeKind.EDITOR_CLOSE:
+				case GroupModelChangeKind.EDITOR_CLOSE:
 					if (isGroupEditorCloseEvent(e)) {
 						groupEvents.closed.push({ editor: e.editor, index: e.editorIndex, groupId: group.id, context: e.context, sticky: e.sticky });
 					}
 					break;
-				case GroupChangeKind.EDITOR_ACTIVE:
+				case GroupModelChangeKind.EDITOR_ACTIVE:
 					groupEvents.activated.push(e.editor);
 					break;
-				case GroupChangeKind.EDITOR_PIN:
+				case GroupModelChangeKind.EDITOR_PIN:
 					group.isPinned(e.editor) ? groupEvents.pinned.push(e.editor) : groupEvents.unpinned.push(e.editor);
 					break;
-				case GroupChangeKind.EDITOR_STICKY:
+				case GroupModelChangeKind.EDITOR_STICKY:
 					group.isSticky(e.editor) ? groupEvents.sticky.push(e.editor) : groupEvents.unsticky.push(e.editor);
 					break;
-				case GroupChangeKind.EDITOR_MOVE:
+				case GroupModelChangeKind.EDITOR_MOVE:
 					if (isGroupEditorMoveEvent(e)) {
 						groupEvents.moved.push({ editor: e.editor, index: e.oldEditorIndex, newIndex: e.editorIndex, target: group.id, groupId: group.id });
 					}
 					break;
-				case GroupChangeKind.EDITOR_WILL_DISPOSE:
+				case GroupModelChangeKind.EDITOR_WILL_DISPOSE:
 					groupEvents.disposed.push(e.editor);
 					break;
 			}
@@ -309,7 +319,7 @@ suite('EditorGroupModel', () => {
 
 		let didEditorLabelChange = false;
 		const toDispose = clone.onDidModelChange((e) => {
-			if (e.kind === GroupChangeKind.EDITOR_LABEL) {
+			if (e.kind === GroupModelChangeKind.EDITOR_LABEL) {
 				didEditorLabelChange = true;
 			}
 		});
@@ -728,7 +738,6 @@ suite('EditorGroupModel', () => {
 
 	test('group serialization (locked group)', function () {
 		const group = createEditorGroupModel();
-
 		const events = groupListener(group);
 
 		assert.strictEqual(events.locked.length, 0);
@@ -758,6 +767,28 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(group.id, deserialized.id);
 		assert.strictEqual(deserialized.count, 0);
 		assert.strictEqual(deserialized.isLocked, false);
+	});
+
+	test('index', function () {
+		const group = createEditorGroupModel();
+		const events = groupListener(group);
+
+		assert.strictEqual(events.index.length, 0);
+
+		group.setIndex(4);
+
+		assert.strictEqual(events.index.length, 1);
+	});
+
+	test('active', function () {
+		const group = createEditorGroupModel();
+		const events = groupListener(group);
+
+		assert.strictEqual(events.active.length, 0);
+
+		group.setActive(undefined);
+
+		assert.strictEqual(events.active.length, 1);
 	});
 
 	test('One Editor', function () {
@@ -1860,28 +1891,28 @@ suite('EditorGroupModel', () => {
 
 		let dirty1Counter = 0;
 		group1.onDidModelChange((e) => {
-			if (e.kind === GroupChangeKind.EDITOR_DIRTY) {
+			if (e.kind === GroupModelChangeKind.EDITOR_DIRTY) {
 				dirty1Counter++;
 			}
 		});
 
 		let dirty2Counter = 0;
 		group2.onDidModelChange((e) => {
-			if (e.kind === GroupChangeKind.EDITOR_DIRTY) {
+			if (e.kind === GroupModelChangeKind.EDITOR_DIRTY) {
 				dirty2Counter++;
 			}
 		});
 
 		let label1ChangeCounter = 0;
 		group1.onDidModelChange((e) => {
-			if (e.kind === GroupChangeKind.EDITOR_LABEL) {
+			if (e.kind === GroupModelChangeKind.EDITOR_LABEL) {
 				label1ChangeCounter++;
 			}
 		});
 
 		let label2ChangeCounter = 0;
 		group2.onDidModelChange((e) => {
-			if (e.kind === GroupChangeKind.EDITOR_LABEL) {
+			if (e.kind === GroupModelChangeKind.EDITOR_LABEL) {
 				label2ChangeCounter++;
 			}
 		});

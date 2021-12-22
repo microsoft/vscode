@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -34,7 +34,7 @@ suite('NotebookViewModel', () => {
 	let bulkEditService: IBulkEditService;
 	let undoRedoService: IUndoRedoService;
 	let modelService: IModelService;
-	let modeService: IModeService;
+	let languageService: ILanguageService;
 
 	suiteSetup(() => {
 		disposables = new DisposableStore();
@@ -43,7 +43,7 @@ suite('NotebookViewModel', () => {
 		bulkEditService = instantiationService.get(IBulkEditService);
 		undoRedoService = instantiationService.get(IUndoRedoService);
 		modelService = instantiationService.get(IModelService);
-		modeService = instantiationService.get(IModeService);
+		languageService = instantiationService.get(ILanguageService);
 
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IThemeService, new TestThemeService());
@@ -52,7 +52,7 @@ suite('NotebookViewModel', () => {
 	suiteTeardown(() => disposables.dispose());
 
 	test('ctor', function () {
-		const notebook = new NotebookTextModel('notebook', URI.parse('test'), [], {}, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }, undoRedoService, modelService, modeService);
+		const notebook = new NotebookTextModel('notebook', URI.parse('test'), [], {}, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }, undoRedoService, modelService, languageService);
 		const model = new NotebookEditorTestModel(notebook);
 		const viewContext = new ViewContext(new NotebookOptions(instantiationService.get(IConfigurationService)), new NotebookEventDispatcher());
 		const viewModel = new NotebookViewModel('notebook', model.notebook, viewContext, null, { isReadOnly: false }, instantiationService, bulkEditService, undoRedoService, textModelService);

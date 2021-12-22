@@ -785,6 +785,14 @@ export interface IEditorCloseEvent extends IEditorIdentifier {
 	readonly sticky: boolean;
 }
 
+export interface IActiveEditorChangeEvent {
+
+	/**
+	 * The new active editor or `undefined` if the group is empty.
+	 */
+	editor: EditorInput | undefined;
+ }
+
 export interface IEditorWillMoveEvent extends IEditorIdentifier {
 
 	/**
@@ -823,7 +831,7 @@ export interface IEditorOpenEvent extends IEditorIdentifier {
 
 export type GroupIdentifier = number;
 
-export const enum GroupChangeKind {
+export const enum GroupModelChangeKind {
 
 	/* Group Changes */
 	GROUP_ACTIVE,
@@ -901,6 +909,16 @@ export enum SideBySideEditor {
 	SECONDARY = 2,
 	BOTH = 3,
 	ANY = 4
+}
+
+export interface IFindEditorOptions {
+
+	/**
+	 * Whether to consider a side by side primary editor as matching.
+	 * By default, side by side editors will not be considered
+	 * as matching, even if the editor is opened in one of the sides.
+	 */
+	supportSideBySide?: SideBySideEditor.PRIMARY;
 }
 
 export interface IMatchEditorOptions {

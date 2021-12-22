@@ -12,7 +12,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
 import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
-import { ITextAreaHandlerHelper, TextAreaHandler } from 'vs/editor/browser/controller/textAreaHandler';
+import { IVisibleRangeProvider, TextAreaHandler } from 'vs/editor/browser/controller/textAreaHandler';
 import { IContentWidget, IContentWidgetPosition, IOverlayWidget, IOverlayWidgetPosition, IMouseTarget, IViewZoneChangeAccessor, IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
 import { ICommandDelegate, ViewController } from 'vs/editor/browser/view/viewController';
 import { ViewUserInputEvents } from 'vs/editor/browser/view/viewUserInputEvents';
@@ -271,11 +271,11 @@ export class View extends ViewEventHandler {
 		};
 	}
 
-	private _createTextAreaHandlerHelper(): ITextAreaHandlerHelper {
+	private _createTextAreaHandlerHelper(): IVisibleRangeProvider {
 		return {
-			visibleRangeForPositionRelativeToEditor: (lineNumber: number, column: number) => {
+			visibleRangeForPosition: (position: Position) => {
 				this._flushAccumulatedAndRenderNow();
-				return this._viewLines.visibleRangeForPosition(new Position(lineNumber, column));
+				return this._viewLines.visibleRangeForPosition(position);
 			}
 		};
 	}

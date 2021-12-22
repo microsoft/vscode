@@ -243,7 +243,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return this._onDidStateChange.event;
 	}
 
-	public log(value: string): void {
+	private log(value: string): void {
 		this.appendOutput(value + '\n');
 	}
 
@@ -1128,13 +1128,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					toAdd.push('-c');
 				}
 			}
-			toAdd.forEach(element => {
-				if (!shellArgs.some(arg => arg.toLowerCase() === element)) {
-					shellArgs.push(element);
-				}
-			});
-			shellArgs.push(commandLine);
-			shellLaunchConfig.args = windowsShellArgs ? shellArgs.join(' ') : shellArgs;
+			const combinedShellArgs = this.addAllArgument(toAdd, shellArgs);
+			combinedShellArgs.push(commandLine);
+			shellLaunchConfig.args = windowsShellArgs ? combinedShellArgs.join(' ') : combinedShellArgs;
 			if (task.command.presentation && task.command.presentation.echo) {
 				if (needsFolderQualification && workspaceFolder) {
 					shellLaunchConfig.initialText = `\x1b[1m> Executing task in folder ${workspaceFolder.name}: ${commandLine} <\x1b[0m\n`;
@@ -1196,12 +1192,31 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return shellLaunchConfig;
 	}
 
+	private addAllArgument(shellCommandArgs: string[], configuredShellArgs: string[]): string[] {
+		const combinedShellArgs: string[] = Objects.deepClone(configuredShellArgs);
+		shellCommandArgs.forEach(element => {
+			const shouldAddShellCommandArg = configuredShellArgs.every((arg, index) => {
+				if ((arg.toLowerCase() === element) && (configuredShellArgs.length > index + 1)) {
+					// We can still add the argument, but only if not all of the following arguments begin with "-".
+					return !configuredShellArgs.slice(index + 1).every(testArg => testArg.startsWith('-'));
+				} else {
+					return arg.toLowerCase() !== element;
+				}
+			});
+			if (shouldAddShellCommandArg) {
+				combinedShellArgs.push(element);
+			}
+		});
+		return combinedShellArgs;
+	}
+
 	private async doCreateTerminal(group: string | undefined, launchConfigs: IShellLaunchConfig): Promise<ITerminalInstance> {
 		if (group) {
 			// Try to find an existing terminal to split.
 			// Even if an existing terminal is found, the split can fail if the terminal width is too small.
 			for (const terminal of values(this.terminals)) {
 				if (terminal.group === group) {
+					this.logService.trace(`Found terminal to split for group ${group}`);
 					const originalInstance = terminal.terminal;
 					const result = await this.terminalService.createTerminal({ location: { parentTerminal: originalInstance }, config: launchConfigs });
 					if (result) {
@@ -1209,9 +1224,12 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					}
 				}
 			}
+			this.logService.trace(`No terminal found to split for group ${group}`);
 		}
 		// Either no group is used, no terminal with the group exists or splitting an existing terminal failed.
-		return this.terminalService.createTerminal({ location: TerminalLocation.Panel, config: launchConfigs });
+		const createdTerminal = await this.terminalService.createTerminal({ location: TerminalLocation.Panel, config: launchConfigs });
+		this.logService.trace('Created a new task terminal');
+		return createdTerminal;
 	}
 
 	private async createTerminal(task: CustomTask | ContributedTask, resolver: VariableResolver, workspaceFolder: IWorkspaceFolder | undefined): Promise<[ITerminalInstance | undefined, string | undefined, TaskError | undefined]> {
@@ -1309,10 +1327,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			return [terminalToReuse.terminal, commandExecutable, undefined];
 		}
 
-		await this.terminalCreationQueue;
-		const createTerminalPromise = this.doCreateTerminal(group, launchConfigs);
-		this.terminalCreationQueue = createTerminalPromise;
-		const result: ITerminalInstance = await createTerminalPromise;
+		this.terminalCreationQueue = this.terminalCreationQueue.then(() => this.doCreateTerminal(group, launchConfigs!));
+		const result: ITerminalInstance = (await this.terminalCreationQueue)!;
 
 		const terminalKey = result.instanceId.toString();
 		result.onDisposed((terminal) => {

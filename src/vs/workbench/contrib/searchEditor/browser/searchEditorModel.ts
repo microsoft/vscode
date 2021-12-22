@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { parseSavedSearchEditor, parseSerializedSearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
@@ -49,7 +49,7 @@ class SearchEditorModelFactory {
 			throw Error('Unable to contruct model for resource that already exists');
 		}
 
-		const modeService = accessor.get(IModeService);
+		const languageService = accessor.get(ILanguageService);
 		const modelService = accessor.get(IModelService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const workingCopyBackupService = accessor.get(IWorkingCopyBackupService);
@@ -61,13 +61,13 @@ class SearchEditorModelFactory {
 				if (!ongoingResolve) {
 					ongoingResolve = (async () => {
 
-						const backup = await this.tryFetchModelFromBackupService(resource, modeService, modelService, workingCopyBackupService, instantiationService);
+						const backup = await this.tryFetchModelFromBackupService(resource, languageService, modelService, workingCopyBackupService, instantiationService);
 						if (backup) {
 							return backup;
 						}
 
 						return Promise.resolve({
-							resultsModel: modelService.getModel(resource) ?? modelService.createModel('', modeService.create('search-result'), resource),
+							resultsModel: modelService.getModel(resource) ?? modelService.createModel('', languageService.createById('search-result'), resource),
 							configurationModel: new SearchConfigurationModel(config)
 						});
 					})();
@@ -82,7 +82,7 @@ class SearchEditorModelFactory {
 			throw Error('Unable to contruct model for resource that already exists');
 		}
 
-		const modeService = accessor.get(IModeService);
+		const languageService = accessor.get(ILanguageService);
 		const modelService = accessor.get(IModelService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const workingCopyBackupService = accessor.get(IWorkingCopyBackupService);
@@ -94,13 +94,13 @@ class SearchEditorModelFactory {
 				if (!ongoingResolve) {
 					ongoingResolve = (async () => {
 
-						const backup = await this.tryFetchModelFromBackupService(resource, modeService, modelService, workingCopyBackupService, instantiationService);
+						const backup = await this.tryFetchModelFromBackupService(resource, languageService, modelService, workingCopyBackupService, instantiationService);
 						if (backup) {
 							return backup;
 						}
 
 						return Promise.resolve({
-							resultsModel: modelService.createModel(contents ?? '', modeService.create('search-result'), resource),
+							resultsModel: modelService.createModel(contents ?? '', languageService.createById('search-result'), resource),
 							configurationModel: new SearchConfigurationModel(config)
 						});
 					})();
@@ -115,7 +115,7 @@ class SearchEditorModelFactory {
 			throw Error('Unable to contruct model for resource that already exists');
 		}
 
-		const modeService = accessor.get(IModeService);
+		const languageService = accessor.get(ILanguageService);
 		const modelService = accessor.get(IModelService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const workingCopyBackupService = accessor.get(IWorkingCopyBackupService);
@@ -127,14 +127,14 @@ class SearchEditorModelFactory {
 				if (!ongoingResolve) {
 					ongoingResolve = (async () => {
 
-						const backup = await this.tryFetchModelFromBackupService(resource, modeService, modelService, workingCopyBackupService, instantiationService);
+						const backup = await this.tryFetchModelFromBackupService(resource, languageService, modelService, workingCopyBackupService, instantiationService);
 						if (backup) {
 							return backup;
 						}
 
 						const { text, config } = await instantiationService.invokeFunction(parseSavedSearchEditor, existingFile);
 						return ({
-							resultsModel: modelService.createModel(text ?? '', modeService.create('search-result'), resource),
+							resultsModel: modelService.createModel(text ?? '', languageService.createById('search-result'), resource),
 							configurationModel: new SearchConfigurationModel(config)
 						});
 					})();
@@ -144,14 +144,14 @@ class SearchEditorModelFactory {
 		});
 	}
 
-	private async tryFetchModelFromBackupService(resource: URI, modeService: IModeService, modelService: IModelService, workingCopyBackupService: IWorkingCopyBackupService, instantiationService: IInstantiationService): Promise<SearchEditorData | undefined> {
+	private async tryFetchModelFromBackupService(resource: URI, languageService: ILanguageService, modelService: IModelService, workingCopyBackupService: IWorkingCopyBackupService, instantiationService: IInstantiationService): Promise<SearchEditorData | undefined> {
 		const backup = await workingCopyBackupService.resolve({ resource, typeId: SearchEditorWorkingCopyTypeId });
 
 		let model = modelService.getModel(resource);
 		if (!model && backup) {
 			const factory = await createTextBufferFactoryFromStream(backup.value);
 
-			model = modelService.createModel(factory, modeService.create('search-result'), resource);
+			model = modelService.createModel(factory, languageService.createById('search-result'), resource);
 		}
 
 		if (model) {
@@ -159,7 +159,7 @@ class SearchEditorModelFactory {
 			const { text, config } = parseSerializedSearchEditor(existingFile);
 			modelService.destroyModel(resource);
 			return ({
-				resultsModel: modelService.createModel(text ?? '', modeService.create('search-result'), resource),
+				resultsModel: modelService.createModel(text ?? '', languageService.createById('search-result'), resource),
 				configurationModel: new SearchConfigurationModel(config)
 			});
 		}

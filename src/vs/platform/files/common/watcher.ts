@@ -23,7 +23,7 @@ export interface IRecursiveWatcher {
 	readonly onDidLogMessage: Event<ILogMessage>;
 
 	/**
-	 * An event to indicate an error occured from the watcher
+	 * An event to indicate an error occurred from the watcher
 	 * that is unrecoverable. Listeners should restart the
 	 * watcher if possible.
 	 */

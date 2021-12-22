@@ -12,7 +12,7 @@ import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, IScrollEvent } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/link/goToDefinitionAtPosition';
 import { HoverStartMode } from 'vs/editor/contrib/hover/hoverOperation';
 import { ModesContentHoverWidget } from 'vs/editor/contrib/hover/modesContentHover';
@@ -50,7 +50,7 @@ export class ModesHoverController implements IEditorContribution {
 	constructor(private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@IModeService private readonly _modeService: IModeService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@IContextKeyService _contextKeyService: IContextKeyService
 	) {
 		this._isMouseDown = false;
@@ -178,7 +178,7 @@ export class ModesHoverController implements IEditorContribution {
 		if (targetType === MouseTargetType.GUTTER_GLYPH_MARGIN && mouseEvent.target.position) {
 			this._contentWidget?.hide();
 			if (!this._glyphWidget) {
-				this._glyphWidget = new ModesGlyphHoverWidget(this._editor, this._modeService, this._openerService);
+				this._glyphWidget = new ModesGlyphHoverWidget(this._editor, this._languageService, this._openerService);
 			}
 			this._glyphWidget.startShowingAt(mouseEvent.target.position.lineNumber);
 			return;

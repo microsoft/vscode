@@ -658,7 +658,7 @@ export class FileDownload {
 		else if (stat.isFile) {
 			let bufferOrUri: Uint8Array | URI;
 			try {
-				bufferOrUri = (await this.fileService.readFile(stat.resource, { limits: { size: maxBlobDownloadSize } })).value.buffer;
+				bufferOrUri = (await this.fileService.readFile(stat.resource, { limits: { size: maxBlobDownloadSize } }, cts.token)).value.buffer;
 			} catch (error) {
 				bufferOrUri = FileAccess.asBrowserUri(stat.resource);
 			}
@@ -670,7 +670,7 @@ export class FileDownload {
 	}
 
 	private async downloadFileBufferedBrowser(resource: URI, target: FileSystemWritableFileStream, operation: IDownloadOperation, token: CancellationToken): Promise<void> {
-		const contents = await this.fileService.readFileStream(resource);
+		const contents = await this.fileService.readFileStream(resource, undefined, token);
 		if (token.isCancellationRequested) {
 			target.close();
 			return;
@@ -682,20 +682,15 @@ export class FileDownload {
 			const disposables = new DisposableStore();
 			disposables.add(toDisposable(() => target.close()));
 
-			let disposed = false;
-			disposables.add(toDisposable(() => disposed = true));
-
 			disposables.add(once(token.onCancellationRequested)(() => {
 				disposables.dispose();
 				reject(canceled());
 			}));
 
-			listenStream(sourceStream, {
+			disposables.add(listenStream(sourceStream, {
 				onData: data => {
-					if (!disposed) {
-						target.write(data.buffer);
-						this.reportProgress(contents.name, contents.size, data.byteLength, operation);
-					}
+					target.write(data.buffer);
+					this.reportProgress(contents.name, contents.size, data.byteLength, operation);
 				},
 				onError: error => {
 					disposables.dispose();
@@ -705,12 +700,12 @@ export class FileDownload {
 					disposables.dispose();
 					resolve();
 				}
-			});
+			}));
 		});
 	}
 
 	private async downloadFileUnbufferedBrowser(resource: URI, target: FileSystemWritableFileStream, operation: IDownloadOperation, token: CancellationToken): Promise<void> {
-		const contents = await this.fileService.readFile(resource);
+		const contents = await this.fileService.readFile(resource, undefined, token);
 		if (!token.isCancellationRequested) {
 			target.write(contents.value.buffer);
 			this.reportProgress(contents.name, contents.size, contents.value.byteLength, operation);

@@ -1,0 +1,24 @@
+name: "Deep Classifier: Unassign Monitor"
+on:
+  issues:
+    types: [unassigned]
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    if: ${{ ! contains(github.event.issue.labels.*.name, 'triage-needed') }}
+    steps:
+      - name: Checkout Actions
+        uses: actions/checkout@v2
+        with:
+          repository: "microsoft/vscode-github-triage-actions"
+          ref: stable
+          path: ./actions
+      - name: Install Actions
+        run: npm install --production --prefix ./actions
+      - name: "Run Classifier: Monitor"
+        uses: ./actions/classifier-deep/monitor
+        with:
+          botName: vscode-triage-bot
+          token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
+          appInsightsKey: ${{secrets.TRIAGE_ACTIONS_APP_INSIGHTS}}

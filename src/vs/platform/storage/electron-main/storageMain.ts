@@ -53,6 +53,12 @@ export interface IStorageMain extends IDisposable {
 	readonly whenInit: Promise<void>;
 
 	/**
+	 * Provides access to the `IStorage` implementation which will be
+	 * in-memory for as long as the storage has not been initialized.
+	 */
+	readonly storage: IStorage;
+
+	/**
 	 * Required call to ensure the service can be used.
 	 */
 	init(): Promise<void>;
@@ -93,7 +99,8 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 	private readonly _onDidCloseStorage = this._register(new Emitter<void>());
 	readonly onDidCloseStorage = this._onDidCloseStorage.event;
 
-	private storage: IStorage = new Storage(new InMemoryStorageDatabase()); // storage is in-memory until initialized
+	private _storage: IStorage = new Storage(new InMemoryStorageDatabase()); // storage is in-memory until initialized
+	get storage(): IStorage { return this._storage; }
 
 	private initializePromise: Promise<void> | undefined = undefined;
 
@@ -117,8 +124,8 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 					// Replace our in-memory storage with the real
 					// once as soon as possible without awaiting
 					// the init call.
-					this.storage.dispose();
-					this.storage = storage;
+					this._storage.dispose();
+					this._storage = storage;
 
 					// Re-emit storage changes via event
 					this._register(storage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key })));
@@ -157,20 +164,20 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 
 	protected abstract doCreate(): Promise<IStorage>;
 
-	get items(): Map<string, string> { return this.storage.items; }
+	get items(): Map<string, string> { return this._storage.items; }
 
 	get(key: string, fallbackValue: string): string;
 	get(key: string, fallbackValue?: string): string | undefined;
 	get(key: string, fallbackValue?: string): string | undefined {
-		return this.storage.get(key, fallbackValue);
+		return this._storage.get(key, fallbackValue);
 	}
 
 	set(key: string, value: string | boolean | number | undefined | null): Promise<void> {
-		return this.storage.set(key, value);
+		return this._storage.set(key, value);
 	}
 
 	delete(key: string): Promise<void> {
-		return this.storage.delete(key);
+		return this._storage.delete(key);
 	}
 
 	async close(): Promise<void> {
@@ -184,7 +191,7 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 		}
 
 		// Propagate to storage lib
-		await this.storage.close();
+		await this._storage.close();
 
 		// Signal as event
 		this._onDidCloseStorage.fire();

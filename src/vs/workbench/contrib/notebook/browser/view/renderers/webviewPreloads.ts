@@ -630,34 +630,33 @@ async function webviewPreloads(ctx: PreloadContext) {
 				}
 				break;
 			}
-			case 'preload':
+			case 'preload': {
 				const resources = event.data.resources;
 				for (const { uri, originalUri } of resources) {
 					kernelPreloads.load(uri, originalUri);
 				}
 				break;
+			}
 			case 'focus-output':
 				focusFirstFocusableInCell(event.data.cellId);
 				break;
-			case 'decorations':
-				{
-					let outputContainer = document.getElementById(event.data.cellId);
-					if (!outputContainer) {
-						viewModel.ensureOutputCell(event.data.cellId, -100000, true);
-						outputContainer = document.getElementById(event.data.cellId);
-					}
-					outputContainer?.classList.add(...event.data.addedClassNames);
-					outputContainer?.classList.remove(...event.data.removedClassNames);
+			case 'decorations': {
+				let outputContainer = document.getElementById(event.data.cellId);
+				if (!outputContainer) {
+					viewModel.ensureOutputCell(event.data.cellId, -100000, true);
+					outputContainer = document.getElementById(event.data.cellId);
 				}
-
+				outputContainer?.classList.add(...event.data.addedClassNames);
+				outputContainer?.classList.remove(...event.data.removedClassNames);
 				break;
+			}
 			case 'customKernelMessage':
 				onDidReceiveKernelMessage.fire(event.data.message);
 				break;
 			case 'customRendererMessage':
 				renderers.getRenderer(event.data.rendererId)?.receiveMessage(event.data.message);
 				break;
-			case 'notebookStyles':
+			case 'notebookStyles': {
 				const documentStyle = document.documentElement.style;
 
 				for (let i = documentStyle.length - 1; i >= 0; i--) {
@@ -674,6 +673,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					documentStyle.setProperty(`--${name}`, value);
 				}
 				break;
+			}
 			case 'notebookOptions':
 				currentOptions = event.data.options;
 				viewModel.toggleDragDropEnabled(currentOptions.dragAndDropEnabled);

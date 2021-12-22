@@ -20,7 +20,7 @@ import { CompletionItemKind, CompletionItemProvider, CompletionList, CompletionP
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
@@ -71,7 +71,7 @@ suite('SuggestModel - Context', function () {
 
 	class OuterMode extends MockMode {
 		constructor(
-			@IModeService modeService: IModeService
+			@ILanguageService languageService: ILanguageService
 		) {
 			super(OUTER_LANGUAGE_ID);
 			this._register(LanguageConfigurationRegistry.register(this.languageId, {}));
@@ -84,7 +84,7 @@ suite('SuggestModel - Context', function () {
 					let prevLanguageId: string | undefined = undefined;
 					for (let i = 0; i < line.length; i++) {
 						const languageId = (line.charAt(i) === 'x' ? INNER_LANGUAGE_ID : OUTER_LANGUAGE_ID);
-						const encodedLanguageId = modeService.languageIdCodec.encodeLanguageId(languageId);
+						const encodedLanguageId = languageService.languageIdCodec.encodeLanguageId(languageId);
 						if (prevLanguageId !== languageId) {
 							tokensArr.push(i);
 							tokensArr.push((encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET));

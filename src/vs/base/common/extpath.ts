@@ -364,3 +364,25 @@ export function parseLineAndColumnAware(rawPath: string): IPathWithLineAndColumn
 		column: column !== undefined ? column : line !== undefined ? 1 : undefined // if we have a line, make sure column is also set
 	};
 }
+
+const pathChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+
+export function randomPath(parent?: string, prefix?: string, randomLength = 8): string {
+	let suffix = '';
+	for (let i = 0; i < randomLength; i++) {
+		suffix += pathChars.charAt(Math.floor(Math.random() * pathChars.length));
+	}
+
+	let randomFileName: string;
+	if (prefix) {
+		randomFileName = `${prefix}-${suffix}`;
+	} else {
+		randomFileName = suffix;
+	}
+
+	if (parent) {
+		return join(parent, randomFileName);
+	}
+
+	return randomFileName;
+}

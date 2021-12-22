@@ -204,40 +204,28 @@ const workerReady = new Promise((resolve, reject) => {
 		return reject(new Error('Service Workers are not enabled. Webviews will not work. Try disabling private/incognito mode.'));
 	}
 
-	const swPath = `service-worker.js${self.location.search}`;
+	const swPath = `service-worker.js?v=${expectedWorkerVersion}&vscode-resource-base-authority=${searchParams.get('vscode-resource-base-authority')}`;
 
 	navigator.serviceWorker.register(swPath).then(
 		async registration => {
 			await navigator.serviceWorker.ready;
-
 			/**
 			 * @param {MessageEvent} event
 			 */
 			const versionHandler = async (event) => {
-				if (event.data.channel !== 'version') {
+				if (event.data.channel !== 'init') {
 					return;
 				}
-
 				navigator.serviceWorker.removeEventListener('message', versionHandler);
-				if (event.data.version === expectedWorkerVersion) {
-					return resolve();
-				} else {
-					console.log(`Found unexpected service worker version. Found: ${event.data.version}. Expected: ${expectedWorkerVersion}`);
-					console.log(`Attempting to reload service worker`);
 
-					// If we have the wrong version, try once (and only once) to unregister and re-register
-					// Note that `.update` doesn't seem to work desktop electron at the moment so we use
-					// `unregister` and `register` here.
-					return registration.unregister()
-						.then(() => navigator.serviceWorker.register(swPath))
-						.then(() => navigator.serviceWorker.ready)
-						.finally(() => { resolve(); });
-				}
+				// Forward the port back to VS Code
+				hostMessaging.onMessage('did-init-service-worker', () => resolve());
+				hostMessaging.postMessage('init-service-worker', {}, event.ports);
 			};
 			navigator.serviceWorker.addEventListener('message', versionHandler);
 
 			const postVersionMessage = () => {
-				assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'version' });
+				assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'init' });
 			};
 
 			// At this point, either the service worker is ready and
@@ -264,16 +252,14 @@ const workerReady = new Promise((resolve, reject) => {
 });
 
 const hostMessaging = new class HostMessaging {
+
 	constructor() {
+		this.channel = new MessageChannel();
+
 		/** @type {Map<string, Array<(event: MessageEvent, data: any) => void>>} */
 		this.handlers = new Map();
 
-		window.addEventListener('message', (e) => {
-			if (e.origin !== parentOrigin) {
-				console.log(`skipping webview message due to mismatched origins: ${e.origin} ${parentOrigin}`);
-				return;
-			}
-
+		this.channel.port1.onmessage = (e) => {
 			const channel = e.data.channel;
 			const handlers = this.handlers.get(channel);
 			if (handlers) {
@@ -283,15 +269,16 @@ const hostMessaging = new class HostMessaging {
 			} else {
 				console.log('no handler for ', e);
 			}
-		});
+		};
 	}
 
 	/**
 	 * @param {string} channel
 	 * @param {any} data
+	 * @param {any} [transfer]
 	 */
-	postMessage(channel, data) {
-		window.parent.postMessage({ target: ID, channel, data }, parentOrigin);
+	postMessage(channel, data, transfer) {
+		this.channel.port1.postMessage({ channel, data }, transfer);
 	}
 
 	/**
@@ -305,6 +292,10 @@ const hostMessaging = new class HostMessaging {
 			this.handlers.set(channel, handlers);
 		}
 		handlers.push(handler);
+	}
+
+	signalReady() {
+		window.parent.postMessage({ target: ID, channel: 'webview-ready', data: {} }, parentOrigin, [this.channel.port2]);
 	}
 }();
 
@@ -385,26 +376,7 @@ const initData = {
 	themeName: undefined,
 };
 
-hostMessaging.onMessage('did-load-resource', (_event, data) => {
-	navigator.serviceWorker.ready.then(registration => {
-		assertIsDefined(registration.active).postMessage({ channel: 'did-load-resource', data }, data.data?.buffer ? [data.data.buffer] : []);
-	});
-});
 
-hostMessaging.onMessage('did-load-localhost', (_event, data) => {
-	navigator.serviceWorker.ready.then(registration => {
-		assertIsDefined(registration.active).postMessage({ channel: 'did-load-localhost', data });
-	});
-});
-
-navigator.serviceWorker.addEventListener('message', event => {
-	switch (event.data.channel) {
-		case 'load-resource':
-		case 'load-localhost':
-			hostMessaging.postMessage(event.data.channel, event.data);
-			return;
-	}
-});
 /**
  * @param {HTMLDocument?} document
  * @param {HTMLElement?} body
@@ -693,6 +665,15 @@ function toContentHtml(data) {
 	newDocument.head.prepend(defaultStyles.cloneNode(true));
 
 	applyStyles(newDocument, newDocument.body);
+
+	// Strip out unsupported http-equiv tags
+	for (const metaElement of Array.from(newDocument.querySelectorAll('meta'))) {
+		const httpEquiv = metaElement.getAttribute('http-equiv');
+		if (httpEquiv && !/^(content-security-policy|default-style|content-type)$/i.test(httpEquiv)) {
+			console.warn(`Removing unsupported meta http-equiv: ${httpEquiv}`);
+			metaElement.remove();
+		}
+	}
 
 	// Check for CSP
 	const csp = newDocument.querySelector('meta[http-equiv="Content-Security-Policy"]');
@@ -1046,6 +1027,5 @@ onDomReady(() => {
 		}
 	};
 
-	// signal ready
-	hostMessaging.postMessage('webview-ready', {});
+	hostMessaging.signalReady();
 });

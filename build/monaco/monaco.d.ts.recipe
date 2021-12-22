@@ -88,7 +88,7 @@ declare namespace monaco.languages {
 #includeAll(vs/editor/standalone/browser/standaloneLanguages;modes.=>;editorCommon.=>editor.;model.=>editor.;IMarkerData=>editor.IMarkerData):
 #includeAll(vs/editor/common/modes/languageConfiguration):
 #includeAll(vs/editor/common/modes;editorCommon.IRange=>IRange;editorCommon.IPosition=>IPosition;editorCommon.=>editor.;IMarkerData=>editor.IMarkerData;model.=>editor.):
-#include(vs/editor/common/services/modeService): ILanguageExtensionPoint
+#include(vs/editor/common/services/languageService): ILanguageExtensionPoint
 #includeAll(vs/editor/standalone/common/monarch/monarchTypes):
 
 }

@@ -7,6 +7,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IShellLaunchConfig, TerminalLocation } from 'vs/platform/terminal/common/terminal';
@@ -16,6 +17,7 @@ import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEd
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { DeserializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
 import { getInstanceFromResource, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
+import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -27,6 +29,8 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	instances: ITerminalInstance[] = [];
 	private _activeInstanceIndex: number = -1;
 	private _isShuttingDown = false;
+
+	private _terminalEditorActive: IContextKey<boolean>;
 
 	private _editorInputs: Map</*resource*/string, TerminalEditorInput> = new Map();
 	private _instanceDisposables: Map</*resource*/string, IDisposable[]> = new Map();
@@ -46,10 +50,11 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super();
-
+		this._terminalEditorActive = TerminalContextKeys.terminalEditorActive.bindTo(contextKeyService);
 		this._register(toDisposable(() => {
 			for (const d of this._instanceDisposables.values()) {
 				dispose(d);
@@ -59,7 +64,9 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		this._register(this._editorService.onDidActiveEditorChange(() => {
 			const activeEditor = this._editorService.activeEditor;
 			const instance = activeEditor instanceof TerminalEditorInput ? activeEditor?.terminalInstance : undefined;
-			if (instance && activeEditor instanceof TerminalEditorInput) {
+			const terminalEditorActive = !!instance && activeEditor instanceof TerminalEditorInput;
+			this._terminalEditorActive.set(terminalEditorActive);
+			if (terminalEditorActive) {
 				activeEditor?.setGroup(this._editorService.activeEditorPane?.group);
 				this._setActiveInstance(instance);
 			}
@@ -274,6 +281,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	detachActiveEditorInstance(): ITerminalInstance {
 		const activeEditor = this._editorService.activeEditor;
 		if (!(activeEditor instanceof TerminalEditorInput)) {
+			// should never happen now with the terminalEditorActive context key
 			throw new Error('Active editor is not a terminal');
 		}
 		const instance = activeEditor.terminalInstance;

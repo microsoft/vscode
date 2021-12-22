@@ -29,7 +29,7 @@ import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbo
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { RemoteFileSystemProvider } from 'vs/workbench/services/remote/common/remoteAgentFileSystemChannel';
+import { RemoteFileSystemProviderClient } from 'vs/workbench/services/remote/common/remoteFileSystemProviderClient';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/common/configurationCache';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { basename } from 'vs/base/common/path';
@@ -52,7 +52,7 @@ import { ISharedProcessWorkerWorkbenchService, SharedProcessWorkerWorkbenchServi
 import { isMacintosh } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files/electron-sandbox/diskFileSystemProvider';
-import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
+import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
 
 export class DesktopMain extends Disposable {
 
@@ -250,7 +250,7 @@ export class DesktopMain extends Disposable {
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 		// Remote file system
-		this._register(RemoteFileSystemProvider.register(remoteAgentService, fileService, logService));
+		this._register(RemoteFileSystemProviderClient.register(remoteAgentService, fileService, logService));
 
 		const payload = this.resolveWorkspaceInitializationPayload(environmentService);
 

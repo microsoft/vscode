@@ -17,7 +17,7 @@ import { extUri, extUriIgnorePathCase, IExtUri, isAbsolutePath } from 'vs/base/c
 import { consumeStream, isReadableBufferedStream, isReadableStream, listenStream, newWriteableStream, peekReadable, peekStream, transform } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { ensureFileSystemProviderError, etag, ETAG_DISABLED, FileChangesEvent, FileDeleteOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, hasFileFolderCopyCapability, hasFileReadStreamCapability, hasOpenReadWriteCloseCapability, hasReadWriteCapability, ICreateFileOptions, IFileChange, IFileContent, IFileService, IFileStat, IFileStatWithMetadata, IFileStreamContent, IFileSystemProvider, IFileSystemProviderActivationEvent, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IRawFileChangesEvent, IReadFileOptions, IReadFileStreamOptions, IResolveFileOptions, IResolveFileResult, IResolveFileResultWithMetadata, IResolveMetadataFileOptions, IStat, IWatchOptions, IWriteFileOptions, NotModifiedSinceFileOperationError, toFileOperationResult, toFileSystemProviderErrorCode } from 'vs/platform/files/common/files';
+import { ensureFileSystemProviderError, etag, ETAG_DISABLED, FileChangesEvent, FileDeleteOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, hasFileAtomicReadCapability, hasFileFolderCopyCapability, hasFileReadStreamCapability, hasOpenReadWriteCloseCapability, hasReadWriteCapability, ICreateFileOptions, IFileChange, IFileContent, IFileService, IFileStat, IFileStatWithMetadata, IFileStreamContent, IFileSystemProvider, IFileSystemProviderActivationEvent, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IRawFileChangesEvent, IReadFileOptions, IReadFileStreamOptions, IResolveFileOptions, IResolveFileResult, IResolveFileResultWithMetadata, IResolveMetadataFileOptions, IStat, IWatchOptions, IWriteFileOptions, NotModifiedSinceFileOperationError, toFileOperationResult, toFileSystemProviderErrorCode } from 'vs/platform/files/common/files';
 import { readFileIntoStream } from 'vs/platform/files/common/io';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -440,21 +440,21 @@ export class FileService extends Disposable implements IFileService {
 		return stat;
 	}
 
-	async readFile(resource: URI, options?: IReadFileOptions): Promise<IFileContent> {
+	async readFile(resource: URI, options?: IReadFileOptions, token?: CancellationToken): Promise<IFileContent> {
 		const provider = await this.withReadProvider(resource);
 
 		if (options?.atomic) {
-			return this.doReadFileAtomic(provider, resource, options);
+			return this.doReadFileAtomic(provider, resource, options, token);
 		}
 
-		return this.doReadFile(provider, resource, options);
+		return this.doReadFile(provider, resource, options, token);
 	}
 
-	private async doReadFileAtomic(provider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability | IFileSystemProviderWithFileReadStreamCapability, resource: URI, options?: IReadFileOptions): Promise<IFileContent> {
+	private async doReadFileAtomic(provider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability | IFileSystemProviderWithFileReadStreamCapability, resource: URI, options?: IReadFileOptions, token?: CancellationToken): Promise<IFileContent> {
 		return new Promise<IFileContent>((resolve, reject) => {
 			this.writeQueue.queueFor(resource, this.getExtUri(provider).providerExtUri).queue(async () => {
 				try {
-					const content = await this.doReadFile(provider, resource, options);
+					const content = await this.doReadFile(provider, resource, options, token);
 					resolve(content);
 				} catch (error) {
 					reject(error);
@@ -463,7 +463,7 @@ export class FileService extends Disposable implements IFileService {
 		});
 	}
 
-	private async doReadFile(provider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability | IFileSystemProviderWithFileReadStreamCapability, resource: URI, options?: IReadFileOptions): Promise<IFileContent> {
+	private async doReadFile(provider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability | IFileSystemProviderWithFileReadStreamCapability, resource: URI, options?: IReadFileOptions, token?: CancellationToken): Promise<IFileContent> {
 		const stream = await this.doReadFileStream(provider, resource, {
 			...options,
 			// optimization: since we know that the caller does not
@@ -472,7 +472,7 @@ export class FileService extends Disposable implements IFileService {
 			// has (open, read, close) if the provider supports
 			// unbuffered reading.
 			preferUnbuffered: true
-		});
+		}, token);
 
 		return {
 			...stream,
@@ -480,19 +480,23 @@ export class FileService extends Disposable implements IFileService {
 		};
 	}
 
-	async readFileStream(resource: URI, options?: IReadFileStreamOptions): Promise<IFileStreamContent> {
+	async readFileStream(resource: URI, options?: IReadFileStreamOptions, token?: CancellationToken): Promise<IFileStreamContent> {
 		const provider = await this.withReadProvider(resource);
 
-		return this.doReadFileStream(provider, resource, options);
+		return this.doReadFileStream(provider, resource, options, token);
 	}
 
-	private async doReadFileStream(provider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability | IFileSystemProviderWithFileReadStreamCapability, resource: URI, options?: IReadFileStreamOptions & { preferUnbuffered?: boolean; }): Promise<IFileStreamContent> {
+	private async doReadFileStream(provider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability | IFileSystemProviderWithFileReadStreamCapability, resource: URI, options?: IReadFileOptions & IReadFileStreamOptions & { preferUnbuffered?: boolean; }, token?: CancellationToken): Promise<IFileStreamContent> {
 
 		// install a cancellation token that gets cancelled
 		// when any error occurs. this allows us to resolve
 		// the content of the file while resolving metadata
 		// but still cancel the operation in certain cases.
-		const cancellableSource = new CancellationTokenSource();
+		//
+		// in addition, we pass the optional token in that
+		// we got from the outside to even allow for external
+		// cancellation of the read operation.
+		const cancellableSource = new CancellationTokenSource(token);
 
 		// validate read operation
 		const statPromise = this.validateReadFile(resource, options).then(stat => stat, error => {
@@ -512,8 +516,12 @@ export class FileService extends Disposable implements IFileService {
 				await statPromise;
 			}
 
-			// read unbuffered (only if either preferred, or the provider has no buffered read capability)
-			if (!(hasOpenReadWriteCloseCapability(provider) || hasFileReadStreamCapability(provider)) || (hasReadWriteCapability(provider) && options?.preferUnbuffered)) {
+			// read unbuffered
+			if (
+				(options?.atomic && hasFileAtomicReadCapability(provider)) ||								// atomic reads are always unbuffered
+				!(hasOpenReadWriteCloseCapability(provider) || hasFileReadStreamCapability(provider)) ||	// provider has no buffered capability
+				(hasReadWriteCapability(provider) && options?.preferUnbuffered)								// unbuffered read is preferred
+			) {
 				fileStream = this.readFileUnbuffered(provider, resource, options);
 			}
 
@@ -574,14 +582,19 @@ export class FileService extends Disposable implements IFileService {
 		return stream;
 	}
 
-	private readFileUnbuffered(provider: IFileSystemProviderWithFileReadWriteCapability, resource: URI, options?: IReadFileStreamOptions): VSBufferReadableStream {
+	private readFileUnbuffered(provider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithFileAtomicReadCapability, resource: URI, options?: IReadFileOptions & IReadFileStreamOptions): VSBufferReadableStream {
 		const stream = newWriteableStream<VSBuffer>(data => VSBuffer.concat(data));
 
 		// Read the file into the stream async but do not wait for
 		// this to complete because streams work via events
 		(async () => {
 			try {
-				let buffer = await provider.readFile(resource);
+				let buffer: Uint8Array;
+				if (options?.atomic && hasFileAtomicReadCapability(provider)) {
+					buffer = await provider.readFile(resource, { atomic: true });
+				} else {
+					buffer = await provider.readFile(resource);
+				}
 
 				// respect position option
 				if (typeof options?.position === 'number') {

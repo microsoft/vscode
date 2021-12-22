@@ -1254,7 +1254,7 @@ declare module 'vscode' {
 	export class Uri {
 
 		/**
-		 * Create an URI from a string, e.g. `http://www.msft.com/some/path`,
+		 * Create an URI from a string, e.g. `http://www.example.com/some/path`,
 		 * `file:///usr/home`, or `scheme:with/path`.
 		 *
 		 * *Note* that for a while uris without a `scheme` were accepted. That is not correct
@@ -1330,29 +1330,29 @@ declare module 'vscode' {
 		private constructor(scheme: string, authority: string, path: string, query: string, fragment: string);
 
 		/**
-		 * Scheme is the `http` part of `http://www.msft.com/some/path?query#fragment`.
+		 * Scheme is the `http` part of `http://www.example.com/some/path?query#fragment`.
 		 * The part before the first colon.
 		 */
 		readonly scheme: string;
 
 		/**
-		 * Authority is the `www.msft.com` part of `http://www.msft.com/some/path?query#fragment`.
+		 * Authority is the `www.example.com` part of `http://www.example.com/some/path?query#fragment`.
 		 * The part between the first double slashes and the next slash.
 		 */
 		readonly authority: string;
 
 		/**
-		 * Path is the `/some/path` part of `http://www.msft.com/some/path?query#fragment`.
+		 * Path is the `/some/path` part of `http://www.example.com/some/path?query#fragment`.
 		 */
 		readonly path: string;
 
 		/**
-		 * Query is the `query` part of `http://www.msft.com/some/path?query#fragment`.
+		 * Query is the `query` part of `http://www.example.com/some/path?query#fragment`.
 		 */
 		readonly query: string;
 
 		/**
-		 * Fragment is the `fragment` part of `http://www.msft.com/some/path?query#fragment`.
+		 * Fragment is the `fragment` part of `http://www.example.com/some/path?query#fragment`.
 		 */
 		readonly fragment: string;
 
@@ -8834,7 +8834,7 @@ declare module 'vscode' {
 		 * @param items A set of items that will be rendered as actions in the message.
 		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
 		 */
-		export function showInformationMessage(message: string, ...items: string[]): Thenable<string | undefined>;
+		export function showInformationMessage<T extends string>(message: string, ...items: T[]): Thenable<T | undefined>;
 
 		/**
 		 * Show an information message to users. Optionally provide an array of items which will be presented as
@@ -8845,7 +8845,7 @@ declare module 'vscode' {
 		 * @param items A set of items that will be rendered as actions in the message.
 		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
 		 */
-		export function showInformationMessage(message: string, options: MessageOptions, ...items: string[]): Thenable<string | undefined>;
+		export function showInformationMessage<T extends string>(message: string, options: MessageOptions, ...items: T[]): Thenable<T | undefined>;
 
 		/**
 		 * Show an information message.
@@ -8879,7 +8879,7 @@ declare module 'vscode' {
 		 * @param items A set of items that will be rendered as actions in the message.
 		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
 		 */
-		export function showWarningMessage(message: string, ...items: string[]): Thenable<string | undefined>;
+		export function showWarningMessage<T extends string>(message: string, ...items: T[]): Thenable<T | undefined>;
 
 		/**
 		 * Show a warning message.
@@ -8891,7 +8891,7 @@ declare module 'vscode' {
 		 * @param items A set of items that will be rendered as actions in the message.
 		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
 		 */
-		export function showWarningMessage(message: string, options: MessageOptions, ...items: string[]): Thenable<string | undefined>;
+		export function showWarningMessage<T extends string>(message: string, options: MessageOptions, ...items: T[]): Thenable<T | undefined>;
 
 		/**
 		 * Show a warning message.
@@ -8925,7 +8925,7 @@ declare module 'vscode' {
 		 * @param items A set of items that will be rendered as actions in the message.
 		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
 		 */
-		export function showErrorMessage(message: string, ...items: string[]): Thenable<string | undefined>;
+		export function showErrorMessage<T extends string>(message: string, ...items: T[]): Thenable<T | undefined>;
 
 		/**
 		 * Show an error message.
@@ -8937,7 +8937,7 @@ declare module 'vscode' {
 		 * @param items A set of items that will be rendered as actions in the message.
 		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
 		 */
-		export function showErrorMessage(message: string, options: MessageOptions, ...items: string[]): Thenable<string | undefined>;
+		export function showErrorMessage<T extends string>(message: string, options: MessageOptions, ...items: T[]): Thenable<T | undefined>;
 
 		/**
 		 * Show an error message.
@@ -10555,6 +10555,11 @@ declare module 'vscode' {
 	export interface FileWillCreateEvent {
 
 		/**
+		 * A cancellation token.
+		 */
+		readonly token: CancellationToken;
+
+		/**
 		 * The files that are going to be created.
 		 */
 		readonly files: readonly Uri[];
@@ -10610,6 +10615,11 @@ declare module 'vscode' {
 	export interface FileWillDeleteEvent {
 
 		/**
+		 * A cancellation token.
+		 */
+		readonly token: CancellationToken;
+
+		/**
 		 * The files that are going to be deleted.
 		 */
 		readonly files: readonly Uri[];
@@ -10663,6 +10673,11 @@ declare module 'vscode' {
 	 * thenable that resolves to a {@link WorkspaceEdit workspace edit}.
 	 */
 	export interface FileWillRenameEvent {
+
+		/**
+		 * A cancellation token.
+		 */
+		readonly token: CancellationToken;
 
 		/**
 		 * The files that are going to be renamed.
@@ -14133,9 +14148,9 @@ declare module 'vscode' {
 		 * @param providerId The id of the provider to use
 		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
-		 * @returns A thenable that resolves to an authentication session if available, or undefined if there are no sessions
+		 * @returns A thenable that resolves to an authentication session
 		 */
-		export function getSession(providerId: string, scopes: readonly string[], options?: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
+		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { forceNewSession: true | { detail: string } }): Thenable<AuthenticationSession>;
 
 		/**
 		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
@@ -14148,9 +14163,9 @@ declare module 'vscode' {
 		 * @param providerId The id of the provider to use
 		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
-		 * @returns A thenable that resolves to an authentication session
+		 * @returns A thenable that resolves to an authentication session if available, or undefined if there are no sessions
 		 */
-		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { forceNewSession: true | { detail: string } }): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopes: readonly string[], options?: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
 
 		/**
 		 * An {@link Event} which fires when the authentication sessions of an authentication provider have

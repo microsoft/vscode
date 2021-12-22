@@ -54,7 +54,7 @@ export function promiseFromEvent<T, U>(
 	let cancel = new EventEmitter<void>();
 	return {
 		promise: new Promise<U>((resolve, reject) => {
-			cancel.event(_ => reject());
+			cancel.event(_ => reject('Cancelled'));
 			subscription = event((value: T) => {
 				try {
 					Promise.resolve(adapter(value, resolve, reject))
