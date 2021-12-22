@@ -917,9 +917,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		this.xterm?.dispose();
 
-		// Workaround until https://bugzilla.mozilla.org/show_bug.cgi?id=559561 is fixed
+		// HACK: Workaround for Firefox bug https://bugzilla.mozilla.org/show_bug.cgi?id=559561,
 		// as 'blur' event in xterm.raw.textarea is not triggered on xterm.dispose()
-		// Fixes #138358
+		// See https://github.com/microsoft/vscode/issues/138358
 		if (isFirefox) {
 			this._terminalFocusContextKey.reset();
 			this._terminalHasTextContextKey.reset();
