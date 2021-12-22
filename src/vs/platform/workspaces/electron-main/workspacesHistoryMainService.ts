@@ -41,25 +41,12 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 	private static readonly MAX_TOTAL_RECENT_ENTRIES = 500;
 
-	private static readonly MAX_MACOS_DOCK_RECENT_WORKSPACES = 7; 		// prefer higher number of workspaces...
-	private static readonly MAX_MACOS_DOCK_RECENT_ENTRIES_TOTAL = 10; 	// ...over number of files
-
-	private static readonly MAX_WINDOWS_JUMP_LIST_ENTRIES = 7;
-
-	// Exclude some very common files from the dock/taskbar
-	private static readonly COMMON_FILES_FILTER = [
-		'COMMIT_EDITMSG',
-		'MERGE_MSG'
-	];
-
 	private static readonly recentlyOpenedStorageKey = 'openedPathsList';
 
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidChangeRecentlyOpened = this._register(new Emitter<void>());
-	readonly onDidChangeRecentlyOpened: CommonEvent<void> = this._onDidChangeRecentlyOpened.event;
-
-	private readonly macOSRecentDocumentsUpdater = this._register(new ThrottledDelayer<void>(800));
+	readonly onDidChangeRecentlyOpened = this._onDidChangeRecentlyOpened.event;
 
 	constructor(
 		@IStateMainService private readonly stateMainService: IStateMainService,
@@ -81,14 +68,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		this._register(this.workspacesManagementMainService.onDidEnterWorkspace(event => this.addRecentlyOpened([{ workspace: event.workspace, remoteAuthority: event.window.remoteAuthority }])));
 	}
 
-	private async handleWindowsJumpList(): Promise<void> {
-		if (!isWindows) {
-			return; // only on windows
-		}
-
-		await this.updateWindowsJumpList();
-		this._register(this.onDidChangeRecentlyOpened(() => this.updateWindowsJumpList()));
-	}
+	//#region Workspaces History
 
 	async addRecentlyOpened(recentToAdd: IRecent[]): Promise<void> {
 		const workspaces: Array<IRecentFolder | IRecentWorkspace> = [];
@@ -172,65 +152,6 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		}
 	}
 
-	private async updateMacOSRecentDocuments(): Promise<void> {
-		if (!isMacintosh) {
-			return;
-		}
-
-		// We clear all documents first to ensure an up-to-date view on the set. Since entries
-		// can get deleted on disk, this ensures that the list is always valid
-		app.clearRecentDocuments();
-
-		const mru = await this.getRecentlyOpened();
-
-		// Collect max-N recent workspaces that are known to exist
-		const workspaceEntries: string[] = [];
-		let entries = 0;
-		for (let i = 0; i < mru.workspaces.length && entries < WorkspacesHistoryMainService.MAX_MACOS_DOCK_RECENT_WORKSPACES; i++) {
-			const loc = this.location(mru.workspaces[i]);
-			if (loc.scheme === Schemas.file) {
-				const workspacePath = originalFSPath(loc);
-				if (await Promises.exists(workspacePath)) {
-					workspaceEntries.push(workspacePath);
-					entries++;
-				}
-			}
-		}
-
-		// Collect max-N recent files that are known to exist
-		const fileEntries: string[] = [];
-		for (let i = 0; i < mru.files.length && entries < WorkspacesHistoryMainService.MAX_MACOS_DOCK_RECENT_ENTRIES_TOTAL; i++) {
-			const loc = this.location(mru.files[i]);
-			if (loc.scheme === Schemas.file) {
-				const filePath = originalFSPath(loc);
-				if (
-					WorkspacesHistoryMainService.COMMON_FILES_FILTER.includes(basename(loc)) || // skip some well known file entries
-					workspaceEntries.includes(filePath)											// prefer a workspace entry over a file entry (e.g. for .code-workspace)
-				) {
-					continue;
-				}
-
-				if (await Promises.exists(filePath)) {
-					fileEntries.push(filePath);
-					entries++;
-				}
-			}
-		}
-
-		// The apple guidelines (https://developer.apple.com/design/human-interface-guidelines/macos/menus/menu-anatomy/)
-		// explain that most recent entries should appear close to the interaction by the user (e.g. close to the
-		// mouse click). Most native macOS applications that add recent documents to the dock, show the most recent document
-		// to the bottom (because the dock menu is not appearing from top to bottom, but from the bottom to the top). As such
-		// we fill in the entries in reverse order so that the most recent shows up at the bottom of the menu.
-		//
-		// On top of that, the maximum number of documents can be configured by the user (defaults to 10). To ensure that
-		// we are not failing to show the most recent entries, we start by adding files first (in reverse order of recency)
-		// and then add folders (in reverse order of recency). Given that strategy, we can ensure that the most recent
-		// N folders are always appearing, even if the limit is low (https://github.com/microsoft/vscode/issues/74788)
-		fileEntries.reverse().forEach(fileEntry => app.addRecentDocument(fileEntry));
-		workspaceEntries.reverse().forEach(workspaceEntry => app.addRecentDocument(workspaceEntry));
-	}
-
 	async clearRecentlyOpened(): Promise<void> {
 		await this.saveRecentlyOpened({ workspaces: [], files: [] });
 		app.clearRecentDocuments();
@@ -302,6 +223,57 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		const serialized = toStoreData(recent);
 
 		this.stateMainService.setItem(WorkspacesHistoryMainService.recentlyOpenedStorageKey, serialized);
+	}
+
+	private location(recent: IRecent): URI {
+		if (isRecentFolder(recent)) {
+			return recent.folderUri;
+		}
+
+		if (isRecentFile(recent)) {
+			return recent.fileUri;
+		}
+
+		return recent.workspace.configPath;
+	}
+
+	private indexOfWorkspace(recents: IRecent[], candidate: IWorkspaceIdentifier): number {
+		return recents.findIndex(recent => isRecentWorkspace(recent) && recent.workspace.id === candidate.id);
+	}
+
+	private indexOfFolder(recents: IRecent[], candidate: URI): number {
+		return recents.findIndex(recent => isRecentFolder(recent) && extUriBiasedIgnorePathCase.isEqual(recent.folderUri, candidate));
+	}
+
+	private indexOfFile(recents: IRecentFile[], candidate: URI): number {
+		return recents.findIndex(recent => extUriBiasedIgnorePathCase.isEqual(recent.fileUri, candidate));
+	}
+
+	//#endregion
+
+
+	//#region macOS Dock / Windows JumpList
+
+	private static readonly MAX_MACOS_DOCK_RECENT_WORKSPACES = 7; 		// prefer higher number of workspaces...
+	private static readonly MAX_MACOS_DOCK_RECENT_ENTRIES_TOTAL = 10; 	// ...over number of files
+
+	private static readonly MAX_WINDOWS_JUMP_LIST_ENTRIES = 7;
+
+	// Exclude some very common files from the dock/taskbar
+	private static readonly COMMON_FILES_FILTER = [
+		'COMMIT_EDITMSG',
+		'MERGE_MSG'
+	];
+
+	private readonly macOSRecentDocumentsUpdater = this._register(new ThrottledDelayer<void>(800));
+
+	private async handleWindowsJumpList(): Promise<void> {
+		if (!isWindows) {
+			return; // only on windows
+		}
+
+		await this.updateWindowsJumpList();
+		this._register(this.onDidChangeRecentlyOpened(() => this.updateWindowsJumpList()));
 	}
 
 	private async updateWindowsJumpList(): Promise<void> {
@@ -422,27 +394,64 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		return uri.scheme === 'file' ? normalizeDriveLetter(uri.fsPath) : uri.toString();
 	}
 
-	private location(recent: IRecent): URI {
-		if (isRecentFolder(recent)) {
-			return recent.folderUri;
+	private async updateMacOSRecentDocuments(): Promise<void> {
+		if (!isMacintosh) {
+			return;
 		}
 
-		if (isRecentFile(recent)) {
-			return recent.fileUri;
+		// We clear all documents first to ensure an up-to-date view on the set. Since entries
+		// can get deleted on disk, this ensures that the list is always valid
+		app.clearRecentDocuments();
+
+		const mru = await this.getRecentlyOpened();
+
+		// Collect max-N recent workspaces that are known to exist
+		const workspaceEntries: string[] = [];
+		let entries = 0;
+		for (let i = 0; i < mru.workspaces.length && entries < WorkspacesHistoryMainService.MAX_MACOS_DOCK_RECENT_WORKSPACES; i++) {
+			const loc = this.location(mru.workspaces[i]);
+			if (loc.scheme === Schemas.file) {
+				const workspacePath = originalFSPath(loc);
+				if (await Promises.exists(workspacePath)) {
+					workspaceEntries.push(workspacePath);
+					entries++;
+				}
+			}
 		}
 
-		return recent.workspace.configPath;
+		// Collect max-N recent files that are known to exist
+		const fileEntries: string[] = [];
+		for (let i = 0; i < mru.files.length && entries < WorkspacesHistoryMainService.MAX_MACOS_DOCK_RECENT_ENTRIES_TOTAL; i++) {
+			const loc = this.location(mru.files[i]);
+			if (loc.scheme === Schemas.file) {
+				const filePath = originalFSPath(loc);
+				if (
+					WorkspacesHistoryMainService.COMMON_FILES_FILTER.includes(basename(loc)) || // skip some well known file entries
+					workspaceEntries.includes(filePath)											// prefer a workspace entry over a file entry (e.g. for .code-workspace)
+				) {
+					continue;
+				}
+
+				if (await Promises.exists(filePath)) {
+					fileEntries.push(filePath);
+					entries++;
+				}
+			}
+		}
+
+		// The apple guidelines (https://developer.apple.com/design/human-interface-guidelines/macos/menus/menu-anatomy/)
+		// explain that most recent entries should appear close to the interaction by the user (e.g. close to the
+		// mouse click). Most native macOS applications that add recent documents to the dock, show the most recent document
+		// to the bottom (because the dock menu is not appearing from top to bottom, but from the bottom to the top). As such
+		// we fill in the entries in reverse order so that the most recent shows up at the bottom of the menu.
+		//
+		// On top of that, the maximum number of documents can be configured by the user (defaults to 10). To ensure that
+		// we are not failing to show the most recent entries, we start by adding files first (in reverse order of recency)
+		// and then add folders (in reverse order of recency). Given that strategy, we can ensure that the most recent
+		// N folders are always appearing, even if the limit is low (https://github.com/microsoft/vscode/issues/74788)
+		fileEntries.reverse().forEach(fileEntry => app.addRecentDocument(fileEntry));
+		workspaceEntries.reverse().forEach(workspaceEntry => app.addRecentDocument(workspaceEntry));
 	}
 
-	private indexOfWorkspace(arr: IRecent[], candidate: IWorkspaceIdentifier): number {
-		return arr.findIndex(workspace => isRecentWorkspace(workspace) && workspace.workspace.id === candidate.id);
-	}
-
-	private indexOfFolder(arr: IRecent[], candidate: URI): number {
-		return arr.findIndex(folder => isRecentFolder(folder) && extUriBiasedIgnorePathCase.isEqual(folder.folderUri, candidate));
-	}
-
-	private indexOfFile(arr: IRecentFile[], candidate: URI): number {
-		return arr.findIndex(file => extUriBiasedIgnorePathCase.isEqual(file.fileUri, candidate));
-	}
+	//#endregion
 }
