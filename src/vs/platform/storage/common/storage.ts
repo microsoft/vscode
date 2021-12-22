@@ -245,7 +245,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 	private readonly flushWhenIdleScheduler = this._register(new RunOnceScheduler(() => this.doFlushWhenIdle(), this.options.flushInterval));
 	private readonly runFlushWhenIdle = this._register(new MutableDisposable());
 
-	constructor(private options: IStorageServiceOptions = { flushInterval: AbstractStorageService.DEFAULT_FLUSH_INTERVAL }) {
+	constructor(private readonly options: IStorageServiceOptions = { flushInterval: AbstractStorageService.DEFAULT_FLUSH_INTERVAL }) {
 		super();
 	}
 
