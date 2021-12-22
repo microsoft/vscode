@@ -143,12 +143,12 @@ interface ISemanticTokenInfo {
 interface IDecodedMetadata {
 	languageId: string;
 	tokenType: StandardTokenType;
-	bold?: boolean;
-	italic?: boolean;
-	underline?: boolean;
-	strikethrough?: boolean;
-	foreground?: string;
-	background?: string;
+	bold: boolean | undefined;
+	italic: boolean | undefined;
+	underline: boolean | undefined;
+	strikethrough: boolean | undefined;
+	foreground: string | undefined;
+	background: string | undefined;
 }
 
 function renderTokenText(tokenText: string): string {
@@ -315,7 +315,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 				));
 			}
 			if (semanticTokenInfo.metadata) {
-				const properties: (keyof TokenStyleData)[] = ['foreground', 'bold', 'italic', 'underline'];
+				const properties: (keyof TokenStyleData)[] = ['foreground', 'bold', 'italic', 'underline', 'strikethrough'];
 				const propertiesByDefValue: { [rule: string]: string[] } = {};
 				const allDefValues = new Array<[Array<HTMLElement | string>, string]>(); // remember the order
 				// first collect to detect when the same rule is used for multiple properties
@@ -586,7 +586,9 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 						bold: tokenStyle?.bold,
 						italic: tokenStyle?.italic,
 						underline: tokenStyle?.underline,
-						foreground: colorMap[tokenStyle?.foreground || ColorId.None]
+						strikethrough: tokenStyle?.strikethrough,
+						foreground: colorMap[tokenStyle?.foreground || ColorId.None],
+						background: undefined
 					};
 				}
 

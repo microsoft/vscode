@@ -38,7 +38,11 @@ suite('ModelService', () => {
 				return {
 					getTokenStyleMetadata: (tokenType, tokenModifiers, languageId): ITokenStyle => {
 						return {
-							foreground: parseInt(tokenType.substr(2), 10)
+							foreground: parseInt(tokenType.substr(2), 10),
+							bold: undefined,
+							underline: undefined,
+							strikethrough: undefined,
+							italic: undefined
 						};
 					}
 				};
