@@ -56,6 +56,8 @@ import { StandaloneQuickInputServiceImpl } from 'vs/editor/standalone/browser/qu
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ILanguageConfigurationService, LanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { OpenerService } from 'vs/editor/browser/services/openerService';
 
 export interface IEditorOverrideServices {
 	[index: string]: any;
@@ -205,8 +207,10 @@ export class DynamicStandaloneServices extends Disposable {
 		const themeService = this.get(IThemeService);
 		const logService = this.get(ILogService);
 		const contextKeyService = this.get(IContextKeyService);
+		const codeEditorService = this.get(ICodeEditorService);
+		const modelService = this.get(IModelService);
 
-		let ensure = <T>(serviceId: ServiceIdentifier<T>, factory: () => T): T => {
+		const ensure = <T>(serviceId: ServiceIdentifier<T>, factory: () => T): T => {
 			let value: T | null = null;
 			if (overrides) {
 				value = overrides[serviceId.toString()];
@@ -226,11 +230,13 @@ export class DynamicStandaloneServices extends Disposable {
 
 		let keybindingService = ensure(IKeybindingService, () => this._register(new StandaloneKeybindingService(contextKeyService, commandService, telemetryService, notificationService, logService, domElement)));
 
-		let layoutService = ensure(ILayoutService, () => new SimpleLayoutService(StaticServices.codeEditorService.get(ICodeEditorService), domElement));
+		let layoutService = ensure(ILayoutService, () => new SimpleLayoutService(codeEditorService, domElement));
 
-		ensure(IQuickInputService, () => new StandaloneQuickInputServiceImpl(_instantiationService, StaticServices.codeEditorService.get(ICodeEditorService)));
+		ensure(IQuickInputService, () => new StandaloneQuickInputServiceImpl(_instantiationService, codeEditorService));
 
 		let contextViewService = ensure(IContextViewService, () => this._register(new ContextViewService(layoutService)));
+
+		ensure(IOpenerService, () => new OpenerService(codeEditorService, commandService));
 
 		ensure(IClipboardService, () => new BrowserClipboardService());
 
@@ -243,7 +249,7 @@ export class DynamicStandaloneServices extends Disposable {
 
 		ensure(IMenuService, () => new MenuService(commandService));
 
-		ensure(IBulkEditService, () => new SimpleBulkEditService(StaticServices.modelService.get(IModelService)));
+		ensure(IBulkEditService, () => new SimpleBulkEditService(modelService));
 
 		ensure(IWorkspaceTrustManagementService, () => new SimpleWorkspaceTrustManagementService());
 	}
