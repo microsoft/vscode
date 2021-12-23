@@ -530,7 +530,7 @@
 		},
 		{
 			"name": "Markup Styling",
-			"scope": "markup.bold, markup.italic",
+			"scope": "markup.bold, markup.italic, markup.strikethrough",
 			"settings": {
 				"foreground": "#6089B4"
 			}
@@ -581,6 +581,20 @@
 			}
 		},
 		{
+			"name": "Markdown Emphasis",
+			"scope": "markup.italic.markdown",
+			"settings": {
+				"fontStyle": "italic"
+			}
+		},
+		{
+			"name": "Markdown Strikethrough",
+			"scope": "markup.strikethrough.markdown",
+			"settings": {
+				"fontStyle": "strikethrough"
+			}
+		},
+		{
 			"name": "Markdown Link Title/Description",
 			"scope": "string.other.link.title.markdown,string.other.link.description.markdown",
 			"settings": {
@@ -592,13 +606,6 @@
 			"scope": "markup.underline.link.markdown,markup.underline.link.image.markdown",
 			"settings": {
 				"foreground": ""
-			}
-		},
-		{
-			"name": "Markdown Emphasis",
-			"scope": "markup.italic.markdown",
-			"settings": {
-				"fontStyle": "italic"
 			}
 		},
 		{

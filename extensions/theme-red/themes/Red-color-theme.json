@@ -346,7 +346,8 @@
 			"name": "Markup Styling",
 			"scope": [
 				"markup.bold",
-				"markup.italic"
+				"markup.italic",
+				"markup.strikethrough"
 			],
 			"settings": {
 				"foreground": "#fb9a4bff"
@@ -372,6 +373,13 @@
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#cd8d8dff"
+			}
+		},
+		{
+			"name": "Markup: Strikethrough",
+			"scope": "markup.strikethrough",
+			"settings": {
+				"fontStyle": "strikethrough"
 			}
 		},
 		{

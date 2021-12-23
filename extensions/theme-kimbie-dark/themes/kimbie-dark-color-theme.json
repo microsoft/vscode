@@ -296,6 +296,17 @@
 			}
 		},
 		{
+			"name": "Strikethrough",
+			"scope": [
+				"markup.strikethrough",
+				"punctuation.definition.strikethrough"
+			],
+			"settings": {
+				"fontStyle": "strikethrough",
+				"foreground": "#98676a"
+			}
+		},
+		{
 			"name": "Code",
 			"scope": "markup.inline.raw",
 			"settings": {

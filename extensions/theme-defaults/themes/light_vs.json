@@ -138,6 +138,12 @@
 			}
 		},
 		{
+			"scope": "markup.strikethrough",
+			"settings": {
+				"fontStyle": "strikethrough"
+			}
+		},
+		{
 			"scope": "markup.heading",
 			"settings": {
 				"fontStyle": "bold",

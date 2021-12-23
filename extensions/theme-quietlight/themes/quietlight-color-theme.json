@@ -351,6 +351,13 @@
 			}
 		},
 		{
+			"name": "Markup: Strikethrough",
+			"scope": "markup.strikethrough",
+			"settings": {
+				"fontStyle": "strikethrough"
+			}
+		},
+		{
 			"name": "Markup: Strong",
 			"scope": "markup.bold",
 			"settings": {
@@ -389,7 +396,8 @@
 			"name": "Markup Styling",
 			"scope": [
 				"markup.bold",
-				"markup.italic"
+				"markup.italic",
+				"markup.strikethrough"
 			],
 			"settings": {
 				"foreground": "#448C27"
