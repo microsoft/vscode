@@ -18,6 +18,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { Promises } from 'vs/base/node/pfs';
 import { findFreePort } from 'vs/base/node/ports';
 import * as platform from 'vs/base/common/platform';
+import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { PersistentProtocol, ProtocolConstants } from 'vs/base/parts/ipc/common/ipc.net';
 import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { ConnectionType, ConnectionTypeRequest, ErrorMessage, HandshakeMessage, IRemoteExtensionHostStartParams, ITunnelConnectionStartParams, SignRequest } from 'vs/platform/remote/common/remoteAgentConnection';
@@ -346,6 +347,13 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 			const channel = new ExtensionManagementChannel(extensionManagementService, (ctx: RemoteAgentConnectionContext) => this._getUriTransformer(ctx.remoteAuthority));
 			this._socketServer.registerChannel('extensions', channel);
 
+			/**
+			 * Register localizations channel.
+			 * @author coder
+			 */
+			const localizationsChannel = ProxyChannel.fromService<RemoteAgentConnectionContext>(accessor.get(ILocalizationsService));
+			this._socketServer.registerChannel('localizations', localizationsChannel);
+
 			// clean up deprecated extensions
 			(extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions();
 
@@ -419,9 +427,13 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		if (parsedPath.base === 'vscode-remote-resource') {
 			// Handle HTTP requests for resources rendered in the rich client (images, fonts, etc.)
 			// These resources could be files shipped with extensions or even workspace files.
-			if (parsedUrl.query['tkn'] !== this._connectionToken) {
-				return this._webClientServer.serveError(req, res, 403, `Forbidden.`);
-			}
+			/**
+			 * Disable for now since we have our own auth.
+			 * @author coder
+			 */
+			// if (parsedUrl.query['tkn'] !== this._connectionToken) {
+			// 	return this._webClientServer.serveError(req, res, 403, `Forbidden.`);
+			// }
 
 			const desiredPath = parsedUrl.query['path'];
 			if (typeof desiredPath !== 'string') {

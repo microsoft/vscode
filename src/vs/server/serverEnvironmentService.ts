@@ -15,9 +15,10 @@ import { AuthType } from 'vs/base/common/auth';
 export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	//#region @coder
 	'auth': { type: 'string' },
-	'port': { type: 'string' },
+	'locale': { type: 'string' },
 	//#endregion
 
+	'port': { type: 'string' },
 	'pick-port': { type: 'string' },
 	'connectionToken': { type: 'string' }, // deprecated in favor of `--connection-token`
 	'connection-token': { type: 'string', description: nls.localize('connection-token', "A secret that must be included by the web client with all requests.") },
@@ -72,6 +73,7 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 export interface ServerParsedArgs {
 	//#region
 	auth?: AuthType;
+	'locale'?: string
 	//#endregion
 
 	port?: string;

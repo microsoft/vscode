@@ -15,6 +15,7 @@ import { isLinux } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { createRemoteURITransformer } from 'vs/server/remoteUriTransformer';
 import { ILogService } from 'vs/platform/log/common/log';
+import { getLocaleFromConfig, getNLSConfiguration } from 'vs/server/remoteLanguagePacks';
 import { IServerEnvironmentService } from 'vs/server/serverEnvironmentService';
 import { extname, dirname, join, normalize } from 'vs/base/common/path';
 import { FileAccess } from 'vs/base/common/network';
@@ -297,6 +298,9 @@ export class WebClientServer {
 			scopes: [['user:email'], ['repo']]
 		} : undefined;
 
+		const locale = this._environmentService.args.locale || await getLocaleFromConfig(this._environmentService.argvResource);
+		const nlsConfiguration = await getNLSConfiguration(locale, this._environmentService.userDataPath)
+
 		const base = relativeRoot(getOriginalUrl(req))
 		const vscodeBase = relativePath(getOriginalUrl(req))
 		const data = (await util.promisify(fs.readFile)(filePath)).toString()
@@ -332,6 +336,7 @@ export class WebClientServer {
 				userDataPath: this._environmentService.userDataPath,
 				settingsSyncOptions: !this._environmentService.isBuilt && this._environmentService.args['enable-sync'] ? { enabled: true } : undefined,
 			})))
+			.replace(/{{NLS_CONFIGURATION}}/g, () => escapeAttribute(JSON.stringify(nlsConfiguration)))
 			.replace(/{{CLIENT_BACKGROUND_COLOR}}/g, () => backgroundColor)
 			.replace(/{{CLIENT_FOREGROUND_COLOR}}/g, () => foregroundColor)
 			.replace('{{WORKBENCH_AUTH_SESSION}}', () => authSessionInfo ? escapeAttribute(JSON.stringify(authSessionInfo)) : '')

@@ -18,6 +18,7 @@ declare global {
 		export interface ServerParsedArgs {
 			//#region
 			auth?: AuthType;
+			locale?: string
 			//#endregion
 
 			port?: string;

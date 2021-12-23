@@ -110,6 +110,14 @@ registerSingleton(ICustomEndpointTelemetryService, NullEndpointTelemetryService,
 
 //#region --- workbench contributions
 
+/**
+ * Support localizations in web.
+ * @author code
+ */
+// Localizations
+import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
+import 'vs/workbench/services/localizations/browser/localizationsService';
+
 // Output
 import 'vs/workbench/contrib/output/common/outputChannelModelService';
 
