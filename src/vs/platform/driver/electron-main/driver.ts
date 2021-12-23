@@ -66,7 +66,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 	async capturePage(windowId: number): Promise<string> {
 		await this.whenUnfrozen(windowId);
 
-		const window = this.windowsMainService.getWindowById(windowId);
+		const window = this.windowsMainService.getWindowById(windowId) ?? this.windowsMainService.getLastActiveWindow(); // fallback to active window to ensure we capture window
 		if (!window?.win) {
 			throw new Error('Invalid window');
 		}
