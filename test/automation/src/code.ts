@@ -290,8 +290,10 @@ export class Code {
 
 	private async getActiveWindowId(): Promise<number> {
 		if (typeof this._activeWindowId !== 'number') {
+			this.logger.log('getActiveWindowId(): begin');
 			const windows = await this.driver.getWindowIds();
 			this._activeWindowId = windows[0];
+			this.logger.log(`getActiveWindowId(): end (windowId=${this._activeWindowId})`);
 		}
 
 		return this._activeWindowId;
