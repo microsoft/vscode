@@ -66,6 +66,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
 		super({
 			showAlias: !Language.isDefaultVariant(),
@@ -80,7 +81,8 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		const commandPaletteConfig = this.configurationService.getValue<IWorkbenchQuickAccessConfiguration>().workbench.commandPalette;
 
 		return {
-			preserveInput: commandPaletteConfig.preserveInput
+			preserveInput: commandPaletteConfig.preserveInput,
+			commandAliases: commandPaletteConfig.commandAliases || {}
 		};
 	}
 
@@ -99,11 +101,28 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		].map(c => ({
 			...c,
 			buttons: [{
+				iconClass: Codicon.edit.classNames,
+				tooltip: localize('add custom alias', "Add Custom Alias"),
+			}, {
 				iconClass: Codicon.gear.classNames,
 				tooltip: localize('configure keybinding', "Configure Keybinding"),
 			}],
-			trigger: (): TriggerAction => {
-				this.preferencesService.openGlobalKeybindingSettings(false, { query: `@command:${c.commandId}` });
+			trigger: (buttonIndex: number): TriggerAction => {
+				// New alias
+				if (buttonIndex === 0) {
+					this.quickInputService.input({ prompt: localize('newCommandAlias', "New alias for {0}", c.commandId), value: c.userCommandAlias ?? c.label }).then(input => {
+						let aliases = Object.assign({}, this.configurationService.getValue<IWorkbenchQuickAccessConfiguration>().workbench.commandPalette.commandAliases);
+						if (input) {
+							aliases[c.commandId] = input;
+						} else if (c.commandId in aliases) {
+							delete aliases[c.commandId];
+						}
+						this.configurationService.updateValue('workbench.commandPalette.commandAliases', aliases);
+					});
+					// Keyboard shortcut
+				} else if (buttonIndex === 1) {
+					this.preferencesService.openGlobalKeybindingSettings(false, { query: `@command:${c.commandId}` });
+				}
 				return TriggerAction.CLOSE_PICKER;
 			},
 		}));
@@ -134,10 +153,12 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 			const commandAlias = (aliasLabel && category) ?
 				aliasCategory ? `${aliasCategory}: ${aliasLabel}` : `${category}: ${aliasLabel}` :
 				aliasLabel;
+			const userCommandAlias = (this.configuration.commandAliases && (action.item.id in this.configuration.commandAliases)) ? this.configuration.commandAliases[action.item.id] : undefined;
 
 			globalCommandPicks.push({
 				commandId: action.item.id,
 				commandAlias,
+				userCommandAlias,
 				label: stripIcons(label)
 			});
 		}

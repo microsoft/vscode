@@ -21,6 +21,7 @@ export interface IWorkbenchQuickAccessConfiguration {
 		commandPalette: {
 			history: number;
 			preserveInput: boolean;
+			commandAliases: Record<string, string>;
 		};
 		quickOpen: {
 			enableExperimentalNewVersion: boolean;

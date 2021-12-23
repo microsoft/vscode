@@ -26,6 +26,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 export interface ICommandQuickPick extends IPickerQuickAccessItem {
 	commandId: string;
 	commandAlias?: string;
+	userCommandAlias?: string;
 }
 
 export interface ICommandsQuickAccessOptions extends IPickerQuickAccessProviderOptions<ICommandQuickPick> {
@@ -69,12 +70,13 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 		for (const commandPick of allCommandPicks) {
 			const labelHighlights = withNullAsUndefined(AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.label));
 			const aliasHighlights = commandPick.commandAlias ? withNullAsUndefined(AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.commandAlias)) : undefined;
+			const userAliasHighlights = commandPick.userCommandAlias ? withNullAsUndefined(AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.userCommandAlias)) : undefined;
 
 			// Add if matching in label or alias
-			if (labelHighlights || aliasHighlights) {
+			if (labelHighlights || aliasHighlights || userAliasHighlights) {
 				commandPick.highlights = {
 					label: labelHighlights,
-					detail: this.options.showAlias ? aliasHighlights : undefined
+					detail: userAliasHighlights ?? (this.options.showAlias ? aliasHighlights : undefined)
 				};
 
 				filteredCommandPicks.push(commandPick);
@@ -141,11 +143,17 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 				addSeparator = false; // only once
 			}
 
+			// Get detail to show
+			let detail = commandPick.userCommandAlias;
+			if (detail === undefined && this.options.showAlias && commandPick.commandAlias !== commandPick.label) {
+				detail = commandPick.commandAlias;
+			}
+
 			// Command
 			commandPicks.push({
 				...commandPick,
 				ariaLabel,
-				detail: this.options.showAlias && commandPick.commandAlias !== commandPick.label ? commandPick.commandAlias : undefined,
+				detail: detail,
 				keybinding,
 				accept: async () => {
 

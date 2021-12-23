@@ -329,6 +329,14 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('preserveInput', "Controls whether the last typed input to the command palette should be restored when opening it the next time."),
 				'default': false
 			},
+			'workbench.commandPalette.commandAliases': {
+				'type': 'object',
+				'additionalProperties': {
+					'type': 'string'
+				},
+				'description': localize('workbench.commandPalette.commandAliases', "Controls custom aliases for commands. Key is the command ID and value is the custom user alias."),
+				'default': false
+			},
 			'workbench.quickOpen.closeOnFocusLost': {
 				'type': 'boolean',
 				'description': localize('closeOnFocusLost', "Controls whether Quick Open should close automatically once it loses focus."),
