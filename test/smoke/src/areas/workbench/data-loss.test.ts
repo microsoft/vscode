@@ -5,7 +5,7 @@
 
 import { join } from 'path';
 import { Application, ApplicationOptions, Logger, Quality } from '../../../../automation';
-import { getRandomUserDataDir, startApp, timeout, installDiagnosticsHandler, installAppAfterHandler } from '../../utils';
+import { createApp, timeout, installDiagnosticsHandler, installAppAfterHandler, getRandomUserDataDir } from '../../utils';
 
 export function setup(ensureStableCode: () => string | undefined, logger: Logger) {
 	describe('Data Loss (insiders -> insiders)', () => {
@@ -17,7 +17,8 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 		installAppAfterHandler(() => app);
 
 		it('verifies opened editors are restored', async function () {
-			app = await startApp(this.defaultOptions);
+			app = createApp(this.defaultOptions);
+			await app.start();
 
 			// Open 3 editors
 			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'bin', 'www'));
@@ -38,7 +39,8 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 		});
 
 		it('verifies editors can save and restore', async function () {
-			app = await startApp(this.defaultOptions);
+			app = createApp(this.defaultOptions);
+			await app.start();
 
 			const textToType = 'Hello, Code';
 
@@ -74,7 +76,8 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 		});
 
 		async function testHotExit(restartDelay: number | undefined, autoSave: boolean | undefined) {
-			app = await startApp(this.defaultOptions);
+			app = createApp(this.defaultOptions);
+			await app.start();
 
 			if (autoSave) {
 				await app.workbench.settingsEditor.addUserSetting('files.autoSave', '"afterDelay"');
@@ -129,10 +132,13 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 				this.skip();
 			}
 
-			// On macOS, the stable app fails to launch on first try,
-			// so let's retry this once
-			// https://github.com/microsoft/vscode/pull/127799
+			// macOS: the first launch of stable Code will trigger
+			// additional checks in the OS (notarization validation)
+			// so it can take a very long time. as such we increase
+			// the timeout and install a retry handler to make sure
+			// we do not fail as a consequence.
 			if (process.platform === 'darwin') {
+				this.timeout(2 * 60 * 1000);
 				this.retries(2);
 			}
 
