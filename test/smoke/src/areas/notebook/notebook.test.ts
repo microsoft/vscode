@@ -25,7 +25,7 @@ export function setup(logger: Logger) {
 			cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePathOrFolder });
 		});
 
-		it('inserts/edits code cell', async function () {
+		it.skip('inserts/edits code cell', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/139672
 			const app = this.app as Application;
 			await app.workbench.notebook.openNotebook();
 			await app.workbench.notebook.focusNextCell();
