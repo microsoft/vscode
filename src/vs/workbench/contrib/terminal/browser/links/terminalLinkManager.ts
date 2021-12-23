@@ -101,15 +101,15 @@ export class TerminalLinkManager extends DisposableStore {
 		let provider: ILinkProvider | undefined = undefined;
 		if (type === TerminalLinkProviderType.Word) {
 			provider = this._standardLinkProviders.find(p => p instanceof TerminalWordLinkProvider);
-		} else {
+		} else if (type === TerminalLinkProviderType.Validated) {
 			provider = this._standardLinkProviders.find(p => p instanceof TerminalValidatedLocalLinkProvider);
-
+		} else {
+			provider = this._standardLinkProviders.find(p => p instanceof TerminalProtocolLinkProvider);
 		}
 		if (provider === undefined) {
-			throw new Error('no link provider of that type');
+			throw new Error(`no link provider of type ${type}`);
 		}
-		const links = (await new Promise<ILink[] | undefined>(r => provider?.provideLinks(y, r)))!;
-		return links;
+		return (await new Promise<ILink[] | undefined>(r => provider?.provideLinks(y, r)))!;
 	}
 	private _tooltipCallback(link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) {
 		if (!this._widgetManager) {
@@ -185,7 +185,7 @@ export class TerminalLinkManager extends DisposableStore {
 			// Prevent default electron link handling so Alt+Click mode works normally
 			event?.preventDefault();
 
-			// Require correct modifier on click
+			// Require correct modifier on click unless event is coming from linkQuickPick selection
 			if (event && !(event instanceof TerminalLinkQuickpickEvent) && !this._isLinkActivationModifierDown(event)) {
 				return;
 			}
@@ -441,5 +441,6 @@ export interface LineColumnInfo {
 
 export enum TerminalLinkProviderType {
 	Word = 'word',
-	Validated = 'validated'
+	Validated = 'validated',
+	Protocol = 'protocol'
 }

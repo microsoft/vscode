@@ -661,13 +661,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._terminalLinkQuickpick = this._instantiationService.createInstance(TerminalLinkQuickpick);
 		}
 		const links = await this._getLinks(type);
-		if (links) {
-			await this._terminalLinkQuickpick?.show(type, links);
+		if (!links) {
+			return;
 		}
+		return await this._terminalLinkQuickpick.show(type, links);
 	}
 
 	private async _getLinks(type: TerminalLinkProviderType): Promise<ILink[] | undefined> {
-		if (!this.areLinksReady) {
+		if (!this.areLinksReady || !this._linkManager) {
 			throw new Error('terminal links are not ready, cannot generate link quick pick');
 		}
 		if (!this.xterm) {
@@ -675,13 +676,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		const links = [];
 		for (let i = this.xterm.raw.buffer.active.length - 1; i >= this.xterm.raw.buffer.active.viewportY; i--) {
-			const linksForY = await this._linkManager?.getLinks(type, i);
-			console.log(linksForY, i);
+			const linksForY = await this._linkManager.getLinks(type, i);
 			if (linksForY) {
 				links.push(...linksForY);
 			}
 		}
-		return links;
+		return links.length > 0 ? links : undefined;
 	}
 
 	detachFromElement(): void {

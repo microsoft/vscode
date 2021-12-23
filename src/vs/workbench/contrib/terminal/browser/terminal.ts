@@ -789,7 +789,7 @@ export interface ITerminalInstance {
 	changeColor(): Promise<void>;
 
 	/**
-	 * Triggers a quick pick that displays the links of type word or validated for the terminal.
+	 * Triggers a quick pick that displays links from the viewport of the active terminal.
 	 */
 	showLinkQuickpick(type: TerminalLinkProviderType): Promise<void>;
 }
