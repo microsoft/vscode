@@ -1443,9 +1443,17 @@ export class ReloadAction extends ExtensionAction {
 						if (extensionInOtherServer) {
 							// This extension prefers to run on UI/Local side but is running in remote
 							if (runningExtensionServer === this.extensionManagementServerService.remoteExtensionManagementServer && this.extensionManifestPropertiesService.prefersExecuteOnUI(this.extension.local!.manifest)) {
-								this.enabled = true;
-								this.label = localize('reloadRequired', "Reload Required");
-								this.tooltip = localize('enable locally', "Please reload Visual Studio Code to enable this extension locally.");
+								/**
+								 * This is causing builtin extensions to always show a reload
+								 * button yet reloading does nothing.
+								 * TODO@coder: The real problem might be that these extensions
+								 * are somehow supposed to be running as web extensions instead
+								 * of in the remote but it is unclear how to make that happen.
+								 * @author coder
+								 */
+								// this.enabled = true;
+								// this.label = localize('reloadRequired', "Reload Required");
+								// this.tooltip = localize('enable locally', "Please reload Visual Studio Code to enable this extension locally.");
 								return;
 							}
 
