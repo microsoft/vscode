@@ -29,7 +29,7 @@ import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifec
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
-import { IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
+import { IGlobalStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
@@ -149,7 +149,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IFileService private readonly fileService: IFileService,
-		@IStorageMainService private readonly storageMainService: IStorageMainService,
+		@IGlobalStorageMainService private readonly globalStorageMainService: IGlobalStorageMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
 		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
@@ -544,10 +544,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private marketplaceHeadersPromise: Promise<object> | undefined;
 	private getMarketplaceHeaders(): Promise<object> {
 		if (!this.marketplaceHeadersPromise) {
-			this.marketplaceHeadersPromise = resolveMarketplaceHeaders(this.productService.version, this.productService, this.environmentMainService, this.configurationService, this.fileService, {
-				get: key => this.storageMainService.globalStorage.get(key),
-				store: (key, value) => this.storageMainService.globalStorage.set(key, value)
-			});
+			this.marketplaceHeadersPromise = resolveMarketplaceHeaders(this.productService.version, this.productService, this.environmentMainService, this.configurationService, this.fileService, this.globalStorageMainService);
 		}
 		return this.marketplaceHeadersPromise;
 	}

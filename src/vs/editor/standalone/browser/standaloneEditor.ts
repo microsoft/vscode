@@ -8,7 +8,6 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { DiffNavigator, IDiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
 import { EditorOptions, ConfigurationChangedEvent, ApplyUpdateResult } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
@@ -35,7 +34,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMarker, IMarkerData } from 'vs/platform/markers/common/markers';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { clearAllFontInfos } from 'vs/editor/browser/config/configuration';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
@@ -54,10 +52,6 @@ function withAllStandaloneServices<T extends IEditor>(domElement: HTMLElement, o
 	if (!services.has(ITextModelService)) {
 		simpleEditorModelResolverService = new SimpleEditorModelResolverService(StaticServices.modelService.get());
 		services.set(ITextModelService, simpleEditorModelResolverService);
-	}
-
-	if (!services.has(IOpenerService)) {
-		services.set(IOpenerService, new OpenerService(services.get(ICodeEditorService), services.get(ICommandService)));
 	}
 
 	let result = callback(services);

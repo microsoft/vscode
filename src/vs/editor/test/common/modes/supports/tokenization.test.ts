@@ -39,6 +39,7 @@ suite('Token theme matching', () => {
 			{ token: 'constant.numeric', foreground: '400000' },
 			{ token: 'constant.numeric.hex', fontStyle: 'bold' },
 			{ token: 'constant.numeric.oct', fontStyle: 'bold italic underline' },
+			{ token: 'constant.numeric.bin', fontStyle: 'bold strikethrough' },
 			{ token: 'constant.numeric.dec', fontStyle: '', foreground: '500000' },
 			{ token: 'storage.object.bar', fontStyle: '', foreground: '600000' },
 		], []);
@@ -102,6 +103,10 @@ suite('Token theme matching', () => {
 		// matches constant.numeric.oct
 		assertSimpleMatch('constant.numeric.oct', FontStyle.Bold | FontStyle.Italic | FontStyle.Underline, _E, _B);
 		assertSimpleMatch('constant.numeric.oct.baz', FontStyle.Bold | FontStyle.Italic | FontStyle.Underline, _E, _B);
+
+		// matches constant.numeric.bin
+		assertSimpleMatch('constant.numeric.bin', FontStyle.Bold | FontStyle.Strikethrough, _E, _B);
+		assertSimpleMatch('constant.numeric.bin.baz', FontStyle.Bold | FontStyle.Strikethrough, _E, _B);
 
 		// matches constant.numeric.dec
 		assertSimpleMatch('constant.numeric.dec', FontStyle.None, _F, _B);
