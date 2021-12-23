@@ -109,15 +109,28 @@ export class Application {
 	}
 
 	private async checkWindowReady(code: Code): Promise<any> {
+		this.logger.log('checkWindowReady: begin');
+
 		await code.waitForWindowIds(ids => ids.length > 0);
 		await code.waitForElement('.monaco-workbench');
 
-		if (this.remote) {
-			await code.waitForTextContent('.monaco-workbench .statusbar-item[id="status.host"]', ' TestResolver', undefined, 2000);
+		// Web or remote: wait for a remote connection state change
+		if (this.remote || this.web) {
+			await code.waitForTextContent('.monaco-workbench .statusbar-item[id="status.host"]', undefined, s => {
+				this.logger.log(`checkWindowReady: remote indicator text is ${s}`);
+
+				// The absence of "Opening Remote" is not a strict
+				// indicator for a successful connection, but we
+				// want to avoid hanging here until timeout because
+				// this method is potentially called from a location
+				// that has no tracing enabled making it hard to
+				// diagnose this. As such, as soon as the connection
+				// state changes away from the "Opening Remote..." one
+				// we return.
+				return !s.includes('Opening Remote');
+			}, 300 /* = 30s of retry */);
 		}
 
-		if (this.web) {
-			await code.waitForTextContent('.monaco-workbench .statusbar-item[id="status.host"]', undefined, s => !s.includes('Opening Remote'), 2000);
-		}
+		this.logger.log('checkWindowReady: end');
 	}
 }
