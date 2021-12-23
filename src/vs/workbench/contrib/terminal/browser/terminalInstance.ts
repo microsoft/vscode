@@ -25,11 +25,11 @@ import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticip
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessManager, ProcessState, TERMINAL_VIEW_ID, INavigationMode, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, ITerminalProfileResolverService, TerminalCommandId, ITerminalBackend } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
+import { TerminalLinkManager, TerminalLinkProviderType } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalInstance, ITerminalExternalLinkProvider, IRequestAddInstanceToGroupEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
-import type { Terminal as XTermTerminal, ITerminalAddon } from 'xterm';
+import type { Terminal as XTermTerminal, ITerminalAddon, ILink } from 'xterm';
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/xterm/navigationModeAddon';
 import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { EnvironmentVariableInfoWidget } from 'vs/workbench/contrib/terminal/browser/widgets/environmentVariableInfoWidget';
@@ -66,6 +66,7 @@ import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
+import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/terminalLinkQuickpick';
 import { isFirefox } from 'vs/base/browser/browser';
 
 const enum Constants {
@@ -164,6 +165,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _dndObserver: IDisposable | undefined;
 
 	private readonly _resource: URI;
+
+	private _terminalLinkQuickpick: TerminalLinkQuickpick | undefined;
 
 	private _lastLayoutDimensions: dom.Dimension | undefined;
 
@@ -652,6 +655,34 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._xtermTypeAheadAddon = this._register(this._instantiationService.createInstance(TypeAheadAddon, this._processManager, this._configHelper));
 			xterm.raw.loadAddon(this._xtermTypeAheadAddon);
 		}
+	}
+
+	async showLinkQuickpick(type: TerminalLinkProviderType): Promise<void> {
+		if (!this._terminalLinkQuickpick) {
+			this._terminalLinkQuickpick = this._instantiationService.createInstance(TerminalLinkQuickpick);
+		}
+		const links = await this._getLinks(type);
+		if (!links) {
+			return;
+		}
+		return await this._terminalLinkQuickpick.show(type, links);
+	}
+
+	private async _getLinks(type: TerminalLinkProviderType): Promise<ILink[] | undefined> {
+		if (!this.areLinksReady || !this._linkManager) {
+			throw new Error('terminal links are not ready, cannot generate link quick pick');
+		}
+		if (!this.xterm) {
+			throw new Error('no xterm');
+		}
+		const links = [];
+		for (let i = this.xterm.raw.buffer.active.length - 1; i >= this.xterm.raw.buffer.active.viewportY; i--) {
+			const linksForY = await this._linkManager.getLinks(type, i);
+			if (linksForY) {
+				links.push(...linksForY);
+			}
+		}
+		return links.length > 0 ? links : undefined;
 	}
 
 	detachFromElement(): void {
