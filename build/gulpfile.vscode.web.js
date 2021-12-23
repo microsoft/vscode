@@ -41,6 +41,9 @@ const vscodeWebResourceIncludes = [
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.html',
 
+	// Service worker
+	'out-build/vs/code/browser/workbench/service-worker.js',
+
 	// Extension Worker
 	'out-build/vs/workbench/services/extensions/worker/httpsWebWorkerExtensionHostIframe.html',
 	'out-build/vs/workbench/services/extensions/worker/httpWebWorkerExtensionHostIframe.html',
