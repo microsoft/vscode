@@ -23,11 +23,11 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		@ILogService private readonly logService: ILogService) {
 		super();
 		if (isWebKit) {
-			this.installSafariWriteTextWorkaround();
+			this.installWebKitWriteTextWorkaround();
 		}
 	}
 
-	private safariPendingClipboardWritePromise: DeferredPromise<string> | undefined;
+	private webKitPendingClipboardWritePromise: DeferredPromise<string> | undefined;
 
 	// In Safari, it has the following note:
 	//
@@ -41,15 +41,15 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	// they are not classified by Safari as "in response to a user gesture" and will reject.
 	//
 	// This function sets up some handlers to work around that behavior.
-	private installSafariWriteTextWorkaround(): void {
+	private installWebKitWriteTextWorkaround(): void {
 		const handler = () => {
 			const currentWritePromise = new DeferredPromise<string>();
 
 			// Cancel the previous promise since we just created a new one in response to this new event
-			if (this.safariPendingClipboardWritePromise && !this.safariPendingClipboardWritePromise.isSettled) {
-				this.safariPendingClipboardWritePromise.cancel();
+			if (this.webKitPendingClipboardWritePromise && !this.webKitPendingClipboardWritePromise.isSettled) {
+				this.webKitPendingClipboardWritePromise.cancel();
 			}
-			this.safariPendingClipboardWritePromise = currentWritePromise;
+			this.webKitPendingClipboardWritePromise = currentWritePromise;
 
 			// The ctor of ClipboardItem allows you to pass in a promise that will resolve to a string.
 			// This allows us to pass in a Promise that will either be cancelled by another event or
@@ -77,12 +77,11 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 			return;
 		}
 
-		if (this.safariPendingClipboardWritePromise) {
+		if (this.webKitPendingClipboardWritePromise) {
 			// For Safari, we complete this Promise which allows the call to `navigator.clipboard.write()`
 			// above to resolve and successfully copy to the clipboard. If we let this continue, Safari
 			// would throw an error because this call stack doesn't appear to originate from a user gesture.
-			this.safariPendingClipboardWritePromise.complete(text);
-			return;
+			return this.webKitPendingClipboardWritePromise.complete(text);
 		}
 
 		// Guard access to navigator.clipboard with try/catch
