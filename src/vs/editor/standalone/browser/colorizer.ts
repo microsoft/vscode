@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TimeoutTimer } from 'vs/base/common/async';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { IViewLineTokens, LineTokens } from 'vs/editor/common/core/lineTokens';
 import { ITextModel } from 'vs/editor/common/model';
@@ -49,7 +47,7 @@ export class Colorizer {
 		return this.colorize(languageService, text || '', languageId, options).then(render, (err) => console.error(err));
 	}
 
-	public static colorize(languageService: ILanguageService, text: string, languageId: string, options: IColorizerOptions | null | undefined): Promise<string> {
+	public static async colorize(languageService: ILanguageService, text: string, languageId: string, options: IColorizerOptions | null | undefined): Promise<string> {
 		const languageIdCodec = languageService.languageIdCodec;
 		let tabSize = 4;
 		if (options && typeof options.tabSize === 'number') {
@@ -59,9 +57,9 @@ export class Colorizer {
 		if (strings.startsWithUTF8BOM(text)) {
 			text = text.substr(1);
 		}
-		let lines = strings.splitLines(text);
+		const lines = strings.splitLines(text);
 		if (!languageService.isRegisteredLanguageId(languageId)) {
-			return Promise.resolve(_fakeColorize(lines, tabSize, languageIdCodec));
+			return _fakeColorize(lines, tabSize, languageIdCodec);
 		}
 
 		// Send out the event to create the mode
@@ -75,43 +73,11 @@ export class Colorizer {
 		const tokenizationSupportPromise = TokenizationRegistry.getPromise(languageId);
 		if (tokenizationSupportPromise) {
 			// A tokenizer will be registered soon
-			return new Promise<string>((resolve, reject) => {
-				tokenizationSupportPromise.then(tokenizationSupport => {
-					_colorize(lines, tabSize, tokenizationSupport, languageIdCodec).then(resolve, reject);
-				}, reject);
-			});
+			const tokenizationSupport = await tokenizationSupportPromise;
+			return _colorize(lines, tabSize, tokenizationSupport, languageIdCodec);
 		}
 
-		return new Promise<string>((resolve, reject) => {
-			let listener: IDisposable | null = null;
-			let timeout: TimeoutTimer | null = null;
-
-			const execute = () => {
-				if (listener) {
-					listener.dispose();
-					listener = null;
-				}
-				if (timeout) {
-					timeout.dispose();
-					timeout = null;
-				}
-				const tokenizationSupport = TokenizationRegistry.get(languageId!);
-				if (tokenizationSupport) {
-					_colorize(lines, tabSize, tokenizationSupport, languageIdCodec).then(resolve, reject);
-					return;
-				}
-				resolve(_fakeColorize(lines, tabSize, languageIdCodec));
-			};
-
-			// wait 500ms for mode to load, then give up
-			timeout = new TimeoutTimer();
-			timeout.cancelAndSet(execute, 500);
-			listener = TokenizationRegistry.onDidChange((e) => {
-				if (e.changedLanguages.indexOf(languageId!) >= 0) {
-					execute();
-				}
-			});
-		});
+		return _fakeColorize(lines, tabSize, languageIdCodec);
 	}
 
 	public static colorizeLine(line: string, mightContainNonBasicASCII: boolean, mightContainRTL: boolean, tokens: IViewLineTokens, tabSize: number = 4): string {
