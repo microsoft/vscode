@@ -21,8 +21,7 @@ import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/com
 import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IReadonlyTextBuffer } from 'vs/editor/common/model';
-import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
-import { TokenizationRegistry } from 'vs/editor/common/modes';
+import { tokenizeToStringSync } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
@@ -265,7 +264,7 @@ export class StatefulMarkdownCell extends Disposable {
 	}
 
 	private getRichText(buffer: IReadonlyTextBuffer, language: string) {
-		return tokenizeToString(buffer.getLineContent(1), this.languageService.languageIdCodec, TokenizationRegistry.get(language)!);
+		return tokenizeToStringSync(this.languageService, buffer.getLineContent(1), language);
 	}
 
 	private viewUpdateEditing(): void {

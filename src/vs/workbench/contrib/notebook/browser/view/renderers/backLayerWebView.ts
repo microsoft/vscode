@@ -765,12 +765,10 @@ var requirejs = (function() {
 								continue;
 							}
 
-							this.languageService.triggerMode(languageId);
-							TokenizationRegistry.getPromise(languageId)?.then(tokenization => {
+							tokenizeToString(this.languageService, value, languageId).then((html) => {
 								if (this._disposed) {
 									return;
 								}
-								const html = tokenizeToString(value, this.languageService.languageIdCodec, tokenization);
 								this._sendMessageToWebview({
 									type: 'tokenizedCodeBlock',
 									html,

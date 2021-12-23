@@ -7,8 +7,9 @@ import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
 import { IViewLineTokens, LineTokens } from 'vs/editor/common/core/lineTokens';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { ILanguageIdCodec, IState, LanguageId } from 'vs/editor/common/modes';
+import { ILanguageIdCodec, IState, ITokenizationSupport, LanguageId, TokenizationRegistry } from 'vs/editor/common/modes';
 import { NULL_STATE, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
 
 export interface IReducedTokenizationSupport {
 	getInitialState(): IState;
@@ -20,8 +21,21 @@ const fallback: IReducedTokenizationSupport = {
 	tokenize2: (buffer: string, hasEOL: boolean, state: IState, deltaOffset: number) => nullTokenize2(LanguageId.Null, buffer, state, deltaOffset)
 };
 
-export function tokenizeToString(text: string, languageIdCodec: ILanguageIdCodec, tokenizationSupport: IReducedTokenizationSupport = fallback): string {
-	return _tokenizeToString(text, languageIdCodec, tokenizationSupport || fallback);
+export function tokenizeToStringSync(languageService: ILanguageService, text: string, languageId: string): string {
+	return _tokenizeToString(text, languageService.languageIdCodec, TokenizationRegistry.get(languageId) || fallback);
+}
+
+export async function tokenizeToString(languageService: ILanguageService, text: string, languageId: string | null): Promise<string> {
+	if (!languageId) {
+		return _tokenizeToString(text, languageService.languageIdCodec, fallback);
+	}
+	languageService.triggerMode(languageId);
+	let tokenizationSupport: ITokenizationSupport | null = null;
+	const tokenizationSupportPromise = TokenizationRegistry.getPromise(languageId);
+	if (tokenizationSupportPromise) {
+		tokenizationSupport = await tokenizationSupportPromise;
+	}
+	return _tokenizeToString(text, languageService.languageIdCodec, tokenizationSupport || fallback);
 }
 
 export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens, colorMap: string[], startOffset: number, endOffset: number, tabSize: number, useNbsp: boolean): string {
@@ -120,7 +134,7 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens
 	return result;
 }
 
-function _tokenizeToString(text: string, languageIdCodec: ILanguageIdCodec, tokenizationSupport: IReducedTokenizationSupport): string {
+export function _tokenizeToString(text: string, languageIdCodec: ILanguageIdCodec, tokenizationSupport: IReducedTokenizationSupport): string {
 	let result = `<div class="monaco-tokenized-source">`;
 	const lines = strings.splitLines(text);
 	let currentState = tokenizationSupport.getInitialState();

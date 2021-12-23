@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { ColorId, FontStyle, IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
-import { tokenizeLineToHTML, tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { tokenizeLineToHTML, _tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
 import { ViewLineToken, ViewLineTokens } from 'vs/editor/test/common/core/viewLineToken';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
@@ -21,7 +21,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 		let mode = new Mode();
 		let support = TokenizationRegistry.get(mode.languageId)!;
 
-		let actual = tokenizeToString('.abc..def...gh', new LanguageIdCodec(), support);
+		let actual = _tokenizeToString('.abc..def...gh', new LanguageIdCodec(), support);
 		let expected = [
 			{ className: 'mtk7', text: '.' },
 			{ className: 'mtk9', text: 'abc' },
@@ -41,7 +41,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 		let mode = new Mode();
 		let support = TokenizationRegistry.get(mode.languageId)!;
 
-		let actual = tokenizeToString('.abc..def...gh\n.abc..def...gh', new LanguageIdCodec(), support);
+		let actual = _tokenizeToString('.abc..def...gh\n.abc..def...gh', new LanguageIdCodec(), support);
 		let expected1 = [
 			{ className: 'mtk7', text: '.' },
 			{ className: 'mtk9', text: 'abc' },

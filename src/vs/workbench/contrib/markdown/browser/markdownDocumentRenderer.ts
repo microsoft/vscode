@@ -6,7 +6,6 @@
 import * as dompurify from 'vs/base/browser/dompurify/dompurify';
 import * as marked from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
-import { ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -209,13 +208,9 @@ export async function renderMarkdownDocument(
 			return code;
 		}
 		extensionService.whenInstalledExtensionsRegistered().then(async () => {
-			let support: ITokenizationSupport | undefined;
 			const languageId = languageService.getLanguageIdForLanguageName(lang);
-			if (languageId) {
-				languageService.triggerMode(languageId);
-				support = await TokenizationRegistry.getPromise(languageId) ?? undefined;
-			}
-			callback(null, `<code>${tokenizeToString(code, languageService.languageIdCodec, support)}</code>`);
+			const html = await tokenizeToString(languageService, code, languageId);
+			callback(null, `<code>${html}</code>`);
 		});
 		return '';
 	};

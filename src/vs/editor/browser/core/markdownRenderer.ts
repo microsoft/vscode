@@ -12,7 +12,6 @@ import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ILanguageIdCodec, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { URI } from 'vs/base/common/uri';
 import { Configuration } from 'vs/editor/browser/config/configuration';
@@ -34,8 +33,8 @@ export interface IMarkdownRendererOptions {
 export class MarkdownRenderer {
 
 	private static _ttpTokenizer = window.trustedTypes?.createPolicy('tokenizeToString', {
-		createHTML(value: string, languageIdCodec: ILanguageIdCodec, tokenizer: ITokenizationSupport | undefined) {
-			return tokenizeToString(value, languageIdCodec, tokenizer);
+		createHTML(html: string) {
+			return html;
 		}
 	});
 
@@ -82,12 +81,11 @@ export class MarkdownRenderer {
 				if (!languageId) {
 					languageId = 'plaintext';
 				}
-				this._languageService.triggerMode(languageId);
-				const tokenization = await TokenizationRegistry.getPromise(languageId) ?? undefined;
+				const html = await tokenizeToString(this._languageService, value, languageId);
 
 				const element = document.createElement('span');
 
-				element.innerHTML = (MarkdownRenderer._ttpTokenizer?.createHTML(value, this._languageService.languageIdCodec, tokenization) ?? tokenizeToString(value, this._languageService.languageIdCodec, tokenization)) as string;
+				element.innerHTML = (MarkdownRenderer._ttpTokenizer?.createHTML(html) ?? html) as string;
 
 				// use "good" font
 				if (this._options.editor) {
