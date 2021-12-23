@@ -401,6 +401,7 @@
 
 .monaco-editor .suggest-details.no-type>.monaco-scrollable-element>.body>.docs {
 	margin-right: 24px;
+	overflow: hidden;
 }
 
 .monaco-editor .suggest-details>.monaco-scrollable-element>.body>.docs.markdown-docs {
