@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { promises as fs } from 'fs';
+import * as os from 'os'
+import * as path from 'vs/base/common/path';
 import * as performance from 'vs/base/common/performance';
 import { createApiFactoryAndRegisterActors } from 'vs/workbench/api/common/extHost.api.impl';
 import { RequireInterceptor } from 'vs/workbench/api/common/extHostRequireInterceptor';
@@ -59,6 +62,14 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		if (this._initData.remote.isRemote && this._initData.remote.authority) {
 			const cliServer = this._instaService.createInstance(CLIServer);
 			process.env['VSCODE_IPC_HOOK_CLI'] = cliServer.ipcHandlePath;
+
+			/**
+			 * Write this out so we can get the most recent path.
+			 * @author coder
+			 */
+			fs.writeFile(path.join(os.tmpdir(), 'vscode-ipc'), cliServer.ipcHandlePath).catch((error) => {
+				this._logService.error(error);
+			});
 		}
 
 		// Module loading tricks

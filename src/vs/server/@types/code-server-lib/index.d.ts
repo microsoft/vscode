@@ -126,8 +126,6 @@ declare global {
 			executableName: string;
 		}
 
-		export type RemoteCLIMain = (desc: ProductDescription, args: string[]) => void;
-
 		export interface IServerAPI {
 			handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void>;
 			handleUpgrade(req: http.IncomingMessage, socket: net.Socket): void;
