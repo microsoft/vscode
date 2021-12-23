@@ -3,15 +3,70 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from 'vs/base/browser/dom';
+import { isWebKit } from 'vs/base/browser/browser';
+import { $, addDisposableListener } from 'vs/base/browser/dom';
+import { DeferredPromise } from 'vs/base/common/async';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { ILogService } from 'vs/platform/log/common/log';
 
-export class BrowserClipboardService implements IClipboardService {
+export class BrowserClipboardService extends Disposable implements IClipboardService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private readonly mapTextToType = new Map<string, string>(); // unsupported in web (only in-memory)
+
+	constructor(
+		@ILayoutService private readonly layoutService: ILayoutService,
+		@ILogService private readonly logService: ILogService) {
+		super();
+		if (isWebKit) {
+			this.installWebKitWriteTextWorkaround();
+		}
+	}
+
+	private webKitPendingClipboardWritePromise: DeferredPromise<string> | undefined;
+
+	// In Safari, it has the following note:
+	//
+	// "The request to write to the clipboard must be triggered during a user gesture.
+	// A call to clipboard.write or clipboard.writeText outside the scope of a user
+	// gesture(such as "click" or "touch" event handlers) will result in the immediate
+	// rejection of the promise returned by the API call."
+	// From: https://webkit.org/blog/10855/async-clipboard-api/
+	//
+	// Since extensions run in a web worker, and handle gestures in an asynchronous way,
+	// they are not classified by Safari as "in response to a user gesture" and will reject.
+	//
+	// This function sets up some handlers to work around that behavior.
+	private installWebKitWriteTextWorkaround(): void {
+		const handler = () => {
+			const currentWritePromise = new DeferredPromise<string>();
+
+			// Cancel the previous promise since we just created a new one in response to this new event
+			if (this.webKitPendingClipboardWritePromise && !this.webKitPendingClipboardWritePromise.isSettled) {
+				this.webKitPendingClipboardWritePromise.cancel();
+			}
+			this.webKitPendingClipboardWritePromise = currentWritePromise;
+
+			// The ctor of ClipboardItem allows you to pass in a promise that will resolve to a string.
+			// This allows us to pass in a Promise that will either be cancelled by another event or
+			// resolved with the contents of the first call to this.writeText.
+			// see https://developer.mozilla.org/en-US/docs/Web/API/ClipboardItem/ClipboardItem#parameters
+			navigator.clipboard.write([new ClipboardItem({
+				'text/plain': currentWritePromise.p,
+			})]).catch(async err => {
+				if (!(err instanceof Error) || err.name !== 'NotAllowedError' || !currentWritePromise.isRejected) {
+					this.logService.error(err);
+				}
+			});
+		};
+
+		this._register(addDisposableListener(this.layoutService.container, 'click', handler));
+		this._register(addDisposableListener(this.layoutService.container, 'keydown', handler));
+	}
 
 	async writeText(text: string, type?: string): Promise<void> {
 
@@ -20,6 +75,13 @@ export class BrowserClipboardService implements IClipboardService {
 			this.mapTextToType.set(type, text);
 
 			return;
+		}
+
+		if (this.webKitPendingClipboardWritePromise) {
+			// For Safari, we complete this Promise which allows the call to `navigator.clipboard.write()`
+			// above to resolve and successfully copy to the clipboard. If we let this continue, Safari
+			// would throw an error because this call stack doesn't appear to originate from a user gesture.
+			return this.webKitPendingClipboardWritePromise.complete(text);
 		}
 
 		// Guard access to navigator.clipboard with try/catch

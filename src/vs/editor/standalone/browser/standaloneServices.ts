@@ -238,7 +238,7 @@ export class DynamicStandaloneServices extends Disposable {
 
 		ensure(IOpenerService, () => new OpenerService(codeEditorService, commandService));
 
-		ensure(IClipboardService, () => new BrowserClipboardService());
+		ensure(IClipboardService, () => new BrowserClipboardService(layoutService, logService));
 
 		ensure(IContextMenuService, () => {
 			const contextMenuService = new ContextMenuService(telemetryService, notificationService, contextViewService, keybindingService, themeService);
