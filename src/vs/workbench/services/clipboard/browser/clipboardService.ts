@@ -28,13 +28,14 @@ export class BrowserClipboardService extends BaseBrowserClipboardService {
 	}
 
 	override async readText(type?: string): Promise<string> {
-		if (type) {
-			return super.readText(type);
-		}
-
 		try {
-			return await navigator.clipboard.readText();
+			return await super.readText(type, true);
 		} catch (error) {
+
+			if (type) {
+				return ''; // do not ask for input when using "custom" clipboard
+			}
+
 			if (!!this.environmentService.extensionTestsLocationURI) {
 				return ''; // do not ask for input in tests (https://github.com/microsoft/vscode/issues/112264)
 			}

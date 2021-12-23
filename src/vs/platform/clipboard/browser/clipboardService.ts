@@ -28,6 +28,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	}
 
 	private webKitPendingClipboardWritePromise: DeferredPromise<string> | undefined;
+	private webKitPendingClipboardReadTask: (() => Promise<string>) | undefined;
 
 	// In Safari, it has the following note:
 	//
@@ -61,6 +62,25 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 				if (!(err instanceof Error) || err.name !== 'NotAllowedError' || !currentWritePromise.isRejected) {
 					this.logService.error(err);
 				}
+			});
+
+			// ClipboardItem#getType is a function and we utilize that to read the text clipboard
+			// at a later point by wrapping a function around all of that.
+			this.webKitPendingClipboardReadTask = undefined;
+			navigator.clipboard.read().then(items => {
+				for (const item of items) {
+					if (item.types.includes('text/plain')) {
+						this.webKitPendingClipboardReadTask = async () => {
+							const blob = await item.getType('text/plain');
+							const value = blob.text();
+							return value;
+						};
+						break;
+					}
+				}
+			}).catch(err => {
+				this.webKitPendingClipboardReadTask = undefined;
+				this.logService.error(err);
 			});
 		};
 
@@ -117,7 +137,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		return;
 	}
 
-	async readText(type?: string): Promise<string> {
+	async readText(type?: string, rethrow?: boolean): Promise<string> {
 
 		// With type: only in-memory is supported
 		if (type) {
@@ -130,7 +150,17 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		try {
 			return await navigator.clipboard.readText();
 		} catch (error) {
-			console.error(error);
+			if (this.webKitPendingClipboardReadTask) {
+				try {
+					return await this.webKitPendingClipboardReadTask();
+				} catch (err) {
+					// ignore errors from workaround and
+					// maybe rethrow the original error
+				}
+			}
+			if (rethrow) {
+				throw error;
+			}
 
 			return '';
 		}
