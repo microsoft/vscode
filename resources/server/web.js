@@ -10,9 +10,9 @@ const { join } = require('path');
 
 let cp;
 if (process.platform === 'win32') {
-	cp = spawn(join(__dirname, 'web.bat'), process.argv.slice(2), { stdio: ['inherit'] });
+	cp = spawn(join(__dirname, 'web.bat'), process.argv.slice(2), { stdio: ['inherit', 'inherit', 'inherit'] });
 } else {
-	cp = spawn('bash', [join(__dirname, 'web.sh'), ...process.argv.slice(2)], { stdio: ['inherit'] });
+	cp = spawn('bash', [join(__dirname, 'web.sh'), ...process.argv.slice(2)], { stdio: ['inherit', 'inherit', 'inherit'] });
 }
 
 cp.on('exit', () => process.exit());
