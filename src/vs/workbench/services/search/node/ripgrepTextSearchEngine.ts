@@ -438,7 +438,7 @@ function getRgArgs(query: TextSearchQuery, options: TextSearchOptions): string[]
 
 	if (query.isRegExp) {
 		query.pattern = unicodeEscapesToPCRE2(query.pattern);
-		args.push('--auto-hybrid-regex');
+		args.push('--engine', 'auto');
 	}
 
 	let searchPatternAfterDoubleDashes: Maybe<string>;
