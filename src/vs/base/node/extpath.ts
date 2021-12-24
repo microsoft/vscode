@@ -23,10 +23,10 @@ export function realcaseSync(path: string): string | null {
 		return path;
 	}
 
-	const name = (basename(path) /* can be '' for windows drive letters */ || path).toLowerCase();
+	const name = (basename(path) /* can be '' for windows drive letters */ || path);
 	try {
 		const entries = readdirSync(dir);
-		const found = entries.filter(e => e.toLowerCase() === name);	// use a case insensitive search
+		const found = entries.filter(e => e.toLowerCase() === name.toLowerCase());	// use a case insensitive search
 		if (found.length === 1) {
 			// on a case sensitive filesystem we cannot determine here, whether the file exists or not, hence we need the 'file exists' precondition
 			const prefix = realcaseSync(dir);   // recurse
