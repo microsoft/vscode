@@ -437,6 +437,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 			realPath = realpathSync(request.path);
 
 			// Second check for casing difference
+			// Note: this will be a no-op on Linux platforms
 			if (request.path === realPath) {
 				realPath = realcaseSync(request.path) ?? request.path;
 			}
@@ -446,7 +447,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 				realPathLength = realPath.length;
 				realPathDiffers = true;
 
-				this.warn(`correcting a path to watch that seems to be a symbolic link (original: ${request.path}, real: ${realPath})`);
+				this.warn(`correcting a path to watch that seems to be a symbolic link or wrong casing (original: ${request.path}, real: ${realPath})`);
 			}
 		} catch (error) {
 			// ignore
