@@ -384,7 +384,7 @@ export function renderViewLine(input: RenderLineInput, sb: IStringBuilder): Rend
 				if (lineDecoration.type === InlineDecorationType.Before || lineDecoration.type === InlineDecorationType.After) {
 					sb.appendASCIIString(`<span class="`);
 					sb.appendASCIIString(lineDecoration.className);
-					sb.appendASCIIString(`"></span>`);
+					sb.appendASCIIString(`" dir="auto" ></span>`);
 
 					if (lineDecoration.type === InlineDecorationType.Before) {
 						containsForeignElements |= ForeignElementType.Before;
