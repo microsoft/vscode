@@ -43,7 +43,7 @@
     "vscode-dts-compile-check": "tsc -p src/tsconfig.vscode-dts.json && tsc -p src/tsconfig.vscode-proposed-dts.json",
     "valid-layers-check": "node build/lib/layersChecker.js",
     "update-distro": "node build/npm/update-distro.js",
-    "web": "node resources/web/code-web.js",
+    "web": "node resources/server/web.js --launch",
     "compile-web": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile-web",
     "watch-web": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js watch-web",
     "eslint": "node build/eslint",

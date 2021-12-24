@@ -247,7 +247,8 @@
 			"type": "node",
 			"request": "launch",
 			"name": "VS Code (Web)",
-			"program": "${workspaceFolder}/resources/web/code-web.js",
+			"program": "${workspaceFolder}/resources/server/web.js",
+			"args": ["--launch"],
 			"presentation": {
 				"group": "0_vscode",
 				"order": 2

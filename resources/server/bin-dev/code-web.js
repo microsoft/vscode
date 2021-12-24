@@ -8,6 +8,7 @@
 const cp = require('child_process');
 const path = require('path');
 const os = require('os');
+const opn = require('opn');
 
 const serverArgs = [];
 
@@ -15,6 +16,7 @@ const serverArgs = [];
 let PORT = 9888;
 let DRIVER = undefined;
 let LOGS_PATH = undefined;
+let LAUNCH = false;
 
 // Workspace Config
 let FOLDER = undefined;
@@ -24,16 +26,17 @@ let WORKSPACE = undefined;
 let GITHUB_AUTH_TOKEN = undefined;
 let ENABLE_SYNC = false;
 
-for (let idx = 0; idx <= process.argv.length - 2; idx++) {
-	const arg = process.argv[idx];
+for (let i = 0; i <= process.argv.length; i++) {
+	const arg = process.argv[i];
 	switch (arg) {
-		case '--port': PORT = Number(process.argv[idx + 1]); break;
-		case '--folder': FOLDER = process.argv[idx + 1]; break;
-		case '--workspace': WORKSPACE = process.argv[idx + 1]; break;
-		case '--driver': DRIVER = process.argv[idx + 1]; break;
-		case '--github-auth': GITHUB_AUTH_TOKEN = process.argv[idx + 1]; break;
-		case '--logsPath': LOGS_PATH = process.argv[idx + 1]; break;
+		case '--port': PORT = Number(process.argv[i + 1]); break;
+		case '--folder': FOLDER = process.argv[i + 1]; break;
+		case '--workspace': WORKSPACE = process.argv[i + 1]; break;
+		case '--driver': DRIVER = process.argv[i + 1]; break;
+		case '--github-auth': GITHUB_AUTH_TOKEN = process.argv[i + 1]; break;
+		case '--logsPath': LOGS_PATH = process.argv[i + 1]; break;
 		case '--enable-sync': ENABLE_SYNC = true; break;
+		case '--launch': LAUNCH = true; break;
 	}
 }
 
@@ -61,10 +64,12 @@ if (ENABLE_SYNC) {
 }
 
 // Connection Token
-serverArgs.push('--connection-token', '00000');
+const TOKEN = '00000';
+serverArgs.push('--connection-token', TOKEN);
 
 // Server should really only listen from localhost
-serverArgs.push('--host', '127.0.0.1');
+const HOST = '127.0.0.1';
+serverArgs.push('--host', HOST);
 
 const env = { ...process.env };
 env['VSCODE_AGENT_FOLDER'] = env['VSCODE_AGENT_FOLDER'] || path.join(os.homedir(), '.vscode-web-dev');
@@ -84,4 +89,8 @@ function startServer() {
 	proc.stderr.on('data', data => {
 		console.error(data.toString());
 	});
+}
+
+if (LAUNCH) {
+	opn(`http://${HOST}:${PORT}/?tkn=${TOKEN}`);
 }
