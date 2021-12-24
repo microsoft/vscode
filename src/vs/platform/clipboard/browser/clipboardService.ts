@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isWebKit } from 'vs/base/browser/browser';
+import { isSafari, isWebkitWebView } from 'vs/base/browser/browser';
 import { $, addDisposableListener } from 'vs/base/browser/dom';
 import { DeferredPromise } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -22,7 +22,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@ILogService private readonly logService: ILogService) {
 		super();
-		if (isWebKit) {
+		if (isSafari || isWebkitWebView) {
 			this.installWebKitWriteTextWorkaround();
 		}
 	}
