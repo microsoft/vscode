@@ -13,7 +13,7 @@ import * as types from 'vs/base/common/types';
 import { equals as equalArray } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
 import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
-import { IState, ITokenizationSupport, LanguageId, TokenMetadata, TokenizationRegistry, StandardTokenType } from 'vs/editor/common/modes';
+import { IState, ITokenizationSupport, LanguageId, TokenMetadata, TokenizationRegistry, StandardTokenType, ITokenizationSupportFactory } from 'vs/editor/common/modes';
 import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 import { ILanguageService } from 'vs/editor/common/services/languageService';
@@ -142,11 +142,15 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 						tokenTypes: tokenTypes,
 						injectTo: grammar.injectTo,
 					});
+
+					if (validLanguageId) {
+						this._tokenizersRegistrations.push(TokenizationRegistry.registerFactory(validLanguageId, this._createFactory(validLanguageId)));
+					}
 				}
 			}
 
 			for (const createMode of this._createdModes) {
-				this._registerDefinitionIfAvailable(createMode);
+				TokenizationRegistry.getOrCreate(createMode);
 			}
 		});
 
@@ -175,7 +179,6 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 
 		this._languageService.onDidEncounterLanguage((languageId) => {
 			this._createdModes.push(languageId);
-			this._registerDefinitionIfAvailable(languageId);
 		});
 	}
 
@@ -252,40 +255,41 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 		return this._grammarFactory;
 	}
 
-	private _registerDefinitionIfAvailable(languageId: string): void {
-		if (!this._languageService.validateLanguageId(languageId)) {
-			return;
-		}
-		if (!this._canCreateGrammarFactory()) {
-			return;
-		}
-		const encodedLanguageId = this._languageService.languageIdCodec.encodeLanguageId(languageId);
+	private _createFactory(languageId: string): ITokenizationSupportFactory {
+		return {
+			createTokenizationSupport: async (): Promise<ITokenizationSupport | null> => {
+				if (!this._languageService.validateLanguageId(languageId)) {
+					return null;
+				}
+				if (!this._canCreateGrammarFactory()) {
+					return null;
+				}
+				const encodedLanguageId = this._languageService.languageIdCodec.encodeLanguageId(languageId);
 
-		// Here we must register the promise ASAP (without yielding!)
-		this._tokenizersRegistrations.push(TokenizationRegistry.registerPromise(languageId, (async () => {
-			try {
-				const grammarFactory = await this._getOrCreateGrammarFactory();
-				if (!grammarFactory.has(languageId)) {
-					return null;
-				}
-				const r = await grammarFactory.createGrammar(languageId, encodedLanguageId);
-				if (!r.grammar) {
-					return null;
-				}
-				const tokenization = new TMTokenization(r.grammar, r.initialState, r.containsEmbeddedLanguages);
-				tokenization.onDidEncounterLanguage((encodedLanguageId) => {
-					if (!this._encounteredLanguages[encodedLanguageId]) {
-						const languageId = this._languageService.languageIdCodec.decodeLanguageId(encodedLanguageId);
-						this._encounteredLanguages[encodedLanguageId] = true;
-						this._onDidEncounterLanguage.fire(languageId);
+				try {
+					const grammarFactory = await this._getOrCreateGrammarFactory();
+					if (!grammarFactory.has(languageId)) {
+						return null;
 					}
-				});
-				return new TMTokenizationSupport(languageId, encodedLanguageId, tokenization, this._configurationService);
-			} catch (err) {
-				onUnexpectedError(err);
-				return null;
+					const r = await grammarFactory.createGrammar(languageId, encodedLanguageId);
+					if (!r.grammar) {
+						return null;
+					}
+					const tokenization = new TMTokenization(r.grammar, r.initialState, r.containsEmbeddedLanguages);
+					tokenization.onDidEncounterLanguage((encodedLanguageId) => {
+						if (!this._encounteredLanguages[encodedLanguageId]) {
+							const languageId = this._languageService.languageIdCodec.decodeLanguageId(encodedLanguageId);
+							this._encounteredLanguages[encodedLanguageId] = true;
+							this._onDidEncounterLanguage.fire(languageId);
+						}
+					});
+					return new TMTokenizationSupport(languageId, encodedLanguageId, tokenization, this._configurationService);
+				} catch (err) {
+					onUnexpectedError(err);
+					return null;
+				}
 			}
-		})()));
+		};
 	}
 
 	private static _toColorMap(colorMap: string[]): Color[] {

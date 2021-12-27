@@ -433,10 +433,9 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 				continue;
 			}
 
-			const tokenizationSupportPromise = modes.TokenizationRegistry.getPromise(nestedModeId);
-			if (tokenizationSupportPromise) {
+			if (!modes.TokenizationRegistry.isResolved(nestedModeId)) {
 				// The nested mode is in the process of being loaded
-				promises.push(tokenizationSupportPromise);
+				promises.push(modes.TokenizationRegistry.getOrCreate(nestedModeId));
 			}
 		}
 
@@ -854,7 +853,7 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 
 		if (languageId !== this._languageId) {
 			// Fire mode loading event
-			this._languageService.triggerMode(languageId);
+			modes.TokenizationRegistry.getOrCreate(languageId);
 			this._embeddedModes[languageId] = true;
 		}
 

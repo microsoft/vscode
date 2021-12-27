@@ -7,7 +7,7 @@ import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
 import { IViewLineTokens, LineTokens } from 'vs/editor/common/core/lineTokens';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { ILanguageIdCodec, IState, ITokenizationSupport, LanguageId, TokenizationRegistry } from 'vs/editor/common/modes';
+import { ILanguageIdCodec, IState, LanguageId, TokenizationRegistry } from 'vs/editor/common/modes';
 import { NULL_STATE, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { ILanguageService } from 'vs/editor/common/services/languageService';
 
@@ -29,12 +29,7 @@ export async function tokenizeToString(languageService: ILanguageService, text: 
 	if (!languageId) {
 		return _tokenizeToString(text, languageService.languageIdCodec, fallback);
 	}
-	languageService.triggerMode(languageId);
-	let tokenizationSupport: ITokenizationSupport | null = null;
-	const tokenizationSupportPromise = TokenizationRegistry.getPromise(languageId);
-	if (tokenizationSupportPromise) {
-		tokenizationSupport = await tokenizationSupportPromise;
-	}
+	const tokenizationSupport = await TokenizationRegistry.getOrCreate(languageId);
 	return _tokenizeToString(text, languageService.languageIdCodec, tokenizationSupport || fallback);
 }
 

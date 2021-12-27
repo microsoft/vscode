@@ -62,18 +62,8 @@ export class Colorizer {
 			return _fakeColorize(lines, tabSize, languageIdCodec);
 		}
 
-		// Send out the event to create the mode
-		languageService.triggerMode(languageId);
-
-		const tokenizationSupport = TokenizationRegistry.get(languageId);
+		const tokenizationSupport = await TokenizationRegistry.getOrCreate(languageId);
 		if (tokenizationSupport) {
-			return _colorize(lines, tabSize, tokenizationSupport, languageIdCodec);
-		}
-
-		const tokenizationSupportPromise = TokenizationRegistry.getPromise(languageId);
-		if (tokenizationSupportPromise) {
-			// A tokenizer will be registered soon
-			const tokenizationSupport = await tokenizationSupportPromise;
 			return _colorize(lines, tabSize, tokenizationSupport, languageIdCodec);
 		}
 

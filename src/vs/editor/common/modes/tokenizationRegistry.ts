@@ -5,13 +5,13 @@
 
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ColorId, ITokenizationRegistry, ITokenizationSupport, ITokenizationSupportChangedEvent } from 'vs/editor/common/modes';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { ColorId, ITokenizationRegistry, ITokenizationSupport, ITokenizationSupportChangedEvent, ITokenizationSupportFactory } from 'vs/editor/common/modes';
 
 export class TokenizationRegistryImpl implements ITokenizationRegistry {
 
 	private readonly _map = new Map<string, ITokenizationSupport>();
-	private readonly _promises = new Map<string, Thenable<void>>();
+	private readonly _factories = new Map<string, TokenizationSupportFactoryData>();
 
 	private readonly _onDidChange = new Emitter<ITokenizationSupportChangedEvent>();
 	public readonly onDidChange: Event<ITokenizationSupportChangedEvent> = this._onDidChange.event;
@@ -41,41 +41,54 @@ export class TokenizationRegistryImpl implements ITokenizationRegistry {
 		});
 	}
 
-	public registerPromise(language: string, supportPromise: Thenable<ITokenizationSupport | null>): IDisposable {
-
-		let registration: IDisposable | null = null;
-		let isDisposed: boolean = false;
-
-		this._promises.set(language, supportPromise.then(support => {
-			this._promises.delete(language);
-			if (isDisposed || !support) {
+	public registerFactory(languageId: string, factory: ITokenizationSupportFactory): IDisposable {
+		this._factories.get(languageId)?.dispose();
+		const myData = new TokenizationSupportFactoryData(this, languageId, factory);
+		this._factories.set(languageId, myData);
+		return toDisposable(() => {
+			const v = this._factories.get(languageId);
+			if (!v || v !== myData) {
 				return;
 			}
-			registration = this.register(language, support);
-		}));
-
-		return toDisposable(() => {
-			isDisposed = true;
-			if (registration) {
-				registration.dispose();
-			}
+			this._factories.delete(languageId);
+			v.dispose();
 		});
 	}
 
-	public getPromise(language: string): Thenable<ITokenizationSupport> | null {
-		const support = this.get(language);
-		if (support) {
-			return Promise.resolve(support);
+	public async getOrCreate(languageId: string): Promise<ITokenizationSupport | null> {
+		// check first if the support is already set
+		const tokenizationSupport = this.get(languageId);
+		if (tokenizationSupport) {
+			return tokenizationSupport;
 		}
-		const promise = this._promises.get(language);
-		if (promise) {
-			return promise.then(_ => this.get(language)!);
+
+		const factory = this._factories.get(languageId);
+		if (!factory || factory.isResolved) {
+			// no factory or factory.resolve already finished
+			return null;
 		}
-		return null;
+
+		await factory.resolve();
+
+		return this.get(languageId);
 	}
 
 	public get(language: string): ITokenizationSupport | null {
 		return (this._map.get(language) || null);
+	}
+
+	public isResolved(languageId: string): boolean {
+		const tokenizationSupport = this.get(languageId);
+		if (tokenizationSupport) {
+			return true;
+		}
+
+		const factory = this._factories.get(languageId);
+		if (!factory || factory.isResolved) {
+			return true;
+		}
+
+		return false;
 	}
 
 	public setColorMap(colorMap: Color[]): void {
@@ -95,5 +108,44 @@ export class TokenizationRegistryImpl implements ITokenizationRegistry {
 			return this._colorMap[ColorId.DefaultBackground];
 		}
 		return null;
+	}
+}
+
+class TokenizationSupportFactoryData extends Disposable {
+
+	private _isDisposed: boolean = false;
+	private _resolvePromise: Promise<void> | null = null;
+	private _isResolved: boolean = false;
+
+	public get isResolved(): boolean {
+		return this._isResolved;
+	}
+
+	constructor(
+		private readonly _registry: TokenizationRegistryImpl,
+		private readonly _languageId: string,
+		private readonly _factory: ITokenizationSupportFactory,
+	) {
+		super();
+	}
+
+	public override dispose(): void {
+		this._isDisposed = true;
+		super.dispose();
+	}
+
+	public async resolve(): Promise<void> {
+		if (!this._resolvePromise) {
+			this._resolvePromise = this._create();
+		}
+		return this._resolvePromise;
+	}
+
+	private async _create(): Promise<void> {
+		const value = await Promise.resolve(this._factory.createTokenizationSupport());
+		this._isResolved = true;
+		if (value && !this._isDisposed) {
+			this._register(this._registry.register(this._languageId, value));
+		}
 	}
 }

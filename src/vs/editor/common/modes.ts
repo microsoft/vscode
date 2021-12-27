@@ -1915,6 +1915,13 @@ export interface ITokenizationSupportChangedEvent {
 /**
  * @internal
  */
+export interface ITokenizationSupportFactory {
+	createTokenizationSupport(): ProviderResult<ITokenizationSupport>;
+}
+
+/**
+ * @internal
+ */
 export interface ITokenizationRegistry {
 
 	/**
@@ -1928,29 +1935,34 @@ export interface ITokenizationRegistry {
 	 * Fire a change event for a language.
 	 * This is useful for languages that embed other languages.
 	 */
-	fire(languages: string[]): void;
+	fire(languageIds: string[]): void;
 
 	/**
 	 * Register a tokenization support.
 	 */
-	register(language: string, support: ITokenizationSupport): IDisposable;
+	register(languageId: string, support: ITokenizationSupport): IDisposable;
 
 	/**
-	 * Register a promise for a tokenization support.
+	 * Register a tokenization support factory.
 	 */
-	registerPromise(language: string, promise: Thenable<ITokenizationSupport>): IDisposable;
+	registerFactory(languageId: string, factory: ITokenizationSupportFactory): IDisposable;
+
+	/**
+	 * Get or create the tokenization support for a language.
+	 * Returns `null` if not found.
+	 */
+	getOrCreate(languageId: string): Promise<ITokenizationSupport | null>;
 
 	/**
 	 * Get the tokenization support for a language.
 	 * Returns `null` if not found.
 	 */
-	get(language: string): ITokenizationSupport | null;
+	get(languageId: string): ITokenizationSupport | null;
 
 	/**
-	 * Get the promise of a tokenization support for a language.
-	 * `null` is returned if no support is available and no promise for the support has been registered yet.
+	 * Returns false if a factory is still pending.
 	 */
-	getPromise(language: string): Thenable<ITokenizationSupport> | null;
+	isResolved(languageId: string): boolean;
 
 	/**
 	 * Set the new color map that all tokens will use in their ColorId binary encoded bits for foreground and background.
@@ -1965,7 +1977,7 @@ export interface ITokenizationRegistry {
 /**
  * @internal
  */
-export const TokenizationRegistry = new TokenizationRegistryImpl();
+export const TokenizationRegistry: ITokenizationRegistry = new TokenizationRegistryImpl();
 
 
 /**

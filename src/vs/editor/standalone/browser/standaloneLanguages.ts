@@ -270,6 +270,13 @@ export interface IEncodedLineTokens {
 }
 
 /**
+ * A factory for token providers.
+ */
+export interface TokensProviderFactory {
+	create(): modes.ProviderResult<TokensProvider | EncodedTokensProvider | IMonarchLanguage>;
+}
+
+/**
  * A "manual" provider of tokens.
  */
 export interface TokensProvider {
@@ -301,6 +308,10 @@ export interface EncodedTokensProvider {
 	tokenize?(line: string, state: modes.IState): ILineTokens;
 }
 
+function isATokensProvider(provider: TokensProvider | EncodedTokensProvider | IMonarchLanguage): provider is TokensProvider | EncodedTokensProvider {
+	return (typeof provider.getInitialState === 'function');
+}
+
 function isEncodedTokensProvider(provider: TokensProvider | EncodedTokensProvider): provider is EncodedTokensProvider {
 	return 'tokenizeEncoded' in provider;
 }
@@ -326,45 +337,71 @@ export function setColorMap(colorMap: string[] | null): void {
 }
 
 /**
+ * @internal
+ */
+function createTokenizationSupportAdapter(languageId: string, provider: TokensProvider | EncodedTokensProvider) {
+	if (isEncodedTokensProvider(provider)) {
+		return new EncodedTokenizationSupport2Adapter(languageId, provider);
+	} else {
+		return new TokenizationSupport2Adapter(
+			languageId,
+			provider,
+			StaticServices.languageService.get(),
+			StaticServices.standaloneThemeService.get(),
+		);
+	}
+}
+
+/**
+ * Register a tokens provider factory for a language. This tokenizer will be exclusive with a tokenizer
+ * set using `setTokensProvider` or one created using `setMonarchTokensProvider`, but will work together
+ * with a tokens provider set using `registerDocumentSemanticTokensProvider` or `registerDocumentRangeSemanticTokensProvider`.
+ */
+export function registerTokensProviderFactory(languageId: string, factory: TokensProviderFactory): IDisposable {
+	const adaptedFactory: modes.ITokenizationSupportFactory = {
+		createTokenizationSupport: async (): Promise<modes.ITokenizationSupport | null> => {
+			const result = await Promise.resolve(factory.create());
+			if (!result) {
+				return null;
+			}
+			if (isATokensProvider(result)) {
+				return createTokenizationSupportAdapter(languageId, result);
+			}
+			return createTokenizationSupport(StaticServices.languageService.get(), StaticServices.standaloneThemeService.get(), languageId, compile(languageId, result));
+		}
+	};
+	return modes.TokenizationRegistry.registerFactory(languageId, adaptedFactory);
+}
+
+/**
  * Set the tokens provider for a language (manual implementation). This tokenizer will be exclusive
- * with a tokenizer created using `setMonarchTokensProvider`, but will work together with a tokens provider
- * set using `registerDocumentSemanticTokensProvider` or `registerDocumentRangeSemanticTokensProvider`.
+ * with a tokenizer created using `setMonarchTokensProvider`, or with `registerTokensProviderFactory`,
+ * but will work together with a tokens provider set using `registerDocumentSemanticTokensProvider`
+ * or `registerDocumentRangeSemanticTokensProvider`.
  */
 export function setTokensProvider(languageId: string, provider: TokensProvider | EncodedTokensProvider | Thenable<TokensProvider | EncodedTokensProvider>): IDisposable {
 	const validLanguageId = StaticServices.languageService.get().validateLanguageId(languageId);
 	if (!validLanguageId) {
 		throw new Error(`Cannot set tokens provider for unknown language ${languageId}`);
 	}
-	const create = (provider: TokensProvider | EncodedTokensProvider) => {
-		if (isEncodedTokensProvider(provider)) {
-			return new EncodedTokenizationSupport2Adapter(validLanguageId, provider);
-		} else {
-			return new TokenizationSupport2Adapter(
-				validLanguageId,
-				provider,
-				StaticServices.languageService.get(),
-				StaticServices.standaloneThemeService.get(),
-			);
-		}
-	};
 	if (isThenable<TokensProvider | EncodedTokensProvider>(provider)) {
-		return modes.TokenizationRegistry.registerPromise(languageId, provider.then(provider => create(provider)));
+		return registerTokensProviderFactory(languageId, { create: () => provider });
 	}
-	return modes.TokenizationRegistry.register(languageId, create(provider));
+	return modes.TokenizationRegistry.register(languageId, createTokenizationSupportAdapter(validLanguageId, provider));
 }
-
 
 /**
  * Set the tokens provider for a language (monarch implementation). This tokenizer will be exclusive
- * with a tokenizer set using `setTokensProvider`, but will work together with a tokens provider
- * set using `registerDocumentSemanticTokensProvider` or `registerDocumentRangeSemanticTokensProvider`.
+ * with a tokenizer set using `setTokensProvider`, or with `registerTokensProviderFactory`, but will
+ * work together with a tokens provider set using `registerDocumentSemanticTokensProvider` or
+ * `registerDocumentRangeSemanticTokensProvider`.
  */
 export function setMonarchTokensProvider(languageId: string, languageDef: IMonarchLanguage | Thenable<IMonarchLanguage>): IDisposable {
 	const create = (languageDef: IMonarchLanguage) => {
 		return createTokenizationSupport(StaticServices.languageService.get(), StaticServices.standaloneThemeService.get(), languageId, compile(languageId, languageDef));
 	};
 	if (isThenable<IMonarchLanguage>(languageDef)) {
-		return modes.TokenizationRegistry.registerPromise(languageId, languageDef.then(languageDef => create(languageDef)));
+		return registerTokensProviderFactory(languageId, { create: () => languageDef });
 	}
 	return modes.TokenizationRegistry.register(languageId, create(languageDef));
 }
@@ -641,6 +678,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		// provider methods
 		setLanguageConfiguration: <any>setLanguageConfiguration,
 		setColorMap: setColorMap,
+		registerTokensProviderFactory: <any>registerTokensProviderFactory,
 		setTokensProvider: <any>setTokensProvider,
 		setMonarchTokensProvider: <any>setMonarchTokensProvider,
 		registerReferenceProvider: <any>registerReferenceProvider,
