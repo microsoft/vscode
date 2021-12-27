@@ -284,9 +284,8 @@ function getSafeTokenizationSupport(language: string): Omit<modes.ITokenizationS
  * Tokenize `text` using language `languageId`
  */
 export function tokenize(text: string, languageId: string): Token[][] {
-	let languageService = StaticServices.languageService.get();
 	// Needed in order to get the mode registered for subsequent look-ups
-	languageService.triggerMode(languageId);
+	modes.TokenizationRegistry.getOrCreate(languageId);
 
 	let tokenizationSupport = getSafeTokenizationSupport(languageId);
 	let lines = splitLines(text);

@@ -311,7 +311,7 @@ export class LanguagesRegistry extends Disposable {
 		return (language.mimetypes[0] || null);
 	}
 
-	public extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds: string | undefined): string[] {
+	private _extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds: string | undefined): string[] {
 		if (!commaSeparatedMimetypesOrCommaSeparatedIds) {
 			return [];
 		}
@@ -359,7 +359,7 @@ export class LanguagesRegistry extends Disposable {
 			return [];
 		}
 		let mimeTypes = mime.guessMimeTypes(resource, firstLine);
-		return this.extractModeIds(mimeTypes.join(','));
+		return this._extractModeIds(mimeTypes.join(','));
 	}
 
 	public getExtensions(languageName: string): string[] {

@@ -61,6 +61,4 @@ export interface ILanguageService {
 	 * Will fall back to 'plaintext' if the `languageId` cannot be determined.
 	 */
 	createByFilepathOrFirstLine(resource: URI | null, firstLine?: string): ILanguageSelection;
-
-	triggerMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): void;
 }
