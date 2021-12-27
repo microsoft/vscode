@@ -146,6 +146,7 @@ import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/termi
 import { DeserializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
 import { IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
 import { env } from 'vs/base/common/process';
+import { isValidBasename } from 'vs/base/common/extpath';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -1689,6 +1690,10 @@ export class TestPathService implements IPathService {
 	declare readonly _serviceBrand: undefined;
 
 	constructor(private readonly fallbackUserHome: URI = URI.from({ scheme: Schemas.vscodeRemote, path: '/' })) { }
+
+	async hasValidBasename(resource: URI): Promise<boolean> {
+		return isValidBasename(basename(resource));
+	}
 
 	get path() { return Promise.resolve(isWindows ? win32 : posix); }
 

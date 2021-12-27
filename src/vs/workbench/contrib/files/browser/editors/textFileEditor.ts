@@ -5,8 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { assertIsDefined } from 'vs/base/common/types';
-import { isValidBasename } from 'vs/base/common/extpath';
-import { basename } from 'vs/base/common/resources';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { toAction } from 'vs/base/common/actions';
 import { VIEWLET_ID, TEXT_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
@@ -57,7 +56,8 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IExplorerService private readonly explorerService: IExplorerService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IPathService private readonly pathService: IPathService
 	) {
 		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
 
@@ -160,11 +160,11 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 			// readonly or not that the input did not have.
 			textEditor.updateOptions({ readOnly: textFileModel.isReadonly() });
 		} catch (error) {
-			this.handleSetInputError(error, input, options);
+			await this.handleSetInputError(error, input, options);
 		}
 	}
 
-	protected handleSetInputError(error: Error, input: FileEditorInput, options: ITextEditorOptions | undefined): void {
+	protected async handleSetInputError(error: Error, input: FileEditorInput, options: ITextEditorOptions | undefined): Promise<void> {
 
 		// In case we tried to open a file inside the text editor and the response
 		// indicates that this is not a text file, reopen the file through the binary
@@ -181,7 +181,7 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 		}
 
 		// Offer to create a file from the error if we have a file not found and the name is valid
-		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && isValidBasename(basename(input.preferredResource))) {
+		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && await this.pathService.hasValidBasename(input.preferredResource)) {
 			const fileNotFoundError: FileOperationError & IErrorWithActions = new FileOperationError(localize('fileNotFoundError', "File not found"), FileOperationResult.FILE_NOT_FOUND);
 			fileNotFoundError.actions = [
 				toAction({

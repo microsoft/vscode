@@ -29,7 +29,6 @@ import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/se
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { isValidBasename } from 'vs/base/common/extpath';
 import { IWorkingCopyFileService, IFileOperationUndoRedoInfo, ICreateFileOperation } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -561,6 +560,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		const remoteAuthority = this.environmentService.remoteAuthority;
+		const defaultFilePath = await this.fileDialogService.defaultFilePath();
 
 		// Otherwise try to suggest a path that can be saved
 		let suggestedFilename: string | undefined = undefined;
@@ -574,9 +574,10 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				}
 
 				// Untitled without associated file path: use name
-				// of untitled model if it is a valid path name
+				// of untitled model if it is a valid path name,
+				// otherwise fallback to `basename`.
 				let untitledName = model.name;
-				if (!isValidBasename(untitledName)) {
+				if (!(await this.pathService.hasValidBasename(joinPath(defaultFilePath, untitledName)))) {
 					untitledName = basename(resource);
 				}
 
@@ -597,7 +598,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		// Try to place where last active file was if any
 		// Otherwise fallback to user home
-		return joinPath(await this.fileDialogService.defaultFilePath(), suggestedFilename);
+		return joinPath(defaultFilePath, suggestedFilename);
 	}
 
 	suggestFilename(mode: string, untitledName: string) {

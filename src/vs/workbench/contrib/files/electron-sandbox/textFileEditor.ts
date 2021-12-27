@@ -25,6 +25,7 @@ import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 /**
  * An implementation of editor for file system resources.
@@ -47,12 +48,13 @@ export class NativeTextFileEditor extends TextFileEditor {
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IExplorerService explorerService: IExplorerService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IPathService pathService: IPathService
 	) {
-		super(telemetryService, fileService, paneCompositeService, instantiationService, contextService, storageService, textResourceConfigurationService, editorService, themeService, editorGroupService, textFileService, explorerService, uriIdentityService);
+		super(telemetryService, fileService, paneCompositeService, instantiationService, contextService, storageService, textResourceConfigurationService, editorService, themeService, editorGroupService, textFileService, explorerService, uriIdentityService, pathService);
 	}
 
-	protected override handleSetInputError(error: Error, input: FileEditorInput, options: ITextEditorOptions | undefined): void {
+	protected override handleSetInputError(error: Error, input: FileEditorInput, options: ITextEditorOptions | undefined): Promise<void> {
 
 		// Allow to restart with higher memory limit if the file is too large
 		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT) {
@@ -79,6 +81,6 @@ export class NativeTextFileEditor extends TextFileEditor {
 		}
 
 		// Fallback to handling in super type
-		super.handleSetInputError(error, input, options);
+		return super.handleSetInputError(error, input, options);
 	}
 }

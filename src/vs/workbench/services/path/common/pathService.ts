@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isValidBasename } from 'vs/base/common/extpath';
 import { Schemas } from 'vs/base/common/network';
 import { IPath, win32, posix } from 'vs/base/common/path';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
+import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
@@ -58,6 +60,17 @@ export interface IPathService {
 	userHome(options?: { preferLocal: boolean }): Promise<URI>;
 
 	/**
+	 * Figures out if the provided resource has a valid file name
+	 * for the operating system the file is saved to.
+	 *
+	 * Note: this currently only supports `file` and `vscode-file`
+	 * protocols where we know the limits of the file systems behind
+	 * these OS. Other remotes are not supported and this method
+	 * will always return `true` for them.
+	 */
+	hasValidBasename(resource: URI): Promise<boolean>;
+
+	/**
 	 * @deprecated use `userHome` instead.
 	 */
 	readonly resolvedUserHome: URI | undefined;
@@ -94,6 +107,20 @@ export abstract class AbstractPathService implements IPathService {
 
 			return userHome;
 		})();
+	}
+
+	async hasValidBasename(resource: URI): Promise<boolean> {
+
+		// Our `isValidBasename` method only works with our
+		// standard schemes for files on disk, either locally
+		// or remote.
+		if (resource.scheme === Schemas.file || resource.scheme === Schemas.vscodeRemote) {
+			const os = await this.resolveOS;
+
+			return isValidBasename(basename(resource), os === OperatingSystem.Windows);
+		}
+
+		return true;
 	}
 
 	get defaultUriScheme(): string {
