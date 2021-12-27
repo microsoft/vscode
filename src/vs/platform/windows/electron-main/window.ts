@@ -523,7 +523,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		});
 
 		// Window Leave Fullscreen
-		// If this event gets called instead of "maximize" or "unmaximize" on linux,
+		// If this event gets mistakenly called instead of "maximize" or "unmaximize" on linux,
 		// we emit the browser-window event here instead.
 		this._win.on('leave-full-screen', (e: Event) => {
 			// If platform is Linux and the window is not in fullscreen, we check for misfired "maximize/unmaximize" event.
@@ -532,14 +532,14 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					if (this.currentConfig) {
 						this.currentConfig.maximized = true;
 					}
-
 					app.emit('browser-window-maximize', e, this._win);
+					return;
 				} else {
 					if (this.currentConfig) {
 						this.currentConfig.maximized = false;
 					}
-
 					app.emit('browser-window-unmaximize', e, this._win);
+					return;
 				}
 			}
 			this.sendWhenReady('vscode:leaveFullScreen', CancellationToken.None);
