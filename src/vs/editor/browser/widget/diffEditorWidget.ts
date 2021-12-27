@@ -1455,6 +1455,34 @@ abstract class ViewZonesComputer {
 	) {
 	}
 
+	/**
+	 * get actual line number from relative line number with hidden range information
+	 * @param lineNumber line number without hiddenAreas
+	 * @param hiddenRanges editor hidden ranges
+	 * @returns actual line number
+	 */
+	private getActualLineNumber(lineNumber: number, hiddenRanges?: IRange[]) {
+		if (!hiddenRanges?.length) {
+			return lineNumber;
+		}
+		if (hiddenRanges.length === 1) {
+			return lineNumber > hiddenRanges[0].startLineNumber - 1 ? lineNumber + hiddenRanges[0].endLineNumber - hiddenRanges[0].startLineNumber + 1 : lineNumber;
+		}
+		let prevCollapseLine = 0;
+		let count = 0;
+		let totalGap = 0;
+		// find the last hidden range before lineNumber and add the line count
+		for (let i = 0; i < hiddenRanges.length; i++) {
+			totalGap += hiddenRanges[i].startLineNumber - prevCollapseLine - 1;
+			if (totalGap >= lineNumber) {
+				break;
+			}
+			prevCollapseLine = hiddenRanges[i].endLineNumber;
+			count += hiddenRanges[i].endLineNumber - hiddenRanges[i].startLineNumber + 1;
+		}
+		return lineNumber + count;
+	}
+
 	private static _getViewLineCount(editor: CodeEditorWidget, startLineNumber: number, endLineNumber: number): number {
 		const model = editor.getModel();
 		const viewModel = editor._getViewModel();
@@ -1467,6 +1495,8 @@ abstract class ViewZonesComputer {
 	}
 
 	public getViewZones(): IEditorsZones {
+		const modifiedHiddenRanges = this._modifiedEditor._getViewModel()?.hiddenAreas;
+		const originalHiddenRanges = this._originalEditor._getViewModel()?.hiddenAreas;
 		const originalLineHeight = this._originalEditor.getOption(EditorOption.lineHeight);
 		const modifiedLineHeight = this._modifiedEditor.getOption(EditorOption.lineHeight);
 		const originalHasWrapping = (this._originalEditor.getOption(EditorOption.wrappingInfo).wrappingColumn !== -1);
@@ -1577,16 +1607,17 @@ abstract class ViewZonesComputer {
 			}
 
 			// [PRODUCE] View zone(s) in original-side due to foreign view zone(s) in modified-side
-			while (modifiedForeignVZ.current && modifiedForeignVZ.current.afterLineNumber <= modifiedEndEquivalentLineNumber) {
+			while (modifiedForeignVZ.current && this.getActualLineNumber(modifiedForeignVZ.current.afterLineNumber, modifiedHiddenRanges) <= modifiedEndEquivalentLineNumber) {
 				let viewZoneLineNumber: number;
-				if (modifiedForeignVZ.current.afterLineNumber <= modifiedEquivalentLineNumber) {
-					viewZoneLineNumber = originalEquivalentLineNumber - modifiedEquivalentLineNumber + modifiedForeignVZ.current.afterLineNumber;
+				const actualAfterLineNumber = this.getActualLineNumber(modifiedForeignVZ.current.afterLineNumber, originalHiddenRanges);
+				if (actualAfterLineNumber <= originalEquivalentLineNumber) {
+					viewZoneLineNumber = modifiedEquivalentLineNumber - originalEquivalentLineNumber + actualAfterLineNumber;
 				} else {
 					viewZoneLineNumber = originalEndEquivalentLineNumber;
 				}
 
 				let marginDomNode: HTMLDivElement | null = null;
-				if (lineChange && lineChange.modifiedStartLineNumber <= modifiedForeignVZ.current.afterLineNumber && modifiedForeignVZ.current.afterLineNumber <= lineChange.modifiedEndLineNumber) {
+				if (lineChange && lineChange.modifiedStartLineNumber <= actualAfterLineNumber && actualAfterLineNumber <= lineChange.modifiedEndLineNumber) {
 					marginDomNode = this._createOriginalMarginDomNodeForModifiedForeignViewZoneInAddedRegion();
 				}
 
@@ -1600,10 +1631,11 @@ abstract class ViewZonesComputer {
 			}
 
 			// [PRODUCE] View zone(s) in modified-side due to foreign view zone(s) in original-side
-			while (originalForeignVZ.current && originalForeignVZ.current.afterLineNumber <= originalEndEquivalentLineNumber) {
+			while (originalForeignVZ.current && this.getActualLineNumber(originalForeignVZ.current.afterLineNumber, originalHiddenRanges) <= originalEndEquivalentLineNumber) {
 				let viewZoneLineNumber: number;
-				if (originalForeignVZ.current.afterLineNumber <= originalEquivalentLineNumber) {
-					viewZoneLineNumber = modifiedEquivalentLineNumber - originalEquivalentLineNumber + originalForeignVZ.current.afterLineNumber;
+				const actualAfterLineNumber = this.getActualLineNumber(originalForeignVZ.current.afterLineNumber, originalHiddenRanges);
+				if (actualAfterLineNumber <= originalEquivalentLineNumber) {
+					viewZoneLineNumber = modifiedEquivalentLineNumber - originalEquivalentLineNumber + actualAfterLineNumber;
 				} else {
 					viewZoneLineNumber = modifiedEndEquivalentLineNumber;
 				}

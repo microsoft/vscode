@@ -453,6 +453,10 @@ export class ViewModel extends Disposable implements IViewModel {
 		}));
 	}
 
+	public get hiddenAreas() {
+		return this._lines.getHiddenAreas();
+	}
+
 	public setHiddenAreas(ranges: Range[]): void {
 		let lineMappingChanged = false;
 		try {
