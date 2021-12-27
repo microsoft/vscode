@@ -8,6 +8,13 @@ export interface ILineRange {
 	endLineNumber: number;
 }
 
+export interface FoldRange {
+	startLineNumber: number;
+	endLineNumber: number;
+	isCollapsed: boolean;
+	type: string | undefined;
+}
+
 export const MAX_FOLDING_REGIONS = 0xFFFF;
 export const MAX_LINE_NUMBER = 0xFFFFFF;
 
@@ -184,6 +191,133 @@ export class FoldingRegions {
 
 		return true;
 	}
+
+	public toFoldRange(index: number): FoldRange {
+		return <FoldRange>{
+			startLineNumber: this._startIndexes[index] & MAX_LINE_NUMBER,
+			endLineNumber: this._endIndexes[index] & MAX_LINE_NUMBER,
+			isCollapsed: this.isCollapsed(index),
+			type: this._types ? this._types[index] : undefined
+		};
+	}
+
+	public static fromFoldRanges(ranges: FoldRange[]): FoldingRegions {
+		const rangesLength = ranges.length;
+		let startIndexes = new Uint32Array(rangesLength);
+		let endIndexes = new Uint32Array(rangesLength);
+		let types: Array<string | undefined> | undefined = [];
+		let gotTypes = false;
+		for (let i = 0; i < rangesLength; i++) {
+			const range = ranges[i];
+			startIndexes[i] = range.startLineNumber;
+			endIndexes[i] = range.endLineNumber;
+			types.push(range.type);
+			if (range.type) {
+				gotTypes = true;
+			}
+		}
+		if (!gotTypes) {
+			types = undefined;
+		}
+		const regions = new FoldingRegions(startIndexes, endIndexes, types);
+		for (let i = 0; i < rangesLength; i++) {
+			if (ranges[i].isCollapsed) {
+				regions.setCollapsed(i, true);
+			}
+		}
+		return regions;
+	}
+
+	/**
+	 * Two inputs, each a FoldingRegions or a FoldRange[], are merged.
+	 * Each input must be pre-sorted on startLineNumber.
+	 * Where there's a conflict between the two inputs the second parameter's range is used.
+	 * Invalid entries are discarded. An entry is invalid if:
+	 * 		the start and end line numbers aren't a valid range of line numbers,
+	 * 		it is out of sequence or has the same start line as a preceding entry,
+	 * 		it overlaps a preceding entry and is not fully contained by that entry.
+	 */
+	public static sanitizeAndMerge(
+		rangesA: FoldingRegions | FoldRange[],
+		rangesB: FoldingRegions | FoldRange[],
+		maxLineNumber: number | undefined): FoldRange[] {
+
+		maxLineNumber = maxLineNumber ?? Number.MAX_VALUE;
+		const getIndexedFunction = (r: FoldingRegions | FoldRange[], limit: number) => {
+			return Array.isArray(r)
+				? ((i: number) => { return (i < limit) ? r[i] : undefined; })
+				: ((i: number) => { return (i < limit) ? r.toFoldRange(i) : undefined; });
+		};
+		const getA = getIndexedFunction(rangesA, rangesA.length);
+		const getB = getIndexedFunction(rangesB, rangesB.length);
+		let indexA = 0;
+		let indexB = 0;
+		let nextA = getA(0);
+		let nextB = getB(0);
+
+		let stackedRanges: FoldRange[] = [];
+		let topStackedRange: FoldRange | undefined;
+		let prevLineNumber = 0;
+		let resultRanges: FoldRange[] = [];
+
+		while (nextA || nextB) {
+
+			let useRange: FoldRange | undefined = undefined;
+			if (nextB && (!nextA || nextA.startLineNumber >= nextB.startLineNumber)) {
+				// nextB is next
+				useRange = nextB;
+				if (nextA
+					&& nextA.startLineNumber === useRange.startLineNumber
+					&& nextA.endLineNumber === useRange.endLineNumber) {
+					// same range, merge the details
+					useRange.isCollapsed = useRange.isCollapsed || nextA.isCollapsed;
+					if (!useRange.type) {
+						useRange.type = nextA.type;
+					}
+					nextA = getA(++indexA); // not necessary, just for speed
+				}
+				nextB = getB(++indexB);
+			} else {
+				// nextA is next. The B set takes precedence and we sometimes need to look
+				// ahead in it to check for an upcoming conflict.
+				let scanIndex = indexB;
+				let prescanB = nextB;
+				while (true) {
+					if (!prescanB || prescanB.startLineNumber > nextA!.endLineNumber) {
+						useRange = nextA;
+						break; // no conflict, use this nextA
+					}
+					if (prescanB.endLineNumber > nextA!.endLineNumber) {
+						break; // without setting nextResult, so this nextA gets skipped
+					}
+					prescanB = getB(++scanIndex);
+				}
+				nextA = getA(++indexA);
+			}
+
+			if (useRange) {
+				while (topStackedRange
+					&& topStackedRange.endLineNumber < useRange.startLineNumber) {
+					topStackedRange = stackedRanges.pop();
+				}
+				if (useRange.endLineNumber > useRange.startLineNumber
+					&& useRange.startLineNumber > prevLineNumber
+					&& useRange.endLineNumber <= maxLineNumber
+					&& (!topStackedRange
+						|| topStackedRange.endLineNumber >= useRange.endLineNumber)) {
+					resultRanges.push(useRange);
+					prevLineNumber = useRange.startLineNumber;
+					if (topStackedRange) {
+						stackedRanges.push(topStackedRange);
+					}
+					topStackedRange = useRange;
+				}
+			}
+
+		}
+		return resultRanges;
+	}
+
 }
 
 export class FoldingRegion {
