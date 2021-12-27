@@ -105,8 +105,8 @@ export class LanguageService extends Disposable implements ILanguageService {
 		return this._registry.getLanguageName(languageId);
 	}
 
-	public getLanguageIdForLanguageName(alias: string): string | null {
-		return this._registry.getLanguageIdForLanguageName(alias);
+	public getLanguageIdForLanguageName(languageName: string): string | null {
+		return this._registry.getLanguageIdForLanguageName(languageName);
 	}
 
 	public getLanguageIdForMimeType(mimeType: string | null | undefined): string | null {

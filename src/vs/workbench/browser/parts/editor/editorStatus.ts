@@ -1120,7 +1120,7 @@ export class ChangeModeAction extends Action {
 		const languages = this.languageService.getRegisteredLanguageNames();
 		const picks: QuickPickInput[] = languages.sort()
 			.map(lang => {
-				const languageId = this.languageService.getLanguageIdForLanguageName(lang.toLowerCase()) || 'unknown';
+				const languageId = this.languageService.getLanguageIdForLanguageName(lang) || 'unknown';
 				const extensions = this.languageService.getExtensions(lang).join(' ');
 				let description: string;
 				if (currentLanguageId === lang) {
@@ -1212,13 +1212,13 @@ export class ChangeModeAction extends Action {
 						}
 					}
 				} else {
-					const languageId = this.languageService.getLanguageIdForLanguageName(pick.label.toLowerCase());
+					const languageId = this.languageService.getLanguageIdForLanguageName(pick.label);
 					languageSelection = this.languageService.createById(languageId);
 
 					if (resource) {
 						// fire and forget to not slow things down
 						this.languageDetectionService.detectLanguage(resource).then(detectedModeId => {
-							const chosenLanguageId = this.languageService.getLanguageIdForLanguageName(pick.label.toLowerCase()) || 'unknown';
+							const chosenLanguageId = this.languageService.getLanguageIdForLanguageName(pick.label) || 'unknown';
 							if (detectedModeId === currentModeId && currentModeId !== chosenLanguageId) {
 								// If they didn't choose the detected language (which should also be the active language if automatic detection is enabled)
 								// then the automatic language detection was likely wrong and the user is correcting it. In this case, we want telemetry.
@@ -1252,7 +1252,7 @@ export class ChangeModeAction extends Action {
 
 		const languages = this.languageService.getRegisteredLanguageNames();
 		const picks: IQuickPickItem[] = languages.sort().map((lang, index) => {
-			const id = withNullAsUndefined(this.languageService.getLanguageIdForLanguageName(lang.toLowerCase())) || 'unknown';
+			const id = withNullAsUndefined(this.languageService.getLanguageIdForLanguageName(lang)) || 'unknown';
 
 			return {
 				id,

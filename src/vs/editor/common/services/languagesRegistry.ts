@@ -279,11 +279,12 @@ export class LanguagesRegistry extends Disposable {
 		return this._languages[languageId].name;
 	}
 
-	public getLanguageIdForLanguageName(languageNameLower: string): string | null {
+	public getLanguageIdForLanguageName(languageName: string): string | null {
+		const languageNameLower = languageName.toLowerCase();
 		if (!hasOwnProperty.call(this._lowercaseNameMap, languageNameLower)) {
 			return null;
 		}
-		return this._lowercaseNameMap[languageNameLower];
+		return this._nameMap[languageNameLower];
 	}
 
 	public getLanguageIdForMimeType(mimeType: string | null | undefined): string | null {
