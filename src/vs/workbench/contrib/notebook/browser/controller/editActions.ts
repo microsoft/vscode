@@ -464,12 +464,12 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 
 		const languageId = languageService.getLanguageIdForLanguageName(lang);
 		if (languageId) {
-			const extensions = languageService.getExtensions(lang);
-			if (extensions?.length) {
+			const extensions = languageService.getExtensionsForLanguageId(languageId);
+			if (extensions.length) {
 				fakeResource = URI.file(extensions[0]);
 			} else {
 				const filenames = languageService.getFilenamesForLanguageId(languageId);
-				if (filenames?.length) {
+				if (filenames.length) {
 					fakeResource = URI.file(filenames[0]);
 				}
 			}

@@ -303,8 +303,12 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 
 		const registeredLanguageNames = this.languageService.getRegisteredLanguageNames().sort((a, b) => compareIgnoreCase(a, b));
 		const registeredLanguageFilters: IFilter[] = coalesce(registeredLanguageNames.map(languageName => {
-			const extensions = this.languageService.getExtensions(languageName);
-			if (!extensions || !extensions.length) {
+			const languageId = this.languageService.getLanguageIdForLanguageName(languageName);
+			if (!languageId) {
+				return null;
+			}
+			const extensions = this.languageService.getExtensionsForLanguageId(languageId);
+			if (!extensions.length) {
 				return null;
 			}
 

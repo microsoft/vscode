@@ -227,18 +227,14 @@ suite('LanguagesRegistry', () => {
 			extensions: ['aExt']
 		}]);
 
-		assert.deepStrictEqual(registry.getExtensions('a'), []);
-		assert.deepStrictEqual(registry.getExtensions('aname'), []);
-		assert.deepStrictEqual(registry.getExtensions('aName'), ['aExt']);
+		assert.deepStrictEqual(registry.getExtensionsForLanguageId('a'), ['aExt']);
 
 		registry._registerLanguages([{
 			id: 'a',
 			extensions: ['aExt2']
 		}]);
 
-		assert.deepStrictEqual(registry.getExtensions('a'), []);
-		assert.deepStrictEqual(registry.getExtensions('aname'), []);
-		assert.deepStrictEqual(registry.getExtensions('aName'), ['aExt', 'aExt2']);
+		assert.deepStrictEqual(registry.getExtensionsForLanguageId('a'), ['aExt', 'aExt2']);
 
 		registry.dispose();
 	});
@@ -251,7 +247,7 @@ suite('LanguagesRegistry', () => {
 			extensions: ['aExt3']
 		}]);
 
-		assert.deepStrictEqual(registry.getExtensions('a')[0], 'aExt3');
+		assert.deepStrictEqual(registry.getExtensionsForLanguageId('a')[0], 'aExt3');
 
 		registry._registerLanguages([{
 			id: 'a',
@@ -259,14 +255,14 @@ suite('LanguagesRegistry', () => {
 			extensions: ['aExt']
 		}]);
 
-		assert.deepStrictEqual(registry.getExtensions('a')[0], 'aExt');
+		assert.deepStrictEqual(registry.getExtensionsForLanguageId('a')[0], 'aExt');
 
 		registry._registerLanguages([{
 			id: 'a',
 			extensions: ['aExt2']
 		}]);
 
-		assert.deepStrictEqual(registry.getExtensions('a')[0], 'aExt');
+		assert.deepStrictEqual(registry.getExtensionsForLanguageId('a')[0], 'aExt');
 
 		registry.dispose();
 	});

@@ -38,7 +38,7 @@ export interface ILanguageService {
 	isRegisteredLanguageId(languageId: string): boolean;
 	getRegisteredLanguageIds(): string[];
 	getRegisteredLanguageNames(): string[];
-	getExtensions(alias: string): string[]; // TODO
+	getExtensionsForLanguageId(languageId: string): string[];
 	getFilenamesForLanguageId(languageId: string): string[];
 	getMimeTypeForLanguageId(languageId: string): string | null;
 	getLanguageName(languageId: string): string | null;

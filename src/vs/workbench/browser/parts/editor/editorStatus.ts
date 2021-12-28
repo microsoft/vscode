@@ -1121,7 +1121,7 @@ export class ChangeModeAction extends Action {
 		const picks: QuickPickInput[] = languages.sort()
 			.map(lang => {
 				const languageId = this.languageService.getLanguageIdForLanguageName(lang) || 'unknown';
-				const extensions = this.languageService.getExtensions(lang).join(' ');
+				const extensions = this.languageService.getExtensionsForLanguageId(languageId).join(' ');
 				let description: string;
 				if (currentLanguageId === lang) {
 					description = localize('languageDescription', "({0}) - Configured Language", languageId);

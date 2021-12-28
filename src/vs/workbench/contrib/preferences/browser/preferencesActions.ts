@@ -35,12 +35,12 @@ export class ConfigureLanguageBasedSettingsAction extends Action {
 			const description: string = nls.localize('languageDescriptionConfigured', "({0})", languageId);
 			// construct a fake resource to be able to show nice icons if any
 			let fakeResource: URI | undefined;
-			const extensions = this.languageService.getExtensions(lang);
-			if (extensions && extensions.length) {
+			const extensions = this.languageService.getExtensionsForLanguageId(languageId);
+			if (extensions.length) {
 				fakeResource = URI.file(extensions[0]);
 			} else {
 				const filenames = this.languageService.getFilenamesForLanguageId(languageId);
-				if (filenames && filenames.length) {
+				if (filenames.length) {
 					fakeResource = URI.file(filenames[0]);
 				}
 			}

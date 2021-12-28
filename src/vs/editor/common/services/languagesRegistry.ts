@@ -363,11 +363,10 @@ export class LanguagesRegistry extends Disposable {
 		return this._extractModeIds(mimeTypes.join(','));
 	}
 
-	public getExtensions(languageName: string): string[] {
-		if (!hasOwnProperty.call(this._nameMap, languageName)) {
+	public getExtensionsForLanguageId(languageId: string): string[] {
+		if (!hasOwnProperty.call(this._languages, languageId)) {
 			return [];
 		}
-		const languageId = this._nameMap[languageName];
 		return this._languages[languageId].extensions;
 	}
 
