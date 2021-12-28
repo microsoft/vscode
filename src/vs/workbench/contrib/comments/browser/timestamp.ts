@@ -9,7 +9,7 @@ import { Timestamp } from 'vs/editor/common/modes';
 import * as dayjs from 'dayjs';
 import * as relativeTime from 'dayjs/plugin/relativeTime';
 import * as updateLocale from 'dayjs/plugin/updateLocale';
-import * as localizedFormat from 'dayjs/plugin/localizedFormat'
+import * as localizedFormat from 'dayjs/plugin/localizedFormat';
 
 dayjs.extend(relativeTime, {
 	thresholds: [
