@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ModelService } from 'vs/editor/common/services/modelServiceImpl';
+import { ModelService } from 'vs/editor/common/services/modelService';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta } from 'vs/workbench/api/common/extHost.protocol';
@@ -30,7 +30,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
+import { LanguageService } from 'vs/editor/common/services/languageService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('MainThreadDocumentsAndEditors', () => {

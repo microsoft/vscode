@@ -104,7 +104,7 @@ import { ContextViewService } from 'vs/platform/contextview/browser/contextViewS
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IListService, ListService } from 'vs/platform/list/browser/listService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { EditorWorkerService } from 'vs/editor/common/services/editorWorkerServiceImpl';
+import { EditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { MarkerDecorationsService } from 'vs/editor/common/services/markerDecorationsService';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecorations';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
@@ -112,7 +112,7 @@ import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { TextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationServiceImpl';
+import { TextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { MenuService } from 'vs/platform/actions/common/menuService';
 import { IDownloadService } from 'vs/platform/download/common/download';

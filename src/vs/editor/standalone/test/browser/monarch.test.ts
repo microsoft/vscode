@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
+import { LanguageService } from 'vs/editor/common/services/languageService';
 import { ILanguageService } from 'vs/editor/common/services/language';
 import { MonarchTokenizer } from 'vs/editor/standalone/common/monarch/monarchLexer';
 import { compile } from 'vs/editor/standalone/common/monarch/monarchCompile';

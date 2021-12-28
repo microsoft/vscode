@@ -25,8 +25,8 @@ import { ILifecycleService, ShutdownReason, StartupKind, LifecyclePhase, WillShu
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { FileOperationEvent, IFileService, IFileStat, IResolveFileResult, FileChangesEvent, IResolveFileOptions, ICreateFileOptions, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions, IReadFileOptions, IFileContent, IFileStreamContent, FileOperationError, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, IReadFileStreamOptions, IFileSystemProviderCapabilitiesChangeEvent, IRawFileChangesEvent } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/model';
-import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
-import { ModelService } from 'vs/editor/common/services/modelServiceImpl';
+import { LanguageService } from 'vs/editor/common/services/languageService';
+import { ModelService } from 'vs/editor/common/services/modelService';
 import { IResourceEncoding, ITextFileService, IReadTextFileOptions, ITextFileStreamContent, IWriteTextFileOptions, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILanguageService } from 'vs/editor/common/services/language';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';

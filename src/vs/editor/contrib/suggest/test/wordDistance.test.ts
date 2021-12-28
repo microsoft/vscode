@@ -14,7 +14,7 @@ import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/model/wordHelper';
 import * as modes from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
-import { EditorWorkerHost, EditorWorkerService } from 'vs/editor/common/services/editorWorkerServiceImpl';
+import { EditorWorkerHost, EditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { CompletionItem } from 'vs/editor/contrib/suggest/suggest';

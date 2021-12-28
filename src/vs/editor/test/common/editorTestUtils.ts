@@ -9,7 +9,7 @@ import { BracketPairColorizationOptions, DefaultEndOfLine, ITextBufferFactory, I
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ILanguageService } from 'vs/editor/common/services/language';
-import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
+import { LanguageService } from 'vs/editor/common/services/languageService';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -28,7 +28,7 @@ import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ModelService } from 'vs/editor/common/services/modelServiceImpl';
+import { ModelService } from 'vs/editor/common/services/modelService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
 

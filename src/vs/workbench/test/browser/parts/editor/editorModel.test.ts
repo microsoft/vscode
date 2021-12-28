@@ -8,10 +8,10 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/services/language';
-import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
+import { LanguageService } from 'vs/editor/common/services/languageService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ModelService } from 'vs/editor/common/services/modelServiceImpl';
+import { ModelService } from 'vs/editor/common/services/modelService';
 import { ITextBufferFactory } from 'vs/editor/common/model';
 import { URI } from 'vs/base/common/uri';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';

@@ -21,7 +21,7 @@ import { BasicInplaceReplace } from 'vs/editor/common/modes/supports/inplaceRepl
 import { IDiffComputationResult, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
 import * as types from 'vs/base/common/types';
-import { EditorWorkerHost } from 'vs/editor/common/services/editorWorkerServiceImpl';
+import { EditorWorkerHost } from 'vs/editor/common/services/editorWorkerService';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { UnicodeTextModelHighlighter, UnicodeHighlighterOptions } from 'vs/editor/common/modes/unicodeTextModelHighlighter';
 

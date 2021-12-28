@@ -11,7 +11,7 @@ import { Token } from 'vs/editor/common/core/token';
 import { IState, LanguageId, MetadataConsts } from 'vs/editor/common/modes';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { TokenTheme } from 'vs/editor/common/modes/supports/tokenization';
-import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
+import { LanguageService } from 'vs/editor/common/services/languageService';
 import { ILineTokens, IToken, TokenizationSupportAdapter, TokensProvider } from 'vs/editor/standalone/browser/standaloneLanguages';
 import { IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
 import { UnthemedProductIconTheme } from 'vs/platform/theme/browser/iconsStyleSheet';

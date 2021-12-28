@@ -13,7 +13,7 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { Range } from 'vs/editor/common/core/range';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ModelService } from 'vs/editor/common/services/modelServiceImpl';
+import { ModelService } from 'vs/editor/common/services/modelService';
 import { IModelService } from 'vs/editor/common/services/model';
 import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
 import { IThemeService } from 'vs/platform/theme/common/themeService';

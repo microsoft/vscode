@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { EditorWorkerClient } from 'vs/editor/common/services/editorWorkerServiceImpl';
+import { EditorWorkerClient } from 'vs/editor/common/services/editorWorkerService';
 import { IModelService } from 'vs/editor/common/services/model';
 import * as types from 'vs/base/common/types';
 import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';

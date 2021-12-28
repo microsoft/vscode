@@ -16,7 +16,7 @@ import { LanguageDetectionSimpleWorker } from 'vs/workbench/services/languageDet
 import { IModelService } from 'vs/editor/common/services/model';
 import { SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { EditorWorkerClient, EditorWorkerHost } from 'vs/editor/common/services/editorWorkerServiceImpl';
+import { EditorWorkerClient, EditorWorkerHost } from 'vs/editor/common/services/editorWorkerService';
 import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 const moduleLocation = '../../../../../../node_modules/@vscode/vscode-languagedetection';
