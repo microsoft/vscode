@@ -41,7 +41,7 @@ suite('Bracket Pair Colorizer - Tokenizer', () => {
 			brackets: [['{', '}'], ['[', ']'], ['(', ')'], ['begin', 'end']],
 		}));
 
-		const model = disposableStore.add(createTextModel2(instantiationService, document.getText(), {}, mode1));
+		const model = disposableStore.add(createTextModel2(instantiationService, document.getText(), mode1));
 		model.forceTokenization(model.getLineCount());
 
 		const languageConfigService = new TestLanguageConfigurationService();

@@ -6,7 +6,6 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
 import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
 import { ILanguageNameIdPair, ILanguageSelection, ILanguageService } from 'vs/editor/common/services/languageService';
 import { firstOrDefault } from 'vs/base/common/arrays';
@@ -128,40 +127,40 @@ export class LanguageService extends Disposable implements ILanguageService {
 
 	public createById(languageId: string | null | undefined): ILanguageSelection {
 		return new LanguageSelection(this.onDidChange, () => {
-			const validLanguageId = (languageId && this.isRegisteredLanguageId(languageId) ? languageId : PLAINTEXT_LANGUAGE_ID);
-			this._getOrCreateMode(validLanguageId);
-			return validLanguageId;
+			return this._createAndGetLanguageIdentifier(languageId);
 		});
 	}
 
 	public createByMimeType(mimeType: string | null | undefined): ILanguageSelection {
 		return new LanguageSelection(this.onDidChange, () => {
 			const languageId = this.getLanguageIdByMimeType(mimeType);
-			return this._createModeAndGetLanguageIdentifier(languageId);
+			return this._createAndGetLanguageIdentifier(languageId);
 		});
 	}
 
 	public createByFilepathOrFirstLine(resource: URI | null, firstLine?: string): ILanguageSelection {
 		return new LanguageSelection(this.onDidChange, () => {
 			const languageId = this.guessLanguageIdByFilepathOrFirstLine(resource, firstLine);
-			return this._createModeAndGetLanguageIdentifier(languageId);
+			return this._createAndGetLanguageIdentifier(languageId);
 		});
 	}
 
-	private _createModeAndGetLanguageIdentifier(languageId: string | null | undefined): string {
-		// Fall back to plain text if no mode was found
-		const validLanguageId = this.validateLanguageId(languageId || PLAINTEXT_LANGUAGE_ID) || NULL_MODE_ID;
-		this._getOrCreateMode(validLanguageId);
-		return validLanguageId;
-	}
+	private _createAndGetLanguageIdentifier(languageId: string | null | undefined): string {
+		if (!languageId || !this.isRegisteredLanguageId(languageId)) {
+			// Fall back to plain text if language is unknown
+			languageId = PLAINTEXT_LANGUAGE_ID;
+		}
 
-	private _getOrCreateMode(languageId: string): void {
 		if (!this._encounteredLanguages.has(languageId)) {
 			this._encounteredLanguages.add(languageId);
-			const validLanguageId = this.validateLanguageId(languageId) || NULL_MODE_ID;
+
 			// Ensure tokenizers are created
-			TokenizationRegistry.getOrCreate(validLanguageId);
-			this._onDidEncounterLanguage.fire(validLanguageId);
+			TokenizationRegistry.getOrCreate(languageId);
+
+			// Fire event
+			this._onDidEncounterLanguage.fire(languageId);
 		}
+
+		return languageId;
 	}
 }

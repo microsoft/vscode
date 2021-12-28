@@ -47,7 +47,7 @@ suite('Editor Model - Model Modes 1', () => {
 		const LANGUAGE_ID = 'modelModeTest1';
 		calledFor = [];
 		languageRegistration = modes.TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
-		thisModel = createTextModel(TEXT, undefined, LANGUAGE_ID);
+		thisModel = createTextModel(TEXT, LANGUAGE_ID);
 	});
 
 	teardown(() => {
@@ -200,7 +200,7 @@ suite('Editor Model - Model Modes 2', () => {
 			'Line5';
 		const LANGUAGE_ID = 'modelModeTest2';
 		languageRegistration = modes.TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
-		thisModel = createTextModel(TEXT, undefined, LANGUAGE_ID);
+		thisModel = createTextModel(TEXT, LANGUAGE_ID);
 	});
 
 	teardown(() => {

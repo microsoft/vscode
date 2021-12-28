@@ -143,7 +143,7 @@ suite('Editor - Range decorations', () => {
 	}
 
 	function aModel(resource: URI, content: string = text): TextModel {
-		let model = createTextModel(content, TextModel.DEFAULT_CREATION_OPTIONS, null, resource);
+		let model = createTextModel(content, undefined, undefined, resource);
 		modelsToDispose.push(model);
 		return model;
 	}

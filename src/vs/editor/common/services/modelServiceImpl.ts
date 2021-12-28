@@ -370,8 +370,8 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		const options = this.getCreationOptions(languageId, resource, isForSimpleWidget);
 		const model: TextModel = new TextModel(
 			value,
-			options,
 			languageId,
+			options,
 			resource,
 			this._undoRedoService,
 			this._languageService,

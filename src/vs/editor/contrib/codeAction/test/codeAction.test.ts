@@ -94,7 +94,7 @@ suite('CodeAction', () => {
 
 	setup(function () {
 		disposables.clear();
-		model = createTextModel('test1\ntest2\ntest3', undefined, langId, uri);
+		model = createTextModel('test1\ntest2\ntest3', langId, undefined, uri);
 		disposables.add(model);
 	});
 

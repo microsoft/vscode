@@ -26,6 +26,7 @@ import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { OutgoingViewModelEventKind } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
 import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 
 // --------- utils
 
@@ -1277,6 +1278,7 @@ suite('Editor Controller - Regression tests', () => {
 				'Hello world!',
 				'another line'
 			].join('\n'),
+			undefined,
 			{
 				insertSpaces: false
 			},
@@ -1298,6 +1300,7 @@ suite('Editor Controller - Regression tests', () => {
 			[
 				''
 			].join('\n'),
+			undefined,
 			{
 				insertSpaces: false,
 				trimAutoWhitespace: false
@@ -1385,7 +1388,7 @@ suite('Editor Controller - Regression tests', () => {
 		}
 
 		const mode = new MyMode();
-		const model = createTextModel('\'👁\'', undefined, languageId);
+		const model = createTextModel('\'👁\'', languageId);
 
 		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
 			editor.setSelection(new Selection(1, 1, 1, 2));
@@ -1465,7 +1468,6 @@ suite('Editor Controller - Regression tests', () => {
 			[
 				'     function baz() {'
 			].join('\n'),
-			undefined,
 			mode.languageId
 		);
 
@@ -1534,6 +1536,7 @@ suite('Editor Controller - Regression tests', () => {
 				'}',
 				''
 			].join('\n'),
+			undefined,
 			{
 				insertSpaces: false,
 			},
@@ -1941,6 +1944,7 @@ suite('Editor Controller - Regression tests', () => {
 				'var foo = 123;       // this is a comment',
 				'var bar = 4;       // another comment'
 			].join('\n'),
+			undefined,
 			{
 				insertSpaces: false,
 			}
@@ -2409,7 +2413,7 @@ suite('Editor Controller - Regression tests', () => {
 
 		const LANGUAGE_ID = 'modelModeTest1';
 		const languageRegistration = TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
-		let model = createTextModel('Just text', undefined, LANGUAGE_ID);
+		let model = createTextModel('Just text', LANGUAGE_ID);
 
 		withTestCodeEditor(null, { model: model }, (editor1, cursor1) => {
 			withTestCodeEditor(null, { model: model }, (editor2, cursor2) => {
@@ -2747,7 +2751,7 @@ suite('Editor Controller - Regression tests', () => {
 	});
 
 	test('issue #123178: sticky tab in consecutive wrapped lines', () => {
-		const model = createTextModel('    aaaa        aaaa', { tabSize: 4 });
+		const model = createTextModel('    aaaa        aaaa', undefined, { tabSize: 4 });
 
 		withTestCodeEditor(
 			null,
@@ -2805,6 +2809,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'',
 				'1'
 			].join('\n'),
+			undefined,
 			{
 				tabSize: 13,
 				indentSize: 13,
@@ -3033,6 +3038,8 @@ suite('Editor Controller - Cursor Configuration', () => {
 	});
 
 	test('removeAutoWhitespace on: removes only whitespace the cursor added 2', () => {
+		const languageId = 'testLang';
+		const registration = ModesRegistry.registerLanguage({ id: languageId });
 		let model = createTextModel(
 			[
 				'    if (a) {',
@@ -3040,7 +3047,8 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'',
 				'',
 				'    }'
-			].join('\n')
+			].join('\n'),
+			languageId
 		);
 
 		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
@@ -3071,6 +3079,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 		});
 
 		model.dispose();
+		registration.dispose();
 	});
 
 	test('removeAutoWhitespace on: test 1', () => {
@@ -3289,6 +3298,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			[
 				''
 			].join('\n'),
+			undefined,
 			{
 				insertSpaces: false,
 			}
@@ -3355,6 +3365,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			[
 				''
 			].join('\n'),
+			undefined,
 			{
 				insertSpaces: false,
 			}
@@ -3480,10 +3491,10 @@ suite('Editor Controller - Indentation Rules', () => {
 				'if (true)',
 				'\tif (true)'
 			].join('\n'),
+			mode.languageId,
 			{
 				insertSpaces: false,
-			},
-			mode.languageId
+			}
 		);
 
 		withTestCodeEditor(null, { model: model, autoIndent: 'full' }, (editor, viewModel) => {
@@ -3948,10 +3959,10 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t}',
 				'}'
 			].join('\n'),
+			mode.languageId,
 			{
 				insertSpaces: false,
-			},
-			mode.languageId
+			}
 		);
 
 		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
@@ -3976,10 +3987,10 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t\t}',
 				'\t}'
 			].join('\n'),
+			mode.languageId,
 			{
 				insertSpaces: false,
-			},
-			mode.languageId
+			}
 		);
 
 		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
@@ -4004,10 +4015,10 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t\t}',
 				'\t}'
 			].join('\n'),
+			mode.languageId,
 			{
 				insertSpaces: false,
-			},
-			mode.languageId
+			}
 		);
 
 		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
@@ -4031,10 +4042,10 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t\t}',
 				'\t}'
 			].join('\n'),
+			mode.languageId,
 			{
 				insertSpaces: false,
-			},
-			mode.languageId
+			}
 		);
 
 		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
@@ -4058,10 +4069,10 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t\t}',
 				'\t}'
 			].join('\n'),
+			mode.languageId,
 			{
 				insertSpaces: false,
-			},
-			mode.languageId
+			}
 		);
 
 		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
@@ -4085,7 +4096,6 @@ suite('Editor Controller - Indentation Rules', () => {
 				'',
 				'    }'
 			].join('\n'),
-			undefined,
 			mode.languageId
 		);
 
@@ -4115,7 +4125,6 @@ suite('Editor Controller - Indentation Rules', () => {
 				'    @name = name',
 				'    en'
 			].join('\n'),
-			undefined,
 			rubyMode.languageId
 		);
 
@@ -4225,7 +4234,6 @@ suite('Editor Controller - Indentation Rules', () => {
 				'    }',
 				'}',
 			].join('\n'),
-			undefined,
 			mode.languageId
 		);
 
@@ -4271,7 +4279,6 @@ suite('Editor Controller - Indentation Rules', () => {
 				'/** */',
 				'function f() {}',
 			].join('\n'),
-			undefined,
 			mode.languageId
 		);
 
@@ -4327,11 +4334,11 @@ suite('Editor Controller - Indentation Rules', () => {
 				'',
 				')',
 			].join('\n'),
+			mode.languageId,
 			{
 				tabSize: 2,
 				indentSize: 2
-			},
-			mode.languageId
+			}
 		);
 
 		withTestCodeEditor(null, { model: model, autoIndent: 'advanced' }, (editor, viewModel) => {
@@ -4417,11 +4424,11 @@ suite('Editor Controller - Indentation Rules', () => {
 				'  "}"',
 				'"}"'
 			].join('\n'),
+			mode.languageId,
 			{
 				tabSize: 2,
 				indentSize: 2
-			},
-			mode.languageId
+			}
 		);
 
 		withTestCodeEditor(null, { model: model, autoIndent: 'full' }, (editor, viewModel) => {
@@ -4456,7 +4463,7 @@ suite('Editor Controller - Indentation Rules', () => {
 	});
 
 	test('issue #111128: Multicursor `Enter` issue with indentation', () => {
-		const model = createTextModel('    let a, b, c;', { detectIndentation: false, insertSpaces: false, tabSize: 4 }, mode.languageId);
+		const model = createTextModel('    let a, b, c;', mode.languageId, { detectIndentation: false, insertSpaces: false, tabSize: 4 });
 		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
 			editor.setSelections([
 				new Selection(1, 11, 1, 11),
@@ -4475,8 +4482,8 @@ suite('Editor Controller - Indentation Rules', () => {
 		});
 		let model = createTextModel(
 			'\\end',
-			{ tabSize: 1 },
-			latexMode.languageId
+			latexMode.languageId,
+			{ tabSize: 1 }
 		);
 
 		withTestCodeEditor(null, { model: model, autoIndent: 'full' }, (editor, viewModel) => {
@@ -4500,7 +4507,7 @@ interface ICursorOpts {
 }
 
 function usingCursor(opts: ICursorOpts, callback: (editor: ITestCodeEditor, model: TextModel, viewModel: ViewModel) => void): void {
-	const model = createTextModel(opts.text.join('\n'), opts.modelOpts, opts.languageId);
+	const model = createTextModel(opts.text.join('\n'), opts.languageId, opts.modelOpts);
 	const editorOptions: TestCodeEditorCreationOptions = opts.editorOpts || {};
 	editorOptions.model = model;
 	withTestCodeEditor(null, editorOptions, (editor, viewModel) => {
@@ -4982,7 +4989,7 @@ suite('autoClosingPairs', () => {
 		withTestCodeEditor(
 			null,
 			{
-				model: disposables.add(createTextModel2(instantiationService, 'const t2 = `something ${t1}', undefined, mode.languageId))
+				model: disposables.add(createTextModel2(instantiationService, 'const t2 = `something ${t1}', mode.languageId))
 			},
 			(editor, viewModel) => {
 				const model = viewModel.model;
@@ -6080,7 +6087,7 @@ suite('autoClosingPairs', () => {
 		}
 
 		const mode = new MyMode();
-		const model = createTextModel('var x = \'hi\';', undefined, languageId);
+		const model = createTextModel('var x = \'hi\';', languageId);
 
 		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
 			editor.setSelections([
@@ -6108,7 +6115,6 @@ suite('autoClosingPairs', () => {
 			[
 				'var a = ()'
 			].join('\n'),
-			TextModel.DEFAULT_CREATION_OPTIONS,
 			mode.languageId
 		);
 
@@ -6452,6 +6458,7 @@ suite('Undo stops', () => {
 			[
 				''
 			].join('\n'),
+			undefined,
 			{
 				insertSpaces: false,
 			}
@@ -6485,6 +6492,7 @@ suite('Undo stops', () => {
 			[
 				''
 			].join('\n'),
+			undefined,
 			{
 				insertSpaces: false,
 			}

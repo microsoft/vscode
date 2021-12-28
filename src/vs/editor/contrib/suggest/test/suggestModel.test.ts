@@ -144,7 +144,7 @@ suite('SuggestModel - Context', function () {
 		const outerMode = disposables.add(instantiationService.createInstance(OuterMode));
 		disposables.add(instantiationService.createInstance(InnerMode));
 
-		const model = disposables.add(createTextModel2(instantiationService, 'a<xx>a<x>', undefined, outerMode.languageId));
+		const model = disposables.add(createTextModel2(instantiationService, 'a<xx>a<x>', outerMode.languageId));
 
 		assertAutoTrigger(model, 1, true, 'a|<x — should trigger at end of word');
 		assertAutoTrigger(model, 2, false, 'a<|x — should NOT trigger at start of word');

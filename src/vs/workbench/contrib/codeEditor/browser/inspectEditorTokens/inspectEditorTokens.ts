@@ -31,7 +31,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { SEMANTIC_HIGHLIGHTING_SETTING_ID, IEditorSemanticHighlightingOptions } from 'vs/editor/common/services/modelServiceImpl';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { Schemas } from 'vs/base/common/network';
-import { NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
 
 const $ = dom.$;
 
@@ -141,7 +140,7 @@ interface ISemanticTokenInfo {
 }
 
 interface IDecodedMetadata {
-	languageId: string;
+	languageId: string | undefined;
 	tokenType: StandardTokenType;
 	bold: boolean | undefined;
 	italic: boolean | undefined;
@@ -581,7 +580,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 				let metadata: IDecodedMetadata | undefined = undefined;
 				if (tokenStyle) {
 					metadata = {
-						languageId: NULL_MODE_ID,
+						languageId: undefined,
 						tokenType: StandardTokenType.Other,
 						bold: tokenStyle?.bold,
 						italic: tokenStyle?.italic,

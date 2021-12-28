@@ -49,7 +49,7 @@ suite('suggest, word distance', function () {
 
 		disposables.clear();
 		let mode = new BracketMode();
-		let model = createTextModel('function abc(aa, ab){\na\n}', undefined, mode.languageId, URI.parse('test:///some.path'));
+		let model = createTextModel('function abc(aa, ab){\na\n}', mode.languageId, undefined, URI.parse('test:///some.path'));
 		let editor = createTestCodeEditor({ model: model });
 		editor.updateOptions({ suggest: { localityBonus: true } });
 		editor.setPosition({ lineNumber: 2, column: 2 });

@@ -47,9 +47,7 @@ suite('linked editing', () => {
 	});
 
 	function createMockEditor(text: string | string[]): ITestCodeEditor {
-		const model = typeof text === 'string'
-			? createTextModel(text, undefined, languageId, mockFile)
-			: createTextModel(text.join('\n'), undefined, languageId, mockFile);
+		const model = createTextModel(typeof text === 'string' ? text : text.join('\n'), languageId, undefined, mockFile);
 
 		const editor = createTestCodeEditor({ model });
 		disposables.add(model);

@@ -79,7 +79,6 @@ suite('TextModelWithTokens', () => {
 
 		const model = disposables.add(createTextModel(
 			contents.join('\n'),
-			TextModel.DEFAULT_CREATION_OPTIONS,
 			languageId
 		));
 
@@ -184,7 +183,7 @@ suite('TextModelWithTokens - bracket matching', () => {
 		let text =
 			')]}{[(' + '\n' +
 			')]}{[(';
-		let model = createTextModel(text, undefined, languageId);
+		let model = createTextModel(text, languageId);
 
 		assertIsNotBracket(model, 1, 1);
 		assertIsNotBracket(model, 1, 2);
@@ -212,7 +211,7 @@ suite('TextModelWithTokens - bracket matching', () => {
 			'}, bar: {hallo: [{' + '\n' +
 			'}, {' + '\n' +
 			'}]}}';
-		let model = createTextModel(text, undefined, languageId);
+		let model = createTextModel(text, languageId);
 
 		let brackets: [Position, Range, Range][] = [
 			[new Position(1, 11), new Range(1, 11, 1, 12), new Range(5, 4, 5, 5)],
@@ -292,7 +291,7 @@ suite('TextModelWithTokens', () => {
 			'end;',
 		].join('\n');
 
-		const model = disposables.add(createTextModel(text, undefined, languageId));
+		const model = disposables.add(createTextModel(text, languageId));
 
 		// <if> ... <end ifa> is not matched
 		assertIsNotBracket(model, 10, 9);
@@ -331,7 +330,7 @@ suite('TextModelWithTokens', () => {
 			'endrecord',
 		].join('\n');
 
-		const model = disposables.add(createTextModel(text, undefined, languageId));
+		const model = disposables.add(createTextModel(text, languageId));
 
 		// <recordbegin> ... <endrecord> is matched
 		assertIsBracket(model, new Position(1, 1), [new Range(1, 1, 1, 12), new Range(4, 1, 4, 10)]);
@@ -435,7 +434,6 @@ suite('TextModelWithTokens', () => {
 				'  return <p>{true}</p>;',
 				'}',
 			].join('\n'),
-			undefined,
 			mode1
 		));
 
@@ -514,7 +512,6 @@ suite('TextModelWithTokens', () => {
 				'    console.log(`${100}`);',
 				'}'
 			].join('\n'),
-			undefined,
 			mode
 		));
 
@@ -630,7 +627,7 @@ suite('TextModelWithTokens regression tests', () => {
 			'\tEnd Sub',
 			'',
 			'End Module',
-		].join('\n'), undefined, languageId));
+		].join('\n'), languageId));
 
 		const actual = model.bracketPairs.matchBracket(new Position(4, 1));
 		assert.deepStrictEqual(actual, [new Range(4, 1, 4, 7), new Range(9, 1, 9, 11)]);
@@ -655,7 +652,7 @@ suite('TextModelWithTokens regression tests', () => {
 			'     sequence "inner"',
 			'     endsequence',
 			'endsequence',
-		].join('\n'), undefined, languageId));
+		].join('\n'), languageId));
 
 		const actual = model.bracketPairs.matchBracket(new Position(3, 9));
 		assert.deepStrictEqual(actual, [new Range(3, 6, 3, 17), new Range(2, 6, 2, 14)]);
@@ -691,7 +688,7 @@ suite('TextModelWithTokens regression tests', () => {
 
 		disposables.add(TokenizationRegistry.register(outerMode, tokenizationSupport));
 
-		const model = disposables.add(createTextModel2(instantiationService, 'A model with one line', undefined, outerMode));
+		const model = disposables.add(createTextModel2(instantiationService, 'A model with one line', outerMode));
 
 		model.forceTokenization(1);
 		assert.strictEqual(model.getLanguageIdAtPosition(1, 1), innerMode);
@@ -702,8 +699,11 @@ suite('TextModelWithTokens regression tests', () => {
 
 suite('TextModel.getLineIndentGuide', () => {
 	function assertIndentGuides(lines: [number, number, number, number, string][], tabSize: number): void {
+		const languageId = 'testLang';
+		const registration = ModesRegistry.registerLanguage({ id: languageId });
+
 		let text = lines.map(l => l[4]).join('\n');
-		let model = createTextModel(text);
+		let model = createTextModel(text, languageId);
 		model.updateOptions({ tabSize: tabSize });
 
 		let actualIndents = model.guides.getLinesIndentGuides(1, model.getLineCount());
@@ -717,6 +717,7 @@ suite('TextModel.getLineIndentGuide', () => {
 		assert.deepStrictEqual(actual, lines);
 
 		model.dispose();
+		registration.dispose();
 	}
 
 	test('getLineIndentGuide one level 2', () => {

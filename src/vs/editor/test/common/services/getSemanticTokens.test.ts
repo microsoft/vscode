@@ -30,7 +30,7 @@ suite('getSemanticTokens', () => {
 
 		disposables.add(DocumentSemanticTokensProviderRegistry.register('testLang', provider));
 
-		const textModel = disposables.add(createTextModel('example', undefined, 'testLang'));
+		const textModel = disposables.add(createTextModel('example', 'testLang'));
 
 		await getDocumentSemanticTokens(textModel, null, null, CancellationToken.None).then((res) => {
 			assert.fail();

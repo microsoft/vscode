@@ -351,7 +351,7 @@ suite('SplitLinesCollection', () => {
 		};
 		const LANGUAGE_ID = 'modelModeTest1';
 		languageRegistration = modes.TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
-		model = createTextModel(_text.join('\n'), undefined, LANGUAGE_ID);
+		model = createTextModel(_text.join('\n'), LANGUAGE_ID);
 		// force tokenization
 		model.forceTokenization(model.getLineCount());
 	});

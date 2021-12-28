@@ -459,7 +459,7 @@ suite('Editor Model - Words', () => {
 		const outerMode = disposables.add(instantiationService.createInstance(OuterMode));
 		disposables.add(new InnerMode());
 
-		const model = disposables.add(createTextModel2(instantiationService, 'ab<xx>ab<x>', undefined, outerMode.languageId));
+		const model = disposables.add(createTextModel2(instantiationService, 'ab<xx>ab<x>', outerMode.languageId));
 
 		assert.deepStrictEqual(model.getWordAtPosition(new Position(1, 1)), { word: 'ab', startColumn: 1, endColumn: 3 });
 		assert.deepStrictEqual(model.getWordAtPosition(new Position(1, 2)), { word: 'ab', startColumn: 1, endColumn: 3 });
@@ -485,7 +485,7 @@ suite('Editor Model - Words', () => {
 		};
 		disposables.push(mode);
 
-		const thisModel = createTextModel('.🐷-a-b', undefined, MODE_ID);
+		const thisModel = createTextModel('.🐷-a-b', MODE_ID);
 		disposables.push(thisModel);
 
 		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 1)), { word: '.', startColumn: 1, endColumn: 2 });

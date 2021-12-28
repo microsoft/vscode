@@ -39,7 +39,6 @@ import { countEOL, MultilineTokens, MultilineTokens2, TokensStore, TokensStore2 
 import { getWordAtText } from 'vs/editor/common/model/wordHelper';
 import { FormattingOptions, StandardTokenType } from 'vs/editor/common/modes';
 import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
 import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { EditorTheme } from 'vs/editor/common/view/viewContext';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
@@ -324,8 +323,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	constructor(
 		source: string | model.ITextBufferFactory,
+		languageId: string,
 		creationOptions: model.ITextModelCreationOptions,
-		languageId: string | null,
 		associatedResource: URI | null = null,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 		@ILanguageService private readonly _languageService: ILanguageService,
@@ -378,7 +377,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._isDisposed = false;
 		this._isDisposing = false;
 
-		this._languageId = languageId || NULL_MODE_ID;
+		this._languageId = languageId;
 
 		this._languageRegistryListener = this._languageConfigurationService.onDidChange(
 			e => {
