@@ -7,62 +7,10 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
-import { ILanguageNameIdPair, ILanguageSelection, ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageNameIdPair, ILanguageSelection, ILanguageService } from 'vs/editor/common/services/language';
 import { firstOrDefault } from 'vs/base/common/arrays';
 import { ILanguageIdCodec, TokenizationRegistry } from 'vs/editor/common/modes';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
-
-class LanguageSelection implements ILanguageSelection {
-
-	public languageId: string;
-
-	private _listener: IDisposable | null = null;
-	private _emitter: Emitter<string> | null = null;
-
-	constructor(
-		private readonly _onDidChangeLanguages: Event<void>,
-		private readonly _selector: () => string
-	) {
-		this.languageId = this._selector();
-	}
-
-	private _dispose(): void {
-		if (this._listener) {
-			this._listener.dispose();
-			this._listener = null;
-		}
-		if (this._emitter) {
-			this._emitter.dispose();
-			this._emitter = null;
-		}
-	}
-
-	public get onDidChange(): Event<string> {
-		if (!this._listener) {
-			this._listener = this._onDidChangeLanguages(() => this._evaluate());
-		}
-		if (!this._emitter) {
-			this._emitter = new Emitter<string>({
-				onLastListenerRemove: () => {
-					this._dispose();
-				}
-			});
-		}
-		return this._emitter.event;
-	}
-
-	private _evaluate(): void {
-		const languageId = this._selector();
-		if (languageId === this.languageId) {
-			// no change
-			return;
-		}
-		this.languageId = languageId;
-		if (this._emitter) {
-			this._emitter.fire(this.languageId);
-		}
-	}
-}
 
 export class LanguageService extends Disposable implements ILanguageService {
 	public _serviceBrand: undefined;
@@ -175,5 +123,57 @@ export class LanguageService extends Disposable implements ILanguageService {
 		}
 
 		return languageId;
+	}
+}
+
+class LanguageSelection implements ILanguageSelection {
+
+	public languageId: string;
+
+	private _listener: IDisposable | null = null;
+	private _emitter: Emitter<string> | null = null;
+
+	constructor(
+		private readonly _onDidChangeLanguages: Event<void>,
+		private readonly _selector: () => string
+	) {
+		this.languageId = this._selector();
+	}
+
+	private _dispose(): void {
+		if (this._listener) {
+			this._listener.dispose();
+			this._listener = null;
+		}
+		if (this._emitter) {
+			this._emitter.dispose();
+			this._emitter = null;
+		}
+	}
+
+	public get onDidChange(): Event<string> {
+		if (!this._listener) {
+			this._listener = this._onDidChangeLanguages(() => this._evaluate());
+		}
+		if (!this._emitter) {
+			this._emitter = new Emitter<string>({
+				onLastListenerRemove: () => {
+					this._dispose();
+				}
+			});
+		}
+		return this._emitter.event;
+	}
+
+	private _evaluate(): void {
+		const languageId = this._selector();
+		if (languageId === this.languageId) {
+			// no change
+			return;
+		}
+		this.languageId = languageId;
+		if (this._emitter) {
+			this._emitter.fire(this.languageId);
+		}
 	}
 }

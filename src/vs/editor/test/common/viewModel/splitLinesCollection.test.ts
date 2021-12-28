@@ -12,7 +12,7 @@ import { EncodedTokenizationResult } from 'vs/editor/common/core/token';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import * as modes from 'vs/editor/common/modes';
-import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
+import { NullState } from 'vs/editor/common/modes/nullMode';
 import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
 import { ViewModelLinesFromProjectedModel } from 'vs/editor/common/viewModel/viewModelLines';
 import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
@@ -334,7 +334,7 @@ suite('SplitLinesCollection', () => {
 	setup(() => {
 		let _lineIndex = 0;
 		const tokenizationSupport: modes.ITokenizationSupport = {
-			getInitialState: () => NULL_STATE,
+			getInitialState: () => NullState,
 			tokenize: undefined!,
 			tokenizeEncoded: (line: string, hasEOL: boolean, state: modes.IState): EncodedTokenizationResult => {
 				let tokens = _tokens[_lineIndex++];

@@ -19,7 +19,7 @@ import { raceCancellation, TimeoutTimer, timeout, Barrier } from 'vs/base/common
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPosition } from 'vs/editor/common/core/position';
 import { ScrollType } from 'vs/editor/common/editorCommon';
@@ -30,7 +30,7 @@ import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvent
 import { IDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
-import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
+import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecorations';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { isEqual } from 'vs/base/common/resources';
 

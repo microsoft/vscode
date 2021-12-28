@@ -9,13 +9,13 @@ import { deepClone, equals } from 'vs/base/common/objects';
 import { Emitter } from 'vs/base/common/event';
 import { basename, dirname, extname, relativePath, isEqual } from 'vs/base/common/resources';
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { IFileService } from 'vs/platform/files/common/files';
 import { DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { ParsedExpression, IExpression, parse } from 'vs/base/common/glob';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 
 export class ResourceContextKey implements IContextKey<URI> {
 

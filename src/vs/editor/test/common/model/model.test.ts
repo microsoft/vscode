@@ -13,10 +13,10 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { ModelRawContentChangedEvent, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
 import { IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
+import { NullState } from 'vs/editor/common/modes/nullMode';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { createModelServices, createTextModel, createTextModel2 } from 'vs/editor/test/common/editorTestUtils';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 
 // --------- utils
 
@@ -392,7 +392,7 @@ suite('Editor Model - Words', () => {
 			this._register(LanguageConfigurationRegistry.register(this.languageId, {}));
 
 			this._register(TokenizationRegistry.register(this.languageId, {
-				getInitialState: (): IState => NULL_STATE,
+				getInitialState: (): IState => NullState,
 				tokenize: undefined!,
 				tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
 					const tokensArr: number[] = [];

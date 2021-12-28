@@ -8,7 +8,7 @@ import { Color } from 'vs/base/common/color';
 import { Emitter } from 'vs/base/common/event';
 import { FontStyle, TokenizationRegistry, TokenMetadata } from 'vs/editor/common/modes';
 import { ITokenThemeRule, TokenTheme, generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
-import { BuiltinTheme, IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
+import { BuiltinTheme, IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
 import { hc_black, vs, vs_dark } from 'vs/editor/standalone/common/themes';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -200,7 +200,7 @@ function newBuiltInTheme(builtinTheme: BuiltinTheme): StandaloneTheme {
 	return new StandaloneTheme(builtinTheme, themeData);
 }
 
-export class StandaloneThemeServiceImpl extends Disposable implements IStandaloneThemeService {
+export class StandaloneThemeService extends Disposable implements IStandaloneThemeService {
 
 	declare readonly _serviceBrand: undefined;
 

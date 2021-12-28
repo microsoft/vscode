@@ -7,9 +7,9 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IPosition, Position } from 'vs/editor/common/core/position';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ITextResourceConfigurationService, ITextResourceConfigurationChangeEvent } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ILanguageService } from 'vs/editor/common/services/language';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ITextResourceConfigurationService, ITextResourceConfigurationChangeEvent } from 'vs/editor/common/services/textResourceConfiguration';
 import { IConfigurationService, ConfigurationTarget, IConfigurationValue, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 
 export class TextResourceConfigurationService extends Disposable implements ITextResourceConfigurationService {

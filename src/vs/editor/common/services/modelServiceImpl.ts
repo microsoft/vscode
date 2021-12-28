@@ -16,9 +16,9 @@ import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
 import { IModelLanguageChangedEvent, IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { DocumentSemanticTokensProviderRegistry, DocumentSemanticTokensProvider, SemanticTokens, SemanticTokensEdits } from 'vs/editor/common/modes';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { ILanguageSelection, ILanguageService } from 'vs/editor/common/services/languageService';
-import { IModelService, DocumentTokensProvider } from 'vs/editor/common/services/modelService';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ILanguageSelection, ILanguageService } from 'vs/editor/common/services/language';
+import { IModelService, DocumentTokensProvider } from 'vs/editor/common/services/model';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -131,7 +131,7 @@ class DisposedModelInfo {
 	) { }
 }
 
-export class ModelServiceImpl extends Disposable implements IModelService {
+export class ModelService extends Disposable implements IModelService {
 
 	public static MAX_MEMORY_FOR_CLOSED_FILES_UNDO_STACK = 20 * 1024 * 1024;
 
@@ -272,7 +272,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		if (!creationOptions) {
 			const editor = this._configurationService.getValue<IRawEditorConfig>('editor', { overrideIdentifier: language, resource });
 			const eol = this._getEOL(resource, language);
-			creationOptions = ModelServiceImpl._readModelOptions({ editor, eol }, isForSimpleWidget);
+			creationOptions = ModelService._readModelOptions({ editor, eol }, isForSimpleWidget);
 			this._modelCreationOptionsByLanguageAndResource[language + resource] = creationOptions;
 		}
 		return creationOptions;
@@ -291,7 +291,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 			const uri = modelData.model.uri;
 			const oldOptions = oldOptionsByLanguageAndResource[language + uri];
 			const newOptions = this.getCreationOptions(language, uri, modelData.model.isForSimpleWidget);
-			ModelServiceImpl._setModelOptionsForModel(modelData.model, newOptions, oldOptions);
+			ModelService._setModelOptionsForModel(modelData.model, newOptions, oldOptions);
 		}
 	}
 
@@ -436,7 +436,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		model.pushEOL(textBuffer.getEOL() === '\r\n' ? EndOfLineSequence.CRLF : EndOfLineSequence.LF);
 		model.pushEditOperations(
 			[],
-			ModelServiceImpl._computeEdits(model, textBuffer),
+			ModelService._computeEdits(model, textBuffer),
 			() => []
 		);
 		model.pushStackElement();
@@ -593,7 +593,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 			}
 		}
 
-		const maxMemory = ModelServiceImpl.MAX_MEMORY_FOR_CLOSED_FILES_UNDO_STACK;
+		const maxMemory = ModelService.MAX_MEMORY_FOR_CLOSED_FILES_UNDO_STACK;
 		if (!maintainUndoRedoStack) {
 			if (!sharesUndoRedoStack) {
 				const initialUndoRedoSnapshot = modelData.model.getInitialUndoRedoSnapshot();
@@ -628,7 +628,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		const newLanguageId = model.getLanguageId();
 		const oldOptions = this.getCreationOptions(oldLanguageId, model.uri, model.isForSimpleWidget);
 		const newOptions = this.getCreationOptions(newLanguageId, model.uri, model.isForSimpleWidget);
-		ModelServiceImpl._setModelOptionsForModel(model, newOptions, oldOptions);
+		ModelService._setModelOptionsForModel(model, newOptions, oldOptions);
 		this._onModelModeChanged.fire({ model, oldLanguageId: oldLanguageId });
 	}
 }

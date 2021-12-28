@@ -6,7 +6,7 @@
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Searcher } from 'vs/editor/common/model/textModelSearch';
 import * as strings from 'vs/base/common/strings';
-import { IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorkerService';
+import { IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
 import { assertNever } from 'vs/base/common/types';
 
 export class UnicodeTextModelHighlighter {

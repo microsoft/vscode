@@ -39,7 +39,7 @@ import { countEOL, MultilineTokens, MultilineTokens2, TokensStore, TokensStore2 
 import { getWordAtText } from 'vs/editor/common/model/wordHelper';
 import { FormattingOptions, StandardTokenType } from 'vs/editor/common/modes';
 import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { EditorTheme } from 'vs/editor/common/view/viewContext';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IUndoRedoService, ResourceEditStackSnapshot } from 'vs/platform/undoRedo/common/undoRedo';

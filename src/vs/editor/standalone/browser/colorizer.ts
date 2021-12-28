@@ -7,10 +7,10 @@ import * as strings from 'vs/base/common/strings';
 import { IViewLineTokens, LineTokens } from 'vs/editor/common/core/lineTokens';
 import { ITextModel } from 'vs/editor/common/model';
 import { ColorId, FontStyle, ILanguageIdCodec, ITokenizationSupport, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { RenderLineInput, renderViewLine2 as renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
-import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
+import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
 import { MonarchTokenizer } from 'vs/editor/standalone/common/monarch/monarchLexer';
 
 const ttPolicy = window.trustedTypes?.createPolicy('standaloneColorizer', { createHTML: value => value });

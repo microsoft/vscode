@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
 import { SingleProxyRPCProtocol, TestRPCProtocol } from './testRPCProtocol';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { ModelService } from 'vs/editor/common/services/modelServiceImpl';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ExtHostDocumentsAndEditorsShape, ExtHostContext, ExtHostDocumentsShape, IWorkspaceTextEditDto, WorkspaceEditType } from 'vs/workbench/api/common/extHost.protocol';
@@ -17,7 +17,7 @@ import { MainThreadTextEditors } from 'vs/workbench/api/browser/mainThreadEditor
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { TestFileService, TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { BulkEditService } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditService';
@@ -26,7 +26,7 @@ import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/se
 import { IReference, ImmortalReference, DisposableStore } from 'vs/base/common/lifecycle';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -83,7 +83,7 @@ suite('MainThreadEditors', () => {
 		const notificationService = new TestNotificationService();
 		const undoRedoService = new UndoRedoService(dialogService, notificationService);
 		const themeService = new TestThemeService();
-		modelService = new ModelServiceImpl(
+		modelService = new ModelService(
 			configService,
 			new TestTextResourcePropertiesService(configService),
 			themeService,

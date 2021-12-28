@@ -15,20 +15,20 @@ import { Token } from 'vs/editor/common/core/token';
 import { EditorType } from 'vs/editor/common/editorCommon';
 import { FindMatch, ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
-import { NULL_STATE, nullTokenize } from 'vs/editor/common/modes/nullMode';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { NullState, nullTokenize } from 'vs/editor/common/modes/nullMode';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebWorker } from 'vs/editor/common/services/webWorker';
 import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
 import { Colorizer, IColorizerElementOptions, IColorizerOptions } from 'vs/editor/standalone/browser/colorizer';
 import { IStandaloneEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor, StandaloneDiffEditor, StandaloneEditor, createTextModel, IStandaloneDiffEditorConstructionOptions } from 'vs/editor/standalone/browser/standaloneCodeEditor';
 import { IEditorOverrideServices, StandaloneServices } from 'vs/editor/standalone/browser/standaloneServices';
-import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
+import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IMarker, IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';
 import { clearAllFontInfos } from 'vs/editor/browser/config/configuration';
-import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standaloneThemeServiceImpl';
+import { StandaloneThemeService } from 'vs/editor/standalone/browser/standaloneThemeService';
 import { splitLines } from 'vs/base/common/strings';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 /**
@@ -188,7 +188,7 @@ export function createWebWorker<T>(opts: IWebWorkerOptions): MonacoWebWorker<T> 
  */
 export function colorizeElement(domNode: HTMLElement, options: IColorizerElementOptions): Promise<void> {
 	const languageService = StandaloneServices.get(ILanguageService);
-	const themeService = <StandaloneThemeServiceImpl>StandaloneServices.get(IStandaloneThemeService);
+	const themeService = <StandaloneThemeService>StandaloneServices.get(IStandaloneThemeService);
 	themeService.registerEditorContainer(domNode);
 	return Colorizer.colorizeElement(themeService, languageService, domNode, options);
 }
@@ -198,7 +198,7 @@ export function colorizeElement(domNode: HTMLElement, options: IColorizerElement
  */
 export function colorize(text: string, languageId: string, options: IColorizerOptions): Promise<string> {
 	const languageService = StandaloneServices.get(ILanguageService);
-	const themeService = <StandaloneThemeServiceImpl>StandaloneServices.get(IStandaloneThemeService);
+	const themeService = <StandaloneThemeService>StandaloneServices.get(IStandaloneThemeService);
 	themeService.registerEditorContainer(document.body);
 	return Colorizer.colorize(languageService, text, languageId, options);
 }
@@ -207,7 +207,7 @@ export function colorize(text: string, languageId: string, options: IColorizerOp
  * Colorize a line in a model.
  */
 export function colorizeModelLine(model: ITextModel, lineNumber: number, tabSize: number = 4): string {
-	const themeService = <StandaloneThemeServiceImpl>StandaloneServices.get(IStandaloneThemeService);
+	const themeService = <StandaloneThemeService>StandaloneServices.get(IStandaloneThemeService);
 	themeService.registerEditorContainer(document.body);
 	return Colorizer.colorizeModelLine(model, lineNumber, tabSize);
 }
@@ -221,7 +221,7 @@ function getSafeTokenizationSupport(language: string): Omit<modes.ITokenizationS
 		return tokenizationSupport;
 	}
 	return {
-		getInitialState: () => NULL_STATE,
+		getInitialState: () => NullState,
 		tokenize: (line: string, hasEOL: boolean, state: modes.IState) => nullTokenize(language, state)
 	};
 }

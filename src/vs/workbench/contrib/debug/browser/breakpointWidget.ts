@@ -20,7 +20,7 @@ import { createDecorator, IInstantiationService } from 'vs/platform/instantiatio
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { URI as uri } from 'vs/base/common/uri';
 import { CompletionProviderRegistry, CompletionList, CompletionContext, CompletionItemKind } from 'vs/editor/common/modes';
 import { CancellationToken } from 'vs/base/common/cancellation';

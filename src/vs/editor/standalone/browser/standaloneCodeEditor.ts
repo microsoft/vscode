@@ -13,9 +13,9 @@ import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/edit
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { IModelChangedEvent } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { StandaloneKeybindingService, updateConfigurationService } from 'vs/editor/standalone/browser/standaloneServices';
-import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
+import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
 import { IMenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -29,9 +29,9 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { StandaloneCodeEditorNLS } from 'vs/editor/common/standaloneStrings';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
-import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standaloneThemeServiceImpl';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ILanguageSelection, ILanguageService } from 'vs/editor/common/services/languageService';
+import { StandaloneThemeService } from 'vs/editor/standalone/browser/standaloneThemeService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageSelection, ILanguageService } from 'vs/editor/common/services/language';
 import { URI } from 'vs/base/common/uri';
 import { StandaloneCodeEditorService } from 'vs/editor/standalone/browser/standaloneCodeEditorService';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
@@ -417,7 +417,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 	) {
 		const options = { ..._options };
 		updateConfigurationService(configurationService, options, false);
-		const themeDomRegistration = (<StandaloneThemeServiceImpl>themeService).registerEditorContainer(domElement);
+		const themeDomRegistration = (<StandaloneThemeService>themeService).registerEditorContainer(domElement);
 		if (typeof options.theme === 'string') {
 			themeService.setTheme(options.theme);
 		}
@@ -497,7 +497,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 	) {
 		const options = { ..._options };
 		updateConfigurationService(configurationService, options, true);
-		const themeDomRegistration = (<StandaloneThemeServiceImpl>themeService).registerEditorContainer(domElement);
+		const themeDomRegistration = (<StandaloneThemeService>themeService).registerEditorContainer(domElement);
 		if (typeof options.theme === 'string') {
 			themeService.setTheme(options.theme);
 		}

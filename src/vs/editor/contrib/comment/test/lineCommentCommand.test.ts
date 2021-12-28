@@ -11,8 +11,8 @@ import { ICommand } from 'vs/editor/common/editorCommon';
 import { ColorId, IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
 import { CommentRule } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { NullState } from 'vs/editor/common/modes/nullMode';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { ILinePreflightData, IPreflightData, ISimpleModel, LineCommentCommand, Type } from 'vs/editor/contrib/comment/lineCommentCommand';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -1090,7 +1090,7 @@ suite('Editor Contrib - Line Comment in mixed modes', () => {
 			}));
 
 			this._register(TokenizationRegistry.register(this.languageId, {
-				getInitialState: (): IState => NULL_STATE,
+				getInitialState: (): IState => NullState,
 				tokenize: () => {
 					throw new Error('not implemented');
 				},

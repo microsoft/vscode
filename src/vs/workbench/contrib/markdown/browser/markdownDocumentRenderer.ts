@@ -7,7 +7,7 @@ import * as dompurify from 'vs/base/browser/dompurify/dompurify';
 import * as marked from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export const DEFAULT_MARKDOWN_STYLES = `

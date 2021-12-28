@@ -16,9 +16,9 @@ import { Token } from 'vs/editor/common/core/token';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { FontStyle, IState, ITokenizationSupport, StandardTokenType, TokenMetadata, TokenizationRegistry, ILanguageIdCodec } from 'vs/editor/common/modes';
-import { NULL_STATE, nullTokenize, nullTokenizeEncoded } from 'vs/editor/common/modes/nullMode';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
-import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
+import { NullState, nullTokenize, nullTokenizeEncoded } from 'vs/editor/common/modes/nullMode';
+import { ILanguageService } from 'vs/editor/common/services/language';
+import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
 import { editorHoverBackground, editorHoverBorder, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { InspectTokensNLS } from 'vs/editor/common/standaloneStrings';
@@ -137,7 +137,7 @@ function getSafeTokenizationSupport(languageIdCodec: ILanguageIdCodec, languageI
 	}
 	const encodedLanguageId = languageIdCodec.encodeLanguageId(languageId);
 	return {
-		getInitialState: () => NULL_STATE,
+		getInitialState: () => NullState,
 		tokenize: (line: string, hasEOL: boolean, state: IState) => nullTokenize(languageId, state),
 		tokenizeEncoded: (line: string, hasEOL: boolean, state: IState) => nullTokenizeEncoded(encodedLanguageId, state)
 	};

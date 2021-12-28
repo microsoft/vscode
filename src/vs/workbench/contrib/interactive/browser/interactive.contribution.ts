@@ -54,7 +54,7 @@ import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
 
 

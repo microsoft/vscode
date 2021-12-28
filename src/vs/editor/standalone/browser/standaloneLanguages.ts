@@ -14,13 +14,13 @@ import * as modes from 'vs/editor/common/modes';
 import { LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { ILanguageExtensionPoint, ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageExtensionPoint, ILanguageService } from 'vs/editor/common/services/language';
 import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
 import { StandaloneServices } from 'vs/editor/standalone/browser/standaloneServices';
 import { compile } from 'vs/editor/standalone/common/monarch/monarchCompile';
 import { MonarchTokenizer } from 'vs/editor/standalone/common/monarch/monarchLexer';
 import { IMonarchLanguage } from 'vs/editor/standalone/common/monarch/monarchTypes';
-import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
+import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
 import { IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';
 
 /**

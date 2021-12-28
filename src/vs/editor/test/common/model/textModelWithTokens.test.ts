@@ -14,8 +14,8 @@ import { ITokenizationSupport, MetadataConsts, TokenizationRegistry, StandardTok
 import { CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { NullState } from 'vs/editor/common/modes/nullMode';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { ViewLineToken } from 'vs/editor/test/common/core/viewLineToken';
 import { createModelServices, createTextModel, createTextModel2 } from 'vs/editor/test/common/editorTestUtils';
 
@@ -366,7 +366,7 @@ suite('TextModelWithTokens', () => {
 		) >>> 0;
 
 		const tokenizationSupport: ITokenizationSupport = {
-			getInitialState: () => NULL_STATE,
+			getInitialState: () => NullState,
 			tokenize: undefined!,
 			tokenizeEncoded: (line, hasEOL, state) => {
 				switch (line) {
@@ -465,7 +465,7 @@ suite('TextModelWithTokens', () => {
 		) >>> 0;
 
 		const tokenizationSupport: ITokenizationSupport = {
-			getInitialState: () => NULL_STATE,
+			getInitialState: () => NullState,
 			tokenize: undefined!,
 			tokenizeEncoded: (line, hasEOL, state) => {
 				switch (line) {
@@ -560,7 +560,7 @@ suite('TextModelWithTokens regression tests', () => {
 		const LANG_ID2 = 'indicisiveMode2';
 
 		const tokenizationSupport: ITokenizationSupport = {
-			getInitialState: () => NULL_STATE,
+			getInitialState: () => NullState,
 			tokenize: undefined!,
 			tokenizeEncoded: (line, hasEOL, state) => {
 				let myId = ++_tokenId;
@@ -674,7 +674,7 @@ suite('TextModelWithTokens regression tests', () => {
 		const encodedInnerMode = languageIdCodec.encodeLanguageId(innerMode);
 
 		const tokenizationSupport: ITokenizationSupport = {
-			getInitialState: () => NULL_STATE,
+			getInitialState: () => NullState,
 			tokenize: undefined!,
 			tokenizeEncoded: (line, hasEOL, state) => {
 				let tokens = new Uint32Array(2);

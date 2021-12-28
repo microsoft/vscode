@@ -11,7 +11,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { EncodedTokenizationResult } from 'vs/editor/common/core/token';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import * as modes from 'vs/editor/common/modes';
-import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
+import { NullState } from 'vs/editor/common/modes/nullMode';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 // --------- utils
@@ -26,7 +26,7 @@ suite('Editor Model - Model Modes 1', () => {
 	}
 
 	const tokenizationSupport: modes.ITokenizationSupport = {
-		getInitialState: () => NULL_STATE,
+		getInitialState: () => NullState,
 		tokenize: undefined!,
 		tokenizeEncoded: (line: string, hasEOL: boolean, state: modes.IState): EncodedTokenizationResult => {
 			calledFor.push(line.charAt(0));

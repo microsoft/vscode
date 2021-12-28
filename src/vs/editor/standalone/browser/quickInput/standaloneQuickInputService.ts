@@ -20,7 +20,7 @@ import { QuickInputService, IQuickInputControllerHost } from 'vs/platform/quicki
 import { once } from 'vs/base/common/functional';
 import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
 
-export class EditorScopedQuickInputServiceImpl extends QuickInputService {
+export class EditorScopedQuickInputService extends QuickInputService {
 
 	private host: IQuickInputControllerHost | undefined = undefined;
 
@@ -56,11 +56,11 @@ export class EditorScopedQuickInputServiceImpl extends QuickInputService {
 	}
 }
 
-export class StandaloneQuickInputServiceImpl implements IQuickInputService {
+export class StandaloneQuickInputService implements IQuickInputService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private mapEditorToService = new Map<ICodeEditor, EditorScopedQuickInputServiceImpl>();
+	private mapEditorToService = new Map<ICodeEditor, EditorScopedQuickInputService>();
 	private get activeService(): IQuickInputService {
 		const editor = this.codeEditorService.getFocusedCodeEditor();
 		if (!editor) {
@@ -71,7 +71,7 @@ export class StandaloneQuickInputServiceImpl implements IQuickInputService {
 		// editor or create it lazily if not yet created
 		let quickInputService = this.mapEditorToService.get(editor);
 		if (!quickInputService) {
-			const newQuickInputService = quickInputService = this.instantiationService.createInstance(EditorScopedQuickInputServiceImpl, editor);
+			const newQuickInputService = quickInputService = this.instantiationService.createInstance(EditorScopedQuickInputService, editor);
 			this.mapEditorToService.set(editor, quickInputService);
 
 			once(editor.onDidDispose)(() => {

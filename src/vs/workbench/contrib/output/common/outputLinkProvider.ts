@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { LinkProviderRegistry, ILink } from 'vs/editor/common/modes';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { OUTPUT_MODE_ID, LOG_MODE_ID } from 'vs/workbench/contrib/output/common/output';

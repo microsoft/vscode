@@ -11,11 +11,11 @@
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Token, TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/core/token';
 import * as modes from 'vs/editor/common/modes';
-import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
+import { NullState } from 'vs/editor/common/modes/nullMode';
 import { TokenTheme } from 'vs/editor/common/modes/supports/tokenization';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import * as monarchCommon from 'vs/editor/standalone/common/monarch/monarchCommon';
-import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
+import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
 
 const CACHE_STACK_DEPTH = 5;
 
@@ -860,7 +860,7 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 
 	private _getNestedEmbeddedLanguageData(languageId: string): EmbeddedLanguageData {
 		if (!this._languageService.isRegisteredLanguageId(languageId)) {
-			return new EmbeddedLanguageData(languageId, NULL_STATE);
+			return new EmbeddedLanguageData(languageId, NullState);
 		}
 
 		if (languageId !== this._languageId) {
@@ -874,7 +874,7 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 			return new EmbeddedLanguageData(languageId, tokenizationSupport.getInitialState());
 		}
 
-		return new EmbeddedLanguageData(languageId, NULL_STATE);
+		return new EmbeddedLanguageData(languageId, NullState);
 	}
 }
 

@@ -12,7 +12,7 @@ import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { ILanguageIdCodec, LanguageId } from 'vs/editor/common/modes';
 import { ModesRegistry, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { ILanguageExtensionPoint, ILanguageNameIdPair } from 'vs/editor/common/services/languageService';
+import { ILanguageExtensionPoint, ILanguageNameIdPair } from 'vs/editor/common/services/language';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 

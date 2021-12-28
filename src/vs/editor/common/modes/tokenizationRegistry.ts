@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ColorId, ITokenizationRegistry, ITokenizationSupport, ITokenizationSupportChangedEvent, ITokenizationSupportFactory } from 'vs/editor/common/modes';
 
-export class TokenizationRegistryImpl implements ITokenizationRegistry {
+export class TokenizationRegistry implements ITokenizationRegistry {
 
 	private readonly _map = new Map<string, ITokenizationSupport>();
 	private readonly _factories = new Map<string, TokenizationSupportFactoryData>();
@@ -122,7 +122,7 @@ class TokenizationSupportFactoryData extends Disposable {
 	}
 
 	constructor(
-		private readonly _registry: TokenizationRegistryImpl,
+		private readonly _registry: TokenizationRegistry,
 		private readonly _languageId: string,
 		private readonly _factory: ITokenizationSupportFactory,
 	) {

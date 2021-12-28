@@ -18,9 +18,9 @@ import { ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { CompletionItemKind, CompletionItemProvider, CompletionList, CompletionProviderRegistry, CompletionTriggerKind, IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { NullState } from 'vs/editor/common/modes/nullMode';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
@@ -77,7 +77,7 @@ suite('SuggestModel - Context', function () {
 			this._register(LanguageConfigurationRegistry.register(this.languageId, {}));
 
 			this._register(TokenizationRegistry.register(this.languageId, {
-				getInitialState: (): IState => NULL_STATE,
+				getInitialState: (): IState => NullState,
 				tokenize: undefined!,
 				tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
 					const tokensArr: number[] = [];

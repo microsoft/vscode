@@ -15,7 +15,7 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { IDisposable, RefCountedDisposable } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { assertType } from 'vs/base/common/types';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 export const enum TypeHierarchyDirection {

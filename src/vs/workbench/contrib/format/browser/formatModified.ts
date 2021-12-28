@@ -10,7 +10,7 @@ import { EditorAction, registerEditorAction, ServicesAccessor } from 'vs/editor/
 import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel } from 'vs/editor/common/model';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { formatDocumentRangesWithSelectedProvider, FormattingMode } from 'vs/editor/contrib/format/format';
 import * as nls from 'vs/nls';

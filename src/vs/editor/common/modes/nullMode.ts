@@ -6,18 +6,14 @@
 import { Token, TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/core/token';
 import { ColorId, FontStyle, IState, LanguageId, MetadataConsts, StandardTokenType } from 'vs/editor/common/modes';
 
-class NullStateImpl implements IState {
-
+export const NullState: IState = new class implements IState {
 	public clone(): IState {
 		return this;
 	}
-
 	public equals(other: IState): boolean {
 		return (this === other);
 	}
-}
-
-export const NULL_STATE: IState = new NullStateImpl();
+};
 
 export function nullTokenize(languageId: string, state: IState): TokenizationResult {
 	return new TokenizationResult([new Token(0, '', languageId)], state);
@@ -34,5 +30,5 @@ export function nullTokenizeEncoded(languageId: LanguageId, state: IState | null
 		| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
 	) >>> 0;
 
-	return new EncodedTokenizationResult(tokens, state === null ? NULL_STATE : state);
+	return new EncodedTokenizationResult(tokens, state === null ? NullState : state);
 }

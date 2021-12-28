@@ -16,7 +16,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
 import { CompletionContext, CompletionItemKind, CompletionItemProvider, CompletionProviderRegistry, CompletionTriggerKind, StandardTokenType } from 'vs/editor/common/modes';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';

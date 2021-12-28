@@ -12,7 +12,7 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { DocumentRangeSemanticTokensProviderRegistry } from 'vs/editor/common/modes';
 import { getDocumentRangeSemanticTokens, hasDocumentRangeSemanticTokensProvider } from 'vs/editor/common/services/getSemanticTokens';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { isSemanticColoringEnabled, SEMANTIC_HIGHLIGHTING_SETTING_ID } from 'vs/editor/common/services/modelServiceImpl';
 import { toMultilineTokens2 } from 'vs/editor/common/services/semanticTokensProviderStyling';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';

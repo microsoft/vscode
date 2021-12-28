@@ -15,8 +15,8 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IQuickInputService, IPickOptions, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { IFileDialogService, IPickAndOpenOptions } from 'vs/platform/dialogs/common/dialogs';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
