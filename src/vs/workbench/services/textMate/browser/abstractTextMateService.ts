@@ -12,9 +12,9 @@ import * as resources from 'vs/base/common/resources';
 import * as types from 'vs/base/common/types';
 import { equals as equalArray } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
-import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
+import { TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/core/token';
 import { IState, ITokenizationSupport, LanguageId, TokenMetadata, TokenizationRegistry, StandardTokenType, ITokenizationSupportFactory } from 'vs/editor/common/modes';
-import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
+import { nullTokenizeEncoded } from 'vs/editor/common/modes/nullMode';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -450,17 +450,17 @@ class TMTokenizationSupport implements ITokenizationSupport {
 		throw new Error('Not supported!');
 	}
 
-	tokenize2(line: string, hasEOL: boolean, state: StackElement, offsetDelta: number): TokenizationResult2 {
+	tokenizeEncoded(line: string, hasEOL: boolean, state: StackElement, offsetDelta: number): EncodedTokenizationResult {
 		if (offsetDelta !== 0) {
 			throw new Error('Unexpected: offsetDelta should be 0.');
 		}
 
 		// Do not attempt to tokenize if a line is too long
 		if (line.length >= this._maxTokenizationLineLength) {
-			return nullTokenize2(this._encodedLanguageId, line, state, offsetDelta);
+			return nullTokenizeEncoded(this._encodedLanguageId, line, state, offsetDelta);
 		}
 
-		return this._actual.tokenize2(line, state);
+		return this._actual.tokenizeEncoded(line, state);
 	}
 }
 
@@ -486,13 +486,13 @@ class TMTokenization extends Disposable {
 		return this._initialState;
 	}
 
-	public tokenize2(line: string, state: StackElement): TokenizationResult2 {
+	public tokenizeEncoded(line: string, state: StackElement): EncodedTokenizationResult {
 		const textMateResult = this._grammar.tokenizeLine2(line, state, 500);
 
 		if (textMateResult.stoppedEarly) {
 			console.warn(`Time limit reached when tokenizing line: ${line.substring(0, 100)}`);
 			// return the state at the beginning of the line
-			return new TokenizationResult2(textMateResult.tokens, state);
+			return new EncodedTokenizationResult(textMateResult.tokens, state);
 		}
 
 		if (this._containsEmbeddedLanguages) {
@@ -520,6 +520,6 @@ class TMTokenization extends Disposable {
 
 		}
 
-		return new TokenizationResult2(textMateResult.tokens, endState);
+		return new EncodedTokenizationResult(textMateResult.tokens, endState);
 	}
 }

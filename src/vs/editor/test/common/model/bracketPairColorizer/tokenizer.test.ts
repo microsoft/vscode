@@ -5,7 +5,7 @@
 
 import assert = require('assert');
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { EncodedTokenizationResult } from 'vs/editor/common/core/token';
 import { LanguageAgnosticBracketTokens } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/brackets';
 import { Length, lengthAdd, lengthsToRange, lengthZero } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
 import { DenseKeyProvider } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/smallImmutableSet';
@@ -175,7 +175,7 @@ class TokenizedDocument {
 		return {
 			getInitialState: () => new State(0),
 			tokenize: () => { throw new Error('Method not implemented.'); },
-			tokenize2: (line: string, hasEOL: boolean, state: IState, offsetDelta: number): TokenizationResult2 => {
+			tokenizeEncoded: (line: string, hasEOL: boolean, state: IState, offsetDelta: number): EncodedTokenizationResult => {
 				const state2 = state as State;
 				const tokens = this.tokensByLine[state2.lineNumber];
 				const arr = new Array<number>();
@@ -185,7 +185,7 @@ class TokenizedDocument {
 					offset += t.text.length;
 				}
 
-				return new TokenizationResult2(new Uint32Array(arr), new State(state2.lineNumber + 1));
+				return new EncodedTokenizationResult(new Uint32Array(arr), new State(state2.lineNumber + 1));
 			}
 		};
 	}

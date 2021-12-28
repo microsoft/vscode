@@ -6,19 +6,15 @@
 import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
 import { IViewLineTokens, LineTokens } from 'vs/editor/common/core/lineTokens';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { ILanguageIdCodec, IState, LanguageId, TokenizationRegistry } from 'vs/editor/common/modes';
-import { NULL_STATE, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
+import { ILanguageIdCodec, IState, ITokenizationSupport, LanguageId, TokenizationRegistry } from 'vs/editor/common/modes';
+import { NULL_STATE, nullTokenizeEncoded } from 'vs/editor/common/modes/nullMode';
 import { ILanguageService } from 'vs/editor/common/services/languageService';
 
-export interface IReducedTokenizationSupport {
-	getInitialState(): IState;
-	tokenize2(line: string, hasEOL: boolean, state: IState, offsetDelta: number): TokenizationResult2;
-}
+export type IReducedTokenizationSupport = Omit<ITokenizationSupport, 'tokenize'>;
 
 const fallback: IReducedTokenizationSupport = {
 	getInitialState: () => NULL_STATE,
-	tokenize2: (buffer: string, hasEOL: boolean, state: IState, deltaOffset: number) => nullTokenize2(LanguageId.Null, buffer, state, deltaOffset)
+	tokenizeEncoded: (buffer: string, hasEOL: boolean, state: IState, deltaOffset: number) => nullTokenizeEncoded(LanguageId.Null, buffer, state, deltaOffset)
 };
 
 export function tokenizeToStringSync(languageService: ILanguageService, text: string, languageId: string): string {
@@ -140,7 +136,7 @@ export function _tokenizeToString(text: string, languageIdCodec: ILanguageIdCode
 			result += `<br/>`;
 		}
 
-		const tokenizationResult = tokenizationSupport.tokenize2(line, true, currentState, 0);
+		const tokenizationResult = tokenizationSupport.tokenizeEncoded(line, true, currentState, 0);
 		LineTokens.convertToEndOffset(tokenizationResult.tokens, line.length);
 		const lineTokens = new LineTokens(tokenizationResult.tokens, line, languageIdCodec);
 		const viewLineTokens = lineTokens.inflate();

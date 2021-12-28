@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Selection } from 'vs/editor/common/core/selection';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { EncodedTokenizationResult } from 'vs/editor/common/core/token';
 import { ICommand } from 'vs/editor/common/editorCommon';
 import { ColorId, IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
 import { CommentRule } from 'vs/editor/common/modes/languageConfiguration';
@@ -1094,7 +1094,7 @@ suite('Editor Contrib - Line Comment in mixed modes', () => {
 				tokenize: () => {
 					throw new Error('not implemented');
 				},
-				tokenize2: (line: string, hasEOL: boolean, state: IState): TokenizationResult2 => {
+				tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
 					const languageId = (/^  /.test(line) ? INNER_LANGUAGE_ID : OUTER_LANGUAGE_ID);
 					const encodedLanguageId = languageService.languageIdCodec.encodeLanguageId(languageId);
 
@@ -1104,7 +1104,7 @@ suite('Editor Contrib - Line Comment in mixed modes', () => {
 						(ColorId.DefaultForeground << MetadataConsts.FOREGROUND_OFFSET)
 						| (encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET)
 					);
-					return new TokenizationResult2(tokens, state);
+					return new EncodedTokenizationResult(tokens, state);
 				}
 			}));
 		}

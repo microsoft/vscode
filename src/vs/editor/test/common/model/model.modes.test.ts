@@ -8,7 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { EncodedTokenizationResult } from 'vs/editor/common/core/token';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import * as modes from 'vs/editor/common/modes';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
@@ -28,9 +28,9 @@ suite('Editor Model - Model Modes 1', () => {
 	const tokenizationSupport: modes.ITokenizationSupport = {
 		getInitialState: () => NULL_STATE,
 		tokenize: undefined!,
-		tokenize2: (line: string, hasEOL: boolean, state: modes.IState): TokenizationResult2 => {
+		tokenizeEncoded: (line: string, hasEOL: boolean, state: modes.IState): EncodedTokenizationResult => {
 			calledFor.push(line.charAt(0));
-			return new TokenizationResult2(new Uint32Array(0), state);
+			return new EncodedTokenizationResult(new Uint32Array(0), state);
 		}
 	};
 
@@ -181,10 +181,10 @@ suite('Editor Model - Model Modes 2', () => {
 	const tokenizationSupport: modes.ITokenizationSupport = {
 		getInitialState: () => new ModelState2(''),
 		tokenize: undefined!,
-		tokenize2: (line: string, hasEOL: boolean, state: modes.IState): TokenizationResult2 => {
+		tokenizeEncoded: (line: string, hasEOL: boolean, state: modes.IState): EncodedTokenizationResult => {
 			calledFor.push(line);
 			(<ModelState2>state).prevLineContent = line;
-			return new TokenizationResult2(new Uint32Array(0), state);
+			return new EncodedTokenizationResult(new Uint32Array(0), state);
 		}
 	};
 

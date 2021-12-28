@@ -8,7 +8,7 @@ import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { EncodedTokenizationResult } from 'vs/editor/common/core/token';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ModelRawContentChangedEvent, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
 import { IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
@@ -394,7 +394,7 @@ suite('Editor Model - Words', () => {
 			this._register(TokenizationRegistry.register(this.languageId, {
 				getInitialState: (): IState => NULL_STATE,
 				tokenize: undefined!,
-				tokenize2: (line: string, hasEOL: boolean, state: IState): TokenizationResult2 => {
+				tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
 					const tokensArr: number[] = [];
 					let prevLanguageId: string | undefined = undefined;
 					for (let i = 0; i < line.length; i++) {
@@ -411,7 +411,7 @@ suite('Editor Model - Words', () => {
 					for (let i = 0; i < tokens.length; i++) {
 						tokens[i] = tokensArr[i];
 					}
-					return new TokenizationResult2(tokens, state);
+					return new EncodedTokenizationResult(tokens, state);
 				}
 			}));
 		}

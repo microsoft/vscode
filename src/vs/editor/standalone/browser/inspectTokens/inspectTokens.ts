@@ -16,7 +16,7 @@ import { Token } from 'vs/editor/common/core/token';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { FontStyle, IState, ITokenizationSupport, StandardTokenType, TokenMetadata, TokenizationRegistry, ILanguageIdCodec } from 'vs/editor/common/modes';
-import { NULL_STATE, nullTokenize, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
+import { NULL_STATE, nullTokenize, nullTokenizeEncoded } from 'vs/editor/common/modes/nullMode';
 import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import { editorHoverBackground, editorHoverBorder, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -139,7 +139,7 @@ function getSafeTokenizationSupport(languageIdCodec: ILanguageIdCodec, languageI
 	return {
 		getInitialState: () => NULL_STATE,
 		tokenize: (line: string, hasEOL: boolean, state: IState, deltaOffset: number) => nullTokenize(languageId, line, state, deltaOffset),
-		tokenize2: (line: string, hasEOL: boolean, state: IState, deltaOffset: number) => nullTokenize2(encodedLanguageId, line, state, deltaOffset)
+		tokenizeEncoded: (line: string, hasEOL: boolean, state: IState, deltaOffset: number) => nullTokenizeEncoded(encodedLanguageId, line, state, deltaOffset)
 	};
 }
 
@@ -298,7 +298,7 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 		let stateBeforeLine = this._getStateBeforeLine(lineNumber);
 
 		let tokenizationResult1 = this._tokenizationSupport.tokenize(this._model.getLineContent(lineNumber), true, stateBeforeLine, 0);
-		let tokenizationResult2 = this._tokenizationSupport.tokenize2(this._model.getLineContent(lineNumber), true, stateBeforeLine, 0);
+		let tokenizationResult2 = this._tokenizationSupport.tokenizeEncoded(this._model.getLineContent(lineNumber), true, stateBeforeLine, 0);
 
 		return {
 			startState: stateBeforeLine,

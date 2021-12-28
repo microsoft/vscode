@@ -43,8 +43,6 @@ import { splitLines } from 'vs/base/common/strings';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
-type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
-
 function withAllStandaloneServices<T extends IEditor>(domElement: HTMLElement, override: IEditorOverrideServices, callback: (services: DynamicStandaloneServices) => T): T {
 	let services = new DynamicStandaloneServices(domElement, override);
 
@@ -269,7 +267,7 @@ export function colorizeModelLine(model: ITextModel, lineNumber: number, tabSize
 /**
  * @internal
  */
-function getSafeTokenizationSupport(language: string): Omit<modes.ITokenizationSupport, 'tokenize2'> {
+function getSafeTokenizationSupport(language: string): Omit<modes.ITokenizationSupport, 'tokenizeEncoded'> {
 	let tokenizationSupport = modes.TokenizationRegistry.get(language);
 	if (tokenizationSupport) {
 		return tokenizationSupport;

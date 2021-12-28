@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { EncodedTokenizationResult } from 'vs/editor/common/core/token';
 import { ColorId, FontStyle, IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
 import { tokenizeLineToHTML, _tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
@@ -288,7 +288,7 @@ class Mode extends MockMode {
 		this._register(TokenizationRegistry.register(this.languageId, {
 			getInitialState: (): IState => null!,
 			tokenize: undefined!,
-			tokenize2: (line: string, hasEOL: boolean, state: IState): TokenizationResult2 => {
+			tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
 				let tokensArr: number[] = [];
 				let prevColor: ColorId = -1;
 				for (let i = 0; i < line.length; i++) {
@@ -306,7 +306,7 @@ class Mode extends MockMode {
 				for (let i = 0; i < tokens.length; i++) {
 					tokens[i] = tokensArr[i];
 				}
-				return new TokenizationResult2(tokens, null!);
+				return new EncodedTokenizationResult(tokens, null!);
 			}
 		}));
 	}

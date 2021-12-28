@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { EncodedTokenizationResult } from 'vs/editor/common/core/token';
 import { IFoundBracket } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairs';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ITokenizationSupport, MetadataConsts, TokenizationRegistry, StandardTokenType } from 'vs/editor/common/modes';
@@ -368,7 +368,7 @@ suite('TextModelWithTokens', () => {
 		const tokenizationSupport: ITokenizationSupport = {
 			getInitialState: () => NULL_STATE,
 			tokenize: undefined!,
-			tokenize2: (line, hasEOL, state) => {
+			tokenizeEncoded: (line, hasEOL, state) => {
 				switch (line) {
 					case 'function f() {': {
 						const tokens = new Uint32Array([
@@ -380,7 +380,7 @@ suite('TextModelWithTokens', () => {
 							12, otherMetadata1,
 							13, otherMetadata1,
 						]);
-						return new TokenizationResult2(tokens, state);
+						return new EncodedTokenizationResult(tokens, state);
 					}
 					case '  return <p>{true}</p>;': {
 						const tokens = new Uint32Array([
@@ -398,13 +398,13 @@ suite('TextModelWithTokens', () => {
 							21, otherMetadata2,
 							22, otherMetadata2,
 						]);
-						return new TokenizationResult2(tokens, state);
+						return new EncodedTokenizationResult(tokens, state);
 					}
 					case '}': {
 						const tokens = new Uint32Array([
 							0, otherMetadata1
 						]);
-						return new TokenizationResult2(tokens, state);
+						return new EncodedTokenizationResult(tokens, state);
 					}
 				}
 				throw new Error(`Unexpected`);
@@ -467,13 +467,13 @@ suite('TextModelWithTokens', () => {
 		const tokenizationSupport: ITokenizationSupport = {
 			getInitialState: () => NULL_STATE,
 			tokenize: undefined!,
-			tokenize2: (line, hasEOL, state) => {
+			tokenizeEncoded: (line, hasEOL, state) => {
 				switch (line) {
 					case 'function hello() {': {
 						const tokens = new Uint32Array([
 							0, otherMetadata
 						]);
-						return new TokenizationResult2(tokens, state);
+						return new EncodedTokenizationResult(tokens, state);
 					}
 					case '    console.log(`${100}`);': {
 						const tokens = new Uint32Array([
@@ -483,13 +483,13 @@ suite('TextModelWithTokens', () => {
 							22, stringMetadata,
 							24, otherMetadata,
 						]);
-						return new TokenizationResult2(tokens, state);
+						return new EncodedTokenizationResult(tokens, state);
 					}
 					case '}': {
 						const tokens = new Uint32Array([
 							0, otherMetadata
 						]);
-						return new TokenizationResult2(tokens, state);
+						return new EncodedTokenizationResult(tokens, state);
 					}
 				}
 				throw new Error(`Unexpected`);
@@ -562,14 +562,14 @@ suite('TextModelWithTokens regression tests', () => {
 		const tokenizationSupport: ITokenizationSupport = {
 			getInitialState: () => NULL_STATE,
 			tokenize: undefined!,
-			tokenize2: (line, hasEOL, state) => {
+			tokenizeEncoded: (line, hasEOL, state) => {
 				let myId = ++_tokenId;
 				let tokens = new Uint32Array(2);
 				tokens[0] = 0;
 				tokens[1] = (
 					myId << MetadataConsts.FOREGROUND_OFFSET
 				) >>> 0;
-				return new TokenizationResult2(tokens, state);
+				return new EncodedTokenizationResult(tokens, state);
 			}
 		};
 
@@ -676,13 +676,13 @@ suite('TextModelWithTokens regression tests', () => {
 		const tokenizationSupport: ITokenizationSupport = {
 			getInitialState: () => NULL_STATE,
 			tokenize: undefined!,
-			tokenize2: (line, hasEOL, state) => {
+			tokenizeEncoded: (line, hasEOL, state) => {
 				let tokens = new Uint32Array(2);
 				tokens[0] = 0;
 				tokens[1] = (
 					encodedInnerMode << MetadataConsts.LANGUAGEID_OFFSET
 				) >>> 0;
-				return new TokenizationResult2(tokens, state);
+				return new EncodedTokenizationResult(tokens, state);
 			}
 		};
 

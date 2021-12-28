@@ -9,7 +9,7 @@
  */
 
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
+import { Token, TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/core/token';
 import * as modes from 'vs/editor/common/modes';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { TokenTheme } from 'vs/editor/common/modes/supports/tokenization';
@@ -356,7 +356,7 @@ class MonarchModernTokensCollector implements IMonarchTokensCollector {
 			return embeddedModeState;
 		}
 
-		let nestedResult = nestedLanguageTokenizationSupport.tokenize2(embeddedLanguageLine, hasEOL, embeddedModeState, offsetDelta);
+		let nestedResult = nestedLanguageTokenizationSupport.tokenizeEncoded(embeddedLanguageLine, hasEOL, embeddedModeState, offsetDelta);
 		this._prependTokens = MonarchModernTokensCollector._merge(this._prependTokens, this._tokens, nestedResult.tokens);
 		this._tokens = [];
 		this._currentLanguageId = 0;
@@ -364,8 +364,8 @@ class MonarchModernTokensCollector implements IMonarchTokensCollector {
 		return nestedResult.endState;
 	}
 
-	public finalize(endState: MonarchLineState): TokenizationResult2 {
-		return new TokenizationResult2(
+	public finalize(endState: MonarchLineState): EncodedTokenizationResult {
+		return new EncodedTokenizationResult(
 			MonarchModernTokensCollector._merge(this._prependTokens, this._tokens, null),
 			endState
 		);
@@ -461,7 +461,7 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 		return tokensCollector.finalize(endLineState);
 	}
 
-	public tokenize2(line: string, hasEOL: boolean, lineState: modes.IState, offsetDelta: number): TokenizationResult2 {
+	public tokenizeEncoded(line: string, hasEOL: boolean, lineState: modes.IState, offsetDelta: number): EncodedTokenizationResult {
 		let tokensCollector = new MonarchModernTokensCollector(this._languageService, this._standaloneThemeService.getColorTheme().tokenTheme);
 		let endLineState = this._tokenize(line, hasEOL, <MonarchLineState>lineState, offsetDelta, tokensCollector);
 		return tokensCollector.finalize(endLineState);

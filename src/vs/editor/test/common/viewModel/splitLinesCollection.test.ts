@@ -8,7 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { EncodedTokenizationResult } from 'vs/editor/common/core/token';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import * as modes from 'vs/editor/common/modes';
@@ -336,7 +336,7 @@ suite('SplitLinesCollection', () => {
 		const tokenizationSupport: modes.ITokenizationSupport = {
 			getInitialState: () => NULL_STATE,
 			tokenize: undefined!,
-			tokenize2: (line: string, hasEOL: boolean, state: modes.IState): TokenizationResult2 => {
+			tokenizeEncoded: (line: string, hasEOL: boolean, state: modes.IState): EncodedTokenizationResult => {
 				let tokens = _tokens[_lineIndex++];
 
 				let result = new Uint32Array(2 * tokens.length);
@@ -346,7 +346,7 @@ suite('SplitLinesCollection', () => {
 						tokens[i].value << modes.MetadataConsts.FOREGROUND_OFFSET
 					);
 				}
-				return new TokenizationResult2(result, state);
+				return new EncodedTokenizationResult(result, state);
 			}
 		};
 		const LANGUAGE_ID = 'modelModeTest1';

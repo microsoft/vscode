@@ -12,7 +12,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
+import { TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/core/token';
 import * as model from 'vs/editor/common/model';
 import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
 import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
@@ -20,6 +20,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+
 /**
  * Open ended enum at runtime
  * @internal
@@ -203,7 +204,7 @@ export interface ITokenizationSupport {
 	// add offsetDelta to each of the returned indices
 	tokenize(line: string, hasEOL: boolean, state: IState, offsetDelta: number): TokenizationResult;
 
-	tokenize2(line: string, hasEOL: boolean, state: IState, offsetDelta: number): TokenizationResult2;
+	tokenizeEncoded(line: string, hasEOL: boolean, state: IState, offsetDelta: number): EncodedTokenizationResult;
 }
 
 /**

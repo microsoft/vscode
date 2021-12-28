@@ -12,7 +12,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { EncodedTokenizationResult } from 'vs/editor/common/core/token';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
@@ -79,7 +79,7 @@ suite('SuggestModel - Context', function () {
 			this._register(TokenizationRegistry.register(this.languageId, {
 				getInitialState: (): IState => NULL_STATE,
 				tokenize: undefined!,
-				tokenize2: (line: string, hasEOL: boolean, state: IState): TokenizationResult2 => {
+				tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
 					const tokensArr: number[] = [];
 					let prevLanguageId: string | undefined = undefined;
 					for (let i = 0; i < line.length; i++) {
@@ -96,7 +96,7 @@ suite('SuggestModel - Context', function () {
 					for (let i = 0; i < tokens.length; i++) {
 						tokens[i] = tokensArr[i];
 					}
-					return new TokenizationResult2(tokens, state);
+					return new EncodedTokenizationResult(tokens, state);
 				}
 			}));
 		}

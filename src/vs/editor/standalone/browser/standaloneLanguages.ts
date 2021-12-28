@@ -8,7 +8,7 @@ import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
+import { Token, TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/core/token';
 import * as model from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
@@ -74,7 +74,7 @@ export function setLanguageConfiguration(languageId: string, configuration: Lang
 /**
  * @internal
  */
-export class EncodedTokenizationSupport2Adapter implements modes.ITokenizationSupport {
+export class EncodedTokenizationSupportAdapter implements modes.ITokenizationSupport {
 
 	private readonly _languageId: string;
 	private readonly _actual: EncodedTokensProvider;
@@ -90,21 +90,21 @@ export class EncodedTokenizationSupport2Adapter implements modes.ITokenizationSu
 
 	public tokenize(line: string, hasEOL: boolean, state: modes.IState, offsetDelta: number): TokenizationResult {
 		if (typeof this._actual.tokenize === 'function') {
-			return TokenizationSupport2Adapter.adaptTokenize(this._languageId, <{ tokenize(line: string, state: modes.IState): ILineTokens; }>this._actual, line, state, offsetDelta);
+			return TokenizationSupportAdapter.adaptTokenize(this._languageId, <{ tokenize(line: string, state: modes.IState): ILineTokens; }>this._actual, line, state, offsetDelta);
 		}
 		throw new Error('Not supported!');
 	}
 
-	public tokenize2(line: string, hasEOL: boolean, state: modes.IState): TokenizationResult2 {
+	public tokenizeEncoded(line: string, hasEOL: boolean, state: modes.IState): EncodedTokenizationResult {
 		let result = this._actual.tokenizeEncoded(line, state);
-		return new TokenizationResult2(result.tokens, result.endState);
+		return new EncodedTokenizationResult(result.tokens, result.endState);
 	}
 }
 
 /**
  * @internal
  */
-export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
+export class TokenizationSupportAdapter implements modes.ITokenizationSupport {
 
 	constructor(
 		private readonly _languageId: string,
@@ -143,7 +143,7 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 
 	public static adaptTokenize(language: string, actual: { tokenize(line: string, state: modes.IState): ILineTokens; }, line: string, state: modes.IState, offsetDelta: number): TokenizationResult {
 		let actualResult = actual.tokenize(line, state);
-		let tokens = TokenizationSupport2Adapter._toClassicTokens(actualResult.tokens, language, offsetDelta);
+		let tokens = TokenizationSupportAdapter._toClassicTokens(actualResult.tokens, language, offsetDelta);
 
 		let endState: modes.IState;
 		// try to save an object if possible
@@ -157,7 +157,7 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 	}
 
 	public tokenize(line: string, hasEOL: boolean, state: modes.IState, offsetDelta: number): TokenizationResult {
-		return TokenizationSupport2Adapter.adaptTokenize(this._languageId, this._actual, line, state, offsetDelta);
+		return TokenizationSupportAdapter.adaptTokenize(this._languageId, this._actual, line, state, offsetDelta);
 	}
 
 	private _toBinaryTokens(languageIdCodec: modes.ILanguageIdCodec, tokens: IToken[], offsetDelta: number): Uint32Array {
@@ -198,7 +198,7 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 		return actualResult;
 	}
 
-	public tokenize2(line: string, hasEOL: boolean, state: modes.IState, offsetDelta: number): TokenizationResult2 {
+	public tokenizeEncoded(line: string, hasEOL: boolean, state: modes.IState, offsetDelta: number): EncodedTokenizationResult {
 		let actualResult = this._actual.tokenize(line, state);
 		let tokens = this._toBinaryTokens(this._languageService.languageIdCodec, actualResult.tokens, offsetDelta);
 
@@ -210,7 +210,7 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 			endState = actualResult.endState;
 		}
 
-		return new TokenizationResult2(tokens, endState);
+		return new EncodedTokenizationResult(tokens, endState);
 	}
 }
 
@@ -341,9 +341,9 @@ export function setColorMap(colorMap: string[] | null): void {
  */
 function createTokenizationSupportAdapter(languageId: string, provider: TokensProvider | EncodedTokensProvider) {
 	if (isEncodedTokensProvider(provider)) {
-		return new EncodedTokenizationSupport2Adapter(languageId, provider);
+		return new EncodedTokenizationSupportAdapter(languageId, provider);
 	} else {
-		return new TokenizationSupport2Adapter(
+		return new TokenizationSupportAdapter(
 			languageId,
 			provider,
 			StaticServices.languageService.get(),

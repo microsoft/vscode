@@ -10,7 +10,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { EncodedTokenizationResult } from 'vs/editor/common/core/token';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
@@ -2406,8 +2406,8 @@ suite('Editor Controller - Regression tests', () => {
 		const tokenizationSupport: ITokenizationSupport = {
 			getInitialState: () => NULL_STATE,
 			tokenize: undefined!,
-			tokenize2: (line: string, hasEOL: boolean, state: IState): TokenizationResult2 => {
-				return new TokenizationResult2(new Uint32Array(0), state);
+			tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
+				return new EncodedTokenizationResult(new Uint32Array(0), state);
 			}
 		};
 
@@ -4835,7 +4835,7 @@ suite('autoClosingPairs', () => {
 				this._register(TokenizationRegistry.register(this.languageId, {
 					getInitialState: () => new BaseState(),
 					tokenize: undefined!,
-					tokenize2: function (line: string, hasEOL: boolean, _state: IState, offsetDelta: number): TokenizationResult2 {
+					tokenizeEncoded: function (line: string, hasEOL: boolean, _state: IState, offsetDelta: number): EncodedTokenizationResult {
 						let state = <State>_state;
 						const tokens: { length: number; type: StandardTokenType; }[] = [];
 						const generateToken = (length: number, type: StandardTokenType, newState?: State) => {
@@ -4863,7 +4863,7 @@ suite('autoClosingPairs', () => {
 							);
 							startIndex += tokens[i].length;
 						}
-						return new TokenizationResult2(result, state);
+						return new EncodedTokenizationResult(result, state);
 
 						function advance(): void {
 							if (state instanceof BaseState) {

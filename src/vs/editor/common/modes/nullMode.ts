@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
+import { Token, TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/core/token';
 import { ColorId, FontStyle, IState, LanguageId, MetadataConsts, StandardTokenType } from 'vs/editor/common/modes';
 
 class NullStateImpl implements IState {
@@ -23,7 +23,7 @@ export function nullTokenize(languageId: string, buffer: string, state: IState, 
 	return new TokenizationResult([new Token(deltaOffset, '', languageId)], state);
 }
 
-export function nullTokenize2(languageId: LanguageId, buffer: string, state: IState | null, deltaOffset: number): TokenizationResult2 {
+export function nullTokenizeEncoded(languageId: LanguageId, buffer: string, state: IState | null, deltaOffset: number): EncodedTokenizationResult {
 	let tokens = new Uint32Array(2);
 	tokens[0] = deltaOffset;
 	tokens[1] = (
@@ -34,5 +34,5 @@ export function nullTokenize2(languageId: LanguageId, buffer: string, state: ISt
 		| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
 	) >>> 0;
 
-	return new TokenizationResult2(tokens, state === null ? NULL_STATE : state);
+	return new EncodedTokenizationResult(tokens, state === null ? NULL_STATE : state);
 }

@@ -12,7 +12,7 @@ import { IState, LanguageId, MetadataConsts } from 'vs/editor/common/modes';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { TokenTheme } from 'vs/editor/common/modes/supports/tokenization';
 import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
-import { ILineTokens, IToken, TokenizationSupport2Adapter, TokensProvider } from 'vs/editor/standalone/browser/standaloneLanguages';
+import { ILineTokens, IToken, TokenizationSupportAdapter, TokensProvider } from 'vs/editor/standalone/browser/standaloneLanguages';
 import { IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import { UnthemedProductIconTheme } from 'vs/platform/theme/browser/iconsStyleSheet';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
@@ -123,7 +123,7 @@ suite('TokenizationSupport2Adapter', () => {
 		const disposables = new DisposableStore();
 		const languageService = disposables.add(new LanguageService());
 		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
-		const adapter = new TokenizationSupport2Adapter(
+		const adapter = new TokenizationSupportAdapter(
 			languageId,
 			new BadTokensProvider(),
 			languageService,
@@ -133,7 +133,7 @@ suite('TokenizationSupport2Adapter', () => {
 		const actualClassicTokens = adapter.tokenize('whatever', true, MockState.INSTANCE, offsetDelta);
 		assert.deepStrictEqual(actualClassicTokens.tokens, expectedClassicTokens);
 
-		const actualModernTokens = adapter.tokenize2('whatever', true, MockState.INSTANCE, offsetDelta);
+		const actualModernTokens = adapter.tokenizeEncoded('whatever', true, MockState.INSTANCE, offsetDelta);
 		const modernTokens: number[] = [];
 		for (let i = 0; i < actualModernTokens.tokens.length; i++) {
 			modernTokens[i] = actualModernTokens.tokens[i];
