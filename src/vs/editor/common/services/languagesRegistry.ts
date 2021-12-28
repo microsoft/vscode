@@ -371,11 +371,10 @@ export class LanguagesRegistry extends Disposable {
 		return this._languages[languageId].extensions;
 	}
 
-	public getFilenames(languageName: string): string[] {
-		if (!hasOwnProperty.call(this._nameMap, languageName)) {
+	public getFilenamesForLanguageId(languageId: string): string[] {
+		if (!hasOwnProperty.call(this._languages, languageId)) {
 			return [];
 		}
-		const languageId = this._nameMap[languageName];
 		return this._languages[languageId].filenames;
 	}
 }

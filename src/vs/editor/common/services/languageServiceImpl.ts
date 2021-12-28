@@ -93,8 +93,8 @@ export class LanguageService extends Disposable implements ILanguageService {
 		return this._registry.getExtensions(alias);
 	}
 
-	public getFilenames(alias: string): string[] {
-		return this._registry.getFilenames(alias);
+	public getFilenamesForLanguageId(languageId: string): string[] {
+		return this._registry.getFilenamesForLanguageId(languageId);
 	}
 
 	public getMimeTypeForLanguageId(languageId: string): string | null {

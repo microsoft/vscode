@@ -31,14 +31,15 @@ export class ConfigureLanguageBasedSettingsAction extends Action {
 	override async run(): Promise<void> {
 		const languages = this.languageService.getRegisteredLanguageNames();
 		const picks: IQuickPickItem[] = languages.sort().map((lang, index) => {
-			const description: string = nls.localize('languageDescriptionConfigured', "({0})", this.languageService.getLanguageIdForLanguageName(lang));
+			const languageId = this.languageService.getLanguageIdForLanguageName(lang)!;
+			const description: string = nls.localize('languageDescriptionConfigured', "({0})", languageId);
 			// construct a fake resource to be able to show nice icons if any
 			let fakeResource: URI | undefined;
 			const extensions = this.languageService.getExtensions(lang);
 			if (extensions && extensions.length) {
 				fakeResource = URI.file(extensions[0]);
 			} else {
-				const filenames = this.languageService.getFilenames(lang);
+				const filenames = this.languageService.getFilenamesForLanguageId(languageId);
 				if (filenames && filenames.length) {
 					fakeResource = URI.file(filenames[0]);
 				}

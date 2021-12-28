@@ -280,18 +280,14 @@ suite('LanguagesRegistry', () => {
 			filenames: ['aFilename']
 		}]);
 
-		assert.deepStrictEqual(registry.getFilenames('a'), []);
-		assert.deepStrictEqual(registry.getFilenames('aname'), []);
-		assert.deepStrictEqual(registry.getFilenames('aName'), ['aFilename']);
+		assert.deepStrictEqual(registry.getFilenamesForLanguageId('a'), ['aFilename']);
 
 		registry._registerLanguages([{
 			id: 'a',
 			filenames: ['aFilename2']
 		}]);
 
-		assert.deepStrictEqual(registry.getFilenames('a'), []);
-		assert.deepStrictEqual(registry.getFilenames('aname'), []);
-		assert.deepStrictEqual(registry.getFilenames('aName'), ['aFilename', 'aFilename2']);
+		assert.deepStrictEqual(registry.getFilenamesForLanguageId('a'), ['aFilename', 'aFilename2']);
 
 		registry.dispose();
 	});

@@ -462,13 +462,16 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 	private getFakeResource(lang: string, languageService: ILanguageService): URI | undefined {
 		let fakeResource: URI | undefined;
 
-		const extensions = languageService.getExtensions(lang);
-		if (extensions?.length) {
-			fakeResource = URI.file(extensions[0]);
-		} else {
-			const filenames = languageService.getFilenames(lang);
-			if (filenames?.length) {
-				fakeResource = URI.file(filenames[0]);
+		const languageId = languageService.getLanguageIdForLanguageName(lang);
+		if (languageId) {
+			const extensions = languageService.getExtensions(lang);
+			if (extensions?.length) {
+				fakeResource = URI.file(extensions[0]);
+			} else {
+				const filenames = languageService.getFilenamesForLanguageId(languageId);
+				if (filenames?.length) {
+					fakeResource = URI.file(filenames[0]);
+				}
 			}
 		}
 
