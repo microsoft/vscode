@@ -11,7 +11,7 @@ import { ITextEditorModel, IResolvedTextEditorModel } from 'vs/editor/common/ser
 import { ILanguageService, ILanguageSelection } from 'vs/editor/common/services/languageService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { ThrottledDelayer } from 'vs/base/common/async';
@@ -110,7 +110,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 		if (
 			this.hasModeSetExplicitly || 															// skip detection when the user has made an explicit choice on the mode
 			!this.textEditorModelHandle ||															// require a URI to run the detection for
-			!this.languageDetectionService.isEnabledForMode(this.getMode() ?? PLAINTEXT_MODE_ID)	// require a valid mode that is enlisted for detection
+			!this.languageDetectionService.isEnabledForMode(this.getMode() ?? PLAINTEXT_LANGUAGE_ID)	// require a valid mode that is enlisted for detection
 		) {
 			return;
 		}
@@ -174,7 +174,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 	protected getOrCreateMode(resource: URI | undefined, languageService: ILanguageService, preferredMode: string | undefined, firstLineText?: string): ILanguageSelection {
 
 		// lookup mode via resource path if the provided mode is unspecific
-		if (!preferredMode || preferredMode === PLAINTEXT_MODE_ID) {
+		if (!preferredMode || preferredMode === PLAINTEXT_LANGUAGE_ID) {
 			return languageService.createByFilepathOrFirstLine(withUndefinedAsNull(resource), firstLineText);
 		}
 
@@ -196,7 +196,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 		}
 
 		// mode (only if specific and changed)
-		if (preferredMode && preferredMode !== PLAINTEXT_MODE_ID && this.textEditorModel.getLanguageId() !== preferredMode) {
+		if (preferredMode && preferredMode !== PLAINTEXT_LANGUAGE_ID && this.textEditorModel.getLanguageId() !== preferredMode) {
 			this.modelService.setMode(this.textEditorModel, this.languageService.createById(preferredMode));
 		}
 	}

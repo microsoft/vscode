@@ -35,7 +35,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILanguageSelection, ILanguageService } from 'vs/editor/common/services/languageService';
 import { URI } from 'vs/base/common/uri';
 import { StandaloneCodeEditorServiceImpl } from 'vs/editor/standalone/browser/standaloneCodeServiceImpl';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 /**
@@ -440,7 +440,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 
 		let model: ITextModel | null;
 		if (typeof _model === 'undefined') {
-			const languageId = languageService.getLanguageIdByMimeType(options.language) || options.language || PLAINTEXT_MODE_ID;
+			const languageId = languageService.getLanguageIdByMimeType(options.language) || options.language || PLAINTEXT_LANGUAGE_ID;
 			model = createTextModel(modelService, languageService, options.value || '', languageId, undefined);
 			this._ownsModel = true;
 		} else {

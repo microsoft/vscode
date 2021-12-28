@@ -55,6 +55,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
 
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -433,7 +434,7 @@ registerAction2(class extends Action2 {
 			const notebookDocument = editorControl.notebookEditor.textModel;
 			const textModel = editorControl.codeEditor.getModel();
 			const activeKernel = editorControl.notebookEditor.activeKernel;
-			const language = activeKernel?.supportedLanguages[0] ?? 'plaintext';
+			const language = activeKernel?.supportedLanguages[0] ?? PLAINTEXT_LANGUAGE_ID;
 
 			if (notebookDocument && textModel) {
 				const index = notebookDocument.length;

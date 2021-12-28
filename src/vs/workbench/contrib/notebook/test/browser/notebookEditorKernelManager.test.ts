@@ -20,7 +20,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { mock } from 'vs/base/test/common/mock';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { insertCellAtIndex } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 
 suite('NotebookEditorKernelManager', () => {
@@ -157,6 +157,6 @@ class TestNotebookKernel implements INotebookKernel {
 	}
 
 	constructor(opts?: { languages: string[] }) {
-		this.supportedLanguages = opts?.languages ?? [PLAINTEXT_MODE_ID];
+		this.supportedLanguages = opts?.languages ?? [PLAINTEXT_LANGUAGE_ID];
 	}
 }

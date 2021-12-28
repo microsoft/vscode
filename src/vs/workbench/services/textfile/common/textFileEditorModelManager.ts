@@ -23,7 +23,7 @@ import { IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/serv
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { extname, joinPath } from 'vs/base/common/resources';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { PLAINTEXT_EXTENSION, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_EXTENSION, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 export class TextFileEditorModelManager extends Disposable implements ITextFileEditorModelManager {
@@ -286,8 +286,8 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 							// (https://github.com/microsoft/vscode/issues/125795)
 							if (
 								modelToRestore.mode &&
-								modelToRestore.mode !== PLAINTEXT_MODE_ID &&
-								restoredModel.getMode() === PLAINTEXT_MODE_ID &&
+								modelToRestore.mode !== PLAINTEXT_LANGUAGE_ID &&
+								restoredModel.getMode() === PLAINTEXT_LANGUAGE_ID &&
 								extname(modelToRestore.target) !== PLAINTEXT_EXTENSION
 							) {
 								restoredModel.updateTextEditorModel(undefined, modelToRestore.mode);

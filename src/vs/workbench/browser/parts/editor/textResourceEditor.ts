@@ -24,7 +24,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILanguageService } from 'vs/editor/common/services/languageService';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { EditorOption, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ModelConstants } from 'vs/editor/common/model';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
@@ -182,7 +182,7 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		}
 
 		const currentLanguageId = textModel.getLanguageId();
-		if (currentLanguageId !== PLAINTEXT_MODE_ID) {
+		if (currentLanguageId !== PLAINTEXT_LANGUAGE_ID) {
 			return; // require current languageId to be unspecific
 		}
 
@@ -202,7 +202,7 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		}
 
 		// Finally apply languageId to model if specified
-		if (candidateLanguageId !== PLAINTEXT_MODE_ID) {
+		if (candidateLanguageId !== PLAINTEXT_LANGUAGE_ID) {
 			this.modelService.setMode(textModel, this.languageService.createById(candidateLanguageId));
 		}
 	}

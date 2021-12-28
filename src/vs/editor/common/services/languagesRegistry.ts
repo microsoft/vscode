@@ -11,7 +11,7 @@ import * as mime from 'vs/base/common/mime';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { ILanguageIdCodec, LanguageId } from 'vs/editor/common/modes';
-import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { ModesRegistry, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
 import { ILanguageExtensionPoint, ILanguageNameIdPair } from 'vs/editor/common/services/languageService';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -37,7 +37,7 @@ export class LanguageIdCodec implements ILanguageIdCodec {
 
 	constructor() {
 		this._register(NULL_MODE_ID, LanguageId.Null);
-		this._register(PLAINTEXT_MODE_ID, LanguageId.PlainText);
+		this._register(PLAINTEXT_LANGUAGE_ID, LanguageId.PlainText);
 		this._nextLanguageId = 2;
 	}
 

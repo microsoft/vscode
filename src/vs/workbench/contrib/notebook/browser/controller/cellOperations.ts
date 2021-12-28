@@ -7,6 +7,7 @@ import { IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/brow
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference, IReadonlyTextBuffer } from 'vs/editor/common/model';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { INotebookActionContext, INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
@@ -39,7 +40,7 @@ export async function changeCellToKind(kind: CellKind, context: INotebookActionC
 
 		if (language === undefined) {
 			const availableLanguages = notebookEditor.activeKernel?.supportedLanguages ?? [];
-			language = availableLanguages[0] ?? 'plaintext';
+			language = availableLanguages[0] ?? PLAINTEXT_LANGUAGE_ID;
 		}
 
 		notebookEditor.textModel.applyEdits([
@@ -82,7 +83,7 @@ export async function changeCellToKind(kind: CellKind, context: INotebookActionC
 
 			if (language === undefined) {
 				const availableLanguages = notebookEditor.activeKernel?.supportedLanguages ?? [];
-				language = availableLanguages[0] ?? 'plaintext';
+				language = availableLanguages[0] ?? PLAINTEXT_LANGUAGE_ID;
 			}
 
 			rawEdits.push(
@@ -593,7 +594,7 @@ export function insertCell(
 	let language;
 	if (type === CellKind.Code) {
 		const supportedLanguages = activeKernel?.supportedLanguages ?? languageService.getRegisteredLanguageIds();
-		const defaultLanguage = supportedLanguages[0] || 'plaintext';
+		const defaultLanguage = supportedLanguages[0] || PLAINTEXT_LANGUAGE_ID;
 		if (cell?.cellKind === CellKind.Code) {
 			language = cell.language;
 		} else if (cell?.cellKind === CellKind.Markup) {

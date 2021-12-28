@@ -15,7 +15,7 @@ import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, IIdentifiedSi
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
 import { IModelLanguageChangedEvent, IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { DocumentSemanticTokensProviderRegistry, DocumentSemanticTokensProvider, SemanticTokens, SemanticTokensEdits } from 'vs/editor/common/modes';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { ILanguageSelection, ILanguageService } from 'vs/editor/common/services/languageService';
 import { IModelService, DocumentTokensProvider } from 'vs/editor/common/services/modelService';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
@@ -501,7 +501,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 			modelData = this._createModelData(value, languageSelection.languageId, resource, isForSimpleWidget);
 			this.setMode(modelData.model, languageSelection);
 		} else {
-			modelData = this._createModelData(value, PLAINTEXT_MODE_ID, resource, isForSimpleWidget);
+			modelData = this._createModelData(value, PLAINTEXT_LANGUAGE_ID, resource, isForSimpleWidget);
 		}
 
 		this._onModelAdded.fire(modelData.model);

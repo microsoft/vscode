@@ -11,7 +11,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { inputPlaceholderForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ChangeModeAction } from 'vs/workbench/browser/parts/editor/editorStatus';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -52,7 +52,7 @@ export class UntitledTextEditorHintContribution implements IEditorContribution {
 		const configValue = this.configurationService.getValue(untitledTextEditorHintSetting);
 		const model = this.editor.getModel();
 
-		if (model && model.uri.scheme === Schemas.untitled && model.getLanguageId() === PLAINTEXT_MODE_ID && configValue === 'text') {
+		if (model && model.uri.scheme === Schemas.untitled && model.getLanguageId() === PLAINTEXT_LANGUAGE_ID && configValue === 'text') {
 			this.untitledTextHintContentWidget = new UntitledTextEditorHintContentWidget(this.editor, this.commandService, this.configurationService, this.keybindingService);
 		}
 	}

@@ -14,7 +14,7 @@ import { EncodingMode, TextFileOperationError, TextFileOperationResult } from 'v
 import { FileOperationResult, FileOperationError, NotModifiedSinceFileOperationError, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { timeout } from 'vs/base/common/async';
-import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { ModesRegistry, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
@@ -183,7 +183,7 @@ suite('Files - FileEditorInput', () => {
 
 		input.setMode('text');
 		assert.strictEqual(input.getPreferredMode(), 'text');
-		assert.strictEqual(model.textEditorModel!.getLanguageId(), PLAINTEXT_MODE_ID);
+		assert.strictEqual(model.textEditorModel!.getLanguageId(), PLAINTEXT_LANGUAGE_ID);
 
 		const input2 = createFileInput(toResource.call(this, '/foo/bar/file.js'));
 		input2.setPreferredMode(mode);

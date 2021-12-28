@@ -28,8 +28,6 @@ export class EditorModesRegistry {
 		this._languages = [];
 	}
 
-	// --- languages
-
 	public registerLanguage(def: ILanguageExtensionPoint): IDisposable {
 		this._languages.push(def);
 		this._onDidChangeLanguages.fire(undefined);
@@ -53,16 +51,17 @@ export class EditorModesRegistry {
 export const ModesRegistry = new EditorModesRegistry();
 Registry.add(Extensions.ModesRegistry, ModesRegistry);
 
-export const PLAINTEXT_MODE_ID = 'plaintext';
+export const PLAINTEXT_LANGUAGE_ID = 'plaintext';
 export const PLAINTEXT_EXTENSION = '.txt';
 
 ModesRegistry.registerLanguage({
-	id: PLAINTEXT_MODE_ID,
+	id: PLAINTEXT_LANGUAGE_ID,
 	extensions: [PLAINTEXT_EXTENSION],
 	aliases: [nls.localize('plainText.alias', "Plain Text"), 'text'],
 	mimetypes: [Mimes.text]
 });
-LanguageConfigurationRegistry.register(PLAINTEXT_MODE_ID, {
+
+LanguageConfigurationRegistry.register(PLAINTEXT_LANGUAGE_ID, {
 	brackets: [
 		['(', ')'],
 		['[', ']'],

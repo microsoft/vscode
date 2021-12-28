@@ -15,7 +15,7 @@ import { mock } from 'vs/base/test/common/mock';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
 
 suite('NotebookKernelService', () => {
 
@@ -179,7 +179,7 @@ class TestNotebookKernel implements INotebookKernel {
 	}
 
 	constructor(opts?: { languages?: string[], label?: string, viewType?: string }) {
-		this.supportedLanguages = opts?.languages ?? [PLAINTEXT_MODE_ID];
+		this.supportedLanguages = opts?.languages ?? [PLAINTEXT_LANGUAGE_ID];
 		this.label = opts?.label ?? this.label;
 		this.viewType = opts?.viewType ?? this.viewType;
 	}

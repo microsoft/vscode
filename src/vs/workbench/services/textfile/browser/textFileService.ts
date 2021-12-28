@@ -23,7 +23,7 @@ import { IDialogService, IFileDialogService, IConfirmation } from 'vs/platform/d
 import { VSBuffer, VSBufferReadable, bufferToStream, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { ITextSnapshot, ITextModel } from 'vs/editor/common/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
@@ -524,7 +524,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			// mode
 			const sourceMode = sourceTextModel.getLanguageId();
 			const targetMode = targetTextModel.getLanguageId();
-			if (sourceMode !== PLAINTEXT_MODE_ID && targetMode === PLAINTEXT_MODE_ID) {
+			if (sourceMode !== PLAINTEXT_LANGUAGE_ID && targetMode === PLAINTEXT_LANGUAGE_ID) {
 				targetTextModel.setMode(sourceMode); // only use if more specific than plain/text
 			}
 
@@ -583,7 +583,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 				// Add mode file extension if specified
 				const mode = model.getMode();
-				if (mode && mode !== PLAINTEXT_MODE_ID) {
+				if (mode && mode !== PLAINTEXT_LANGUAGE_ID) {
 					suggestedFilename = this.suggestFilename(mode, untitledName);
 				} else {
 					suggestedFilename = untitledName;

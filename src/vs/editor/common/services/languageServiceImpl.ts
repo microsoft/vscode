@@ -11,7 +11,7 @@ import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
 import { ILanguageNameIdPair, ILanguageSelection, ILanguageService } from 'vs/editor/common/services/languageService';
 import { firstOrDefault } from 'vs/base/common/arrays';
 import { ILanguageIdCodec, TokenizationRegistry } from 'vs/editor/common/modes';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
 
 class LanguageSelection implements ILanguageSelection {
 
@@ -128,7 +128,7 @@ export class LanguageService extends Disposable implements ILanguageService {
 
 	public createById(languageId: string | null | undefined): ILanguageSelection {
 		return new LanguageSelection(this.onDidChange, () => {
-			const validLanguageId = (languageId && this.isRegisteredLanguageId(languageId) ? languageId : PLAINTEXT_MODE_ID);
+			const validLanguageId = (languageId && this.isRegisteredLanguageId(languageId) ? languageId : PLAINTEXT_LANGUAGE_ID);
 			this._getOrCreateMode(validLanguageId);
 			return validLanguageId;
 		});
@@ -150,7 +150,7 @@ export class LanguageService extends Disposable implements ILanguageService {
 
 	private _createModeAndGetLanguageIdentifier(languageId: string | null | undefined): string {
 		// Fall back to plain text if no mode was found
-		const validLanguageId = this.validateLanguageId(languageId || 'plaintext') || NULL_MODE_ID;
+		const validLanguageId = this.validateLanguageId(languageId || PLAINTEXT_LANGUAGE_ID) || NULL_MODE_ID;
 		this._getOrCreateMode(validLanguageId);
 		return validLanguageId;
 	}

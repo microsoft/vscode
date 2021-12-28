@@ -29,7 +29,7 @@ import { cellEditorBackground, NotebookEditorWidget } from 'vs/workbench/contrib
 import { GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ExecutionStateCellStatusBarContrib, TimerCellStatusBarContrib } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/executionStatusBarItemController';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { ILanguageService } from 'vs/editor/common/services/languageService';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -415,7 +415,7 @@ export class InteractiveEditor extends EditorPane {
 			}
 		}));
 
-		const editorModel = await input.resolveInput(this.#notebookWidget.value?.activeKernel?.supportedLanguages[0] ?? 'plaintext');
+		const editorModel = await input.resolveInput(this.#notebookWidget.value?.activeKernel?.supportedLanguages[0] ?? PLAINTEXT_LANGUAGE_ID);
 		this.#codeEditorWidget.setModel(editorModel);
 		if (viewState?.input) {
 			this.#codeEditorWidget.restoreViewState(viewState.input);
@@ -594,7 +594,7 @@ export class InteractiveEditor extends EditorPane {
 
 		if (selectedOrSuggested) {
 			const language = selectedOrSuggested.supportedLanguages[0];
-			const newMode = language ? this.#languageService.createById(language).languageId : PLAINTEXT_MODE_ID;
+			const newMode = language ? this.#languageService.createById(language).languageId : PLAINTEXT_LANGUAGE_ID;
 			textModel.setMode(newMode);
 		}
 	}
