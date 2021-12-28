@@ -20,14 +20,12 @@ export const Extensions = {
 export class EditorModesRegistry {
 
 	private readonly _languages: ILanguageExtensionPoint[];
-	private _dynamicLanguages: ILanguageExtensionPoint[];
 
 	private readonly _onDidChangeLanguages = new Emitter<void>();
 	public readonly onDidChangeLanguages: Event<void> = this._onDidChangeLanguages.event;
 
 	constructor() {
 		this._languages = [];
-		this._dynamicLanguages = [];
 	}
 
 	// --- languages
@@ -46,12 +44,9 @@ export class EditorModesRegistry {
 			}
 		};
 	}
-	public setDynamicLanguages(def: ILanguageExtensionPoint[]): void {
-		this._dynamicLanguages = def;
-		this._onDidChangeLanguages.fire(undefined);
-	}
-	public getLanguages(): ILanguageExtensionPoint[] {
-		return (<ILanguageExtensionPoint[]>[]).concat(this._languages).concat(this._dynamicLanguages);
+
+	public getLanguages(): ReadonlyArray<ILanguageExtensionPoint> {
+		return this._languages;
 	}
 }
 

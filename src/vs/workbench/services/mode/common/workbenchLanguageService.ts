@@ -7,7 +7,6 @@ import * as nls from 'vs/nls';
 import * as mime from 'vs/base/common/mime';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { ILanguageExtensionPoint, ILanguageService } from 'vs/editor/common/services/languageService';
 import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -136,7 +135,7 @@ export class WorkbenchLanguageService extends LanguageService {
 				}
 			}
 
-			ModesRegistry.setDynamicLanguages(allValidLanguages);
+			this._registry.setDynamicLanguages(allValidLanguages);
 
 		});
 

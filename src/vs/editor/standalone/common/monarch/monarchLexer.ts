@@ -11,7 +11,7 @@
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 import * as modes from 'vs/editor/common/modes';
-import { NULL_MODE_ID, NULL_STATE } from 'vs/editor/common/modes/nullMode';
+import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { TokenTheme } from 'vs/editor/common/modes/supports/tokenization';
 import { ILanguageService } from 'vs/editor/common/services/languageService';
 import * as monarchCommon from 'vs/editor/standalone/common/monarch/monarchCommon';
@@ -862,7 +862,7 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 			return new EmbeddedLanguageData(languageId, tokenizationSupport.getInitialState());
 		}
 
-		return new EmbeddedLanguageData(languageId || NULL_MODE_ID, NULL_STATE);
+		return new EmbeddedLanguageData(languageId, NULL_STATE);
 	}
 }
 

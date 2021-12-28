@@ -54,7 +54,7 @@ export class LanguageService extends Disposable implements ILanguageService {
 	static instanceCount = 0;
 
 	private readonly _encounteredLanguages: Set<string>;
-	private readonly _registry: LanguagesRegistry;
+	protected readonly _registry: LanguagesRegistry;
 	public readonly languageIdCodec: ILanguageIdCodec;
 
 	private readonly _onDidEncounterLanguage = this._register(new Emitter<string>());

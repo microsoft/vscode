@@ -71,8 +71,8 @@ export class LanguagesRegistry extends Disposable {
 	public readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private readonly _warnOnOverwrite: boolean;
-
 	public readonly languageIdCodec: LanguageIdCodec;
+	private _dynamicLanguages: ILanguageExtensionPoint[];
 	private _languages: { [id: string]: IResolvedLanguage; };
 	private _mimeTypesMap: { [mimeType: string]: string; };
 	private _nameMap: { [name: string]: string; };
@@ -83,8 +83,8 @@ export class LanguagesRegistry extends Disposable {
 		LanguagesRegistry.instanceCount++;
 
 		this._warnOnOverwrite = warnOnOverwrite;
-
 		this.languageIdCodec = new LanguageIdCodec();
+		this._dynamicLanguages = [];
 		this._languages = {};
 		this._mimeTypesMap = {};
 		this._nameMap = {};
@@ -93,7 +93,6 @@ export class LanguagesRegistry extends Disposable {
 		if (useModesRegistry) {
 			this._initializeFromRegistry();
 			this._register(ModesRegistry.onDidChangeLanguages((m) => {
-				// console.log(`onDidChangeLanguages - inst count: ${LanguagesRegistry.instanceCount}`);
 				this._initializeFromRegistry();
 			}));
 		}
@@ -104,6 +103,11 @@ export class LanguagesRegistry extends Disposable {
 		super.dispose();
 	}
 
+	public setDynamicLanguages(def: ILanguageExtensionPoint[]): void {
+		this._dynamicLanguages = def;
+		this._initializeFromRegistry();
+	}
+
 	private _initializeFromRegistry(): void {
 		this._languages = {};
 		this._mimeTypesMap = {};
@@ -111,7 +115,7 @@ export class LanguagesRegistry extends Disposable {
 		this._lowercaseNameMap = {};
 
 		mime.clearTextMimes();
-		const desc = ModesRegistry.getLanguages();
+		const desc = (<ILanguageExtensionPoint[]>[]).concat(ModesRegistry.getLanguages()).concat(this._dynamicLanguages);
 		this._registerLanguages(desc);
 	}
 
@@ -138,7 +142,7 @@ export class LanguagesRegistry extends Disposable {
 			});
 		});
 
-		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerOverrideIdentifiers(ModesRegistry.getLanguages().map(language => language.id));
+		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerOverrideIdentifiers(this.getRegisteredLanguageIds());
 
 		this._onDidChange.fire();
 	}
