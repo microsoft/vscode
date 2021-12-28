@@ -16,7 +16,7 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { ILanguageExtensionPoint, ILanguageService } from 'vs/editor/common/services/languageService';
 import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
-import { StaticServices } from 'vs/editor/standalone/browser/standaloneServices';
+import { StaticServices } from 'vs/editor/standalone/browser/simpleServices';
 import { compile } from 'vs/editor/standalone/common/monarch/monarchCompile';
 import { MonarchTokenizer } from 'vs/editor/standalone/common/monarch/monarchLexer';
 import { IMonarchLanguage } from 'vs/editor/standalone/common/monarch/monarchTypes';

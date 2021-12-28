@@ -13,7 +13,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { EditorScopedLayoutService } from 'vs/editor/standalone/browser/simpleServices';
+import { EditorScopedLayoutService } from 'vs/editor/standalone/browser/standaloneLayoutService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { QuickInputController } from 'vs/base/parts/quickinput/browser/quickInput';
 import { QuickInputService, IQuickInputControllerHost } from 'vs/platform/quickinput/browser/quickInput';

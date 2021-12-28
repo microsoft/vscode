@@ -21,7 +21,7 @@ import { IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebW
 import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
 import { Colorizer, IColorizerElementOptions, IColorizerOptions } from 'vs/editor/standalone/browser/colorizer';
 import { IStandaloneEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor, StandaloneDiffEditor, StandaloneEditor, createTextModel, IStandaloneDiffEditorConstructionOptions } from 'vs/editor/standalone/browser/standaloneCodeEditor';
-import { IEditorOverrideServices, StaticServices } from 'vs/editor/standalone/browser/standaloneServices';
+import { IEditorOverrideServices, StaticServices } from 'vs/editor/standalone/browser/simpleServices';
 import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IMarker, IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';

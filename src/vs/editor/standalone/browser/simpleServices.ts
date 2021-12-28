@@ -26,7 +26,7 @@ import { IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides,
 import { Configuration, ConfigurationModel, DefaultConfigurationModel, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInputResult, IShowResult } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { IKeybindingEvent, IKeybindingService, IKeyboardEvent, KeybindingSource, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
@@ -48,13 +48,41 @@ import { ConsoleLogger, ILogService, LogService } from 'vs/platform/log/common/l
 import { IWorkspaceTrustManagementService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo } from 'vs/platform/workspace/common/workspaceTrust';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IContextViewDelegate, IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService, IContextViewDelegate, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { getSingletonServiceDescriptors, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { OpenerService } from 'vs/editor/browser/services/openerService';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
+import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { MarkerDecorationsService } from 'vs/editor/common/services/markerDecorationsServiceImpl';
+import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { StandaloneQuickInputServiceImpl } from 'vs/editor/standalone/browser/quickInput/standaloneQuickInputServiceImpl';
+import { StandaloneCodeEditorServiceImpl } from 'vs/editor/standalone/browser/standaloneCodeServiceImpl';
+import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standaloneThemeServiceImpl';
+import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
+import { AccessibilityService } from 'vs/platform/accessibility/browser/accessibilityService';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IMenuService } from 'vs/platform/actions/common/actions';
+import { MenuService } from 'vs/platform/actions/common/menuService';
+import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IListService, ListService } from 'vs/platform/list/browser/listService';
+import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { MarkerService } from 'vs/platform/markers/common/markerService';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 
-export class SimpleModel implements IResolvedTextEditorModel {
+class SimpleModel implements IResolvedTextEditorModel {
 
 	private readonly model: ITextModel;
 	private readonly _onWillDispose: Emitter<void>;
@@ -104,11 +132,7 @@ export class SimpleModel implements IResolvedTextEditorModel {
 	}
 }
 
-export interface IOpenEditorDelegate {
-	(url: string): boolean;
-}
-
-export class SimpleTextModelService implements ITextModelService {
+class SimpleTextModelService implements ITextModelService {
 	public _serviceBrand: undefined;
 
 	constructor(
@@ -136,7 +160,7 @@ export class SimpleTextModelService implements ITextModelService {
 	}
 }
 
-export class SimpleEditorProgressService implements IEditorProgressService {
+class SimpleEditorProgressService implements IEditorProgressService {
 	declare readonly _serviceBrand: undefined;
 
 	private static NULL_PROGRESS_RUNNER: IProgressRunner = {
@@ -156,7 +180,7 @@ export class SimpleEditorProgressService implements IEditorProgressService {
 	}
 }
 
-export class SimpleDialogService implements IDialogService {
+class SimpleDialogService implements IDialogService {
 
 	public _serviceBrand: undefined;
 
@@ -557,7 +581,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 	}
 }
 
-export class SimpleResourceConfigurationService implements ITextResourceConfigurationService {
+class SimpleResourceConfigurationService implements ITextResourceConfigurationService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -588,7 +612,7 @@ export class SimpleResourceConfigurationService implements ITextResourceConfigur
 	}
 }
 
-export class SimpleResourcePropertiesService implements ITextResourcePropertiesService {
+class SimpleResourcePropertiesService implements ITextResourcePropertiesService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -606,7 +630,7 @@ export class SimpleResourcePropertiesService implements ITextResourcePropertiesS
 	}
 }
 
-export class StandaloneTelemetryService implements ITelemetryService {
+class StandaloneTelemetryService implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
 
 	public telemetryLevel = TelemetryLevel.NONE;
@@ -639,7 +663,7 @@ export class StandaloneTelemetryService implements ITelemetryService {
 	}
 }
 
-export class SimpleWorkspaceContextService implements IWorkspaceContextService {
+class SimpleWorkspaceContextService implements IWorkspaceContextService {
 
 	public _serviceBrand: undefined;
 
@@ -716,7 +740,7 @@ export function updateConfigurationService(configurationService: IConfigurationS
 	}
 }
 
-export class SimpleBulkEditService implements IBulkEditService {
+class SimpleBulkEditService implements IBulkEditService {
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
@@ -773,7 +797,7 @@ export class SimpleBulkEditService implements IBulkEditService {
 	}
 }
 
-export class SimpleUriLabelService implements ILabelService {
+class SimpleUriLabelService implements ILabelService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -811,58 +835,8 @@ export class SimpleUriLabelService implements ILabelService {
 	}
 }
 
-export class SimpleLayoutService implements ILayoutService {
-	declare readonly _serviceBrand: undefined;
 
-	public onDidLayout = Event.None;
-
-	private _dimension?: dom.IDimension;
-	get dimension(): dom.IDimension {
-		if (!this._dimension) {
-			this._dimension = dom.getClientArea(window.document.body);
-		}
-
-		return this._dimension;
-	}
-
-	get hasContainer(): boolean {
-		return false;
-	}
-
-	get container(): HTMLElement {
-		// On a page, multiple editors can be created. Therefore, there are multiple containers, not
-		// just a single one. Please use `ICodeEditorService` to get the current focused code editor
-		// and use its container if necessary. You can also instantiate `EditorScopedLayoutService`
-		// which implements `ILayoutService` but is not a part of the service collection because
-		// it is code editor instance specific.
-		throw new Error(`ILayoutService.container is not available in the standalone editor!`);
-	}
-
-	focus(): void {
-		this._codeEditorService.getFocusedCodeEditor()?.focus();
-	}
-
-	constructor(
-		@ICodeEditorService private _codeEditorService: ICodeEditorService
-	) { }
-}
-
-export class EditorScopedLayoutService extends SimpleLayoutService {
-	override get hasContainer(): boolean {
-		return false;
-	}
-	override get container(): HTMLElement {
-		return this._container;
-	}
-	constructor(
-		private _container: HTMLElement,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
-	) {
-		super(codeEditorService);
-	}
-}
-
-export class StandaloneContextViewService extends ContextViewService {
+class StandaloneContextViewService extends ContextViewService {
 
 	constructor(
 		@ILayoutService layoutService: ILayoutService,
@@ -882,7 +856,7 @@ export class StandaloneContextViewService extends ContextViewService {
 	}
 }
 
-export class SimpleWorkspaceTrustManagementService implements IWorkspaceTrustManagementService {
+class SimpleWorkspaceTrustManagementService implements IWorkspaceTrustManagementService {
 	_serviceBrand: undefined;
 
 	private _neverEmitter = new Emitter<never>();
@@ -927,19 +901,19 @@ export class SimpleWorkspaceTrustManagementService implements IWorkspaceTrustMan
 	}
 }
 
-export class StandaloneLanguageService extends LanguageService {
+class StandaloneLanguageService extends LanguageService {
 	constructor() {
 		super();
 	}
 }
 
-export class StandaloneLogService extends LogService {
+class StandaloneLogService extends LogService {
 	constructor() {
 		super(new ConsoleLogger());
 	}
 }
 
-export class StandaloneContextMenuService extends ContextMenuService {
+class StandaloneContextMenuService extends ContextMenuService {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService notificationService: INotificationService,
@@ -949,5 +923,96 @@ export class StandaloneContextMenuService extends ContextMenuService {
 	) {
 		super(telemetryService, notificationService, contextViewService, keybindingService, themeService);
 		this.configure({ blockMouse: false }); // we do not want that in the standalone editor
+	}
+}
+
+export interface IEditorOverrideServices {
+	[index: string]: any;
+}
+
+// imported because they self-register singletons
+import 'vs/platform/undoRedo/common/undoRedoService';
+import 'vs/editor/common/modes/languageConfigurationRegistry';
+import 'vs/editor/standalone/browser/standaloneLayoutService';
+
+registerSingleton(IConfigurationService, SimpleConfigurationService);
+registerSingleton(ITextResourceConfigurationService, SimpleResourceConfigurationService);
+registerSingleton(ITextResourcePropertiesService, SimpleResourcePropertiesService);
+registerSingleton(IWorkspaceContextService, SimpleWorkspaceContextService);
+registerSingleton(ILabelService, SimpleUriLabelService);
+registerSingleton(ITelemetryService, StandaloneTelemetryService);
+registerSingleton(IDialogService, SimpleDialogService);
+registerSingleton(INotificationService, SimpleNotificationService);
+registerSingleton(IMarkerService, MarkerService);
+registerSingleton(ILanguageService, StandaloneLanguageService);
+registerSingleton(IStandaloneThemeService, StandaloneThemeServiceImpl);
+registerSingleton(ILogService, StandaloneLogService);
+registerSingleton(IModelService, ModelServiceImpl);
+registerSingleton(IMarkerDecorationsService, MarkerDecorationsService);
+registerSingleton(IContextKeyService, ContextKeyService);
+registerSingleton(ICodeEditorService, StandaloneCodeEditorServiceImpl);
+registerSingleton(IEditorProgressService, SimpleEditorProgressService);
+registerSingleton(IStorageService, InMemoryStorageService);
+registerSingleton(IEditorWorkerService, EditorWorkerServiceImpl);
+registerSingleton(IBulkEditService, SimpleBulkEditService);
+registerSingleton(IWorkspaceTrustManagementService, SimpleWorkspaceTrustManagementService);
+registerSingleton(ITextModelService, SimpleTextModelService);
+registerSingleton(IAccessibilityService, AccessibilityService);
+registerSingleton(IListService, ListService);
+registerSingleton(ICommandService, StandaloneCommandService);
+registerSingleton(IKeybindingService, StandaloneKeybindingService);
+registerSingleton(IQuickInputService, StandaloneQuickInputServiceImpl);
+registerSingleton(IContextViewService, StandaloneContextViewService);
+registerSingleton(IOpenerService, OpenerService);
+registerSingleton(IClipboardService, BrowserClipboardService);
+registerSingleton(IContextMenuService, StandaloneContextMenuService);
+registerSingleton(IMenuService, MenuService);
+
+/**
+ * We don't want to eagerly instantiate services because embedders get a one time chance
+ * to override services when they create the first editor.
+ */
+export module StaticServices {
+
+	const serviceCollection = new ServiceCollection();
+	for (const [id, descriptor] of getSingletonServiceDescriptors()) {
+		serviceCollection.set(id, descriptor);
+	}
+
+	const instantiationService = new InstantiationService(serviceCollection, true);
+	serviceCollection.set(IInstantiationService, instantiationService);
+
+	export function get<T>(serviceId: ServiceIdentifier<T>): T {
+		const r = serviceCollection.get(serviceId);
+		if (!r) {
+			throw new Error('Missing service ' + serviceId);
+		}
+		if (r instanceof SyncDescriptor) {
+			return instantiationService.invokeFunction((accessor) => accessor.get(serviceId));
+		} else {
+			return r;
+		}
+	}
+
+	let initialized = false;
+	export function initialize(overrides: IEditorOverrideServices): IInstantiationService {
+		if (initialized) {
+			return instantiationService;
+		}
+		initialized = true;
+
+		// Initialize the service collection with the overrides, but only if the
+		// service was not instantiated in the meantime.
+		for (const serviceId in overrides) {
+			if (overrides.hasOwnProperty(serviceId)) {
+				const serviceIdentifier = createDecorator(serviceId);
+				const r = serviceCollection.get(serviceIdentifier);
+				if (r instanceof SyncDescriptor) {
+					serviceCollection.set(serviceIdentifier, overrides[serviceId]);
+				}
+			}
+		}
+
+		return instantiationService;
 	}
 }
