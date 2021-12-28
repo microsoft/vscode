@@ -81,6 +81,10 @@ export class LanguageService extends Disposable implements ILanguageService {
 		return this._registry.isRegisteredLanguageId(languageId);
 	}
 
+	public validateLanguageId(languageId: string | null): string | null {
+		return this._registry.validateLanguageId(languageId);
+	}
+
 	public getRegisteredLanguageIds(): string[] {
 		return this._registry.getRegisteredLanguageIds();
 	}
@@ -89,44 +93,38 @@ export class LanguageService extends Disposable implements ILanguageService {
 		return this._registry.getSortedRegisteredLanguageNames();
 	}
 
-	public getExtensionsForLanguageId(languageId: string): string[] {
-		return this._registry.getExtensionsForLanguageId(languageId);
-	}
-
-	public getFilenamesForLanguageId(languageId: string): string[] {
-		return this._registry.getFilenamesForLanguageId(languageId);
-	}
-
-	public getMimeTypeForLanguageId(languageId: string): string | null {
-		return this._registry.getMimeTypeForLanguageId(languageId);
-	}
-
 	public getLanguageName(languageId: string): string | null {
 		return this._registry.getLanguageName(languageId);
 	}
 
-	public getLanguageIdForLanguageName(languageName: string): string | null {
-		return this._registry.getLanguageIdForLanguageName(languageName);
+	public getMimeType(languageId: string): string | null {
+		return this._registry.getMimeType(languageId);
 	}
 
-	public getLanguageIdForMimeType(mimeType: string | null | undefined): string | null {
-		return this._registry.getLanguageIdForMimeType(mimeType);
+	public getExtensions(languageId: string): ReadonlyArray<string> {
+		return this._registry.getExtensions(languageId);
 	}
 
-	public getLanguageIdByFilepathOrFirstLine(resource: URI | null, firstLine?: string): string | null {
-		const languageIds = this._registry.getLanguageIdByFilepathOrFirstLine(resource, firstLine);
-		return firstOrDefault(languageIds, null);
+	public getFilenames(languageId: string): ReadonlyArray<string> {
+		return this._registry.getFilenames(languageId);
 	}
 
-	public validateLanguageId(languageId: string | null): string | null {
-		return this._registry.validateLanguageId(languageId);
-	}
-
-	public getConfigurationFiles(languageId: string): URI[] {
+	public getConfigurationFiles(languageId: string): ReadonlyArray<URI> {
 		return this._registry.getConfigurationFiles(languageId);
 	}
 
-	// --- instantiation
+	public getLanguageIdByLanguageName(languageName: string): string | null {
+		return this._registry.getLanguageIdByLanguageName(languageName);
+	}
+
+	public getLanguageIdByMimeType(mimeType: string | null | undefined): string | null {
+		return this._registry.getLanguageIdByMimeType(mimeType);
+	}
+
+	public guessLanguageIdByFilepathOrFirstLine(resource: URI | null, firstLine?: string): string | null {
+		const languageIds = this._registry.guessLanguageIdByFilepathOrFirstLine(resource, firstLine);
+		return firstOrDefault(languageIds, null);
+	}
 
 	public createById(languageId: string | null | undefined): ILanguageSelection {
 		return new LanguageSelection(this.onLanguagesMaybeChanged, () => {
@@ -138,14 +136,14 @@ export class LanguageService extends Disposable implements ILanguageService {
 
 	public createByMimeType(mimeType: string | null | undefined): ILanguageSelection {
 		return new LanguageSelection(this.onLanguagesMaybeChanged, () => {
-			const languageId = this.getLanguageIdForMimeType(mimeType);
+			const languageId = this.getLanguageIdByMimeType(mimeType);
 			return this._createModeAndGetLanguageIdentifier(languageId);
 		});
 	}
 
 	public createByFilepathOrFirstLine(resource: URI | null, firstLine?: string): ILanguageSelection {
 		return new LanguageSelection(this.onLanguagesMaybeChanged, () => {
-			const languageId = this.getLanguageIdByFilepathOrFirstLine(resource, firstLine);
+			const languageId = this.guessLanguageIdByFilepathOrFirstLine(resource, firstLine);
 			return this._createModeAndGetLanguageIdentifier(languageId);
 		});
 	}

@@ -208,7 +208,7 @@ export async function renderMarkdownDocument(
 			return code;
 		}
 		extensionService.whenInstalledExtensionsRegistered().then(async () => {
-			const languageId = languageService.getLanguageIdForLanguageName(lang);
+			const languageId = languageService.getLanguageIdByLanguageName(lang);
 			const html = await tokenizeToString(languageService, code, languageId);
 			callback(null, `<code>${html}</code>`);
 		});

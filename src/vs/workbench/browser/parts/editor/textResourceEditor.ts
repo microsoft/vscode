@@ -198,7 +198,7 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		// We can still try to guess a good languageId from the first line if
 		// the paste changed the first line
 		else {
-			candidateLanguageId = withNullAsUndefined(this.languageService.getLanguageIdByFilepathOrFirstLine(textModel.uri, textModel.getLineContent(1).substr(0, ModelConstants.FIRST_LINE_DETECTION_LENGTH_LIMIT)));
+			candidateLanguageId = withNullAsUndefined(this.languageService.guessLanguageIdByFilepathOrFirstLine(textModel.uri, textModel.getLineContent(1).substr(0, ModelConstants.FIRST_LINE_DETECTION_LENGTH_LIMIT)));
 		}
 
 		// Finally apply languageId to model if specified

@@ -35,7 +35,7 @@ class CellStatusBarLanguagePickerProvider implements INotebookCellStatusBarItemP
 
 		const languageId = cell.cellKind === CellKind.Markup ?
 			'markdown' :
-			(this._languageService.getLanguageIdForLanguageName(cell.language) || cell.language);
+			(this._languageService.getLanguageIdByLanguageName(cell.language) || cell.language);
 		const text = this._languageService.getLanguageName(languageId) || languageId;
 		const item = <INotebookCellStatusBarItem>{
 			text,

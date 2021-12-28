@@ -760,7 +760,7 @@ var requirejs = (function() {
 
 						for (const { id, value, lang } of data.codeBlocks) {
 							// The language id may be a language aliases (e.g.js instead of javascript)
-							const languageId = this.languageService.getLanguageIdForLanguageName(lang);
+							const languageId = this.languageService.getLanguageIdByLanguageName(lang);
 							if (!languageId) {
 								continue;
 							}

@@ -32,7 +32,7 @@ suite('TextResourceConfigurationService - Update', () => {
 	setup(() => {
 		const instantiationService = new TestInstantiationService();
 		instantiationService.stub(IModelService, <Partial<IModelService>>{ getModel() { return null; } });
-		instantiationService.stub(ILanguageService, <Partial<ILanguageService>>{ getLanguageIdByFilepathOrFirstLine() { return language; } });
+		instantiationService.stub(ILanguageService, <Partial<ILanguageService>>{ guessLanguageIdByFilepathOrFirstLine() { return language; } });
 		instantiationService.stub(IConfigurationService, configurationService);
 		testObject = instantiationService.createInstance(TextResourceConfigurationService);
 	});

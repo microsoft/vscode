@@ -39,31 +39,71 @@ export interface ILanguageService {
 	onDidEncounterLanguage: Event<string>;
 	onLanguagesMaybeChanged: Event<void>;
 
-	// --- reading
 	isRegisteredLanguageId(languageId: string): boolean;
+	validateLanguageId(languageId: string): string | null;
+
+	/**
+	 * Get a list of all registered languages.
+	 */
 	getRegisteredLanguageIds(): string[];
+
+	/**
+	 * Get a list of all registered languages with a name.
+	 * If a language is explicitly registered without a name, it will not be part of the result.
+	 * The result is sorted using by name case insensitive.
+	 */
 	getSortedRegisteredLanguageNames(): ILanguageNameIdPair[];
-	getExtensionsForLanguageId(languageId: string): string[];
-	getFilenamesForLanguageId(languageId: string): string[];
-	getMimeTypeForLanguageId(languageId: string): string | null;
+
+	/**
+	 * Get the preferred language name for a language.
+	 */
 	getLanguageName(languageId: string): string | null;
+
+	/**
+	 * Get the mimetype for a language.
+	 */
+	getMimeType(languageId: string): string | null;
+
+	/**
+	 * Get all file extensions for a language.
+	 */
+	getExtensions(languageId: string): ReadonlyArray<string>;
+
+	/**
+	 * Get all file names for a language.
+	 */
+	getFilenames(languageId: string): ReadonlyArray<string>;
+
+	/**
+	 * Get all language configuration files for a language.
+	 */
+	getConfigurationFiles(languageId: string): ReadonlyArray<URI>;
+
 	/**
 	 * Look up a language by its name case insensitive.
 	 */
-	getLanguageIdForLanguageName(languageName: string): string | null;
-	getLanguageIdForMimeType(mimeType: string | null | undefined): string | null;
-	getLanguageIdByFilepathOrFirstLine(resource: URI, firstLine?: string): string | null;
-	validateLanguageId(languageId: string): string | null;
-	getConfigurationFiles(languageId: string): URI[];
+	getLanguageIdByLanguageName(languageName: string): string | null;
+
+	/**
+	 * Look up a language by its mime type.
+	 */
+	getLanguageIdByMimeType(mimeType: string | null | undefined): string | null;
+
+	/**
+	 * Guess the language id for a resource.
+	 */
+	guessLanguageIdByFilepathOrFirstLine(resource: URI, firstLine?: string): string | null;
 
 	/**
 	 * Will fall back to 'plaintext' if `languageId` is unknown.
 	 */
 	createById(languageId: string | null | undefined): ILanguageSelection;
+
 	/**
 	 * Will fall back to 'plaintext' if `mimeType` is unknown.
 	 */
 	createByMimeType(mimeType: string | null | undefined): ILanguageSelection;
+
 	/**
 	 * Will fall back to 'plaintext' if the `languageId` cannot be determined.
 	 */

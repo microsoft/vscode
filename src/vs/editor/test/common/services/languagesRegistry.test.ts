@@ -108,7 +108,7 @@ suite('LanguagesRegistry', () => {
 			id: 'modeId'
 		}]);
 
-		assert.deepStrictEqual(registry.getMimeTypeForLanguageId('modeId'), 'text/x-modeId');
+		assert.deepStrictEqual(registry.getMimeType('modeId'), 'text/x-modeId');
 
 		registry.dispose();
 	});
@@ -121,7 +121,7 @@ suite('LanguagesRegistry', () => {
 			mimetypes: ['text/modeId', 'text/modeId2']
 		}]);
 
-		assert.deepStrictEqual(registry.getMimeTypeForLanguageId('modeId'), 'text/modeId');
+		assert.deepStrictEqual(registry.getMimeType('modeId'), 'text/modeId');
 
 		registry.dispose();
 	});
@@ -138,7 +138,7 @@ suite('LanguagesRegistry', () => {
 			mimetypes: ['text/modeId']
 		}]);
 
-		assert.deepStrictEqual(registry.getMimeTypeForLanguageId('modeId'), 'text/x-modeId');
+		assert.deepStrictEqual(registry.getMimeType('modeId'), 'text/x-modeId');
 
 		registry.dispose();
 	});
@@ -151,7 +151,7 @@ suite('LanguagesRegistry', () => {
 		}]);
 
 		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), [{ languageName: 'a', languageId: 'a' }]);
-		assert.deepStrictEqual(registry.getLanguageIdForLanguageName('a'), 'a');
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a'), 'a');
 		assert.deepStrictEqual(registry.getLanguageName('a'), 'a');
 
 		registry._registerLanguages([{
@@ -160,9 +160,9 @@ suite('LanguagesRegistry', () => {
 		}]);
 
 		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), [{ languageName: 'A1', languageId: 'a' }]);
-		assert.deepStrictEqual(registry.getLanguageIdForLanguageName('a'), 'a');
-		assert.deepStrictEqual(registry.getLanguageIdForLanguageName('a1'), 'a');
-		assert.deepStrictEqual(registry.getLanguageIdForLanguageName('a2'), 'a');
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a'), 'a');
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a1'), 'a');
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a2'), 'a');
 		assert.deepStrictEqual(registry.getLanguageName('a'), 'A1');
 
 		registry._registerLanguages([{
@@ -171,11 +171,11 @@ suite('LanguagesRegistry', () => {
 		}]);
 
 		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), [{ languageName: 'A3', languageId: 'a' }]);
-		assert.deepStrictEqual(registry.getLanguageIdForLanguageName('a'), 'a');
-		assert.deepStrictEqual(registry.getLanguageIdForLanguageName('a1'), 'a');
-		assert.deepStrictEqual(registry.getLanguageIdForLanguageName('a2'), 'a');
-		assert.deepStrictEqual(registry.getLanguageIdForLanguageName('a3'), 'a');
-		assert.deepStrictEqual(registry.getLanguageIdForLanguageName('a4'), 'a');
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a'), 'a');
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a1'), 'a');
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a2'), 'a');
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a3'), 'a');
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a4'), 'a');
 		assert.deepStrictEqual(registry.getLanguageName('a'), 'A3');
 
 		registry.dispose();
@@ -189,7 +189,7 @@ suite('LanguagesRegistry', () => {
 		}]);
 
 		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), [{ languageName: 'a', languageId: 'a' }]);
-		assert.deepStrictEqual(registry.getLanguageIdForLanguageName('a'), 'a');
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a'), 'a');
 		assert.deepStrictEqual(registry.getLanguageName('a'), 'a');
 
 		registry._registerLanguages([{
@@ -198,8 +198,8 @@ suite('LanguagesRegistry', () => {
 		}]);
 
 		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), [{ languageName: 'a', languageId: 'a' }]);
-		assert.deepStrictEqual(registry.getLanguageIdForLanguageName('a'), 'a');
-		assert.deepStrictEqual(registry.getLanguageIdForLanguageName('b'), 'b');
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a'), 'a');
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('b'), 'b');
 		assert.deepStrictEqual(registry.getLanguageName('a'), 'a');
 		assert.deepStrictEqual(registry.getLanguageName('b'), null);
 
@@ -215,14 +215,14 @@ suite('LanguagesRegistry', () => {
 			extensions: ['aExt']
 		}]);
 
-		assert.deepStrictEqual(registry.getExtensionsForLanguageId('a'), ['aExt']);
+		assert.deepStrictEqual(registry.getExtensions('a'), ['aExt']);
 
 		registry._registerLanguages([{
 			id: 'a',
 			extensions: ['aExt2']
 		}]);
 
-		assert.deepStrictEqual(registry.getExtensionsForLanguageId('a'), ['aExt', 'aExt2']);
+		assert.deepStrictEqual(registry.getExtensions('a'), ['aExt', 'aExt2']);
 
 		registry.dispose();
 	});
@@ -235,7 +235,7 @@ suite('LanguagesRegistry', () => {
 			extensions: ['aExt3']
 		}]);
 
-		assert.deepStrictEqual(registry.getExtensionsForLanguageId('a')[0], 'aExt3');
+		assert.deepStrictEqual(registry.getExtensions('a')[0], 'aExt3');
 
 		registry._registerLanguages([{
 			id: 'a',
@@ -243,14 +243,14 @@ suite('LanguagesRegistry', () => {
 			extensions: ['aExt']
 		}]);
 
-		assert.deepStrictEqual(registry.getExtensionsForLanguageId('a')[0], 'aExt');
+		assert.deepStrictEqual(registry.getExtensions('a')[0], 'aExt');
 
 		registry._registerLanguages([{
 			id: 'a',
 			extensions: ['aExt2']
 		}]);
 
-		assert.deepStrictEqual(registry.getExtensionsForLanguageId('a')[0], 'aExt');
+		assert.deepStrictEqual(registry.getExtensions('a')[0], 'aExt');
 
 		registry.dispose();
 	});
@@ -264,14 +264,14 @@ suite('LanguagesRegistry', () => {
 			filenames: ['aFilename']
 		}]);
 
-		assert.deepStrictEqual(registry.getFilenamesForLanguageId('a'), ['aFilename']);
+		assert.deepStrictEqual(registry.getFilenames('a'), ['aFilename']);
 
 		registry._registerLanguages([{
 			id: 'a',
 			filenames: ['aFilename2']
 		}]);
 
-		assert.deepStrictEqual(registry.getFilenamesForLanguageId('a'), ['aFilename', 'aFilename2']);
+		assert.deepStrictEqual(registry.getFilenames('a'), ['aFilename', 'aFilename2']);
 
 		registry.dispose();
 	});

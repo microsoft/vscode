@@ -77,7 +77,7 @@ function detectLanguageId(modelService: IModelService, languageService: ILanguag
 		const mime = metadata.get(DataUri.META_DATA_MIME);
 
 		if (mime) {
-			languageId = languageService.getLanguageIdForMimeType(mime);
+			languageId = languageService.getLanguageIdByMimeType(mime);
 		}
 	}
 
@@ -95,7 +95,7 @@ function detectLanguageId(modelService: IModelService, languageService: ILanguag
 	}
 
 	// otherwise fallback to path based detection
-	return languageService.getLanguageIdByFilepathOrFirstLine(resource);
+	return languageService.guessLanguageIdByFilepathOrFirstLine(resource);
 }
 
 export function cssEscape(str: string): string {

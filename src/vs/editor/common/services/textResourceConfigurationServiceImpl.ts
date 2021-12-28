@@ -111,7 +111,7 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 		if (model) {
 			return position ? model.getLanguageIdAtPosition(position.lineNumber, position.column) : model.getLanguageId();
 		}
-		return this.languageService.getLanguageIdByFilepathOrFirstLine(resource);
+		return this.languageService.guessLanguageIdByFilepathOrFirstLine(resource);
 	}
 
 	private toResourceConfigurationChangeEvent(configurationChangeEvent: IConfigurationChangeEvent): ITextResourceConfigurationChangeEvent {

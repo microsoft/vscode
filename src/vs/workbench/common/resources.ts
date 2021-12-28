@@ -88,7 +88,7 @@ export class ResourceContextKey implements IContextKey<URI> {
 			this._langIdKey.set(null);
 			return;
 		}
-		const langId = this._modelService.getModel(value)?.getLanguageId() ?? this._languageService.getLanguageIdByFilepathOrFirstLine(value);
+		const langId = this._modelService.getModel(value)?.getLanguageId() ?? this._languageService.guessLanguageIdByFilepathOrFirstLine(value);
 		this._langIdKey.set(langId);
 	}
 

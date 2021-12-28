@@ -216,7 +216,7 @@ class Snapper {
 	}
 
 	public captureSyntaxTokens(fileName: string, content: string): Promise<IToken[]> {
-		const languageId = this.languageService.getLanguageIdByFilepathOrFirstLine(URI.file(fileName));
+		const languageId = this.languageService.guessLanguageIdByFilepathOrFirstLine(URI.file(fileName));
 		return this.textMateService.createGrammar(languageId!).then((grammar) => {
 			if (!grammar) {
 				return [];

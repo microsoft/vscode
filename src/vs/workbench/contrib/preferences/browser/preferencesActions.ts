@@ -34,11 +34,11 @@ export class ConfigureLanguageBasedSettingsAction extends Action {
 			const description: string = nls.localize('languageDescriptionConfigured', "({0})", languageId);
 			// construct a fake resource to be able to show nice icons if any
 			let fakeResource: URI | undefined;
-			const extensions = this.languageService.getExtensionsForLanguageId(languageId);
+			const extensions = this.languageService.getExtensions(languageId);
 			if (extensions.length) {
 				fakeResource = URI.file(extensions[0]);
 			} else {
-				const filenames = this.languageService.getFilenamesForLanguageId(languageId);
+				const filenames = this.languageService.getFilenames(languageId);
 				if (filenames.length) {
 					fakeResource = URI.file(filenames[0]);
 				}
@@ -53,7 +53,7 @@ export class ConfigureLanguageBasedSettingsAction extends Action {
 		await this.quickInputService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language") })
 			.then(pick => {
 				if (pick) {
-					const languageId = this.languageService.getLanguageIdForLanguageName(pick.label);
+					const languageId = this.languageService.getLanguageIdByLanguageName(pick.label);
 					if (typeof languageId === 'string') {
 						return this.preferencesService.openUserSettings({ jsonEditor: true, revealSetting: { key: `[${languageId}]`, edit: true } });
 					}

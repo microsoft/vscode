@@ -745,8 +745,8 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 			const computeNewStateForEmbeddedLanguage = (enteringEmbeddedLanguage: string) => {
 				// support language names, mime types, and language ids
 				const languageId = (
-					this._languageService.getLanguageIdForLanguageName(enteringEmbeddedLanguage)
-					|| this._languageService.getLanguageIdForMimeType(enteringEmbeddedLanguage)
+					this._languageService.getLanguageIdByLanguageName(enteringEmbeddedLanguage)
+					|| this._languageService.getLanguageIdByMimeType(enteringEmbeddedLanguage)
 					|| enteringEmbeddedLanguage
 				);
 

@@ -34,7 +34,7 @@ export class Colorizer {
 			console.error('Mode not detected');
 			return Promise.resolve();
 		}
-		const languageId = languageService.getLanguageIdForMimeType(mimeType) || mimeType;
+		const languageId = languageService.getLanguageIdByMimeType(mimeType) || mimeType;
 
 		themeService.setTheme(theme);
 

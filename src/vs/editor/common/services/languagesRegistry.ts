@@ -265,6 +265,18 @@ export class LanguagesRegistry extends Disposable {
 		return hasOwnProperty.call(this._languages, languageId);
 	}
 
+	public validateLanguageId(languageId: string | null | undefined): string | null {
+		if (!languageId || languageId === NULL_MODE_ID) {
+			return NULL_MODE_ID;
+		}
+
+		if (!hasOwnProperty.call(this._languages, languageId)) {
+			return null;
+		}
+
+		return languageId;
+	}
+
 	public getRegisteredLanguageIds(): string[] {
 		return Object.keys(this._languages);
 	}
@@ -290,7 +302,36 @@ export class LanguagesRegistry extends Disposable {
 		return this._languages[languageId].name;
 	}
 
-	public getLanguageIdForLanguageName(languageName: string): string | null {
+	public getMimeType(languageId: string): string | null {
+		if (!hasOwnProperty.call(this._languages, languageId)) {
+			return null;
+		}
+		const language = this._languages[languageId];
+		return (language.mimetypes[0] || null);
+	}
+
+	public getExtensions(languageId: string): ReadonlyArray<string> {
+		if (!hasOwnProperty.call(this._languages, languageId)) {
+			return [];
+		}
+		return this._languages[languageId].extensions;
+	}
+
+	public getFilenames(languageId: string): ReadonlyArray<string> {
+		if (!hasOwnProperty.call(this._languages, languageId)) {
+			return [];
+		}
+		return this._languages[languageId].filenames;
+	}
+
+	public getConfigurationFiles(languageId: string): ReadonlyArray<URI> {
+		if (!hasOwnProperty.call(this._languages, languageId)) {
+			return [];
+		}
+		return this._languages[languageId].configurationFiles || [];
+	}
+
+	public getLanguageIdByLanguageName(languageName: string): string | null {
 		const languageNameLower = languageName.toLowerCase();
 		if (!hasOwnProperty.call(this._lowercaseNameMap, languageNameLower)) {
 			return null;
@@ -298,7 +339,7 @@ export class LanguagesRegistry extends Disposable {
 		return this._lowercaseNameMap[languageNameLower];
 	}
 
-	public getLanguageIdForMimeType(mimeType: string | null | undefined): string | null {
+	public getLanguageIdByMimeType(mimeType: string | null | undefined): string | null {
 		if (!mimeType) {
 			return null;
 		}
@@ -308,52 +349,11 @@ export class LanguagesRegistry extends Disposable {
 		return null;
 	}
 
-	public getConfigurationFiles(languageId: string): URI[] {
-		if (!hasOwnProperty.call(this._languages, languageId)) {
-			return [];
-		}
-		return this._languages[languageId].configurationFiles || [];
-	}
-
-	public getMimeTypeForLanguageId(languageId: string): string | null {
-		if (!hasOwnProperty.call(this._languages, languageId)) {
-			return null;
-		}
-		const language = this._languages[languageId];
-		return (language.mimetypes[0] || null);
-	}
-
-	public validateLanguageId(languageId: string | null | undefined): string | null {
-		if (!languageId || languageId === NULL_MODE_ID) {
-			return NULL_MODE_ID;
-		}
-
-		if (!hasOwnProperty.call(this._languages, languageId)) {
-			return null;
-		}
-
-		return languageId;
-	}
-
-	public getLanguageIdByFilepathOrFirstLine(resource: URI | null, firstLine?: string): string[] {
+	public guessLanguageIdByFilepathOrFirstLine(resource: URI | null, firstLine?: string): string[] {
 		if (!resource && !firstLine) {
 			return [];
 		}
 		const mimeTypes = mime.guessMimeTypes(resource, firstLine);
-		return coalesce(mimeTypes.map(mimeType => this.getLanguageIdForMimeType(mimeType)));
-	}
-
-	public getExtensionsForLanguageId(languageId: string): string[] {
-		if (!hasOwnProperty.call(this._languages, languageId)) {
-			return [];
-		}
-		return this._languages[languageId].extensions;
-	}
-
-	public getFilenamesForLanguageId(languageId: string): string[] {
-		if (!hasOwnProperty.call(this._languages, languageId)) {
-			return [];
-		}
-		return this._languages[languageId].filenames;
+		return coalesce(mimeTypes.map(mimeType => this.getLanguageIdByMimeType(mimeType)));
 	}
 }

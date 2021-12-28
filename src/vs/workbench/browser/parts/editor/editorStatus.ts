@@ -1120,7 +1120,7 @@ export class ChangeModeAction extends Action {
 		const languages = this.languageService.getSortedRegisteredLanguageNames();
 		const picks: QuickPickInput[] = languages
 			.map(({ languageName, languageId }) => {
-				const extensions = this.languageService.getExtensionsForLanguageId(languageId).join(' ');
+				const extensions = this.languageService.getExtensions(languageId).join(' ');
 				let description: string;
 				if (currentLanguageName === languageName) {
 					description = localize('languageDescription', "({0}) - Configured Language", languageId);
@@ -1200,7 +1200,7 @@ export class ChangeModeAction extends Action {
 						const resource = EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 						if (resource) {
 							// Detect languages since we are in an untitled file
-							let languageId: string | undefined = withNullAsUndefined(this.languageService.getLanguageIdByFilepathOrFirstLine(resource, textModel.getLineContent(1)));
+							let languageId: string | undefined = withNullAsUndefined(this.languageService.guessLanguageIdByFilepathOrFirstLine(resource, textModel.getLineContent(1)));
 							if (!languageId) {
 								detectedLanguage = await this.languageDetectionService.detectLanguage(resource);
 								languageId = detectedLanguage;
@@ -1211,13 +1211,13 @@ export class ChangeModeAction extends Action {
 						}
 					}
 				} else {
-					const languageId = this.languageService.getLanguageIdForLanguageName(pick.label);
+					const languageId = this.languageService.getLanguageIdByLanguageName(pick.label);
 					languageSelection = this.languageService.createById(languageId);
 
 					if (resource) {
 						// fire and forget to not slow things down
 						this.languageDetectionService.detectLanguage(resource).then(detectedLanguageId => {
-							const chosenLanguageId = this.languageService.getLanguageIdForLanguageName(pick.label) || 'unknown';
+							const chosenLanguageId = this.languageService.getLanguageIdByLanguageName(pick.label) || 'unknown';
 							if (detectedLanguageId === currentLanguageId && currentLanguageId !== chosenLanguageId) {
 								// If they didn't choose the detected language (which should also be the active language if automatic detection is enabled)
 								// then the automatic language detection was likely wrong and the user is correcting it. In this case, we want telemetry.
@@ -1247,7 +1247,7 @@ export class ChangeModeAction extends Action {
 	private configureFileAssociation(resource: URI): void {
 		const extension = extname(resource);
 		const base = basename(resource);
-		const currentAssociation = this.languageService.getLanguageIdByFilepathOrFirstLine(URI.file(base));
+		const currentAssociation = this.languageService.guessLanguageIdByFilepathOrFirstLine(URI.file(base));
 
 		const languages = this.languageService.getSortedRegisteredLanguageNames();
 		const picks: IQuickPickItem[] = languages.map(({ languageName, languageId }) => {

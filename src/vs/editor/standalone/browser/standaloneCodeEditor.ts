@@ -440,7 +440,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 
 		let model: ITextModel | null;
 		if (typeof _model === 'undefined') {
-			const languageId = languageService.getLanguageIdForMimeType(options.language) || options.language || PLAINTEXT_MODE_ID;
+			const languageId = languageService.getLanguageIdByMimeType(options.language) || options.language || PLAINTEXT_MODE_ID;
 			model = createTextModel(modelService, languageService, options.value || '', languageId, undefined);
 			this._ownsModel = true;
 		} else {

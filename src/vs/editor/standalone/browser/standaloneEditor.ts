@@ -145,7 +145,7 @@ export function createDiffNavigator(diffEditor: IStandaloneDiffEditor, opts?: ID
  */
 export function createModel(value: string, language?: string, uri?: URI): ITextModel {
 	const languageService = StaticServices.languageService.get();
-	const languageId = languageService.getLanguageIdForMimeType(language) || language;
+	const languageId = languageService.getLanguageIdByMimeType(language) || language;
 	return createTextModel(
 		StaticServices.modelService.get(),
 		languageService,
