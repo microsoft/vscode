@@ -16,24 +16,39 @@ class LanguageSelection implements ILanguageSelection {
 
 	public languageId: string;
 
-	private readonly _selector: () => string;
-	private readonly _onDidChange: Emitter<string>;
-	public readonly onDidChange: Event<string>;
+	private _listener: IDisposable | null = null;
+	private _emitter: Emitter<string> | null = null;
 
-	constructor(onDidChangeLanguages: Event<void>, selector: () => string) {
-		this._selector = selector;
+	constructor(
+		private readonly _onDidChangeLanguages: Event<void>,
+		private readonly _selector: () => string
+	) {
 		this.languageId = this._selector();
+	}
 
-		let listener: IDisposable;
-		this._onDidChange = new Emitter<string>({
-			onFirstListenerAdd: () => {
-				listener = onDidChangeLanguages(() => this._evaluate());
-			},
-			onLastListenerRemove: () => {
-				listener.dispose();
-			}
-		});
-		this.onDidChange = this._onDidChange.event;
+	private _dispose(): void {
+		if (this._listener) {
+			this._listener.dispose();
+			this._listener = null;
+		}
+		if (this._emitter) {
+			this._emitter.dispose();
+			this._emitter = null;
+		}
+	}
+
+	public get onDidChange(): Event<string> {
+		if (!this._listener) {
+			this._listener = this._onDidChangeLanguages(() => this._evaluate());
+		}
+		if (!this._emitter) {
+			this._emitter = new Emitter<string>({
+				onLastListenerRemove: () => {
+					this._dispose();
+				}
+			});
+		}
+		return this._emitter.event;
 	}
 
 	private _evaluate(): void {
@@ -43,7 +58,9 @@ class LanguageSelection implements ILanguageSelection {
 			return;
 		}
 		this.languageId = languageId;
-		this._onDidChange.fire(this.languageId);
+		if (this._emitter) {
+			this._emitter.fire(this.languageId);
+		}
 	}
 }
 
