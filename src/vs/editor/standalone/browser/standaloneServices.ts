@@ -3,6 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/editor/common/modes/languageConfigurationRegistry';
+import 'vs/editor/standalone/browser/standaloneCodeEditorService';
+import 'vs/editor/standalone/browser/standaloneLayoutService';
+import 'vs/platform/undoRedo/common/undoRedoService';
+
 import * as strings from 'vs/base/common/strings';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -928,12 +933,6 @@ class StandaloneContextMenuService extends ContextMenuService {
 export interface IEditorOverrideServices {
 	[index: string]: any;
 }
-
-// imported because they self-register singletons
-import 'vs/editor/common/modes/languageConfigurationRegistry';
-import 'vs/editor/standalone/browser/standaloneCodeEditorService';
-import 'vs/editor/standalone/browser/standaloneLayoutService';
-import 'vs/platform/undoRedo/common/undoRedoService';
 
 registerSingleton(IConfigurationService, StandaloneConfigurationService);
 registerSingleton(ITextResourceConfigurationService, StandaloneResourceConfigurationService);
