@@ -108,7 +108,7 @@ export class NotebookCodeRendererContribution extends Disposable {
 			registerCodeRendererContrib(`text/x-${id}`, id);
 		});
 
-		this._register(_languageService.onLanguagesMaybeChanged(() => {
+		this._register(_languageService.onDidChange(() => {
 			_languageService.getRegisteredLanguageIds().forEach(id => {
 				registerCodeRendererContrib(`text/x-${id}`, id);
 			});

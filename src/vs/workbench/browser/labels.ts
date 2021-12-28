@@ -133,7 +133,7 @@ export class ResourceLabels extends Disposable {
 		}));
 
 		// notify when extensions are registered with potentially new languages
-		this._register(this.languageService.onLanguagesMaybeChanged(() => this.widgets.forEach(widget => widget.notifyExtensionsRegistered())));
+		this._register(this.languageService.onDidChange(() => this.widgets.forEach(widget => widget.notifyExtensionsRegistered())));
 
 		// notify when model mode changes
 		this._register(this.modelService.onModelLanguageChanged(e => {

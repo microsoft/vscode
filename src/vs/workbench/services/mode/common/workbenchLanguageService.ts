@@ -171,7 +171,7 @@ export class WorkbenchLanguageService extends LanguageService {
 			});
 		}
 
-		this._onLanguagesMaybeChanged.fire();
+		this._onDidChange.fire();
 	}
 }
 

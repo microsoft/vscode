@@ -27,17 +27,26 @@ export interface ILanguageSelection {
 }
 
 export interface ILanguageNameIdPair {
-	languageName: string;
-	languageId: string;
+	readonly languageName: string;
+	readonly languageId: string;
 }
 
 export interface ILanguageService {
 	readonly _serviceBrand: undefined;
 
+	/**
+	 * A codec which can encode and decode a string `languageId` as a number.
+	 */
 	readonly languageIdCodec: ILanguageIdCodec;
 
+	/**
+	 * An event emitted when a language is needed for the first time.
+	 */
 	onDidEncounterLanguage: Event<string>;
-	onLanguagesMaybeChanged: Event<void>;
+	/**
+	 * An event emitted when languages have changed.
+	 */
+	onDidChange: Event<void>;
 
 	isRegisteredLanguageId(languageId: string): boolean;
 	validateLanguageId(languageId: string): string | null;

@@ -21,14 +21,14 @@ class LanguageSelection implements ILanguageSelection {
 	private readonly _onDidChange: Emitter<string>;
 	public readonly onDidChange: Event<string>;
 
-	constructor(onLanguagesMaybeChanged: Event<void>, selector: () => string) {
+	constructor(onDidChangeLanguages: Event<void>, selector: () => string) {
 		this._selector = selector;
 		this.languageId = this._selector();
 
 		let listener: IDisposable;
 		this._onDidChange = new Emitter<string>({
 			onFirstListenerAdd: () => {
-				listener = onLanguagesMaybeChanged(() => this._evaluate());
+				listener = onDidChangeLanguages(() => this._evaluate());
 			},
 			onLastListenerRemove: () => {
 				listener.dispose();
@@ -60,8 +60,8 @@ export class LanguageService extends Disposable implements ILanguageService {
 	private readonly _onDidEncounterLanguage = this._register(new Emitter<string>());
 	public readonly onDidEncounterLanguage: Event<string> = this._onDidEncounterLanguage.event;
 
-	protected readonly _onLanguagesMaybeChanged = this._register(new Emitter<void>({ leakWarningThreshold: 200 /* https://github.com/microsoft/vscode/issues/119968 */ }));
-	public readonly onLanguagesMaybeChanged: Event<void> = this._onLanguagesMaybeChanged.event;
+	protected readonly _onDidChange = this._register(new Emitter<void>({ leakWarningThreshold: 200 /* https://github.com/microsoft/vscode/issues/119968 */ }));
+	public readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	constructor(warnOnOverwrite = false) {
 		super();
@@ -69,7 +69,7 @@ export class LanguageService extends Disposable implements ILanguageService {
 		this._encounteredLanguages = new Set<string>();
 		this._registry = this._register(new LanguagesRegistry(true, warnOnOverwrite));
 		this.languageIdCodec = this._registry.languageIdCodec;
-		this._register(this._registry.onDidChange(() => this._onLanguagesMaybeChanged.fire()));
+		this._register(this._registry.onDidChange(() => this._onDidChange.fire()));
 	}
 
 	public override dispose(): void {
@@ -127,7 +127,7 @@ export class LanguageService extends Disposable implements ILanguageService {
 	}
 
 	public createById(languageId: string | null | undefined): ILanguageSelection {
-		return new LanguageSelection(this.onLanguagesMaybeChanged, () => {
+		return new LanguageSelection(this.onDidChange, () => {
 			const validLanguageId = (languageId && this.isRegisteredLanguageId(languageId) ? languageId : PLAINTEXT_MODE_ID);
 			this._getOrCreateMode(validLanguageId);
 			return validLanguageId;
@@ -135,14 +135,14 @@ export class LanguageService extends Disposable implements ILanguageService {
 	}
 
 	public createByMimeType(mimeType: string | null | undefined): ILanguageSelection {
-		return new LanguageSelection(this.onLanguagesMaybeChanged, () => {
+		return new LanguageSelection(this.onDidChange, () => {
 			const languageId = this.getLanguageIdByMimeType(mimeType);
 			return this._createModeAndGetLanguageIdentifier(languageId);
 		});
 	}
 
 	public createByFilepathOrFirstLine(resource: URI | null, firstLine?: string): ILanguageSelection {
-		return new LanguageSelection(this.onLanguagesMaybeChanged, () => {
+		return new LanguageSelection(this.onDidChange, () => {
 			const languageId = this.guessLanguageIdByFilepathOrFirstLine(resource, firstLine);
 			return this._createModeAndGetLanguageIdentifier(languageId);
 		});

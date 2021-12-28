@@ -45,7 +45,7 @@ export function getEncodedLanguageId(languageId: string): number {
 }
 
 /**
- * An event emitted when a language is first time needed (e.g. a model has it set).
+ * An event emitted when a language is needed for the first time (e.g. a model has it set).
  * @event
  */
 export function onLanguage(languageId: string, callback: () => void): IDisposable {
