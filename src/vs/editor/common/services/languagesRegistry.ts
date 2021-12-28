@@ -284,7 +284,7 @@ export class LanguagesRegistry extends Disposable {
 		if (!hasOwnProperty.call(this._lowercaseNameMap, languageNameLower)) {
 			return null;
 		}
-		return this._nameMap[languageNameLower];
+		return this._lowercaseNameMap[languageNameLower];
 	}
 
 	public getLanguageIdForMimeType(mimeType: string | null | undefined): string | null {
