@@ -21,7 +21,7 @@ import { IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebW
 import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
 import { Colorizer, IColorizerElementOptions, IColorizerOptions } from 'vs/editor/standalone/browser/colorizer';
 import { IStandaloneEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor, StandaloneDiffEditor, StandaloneEditor, createTextModel, IStandaloneDiffEditorConstructionOptions } from 'vs/editor/standalone/browser/standaloneCodeEditor';
-import { IEditorOverrideServices, StaticServices } from 'vs/editor/standalone/browser/simpleServices';
+import { IEditorOverrideServices, StandaloneServices } from 'vs/editor/standalone/browser/standaloneServices';
 import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IMarker, IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';
@@ -37,7 +37,7 @@ import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageCo
  * The editor will read the size of `domElement`.
  */
 export function create(domElement: HTMLElement, options?: IStandaloneEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneCodeEditor {
-	const instantiationService = StaticServices.initialize(override || {});
+	const instantiationService = StandaloneServices.initialize(override || {});
 	return instantiationService.createInstance(StandaloneEditor, domElement, options);
 }
 
@@ -47,7 +47,7 @@ export function create(domElement: HTMLElement, options?: IStandaloneEditorConst
  * @event
  */
 export function onDidCreateEditor(listener: (codeEditor: ICodeEditor) => void): IDisposable {
-	const codeEditorService = StaticServices.get(ICodeEditorService);
+	const codeEditorService = StandaloneServices.get(ICodeEditorService);
 	return codeEditorService.onCodeEditorAdd((editor) => {
 		listener(<ICodeEditor>editor);
 	});
@@ -59,7 +59,7 @@ export function onDidCreateEditor(listener: (codeEditor: ICodeEditor) => void): 
  * The editor will read the size of `domElement`.
  */
 export function createDiffEditor(domElement: HTMLElement, options?: IStandaloneDiffEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneDiffEditor {
-	const instantiationService = StaticServices.initialize(override || {});
+	const instantiationService = StandaloneServices.initialize(override || {});
 	return instantiationService.createInstance(StandaloneDiffEditor, domElement, options);
 }
 
@@ -78,10 +78,10 @@ export function createDiffNavigator(diffEditor: IStandaloneDiffEditor, opts?: ID
  * You can specify the language that should be set for this model or let the language be inferred from the `uri`.
  */
 export function createModel(value: string, language?: string, uri?: URI): ITextModel {
-	const languageService = StaticServices.get(ILanguageService);
+	const languageService = StandaloneServices.get(ILanguageService);
 	const languageId = languageService.getLanguageIdByMimeType(language) || language;
 	return createTextModel(
-		StaticServices.get(IModelService),
+		StandaloneServices.get(IModelService),
 		languageService,
 		value,
 		languageId,
@@ -93,8 +93,8 @@ export function createModel(value: string, language?: string, uri?: URI): ITextM
  * Change the language for a model.
  */
 export function setModelLanguage(model: ITextModel, languageId: string): void {
-	const languageService = StaticServices.get(ILanguageService);
-	const modelService = StaticServices.get(IModelService);
+	const languageService = StandaloneServices.get(ILanguageService);
+	const modelService = StandaloneServices.get(IModelService);
 	modelService.setMode(model, languageService.createById(languageId));
 }
 
@@ -103,7 +103,7 @@ export function setModelLanguage(model: ITextModel, languageId: string): void {
  */
 export function setModelMarkers(model: ITextModel, owner: string, markers: IMarkerData[]): void {
 	if (model) {
-		const markerService = StaticServices.get(IMarkerService);
+		const markerService = StandaloneServices.get(IMarkerService);
 		markerService.changeOne(owner, model.uri, markers);
 	}
 }
@@ -114,7 +114,7 @@ export function setModelMarkers(model: ITextModel, owner: string, markers: IMark
  * @returns list of markers
  */
 export function getModelMarkers(filter: { owner?: string, resource?: URI, take?: number }): IMarker[] {
-	const markerService = StaticServices.get(IMarkerService);
+	const markerService = StandaloneServices.get(IMarkerService);
 	return markerService.read(filter);
 }
 
@@ -123,7 +123,7 @@ export function getModelMarkers(filter: { owner?: string, resource?: URI, take?:
  * @event
  */
 export function onDidChangeMarkers(listener: (e: readonly URI[]) => void): IDisposable {
-	const markerService = StaticServices.get(IMarkerService);
+	const markerService = StandaloneServices.get(IMarkerService);
 	return markerService.onMarkerChanged(listener);
 }
 
@@ -131,7 +131,7 @@ export function onDidChangeMarkers(listener: (e: readonly URI[]) => void): IDisp
  * Get the model that has `uri` if it exists.
  */
 export function getModel(uri: URI): ITextModel | null {
-	const modelService = StaticServices.get(IModelService);
+	const modelService = StandaloneServices.get(IModelService);
 	return modelService.getModel(uri);
 }
 
@@ -139,7 +139,7 @@ export function getModel(uri: URI): ITextModel | null {
  * Get all the created models.
  */
 export function getModels(): ITextModel[] {
-	const modelService = StaticServices.get(IModelService);
+	const modelService = StandaloneServices.get(IModelService);
 	return modelService.getModels();
 }
 
@@ -148,7 +148,7 @@ export function getModels(): ITextModel[] {
  * @event
  */
 export function onDidCreateModel(listener: (model: ITextModel) => void): IDisposable {
-	const modelService = StaticServices.get(IModelService);
+	const modelService = StandaloneServices.get(IModelService);
 	return modelService.onModelAdded(listener);
 }
 
@@ -157,7 +157,7 @@ export function onDidCreateModel(listener: (model: ITextModel) => void): IDispos
  * @event
  */
 export function onWillDisposeModel(listener: (model: ITextModel) => void): IDisposable {
-	const modelService = StaticServices.get(IModelService);
+	const modelService = StandaloneServices.get(IModelService);
 	return modelService.onModelRemoved(listener);
 }
 
@@ -166,7 +166,7 @@ export function onWillDisposeModel(listener: (model: ITextModel) => void): IDisp
  * @event
  */
 export function onDidChangeModelLanguage(listener: (e: { readonly model: ITextModel; readonly oldLanguage: string; }) => void): IDisposable {
-	const modelService = StaticServices.get(IModelService);
+	const modelService = StandaloneServices.get(IModelService);
 	return modelService.onModelLanguageChanged((e) => {
 		listener({
 			model: e.model,
@@ -180,15 +180,15 @@ export function onDidChangeModelLanguage(listener: (e: { readonly model: ITextMo
  * Specify an AMD module to load that will `create` an object that will be proxied.
  */
 export function createWebWorker<T>(opts: IWebWorkerOptions): MonacoWebWorker<T> {
-	return actualCreateWebWorker<T>(StaticServices.get(IModelService), StaticServices.get(ILanguageConfigurationService), opts);
+	return actualCreateWebWorker<T>(StandaloneServices.get(IModelService), StandaloneServices.get(ILanguageConfigurationService), opts);
 }
 
 /**
  * Colorize the contents of `domNode` using attribute `data-lang`.
  */
 export function colorizeElement(domNode: HTMLElement, options: IColorizerElementOptions): Promise<void> {
-	const languageService = StaticServices.get(ILanguageService);
-	const themeService = <StandaloneThemeServiceImpl>StaticServices.get(IStandaloneThemeService);
+	const languageService = StandaloneServices.get(ILanguageService);
+	const themeService = <StandaloneThemeServiceImpl>StandaloneServices.get(IStandaloneThemeService);
 	themeService.registerEditorContainer(domNode);
 	return Colorizer.colorizeElement(themeService, languageService, domNode, options);
 }
@@ -197,8 +197,8 @@ export function colorizeElement(domNode: HTMLElement, options: IColorizerElement
  * Colorize `text` using language `languageId`.
  */
 export function colorize(text: string, languageId: string, options: IColorizerOptions): Promise<string> {
-	const languageService = StaticServices.get(ILanguageService);
-	const themeService = <StandaloneThemeServiceImpl>StaticServices.get(IStandaloneThemeService);
+	const languageService = StandaloneServices.get(ILanguageService);
+	const themeService = <StandaloneThemeServiceImpl>StandaloneServices.get(IStandaloneThemeService);
 	themeService.registerEditorContainer(document.body);
 	return Colorizer.colorize(languageService, text, languageId, options);
 }
@@ -207,7 +207,7 @@ export function colorize(text: string, languageId: string, options: IColorizerOp
  * Colorize a line in a model.
  */
 export function colorizeModelLine(model: ITextModel, lineNumber: number, tabSize: number = 4): string {
-	const themeService = <StandaloneThemeServiceImpl>StaticServices.get(IStandaloneThemeService);
+	const themeService = <StandaloneThemeServiceImpl>StandaloneServices.get(IStandaloneThemeService);
 	themeService.registerEditorContainer(document.body);
 	return Colorizer.colorizeModelLine(model, lineNumber, tabSize);
 }
@@ -251,7 +251,7 @@ export function tokenize(text: string, languageId: string): Token[][] {
  * Define a new theme or update an existing theme.
  */
 export function defineTheme(themeName: string, themeData: IStandaloneThemeData): void {
-	const standaloneThemeService = StaticServices.get(IStandaloneThemeService);
+	const standaloneThemeService = StandaloneServices.get(IStandaloneThemeService);
 	standaloneThemeService.defineTheme(themeName, themeData);
 }
 
@@ -259,7 +259,7 @@ export function defineTheme(themeName: string, themeData: IStandaloneThemeData):
  * Switches to a theme.
  */
 export function setTheme(themeName: string): void {
-	const standaloneThemeService = StaticServices.get(IStandaloneThemeService);
+	const standaloneThemeService = StandaloneServices.get(IStandaloneThemeService);
 	standaloneThemeService.setTheme(themeName);
 }
 

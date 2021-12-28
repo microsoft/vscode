@@ -40,7 +40,7 @@ import { ITelemetryInfo, ITelemetryService, TelemetryLevel } from 'vs/platform/t
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { SimpleServicesNLS } from 'vs/editor/common/standaloneStrings';
+import { StandaloneServicesNLS } from 'vs/editor/common/standaloneStrings';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { basename } from 'vs/base/common/resources';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -132,7 +132,7 @@ class SimpleModel implements IResolvedTextEditorModel {
 	}
 }
 
-class SimpleTextModelService implements ITextModelService {
+class StandaloneTextModelService implements ITextModelService {
 	public _serviceBrand: undefined;
 
 	constructor(
@@ -160,7 +160,7 @@ class SimpleTextModelService implements ITextModelService {
 	}
 }
 
-class SimpleEditorProgressService implements IEditorProgressService {
+class StandaloneEditorProgressService implements IEditorProgressService {
 	declare readonly _serviceBrand: undefined;
 
 	private static NULL_PROGRESS_RUNNER: IProgressRunner = {
@@ -172,7 +172,7 @@ class SimpleEditorProgressService implements IEditorProgressService {
 	show(infinite: true, delay?: number): IProgressRunner;
 	show(total: number, delay?: number): IProgressRunner;
 	show(): IProgressRunner {
-		return SimpleEditorProgressService.NULL_PROGRESS_RUNNER;
+		return StandaloneEditorProgressService.NULL_PROGRESS_RUNNER;
 	}
 
 	async showWhile(promise: Promise<any>, delay?: number): Promise<void> {
@@ -180,7 +180,7 @@ class SimpleEditorProgressService implements IEditorProgressService {
 	}
 }
 
-class SimpleDialogService implements IDialogService {
+class StandaloneDialogService implements IDialogService {
 
 	public _serviceBrand: undefined;
 
@@ -218,7 +218,7 @@ class SimpleDialogService implements IDialogService {
 	}
 }
 
-export class SimpleNotificationService implements INotificationService {
+export class StandaloneNotificationService implements INotificationService {
 
 	readonly onDidAddNotification: Event<INotification> = Event.None;
 
@@ -253,11 +253,11 @@ export class SimpleNotificationService implements INotificationService {
 				break;
 		}
 
-		return SimpleNotificationService.NO_OP;
+		return StandaloneNotificationService.NO_OP;
 	}
 
 	public prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
-		return SimpleNotificationService.NO_OP;
+		return StandaloneNotificationService.NO_OP;
 	}
 
 	public status(message: string | Error, options?: IStatusMessageOptions): IDisposable {
@@ -503,7 +503,7 @@ function isConfigurationOverrides(thing: any): thing is IConfigurationOverrides 
 		&& (!thing.resource || thing.resource instanceof URI);
 }
 
-export class SimpleConfigurationService implements IConfigurationService {
+export class StandaloneConfigurationService implements IConfigurationService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -581,7 +581,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 	}
 }
 
-class SimpleResourceConfigurationService implements ITextResourceConfigurationService {
+class StandaloneResourceConfigurationService implements ITextResourceConfigurationService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -589,7 +589,7 @@ class SimpleResourceConfigurationService implements ITextResourceConfigurationSe
 	public readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 
 	constructor(
-		@IConfigurationService private readonly configurationService: SimpleConfigurationService
+		@IConfigurationService private readonly configurationService: StandaloneConfigurationService
 	) {
 		this.configurationService.onDidChangeConfiguration((e) => {
 			this._onDidChangeConfiguration.fire({ affectedKeys: e.affectedKeys, affectsConfiguration: (resource: URI, configuration: string) => e.affectsConfiguration(configuration) });
@@ -612,7 +612,7 @@ class SimpleResourceConfigurationService implements ITextResourceConfigurationSe
 	}
 }
 
-class SimpleResourcePropertiesService implements ITextResourcePropertiesService {
+class StandaloneResourcePropertiesService implements ITextResourcePropertiesService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -663,7 +663,7 @@ class StandaloneTelemetryService implements ITelemetryService {
 	}
 }
 
-class SimpleWorkspaceContextService implements IWorkspaceContextService {
+class StandaloneWorkspaceContextService implements IWorkspaceContextService {
 
 	public _serviceBrand: undefined;
 
@@ -684,7 +684,7 @@ class SimpleWorkspaceContextService implements IWorkspaceContextService {
 	private readonly workspace: IWorkspace;
 
 	constructor() {
-		const resource = URI.from({ scheme: SimpleWorkspaceContextService.SCHEME, authority: 'model', path: '/' });
+		const resource = URI.from({ scheme: StandaloneWorkspaceContextService.SCHEME, authority: 'model', path: '/' });
 		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', folders: [new WorkspaceFolder({ uri: resource, name: '', index: 0 })] };
 	}
 
@@ -707,11 +707,11 @@ class SimpleWorkspaceContextService implements IWorkspaceContextService {
 	}
 
 	public getWorkspaceFolder(resource: URI): IWorkspaceFolder | null {
-		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME ? this.workspace.folders[0] : null;
+		return resource && resource.scheme === StandaloneWorkspaceContextService.SCHEME ? this.workspace.folders[0] : null;
 	}
 
 	public isInsideWorkspace(resource: URI): boolean {
-		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME;
+		return resource && resource.scheme === StandaloneWorkspaceContextService.SCHEME;
 	}
 
 	public isCurrentWorkspace(workspaceIdOrFolder: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI): boolean {
@@ -723,7 +723,7 @@ export function updateConfigurationService(configurationService: IConfigurationS
 	if (!source) {
 		return;
 	}
-	if (!(configurationService instanceof SimpleConfigurationService)) {
+	if (!(configurationService instanceof StandaloneConfigurationService)) {
 		return;
 	}
 	let toUpdate: [string, any][] = [];
@@ -740,7 +740,7 @@ export function updateConfigurationService(configurationService: IConfigurationS
 	}
 }
 
-class SimpleBulkEditService implements IBulkEditService {
+class StandaloneBulkEditService implements IBulkEditService {
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
@@ -792,12 +792,12 @@ class SimpleBulkEditService implements IBulkEditService {
 		}
 
 		return {
-			ariaSummary: strings.format(SimpleServicesNLS.bulkEditServiceSummary, totalEdits, totalFiles)
+			ariaSummary: strings.format(StandaloneServicesNLS.bulkEditServiceSummary, totalEdits, totalFiles)
 		};
 	}
 }
 
-class SimpleUriLabelService implements ILabelService {
+class StandaloneUriLabelService implements ILabelService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -856,7 +856,7 @@ class StandaloneContextViewService extends ContextViewService {
 	}
 }
 
-class SimpleWorkspaceTrustManagementService implements IWorkspaceTrustManagementService {
+class StandaloneWorkspaceTrustManagementService implements IWorkspaceTrustManagementService {
 	_serviceBrand: undefined;
 
 	private _neverEmitter = new Emitter<never>();
@@ -935,14 +935,14 @@ import 'vs/platform/undoRedo/common/undoRedoService';
 import 'vs/editor/common/modes/languageConfigurationRegistry';
 import 'vs/editor/standalone/browser/standaloneLayoutService';
 
-registerSingleton(IConfigurationService, SimpleConfigurationService);
-registerSingleton(ITextResourceConfigurationService, SimpleResourceConfigurationService);
-registerSingleton(ITextResourcePropertiesService, SimpleResourcePropertiesService);
-registerSingleton(IWorkspaceContextService, SimpleWorkspaceContextService);
-registerSingleton(ILabelService, SimpleUriLabelService);
+registerSingleton(IConfigurationService, StandaloneConfigurationService);
+registerSingleton(ITextResourceConfigurationService, StandaloneResourceConfigurationService);
+registerSingleton(ITextResourcePropertiesService, StandaloneResourcePropertiesService);
+registerSingleton(IWorkspaceContextService, StandaloneWorkspaceContextService);
+registerSingleton(ILabelService, StandaloneUriLabelService);
 registerSingleton(ITelemetryService, StandaloneTelemetryService);
-registerSingleton(IDialogService, SimpleDialogService);
-registerSingleton(INotificationService, SimpleNotificationService);
+registerSingleton(IDialogService, StandaloneDialogService);
+registerSingleton(INotificationService, StandaloneNotificationService);
 registerSingleton(IMarkerService, MarkerService);
 registerSingleton(ILanguageService, StandaloneLanguageService);
 registerSingleton(IStandaloneThemeService, StandaloneThemeServiceImpl);
@@ -951,12 +951,12 @@ registerSingleton(IModelService, ModelServiceImpl);
 registerSingleton(IMarkerDecorationsService, MarkerDecorationsService);
 registerSingleton(IContextKeyService, ContextKeyService);
 registerSingleton(ICodeEditorService, StandaloneCodeEditorServiceImpl);
-registerSingleton(IEditorProgressService, SimpleEditorProgressService);
+registerSingleton(IEditorProgressService, StandaloneEditorProgressService);
 registerSingleton(IStorageService, InMemoryStorageService);
 registerSingleton(IEditorWorkerService, EditorWorkerServiceImpl);
-registerSingleton(IBulkEditService, SimpleBulkEditService);
-registerSingleton(IWorkspaceTrustManagementService, SimpleWorkspaceTrustManagementService);
-registerSingleton(ITextModelService, SimpleTextModelService);
+registerSingleton(IBulkEditService, StandaloneBulkEditService);
+registerSingleton(IWorkspaceTrustManagementService, StandaloneWorkspaceTrustManagementService);
+registerSingleton(ITextModelService, StandaloneTextModelService);
 registerSingleton(IAccessibilityService, AccessibilityService);
 registerSingleton(IListService, ListService);
 registerSingleton(ICommandService, StandaloneCommandService);
@@ -972,7 +972,7 @@ registerSingleton(IMenuService, MenuService);
  * We don't want to eagerly instantiate services because embedders get a one time chance
  * to override services when they create the first editor.
  */
-export module StaticServices {
+export module StandaloneServices {
 
 	const serviceCollection = new ServiceCollection();
 	for (const [id, descriptor] of getSingletonServiceDescriptors()) {

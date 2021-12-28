@@ -9,7 +9,7 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
-class SimpleLayoutService implements ILayoutService {
+class StandaloneLayoutService implements ILayoutService {
 	declare readonly _serviceBrand: undefined;
 
 	public onDidLayout = Event.None;
@@ -45,7 +45,7 @@ class SimpleLayoutService implements ILayoutService {
 	) { }
 }
 
-export class EditorScopedLayoutService extends SimpleLayoutService {
+export class EditorScopedLayoutService extends StandaloneLayoutService {
 	override get hasContainer(): boolean {
 		return false;
 	}
@@ -60,4 +60,4 @@ export class EditorScopedLayoutService extends SimpleLayoutService {
 	}
 }
 
-registerSingleton(ILayoutService, SimpleLayoutService);
+registerSingleton(ILayoutService, StandaloneLayoutService);
