@@ -1923,16 +1923,6 @@
 															]
 														},
 														{
-															"begin": "/\\*",
-															"captures": {
-																"0": {
-																	"name": "punctuation.definition.comment.js"
-																}
-															},
-															"end": "\\*/|(?=</script)",
-															"name": "comment.block.js"
-														},
-														{
 															"include": "source.js"
 														}
 													]
