@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { GlobalStyleSheet } from 'vs/editor/browser/services/codeEditorServiceImpl';
+import { GlobalStyleSheet } from 'vs/editor/browser/services/abstractCodeEditorService';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { TestColorTheme, TestThemeService } from 'vs/platform/theme/test/common/testThemeService';

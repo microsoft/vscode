@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandaloneConfigurationService, StandaloneNotificationService, StandaloneCommandService, StandaloneKeybindingService } from 'vs/editor/standalone/browser/standaloneServices';
-import { StandaloneCodeEditorServiceImpl } from 'vs/editor/standalone/browser/standaloneCodeServiceImpl';
+import { StandaloneCodeEditorService } from 'vs/editor/standalone/browser/standaloneCodeEditorService';
 import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standaloneThemeServiceImpl';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -32,7 +32,7 @@ suite('StandaloneKeybindingService', () => {
 		const commandService = new StandaloneCommandService(instantiationService);
 		const notificationService = new StandaloneNotificationService();
 		const standaloneThemeService = new StandaloneThemeServiceImpl();
-		const codeEditorService = new StandaloneCodeEditorServiceImpl(contextKeyService, standaloneThemeService);
+		const codeEditorService = new StandaloneCodeEditorService(contextKeyService, standaloneThemeService);
 		const keybindingService = new TestStandaloneKeybindingService(contextKeyService, commandService, NullTelemetryService, notificationService, new NullLogService(), codeEditorService);
 
 		let commandInvoked = false;

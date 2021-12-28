@@ -39,11 +39,18 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 
 	private readonly _codeEditors: { [editorId: string]: ICodeEditor; };
 	private readonly _diffEditors: { [editorId: string]: IDiffEditor; };
+	private _globalStyleSheet: GlobalStyleSheet | null;
+	private readonly _decorationOptionProviders = new Map<string, IModelDecorationOptionsProvider>();
+	private readonly _editorStyleSheets = new Map<string, RefCountedStyleSheet>();
 
-	constructor() {
+	constructor(
+		styleSheet: GlobalStyleSheet | null,
+		@IThemeService private readonly _themeService: IThemeService,
+	) {
 		super();
 		this._codeEditors = Object.create(null);
 		this._diffEditors = Object.create(null);
+		this._globalStyleSheet = styleSheet ? styleSheet : null;
 	}
 
 	addCodeEditor(editor: ICodeEditor): void {
@@ -95,94 +102,6 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		return editorWithWidgetFocus;
 	}
 
-	abstract registerDecorationType(description: string, key: string, options: IDecorationRenderOptions, parentTypeKey?: string, editor?: ICodeEditor): void;
-	abstract removeDecorationType(key: string): void;
-	abstract resolveDecorationOptions(decorationTypeKey: string | undefined, writable: boolean): IModelDecorationOptions;
-	abstract resolveDecorationCSSRules(decorationTypeKey: string): CSSRuleList | null;
-
-	private readonly _transientWatchers: { [uri: string]: ModelTransientSettingWatcher; } = {};
-	private readonly _modelProperties = new Map<string, Map<string, any>>();
-
-	public setModelProperty(resource: URI, key: string, value: any): void {
-		const key1 = resource.toString();
-		let dest: Map<string, any>;
-		if (this._modelProperties.has(key1)) {
-			dest = this._modelProperties.get(key1)!;
-		} else {
-			dest = new Map<string, any>();
-			this._modelProperties.set(key1, dest);
-		}
-
-		dest.set(key, value);
-	}
-
-	public getModelProperty(resource: URI, key: string): any {
-		const key1 = resource.toString();
-		if (this._modelProperties.has(key1)) {
-			const innerMap = this._modelProperties.get(key1)!;
-			return innerMap.get(key);
-		}
-		return undefined;
-	}
-
-	public setTransientModelProperty(model: ITextModel, key: string, value: any): void {
-		const uri = model.uri.toString();
-
-		let w: ModelTransientSettingWatcher;
-		if (this._transientWatchers.hasOwnProperty(uri)) {
-			w = this._transientWatchers[uri];
-		} else {
-			w = new ModelTransientSettingWatcher(uri, model, this);
-			this._transientWatchers[uri] = w;
-		}
-
-		w.set(key, value);
-		this._onDidChangeTransientModelProperty.fire(model);
-	}
-
-	public getTransientModelProperty(model: ITextModel, key: string): any {
-		const uri = model.uri.toString();
-
-		if (!this._transientWatchers.hasOwnProperty(uri)) {
-			return undefined;
-		}
-
-		return this._transientWatchers[uri].get(key);
-	}
-
-	public getTransientModelProperties(model: ITextModel): [string, any][] | undefined {
-		const uri = model.uri.toString();
-
-		if (!this._transientWatchers.hasOwnProperty(uri)) {
-			return undefined;
-		}
-
-		return this._transientWatchers[uri].keys().map(key => [key, this._transientWatchers[uri].get(key)]);
-	}
-
-	_removeWatcher(w: ModelTransientSettingWatcher): void {
-		delete this._transientWatchers[w.uri];
-	}
-
-	abstract getActiveCodeEditor(): ICodeEditor | null;
-	abstract openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null>;
-}
-
-export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
-
-	private _globalStyleSheet: GlobalStyleSheet | null;
-	private readonly _decorationOptionProviders = new Map<string, IModelDecorationOptionsProvider>();
-	private readonly _editorStyleSheets = new Map<string, RefCountedStyleSheet>();
-	private readonly _themeService: IThemeService;
-
-	constructor(
-		styleSheet: GlobalStyleSheet | null,
-		@IThemeService themeService: IThemeService,
-	) {
-		super();
-		this._globalStyleSheet = styleSheet ? styleSheet : null;
-		this._themeService = themeService;
-	}
 
 	private _getOrCreateGlobalStyleSheet(): GlobalStyleSheet {
 		if (!this._globalStyleSheet) {
@@ -259,6 +178,73 @@ export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 		}
 		return provider.resolveDecorationCSSRules();
 	}
+
+	private readonly _transientWatchers: { [uri: string]: ModelTransientSettingWatcher; } = {};
+	private readonly _modelProperties = new Map<string, Map<string, any>>();
+
+	public setModelProperty(resource: URI, key: string, value: any): void {
+		const key1 = resource.toString();
+		let dest: Map<string, any>;
+		if (this._modelProperties.has(key1)) {
+			dest = this._modelProperties.get(key1)!;
+		} else {
+			dest = new Map<string, any>();
+			this._modelProperties.set(key1, dest);
+		}
+
+		dest.set(key, value);
+	}
+
+	public getModelProperty(resource: URI, key: string): any {
+		const key1 = resource.toString();
+		if (this._modelProperties.has(key1)) {
+			const innerMap = this._modelProperties.get(key1)!;
+			return innerMap.get(key);
+		}
+		return undefined;
+	}
+
+	public setTransientModelProperty(model: ITextModel, key: string, value: any): void {
+		const uri = model.uri.toString();
+
+		let w: ModelTransientSettingWatcher;
+		if (this._transientWatchers.hasOwnProperty(uri)) {
+			w = this._transientWatchers[uri];
+		} else {
+			w = new ModelTransientSettingWatcher(uri, model, this);
+			this._transientWatchers[uri] = w;
+		}
+
+		w.set(key, value);
+		this._onDidChangeTransientModelProperty.fire(model);
+	}
+
+	public getTransientModelProperty(model: ITextModel, key: string): any {
+		const uri = model.uri.toString();
+
+		if (!this._transientWatchers.hasOwnProperty(uri)) {
+			return undefined;
+		}
+
+		return this._transientWatchers[uri].get(key);
+	}
+
+	public getTransientModelProperties(model: ITextModel): [string, any][] | undefined {
+		const uri = model.uri.toString();
+
+		if (!this._transientWatchers.hasOwnProperty(uri)) {
+			return undefined;
+		}
+
+		return this._transientWatchers[uri].keys().map(key => [key, this._transientWatchers[uri].get(key)]);
+	}
+
+	_removeWatcher(w: ModelTransientSettingWatcher): void {
+		delete this._transientWatchers[w.uri];
+	}
+
+	abstract getActiveCodeEditor(): ICodeEditor | null;
+	abstract openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null>;
 }
 
 export class ModelTransientSettingWatcher {
@@ -286,7 +272,7 @@ export class ModelTransientSettingWatcher {
 
 export class RefCountedStyleSheet {
 
-	private readonly _parent: CodeEditorServiceImpl;
+	private readonly _parent: AbstractCodeEditorService;
 	private readonly _editorId: string;
 	private readonly _styleSheet: HTMLStyleElement;
 	private _refCount: number;
@@ -295,7 +281,7 @@ export class RefCountedStyleSheet {
 		return this._styleSheet.sheet as CSSStyleSheet;
 	}
 
-	constructor(parent: CodeEditorServiceImpl, editorId: string, styleSheet: HTMLStyleElement) {
+	constructor(parent: AbstractCodeEditorService, editorId: string, styleSheet: HTMLStyleElement) {
 		this._parent = parent;
 		this._editorId = editorId;
 		this._styleSheet = styleSheet;
@@ -362,14 +348,14 @@ export class DecorationSubTypeOptionsProvider implements IModelDecorationOptions
 	private readonly _styleSheet: GlobalStyleSheet | RefCountedStyleSheet;
 	public refCount: number;
 
-	private readonly _parentTypeKey: string | undefined;
+	private readonly _parentTypeKey: string;
 	private _beforeContentRules: DecorationCSSRules | null;
 	private _afterContentRules: DecorationCSSRules | null;
 
 	constructor(themeService: IThemeService, styleSheet: GlobalStyleSheet | RefCountedStyleSheet, providerArgs: ProviderArguments) {
 		this._styleSheet = styleSheet;
 		this._styleSheet.ref();
-		this._parentTypeKey = providerArgs.parentTypeKey;
+		this._parentTypeKey = providerArgs.parentTypeKey!;
 		this.refCount = 0;
 
 		this._beforeContentRules = new DecorationCSSRules(ModelDecorationCSSRuleType.BeforeContentClassName, providerArgs, themeService);

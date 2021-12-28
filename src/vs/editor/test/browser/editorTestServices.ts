@@ -5,12 +5,12 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
+import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
 import { CommandsRegistry, ICommandEvent, ICommandService } from 'vs/platform/commands/common/commands';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
-export class TestCodeEditorService extends CodeEditorServiceImpl {
+export class TestCodeEditorService extends AbstractCodeEditorService {
 	getActiveCodeEditor(): ICodeEditor | null {
 		return null;
 	}

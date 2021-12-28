@@ -33,7 +33,7 @@ import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standal
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILanguageSelection, ILanguageService } from 'vs/editor/common/services/languageService';
 import { URI } from 'vs/base/common/uri';
-import { StandaloneCodeEditorServiceImpl } from 'vs/editor/standalone/browser/standaloneCodeServiceImpl';
+import { StandaloneCodeEditorService } from 'vs/editor/standalone/browser/standaloneCodeEditorService';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
@@ -379,7 +379,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 	}
 
 	protected override _triggerCommand(handlerId: string, payload: any): void {
-		if (this._codeEditorService instanceof StandaloneCodeEditorServiceImpl) {
+		if (this._codeEditorService instanceof StandaloneCodeEditorService) {
 			// Help commands find this editor as the active editor
 			try {
 				this._codeEditorService.setActiveCodeEditor(this);

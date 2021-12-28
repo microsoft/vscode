@@ -9,7 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import { IContentDecorationRenderOptions, isThemeColor } from 'vs/editor/common/editorCommon';
 import { IColorTheme, IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { _CSS_MAP } from 'vs/editor/browser/services/codeEditorServiceImpl';
+import { _CSS_MAP } from 'vs/editor/browser/services/abstractCodeEditorService';
 
 export class NotebookRefCountedStyleSheet {
 	private readonly _key: string;

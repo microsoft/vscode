@@ -62,7 +62,6 @@ import { MarkerDecorationsService } from 'vs/editor/common/services/markerDecora
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { StandaloneQuickInputServiceImpl } from 'vs/editor/standalone/browser/quickInput/standaloneQuickInputServiceImpl';
-import { StandaloneCodeEditorServiceImpl } from 'vs/editor/standalone/browser/standaloneCodeServiceImpl';
 import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standaloneThemeServiceImpl';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import { AccessibilityService } from 'vs/platform/accessibility/browser/accessibilityService';
@@ -931,9 +930,10 @@ export interface IEditorOverrideServices {
 }
 
 // imported because they self-register singletons
-import 'vs/platform/undoRedo/common/undoRedoService';
 import 'vs/editor/common/modes/languageConfigurationRegistry';
+import 'vs/editor/standalone/browser/standaloneCodeEditorService';
 import 'vs/editor/standalone/browser/standaloneLayoutService';
+import 'vs/platform/undoRedo/common/undoRedoService';
 
 registerSingleton(IConfigurationService, StandaloneConfigurationService);
 registerSingleton(ITextResourceConfigurationService, StandaloneResourceConfigurationService);
@@ -950,7 +950,6 @@ registerSingleton(ILogService, StandaloneLogService);
 registerSingleton(IModelService, ModelServiceImpl);
 registerSingleton(IMarkerDecorationsService, MarkerDecorationsService);
 registerSingleton(IContextKeyService, ContextKeyService);
-registerSingleton(ICodeEditorService, StandaloneCodeEditorServiceImpl);
 registerSingleton(IEditorProgressService, StandaloneEditorProgressService);
 registerSingleton(IStorageService, InMemoryStorageService);
 registerSingleton(IEditorWorkerService, EditorWorkerServiceImpl);
