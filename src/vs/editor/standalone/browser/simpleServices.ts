@@ -12,13 +12,11 @@ import { IDisposable, IReference, ImmortalReference, toDisposable, DisposableSto
 import { OS, isLinux, isMacintosh } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
-import { ICodeEditor, IDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditOptions, IBulkEditResult, IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { isDiffEditorConfigurationKey, isEditorConfigurationKey } from 'vs/editor/common/config/commonEditorConfig';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition, Position as Pos } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IEditor } from 'vs/editor/common/editorCommon';
 import { IIdentifiedSingleEditOperation, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -103,37 +101,15 @@ export interface IOpenEditorDelegate {
 	(url: string): boolean;
 }
 
-function withTypedEditor<T>(widget: IEditor, codeEditorCallback: (editor: ICodeEditor) => T, diffEditorCallback: (editor: IDiffEditor) => T): T {
-	if (isCodeEditor(widget)) {
-		// Single Editor
-		return codeEditorCallback(<ICodeEditor>widget);
-	} else {
-		// Diff Editor
-		return diffEditorCallback(<IDiffEditor>widget);
-	}
-}
-
-export class SimpleEditorModelResolverService implements ITextModelService {
+export class SimpleTextModelService implements ITextModelService {
 	public _serviceBrand: undefined;
-
-	private editor?: IEditor;
 
 	constructor(
 		@IModelService private readonly modelService: IModelService
 	) { }
 
-	public setEditor(editor: IEditor): void {
-		this.editor = editor;
-	}
-
 	public createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
-		let model: ITextModel | null = null;
-		if (this.editor) {
-			model = withTypedEditor(this.editor,
-				(editor) => this.findModel(editor, resource),
-				(diffEditor) => this.findModel(diffEditor.getOriginalEditor(), resource) || this.findModel(diffEditor.getModifiedEditor(), resource)
-			);
-		}
+		const model = this.modelService.getModel(resource);
 
 		if (!model) {
 			return Promise.reject(new Error(`Model not found`));
@@ -150,15 +126,6 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 
 	public canHandleResource(resource: URI): boolean {
 		return false;
-	}
-
-	private findModel(editor: ICodeEditor, resource: URI): ITextModel | null {
-		let model = this.modelService.getModel(resource);
-		if (model && model.uri.toString() !== resource.toString()) {
-			return null;
-		}
-
-		return model;
 	}
 }
 

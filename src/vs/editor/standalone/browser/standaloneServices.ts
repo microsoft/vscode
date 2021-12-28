@@ -13,7 +13,7 @@ import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { SimpleBulkEditService, SimpleConfigurationService, SimpleDialogService, SimpleNotificationService, SimpleEditorProgressService, SimpleResourceConfigurationService, SimpleResourcePropertiesService, SimpleUriLabelService, SimpleWorkspaceContextService, StandaloneCommandService, StandaloneKeybindingService, StandaloneTelemetryService, SimpleLayoutService, SimpleWorkspaceTrustManagementService } from 'vs/editor/standalone/browser/simpleServices';
+import { SimpleBulkEditService, SimpleConfigurationService, SimpleDialogService, SimpleNotificationService, SimpleEditorProgressService, SimpleResourceConfigurationService, SimpleResourcePropertiesService, SimpleUriLabelService, SimpleWorkspaceContextService, StandaloneCommandService, StandaloneKeybindingService, StandaloneTelemetryService, SimpleLayoutService, SimpleWorkspaceTrustManagementService, SimpleTextModelService } from 'vs/editor/standalone/browser/simpleServices';
 import { StandaloneCodeEditorServiceImpl } from 'vs/editor/standalone/browser/standaloneCodeServiceImpl';
 import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standaloneThemeServiceImpl';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
@@ -58,6 +58,7 @@ import { ILanguageConfigurationService, LanguageConfigurationService } from 'vs/
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 export interface IEditorOverrideServices {
 	[index: string]: any;
@@ -252,6 +253,8 @@ export class DynamicStandaloneServices extends Disposable {
 		ensure(IBulkEditService, () => new SimpleBulkEditService(modelService));
 
 		ensure(IWorkspaceTrustManagementService, () => new SimpleWorkspaceTrustManagementService());
+
+		ensure(ITextModelService, () => new SimpleTextModelService(modelService));
 	}
 
 	public get<T>(serviceId: ServiceIdentifier<T>): T {
@@ -260,13 +263,5 @@ export class DynamicStandaloneServices extends Disposable {
 			throw new Error('Missing service ' + serviceId);
 		}
 		return r;
-	}
-
-	public set<T>(serviceId: ServiceIdentifier<T>, instance: T): void {
-		this._serviceCollection.set(serviceId, instance);
-	}
-
-	public has<T>(serviceId: ServiceIdentifier<T>): boolean {
-		return this._serviceCollection.has(serviceId);
 	}
 }

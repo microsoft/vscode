@@ -12,17 +12,15 @@ import { DiffNavigator, IDiffNavigator } from 'vs/editor/browser/widget/diffNavi
 import { EditorOptions, ConfigurationChangedEvent, ApplyUpdateResult } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Token } from 'vs/editor/common/core/token';
-import { IEditor, EditorType } from 'vs/editor/common/editorCommon';
+import { EditorType } from 'vs/editor/common/editorCommon';
 import { FindMatch, ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { NULL_STATE, nullTokenize } from 'vs/editor/common/modes/nullMode';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { ILanguageService } from 'vs/editor/common/services/languageService';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebWorker } from 'vs/editor/common/services/webWorker';
 import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
 import { Colorizer, IColorizerElementOptions, IColorizerOptions } from 'vs/editor/standalone/browser/colorizer';
-import { SimpleEditorModelResolverService } from 'vs/editor/standalone/browser/simpleServices';
 import { IStandaloneEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor, StandaloneDiffEditor, StandaloneEditor, createTextModel, IStandaloneDiffEditorConstructionOptions } from 'vs/editor/standalone/browser/standaloneCodeEditor';
 import { DynamicStandaloneServices, IEditorOverrideServices, StaticServices } from 'vs/editor/standalone/browser/standaloneServices';
 import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
@@ -43,50 +41,31 @@ import { splitLines } from 'vs/base/common/strings';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
-function withAllStandaloneServices<T extends IEditor>(domElement: HTMLElement, override: IEditorOverrideServices, callback: (services: DynamicStandaloneServices) => T): T {
-	let services = new DynamicStandaloneServices(domElement, override);
-
-	let simpleEditorModelResolverService: SimpleEditorModelResolverService | null = null;
-	if (!services.has(ITextModelService)) {
-		simpleEditorModelResolverService = new SimpleEditorModelResolverService(StaticServices.modelService.get());
-		services.set(ITextModelService, simpleEditorModelResolverService);
-	}
-
-	let result = callback(services);
-
-	if (simpleEditorModelResolverService) {
-		simpleEditorModelResolverService.setEditor(result);
-	}
-
-	return result;
-}
-
 /**
  * Create a new editor under `domElement`.
  * `domElement` should be empty (not contain other dom nodes).
  * The editor will read the size of `domElement`.
  */
 export function create(domElement: HTMLElement, options?: IStandaloneEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneCodeEditor {
-	return withAllStandaloneServices(domElement, override || {}, (services) => {
-		return new StandaloneEditor(
-			domElement,
-			options,
-			services,
-			services.get(IInstantiationService),
-			services.get(ICodeEditorService),
-			services.get(ICommandService),
-			services.get(IContextKeyService),
-			services.get(IKeybindingService),
-			services.get(IContextViewService),
-			services.get(IStandaloneThemeService),
-			services.get(INotificationService),
-			services.get(IConfigurationService),
-			services.get(IAccessibilityService),
-			services.get(IModelService),
-			services.get(ILanguageService),
-			services.get(ILanguageConfigurationService),
-		);
-	});
+	const services = new DynamicStandaloneServices(domElement, override || {});
+	return new StandaloneEditor(
+		domElement,
+		options,
+		services,
+		services.get(IInstantiationService),
+		services.get(ICodeEditorService),
+		services.get(ICommandService),
+		services.get(IContextKeyService),
+		services.get(IKeybindingService),
+		services.get(IContextViewService),
+		services.get(IStandaloneThemeService),
+		services.get(INotificationService),
+		services.get(IConfigurationService),
+		services.get(IAccessibilityService),
+		services.get(IModelService),
+		services.get(ILanguageService),
+		services.get(ILanguageConfigurationService),
+	);
 }
 
 /**
@@ -106,25 +85,24 @@ export function onDidCreateEditor(listener: (codeEditor: ICodeEditor) => void): 
  * The editor will read the size of `domElement`.
  */
 export function createDiffEditor(domElement: HTMLElement, options?: IStandaloneDiffEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneDiffEditor {
-	return withAllStandaloneServices(domElement, override || {}, (services) => {
-		return new StandaloneDiffEditor(
-			domElement,
-			options,
-			services,
-			services.get(IInstantiationService),
-			services.get(IContextKeyService),
-			services.get(IKeybindingService),
-			services.get(IContextViewService),
-			services.get(IEditorWorkerService),
-			services.get(ICodeEditorService),
-			services.get(IStandaloneThemeService),
-			services.get(INotificationService),
-			services.get(IConfigurationService),
-			services.get(IContextMenuService),
-			services.get(IEditorProgressService),
-			services.get(IClipboardService)
-		);
-	});
+	const services = new DynamicStandaloneServices(domElement, override || {});
+	return new StandaloneDiffEditor(
+		domElement,
+		options,
+		services,
+		services.get(IInstantiationService),
+		services.get(IContextKeyService),
+		services.get(IKeybindingService),
+		services.get(IContextViewService),
+		services.get(IEditorWorkerService),
+		services.get(ICodeEditorService),
+		services.get(IStandaloneThemeService),
+		services.get(INotificationService),
+		services.get(IConfigurationService),
+		services.get(IContextMenuService),
+		services.get(IEditorProgressService),
+		services.get(IClipboardService)
+	);
 }
 
 export interface IDiffNavigatorOptions {
