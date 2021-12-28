@@ -23,7 +23,7 @@ suite('Monarch', () => {
 		const actualTokens: Token[][] = [];
 		let state = tokenizer.getInitialState();
 		for (const line of lines) {
-			const result = tokenizer.tokenize(line, true, state, 0);
+			const result = tokenizer.tokenize(line, true, state);
 			actualTokens.push(result.tokens);
 			state = result.endState;
 		}

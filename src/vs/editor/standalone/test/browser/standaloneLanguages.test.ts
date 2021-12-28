@@ -106,7 +106,7 @@ suite('TokenizationSupport2Adapter', () => {
 		}
 	}
 
-	function testBadTokensProvider(providerTokens: IToken[], offsetDelta: number, expectedClassicTokens: Token[], expectedModernTokens: number[]): void {
+	function testBadTokensProvider(providerTokens: IToken[], expectedClassicTokens: Token[], expectedModernTokens: number[]): void {
 
 		class BadTokensProvider implements TokensProvider {
 			public getInitialState(): IState {
@@ -130,10 +130,10 @@ suite('TokenizationSupport2Adapter', () => {
 			new MockThemeService()
 		);
 
-		const actualClassicTokens = adapter.tokenize('whatever', true, MockState.INSTANCE, offsetDelta);
+		const actualClassicTokens = adapter.tokenize('whatever', true, MockState.INSTANCE);
 		assert.deepStrictEqual(actualClassicTokens.tokens, expectedClassicTokens);
 
-		const actualModernTokens = adapter.tokenizeEncoded('whatever', true, MockState.INSTANCE, offsetDelta);
+		const actualModernTokens = adapter.tokenizeEncoded('whatever', true, MockState.INSTANCE);
 		const modernTokens: number[] = [];
 		for (let i = 0; i < actualModernTokens.tokens.length; i++) {
 			modernTokens[i] = actualModernTokens.tokens[i];
@@ -150,13 +150,12 @@ suite('TokenizationSupport2Adapter', () => {
 		disposables.dispose();
 	}
 
-	test('	 (no offset delta)', () => {
+	test('tokens always start at index 0', () => {
 		testBadTokensProvider(
 			[
 				{ startIndex: 7, scopes: 'foo' },
 				{ startIndex: 0, scopes: 'bar' }
 			],
-			0,
 			[
 				new Token(0, 'foo', languageId),
 				new Token(0, 'bar', languageId),
@@ -168,14 +167,13 @@ suite('TokenizationSupport2Adapter', () => {
 		);
 	});
 
-	test('tokens always start after each other (no offset delta)', () => {
+	test('tokens always start after each other', () => {
 		testBadTokensProvider(
 			[
 				{ startIndex: 0, scopes: 'foo' },
 				{ startIndex: 5, scopes: 'bar' },
 				{ startIndex: 3, scopes: 'foo' },
 			],
-			0,
 			[
 				new Token(0, 'foo', languageId),
 				new Token(5, 'bar', languageId),
@@ -188,44 +186,4 @@ suite('TokenizationSupport2Adapter', () => {
 			]
 		);
 	});
-
-	test('tokens always start at index 0 (with offset delta)', () => {
-		testBadTokensProvider(
-			[
-				{ startIndex: 7, scopes: 'foo' },
-				{ startIndex: 0, scopes: 'bar' }
-			],
-			7,
-			[
-				new Token(7, 'foo', languageId),
-				new Token(7, 'bar', languageId),
-			],
-			[
-				7, (0 << MetadataConsts.FOREGROUND_OFFSET),
-				7, (1 << MetadataConsts.FOREGROUND_OFFSET)
-			]
-		);
-	});
-
-	test('tokens always start after each other (with offset delta)', () => {
-		testBadTokensProvider(
-			[
-				{ startIndex: 0, scopes: 'foo' },
-				{ startIndex: 5, scopes: 'bar' },
-				{ startIndex: 3, scopes: 'foo' },
-			],
-			7,
-			[
-				new Token(7, 'foo', languageId),
-				new Token(12, 'bar', languageId),
-				new Token(12, 'foo', languageId),
-			],
-			[
-				7, (0 << MetadataConsts.FOREGROUND_OFFSET),
-				12, (1 << MetadataConsts.FOREGROUND_OFFSET),
-				12, (2 << MetadataConsts.FOREGROUND_OFFSET)
-			]
-		);
-	});
-
 });

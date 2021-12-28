@@ -511,14 +511,14 @@ function safeTokenize(languageIdCodec: ILanguageIdCodec, languageId: string, tok
 
 	if (tokenizationSupport) {
 		try {
-			r = tokenizationSupport.tokenizeEncoded(text, hasEOL, state.clone(), 0);
+			r = tokenizationSupport.tokenizeEncoded(text, hasEOL, state.clone());
 		} catch (e) {
 			onUnexpectedError(e);
 		}
 	}
 
 	if (!r) {
-		r = nullTokenizeEncoded(languageIdCodec.encodeLanguageId(languageId), text, state, 0);
+		r = nullTokenizeEncoded(languageIdCodec.encodeLanguageId(languageId), state);
 	}
 
 	LineTokens.convertToEndOffset(r.tokens, text.length);

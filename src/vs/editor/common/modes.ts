@@ -201,10 +201,9 @@ export interface ITokenizationSupport {
 
 	getInitialState(): IState;
 
-	// add offsetDelta to each of the returned indices
-	tokenize(line: string, hasEOL: boolean, state: IState, offsetDelta: number): TokenizationResult;
+	tokenize(line: string, hasEOL: boolean, state: IState): TokenizationResult;
 
-	tokenizeEncoded(line: string, hasEOL: boolean, state: IState, offsetDelta: number): EncodedTokenizationResult;
+	tokenizeEncoded(line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult;
 }
 
 /**

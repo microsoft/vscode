@@ -446,18 +446,14 @@ class TMTokenizationSupport implements ITokenizationSupport {
 		return this._actual.getInitialState();
 	}
 
-	tokenize(line: string, hasEOL: boolean, state: IState, offsetDelta: number): TokenizationResult {
+	tokenize(line: string, hasEOL: boolean, state: IState): TokenizationResult {
 		throw new Error('Not supported!');
 	}
 
-	tokenizeEncoded(line: string, hasEOL: boolean, state: StackElement, offsetDelta: number): EncodedTokenizationResult {
-		if (offsetDelta !== 0) {
-			throw new Error('Unexpected: offsetDelta should be 0.');
-		}
-
+	tokenizeEncoded(line: string, hasEOL: boolean, state: StackElement): EncodedTokenizationResult {
 		// Do not attempt to tokenize if a line is too long
 		if (line.length >= this._maxTokenizationLineLength) {
-			return nullTokenizeEncoded(this._encodedLanguageId, line, state, offsetDelta);
+			return nullTokenizeEncoded(this._encodedLanguageId, state);
 		}
 
 		return this._actual.tokenizeEncoded(line, state);

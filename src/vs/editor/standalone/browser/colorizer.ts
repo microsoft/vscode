@@ -179,7 +179,7 @@ function _actualColorize(lines: string[], tabSize: number, tokenizationSupport: 
 
 	for (let i = 0, length = lines.length; i < length; i++) {
 		let line = lines[i];
-		let tokenizeResult = tokenizationSupport.tokenizeEncoded(line, true, state, 0);
+		let tokenizeResult = tokenizationSupport.tokenizeEncoded(line, true, state);
 		LineTokens.convertToEndOffset(tokenizeResult.tokens, line.length);
 		let lineTokens = new LineTokens(tokenizeResult.tokens, line, languageIdCodec);
 		const isBasicASCII = ViewLineRenderingData.isBasicASCII(line, /* check for basic ASCII */true);

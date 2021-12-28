@@ -14,7 +14,7 @@ export type IReducedTokenizationSupport = Omit<ITokenizationSupport, 'tokenize'>
 
 const fallback: IReducedTokenizationSupport = {
 	getInitialState: () => NULL_STATE,
-	tokenizeEncoded: (buffer: string, hasEOL: boolean, state: IState, deltaOffset: number) => nullTokenizeEncoded(LanguageId.Null, buffer, state, deltaOffset)
+	tokenizeEncoded: (buffer: string, hasEOL: boolean, state: IState) => nullTokenizeEncoded(LanguageId.Null, state)
 };
 
 export function tokenizeToStringSync(languageService: ILanguageService, text: string, languageId: string): string {
@@ -136,7 +136,7 @@ export function _tokenizeToString(text: string, languageIdCodec: ILanguageIdCode
 			result += `<br/>`;
 		}
 
-		const tokenizationResult = tokenizationSupport.tokenizeEncoded(line, true, currentState, 0);
+		const tokenizationResult = tokenizationSupport.tokenizeEncoded(line, true, currentState);
 		LineTokens.convertToEndOffset(tokenizationResult.tokens, line.length);
 		const lineTokens = new LineTokens(tokenizationResult.tokens, line, languageIdCodec);
 		const viewLineTokens = lineTokens.inflate();

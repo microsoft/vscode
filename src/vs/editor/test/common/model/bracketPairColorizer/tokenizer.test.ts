@@ -175,7 +175,7 @@ class TokenizedDocument {
 		return {
 			getInitialState: () => new State(0),
 			tokenize: () => { throw new Error('Method not implemented.'); },
-			tokenizeEncoded: (line: string, hasEOL: boolean, state: IState, offsetDelta: number): EncodedTokenizationResult => {
+			tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
 				const state2 = state as State;
 				const tokens = this.tokensByLine[state2.lineNumber];
 				const arr = new Array<number>();
