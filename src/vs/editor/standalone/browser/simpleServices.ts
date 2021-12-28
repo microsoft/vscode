@@ -28,7 +28,7 @@ import { IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey
 import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInputResult, IShowResult } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { IKeybindingEvent, IKeyboardEvent, KeybindingSource, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingEvent, IKeybindingService, IKeyboardEvent, KeybindingSource, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingItem, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
@@ -44,12 +44,15 @@ import { SimpleServicesNLS } from 'vs/editor/common/standaloneStrings';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { basename } from 'vs/base/common/resources';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ConsoleLogger, ILogService, LogService } from 'vs/platform/log/common/log';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo } from 'vs/platform/workspace/common/workspaceTrust';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IContextViewDelegate } from 'vs/platform/contextview/browser/contextView';
+import { IContextViewDelegate, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
+import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
+import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class SimpleModel implements IResolvedTextEditorModel {
 
@@ -250,7 +253,9 @@ export class StandaloneCommandService implements ICommandService {
 	public readonly onWillExecuteCommand: Event<ICommandEvent> = this._onWillExecuteCommand.event;
 	public readonly onDidExecuteCommand: Event<ICommandEvent> = this._onDidExecuteCommand.event;
 
-	constructor(instantiationService: IInstantiationService) {
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
 		this._instantiationService = instantiationService;
 	}
 
@@ -278,12 +283,12 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	private readonly _domNodeListeners: DomNodeListeners[];
 
 	constructor(
-		contextKeyService: IContextKeyService,
-		commandService: ICommandService,
-		telemetryService: ITelemetryService,
-		notificationService: INotificationService,
-		logService: ILogService,
-		codeEditorService: ICodeEditorService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ICommandService commandService: ICommandService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@INotificationService notificationService: INotificationService,
+		@ILogService logService: ILogService,
+		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
 		super(contextKeyService, commandService, telemetryService, notificationService, logService);
 
@@ -559,7 +564,9 @@ export class SimpleResourceConfigurationService implements ITextResourceConfigur
 	private readonly _onDidChangeConfiguration = new Emitter<ITextResourceConfigurationChangeEvent>();
 	public readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 
-	constructor(private readonly configurationService: SimpleConfigurationService) {
+	constructor(
+		@IConfigurationService private readonly configurationService: SimpleConfigurationService
+	) {
 		this.configurationService.onDidChangeConfiguration((e) => {
 			this._onDidChangeConfiguration.fire({ affectedKeys: e.affectedKeys, affectsConfiguration: (resource: URI, configuration: string) => e.affectsConfiguration(configuration) });
 		});
@@ -712,7 +719,9 @@ export function updateConfigurationService(configurationService: IConfigurationS
 export class SimpleBulkEditService implements IBulkEditService {
 	declare readonly _serviceBrand: undefined;
 
-	constructor(private readonly _modelService: IModelService) {
+	constructor(
+		@IModelService private readonly _modelService: IModelService
+	) {
 		//
 	}
 
@@ -833,7 +842,9 @@ export class SimpleLayoutService implements ILayoutService {
 		this._codeEditorService.getFocusedCodeEditor()?.focus();
 	}
 
-	constructor(private _codeEditorService: ICodeEditorService) { }
+	constructor(
+		@ICodeEditorService private _codeEditorService: ICodeEditorService
+	) { }
 }
 
 export class EditorScopedLayoutService extends SimpleLayoutService {
@@ -843,7 +854,10 @@ export class EditorScopedLayoutService extends SimpleLayoutService {
 	override get container(): HTMLElement {
 		return this._container;
 	}
-	constructor(codeEditorService: ICodeEditorService, private _container: HTMLElement) {
+	constructor(
+		private _container: HTMLElement,
+		@ICodeEditorService codeEditorService: ICodeEditorService,
+	) {
 		super(codeEditorService);
 	}
 }
@@ -910,5 +924,30 @@ export class SimpleWorkspaceTrustManagementService implements IWorkspaceTrustMan
 	}
 	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable {
 		throw new Error('Method not supported.');
+	}
+}
+
+export class StandaloneLanguageService extends LanguageService {
+	constructor() {
+		super();
+	}
+}
+
+export class StandaloneLogService extends LogService {
+	constructor() {
+		super(new ConsoleLogger());
+	}
+}
+
+export class StandaloneContextMenuService extends ContextMenuService {
+	constructor(
+		@ITelemetryService telemetryService: ITelemetryService,
+		@INotificationService notificationService: INotificationService,
+		@IContextViewService contextViewService: IContextViewService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IThemeService themeService: IThemeService
+	) {
+		super(telemetryService, notificationService, contextViewService, keybindingService, themeService);
+		this.configure({ blockMouse: false }); // we do not want that in the standalone editor
 	}
 }

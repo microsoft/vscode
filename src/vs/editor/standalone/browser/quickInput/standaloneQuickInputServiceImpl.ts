@@ -32,7 +32,7 @@ export class EditorScopedQuickInputServiceImpl extends QuickInputService {
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
-		super(instantiationService, contextKeyService, themeService, accessibilityService, new EditorScopedLayoutService(codeEditorService, editor.getContainerDomNode()));
+		super(instantiationService, contextKeyService, themeService, accessibilityService, new EditorScopedLayoutService(editor.getContainerDomNode(), codeEditorService));
 
 		// Use the passed in code editor as host for the quick input widget
 		const contribution = QuickInputEditorContribution.get(editor);

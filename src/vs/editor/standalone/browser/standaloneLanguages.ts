@@ -21,7 +21,7 @@ import { compile } from 'vs/editor/standalone/common/monarch/monarchCompile';
 import { MonarchTokenizer } from 'vs/editor/standalone/common/monarch/monarchLexer';
 import { IMonarchLanguage } from 'vs/editor/standalone/common/monarch/monarchTypes';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
-import { IMarkerData } from 'vs/platform/markers/common/markers';
+import { IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';
 
 /**
  * Register information about a new language.
@@ -40,7 +40,7 @@ export function getLanguages(): ILanguageExtensionPoint[] {
 }
 
 export function getEncodedLanguageId(languageId: string): number {
-	const languageService = StaticServices.languageService.get();
+	const languageService = StaticServices.get(ILanguageService);
 	return languageService.languageIdCodec.encodeLanguageId(languageId);
 }
 
@@ -49,7 +49,8 @@ export function getEncodedLanguageId(languageId: string): number {
  * @event
  */
 export function onLanguage(languageId: string, callback: () => void): IDisposable {
-	let disposable = StaticServices.languageService.get().onDidEncounterLanguage((encounteredLanguageId) => {
+	const languageService = StaticServices.get(ILanguageService);
+	const disposable = languageService.onDidEncounterLanguage((encounteredLanguageId) => {
 		if (encounteredLanguageId === languageId) {
 			// stop listening
 			disposable.dispose();
@@ -64,7 +65,7 @@ export function onLanguage(languageId: string, callback: () => void): IDisposabl
  * Set the editing configuration for a language.
  */
 export function setLanguageConfiguration(languageId: string, configuration: LanguageConfiguration): IDisposable {
-	const languageService = StaticServices.languageService.get();
+	const languageService = StaticServices.get(ILanguageService);
 	if (!languageService.isRegisteredLanguageId(languageId)) {
 		throw new Error(`Cannot set configuration for unknown language ${languageId}`);
 	}
@@ -325,14 +326,15 @@ function isThenable<T>(obj: any): obj is Thenable<T> {
  * Supported formats (hex): #RRGGBB, $RRGGBBAA, #RGB, #RGBA
  */
 export function setColorMap(colorMap: string[] | null): void {
+	const standaloneThemeService = StaticServices.get(IStandaloneThemeService);
 	if (colorMap) {
 		const result: Color[] = [null!];
 		for (let i = 1, len = colorMap.length; i < len; i++) {
 			result[i] = Color.fromHex(colorMap[i]);
 		}
-		StaticServices.standaloneThemeService.get().setColorMapOverride(result);
+		standaloneThemeService.setColorMapOverride(result);
 	} else {
-		StaticServices.standaloneThemeService.get().setColorMapOverride(null);
+		standaloneThemeService.setColorMapOverride(null);
 	}
 }
 
@@ -346,8 +348,8 @@ function createTokenizationSupportAdapter(languageId: string, provider: TokensPr
 		return new TokenizationSupportAdapter(
 			languageId,
 			provider,
-			StaticServices.languageService.get(),
-			StaticServices.standaloneThemeService.get(),
+			StaticServices.get(ILanguageService),
+			StaticServices.get(IStandaloneThemeService),
 		);
 	}
 }
@@ -367,7 +369,7 @@ export function registerTokensProviderFactory(languageId: string, factory: Token
 			if (isATokensProvider(result)) {
 				return createTokenizationSupportAdapter(languageId, result);
 			}
-			return new MonarchTokenizer(StaticServices.languageService.get(), StaticServices.standaloneThemeService.get(), languageId, compile(languageId, result));
+			return new MonarchTokenizer(StaticServices.get(ILanguageService), StaticServices.get(IStandaloneThemeService), languageId, compile(languageId, result));
 		}
 	};
 	return modes.TokenizationRegistry.registerFactory(languageId, adaptedFactory);
@@ -380,7 +382,7 @@ export function registerTokensProviderFactory(languageId: string, factory: Token
  * or `registerDocumentRangeSemanticTokensProvider`.
  */
 export function setTokensProvider(languageId: string, provider: TokensProvider | EncodedTokensProvider | Thenable<TokensProvider | EncodedTokensProvider>): IDisposable {
-	const languageService = StaticServices.languageService.get();
+	const languageService = StaticServices.get(ILanguageService);
 	if (!languageService.isRegisteredLanguageId(languageId)) {
 		throw new Error(`Cannot set tokens provider for unknown language ${languageId}`);
 	}
@@ -398,7 +400,7 @@ export function setTokensProvider(languageId: string, provider: TokensProvider |
  */
 export function setMonarchTokensProvider(languageId: string, languageDef: IMonarchLanguage | Thenable<IMonarchLanguage>): IDisposable {
 	const create = (languageDef: IMonarchLanguage) => {
-		return new MonarchTokenizer(StaticServices.languageService.get(), StaticServices.standaloneThemeService.get(), languageId, compile(languageId, languageDef));
+		return new MonarchTokenizer(StaticServices.get(ILanguageService), StaticServices.get(IStandaloneThemeService), languageId, compile(languageId, languageDef));
 	};
 	if (isThenable<IMonarchLanguage>(languageDef)) {
 		return registerTokensProviderFactory(languageId, { create: () => languageDef });
@@ -507,7 +509,8 @@ export function registerCodeActionProvider(languageId: string, provider: CodeAct
 	return modes.CodeActionProviderRegistry.register(languageId, {
 		providedCodeActionKinds: metadata?.providedCodeActionKinds,
 		provideCodeActions: (model: model.ITextModel, range: Range, context: modes.CodeActionContext, token: CancellationToken): modes.ProviderResult<modes.CodeActionList> => {
-			let markers = StaticServices.markerService.get().read({ resource: model.uri }).filter(m => {
+			const markerService = StaticServices.get(IMarkerService);
+			const markers = markerService.read({ resource: model.uri }).filter(m => {
 				return Range.areIntersectingOrTouching(m, range);
 			});
 			return provider.provideCodeActions(model, range, { markers, only: context.only }, token);
