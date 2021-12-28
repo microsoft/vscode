@@ -16,6 +16,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
 import * as types from 'vs/workbench/api/common/extHostTypes';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 import { ExtHostCommentsShape, IMainContext, MainContext, CommentThreadChanges } from './extHost.protocol';
 import { ExtHostCommands } from './extHostCommands';
@@ -346,7 +347,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			private _uri: vscode.Uri,
 			private _range: vscode.Range,
 			private _comments: vscode.Comment[],
-			extensionId: ExtensionIdentifier
+			public readonly extensionDescription: IExtensionDescription
 		) {
 			this._acceptInputDisposables.value = new DisposableStore();
 
@@ -360,7 +361,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 				this._id,
 				this._uri,
 				extHostTypeConverter.Range.from(this._range),
-				extensionId
+				extensionDescription.identifier
 			);
 
 			this._localDisposables = [];
@@ -561,18 +562,18 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		createCommentThread(resource: vscode.Uri, range: vscode.Range, comments: vscode.Comment[]): ExtHostCommentThread;
 		createCommentThread(arg0: vscode.Uri | string, arg1: vscode.Uri | vscode.Range, arg2: vscode.Range | vscode.Comment[], arg3?: vscode.Comment[]): vscode.CommentThread {
 			if (typeof arg0 === 'string') {
-				const commentThread = new ExtHostCommentThread(this.id, this.handle, arg0, arg1 as vscode.Uri, arg2 as vscode.Range, arg3 as vscode.Comment[], this._extension.identifier);
+				const commentThread = new ExtHostCommentThread(this.id, this.handle, arg0, arg1 as vscode.Uri, arg2 as vscode.Range, arg3 as vscode.Comment[], this._extension);
 				this._threads.set(commentThread.handle, commentThread);
 				return commentThread;
 			} else {
-				const commentThread = new ExtHostCommentThread(this.id, this.handle, undefined, arg0 as vscode.Uri, arg1 as vscode.Range, arg2 as vscode.Comment[], this._extension.identifier);
+				const commentThread = new ExtHostCommentThread(this.id, this.handle, undefined, arg0 as vscode.Uri, arg1 as vscode.Range, arg2 as vscode.Comment[], this._extension);
 				this._threads.set(commentThread.handle, commentThread);
 				return commentThread;
 			}
 		}
 
 		$createCommentThreadTemplate(uriComponents: UriComponents, range: IRange): ExtHostCommentThread {
-			const commentThread = new ExtHostCommentThread(this.id, this.handle, undefined, URI.revive(uriComponents), extHostTypeConverter.Range.to(range), [], this._extension.identifier);
+			const commentThread = new ExtHostCommentThread(this.id, this.handle, undefined, URI.revive(uriComponents), extHostTypeConverter.Range.to(range), [], this._extension);
 			commentThread.collapsibleState = modes.CommentThreadCollapsibleState.Expanded;
 			this._threads.set(commentThread.handle, commentThread);
 			return commentThread;
@@ -617,6 +618,10 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 
 		const iconPath = vscodeComment.author && vscodeComment.author.iconPath ? vscodeComment.author.iconPath.toString() : undefined;
 
+		if (vscodeComment.timestamp) {
+			checkProposedApiEnabled(thread.extensionDescription, 'commentTimestamp');
+		}
+
 		return {
 			mode: vscodeComment.mode,
 			contextValue: vscodeComment.contextValue,
@@ -625,7 +630,8 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			userName: vscodeComment.author.name,
 			userIconPath: iconPath,
 			label: vscodeComment.label,
-			commentReactions: vscodeComment.reactions ? vscodeComment.reactions.map(reaction => convertToReaction(reaction)) : undefined
+			commentReactions: vscodeComment.reactions ? vscodeComment.reactions.map(reaction => convertToReaction(reaction)) : undefined,
+			timestamp: vscodeComment.timestamp
 		};
 	}
 
@@ -661,3 +667,4 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 
 	return new ExtHostCommentsImpl();
 }
+
