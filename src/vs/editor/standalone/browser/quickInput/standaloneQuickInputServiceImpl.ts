@@ -13,7 +13,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { EditorScopedLayoutService } from 'vs/editor/standalone/browser/simpleServices';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { QuickInputController } from 'vs/base/parts/quickinput/browser/quickInput';
 import { QuickInputService, IQuickInputControllerHost } from 'vs/platform/quickinput/browser/quickInput';
@@ -30,9 +30,9 @@ export class EditorScopedQuickInputServiceImpl extends QuickInputService {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@ILayoutService layoutService: ILayoutService
+		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
-		super(instantiationService, contextKeyService, themeService, accessibilityService, layoutService);
+		super(instantiationService, contextKeyService, themeService, accessibilityService, new EditorScopedLayoutService(codeEditorService, editor.getContainerDomNode()));
 
 		// Use the passed in code editor as host for the quick input widget
 		const contribution = QuickInputEditorContribution.get(editor);
@@ -40,6 +40,7 @@ export class EditorScopedQuickInputServiceImpl extends QuickInputService {
 			const widget = contribution.widget;
 			this.host = {
 				_serviceBrand: undefined,
+				get hasContainer() { return true; },
 				get container() { return widget.getDomNode(); },
 				get dimension() { return editor.getLayoutInfo(); },
 				get onDidLayout() { return editor.onDidLayoutChange; },

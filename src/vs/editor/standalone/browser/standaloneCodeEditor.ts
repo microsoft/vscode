@@ -20,8 +20,7 @@ import { IMenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/acti
 import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -396,7 +395,6 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 
 export class StandaloneEditor extends StandaloneCodeEditor implements IStandaloneCodeEditor {
 
-	private readonly _contextViewService: ContextViewService;
 	private readonly _configurationService: IConfigurationService;
 	private readonly _standaloneThemeService: IStandaloneThemeService;
 	private _ownsModel: boolean;
@@ -404,13 +402,11 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 	constructor(
 		domElement: HTMLElement,
 		_options: Readonly<IStandaloneEditorConstructionOptions> | undefined,
-		toDispose: IDisposable,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextViewService contextViewService: IContextViewService,
 		@IStandaloneThemeService themeService: IStandaloneThemeService,
 		@INotificationService notificationService: INotificationService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -432,10 +428,8 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		delete options.model;
 		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService, themeService, notificationService, accessibilityService, languageConfigurationService);
 
-		this._contextViewService = <ContextViewService>contextViewService;
 		this._configurationService = configurationService;
 		this._standaloneThemeService = themeService;
-		this._register(toDispose);
 		this._register(themeDomRegistration);
 
 		let model: ITextModel | null;
@@ -473,13 +467,6 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		super.updateOptions(newOptions);
 	}
 
-	override _attachModel(model: ITextModel | null): void {
-		super._attachModel(model);
-		if (this._modelData) {
-			this._contextViewService.setContainer(this._modelData.view.domNode.domNode);
-		}
-	}
-
 	override _postDetachModelCleanup(detachedModel: ITextModel): void {
 		super._postDetachModelCleanup(detachedModel);
 		if (detachedModel && this._ownsModel) {
@@ -491,18 +478,14 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 
 export class StandaloneDiffEditor extends DiffEditorWidget implements IStandaloneDiffEditor {
 
-	private readonly _contextViewService: ContextViewService;
 	private readonly _configurationService: IConfigurationService;
 	private readonly _standaloneThemeService: IStandaloneThemeService;
 
 	constructor(
 		domElement: HTMLElement,
 		_options: Readonly<IStandaloneDiffEditorConstructionOptions> | undefined,
-		toDispose: IDisposable,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextViewService contextViewService: IContextViewService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IStandaloneThemeService themeService: IStandaloneThemeService,
@@ -524,14 +507,10 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 
 		super(domElement, options, {}, clipboardService, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, editorProgressService);
 
-		this._contextViewService = <ContextViewService>contextViewService;
 		this._configurationService = configurationService;
 		this._standaloneThemeService = themeService;
 
-		this._register(toDispose);
 		this._register(themeDomRegistration);
-
-		this._contextViewService.setContainer(this._containerDomElement);
 	}
 
 	public override dispose(): void {

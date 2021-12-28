@@ -5144,9 +5144,9 @@ declare namespace monaco.editor {
 	 */
 	export interface IDiffEditor extends IEditor {
 		/**
-		 * @see {@link ICodeEditor.getDomNode}
+		 * @see {@link ICodeEditor.getContainerDomNode}
 		 */
-		getDomNode(): HTMLElement;
+		getContainerDomNode(): HTMLElement;
 		/**
 		 * An event emitted when the diff information computed by this diff editor has been updated.
 		 * @event

@@ -22,12 +22,12 @@ import { IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebW
 import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
 import { Colorizer, IColorizerElementOptions, IColorizerOptions } from 'vs/editor/standalone/browser/colorizer';
 import { IStandaloneEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor, StandaloneDiffEditor, StandaloneEditor, createTextModel, IStandaloneDiffEditorConstructionOptions } from 'vs/editor/standalone/browser/standaloneCodeEditor';
-import { DynamicStandaloneServices, IEditorOverrideServices, StaticServices } from 'vs/editor/standalone/browser/standaloneServices';
+import { StandaloneServices, IEditorOverrideServices, StaticServices } from 'vs/editor/standalone/browser/standaloneServices';
 import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMarker, IMarkerData } from 'vs/platform/markers/common/markers';
@@ -47,17 +47,15 @@ import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageCo
  * The editor will read the size of `domElement`.
  */
 export function create(domElement: HTMLElement, options?: IStandaloneEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneCodeEditor {
-	const services = new DynamicStandaloneServices(domElement, override || {});
+	const services = new StandaloneServices(override || {});
 	return new StandaloneEditor(
 		domElement,
 		options,
-		services,
 		services.get(IInstantiationService),
 		services.get(ICodeEditorService),
 		services.get(ICommandService),
 		services.get(IContextKeyService),
 		services.get(IKeybindingService),
-		services.get(IContextViewService),
 		services.get(IStandaloneThemeService),
 		services.get(INotificationService),
 		services.get(IConfigurationService),
@@ -85,15 +83,12 @@ export function onDidCreateEditor(listener: (codeEditor: ICodeEditor) => void): 
  * The editor will read the size of `domElement`.
  */
 export function createDiffEditor(domElement: HTMLElement, options?: IStandaloneDiffEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneDiffEditor {
-	const services = new DynamicStandaloneServices(domElement, override || {});
+	const services = new StandaloneServices(override || {});
 	return new StandaloneDiffEditor(
 		domElement,
 		options,
-		services,
 		services.get(IInstantiationService),
 		services.get(IContextKeyService),
-		services.get(IKeybindingService),
-		services.get(IContextViewService),
 		services.get(IEditorWorkerService),
 		services.get(ICodeEditorService),
 		services.get(IStandaloneThemeService),

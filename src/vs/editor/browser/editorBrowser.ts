@@ -989,9 +989,9 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	readonly maxComputationTime: number;
 
 	/**
-	 * @see {@link ICodeEditor.getDomNode}
+	 * @see {@link ICodeEditor.getContainerDomNode}
 	 */
-	getDomNode(): HTMLElement;
+	getContainerDomNode(): HTMLElement;
 
 	/**
 	 * An event emitted when the diff information computed by this diff editor has been updated.

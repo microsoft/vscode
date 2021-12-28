@@ -545,6 +545,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 
 	dimension: IDimension = { width: 800, height: 600 };
 
+	hasContainer = true;
 	container: HTMLElement = window.document.body;
 
 	onDidChangeZenMode: Event<boolean> = Event.None;

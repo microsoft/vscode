@@ -46,6 +46,10 @@ import { basename } from 'vs/base/common/resources';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo } from 'vs/platform/workspace/common/workspaceTrust';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { IContextViewDelegate } from 'vs/platform/contextview/browser/contextView';
+import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 
 export class SimpleModel implements IResolvedTextEditorModel {
 
@@ -271,6 +275,7 @@ export class StandaloneCommandService implements ICommandService {
 export class StandaloneKeybindingService extends AbstractKeybindingService {
 	private _cachedResolver: KeybindingResolver | null;
 	private readonly _dynamicKeybindings: IKeybindingItem[];
+	private readonly _domNodeListeners: DomNodeListeners[];
 
 	constructor(
 		contextKeyService: IContextKeyService,
@@ -278,31 +283,73 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		telemetryService: ITelemetryService,
 		notificationService: INotificationService,
 		logService: ILogService,
-		domNode: HTMLElement
+		codeEditorService: ICodeEditorService
 	) {
 		super(contextKeyService, commandService, telemetryService, notificationService, logService);
 
 		this._cachedResolver = null;
 		this._dynamicKeybindings = [];
+		this._domNodeListeners = [];
 
-		// for standard keybindings
-		this._register(dom.addDisposableListener(domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			const keyEvent = new StandardKeyboardEvent(e);
-			const shouldPreventDefault = this._dispatch(keyEvent, keyEvent.target);
-			if (shouldPreventDefault) {
-				keyEvent.preventDefault();
-				keyEvent.stopPropagation();
-			}
-		}));
+		const addContainer = (domNode: HTMLElement) => {
+			const disposables = new DisposableStore();
 
-		// for single modifier chord keybindings (e.g. shift shift)
-		this._register(dom.addDisposableListener(window, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
-			const keyEvent = new StandardKeyboardEvent(e);
-			const shouldPreventDefault = this._singleModifierDispatch(keyEvent, keyEvent.target);
-			if (shouldPreventDefault) {
-				keyEvent.preventDefault();
+			// for standard keybindings
+			disposables.add(dom.addDisposableListener(domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+				const keyEvent = new StandardKeyboardEvent(e);
+				const shouldPreventDefault = this._dispatch(keyEvent, keyEvent.target);
+				if (shouldPreventDefault) {
+					keyEvent.preventDefault();
+					keyEvent.stopPropagation();
+				}
+			}));
+
+			// for single modifier chord keybindings (e.g. shift shift)
+			disposables.add(dom.addDisposableListener(domNode, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
+				const keyEvent = new StandardKeyboardEvent(e);
+				const shouldPreventDefault = this._singleModifierDispatch(keyEvent, keyEvent.target);
+				if (shouldPreventDefault) {
+					keyEvent.preventDefault();
+				}
+			}));
+
+			this._domNodeListeners.push(new DomNodeListeners(domNode, disposables));
+		};
+		const removeContainer = (domNode: HTMLElement) => {
+			for (let i = 0; i < this._domNodeListeners.length; i++) {
+				const domNodeListeners = this._domNodeListeners[i];
+				if (domNodeListeners.domNode === domNode) {
+					this._domNodeListeners.splice(i, 1);
+					domNodeListeners.dispose();
+				}
 			}
-		}));
+		};
+
+		const addCodeEditor = (codeEditor: ICodeEditor) => {
+			if (codeEditor.getOption(EditorOption.inDiffEditor)) {
+				return;
+			}
+			addContainer(codeEditor.getContainerDomNode());
+		};
+		const removeCodeEditor = (codeEditor: ICodeEditor) => {
+			if (codeEditor.getOption(EditorOption.inDiffEditor)) {
+				return;
+			}
+			removeContainer(codeEditor.getContainerDomNode());
+		};
+		this._register(codeEditorService.onCodeEditorAdd(addCodeEditor));
+		this._register(codeEditorService.onCodeEditorRemove(removeCodeEditor));
+		codeEditorService.listCodeEditors().forEach(addCodeEditor);
+
+		const addDiffEditor = (diffEditor: IDiffEditor) => {
+			addContainer(diffEditor.getContainerDomNode());
+		};
+		const removeDiffEditor = (diffEditor: IDiffEditor) => {
+			removeContainer(diffEditor.getContainerDomNode());
+		};
+		this._register(codeEditorService.onDiffEditorAdd(addDiffEditor));
+		this._register(codeEditorService.onDiffEditorRemove(removeDiffEditor));
+		codeEditorService.listDiffEditors().forEach(addDiffEditor);
 	}
 
 	public addDynamicKeybinding(commandId: string, _keybinding: number, handler: ICommandHandler, when: ContextKeyExpression | undefined): IDisposable {
@@ -407,6 +454,16 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 
 	public registerSchemaContribution(contribution: KeybindingsSchemaContribution): void {
 		// noop
+	}
+}
+
+class DomNodeListeners extends Disposable {
+	constructor(
+		public readonly domNode: HTMLElement,
+		disposables: DisposableStore
+	) {
+		super();
+		this._register(disposables);
 	}
 }
 
@@ -759,15 +816,56 @@ export class SimpleLayoutService implements ILayoutService {
 		return this._dimension;
 	}
 
+	get hasContainer(): boolean {
+		return false;
+	}
+
 	get container(): HTMLElement {
-		return this._container;
+		// On a page, multiple editors can be created. Therefore, there are multiple containers, not
+		// just a single one. Please use `ICodeEditorService` to get the current focused code editor
+		// and use its container if necessary. You can also instantiate `EditorScopedLayoutService`
+		// which implements `ILayoutService` but is not a part of the service collection because
+		// it is code editor instance specific.
+		throw new Error(`ILayoutService.container is not available in the standalone editor!`);
 	}
 
 	focus(): void {
 		this._codeEditorService.getFocusedCodeEditor()?.focus();
 	}
 
-	constructor(private _codeEditorService: ICodeEditorService, private _container: HTMLElement) { }
+	constructor(private _codeEditorService: ICodeEditorService) { }
+}
+
+export class EditorScopedLayoutService extends SimpleLayoutService {
+	override get hasContainer(): boolean {
+		return false;
+	}
+	override get container(): HTMLElement {
+		return this._container;
+	}
+	constructor(codeEditorService: ICodeEditorService, private _container: HTMLElement) {
+		super(codeEditorService);
+	}
+}
+
+export class StandaloneContextViewService extends ContextViewService {
+
+	constructor(
+		@ILayoutService layoutService: ILayoutService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+	) {
+		super(layoutService);
+	}
+
+	override showContextView(delegate: IContextViewDelegate, container?: HTMLElement, shadowRoot?: boolean): IDisposable {
+		if (!container) {
+			const codeEditor = this._codeEditorService.getFocusedCodeEditor() || this._codeEditorService.getActiveCodeEditor();
+			if (codeEditor) {
+				container = codeEditor.getContainerDomNode();
+			}
+		}
+		return super.showContextView(delegate, container, shadowRoot);
+	}
 }
 
 export class SimpleWorkspaceTrustManagementService implements IWorkspaceTrustManagementService {
