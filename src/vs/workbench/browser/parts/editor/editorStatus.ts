@@ -41,7 +41,7 @@ import { ICodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Schemas } from 'vs/base/common/network';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { getIconClassesForModeId } from 'vs/editor/common/services/getIconClasses';
+import { getIconClassesForLanguageId } from 'vs/editor/common/services/getIconClasses';
 import { Promises, timeout } from 'vs/base/common/async';
 import { INotificationHandle, INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { Event } from 'vs/base/common/event';
@@ -1105,10 +1105,10 @@ export class ChangeModeAction extends Action {
 
 		// Compute mode
 		let currentLanguageName: string | undefined;
-		let currentModeId: string | undefined;
+		let currentLanguageId: string | undefined;
 		if (textModel) {
-			currentModeId = textModel.getLanguageId();
-			currentLanguageName = withNullAsUndefined(this.languageService.getLanguageName(currentModeId));
+			currentLanguageId = textModel.getLanguageId();
+			currentLanguageName = withNullAsUndefined(this.languageService.getLanguageName(currentLanguageId));
 		}
 
 		let hasLanguageSupport = !!resource;
@@ -1131,7 +1131,7 @@ export class ChangeModeAction extends Action {
 				return {
 					label: languageName,
 					meta: extensions,
-					iconClasses: getIconClassesForModeId(languageId),
+					iconClasses: getIconClassesForLanguageId(languageId),
 					description
 				};
 			});
@@ -1182,7 +1182,7 @@ export class ChangeModeAction extends Action {
 
 		// User decided to configure settings for current language
 		if (pick === configureModeSettings) {
-			this.preferencesService.openUserSettings({ jsonEditor: true, revealSetting: { key: `[${withUndefinedAsNull(currentModeId)}]`, edit: true } });
+			this.preferencesService.openUserSettings({ jsonEditor: true, revealSetting: { key: `[${withUndefinedAsNull(currentLanguageId)}]`, edit: true } });
 			return;
 		}
 
@@ -1216,9 +1216,9 @@ export class ChangeModeAction extends Action {
 
 					if (resource) {
 						// fire and forget to not slow things down
-						this.languageDetectionService.detectLanguage(resource).then(detectedModeId => {
+						this.languageDetectionService.detectLanguage(resource).then(detectedLanguageId => {
 							const chosenLanguageId = this.languageService.getLanguageIdForLanguageName(pick.label) || 'unknown';
-							if (detectedModeId === currentModeId && currentModeId !== chosenLanguageId) {
+							if (detectedLanguageId === currentLanguageId && currentLanguageId !== chosenLanguageId) {
 								// If they didn't choose the detected language (which should also be the active language if automatic detection is enabled)
 								// then the automatic language detection was likely wrong and the user is correcting it. In this case, we want telemetry.
 								this.telemetryService.publicLog2<IAutomaticLanguageDetectionLikelyWrongData, AutomaticLanguageDetectionLikelyWrongClassification>(AutomaticLanguageDetectionLikelyWrongId, {
@@ -1254,7 +1254,7 @@ export class ChangeModeAction extends Action {
 			return {
 				id: languageId,
 				label: languageName,
-				iconClasses: getIconClassesForModeId(languageId),
+				iconClasses: getIconClassesForLanguageId(languageId),
 				description: (languageId === currentAssociation) ? localize('currentAssociation', "Current Association") : undefined
 			};
 		});

@@ -38,7 +38,7 @@ export interface IModelService {
 
 	onModelRemoved: Event<ITextModel>;
 
-	onModelModeChanged: Event<{ model: ITextModel; oldModeId: string; }>;
+	onModelLanguageChanged: Event<{ model: ITextModel; oldLanguageId: string; }>;
 }
 
 export function shouldSynchronizeModel(model: ITextModel): boolean {

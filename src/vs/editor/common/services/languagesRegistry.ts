@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { coalesce } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -322,27 +323,6 @@ export class LanguagesRegistry extends Disposable {
 		return (language.mimetypes[0] || null);
 	}
 
-	private _extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds: string | undefined): string[] {
-		if (!commaSeparatedMimetypesOrCommaSeparatedIds) {
-			return [];
-		}
-
-		return (
-			commaSeparatedMimetypesOrCommaSeparatedIds.
-				split(',').
-				map((mimeTypeOrId) => mimeTypeOrId.trim()).
-				map((mimeTypeOrId) => {
-					if (hasOwnProperty.call(this._mimeTypesMap, mimeTypeOrId)) {
-						return this._mimeTypesMap[mimeTypeOrId];
-					}
-					return mimeTypeOrId;
-				}).
-				filter((languageId) => {
-					return hasOwnProperty.call(this._languages, languageId);
-				})
-		);
-	}
-
 	public validateLanguageId(languageId: string | null | undefined): string | null {
 		if (!languageId || languageId === NULL_MODE_ID) {
 			return NULL_MODE_ID;
@@ -355,22 +335,12 @@ export class LanguagesRegistry extends Disposable {
 		return languageId;
 	}
 
-	public getModeIdFromLanguageName(languageName: string): string | null {
-		if (!languageName) {
-			return null;
-		}
-		if (hasOwnProperty.call(this._nameMap, languageName)) {
-			return this._nameMap[languageName];
-		}
-		return null;
-	}
-
 	public getLanguageIdByFilepathOrFirstLine(resource: URI | null, firstLine?: string): string[] {
 		if (!resource && !firstLine) {
 			return [];
 		}
-		let mimeTypes = mime.guessMimeTypes(resource, firstLine);
-		return this._extractModeIds(mimeTypes.join(','));
+		const mimeTypes = mime.guessMimeTypes(resource, firstLine);
+		return coalesce(mimeTypes.map(mimeType => this.getLanguageIdForMimeType(mimeType)));
 	}
 
 	public getExtensionsForLanguageId(languageId: string): string[] {

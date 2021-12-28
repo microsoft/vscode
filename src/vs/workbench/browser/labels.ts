@@ -136,7 +136,7 @@ export class ResourceLabels extends Disposable {
 		this._register(this.languageService.onLanguagesMaybeChanged(() => this.widgets.forEach(widget => widget.notifyExtensionsRegistered())));
 
 		// notify when model mode changes
-		this._register(this.modelService.onModelModeChanged(e => {
+		this._register(this.modelService.onModelLanguageChanged(e => {
 			if (!e.model.uri) {
 				return; // we need the resource to compare
 			}
@@ -276,7 +276,7 @@ class ResourceLabelWidget extends IconLabel {
 	private decoration = this._register(new MutableDisposable<IDecoration>());
 	private options?: IResourceLabelOptions;
 	private computedIconClasses?: string[];
-	private lastKnownDetectedModeId?: string;
+	private lastKnownDetectedLanguageId?: string;
 	private computedPathLabel?: string;
 
 	private needsRedraw?: Redraw;
@@ -325,8 +325,8 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		if (isEqual(model.uri, resource)) {
-			if (this.lastKnownDetectedModeId !== model.getLanguageId()) {
-				this.lastKnownDetectedModeId = model.getLanguageId();
+			if (this.lastKnownDetectedLanguageId !== model.getLanguageId()) {
+				this.lastKnownDetectedLanguageId = model.getLanguageId();
 				this.render({ updateIcon: true, updateDecoration: false }); // update if the language id of the model has changed from our last known state
 			}
 		}
@@ -485,7 +485,7 @@ class ResourceLabelWidget extends IconLabel {
 	clear(): void {
 		this.label = undefined;
 		this.options = undefined;
-		this.lastKnownDetectedModeId = undefined;
+		this.lastKnownDetectedLanguageId = undefined;
 		this.computedIconClasses = undefined;
 		this.computedPathLabel = undefined;
 
@@ -583,7 +583,7 @@ class ResourceLabelWidget extends IconLabel {
 
 		this.label = undefined;
 		this.options = undefined;
-		this.lastKnownDetectedModeId = undefined;
+		this.lastKnownDetectedLanguageId = undefined;
 		this.computedIconClasses = undefined;
 		this.computedPathLabel = undefined;
 	}

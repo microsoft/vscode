@@ -42,7 +42,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 	private debugExtensionsAvailable: IContextKey<boolean>;
 	private readonly _onDidRegisterDebugger = new Emitter<void>();
 	private readonly _onDidDebuggersExtPointRead = new Emitter<void>();
-	private breakpointModeIdsSet = new Set<string>();
+	private breakpointLanguageIdsSet = new Set<string>();
 	private debuggerWhenKeys = new Set<string>();
 
 	constructor(
@@ -118,10 +118,10 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 
 		breakpointsExtPoint.setHandler((extensions, delta) => {
 			delta.removed.forEach(removed => {
-				removed.value.forEach(breakpoints => this.breakpointModeIdsSet.delete(breakpoints.language));
+				removed.value.forEach(breakpoints => this.breakpointLanguageIdsSet.delete(breakpoints.language));
 			});
 			delta.added.forEach(added => {
-				added.value.forEach(breakpoints => this.breakpointModeIdsSet.add(breakpoints.language));
+				added.value.forEach(breakpoints => this.breakpointLanguageIdsSet.add(breakpoints.language));
 			});
 		});
 	}
@@ -281,7 +281,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 			return true;
 		}
 
-		return this.breakpointModeIdsSet.has(languageId);
+		return this.breakpointLanguageIdsSet.has(languageId);
 	}
 
 	getDebugger(type: string): Debugger | undefined {

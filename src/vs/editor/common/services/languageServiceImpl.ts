@@ -114,8 +114,8 @@ export class LanguageService extends Disposable implements ILanguageService {
 	}
 
 	public getLanguageIdByFilepathOrFirstLine(resource: URI | null, firstLine?: string): string | null {
-		const modeIds = this._registry.getLanguageIdByFilepathOrFirstLine(resource, firstLine);
-		return firstOrDefault(modeIds, null);
+		const languageIds = this._registry.getLanguageIdByFilepathOrFirstLine(resource, firstLine);
+		return firstOrDefault(languageIds, null);
 	}
 
 	public validateLanguageId(languageId: string | null): string | null {

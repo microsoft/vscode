@@ -71,7 +71,7 @@ export class ResourceContextKey implements IContextKey<URI> {
 				this._setLangId();
 			}
 		}));
-		this._disposables.add(_modelService.onModelModeChanged(e => {
+		this._disposables.add(_modelService.onModelLanguageChanged(e => {
 			if (isEqual(e.model.uri, this.get())) {
 				this._setLangId();
 			}

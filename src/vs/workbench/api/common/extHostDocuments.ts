@@ -103,7 +103,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		return this._proxy.$tryCreateDocument(options).then(data => URI.revive(data));
 	}
 
-	public $acceptModelModeChanged(uriComponents: UriComponents, newModeId: string): void {
+	public $acceptModelLanguageChanged(uriComponents: UriComponents, newLanguageId: string): void {
 		const uri = URI.revive(uriComponents);
 		const data = this._documentsAndEditors.getDocument(uri);
 		if (!data) {
@@ -112,7 +112,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		// Treat a mode change as a remove + add
 
 		this._onDidRemoveDocument.fire(data.document);
-		data._acceptLanguageId(newModeId);
+		data._acceptLanguageId(newLanguageId);
 		this._onDidAddDocument.fire(data.document);
 	}
 

@@ -223,10 +223,10 @@ export function onWillDisposeModel(listener: (model: ITextModel) => void): IDisp
  * @event
  */
 export function onDidChangeModelLanguage(listener: (e: { readonly model: ITextModel; readonly oldLanguage: string; }) => void): IDisposable {
-	return StaticServices.modelService.get().onModelModeChanged((e) => {
+	return StaticServices.modelService.get().onModelLanguageChanged((e) => {
 		listener({
 			model: e.model,
-			oldLanguage: e.oldModeId
+			oldLanguage: e.oldLanguageId
 		});
 	});
 }

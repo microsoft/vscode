@@ -59,7 +59,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 		return !!languageId && this._configurationService.getValue<boolean>(LanguageDetectionService.enablementSettingKey, { overrideIdentifier: languageId });
 	}
 
-	private getModeId(language: string | undefined): string | undefined {
+	private getLanguageId(language: string | undefined): string | undefined {
 		if (!language) {
 			return undefined;
 		}
@@ -69,7 +69,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 	async detectLanguage(resource: URI): Promise<string | undefined> {
 		const language = await this._languageDetectionWorkerClient.detectLanguage(resource);
 		if (language) {
-			return this.getModeId(language);
+			return this.getLanguageId(language);
 		}
 		return undefined;
 	}

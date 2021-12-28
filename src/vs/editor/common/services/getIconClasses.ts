@@ -50,9 +50,9 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 			}
 
 			// Detected Mode
-			const detectedModeId = detectModeId(modelService, languageService, resource);
-			if (detectedModeId) {
-				classes.push(`${cssEscape(detectedModeId)}-lang-file-icon`);
+			const detectedLanguageId = detectLanguageId(modelService, languageService, resource);
+			if (detectedLanguageId) {
+				classes.push(`${cssEscape(detectedLanguageId)}-lang-file-icon`);
 			}
 		}
 	}
@@ -60,11 +60,11 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 }
 
 
-export function getIconClassesForModeId(modeId: string): string[] {
-	return ['file-icon', `${cssEscape(modeId)}-lang-file-icon`];
+export function getIconClassesForLanguageId(languageId: string): string[] {
+	return ['file-icon', `${cssEscape(languageId)}-lang-file-icon`];
 }
 
-function detectModeId(modelService: IModelService, languageService: ILanguageService, resource: uri): string | null {
+function detectLanguageId(modelService: IModelService, languageService: ILanguageService, resource: uri): string | null {
 	if (!resource) {
 		return null; // we need a resource at least
 	}
