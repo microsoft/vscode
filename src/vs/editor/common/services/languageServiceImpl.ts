@@ -8,7 +8,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
 import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
-import { ILanguageSelection, ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageNameIdPair, ILanguageSelection, ILanguageService } from 'vs/editor/common/services/languageService';
 import { firstOrDefault } from 'vs/base/common/arrays';
 import { ILanguageIdCodec, TokenizationRegistry } from 'vs/editor/common/modes';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
@@ -85,8 +85,8 @@ export class LanguageService extends Disposable implements ILanguageService {
 		return this._registry.getRegisteredLanguageIds();
 	}
 
-	public getRegisteredLanguageNames(): string[] {
-		return this._registry.getRegisteredLanguageNames();
+	public getSortedRegisteredLanguageNames(): ILanguageNameIdPair[] {
+		return this._registry.getSortedRegisteredLanguageNames();
 	}
 
 	public getExtensionsForLanguageId(languageId: string): string[] {

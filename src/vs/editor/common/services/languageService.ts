@@ -26,6 +26,11 @@ export interface ILanguageSelection {
 	readonly onDidChange: Event<string>;
 }
 
+export interface ILanguageNameIdPair {
+	languageName: string;
+	languageId: string;
+}
+
 export interface ILanguageService {
 	readonly _serviceBrand: undefined;
 
@@ -37,7 +42,7 @@ export interface ILanguageService {
 	// --- reading
 	isRegisteredLanguageId(languageId: string): boolean;
 	getRegisteredLanguageIds(): string[];
-	getRegisteredLanguageNames(): string[];
+	getSortedRegisteredLanguageNames(): ILanguageNameIdPair[];
 	getExtensionsForLanguageId(languageId: string): string[];
 	getFilenamesForLanguageId(languageId: string): string[];
 	getMimeTypeForLanguageId(languageId: string): string | null;

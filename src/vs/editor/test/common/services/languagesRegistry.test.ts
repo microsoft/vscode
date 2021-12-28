@@ -19,7 +19,7 @@ suite('LanguagesRegistry', () => {
 			mimetypes: ['outputModeMimeType'],
 		}]);
 
-		assert.deepStrictEqual(registry.getRegisteredLanguageNames(), []);
+		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), []);
 
 		registry.dispose();
 	});
@@ -34,7 +34,7 @@ suite('LanguagesRegistry', () => {
 			mimetypes: ['bla'],
 		}]);
 
-		assert.deepStrictEqual(registry.getRegisteredLanguageNames(), ['ModeName']);
+		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), [{ languageName: 'ModeName', languageId: 'modeId' }]);
 		assert.deepStrictEqual(registry.getLanguageName('modeId'), 'ModeName');
 
 		registry.dispose();
@@ -49,7 +49,7 @@ suite('LanguagesRegistry', () => {
 			mimetypes: ['bla'],
 		}]);
 
-		assert.deepStrictEqual(registry.getRegisteredLanguageNames(), ['modeId']);
+		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), [{ languageName: 'modeId', languageId: 'modeId' }]);
 		assert.deepStrictEqual(registry.getLanguageName('modeId'), 'modeId');
 
 		registry.dispose();
@@ -72,7 +72,7 @@ suite('LanguagesRegistry', () => {
 			mimetypes: ['bla'],
 		}]);
 
-		assert.deepStrictEqual(registry.getRegisteredLanguageNames(), ['ModeName']);
+		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), [{ languageName: 'ModeName', languageId: 'modeId' }]);
 		assert.deepStrictEqual(registry.getLanguageName('modeId'), 'ModeName');
 
 		registry.dispose();
@@ -95,7 +95,7 @@ suite('LanguagesRegistry', () => {
 			mimetypes: ['bla'],
 		}]);
 
-		assert.deepStrictEqual(registry.getRegisteredLanguageNames(), ['BetterModeName']);
+		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), [{ languageName: 'BetterModeName', languageId: 'modeId' }]);
 		assert.deepStrictEqual(registry.getLanguageName('modeId'), 'BetterModeName');
 
 		registry.dispose();
@@ -150,7 +150,7 @@ suite('LanguagesRegistry', () => {
 			id: 'a'
 		}]);
 
-		assert.deepStrictEqual(registry.getRegisteredLanguageNames(), ['a']);
+		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), [{ languageName: 'a', languageId: 'a' }]);
 		assert.deepStrictEqual(registry.getModeIdFromLanguageName('a'), 'a');
 		assert.deepStrictEqual(registry.getLanguageIdForLanguageName('a'), 'a');
 		assert.deepStrictEqual(registry.getLanguageName('a'), 'a');
@@ -160,7 +160,7 @@ suite('LanguagesRegistry', () => {
 			aliases: ['A1', 'A2']
 		}]);
 
-		assert.deepStrictEqual(registry.getRegisteredLanguageNames(), ['A1']);
+		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), [{ languageName: 'A1', languageId: 'a' }]);
 		assert.deepStrictEqual(registry.getModeIdFromLanguageName('a'), null);
 		assert.deepStrictEqual(registry.getModeIdFromLanguageName('A1'), 'a');
 		assert.deepStrictEqual(registry.getModeIdFromLanguageName('A2'), null);
@@ -174,7 +174,7 @@ suite('LanguagesRegistry', () => {
 			aliases: ['A3', 'A4']
 		}]);
 
-		assert.deepStrictEqual(registry.getRegisteredLanguageNames(), ['A3']);
+		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), [{ languageName: 'A3', languageId: 'a' }]);
 		assert.deepStrictEqual(registry.getModeIdFromLanguageName('a'), null);
 		assert.deepStrictEqual(registry.getModeIdFromLanguageName('A1'), null);
 		assert.deepStrictEqual(registry.getModeIdFromLanguageName('A2'), null);
@@ -197,7 +197,7 @@ suite('LanguagesRegistry', () => {
 			id: 'a'
 		}]);
 
-		assert.deepStrictEqual(registry.getRegisteredLanguageNames(), ['a']);
+		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), [{ languageName: 'a', languageId: 'a' }]);
 		assert.deepStrictEqual(registry.getModeIdFromLanguageName('a'), 'a');
 		assert.deepStrictEqual(registry.getLanguageIdForLanguageName('a'), 'a');
 		assert.deepStrictEqual(registry.getLanguageName('a'), 'a');
@@ -207,7 +207,7 @@ suite('LanguagesRegistry', () => {
 			aliases: []
 		}]);
 
-		assert.deepStrictEqual(registry.getRegisteredLanguageNames(), ['a']);
+		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), [{ languageName: 'a', languageId: 'a' }]);
 		assert.deepStrictEqual(registry.getModeIdFromLanguageName('a'), 'a');
 		assert.deepStrictEqual(registry.getModeIdFromLanguageName('b'), null);
 		assert.deepStrictEqual(registry.getLanguageIdForLanguageName('a'), 'a');

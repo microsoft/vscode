@@ -1104,11 +1104,11 @@ export class ChangeModeAction extends Action {
 		const resource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
 		// Compute mode
-		let currentLanguageId: string | undefined;
+		let currentLanguageName: string | undefined;
 		let currentModeId: string | undefined;
 		if (textModel) {
 			currentModeId = textModel.getLanguageId();
-			currentLanguageId = withNullAsUndefined(this.languageService.getLanguageName(currentModeId));
+			currentLanguageName = withNullAsUndefined(this.languageService.getLanguageName(currentModeId));
 		}
 
 		let hasLanguageSupport = !!resource;
@@ -1117,20 +1117,19 @@ export class ChangeModeAction extends Action {
 		}
 
 		// All languages are valid picks
-		const languages = this.languageService.getRegisteredLanguageNames();
-		const picks: QuickPickInput[] = languages.sort()
-			.map(lang => {
-				const languageId = this.languageService.getLanguageIdForLanguageName(lang) || 'unknown';
+		const languages = this.languageService.getSortedRegisteredLanguageNames();
+		const picks: QuickPickInput[] = languages
+			.map(({ languageName, languageId }) => {
 				const extensions = this.languageService.getExtensionsForLanguageId(languageId).join(' ');
 				let description: string;
-				if (currentLanguageId === lang) {
+				if (currentLanguageName === languageName) {
 					description = localize('languageDescription', "({0}) - Configured Language", languageId);
 				} else {
 					description = localize('languageDescriptionConfigured', "({0})", languageId);
 				}
 
 				return {
-					label: lang,
+					label: languageName,
 					meta: extensions,
 					iconClasses: getIconClassesForModeId(languageId),
 					description
@@ -1151,7 +1150,7 @@ export class ChangeModeAction extends Action {
 				picks.unshift(galleryAction);
 			}
 
-			configureModeSettings = { label: localize('configureModeSettings', "Configure '{0}' language based settings...", currentLanguageId) };
+			configureModeSettings = { label: localize('configureModeSettings', "Configure '{0}' language based settings...", currentLanguageName) };
 			picks.unshift(configureModeSettings);
 			configureModeAssociations = { label: localize('configureAssociationsExt', "Configure File Association for '{0}'...", ext) };
 			picks.unshift(configureModeAssociations);
@@ -1223,7 +1222,7 @@ export class ChangeModeAction extends Action {
 								// If they didn't choose the detected language (which should also be the active language if automatic detection is enabled)
 								// then the automatic language detection was likely wrong and the user is correcting it. In this case, we want telemetry.
 								this.telemetryService.publicLog2<IAutomaticLanguageDetectionLikelyWrongData, AutomaticLanguageDetectionLikelyWrongClassification>(AutomaticLanguageDetectionLikelyWrongId, {
-									currentLanguageId: currentLanguageId ?? 'unknown',
+									currentLanguageId: currentLanguageName ?? 'unknown',
 									nextLanguageId: pick.label
 								});
 							}
@@ -1250,15 +1249,13 @@ export class ChangeModeAction extends Action {
 		const base = basename(resource);
 		const currentAssociation = this.languageService.getLanguageIdByFilepathOrFirstLine(URI.file(base));
 
-		const languages = this.languageService.getRegisteredLanguageNames();
-		const picks: IQuickPickItem[] = languages.sort().map((lang, index) => {
-			const id = withNullAsUndefined(this.languageService.getLanguageIdForLanguageName(lang)) || 'unknown';
-
+		const languages = this.languageService.getSortedRegisteredLanguageNames();
+		const picks: IQuickPickItem[] = languages.map(({ languageName, languageId }) => {
 			return {
-				id,
-				label: lang,
-				iconClasses: getIconClassesForModeId(id),
-				description: (id === currentAssociation) ? localize('currentAssociation', "Current Association") : undefined
+				id: languageId,
+				label: languageName,
+				iconClasses: getIconClassesForModeId(languageId),
+				description: (languageId === currentAssociation) ? localize('currentAssociation', "Current Association") : undefined
 			};
 		});
 

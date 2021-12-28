@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { ILanguageIdCodec, LanguageId } from 'vs/editor/common/modes';
 import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
-import { ILanguageExtensionPoint } from 'vs/editor/common/services/languageService';
+import { ILanguageExtensionPoint, ILanguageNameIdPair } from 'vs/editor/common/services/languageService';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 
@@ -268,8 +268,18 @@ export class LanguagesRegistry extends Disposable {
 		return Object.keys(this._languages);
 	}
 
-	public getRegisteredLanguageNames(): string[] {
-		return Object.keys(this._nameMap);
+	public getSortedRegisteredLanguageNames(): ILanguageNameIdPair[] {
+		const result: ILanguageNameIdPair[] = [];
+		for (const languageName in this._nameMap) {
+			if (hasOwnProperty.call(this._nameMap, languageName)) {
+				result.push({
+					languageName: languageName,
+					languageId: this._nameMap[languageName]
+				});
+			}
+		}
+		result.sort((a, b) => strings.compareIgnoreCase(a.languageName, b.languageName));
+		return result;
 	}
 
 	public getLanguageName(languageId: string): string | null {
