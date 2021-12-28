@@ -82,10 +82,11 @@ suite('MainThreadEditors', () => {
 		const dialogService = new TestDialogService();
 		const notificationService = new TestNotificationService();
 		const undoRedoService = new UndoRedoService(dialogService, notificationService);
+		const themeService = new TestThemeService();
 		modelService = new ModelServiceImpl(
 			configService,
 			new TestTextResourcePropertiesService(configService),
-			new TestThemeService(),
+			themeService,
 			new NullLogService(),
 			undoRedoService,
 			disposables.add(new LanguageService()),
@@ -105,7 +106,7 @@ suite('MainThreadEditors', () => {
 		services.set(INotificationService, notificationService);
 		services.set(IUndoRedoService, undoRedoService);
 		services.set(IModelService, modelService);
-		services.set(ICodeEditorService, new TestCodeEditorService());
+		services.set(ICodeEditorService, new TestCodeEditorService(null, themeService));
 		services.set(IFileService, new TestFileService());
 		services.set(IEditorService, new TestEditorService());
 		services.set(ILifecycleService, new TestLifecycleService());

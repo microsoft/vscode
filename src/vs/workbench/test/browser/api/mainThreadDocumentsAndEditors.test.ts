@@ -61,16 +61,17 @@ suite('MainThreadDocumentsAndEditors', () => {
 		const dialogService = new TestDialogService();
 		const notificationService = new TestNotificationService();
 		const undoRedoService = new UndoRedoService(dialogService, notificationService);
+		const themeService = new TestThemeService();
 		modelService = new ModelServiceImpl(
 			configService,
 			new TestTextResourcePropertiesService(configService),
-			new TestThemeService(),
+			themeService,
 			new NullLogService(),
 			undoRedoService,
 			disposables.add(new LanguageService()),
 			new TestLanguageConfigurationService()
 		);
-		codeEditorService = new TestCodeEditorService();
+		codeEditorService = new TestCodeEditorService(null, themeService);
 		textFileService = new class extends mock<ITextFileService>() {
 			override isDirty() { return false; }
 			override files = <any>{

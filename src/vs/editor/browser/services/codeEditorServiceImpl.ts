@@ -4,80 +4,168 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
+import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IContentDecorationRenderOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions, isThemeColor } from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, InjectedTextOptions, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, InjectedTextOptions, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IColorTheme, IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
 
-export class RefCountedStyleSheet {
+export abstract class AbstractCodeEditorService extends Disposable implements ICodeEditorService {
 
-	private readonly _parent: CodeEditorServiceImpl;
-	private readonly _editorId: string;
-	private readonly _styleSheet: HTMLStyleElement;
-	private _refCount: number;
+	declare readonly _serviceBrand: undefined;
 
-	public get sheet() {
-		return this._styleSheet.sheet as CSSStyleSheet;
+	private readonly _onCodeEditorAdd: Emitter<ICodeEditor> = this._register(new Emitter<ICodeEditor>());
+	public readonly onCodeEditorAdd: Event<ICodeEditor> = this._onCodeEditorAdd.event;
+
+	private readonly _onCodeEditorRemove: Emitter<ICodeEditor> = this._register(new Emitter<ICodeEditor>());
+	public readonly onCodeEditorRemove: Event<ICodeEditor> = this._onCodeEditorRemove.event;
+
+	private readonly _onDiffEditorAdd: Emitter<IDiffEditor> = this._register(new Emitter<IDiffEditor>());
+	public readonly onDiffEditorAdd: Event<IDiffEditor> = this._onDiffEditorAdd.event;
+
+	private readonly _onDiffEditorRemove: Emitter<IDiffEditor> = this._register(new Emitter<IDiffEditor>());
+	public readonly onDiffEditorRemove: Event<IDiffEditor> = this._onDiffEditorRemove.event;
+
+	private readonly _onDidChangeTransientModelProperty: Emitter<ITextModel> = this._register(new Emitter<ITextModel>());
+	public readonly onDidChangeTransientModelProperty: Event<ITextModel> = this._onDidChangeTransientModelProperty.event;
+
+	protected readonly _onDecorationTypeRegistered: Emitter<string> = this._register(new Emitter<string>());
+	public onDecorationTypeRegistered: Event<string> = this._onDecorationTypeRegistered.event;
+
+	private readonly _codeEditors: { [editorId: string]: ICodeEditor; };
+	private readonly _diffEditors: { [editorId: string]: IDiffEditor; };
+
+	constructor() {
+		super();
+		this._codeEditors = Object.create(null);
+		this._diffEditors = Object.create(null);
 	}
 
-	constructor(parent: CodeEditorServiceImpl, editorId: string, styleSheet: HTMLStyleElement) {
-		this._parent = parent;
-		this._editorId = editorId;
-		this._styleSheet = styleSheet;
-		this._refCount = 0;
+	addCodeEditor(editor: ICodeEditor): void {
+		this._codeEditors[editor.getId()] = editor;
+		this._onCodeEditorAdd.fire(editor);
 	}
 
-	public ref(): void {
-		this._refCount++;
-	}
-
-	public unref(): void {
-		this._refCount--;
-		if (this._refCount === 0) {
-			this._styleSheet.parentNode?.removeChild(this._styleSheet);
-			this._parent._removeEditorStyleSheets(this._editorId);
+	removeCodeEditor(editor: ICodeEditor): void {
+		if (delete this._codeEditors[editor.getId()]) {
+			this._onCodeEditorRemove.fire(editor);
 		}
 	}
 
-	public insertRule(rule: string, index?: number): void {
-		const sheet = <CSSStyleSheet>this._styleSheet.sheet;
-		sheet.insertRule(rule, index);
+	listCodeEditors(): ICodeEditor[] {
+		return Object.keys(this._codeEditors).map(id => this._codeEditors[id]);
 	}
 
-	public removeRulesContainingSelector(ruleName: string): void {
-		dom.removeCSSRulesContainingSelector(ruleName, this._styleSheet);
-	}
-}
-
-export class GlobalStyleSheet {
-	private readonly _styleSheet: HTMLStyleElement;
-
-	public get sheet() {
-		return this._styleSheet.sheet as CSSStyleSheet;
+	addDiffEditor(editor: IDiffEditor): void {
+		this._diffEditors[editor.getId()] = editor;
+		this._onDiffEditorAdd.fire(editor);
 	}
 
-	constructor(styleSheet: HTMLStyleElement) {
-		this._styleSheet = styleSheet;
+	removeDiffEditor(editor: IDiffEditor): void {
+		if (delete this._diffEditors[editor.getId()]) {
+			this._onDiffEditorRemove.fire(editor);
+		}
 	}
 
-	public ref(): void {
+	listDiffEditors(): IDiffEditor[] {
+		return Object.keys(this._diffEditors).map(id => this._diffEditors[id]);
 	}
 
-	public unref(): void {
+	getFocusedCodeEditor(): ICodeEditor | null {
+		let editorWithWidgetFocus: ICodeEditor | null = null;
+
+		const editors = this.listCodeEditors();
+		for (const editor of editors) {
+
+			if (editor.hasTextFocus()) {
+				// bingo!
+				return editor;
+			}
+
+			if (editor.hasWidgetFocus()) {
+				editorWithWidgetFocus = editor;
+			}
+		}
+
+		return editorWithWidgetFocus;
 	}
 
-	public insertRule(rule: string, index?: number): void {
-		const sheet = <CSSStyleSheet>this._styleSheet.sheet;
-		sheet.insertRule(rule, index);
+	abstract registerDecorationType(description: string, key: string, options: IDecorationRenderOptions, parentTypeKey?: string, editor?: ICodeEditor): void;
+	abstract removeDecorationType(key: string): void;
+	abstract resolveDecorationOptions(decorationTypeKey: string | undefined, writable: boolean): IModelDecorationOptions;
+	abstract resolveDecorationCSSRules(decorationTypeKey: string): CSSRuleList | null;
+
+	private readonly _transientWatchers: { [uri: string]: ModelTransientSettingWatcher; } = {};
+	private readonly _modelProperties = new Map<string, Map<string, any>>();
+
+	public setModelProperty(resource: URI, key: string, value: any): void {
+		const key1 = resource.toString();
+		let dest: Map<string, any>;
+		if (this._modelProperties.has(key1)) {
+			dest = this._modelProperties.get(key1)!;
+		} else {
+			dest = new Map<string, any>();
+			this._modelProperties.set(key1, dest);
+		}
+
+		dest.set(key, value);
 	}
 
-	public removeRulesContainingSelector(ruleName: string): void {
-		dom.removeCSSRulesContainingSelector(ruleName, this._styleSheet);
+	public getModelProperty(resource: URI, key: string): any {
+		const key1 = resource.toString();
+		if (this._modelProperties.has(key1)) {
+			const innerMap = this._modelProperties.get(key1)!;
+			return innerMap.get(key);
+		}
+		return undefined;
 	}
+
+	public setTransientModelProperty(model: ITextModel, key: string, value: any): void {
+		const uri = model.uri.toString();
+
+		let w: ModelTransientSettingWatcher;
+		if (this._transientWatchers.hasOwnProperty(uri)) {
+			w = this._transientWatchers[uri];
+		} else {
+			w = new ModelTransientSettingWatcher(uri, model, this);
+			this._transientWatchers[uri] = w;
+		}
+
+		w.set(key, value);
+		this._onDidChangeTransientModelProperty.fire(model);
+	}
+
+	public getTransientModelProperty(model: ITextModel, key: string): any {
+		const uri = model.uri.toString();
+
+		if (!this._transientWatchers.hasOwnProperty(uri)) {
+			return undefined;
+		}
+
+		return this._transientWatchers[uri].get(key);
+	}
+
+	public getTransientModelProperties(model: ITextModel): [string, any][] | undefined {
+		const uri = model.uri.toString();
+
+		if (!this._transientWatchers.hasOwnProperty(uri)) {
+			return undefined;
+		}
+
+		return this._transientWatchers[uri].keys().map(key => [key, this._transientWatchers[uri].get(key)]);
+	}
+
+	_removeWatcher(w: ModelTransientSettingWatcher): void {
+		delete this._transientWatchers[w.uri];
+	}
+
+	abstract getActiveCodeEditor(): ICodeEditor | null;
+	abstract openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null>;
 }
 
 export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
@@ -170,6 +258,96 @@ export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 			return null;
 		}
 		return provider.resolveDecorationCSSRules();
+	}
+}
+
+export class ModelTransientSettingWatcher {
+	public readonly uri: string;
+	private readonly _values: { [key: string]: any; };
+
+	constructor(uri: string, model: ITextModel, owner: AbstractCodeEditorService) {
+		this.uri = uri;
+		this._values = {};
+		model.onWillDispose(() => owner._removeWatcher(this));
+	}
+
+	public set(key: string, value: any): void {
+		this._values[key] = value;
+	}
+
+	public get(key: string): any {
+		return this._values[key];
+	}
+
+	public keys(): string[] {
+		return Object.keys(this._values);
+	}
+}
+
+export class RefCountedStyleSheet {
+
+	private readonly _parent: CodeEditorServiceImpl;
+	private readonly _editorId: string;
+	private readonly _styleSheet: HTMLStyleElement;
+	private _refCount: number;
+
+	public get sheet() {
+		return this._styleSheet.sheet as CSSStyleSheet;
+	}
+
+	constructor(parent: CodeEditorServiceImpl, editorId: string, styleSheet: HTMLStyleElement) {
+		this._parent = parent;
+		this._editorId = editorId;
+		this._styleSheet = styleSheet;
+		this._refCount = 0;
+	}
+
+	public ref(): void {
+		this._refCount++;
+	}
+
+	public unref(): void {
+		this._refCount--;
+		if (this._refCount === 0) {
+			this._styleSheet.parentNode?.removeChild(this._styleSheet);
+			this._parent._removeEditorStyleSheets(this._editorId);
+		}
+	}
+
+	public insertRule(rule: string, index?: number): void {
+		const sheet = <CSSStyleSheet>this._styleSheet.sheet;
+		sheet.insertRule(rule, index);
+	}
+
+	public removeRulesContainingSelector(ruleName: string): void {
+		dom.removeCSSRulesContainingSelector(ruleName, this._styleSheet);
+	}
+}
+
+export class GlobalStyleSheet {
+	private readonly _styleSheet: HTMLStyleElement;
+
+	public get sheet() {
+		return this._styleSheet.sheet as CSSStyleSheet;
+	}
+
+	constructor(styleSheet: HTMLStyleElement) {
+		this._styleSheet = styleSheet;
+	}
+
+	public ref(): void {
+	}
+
+	public unref(): void {
+	}
+
+	public insertRule(rule: string, index?: number): void {
+		const sheet = <CSSStyleSheet>this._styleSheet.sheet;
+		sheet.insertRule(rule, index);
+	}
+
+	public removeRulesContainingSelector(ruleName: string): void {
+		dom.removeCSSRulesContainingSelector(ruleName, this._styleSheet);
 	}
 }
 
