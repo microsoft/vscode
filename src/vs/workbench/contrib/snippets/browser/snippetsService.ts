@@ -228,11 +228,10 @@ class SnippetsService implements ISnippetsService {
 		const result: Snippet[] = [];
 		const promises: Promise<any>[] = [];
 
-		const langName = this._languageService.validateLanguageId(languageId);
-		if (langName) {
+		if (this._languageService.isRegisteredLanguageId(languageId)) {
 			for (const file of this._files.values()) {
 				promises.push(file.load()
-					.then(file => file.select(langName, result))
+					.then(file => file.select(languageId, result))
 					.catch(err => this._logService.error(err, file.location.toString()))
 				);
 			}
@@ -243,13 +242,12 @@ class SnippetsService implements ISnippetsService {
 
 	getSnippetsSync(languageId: string, opts?: ISnippetGetOptions): Snippet[] {
 		const result: Snippet[] = [];
-		const langName = this._languageService.validateLanguageId(languageId);
-		if (langName) {
+		if (this._languageService.isRegisteredLanguageId(languageId)) {
 			for (const file of this._files.values()) {
 				// kick off loading (which is a noop in case it's already loaded)
 				// and optimistically collect snippets
 				file.load().catch(_err => { /*ignore*/ });
-				file.select(langName, result);
+				file.select(languageId, result);
 			}
 		}
 		return this._filterSnippets(result, opts);

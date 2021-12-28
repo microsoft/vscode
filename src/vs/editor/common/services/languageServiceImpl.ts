@@ -80,10 +80,6 @@ export class LanguageService extends Disposable implements ILanguageService {
 		return this._registry.isRegisteredLanguageId(languageId);
 	}
 
-	public validateLanguageId(languageId: string | null): string | null {
-		return this._registry.validateLanguageId(languageId);
-	}
-
 	public getRegisteredLanguageIds(): string[] {
 		return this._registry.getRegisteredLanguageIds();
 	}

@@ -177,9 +177,8 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		// facing language with a name and the chance to have
 		// snippets, else fall back to the outer language
 		model.tokenizeIfCheap(position.lineNumber);
-		let languageId: string | null = model.getLanguageIdAtPosition(position.lineNumber, position.column);
-		languageId = this._languageService.validateLanguageId(languageId);
-		if (!languageId || !this._languageService.getLanguageName(languageId)) {
+		let languageId = model.getLanguageIdAtPosition(position.lineNumber, position.column);
+		if (!this._languageService.getLanguageName(languageId)){
 			languageId = model.getLanguageId();
 		}
 		return languageId;

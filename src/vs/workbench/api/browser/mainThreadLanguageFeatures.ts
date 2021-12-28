@@ -775,9 +775,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			};
 		}
 
-		const validLanguageId = this._languageService.validateLanguageId(languageId);
-		if (validLanguageId) {
-			this._registrations.set(handle, LanguageConfigurationRegistry.register(validLanguageId, configuration, 100));
+		if (this._languageService.isRegisteredLanguageId(languageId)) {
+			this._registrations.set(handle, LanguageConfigurationRegistry.register(languageId, configuration, 100));
 		}
 	}
 

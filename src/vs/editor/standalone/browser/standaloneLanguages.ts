@@ -64,11 +64,11 @@ export function onLanguage(languageId: string, callback: () => void): IDisposabl
  * Set the editing configuration for a language.
  */
 export function setLanguageConfiguration(languageId: string, configuration: LanguageConfiguration): IDisposable {
-	const validLanguageId = StaticServices.languageService.get().validateLanguageId(languageId);
-	if (!validLanguageId) {
+	const languageService = StaticServices.languageService.get();
+	if (!languageService.isRegisteredLanguageId(languageId)) {
 		throw new Error(`Cannot set configuration for unknown language ${languageId}`);
 	}
-	return LanguageConfigurationRegistry.register(validLanguageId, configuration, 100);
+	return LanguageConfigurationRegistry.register(languageId, configuration, 100);
 }
 
 /**
@@ -380,14 +380,14 @@ export function registerTokensProviderFactory(languageId: string, factory: Token
  * or `registerDocumentRangeSemanticTokensProvider`.
  */
 export function setTokensProvider(languageId: string, provider: TokensProvider | EncodedTokensProvider | Thenable<TokensProvider | EncodedTokensProvider>): IDisposable {
-	const validLanguageId = StaticServices.languageService.get().validateLanguageId(languageId);
-	if (!validLanguageId) {
+	const languageService = StaticServices.languageService.get();
+	if (!languageService.isRegisteredLanguageId(languageId)) {
 		throw new Error(`Cannot set tokens provider for unknown language ${languageId}`);
 	}
 	if (isThenable<TokensProvider | EncodedTokensProvider>(provider)) {
 		return registerTokensProviderFactory(languageId, { create: () => provider });
 	}
-	return modes.TokenizationRegistry.register(languageId, createTokenizationSupportAdapter(validLanguageId, provider));
+	return modes.TokenizationRegistry.register(languageId, createTokenizationSupportAdapter(languageId, provider));
 }
 
 /**

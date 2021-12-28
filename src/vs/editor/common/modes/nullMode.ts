@@ -19,8 +19,6 @@ class NullStateImpl implements IState {
 
 export const NULL_STATE: IState = new NullStateImpl();
 
-export const NULL_MODE_ID = 'vs.editor.nullMode';
-
 export function nullTokenize(languageId: string, buffer: string, state: IState, deltaOffset: number): TokenizationResult {
 	return new TokenizationResult([new Token(deltaOffset, '', languageId)], state);
 }

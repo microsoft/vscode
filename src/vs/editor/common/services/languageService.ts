@@ -43,13 +43,16 @@ export interface ILanguageService {
 	 * An event emitted when a language is needed for the first time.
 	 */
 	onDidEncounterLanguage: Event<string>;
+
 	/**
 	 * An event emitted when languages have changed.
 	 */
 	onDidChange: Event<void>;
 
+	/**
+	 * Check if `languageId` is registered.
+	 */
 	isRegisteredLanguageId(languageId: string): boolean;
-	validateLanguageId(languageId: string): string | null;
 
 	/**
 	 * Get a list of all registered languages.

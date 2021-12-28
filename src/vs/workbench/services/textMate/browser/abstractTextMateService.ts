@@ -103,9 +103,8 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 								// never hurts to be too careful
 								continue;
 							}
-							const validLanguageId = this._languageService.validateLanguageId(language);
-							if (validLanguageId) {
-								embeddedLanguages[scope] = this._languageService.languageIdCodec.encodeLanguageId(validLanguageId);
+							if (this._languageService.isRegisteredLanguageId(language)) {
+								embeddedLanguages[scope] = this._languageService.languageIdCodec.encodeLanguageId(language);
 							}
 						}
 					}
@@ -130,8 +129,8 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 					}
 
 					let validLanguageId: string | null = null;
-					if (grammar.language) {
-						validLanguageId = this._languageService.validateLanguageId(grammar.language);
+					if (grammar.language && this._languageService.isRegisteredLanguageId(grammar.language)) {
+						validLanguageId = grammar.language;
 					}
 
 					this._grammarDefinitions.push({
@@ -258,7 +257,7 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 	private _createFactory(languageId: string): ITokenizationSupportFactory {
 		return {
 			createTokenizationSupport: async (): Promise<ITokenizationSupport | null> => {
-				if (!this._languageService.validateLanguageId(languageId)) {
+				if (!this._languageService.isRegisteredLanguageId(languageId)) {
 					return null;
 				}
 				if (!this._canCreateGrammarFactory()) {
@@ -375,7 +374,7 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 	}
 
 	public async createGrammar(languageId: string): Promise<IGrammar | null> {
-		if (!this._languageService.validateLanguageId(languageId)) {
+		if (!this._languageService.isRegisteredLanguageId(languageId)) {
 			return null;
 		}
 		const grammarFactory = await this._getOrCreateGrammarFactory();

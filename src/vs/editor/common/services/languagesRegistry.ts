@@ -12,12 +12,12 @@ import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { ILanguageIdCodec, LanguageId } from 'vs/editor/common/modes';
 import { ModesRegistry, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
 import { ILanguageExtensionPoint, ILanguageNameIdPair } from 'vs/editor/common/services/languageService';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 
 const hasOwnProperty = Object.prototype.hasOwnProperty;
+const NULL_LANGUAGE_ID = 'vs.editor.nullLanguage';
 
 export interface IResolvedLanguage {
 	identifier: string;
@@ -36,7 +36,7 @@ export class LanguageIdCodec implements ILanguageIdCodec {
 	private readonly _languageToLanguageId = new Map<string, number>();
 
 	constructor() {
-		this._register(NULL_MODE_ID, LanguageId.Null);
+		this._register(NULL_LANGUAGE_ID, LanguageId.Null);
 		this._register(PLAINTEXT_LANGUAGE_ID, LanguageId.PlainText);
 		this._nextLanguageId = 2;
 	}
@@ -59,7 +59,7 @@ export class LanguageIdCodec implements ILanguageIdCodec {
 	}
 
 	public decodeLanguageId(languageId: LanguageId): string {
-		return this._languageIdToLanguage[languageId] || NULL_MODE_ID;
+		return this._languageIdToLanguage[languageId] || NULL_LANGUAGE_ID;
 	}
 }
 
@@ -267,18 +267,6 @@ export class LanguagesRegistry extends Disposable {
 			return false;
 		}
 		return hasOwnProperty.call(this._languages, languageId);
-	}
-
-	public validateLanguageId(languageId: string | null | undefined): string | null {
-		if (!languageId || languageId === NULL_MODE_ID) {
-			return NULL_MODE_ID;
-		}
-
-		if (!hasOwnProperty.call(this._languages, languageId)) {
-			return null;
-		}
-
-		return languageId;
 	}
 
 	public getRegisteredLanguageIds(): string[] {
