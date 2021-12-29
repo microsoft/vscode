@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
 import { INotebookEditor, CellFindMatch, CellEditState, CellFindMatchWithIndex } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { FindDecorations } from 'vs/editor/contrib/find/findDecorations';
@@ -16,6 +17,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { findFirstInSorted } from 'vs/base/common/arrays';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 
 export class FindModel extends Disposable {
@@ -24,6 +26,8 @@ export class FindModel extends Disposable {
 	private _currentMatch: number = -1;
 	private _allMatchesDecorations: ICellModelDecorations[] = [];
 	private _currentMatchDecorations: ICellModelDecorations[] = [];
+	private readonly _throttledDelayer: Delayer<void>;
+	private _computePromise: CancelablePromise<CellFindMatchWithIndex[] | null> | null = null;
 	private readonly _modelDisposable = this._register(new DisposableStore());
 
 	get findMatches() {
@@ -40,6 +44,9 @@ export class FindModel extends Disposable {
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
+
+		this._throttledDelayer = new Delayer(20);
+		this._computePromise = null;
 
 		this._register(_state.onFindReplaceStateChange(e => {
 			if (e.searchString || e.isRegex || e.matchCase || e.searchScope || e.wholeWord || (e.isRevealed && this._state.isRevealed)) {
@@ -133,12 +140,22 @@ export class FindModel extends Disposable {
 	}
 
 	async research() {
+		this._throttledDelayer.trigger(() => {
+			this._research();
+		});
+	}
+
+	async _research() {
+		this._computePromise?.cancel();
+
 		if (!this._state.isRevealed || !this._notebookEditor.hasModel()) {
 			this.set([], false);
 			return;
 		}
 
-		const findMatches = await this._getFindMatches();
+		this._computePromise = createCancelablePromise(token => this._compute(token));
+
+		const findMatches = await this._computePromise;
 		if (!findMatches) {
 			return;
 		}
@@ -246,7 +263,7 @@ export class FindModel extends Disposable {
 		);
 	}
 
-	private async _getFindMatches(): Promise<CellFindMatchWithIndex[] | null> {
+	private async _compute(token: CancellationToken): Promise<CellFindMatchWithIndex[] | null> {
 		const val = this._state.searchString;
 		const wordSeparators = this._configurationService.inspect<string>('editor.wordSeparators').value;
 
@@ -259,7 +276,7 @@ export class FindModel extends Disposable {
 			return null;
 		}
 
-		return this._notebookEditor.find(val, options);
+		return this._notebookEditor.find(val, options, token);
 	}
 
 	private _updateCurrentMatch(findMatches: CellFindMatchWithIndex[], currentMatchesPosition: number) {
@@ -347,6 +364,8 @@ export class FindModel extends Disposable {
 
 
 	clear() {
+		this._computePromise?.cancel();
+		this._throttledDelayer.cancel();
 		this.set([], false);
 	}
 }

@@ -71,6 +71,7 @@ import { registerZIndex, ZIndex } from 'vs/platform/layout/browser/zIndexRegistr
 import { INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { notebookDebug } from 'vs/workbench/contrib/notebook/browser/notebookLogger';
 import { ListTopCellToolbar } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookTopCellToolbar';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const $ = DOM.$;
 
@@ -2252,7 +2253,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	//#endregion
 
 	//#region Find
-	async find(query: string, options: INotebookSearchOptions): Promise<CellFindMatchWithIndex[]> {
+	async find(query: string, options: INotebookSearchOptions, token: CancellationToken): Promise<CellFindMatchWithIndex[]> {
 		if (!this._notebookViewModel) {
 			return [];
 		}

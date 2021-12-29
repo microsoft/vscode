@@ -27,6 +27,7 @@ import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOp
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { isCompositeNotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
@@ -628,7 +629,7 @@ export interface INotebookEditor {
 	getCellByHandle(handle: number): ICellViewModel | undefined;
 	getCellIndex(cell: ICellViewModel): number | undefined;
 	getNextVisibleCellIndex(index: number): number | undefined;
-	find(query: string, options: INotebookSearchOptions): Promise<CellFindMatchWithIndex[]>;
+	find(query: string, options: INotebookSearchOptions, token: CancellationToken): Promise<CellFindMatchWithIndex[]>;
 }
 
 export interface IActiveNotebookEditor extends INotebookEditor {
