@@ -525,6 +525,7 @@ suite('TextAreaInput', () => {
 			],
 			final: { value: 'aaöaa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'none' },
 		};
+
 		const actualOutgoingEvents = await simulateInteraction(recorded);
 		assert.deepStrictEqual(actualOutgoingEvents, [
 			{ type: 'type', text: 'o', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
@@ -538,6 +539,34 @@ suite('TextAreaInput', () => {
 			{ type: 'type', text: 'ö', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
 			{ type: 'compositionEnd' }
 		]);
+
+		const actualResultingState = interpretTypeEvents(recorded.env.OS, recorded.env.browser, recorded.initial, actualOutgoingEvents);
+		assert.deepStrictEqual(actualResultingState, recorded.final);
+	});
+
+	test('macOS - Chrome - inserting emoji using ctrl+cmd+space', async () => {
+		// macOS, English, press ctrl+cmd+space, and then pick an emoji using the mouse
+		// See https://github.com/microsoft/vscode/issues/4271
+		const recorded: IRecorded = {
+			env: { OS: OperatingSystem.Macintosh, browser: { isAndroid: false, isFirefox: false, isChrome: true, isSafari: false } },
+			initial: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'none' },
+			events: [
+				{ timeStamp: 0.00, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'none' }, type: 'keydown', altKey: false, charCode: 0, code: 'ControlLeft', ctrlKey: true, isComposing: false, key: 'Control', keyCode: 17, location: 1, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 600.00, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'none' }, type: 'keydown', altKey: false, charCode: 0, code: 'MetaLeft', ctrlKey: true, isComposing: false, key: 'Meta', keyCode: 91, location: 1, metaKey: true, repeat: false, shiftKey: false },
+				{ timeStamp: 1080.10, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'none' }, type: 'keydown', altKey: false, charCode: 0, code: 'Space', ctrlKey: true, isComposing: false, key: ' ', keyCode: 32, location: 0, metaKey: true, repeat: false, shiftKey: false },
+				{ timeStamp: 1247.90, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'none' }, type: 'keyup', altKey: false, charCode: 0, code: 'MetaLeft', ctrlKey: true, isComposing: false, key: 'Meta', keyCode: 91, location: 1, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 1263.80, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'none' }, type: 'keyup', altKey: false, charCode: 0, code: 'Space', ctrlKey: true, isComposing: false, key: ' ', keyCode: 32, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 1367.80, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'none' }, type: 'keyup', altKey: false, charCode: 0, code: 'ControlLeft', ctrlKey: false, isComposing: false, key: 'Control', keyCode: 17, location: 1, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 17962.90, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'none' }, type: 'beforeinput', data: '🥳', inputType: 'insertText', isComposing: false },
+				{ timeStamp: 17966.60, state: { value: 'aa🥳aa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'none' }, type: 'input', data: '🥳', inputType: 'insertText', isComposing: false }
+			],
+			final: { value: 'aa🥳aa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'none' },
+		};
+
+		const actualOutgoingEvents = await simulateInteraction(recorded);
+		assert.deepStrictEqual(actualOutgoingEvents, ([
+			{ type: 'type', text: '🥳', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 }
+		]));
 
 		const actualResultingState = interpretTypeEvents(recorded.env.OS, recorded.env.browser, recorded.initial, actualOutgoingEvents);
 		assert.deepStrictEqual(actualResultingState, recorded.final);
