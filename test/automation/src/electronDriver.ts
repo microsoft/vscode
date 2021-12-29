@@ -89,9 +89,6 @@ export async function launch(options: LaunchOptions): Promise<{ electronProcess:
 	const electronPath = codePath ? getBuildElectronPath(codePath) : getDevElectronPath();
 	const electronProcess = spawn(electronPath, args, spawnOptions);
 
-	electronProcess.stderr?.on('data', error => logger.log(`Electron stderr: ${error}`));
-	electronProcess.stdout?.on('data', data => logger.log(`Electron stdout: ${data}`));
-
 	logger.log(`Started electron for desktop smoke tests on pid ${electronProcess.pid}`);
 
 	let retries = 0;

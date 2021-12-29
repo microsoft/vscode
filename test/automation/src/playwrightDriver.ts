@@ -249,10 +249,6 @@ async function launchServer(options: LaunchOptions) {
 	);
 
 	logger.log(`Started server for browser smoke tests (pid: ${serverProcess.pid})`);
-	serverProcess.once('exit', (code, signal) => logger.log(`Server for browser smoke tests terminated (pid: ${serverProcess.pid}, code: ${code}, signal: ${signal})`));
-
-	serverProcess.stderr?.on('data', error => logger.log(`Server stderr: ${error}`));
-	serverProcess.stdout?.on('data', data => logger.log(`Server stdout: ${data}`));
 
 	return {
 		serverProcess,
@@ -262,7 +258,10 @@ async function launchServer(options: LaunchOptions) {
 
 async function launchBrowser(options: LaunchOptions, endpoint: string) {
 	const { logger, workspacePath } = options;
+
 	const browser = await measureAndLog(playwright[options.browser ?? 'chromium'].launch({ headless: options.headless ?? false }), 'playwright#launch', logger);
+	browser.on('disconnected', () => logger.log(`Playwright: browser disconnected`));
+
 	const context = await measureAndLog(browser.newContext(), 'browser.newContext', logger);
 
 	try {
@@ -275,7 +274,8 @@ async function launchBrowser(options: LaunchOptions, endpoint: string) {
 	await measureAndLog(page.setViewportSize({ width, height }), 'page.setViewportSize', logger);
 
 	page.on('pageerror', async (error) => logger.log(`Playwright ERROR: page error: ${error}`));
-	page.on('crash', page => logger.log('Playwright ERROR: page crash'));
+	page.on('crash', () => logger.log('Playwright ERROR: page crash'));
+	page.on('close', () => logger.log('Playwright: page close'));
 	page.on('response', async (response) => {
 		if (response.status() >= 400) {
 			logger.log(`Playwright ERROR: HTTP status ${response.status()} for ${response.url()}`);

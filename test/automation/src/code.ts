@@ -37,8 +37,12 @@ const instances = new Set<ICodeInstance>();
 function registerInstance(process: cp.ChildProcess, logger: Logger, type: string, kill: () => Promise<void>) {
 	const instance = { kill };
 	instances.add(instance);
+
+	process.stdout?.on('data', data => logger.log(`[${type}] stdout: ${data}`));
+	process.stderr?.on('data', error => logger.log(`[${type}] stderr: ${error}`));
+
 	process.once('exit', (code, signal) => {
-		logger.log(`Process terminated (type: ${type}, pid: ${process.pid}, code: ${code}, signal: ${signal})`);
+		logger.log(`[${type}] Process terminated (pid: ${process.pid}, code: ${code}, signal: ${signal})`);
 
 		instances.delete(instance);
 	});
