@@ -462,91 +462,80 @@ function getPrevCodePoint(str: string, offset: number): number {
 	return charCode;
 }
 
-export function nextCharLength(str: string, offset: number): number {
+class CodePointIterator {
+
+	private readonly _str: string;
+	private readonly _len: number;
+	private _offset: number;
+
+	public get offset(): number {
+		return this._offset;
+	}
+
+	constructor(str: string, offset: number = 0) {
+		this._str = str;
+		this._len = str.length;
+		this._offset = offset;
+	}
+
+	public prevCodePoint(): number {
+		const codePoint = getPrevCodePoint(this._str, this._offset);
+		this._offset -= (codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
+		return codePoint;
+	}
+
+	public nextCodePoint(): number {
+		const codePoint = getNextCodePoint(this._str, this._len, this._offset);
+		this._offset += (codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
+		return codePoint;
+	}
+
+	public eol(): boolean {
+		return (this._offset >= this._len);
+	}
+}
+
+export function nextCharLength(str: string, initialOffset: number): number {
 	const graphemeBreakTree = GraphemeBreakTree.getInstance();
-	const initialOffset = offset;
-	const len = str.length;
+	const iterator = new CodePointIterator(str, initialOffset);
 
-	const initialCodePoint = getNextCodePoint(str, len, offset);
-	offset += (initialCodePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
-
-	let graphemeBreakType = graphemeBreakTree.getGraphemeBreakType(initialCodePoint);
-	while (offset < len) {
-		const nextCodePoint = getNextCodePoint(str, len, offset);
-		const nextGraphemeBreakType = graphemeBreakTree.getGraphemeBreakType(nextCodePoint);
+	let graphemeBreakType = graphemeBreakTree.getGraphemeBreakType(iterator.nextCodePoint());
+	while (!iterator.eol()) {
+		const offset = iterator.offset;
+		const nextGraphemeBreakType = graphemeBreakTree.getGraphemeBreakType(iterator.nextCodePoint());
 		if (breakBetweenGraphemeBreakType(graphemeBreakType, nextGraphemeBreakType)) {
-			break;
+			return (offset - initialOffset);
 		}
-		offset += (nextCodePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
 		graphemeBreakType = nextGraphemeBreakType;
 	}
 
-	return (offset - initialOffset);
+	return (iterator.offset - initialOffset);
 }
 
-export function prevCharLength(str: string, offset: number): number {
+export function prevCharLength(str: string, initialOffset: number): number {
 	const graphemeBreakTree = GraphemeBreakTree.getInstance();
-	const initialOffset = offset;
+	const iterator = new CodePointIterator(str, initialOffset);
 
-	const initialCodePoint = getPrevCodePoint(str, offset);
-	offset -= (initialCodePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
-
-	let graphemeBreakType = graphemeBreakTree.getGraphemeBreakType(initialCodePoint);
-	while (offset > 0) {
-		const prevCodePoint = getPrevCodePoint(str, offset);
-		const prevGraphemeBreakType = graphemeBreakTree.getGraphemeBreakType(prevCodePoint);
+	let graphemeBreakType = graphemeBreakTree.getGraphemeBreakType(iterator.prevCodePoint());
+	while (iterator.offset > 0) {
+		const offset = iterator.offset;
+		const prevGraphemeBreakType = graphemeBreakTree.getGraphemeBreakType(iterator.prevCodePoint());
 		if (breakBetweenGraphemeBreakType(prevGraphemeBreakType, graphemeBreakType)) {
-			break;
+			return (initialOffset - offset);
 		}
-		offset -= (prevCodePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
 		graphemeBreakType = prevGraphemeBreakType;
 	}
 
-	return (initialOffset - offset);
-}
-
-function _getCharContainingOffset(str: string, offset: number): [number, number] {
-	const graphemeBreakTree = GraphemeBreakTree.getInstance();
-	const len = str.length;
-	const initialOffset = offset;
-	const initialCodePoint = getNextCodePoint(str, len, offset);
-	const initialGraphemeBreakType = graphemeBreakTree.getGraphemeBreakType(initialCodePoint);
-	offset += (initialCodePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
-
-	// extend to the right
-	let graphemeBreakType = initialGraphemeBreakType;
-	while (offset < len) {
-		const nextCodePoint = getNextCodePoint(str, len, offset);
-		const nextGraphemeBreakType = graphemeBreakTree.getGraphemeBreakType(nextCodePoint);
-		if (breakBetweenGraphemeBreakType(graphemeBreakType, nextGraphemeBreakType)) {
-			break;
-		}
-		offset += (nextCodePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
-		graphemeBreakType = nextGraphemeBreakType;
-	}
-	const endOffset = offset;
-
-	// extend to the left
-	offset = initialOffset;
-	graphemeBreakType = initialGraphemeBreakType;
-	while (offset > 0) {
-		const prevCodePoint = getPrevCodePoint(str, offset);
-		const prevGraphemeBreakType = graphemeBreakTree.getGraphemeBreakType(prevCodePoint);
-		if (breakBetweenGraphemeBreakType(prevGraphemeBreakType, graphemeBreakType)) {
-			break;
-		}
-		offset -= (prevCodePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
-		graphemeBreakType = prevGraphemeBreakType;
-	}
-
-	return [offset, endOffset];
+	return (initialOffset - iterator.offset);
 }
 
 export function getCharContainingOffset(str: string, offset: number): [number, number] {
 	if (offset > 0 && isLowSurrogate(str.charCodeAt(offset))) {
-		return _getCharContainingOffset(str, offset - 1);
+		offset--;
 	}
-	return _getCharContainingOffset(str, offset);
+	const endOffset = offset + nextCharLength(str, offset);
+	const startOffset = endOffset - prevCharLength(str, endOffset);
+	return [startOffset, endOffset];
 }
 
 /**
@@ -971,25 +960,24 @@ export function getLeftDeleteOffset(offset: number, str: string): number {
 	}
 
 	// Otherwise, just skip a single code point.
-	const codePoint = getPrevCodePoint(str, offset);
-	offset -= getUTF16Length(codePoint);
-	return offset;
+	const iterator = new CodePointIterator(str, offset);
+	iterator.prevCodePoint();
+	return iterator.offset;
 }
 
-function getOffsetBeforeLastEmojiComponent(offset: number, str: string): number | undefined {
+function getOffsetBeforeLastEmojiComponent(initialOffset: number, str: string): number | undefined {
 	// See https://www.unicode.org/reports/tr51/tr51-14.html#EBNF_and_Regex for the
 	// structure of emojis.
-	let codePoint = getPrevCodePoint(str, offset);
-	offset -= getUTF16Length(codePoint);
+	const iterator = new CodePointIterator(str, initialOffset);
+	let codePoint = iterator.prevCodePoint();
 
 	// Skip modifiers
 	while ((isEmojiModifier(codePoint) || codePoint === CodePoint.emojiVariantSelector || codePoint === CodePoint.enclosingKeyCap)) {
-		if (offset === 0) {
+		if (iterator.offset === 0) {
 			// Cannot skip modifier, no preceding emoji base.
 			return undefined;
 		}
-		codePoint = getPrevCodePoint(str, offset);
-		offset -= getUTF16Length(codePoint);
+		codePoint = iterator.prevCodePoint();
 	}
 
 	// Expect base emoji
@@ -998,21 +986,19 @@ function getOffsetBeforeLastEmojiComponent(offset: number, str: string): number 
 		return undefined;
 	}
 
-	if (offset >= 0) {
+	let resultOffset = iterator.offset;
+
+	if (resultOffset > 0) {
 		// Skip optional ZWJ code points that combine multiple emojis.
 		// In theory, we should check if that ZWJ actually combines multiple emojis
 		// to prevent deleting ZWJs in situations we didn't account for.
-		const optionalZwjCodePoint = getPrevCodePoint(str, offset);
+		const optionalZwjCodePoint = iterator.prevCodePoint();
 		if (optionalZwjCodePoint === CodePoint.zwj) {
-			offset -= getUTF16Length(optionalZwjCodePoint);
+			resultOffset = iterator.offset;
 		}
 	}
 
-	return offset;
-}
-
-function getUTF16Length(codePoint: number) {
-	return codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1;
+	return resultOffset;
 }
 
 function isEmojiModifier(codePoint: number): boolean {
