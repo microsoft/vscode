@@ -32,7 +32,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable {
 
 	private recursiveWatcher: AbstractRecursiveWatcherClient | undefined;
 	private readonly recursiveFoldersToWatch: IWatchRequest[] = [];
-	private recursiveWatchRequestDelayer = this._register(new ThrottledDelayer<void>(0));
+	private readonly recursiveWatchRequestDelayer = this._register(new ThrottledDelayer<void>(0));
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable {
 		if (opts.recursive) {

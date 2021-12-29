@@ -946,7 +946,7 @@ export class TestFileService implements IFileService {
 	fireFileSystemProviderCapabilitiesChangeEvent(event: IFileSystemProviderCapabilitiesChangeEvent): void { this._onDidChangeFileSystemProviderCapabilities.fire(event); }
 
 	readonly onWillActivateFileSystemProvider = Event.None;
-	readonly onError: Event<Error> = Event.None;
+	readonly onDidWatchError = Event.None;
 
 	private content = 'Hello Html';
 	private lastReadFileUri!: URI;
