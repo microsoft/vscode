@@ -911,10 +911,15 @@ export class SettingsEditor2 extends EditorPane {
 
 		return this.configurationService.updateValue(key, value, overrides, configurationTarget)
 			.then(() => {
+				const query = this.searchWidget.getValue();
+				if (query.includes('@modified')) {
+					// The user might have reset a setting.
+					this.refreshTOCTree();
+				}
 				this.renderTree(key, isManualReset);
 				const reportModifiedProps = {
 					key,
-					query: this.searchWidget.getValue(),
+					query,
 					searchResults: this.searchResultModel && this.searchResultModel.getUniqueResults(),
 					rawResults: this.searchResultModel && this.searchResultModel.getRawResults(),
 					showConfiguredOnly: !!this.viewState.tagFilters && this.viewState.tagFilters.has(MODIFIED_SETTING_TAG),
