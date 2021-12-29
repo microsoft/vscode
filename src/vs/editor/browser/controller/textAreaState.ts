@@ -192,7 +192,7 @@ export class TextAreaState {
 
 		if (currentSelectionStart === currentSelectionEnd) {
 			// composition accept case (noticed in FF + Japanese)
-			// [blahblah] => blahblah|
+			// [something] => something|
 			if (
 				previousValue === currentValue
 				&& previousSelectionStart === 0

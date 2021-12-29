@@ -462,7 +462,7 @@ function getPrevCodePoint(str: string, offset: number): number {
 	return charCode;
 }
 
-class CodePointIterator {
+export class CodePointIterator {
 
 	private readonly _str: string;
 	private readonly _len: number;
@@ -475,6 +475,10 @@ class CodePointIterator {
 	constructor(str: string, offset: number = 0) {
 		this._str = str;
 		this._len = str.length;
+		this._offset = offset;
+	}
+
+	public setOffset(offset: number): void {
 		this._offset = offset;
 	}
 
@@ -495,38 +499,69 @@ class CodePointIterator {
 	}
 }
 
-export function nextCharLength(str: string, initialOffset: number): number {
-	const graphemeBreakTree = GraphemeBreakTree.getInstance();
-	const iterator = new CodePointIterator(str, initialOffset);
+export class GraphemeIterator {
 
-	let graphemeBreakType = graphemeBreakTree.getGraphemeBreakType(iterator.nextCodePoint());
-	while (!iterator.eol()) {
-		const offset = iterator.offset;
-		const nextGraphemeBreakType = graphemeBreakTree.getGraphemeBreakType(iterator.nextCodePoint());
-		if (breakBetweenGraphemeBreakType(graphemeBreakType, nextGraphemeBreakType)) {
-			return (offset - initialOffset);
-		}
-		graphemeBreakType = nextGraphemeBreakType;
+	private readonly _iterator: CodePointIterator;
+
+	public get offset(): number {
+		return this._iterator.offset;
 	}
 
-	return (iterator.offset - initialOffset);
+	constructor(str: string, offset: number = 0) {
+		this._iterator = new CodePointIterator(str, offset);
+	}
+
+	public nextGraphemeLength(): number {
+		const graphemeBreakTree = GraphemeBreakTree.getInstance();
+		const iterator = this._iterator;
+		const initialOffset = iterator.offset;
+
+		let graphemeBreakType = graphemeBreakTree.getGraphemeBreakType(iterator.nextCodePoint());
+		while (!iterator.eol()) {
+			const offset = iterator.offset;
+			const nextGraphemeBreakType = graphemeBreakTree.getGraphemeBreakType(iterator.nextCodePoint());
+			if (breakBetweenGraphemeBreakType(graphemeBreakType, nextGraphemeBreakType)) {
+				// move iterator back
+				iterator.setOffset(offset);
+				break;
+			}
+			graphemeBreakType = nextGraphemeBreakType;
+		}
+		return (iterator.offset - initialOffset);
+	}
+
+	public prevGraphemeLength(): number {
+		const graphemeBreakTree = GraphemeBreakTree.getInstance();
+		const iterator = this._iterator;
+		const initialOffset = iterator.offset;
+
+		let graphemeBreakType = graphemeBreakTree.getGraphemeBreakType(iterator.prevCodePoint());
+		while (iterator.offset > 0) {
+			const offset = iterator.offset;
+			const prevGraphemeBreakType = graphemeBreakTree.getGraphemeBreakType(iterator.prevCodePoint());
+			if (breakBetweenGraphemeBreakType(prevGraphemeBreakType, graphemeBreakType)) {
+				// move iterator back
+				iterator.setOffset(offset);
+				break;
+			}
+			graphemeBreakType = prevGraphemeBreakType;
+		}
+		return (initialOffset - iterator.offset);
+	}
+
+	public eol(): boolean {
+		return this._iterator.eol();
+	}
+}
+
+export function nextCharLength(str: string, initialOffset: number): number {
+	const iterator = new GraphemeIterator(str, initialOffset);
+	return iterator.nextGraphemeLength();
 }
 
 export function prevCharLength(str: string, initialOffset: number): number {
-	const graphemeBreakTree = GraphemeBreakTree.getInstance();
-	const iterator = new CodePointIterator(str, initialOffset);
-
-	let graphemeBreakType = graphemeBreakTree.getGraphemeBreakType(iterator.prevCodePoint());
-	while (iterator.offset > 0) {
-		const offset = iterator.offset;
-		const prevGraphemeBreakType = graphemeBreakTree.getGraphemeBreakType(iterator.prevCodePoint());
-		if (breakBetweenGraphemeBreakType(prevGraphemeBreakType, graphemeBreakType)) {
-			return (initialOffset - offset);
-		}
-		graphemeBreakType = prevGraphemeBreakType;
-	}
-
-	return (initialOffset - iterator.offset);
+	const iterator = new GraphemeIterator(str, initialOffset);
+	return iterator.prevGraphemeLength();
 }
 
 export function getCharContainingOffset(str: string, offset: number): [number, number] {
@@ -787,7 +822,7 @@ export function getGraphemeBreakType(codePoint: number): GraphemeBreakType {
 	return graphemeBreakTree.getGraphemeBreakType(codePoint);
 }
 
-export function breakBetweenGraphemeBreakType(breakTypeA: GraphemeBreakType, breakTypeB: GraphemeBreakType): boolean {
+function breakBetweenGraphemeBreakType(breakTypeA: GraphemeBreakType, breakTypeB: GraphemeBreakType): boolean {
 	// http://www.unicode.org/reports/tr29/#Grapheme_Cluster_Boundary_Rules
 
 	// !!! Let's make the common case a bit faster
