@@ -106,7 +106,7 @@ export class FindModel extends Disposable {
 
 		const nextIndex = this._findMatchesStarts!.getIndexOf(this._currentMatch);
 		// const newFocusedCell = this._findMatches[nextIndex.index].cell;
-		this.setCurrentFindMatchDecoration(nextIndex.index, nextIndex.remainder);
+		this.highlightCurrentFindMatchDecoration(nextIndex.index, nextIndex.remainder);
 		this.revealCellRange(nextIndex.index, nextIndex.remainder);
 
 		this._state.changeMatchInfo(
@@ -253,7 +253,7 @@ export class FindModel extends Disposable {
 
 		if (autoStart) {
 			this._currentMatch = 0;
-			this.setCurrentFindMatchDecoration(0, 0);
+			this.highlightCurrentFindMatchDecoration(0, 0);
 		}
 
 		this._state.changeMatchInfo(
@@ -283,7 +283,7 @@ export class FindModel extends Disposable {
 		this.set(findMatches, false);
 		this._currentMatch = currentMatchesPosition;
 		const nextIndex = this._findMatchesStarts!.getIndexOf(this._currentMatch);
-		this.setCurrentFindMatchDecoration(nextIndex.index, nextIndex.remainder);
+		this.highlightCurrentFindMatchDecoration(nextIndex.index, nextIndex.remainder);
 
 		this._state.changeMatchInfo(
 			this._currentMatch,
@@ -314,12 +314,15 @@ export class FindModel extends Disposable {
 		}
 	}
 
-	private setCurrentFindMatchDecoration(cellIndex: number, matchIndex: number) {
+	private highlightCurrentFindMatchDecoration(cellIndex: number, matchIndex: number) {
+		const cell = this._findMatches[cellIndex].cell;
+		const match = this._findMatches[cellIndex].matches[matchIndex];
+
+		// match is an editor FindMatch, we update find match decoration in the editor
+		// we will highlight the match in the webview
 		this._notebookEditor.changeModelDecorations(accessor => {
 			const findMatchesOptions: ModelDecorationOptions = FindDecorations._CURRENT_FIND_MATCH_DECORATION;
 
-			const cell = this._findMatches[cellIndex].cell;
-			const match = this._findMatches[cellIndex].matches[matchIndex];
 			const decorations: IModelDeltaDecoration[] = [
 				{ range: match.range, options: findMatchesOptions }
 			];
