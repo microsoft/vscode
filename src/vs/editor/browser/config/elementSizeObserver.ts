@@ -6,32 +6,6 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IDimension } from 'vs/editor/common/editorCommon';
 
-interface ResizeObserver {
-	observe(target: Element): void;
-	unobserve(target: Element): void;
-	disconnect(): void;
-}
-
-interface ResizeObserverSize {
-	inlineSize: number;
-	blockSize: number;
-}
-
-interface ResizeObserverEntry {
-	readonly target: Element;
-	readonly contentRect: DOMRectReadOnly;
-	readonly borderBoxSize: ResizeObserverSize;
-	readonly contentBoxSize: ResizeObserverSize;
-}
-
-type ResizeObserverCallback = (entries: ReadonlyArray<ResizeObserverEntry>, observer: ResizeObserver) => void;
-
-declare const ResizeObserver: {
-	prototype: ResizeObserver;
-	new(callback: ResizeObserverCallback): ResizeObserver;
-};
-
-
 export class ElementSizeObserver extends Disposable {
 
 	private readonly referenceDomElement: HTMLElement | null;
@@ -39,7 +13,6 @@ export class ElementSizeObserver extends Disposable {
 	private width: number;
 	private height: number;
 	private resizeObserver: ResizeObserver | null;
-	private measureReferenceDomElementToken: number;
 
 	constructor(referenceDomElement: HTMLElement | null, dimension: IDimension | undefined, changeCallback: () => void) {
 		super();
@@ -48,7 +21,6 @@ export class ElementSizeObserver extends Disposable {
 		this.width = -1;
 		this.height = -1;
 		this.resizeObserver = null;
-		this.measureReferenceDomElementToken = -1;
 		this.measureReferenceDomElement(false, dimension);
 	}
 
@@ -66,22 +38,15 @@ export class ElementSizeObserver extends Disposable {
 	}
 
 	public startObserving(): void {
-		if (typeof ResizeObserver !== 'undefined') {
-			if (!this.resizeObserver && this.referenceDomElement) {
-				this.resizeObserver = new ResizeObserver((entries) => {
-					if (entries && entries[0] && entries[0].contentRect) {
-						this.observe({ width: entries[0].contentRect.width, height: entries[0].contentRect.height });
-					} else {
-						this.observe();
-					}
-				});
-				this.resizeObserver.observe(this.referenceDomElement);
-			}
-		} else {
-			if (this.measureReferenceDomElementToken === -1) {
-				// setInterval type defaults to NodeJS.Timeout instead of number, so specify it as a number
-				this.measureReferenceDomElementToken = <number><any>setInterval(() => this.observe(), 100);
-			}
+		if (!this.resizeObserver && this.referenceDomElement) {
+			this.resizeObserver = new ResizeObserver((entries) => {
+				if (entries && entries[0] && entries[0].contentRect) {
+					this.observe({ width: entries[0].contentRect.width, height: entries[0].contentRect.height });
+				} else {
+					this.observe();
+				}
+			});
+			this.resizeObserver.observe(this.referenceDomElement);
 		}
 	}
 
@@ -89,10 +54,6 @@ export class ElementSizeObserver extends Disposable {
 		if (this.resizeObserver) {
 			this.resizeObserver.disconnect();
 			this.resizeObserver = null;
-		}
-		if (this.measureReferenceDomElementToken !== -1) {
-			clearInterval(this.measureReferenceDomElementToken);
-			this.measureReferenceDomElementToken = -1;
 		}
 	}
 
@@ -120,5 +81,4 @@ export class ElementSizeObserver extends Disposable {
 			}
 		}
 	}
-
 }
