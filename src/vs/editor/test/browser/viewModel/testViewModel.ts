@@ -6,7 +6,7 @@
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
+import { TestConfiguration } from 'vs/editor/test/browser/config/testConfiguration';
 import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';

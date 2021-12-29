@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CommonEditorConfiguration, IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { IEditorOptions, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
+import { CommonEditorConfiguration, IEnvConfiguration } from 'vs/editor/browser/config/configuration';
+import { EditorFontLigatures, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 

@@ -21,7 +21,7 @@ import { ITextResourcePropertiesService } from 'vs/editor/common/services/textRe
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { TestCodeEditorService, TestCommandService } from 'vs/editor/test/browser/editorTestServices';
 import { createTextModel2 } from 'vs/editor/test/common/editorTestUtils';
-import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
+import { TestConfiguration } from 'vs/editor/test/browser/config/testConfiguration';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
