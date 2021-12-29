@@ -98,10 +98,6 @@ export class TextAreaState {
 		return [anchor, signum * deltaText.length, lineFeedCnt];
 	}
 
-	public static selectedText(text: string): TextAreaState {
-		return new TextAreaState(text, 0, text.length, null, null);
-	}
-
 	public static deduceInput(previousState: TextAreaState, currentState: TextAreaState, couldBeEmojiInput: boolean): ITypeData {
 		if (!previousState) {
 			// This is the EMPTY state

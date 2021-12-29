@@ -167,7 +167,7 @@ export class TextAreaHandler extends ViewPart {
 		};
 
 		const textAreaInputHost: ITextAreaInputHost = {
-			getDataToCopy: (generateHTML: boolean): ClipboardDataToCopy => {
+			getDataToCopy: (): ClipboardDataToCopy => {
 				const rawTextToCopy = this._context.model.getPlainTextToCopy(this._modelSelections, this._emptySelectionClipboard, platform.isWindows);
 				const newLineCharacter = this._context.model.getEOL();
 
@@ -177,13 +177,11 @@ export class TextAreaHandler extends ViewPart {
 
 				let html: string | null | undefined = undefined;
 				let mode: string | null = null;
-				if (generateHTML) {
-					if (CopyOptions.forceCopyWithSyntaxHighlighting || (this._copyWithSyntaxHighlighting && text.length < 65536)) {
-						const richText = this._context.model.getRichTextToCopy(this._modelSelections, this._emptySelectionClipboard);
-						if (richText) {
-							html = richText.html;
-							mode = richText.mode;
-						}
+				if (CopyOptions.forceCopyWithSyntaxHighlighting || (this._copyWithSyntaxHighlighting && text.length < 65536)) {
+					const richText = this._context.model.getRichTextToCopy(this._modelSelections, this._emptySelectionClipboard);
+					if (richText) {
+						html = richText.html;
+						mode = richText.mode;
 					}
 				}
 				return {

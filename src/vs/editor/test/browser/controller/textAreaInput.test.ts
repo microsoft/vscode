@@ -43,7 +43,7 @@ suite('TextAreaInput', () => {
 	async function simulateInteraction(recorded: IRecorded): Promise<OutoingEvent[]> {
 		let disposables = new DisposableStore();
 		const host: ITextAreaInputHost = {
-			getDataToCopy: function (html: boolean): ClipboardDataToCopy {
+			getDataToCopy: function (): ClipboardDataToCopy {
 				throw new Error('Function not implemented.');
 			},
 			getScreenReaderContent: function (currentState: TextAreaState): TextAreaState {
