@@ -8,8 +8,6 @@ import * as nls from 'vs/nls';
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 
-const hasOwnProperty = Object.hasOwnProperty;
-
 export const editorConfigurationBaseNode = Object.freeze<IConfigurationNode>({
 	id: 'editor',
 	order: 5,
@@ -18,7 +16,6 @@ export const editorConfigurationBaseNode = Object.freeze<IConfigurationNode>({
 	scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 });
 
-const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 const editorConfiguration: IConfigurationNode = {
 	...editorConfigurationBaseNode,
 	properties: {
@@ -189,7 +186,7 @@ for (const editorOption of editorOptionsRegistry) {
 			editorConfiguration.properties![`editor.${editorOption.name}`] = schema;
 		} else {
 			for (let key in schema) {
-				if (hasOwnProperty.call(schema, key)) {
+				if (Object.hasOwnProperty.call(schema, key)) {
 					editorConfiguration.properties![key] = schema[key];
 				}
 			}
@@ -212,9 +209,11 @@ export function isEditorConfigurationKey(key: string): boolean {
 	const editorConfigurationKeys = getEditorConfigurationKeys();
 	return (editorConfigurationKeys[`editor.${key}`] || false);
 }
+
 export function isDiffEditorConfigurationKey(key: string): boolean {
 	const editorConfigurationKeys = getEditorConfigurationKeys();
 	return (editorConfigurationKeys[`diffEditor.${key}`] || false);
 }
 
+const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 configurationRegistry.registerConfiguration(editorConfiguration);
