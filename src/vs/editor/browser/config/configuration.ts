@@ -21,7 +21,7 @@ import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { IConfiguration, IDimension } from 'vs/editor/common/editorCommon';
 import { AccessibilitySupport, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
-export abstract class CommonEditorConfiguration extends Disposable implements IConfiguration {
+abstract class CommonEditorConfiguration extends Disposable implements IConfiguration {
 
 	private _onDidChange = this._register(new Emitter<ConfigurationChangedEvent>());
 	public readonly onDidChange: Event<ConfigurationChangedEvent> = this._onDidChange.event;
@@ -192,7 +192,7 @@ export class Configuration extends CommonEditorConfiguration {
 		isSimpleWidget: boolean,
 		options: Readonly<IEditorConstructionOptions>,
 		referenceDomElement: HTMLElement | null = null,
-		private readonly accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super(isSimpleWidget, options);
 
