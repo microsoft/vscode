@@ -7,7 +7,7 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/3025
 
-	export interface FileSystem2 extends FileSystem {
+	export interface FileSystem {
 
 		/**
 		 * Subscribe to file change events in the file or folder denoted by `uri`. For folders,
@@ -27,16 +27,5 @@ declare module 'vscode' {
 		 * @returns A disposable that tells the provider to stop watching the `uri`.
 		 */
 		watch(uri: Uri, options?: { recursive: boolean; excludes: string[] }): Disposable;
-	}
-
-	export namespace workspace {
-
-		/**
-		 * A {@link FileSystem file system} instance that allows to interact with local and remote
-		 * files, e.g. `vscode.workspace.fs.readDirectory(someUri)` allows to retrieve all entries
-		 * of a directory or `vscode.workspace.fs.stat(anotherUri)` returns the meta data for a
-		 * file.
-		 */
-		export const fs2: FileSystem2;
 	}
 }
