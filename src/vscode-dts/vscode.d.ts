@@ -7403,13 +7403,23 @@ declare module 'vscode' {
 		readonly onDidChangeFile: Event<FileChangeEvent[]>;
 
 		/**
-		 * Subscribe to events in the file or folder denoted by `uri`.
+		 * Subscribe to file change events in the file or folder denoted by `uri`. For folders,
+		 * the option `recursive` indicates whether subfolders, sub-subfolders, etc. should
+		 * be watched for file changes as well. When `recursive: false`, only changes to the
+		 * files that are direct children of the folder should trigger an event.
 		 *
-		 * The editor will call this function for files and folders. In the latter case, the
-		 * options differ from defaults, e.g. what files/folders to exclude from watching
-		 * and if subfolders, sub-subfolder, etc. should be watched (`recursive`).
+		 * The `excludes` array is used to indicate paths that should be excluded from file
+		 * watching. It is typically derived from the `files.watcherExclude` setting that
+		 * is configurable by the user. Each entry can be be:
+		 * - the absolute path to exclude
+		 * - a relative path to exclude (for example `build/output`)
+		 * - a simple glob pattern (for example `**\build`, `output/**`)
 		 *
-		 * @param uri The uri of the file to be watched.
+		 * It is the file system provider's job to call {@linkcode FileSystemProvider.onDidChangeFile onDidChangeFile}
+		 * for every change given these rules. No event should be emitted for files that match any of the provided
+		 * excludes.
+		 *
+		 * @param uri The uri of the file or folder to be watched.
 		 * @param options Configures the watch.
 		 * @returns A disposable that tells the provider to stop watching the `uri`.
 		 */
