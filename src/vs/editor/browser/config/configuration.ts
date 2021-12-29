@@ -13,6 +13,7 @@ import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { FontMeasurements } from 'vs/editor/browser/config/fontMeasurements';
+import { TabFocus } from 'vs/editor/browser/config/tabFocus';
 import { IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { ComputeOptionsMemory, ConfigurationChangedEvent, EditorOption, editorOptionsRegistry, EDITOR_FONT_DEFAULTS, FindComputedEditorOptionValueById, IComputedEditorOptions, IEditorOptions, IEnvironmentalOptions, ValidatedEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
@@ -254,38 +255,6 @@ export class Configuration extends CommonEditorConfiguration {
 	}
 }
 
-/**
- * Control what pressing Tab does.
- * If it is false, pressing Tab or Shift-Tab will be handled by the editor.
- * If it is true, pressing Tab or Shift-Tab will move the browser focus.
- * Defaults to false.
- */
-export interface ITabFocus {
-	onDidChangeTabFocus: Event<boolean>;
-	getTabFocusMode(): boolean;
-	setTabFocusMode(tabFocusMode: boolean): void;
-}
-
-export const TabFocus: ITabFocus = new class implements ITabFocus {
-	private _tabFocus: boolean = false;
-
-	private readonly _onDidChangeTabFocus = new Emitter<boolean>();
-	public readonly onDidChangeTabFocus: Event<boolean> = this._onDidChangeTabFocus.event;
-
-	public getTabFocusMode(): boolean {
-		return this._tabFocus;
-	}
-
-	public setTabFocusMode(tabFocusMode: boolean): void {
-		if (this._tabFocus === tabFocusMode) {
-			return;
-		}
-
-		this._tabFocus = tabFocusMode;
-		this._onDidChangeTabFocus.fire(this._tabFocus);
-	}
-};
-
 export interface IEnvConfiguration {
 	extraEditorClassName: string;
 	outerWidth: number;
@@ -295,7 +264,6 @@ export interface IEnvConfiguration {
 	zoomLevel: number;
 	accessibilitySupport: AccessibilitySupport;
 }
-
 
 export class ComputedEditorOptions implements IComputedEditorOptions {
 	private readonly _values: any[] = [];

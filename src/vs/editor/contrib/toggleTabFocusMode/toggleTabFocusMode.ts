@@ -5,7 +5,7 @@
 
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { TabFocus } from 'vs/editor/browser/config/configuration';
+import { TabFocus } from 'vs/editor/browser/config/tabFocus';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import * as nls from 'vs/nls';
