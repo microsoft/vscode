@@ -8,7 +8,8 @@ import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { ICommand, IConfiguration } from 'vs/editor/common/editorCommon';
+import { ICommand } from 'vs/editor/common/editorCommon';
+import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { ITextModel, PositionAffinity, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { AutoClosingPairs } from 'vs/editor/common/modes/languageConfiguration';
@@ -106,7 +107,7 @@ export class CursorConfiguration {
 	constructor(
 		languageId: string,
 		modelOptions: TextModelResolvedOptions,
-		configuration: IConfiguration,
+		configuration: IEditorConfiguration,
 		private readonly languageConfigurationService: ILanguageConfigurationService
 	) {
 		this._languageId = languageId;

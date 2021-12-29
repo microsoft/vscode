@@ -9,7 +9,7 @@ import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { IVisibleLine, IVisibleLinesHost, VisibleLinesCollection } from 'vs/editor/browser/view/viewLayer';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { IStringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { IConfiguration } from 'vs/editor/common/editorCommon';
+import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
@@ -140,13 +140,13 @@ export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOver
 
 export class ViewOverlayLine implements IVisibleLine {
 
-	private readonly _configuration: IConfiguration;
+	private readonly _configuration: IEditorConfiguration;
 	private readonly _dynamicOverlays: DynamicViewOverlay[];
 	private _domNode: FastDomNode<HTMLElement> | null;
 	private _renderedContent: string | null;
 	private _lineHeight: number;
 
-	constructor(configuration: IConfiguration, dynamicOverlays: DynamicViewOverlay[]) {
+	constructor(configuration: IEditorConfiguration, dynamicOverlays: DynamicViewOverlay[]) {
 		this._configuration = configuration;
 		this._lineHeight = this._configuration.options.get(EditorOption.lineHeight);
 		this._dynamicOverlays = dynamicOverlays;

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IEnvConfiguration } from 'vs/editor/browser/config/configuration';
+import { IEnvConfiguration } from 'vs/editor/browser/config/editorConfiguration';
 import { ConfigurationChangedEvent, EditorOption, IEditorHoverOptions, IQuickSuggestionsOptions } from 'vs/editor/common/config/editorOptions';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { TestConfiguration } from 'vs/editor/test/browser/config/testConfiguration';

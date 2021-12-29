@@ -17,7 +17,8 @@ import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { ICommand, IConfiguration, ICursorState, INewScrollPosition, IViewState, ScrollType } from 'vs/editor/common/editorCommon';
+import { ICommand, ICursorState, INewScrollPosition, IViewState, ScrollType } from 'vs/editor/common/editorCommon';
+import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { EndOfLinePreference, ICursorStateComputer, IIdentifiedSingleEditOperation, ITextModel, PositionAffinity, TextModelResolvedOptions, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IActiveIndentGuideInfo, BracketGuideOptions, IndentGuide } from 'vs/editor/common/model/guidesTextModelPart';
 import { ModelDecorationMinimapOptions, ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
@@ -43,7 +44,7 @@ const USE_IDENTITY_LINES_COLLECTION = true;
 export class ViewModel extends Disposable implements IViewModel {
 
 	private readonly _editorId: number;
-	private readonly _configuration: IConfiguration;
+	private readonly _configuration: IEditorConfiguration;
 	public readonly model: ITextModel;
 	private readonly _eventDispatcher: ViewModelEventDispatcher;
 	public readonly onEvent: Event<OutgoingViewModelEvent>;
@@ -62,7 +63,7 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	constructor(
 		editorId: number,
-		configuration: IConfiguration,
+		configuration: IEditorConfiguration,
 		model: ITextModel,
 		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
 		monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory,
