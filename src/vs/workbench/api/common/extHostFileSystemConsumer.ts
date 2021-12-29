@@ -131,6 +131,13 @@ export class ExtHostConsumerFileSystem {
 					return !(capabilities & files.FileSystemProviderCapabilities.Readonly);
 				}
 				return undefined;
+			},
+			watch(uri: vscode.Uri, options: { recursive: boolean; excludes: string[] } = { recursive: false, excludes: [] }): vscode.Disposable {
+				const session = Math.random();
+				that._proxy.$watch(session, uri, options);
+				return toDisposable(() => {
+					that._proxy.$unwatch(session);
+				});
 			}
 		});
 	}

@@ -17,6 +17,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	private readonly _proxy: ExtHostFileSystemShape;
 	private readonly _fileProvider = new Map<number, RemoteFileSystemProvider>();
 	private readonly _disposables = new DisposableStore();
+	private readonly _watches = new Map<number, IDisposable>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -152,6 +153,19 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 
 	$ensureActivation(scheme: string): Promise<void> {
 		return this._fileService.activateProvider(scheme);
+	}
+
+	$watch(session: number, resource: UriComponents, opts: IWatchOptions): void {
+		const subscription = this._fileService.watch(URI.revive(resource), opts);
+		this._watches.set(session, subscription);
+	}
+
+	$unwatch(session: number): void {
+		const subscription = this._watches.get(session);
+		if (subscription) {
+			subscription.dispose();
+			this._watches.delete(session);
+		}
 	}
 }
 

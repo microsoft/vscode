@@ -1017,6 +1017,8 @@ export interface MainThreadFileSystemShape extends IDisposable {
 	$copy(resource: UriComponents, target: UriComponents, opts: files.FileOverwriteOptions): Promise<void>;
 	$mkdir(resource: UriComponents): Promise<void>;
 	$delete(resource: UriComponents, opts: files.FileDeleteOptions): Promise<void>;
+	$watch(session: number, resource: UriComponents, opts: files.IWatchOptions): void;
+	$unwatch(session: number): void;
 
 	$ensureActivation(scheme: string): Promise<void>;
 }

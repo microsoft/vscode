@@ -922,6 +922,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get fs() {
 				return extHostConsumerFileSystem.value;
 			},
+			get fs2() {
+				checkProposedApiEnabled(extension, 'fsWatch');
+				return extHostConsumerFileSystem.value as vscode.FileSystem2;
+			},
 			registerFileSearchProvider: (scheme: string, provider: vscode.FileSearchProvider) => {
 				checkProposedApiEnabled(extension, 'fileSearchProvider');
 				return extHostSearch.registerFileSearchProvider(scheme, provider);
