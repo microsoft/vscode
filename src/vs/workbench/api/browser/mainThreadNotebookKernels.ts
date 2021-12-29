@@ -131,6 +131,10 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 				}
 			});
 		}));
+
+		this._disposables.add(this._notebookExecutionStateService.onDidChangeCellExecution(e => {
+			this._proxy.$cellExecutionChanged(e.notebook, e.cellHandle, e.changed?.state);
+		}));
 	}
 
 	dispose(): void {

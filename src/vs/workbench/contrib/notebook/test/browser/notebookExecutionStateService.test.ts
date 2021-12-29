@@ -9,7 +9,7 @@ import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { insertCellAtIndex } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
@@ -111,6 +111,6 @@ class TestNotebookKernel implements INotebookKernel {
 	}
 
 	constructor(opts?: { languages: string[] }) {
-		this.supportedLanguages = opts?.languages ?? [PLAINTEXT_MODE_ID];
+		this.supportedLanguages = opts?.languages ?? [PLAINTEXT_LANGUAGE_ID];
 	}
 }

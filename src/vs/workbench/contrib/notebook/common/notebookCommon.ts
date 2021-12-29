@@ -101,7 +101,6 @@ export interface NotebookCellMetadata {
 export interface NotebookCellInternalMetadata {
 	executionOrder?: number;
 	lastRunSuccess?: boolean;
-	runState?: NotebookCellExecutionState;
 	runStartTime?: number;
 	runStartTimeAdjustment?: number;
 	runEndTime?: number;
@@ -200,7 +199,6 @@ export interface ICellOutput {
 }
 
 export interface CellInternalMetadataChangedEvent {
-	readonly runStateChanged?: boolean;
 	readonly lastRunSuccessChanged?: boolean;
 }
 

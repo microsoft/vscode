@@ -5,8 +5,10 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NotebookCellDefaultCollapseConfig, NotebookCellInternalMetadata, NotebookSetting, ShowCellStatusBarType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 const SCROLLABLE_ELEMENT_PADDING_TOP = 18;
 
@@ -109,7 +111,11 @@ export class NotebookOptions extends Disposable {
 	protected readonly _onDidChangeOptions = this._register(new Emitter<NotebookOptionsChangeEvent>());
 	readonly onDidChangeOptions = this._onDidChangeOptions.event;
 
-	constructor(private readonly configurationService: IConfigurationService, private readonly overrides?: { cellToolbarInteraction: string, globalToolbar: boolean, defaultCellCollapseConfig?: NotebookCellDefaultCollapseConfig }) {
+	constructor(
+		private readonly configurationService: IConfigurationService,
+		private readonly notebookExecutionStateService: INotebookExecutionStateService,
+		private readonly overrides?: { cellToolbarInteraction: string, globalToolbar: boolean, defaultCellCollapseConfig?: NotebookCellDefaultCollapseConfig }
+	) {
 		super();
 		const showCellStatusBar = this.configurationService.getValue<ShowCellStatusBarType>(NotebookSetting.showCellStatusBar);
 		const globalToolbar = overrides?.globalToolbar ?? this.configurationService.getValue<boolean | undefined>(NotebookSetting.globalToolbar) ?? true;
@@ -439,25 +445,26 @@ export class NotebookOptions extends Disposable {
 		return 0;
 	}
 
-	computeEditorPadding(internalMetadata: NotebookCellInternalMetadata) {
+	computeEditorPadding(internalMetadata: NotebookCellInternalMetadata, cellUri: URI) {
 		return {
 			top: getEditorTopPadding(),
-			bottom: this.statusBarIsVisible(internalMetadata)
+			bottom: this.statusBarIsVisible(internalMetadata, cellUri)
 				? this._layoutConfiguration.editorBottomPadding
 				: this._layoutConfiguration.editorBottomPaddingWithoutStatusBar
 		};
 	}
 
 
-	computeEditorStatusbarHeight(internalMetadata: NotebookCellInternalMetadata) {
-		return this.statusBarIsVisible(internalMetadata) ? this.computeStatusBarHeight() : 0;
+	computeEditorStatusbarHeight(internalMetadata: NotebookCellInternalMetadata, cellUri: URI) {
+		return this.statusBarIsVisible(internalMetadata, cellUri) ? this.computeStatusBarHeight() : 0;
 	}
 
-	private statusBarIsVisible(internalMetadata: NotebookCellInternalMetadata): boolean {
+	private statusBarIsVisible(internalMetadata: NotebookCellInternalMetadata, cellUri: URI): boolean {
+		const exe = this.notebookExecutionStateService.getCellExecutionState(cellUri);
 		if (this._layoutConfiguration.showCellStatusBar === 'visible') {
 			return true;
 		} else if (this._layoutConfiguration.showCellStatusBar === 'visibleAfterExecute') {
-			return typeof internalMetadata.lastRunSuccess === 'boolean' || internalMetadata.runState !== undefined;
+			return typeof internalMetadata.lastRunSuccess === 'boolean' || exe !== undefined;
 		} else {
 			return false;
 		}

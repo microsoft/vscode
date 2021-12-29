@@ -41,6 +41,7 @@ import { BackLayerWebView, INotebookDelegateForWebview } from 'vs/workbench/cont
 import { NotebookDiffEditorEventDispatcher, NotebookDiffLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/diff/eventDispatcher';
 import { readFontInfo } from 'vs/editor/browser/config/configuration';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 const $ = DOM.$;
 
@@ -98,9 +99,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
+		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
 	) {
 		super(NotebookTextDiffEditor.ID, telemetryService, themeService, storageService);
-		this._notebookOptions = new NotebookOptions(this.configurationService);
+		this._notebookOptions = new NotebookOptions(this.configurationService, notebookExecutionStateService);
 		this._register(this._notebookOptions);
 		const editorOptions = this.configurationService.getValue<ICodeEditorOptions>('editor');
 		this._fontInfo = readFontInfo(BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel(), getPixelRatio()));

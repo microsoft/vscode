@@ -62,7 +62,6 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	}
 
 	set internalMetadata(newInternalMetadata: NotebookCellInternalMetadata) {
-		const runStateChanged = this._internalMetadata.runState !== newInternalMetadata.runState;
 		const lastRunSuccessChanged = this._internalMetadata.lastRunSuccess !== newInternalMetadata.lastRunSuccess;
 		newInternalMetadata = {
 			...newInternalMetadata,
@@ -70,7 +69,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		};
 		this._internalMetadata = newInternalMetadata;
 		this._hash = null;
-		this._onDidChangeInternalMetadata.fire({ runStateChanged, lastRunSuccessChanged });
+		this._onDidChangeInternalMetadata.fire({ lastRunSuccessChanged });
 	}
 
 	get language() {

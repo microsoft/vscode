@@ -6,6 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { deepClone } from 'vs/base/common/objects';
+import { URI } from 'vs/base/common/uri';
 import { IEditorOptions, LineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -133,20 +134,27 @@ export class CellEditorOptions extends CellPart {
 		return computed;
 	}
 
-	getUpdatedValue(internalMetadata?: NotebookCellInternalMetadata): IEditorOptions {
-		const options = this.getValue(internalMetadata);
+	getUpdatedValue(internalMetadata: NotebookCellInternalMetadata, cellUri: URI): IEditorOptions {
+		const options = this.getValue(internalMetadata, cellUri);
 		delete options.hover; // This is toggled by a debug editor contribution
 
 		return options;
 	}
 
-	getValue(internalMetadata?: NotebookCellInternalMetadata): IEditorOptions {
+	getValue(internalMetadata: NotebookCellInternalMetadata, cellUri: URI): IEditorOptions {
 		return {
 			...this._value,
 			...{
-				padding: internalMetadata ?
-					this.notebookOptions.computeEditorPadding(internalMetadata) :
-					{ top: 12, bottom: 12 }
+				padding: this.notebookOptions.computeEditorPadding(internalMetadata, cellUri)
+			}
+		};
+	}
+
+	getDefaultValue(): IEditorOptions {
+		return {
+			...this._value,
+			...{
+				padding: { top: 12, bottom: 12 }
 			}
 		};
 	}

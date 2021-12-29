@@ -723,7 +723,6 @@ export enum CursorAtBoundary {
 export interface CellViewModelStateChangeEvent {
 	readonly metadataChanged?: boolean;
 	readonly internalMetadataChanged?: boolean;
-	readonly runStateChanged?: boolean;
 	readonly selectionChanged?: boolean;
 	readonly focusModeChanged?: boolean;
 	readonly editStateChanged?: boolean;

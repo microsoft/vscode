@@ -6,6 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType, ICellExecuteOutputEdit, ICellExecuteOutputItemEdit } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 
@@ -22,13 +23,17 @@ export interface ICellExecutionComplete {
 	lastRunSuccess?: boolean;
 }
 
-export interface ICellExecutionState {
+export interface ICellExecutionEntry {
+	notebook: URI;
+	cellHandle: number;
 	state: NotebookCellExecutionState;
 }
 
-export interface INotebookExecutionEvent {
+export interface ICellExecutionStateChangedEvent {
 	notebook: URI;
 	cellHandle: number;
+	changed?: ICellExecutionEntry; // undefined -> execution was completed
+	affectsCell(cell: NotebookCellTextModel): boolean;
 }
 
 export const INotebookExecutionStateService = createDecorator<INotebookExecutionStateService>('INotebookExecutionStateService');
@@ -36,9 +41,11 @@ export const INotebookExecutionStateService = createDecorator<INotebookExecution
 export interface INotebookExecutionStateService {
 	_serviceBrand: undefined;
 
-	onDidChangeCellExecution: Event<INotebookExecutionEvent>;
+	onDidChangeCellExecution: Event<ICellExecutionStateChangedEvent>;
 
-	getCellExecutionState(notebook: URI, handle: number): ICellExecutionState | undefined;
+	getCellExecutionStatesForNotebook(notebook: URI): ICellExecutionEntry[];
+
+	getCellExecutionState(cellUri: URI): ICellExecutionEntry | undefined;
 
 	createNotebookCellExecution(notebook: URI, cellHandle: number): void;
 	updateNotebookCellExecution(notebook: URI, cellHandle: number, updates: ICellExecuteUpdate[]): void;

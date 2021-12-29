@@ -18,8 +18,9 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import { ExtHostCell, ExtHostNotebookDocument } from 'vs/workbench/api/common/extHostNotebookDocument';
 import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { NotebookCellOutput } from 'vs/workbench/api/common/extHostTypes';
+import { NotebookCellOutput, NotebookCellExecutionState as ExtHostNotebookCellExecutionState } from 'vs/workbench/api/common/extHostTypes';
 import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
+import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
@@ -45,6 +46,9 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 	private readonly _kernelData = new Map<number, IKernelData>();
 	private _handlePool: number = 0;
+
+	private readonly _onDidChangeCellExecutionState = new Emitter<vscode.NotebookCellExecutionStateChangeEvent>();
+	readonly onDidChangeNotebookCellExecutionState = this._onDidChangeCellExecutionState.event;
 
 	constructor(
 		mainContext: IMainContext,
@@ -329,6 +333,17 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 		const editor = this._extHostNotebook.getEditorById(editorId);
 		obj.onDidReceiveMessage.fire(Object.freeze({ editor: editor.apiEditor, message }));
+	}
+
+	$cellExecutionChanged(uri: UriComponents, cellHandle: number, state: NotebookCellExecutionState | undefined): void {
+		const document = this._extHostNotebook.getNotebookDocument(URI.revive(uri));
+		const cell = document.getCell(cellHandle);
+		if (cell) {
+			this._onDidChangeCellExecutionState.fire({
+				cell: cell.apiCell,
+				state: state ?? ExtHostNotebookCellExecutionState.Idle
+			});
+		}
 	}
 
 	// ---

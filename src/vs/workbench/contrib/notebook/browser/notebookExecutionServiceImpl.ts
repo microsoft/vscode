@@ -9,8 +9,9 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, INotebookTextModel, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
+import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 
 export class NotebookExecutionService implements INotebookExecutionService {
@@ -21,6 +22,7 @@ export class NotebookExecutionService implements INotebookExecutionService {
 		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@ILogService private readonly _logService: ILogService,
+		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService
 	) {
 	}
 
@@ -52,7 +54,8 @@ export class NotebookExecutionService implements INotebookExecutionService {
 
 		const cellHandles: number[] = [];
 		for (const cell of cellsArr) {
-			if (cell.cellKind !== CellKind.Code || cell.internalMetadata.runState === NotebookCellExecutionState.Pending || cell.internalMetadata.runState === NotebookCellExecutionState.Executing) {
+			const cellExe = this._notebookExecutionStateService.getCellExecutionState(cell.uri);
+			if (cell.cellKind !== CellKind.Code || !!cellExe) {
 				continue;
 			}
 			if (!kernel.supportedLanguages.includes(cell.language)) {
