@@ -644,6 +644,8 @@ export interface IEditorOptions {
 	guides?: IGuidesOptions;
 
 	unicodeHighlight?: IUnicodeHighlightOptions;
+
+	bracketPairColorization?: IBracketPairColorizationOptions;
 }
 
 /**
@@ -776,8 +778,8 @@ export class ComputeOptionsMemory {
 	}
 }
 
-export interface IEditorOption<K1 extends EditorOption, V> {
-	readonly id: K1;
+export interface IEditorOption<K extends EditorOption, V> {
+	readonly id: K;
 	readonly name: string;
 	defaultValue: V;
 	/**
@@ -799,20 +801,26 @@ export interface IEditorOption<K1 extends EditorOption, V> {
 	applyUpdate(value: V, update: V): ApplyUpdateResult<V>;
 }
 
+/**
+ * @internal
+ */
 type PossibleKeyName0<V> = { [K in keyof IEditorOptions]: IEditorOptions[K] extends V | undefined ? K : never }[keyof IEditorOptions];
+/**
+ * @internal
+ */
 type PossibleKeyName<V> = NonNullable<PossibleKeyName0<V>>;
 
 /**
  * @internal
  */
-abstract class BaseEditorOption<K1 extends EditorOption, V> implements IEditorOption<K1, V> {
+abstract class BaseEditorOption<K extends EditorOption, T, V> implements IEditorOption<K, V> {
 
-	public readonly id: K1;
+	public readonly id: K;
 	public readonly name: string;
 	public readonly defaultValue: V;
 	public readonly schema: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema; } | undefined;
 
-	constructor(id: K1, name: string, defaultValue: V, schema?: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema; }) {
+	constructor(id: K, name: PossibleKeyName<T>, defaultValue: V, schema?: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema; }) {
 		this.id = id;
 		this.name = name;
 		this.defaultValue = defaultValue;
@@ -861,14 +869,14 @@ function applyUpdate<T>(value: T, update: T): ApplyUpdateResult<T> {
 /**
  * @internal
  */
-abstract class ComputedEditorOption<K1 extends EditorOption, V> implements IEditorOption<K1, V> {
+abstract class ComputedEditorOption<K extends EditorOption, V> implements IEditorOption<K, V> {
 
-	public readonly id: K1;
+	public readonly id: K;
 	public readonly name: '_never_';
 	public readonly defaultValue: V;
 	public readonly schema: IConfigurationPropertySchema | undefined = undefined;
 
-	constructor(id: K1) {
+	constructor(id: K) {
 		this.id = id;
 		this.name = '_never_';
 		this.defaultValue = <any>undefined;
@@ -885,14 +893,14 @@ abstract class ComputedEditorOption<K1 extends EditorOption, V> implements IEdit
 	public abstract compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: V): V;
 }
 
-class SimpleEditorOption<K1 extends EditorOption, V> implements IEditorOption<K1, V> {
+class SimpleEditorOption<K extends EditorOption, V> implements IEditorOption<K, V> {
 
-	public readonly id: K1;
+	public readonly id: K;
 	public readonly name: PossibleKeyName<V>;
 	public readonly defaultValue: V;
 	public readonly schema: IConfigurationPropertySchema | undefined;
 
-	constructor(id: K1, name: PossibleKeyName<V>, defaultValue: V, schema?: IConfigurationPropertySchema) {
+	constructor(id: K, name: PossibleKeyName<V>, defaultValue: V, schema?: IConfigurationPropertySchema) {
 		this.id = id;
 		this.name = name;
 		this.defaultValue = defaultValue;
@@ -929,9 +937,9 @@ export function boolean(value: any, defaultValue: boolean): boolean {
 	return Boolean(value);
 }
 
-class EditorBooleanOption<K1 extends EditorOption> extends SimpleEditorOption<K1, boolean> {
+class EditorBooleanOption<K extends EditorOption> extends SimpleEditorOption<K, boolean> {
 
-	constructor(id: K1, name: PossibleKeyName<boolean>, defaultValue: boolean, schema: IConfigurationPropertySchema | undefined = undefined) {
+	constructor(id: K, name: PossibleKeyName<boolean>, defaultValue: boolean, schema: IConfigurationPropertySchema | undefined = undefined) {
 		if (typeof schema !== 'undefined') {
 			schema.type = 'boolean';
 			schema.default = defaultValue;
@@ -960,7 +968,7 @@ export function clampedInt<T>(value: any, defaultValue: T, minimum: number, maxi
 	return r | 0;
 }
 
-class EditorIntOption<K1 extends EditorOption> extends SimpleEditorOption<K1, number> {
+class EditorIntOption<K extends EditorOption> extends SimpleEditorOption<K, number> {
 
 	public static clampedInt<T>(value: any, defaultValue: T, minimum: number, maximum: number): number | T {
 		return clampedInt(value, defaultValue, minimum, maximum);
@@ -969,7 +977,7 @@ class EditorIntOption<K1 extends EditorOption> extends SimpleEditorOption<K1, nu
 	public readonly minimum: number;
 	public readonly maximum: number;
 
-	constructor(id: K1, name: PossibleKeyName<number>, defaultValue: number, minimum: number, maximum: number, schema: IConfigurationPropertySchema | undefined = undefined) {
+	constructor(id: K, name: PossibleKeyName<number>, defaultValue: number, minimum: number, maximum: number, schema: IConfigurationPropertySchema | undefined = undefined) {
 		if (typeof schema !== 'undefined') {
 			schema.type = 'integer';
 			schema.default = defaultValue;
@@ -986,7 +994,7 @@ class EditorIntOption<K1 extends EditorOption> extends SimpleEditorOption<K1, nu
 	}
 }
 
-class EditorFloatOption<K1 extends EditorOption> extends SimpleEditorOption<K1, number> {
+class EditorFloatOption<K extends EditorOption> extends SimpleEditorOption<K, number> {
 
 	public static clamp(n: number, min: number, max: number): number {
 		if (n < min) {
@@ -1011,7 +1019,7 @@ class EditorFloatOption<K1 extends EditorOption> extends SimpleEditorOption<K1, 
 
 	public readonly validationFn: (value: number) => number;
 
-	constructor(id: K1, name: PossibleKeyName<number>, defaultValue: number, validationFn: (value: number) => number, schema?: IConfigurationPropertySchema) {
+	constructor(id: K, name: PossibleKeyName<number>, defaultValue: number, validationFn: (value: number) => number, schema?: IConfigurationPropertySchema) {
 		if (typeof schema !== 'undefined') {
 			schema.type = 'number';
 			schema.default = defaultValue;
@@ -1025,7 +1033,7 @@ class EditorFloatOption<K1 extends EditorOption> extends SimpleEditorOption<K1, 
 	}
 }
 
-class EditorStringOption<K1 extends EditorOption> extends SimpleEditorOption<K1, string> {
+class EditorStringOption<K extends EditorOption> extends SimpleEditorOption<K, string> {
 
 	public static string(value: any, defaultValue: string): string {
 		if (typeof value !== 'string') {
@@ -1034,7 +1042,7 @@ class EditorStringOption<K1 extends EditorOption> extends SimpleEditorOption<K1,
 		return value;
 	}
 
-	constructor(id: K1, name: PossibleKeyName<string>, defaultValue: string, schema: IConfigurationPropertySchema | undefined = undefined) {
+	constructor(id: K, name: PossibleKeyName<string>, defaultValue: string, schema: IConfigurationPropertySchema | undefined = undefined) {
 		if (typeof schema !== 'undefined') {
 			schema.type = 'string';
 			schema.default = defaultValue;
@@ -1060,11 +1068,11 @@ export function stringSet<T>(value: T | undefined, defaultValue: T, allowedValue
 	return value;
 }
 
-class EditorStringEnumOption<K1 extends EditorOption, V extends string> extends SimpleEditorOption<K1, V> {
+class EditorStringEnumOption<K extends EditorOption, V extends string> extends SimpleEditorOption<K, V> {
 
 	private readonly _allowedValues: ReadonlyArray<V>;
 
-	constructor(id: K1, name: PossibleKeyName<V>, defaultValue: V, allowedValues: ReadonlyArray<V>, schema: IConfigurationPropertySchema | undefined = undefined) {
+	constructor(id: K, name: PossibleKeyName<V>, defaultValue: V, allowedValues: ReadonlyArray<V>, schema: IConfigurationPropertySchema | undefined = undefined) {
 		if (typeof schema !== 'undefined') {
 			schema.type = 'string';
 			schema.enum = <any>allowedValues;
@@ -1079,12 +1087,12 @@ class EditorStringEnumOption<K1 extends EditorOption, V extends string> extends 
 	}
 }
 
-class EditorEnumOption<K1 extends EditorOption, T extends string, V> extends BaseEditorOption<K1, V> {
+class EditorEnumOption<K extends EditorOption, T extends string, V> extends BaseEditorOption<K, T, V> {
 
 	private readonly _allowedValues: T[];
 	private readonly _convert: (value: T) => V;
 
-	constructor(id: K1, name: PossibleKeyName<T>, defaultValue: V, defaultStringValue: string, allowedValues: T[], convert: (value: T) => V, schema: IConfigurationPropertySchema | undefined = undefined) {
+	constructor(id: K, name: PossibleKeyName<T>, defaultValue: V, defaultStringValue: string, allowedValues: T[], convert: (value: T) => V, schema: IConfigurationPropertySchema | undefined = undefined) {
 		if (typeof schema !== 'undefined') {
 			schema.type = 'string';
 			schema.enum = allowedValues;
@@ -1124,7 +1132,7 @@ function _autoIndentFromString(autoIndent: 'none' | 'keep' | 'brackets' | 'advan
 
 //#region accessibilitySupport
 
-class EditorAccessibilitySupport extends BaseEditorOption<EditorOption.accessibilitySupport, AccessibilitySupport> {
+class EditorAccessibilitySupport extends BaseEditorOption<EditorOption.accessibilitySupport, 'auto' | 'off' | 'on', AccessibilitySupport> {
 
 	constructor() {
 		super(
@@ -1186,7 +1194,7 @@ export interface IEditorCommentsOptions {
  */
 export type EditorCommentsOptions = Readonly<Required<IEditorCommentsOptions>>;
 
-class EditorComments extends BaseEditorOption<EditorOption.comments, EditorCommentsOptions> {
+class EditorComments extends BaseEditorOption<EditorOption.comments, IEditorCommentsOptions, EditorCommentsOptions> {
 
 	constructor() {
 		const defaults: EditorCommentsOptions = {
@@ -1419,7 +1427,7 @@ export interface IEditorFindOptions {
  */
 export type EditorFindOptions = Readonly<Required<IEditorFindOptions>>;
 
-class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> {
+class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions, EditorFindOptions> {
 
 	constructor() {
 		const defaults: EditorFindOptions = {
@@ -1508,7 +1516,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 /**
  * @internal
  */
-export class EditorFontLigatures extends BaseEditorOption<EditorOption.fontLigatures, string> {
+export class EditorFontLigatures extends BaseEditorOption<EditorOption.fontLigatures, boolean | string, string> {
 
 	public static OFF = '"liga" off, "calt" off';
 	public static ON = '"liga" on, "calt" on';
@@ -1605,7 +1613,7 @@ class EditorFontSize extends SimpleEditorOption<EditorOption.fontSize, number> {
 
 //#region fontWeight
 
-class EditorFontWeight extends BaseEditorOption<EditorOption.fontWeight, string> {
+class EditorFontWeight extends BaseEditorOption<EditorOption.fontWeight, string, string> {
 	private static SUGGESTION_VALUES = ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'];
 	private static MINIMUM_VALUE = 1;
 	private static MAXIMUM_VALUE = 1000;
@@ -1674,7 +1682,7 @@ export interface IGotoLocationOptions {
  */
 export type GoToLocationOptions = Readonly<Required<IGotoLocationOptions>>;
 
-class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, GoToLocationOptions> {
+class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, IGotoLocationOptions, GoToLocationOptions> {
 
 	constructor() {
 		const defaults: GoToLocationOptions = {
@@ -1817,7 +1825,7 @@ export interface IEditorHoverOptions {
  */
 export type EditorHoverOptions = Readonly<Required<IEditorHoverOptions>>;
 
-class EditorHover extends BaseEditorOption<EditorOption.hover, EditorHoverOptions> {
+class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptions, EditorHoverOptions> {
 
 	constructor() {
 		const defaults: EditorHoverOptions = {
@@ -2439,7 +2447,7 @@ export interface IEditorLightbulbOptions {
  */
 export type EditorLightbulbOptions = Readonly<Required<IEditorLightbulbOptions>>;
 
-class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, EditorLightbulbOptions> {
+class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLightbulbOptions, EditorLightbulbOptions> {
 
 	constructor() {
 		const defaults: EditorLightbulbOptions = { enabled: true };
@@ -2498,7 +2506,7 @@ export interface IEditorInlayHintsOptions {
  */
 export type EditorInlayHintsOptions = Readonly<Required<IEditorInlayHintsOptions>>;
 
-class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, EditorInlayHintsOptions> {
+class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditorInlayHintsOptions, EditorInlayHintsOptions> {
 
 	constructor() {
 		const defaults: EditorInlayHintsOptions = { enabled: true, fontSize: 0, fontFamily: '' };
@@ -2609,7 +2617,7 @@ export interface IEditorMinimapOptions {
  */
 export type EditorMinimapOptions = Readonly<Required<IEditorMinimapOptions>>;
 
-class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimapOptions> {
+class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinimapOptions, EditorMinimapOptions> {
 
 	constructor() {
 		const defaults: EditorMinimapOptions = {
@@ -2725,7 +2733,7 @@ export interface IEditorPaddingOptions {
  */
 export type InternalEditorPaddingOptions = Readonly<Required<IEditorPaddingOptions>>;
 
-class EditorPadding extends BaseEditorOption<EditorOption.padding, InternalEditorPaddingOptions> {
+class EditorPadding extends BaseEditorOption<EditorOption.padding, IEditorPaddingOptions, InternalEditorPaddingOptions> {
 
 	constructor() {
 		super(
@@ -2786,7 +2794,7 @@ export interface IEditorParameterHintOptions {
  */
 export type InternalParameterHintOptions = Readonly<Required<IEditorParameterHintOptions>>;
 
-class EditorParameterHints extends BaseEditorOption<EditorOption.parameterHints, InternalParameterHintOptions> {
+class EditorParameterHints extends BaseEditorOption<EditorOption.parameterHints, IEditorParameterHintOptions, InternalParameterHintOptions> {
 
 	constructor() {
 		const defaults: InternalParameterHintOptions = {
@@ -2855,7 +2863,7 @@ export interface IQuickSuggestionsOptions {
  */
 export type ValidQuickSuggestionsOptions = boolean | Readonly<Required<IQuickSuggestionsOptions>>;
 
-class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggestions, ValidQuickSuggestionsOptions> {
+class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggestions, boolean | IQuickSuggestionsOptions, ValidQuickSuggestionsOptions> {
 
 	public override readonly defaultValue: Readonly<Required<IQuickSuggestionsOptions>>;
 
@@ -2942,7 +2950,7 @@ export interface InternalEditorRenderLineNumbersOptions {
 	readonly renderFn: ((lineNumber: number) => string) | null;
 }
 
-class EditorRenderLineNumbersOption extends BaseEditorOption<EditorOption.lineNumbers, InternalEditorRenderLineNumbersOptions> {
+class EditorRenderLineNumbersOption extends BaseEditorOption<EditorOption.lineNumbers, LineNumbersType, InternalEditorRenderLineNumbersOptions> {
 
 	constructor() {
 		super(
@@ -3012,7 +3020,7 @@ export interface IRulerOption {
 	readonly color: string | null;
 }
 
-class EditorRulers extends BaseEditorOption<EditorOption.rulers, IRulerOption[]> {
+class EditorRulers extends BaseEditorOption<EditorOption.rulers, (number | IRulerOption)[], IRulerOption[]> {
 
 	constructor() {
 		const defaults: IRulerOption[] = [];
@@ -3178,7 +3186,7 @@ function _scrollbarVisibilityFromString(visibility: string | undefined, defaultV
 	}
 }
 
-class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, InternalEditorScrollbarOptions> {
+class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, IEditorScrollbarOptions, InternalEditorScrollbarOptions> {
 
 	constructor() {
 		const defaults: InternalEditorScrollbarOptions = {
@@ -3311,7 +3319,7 @@ export const unicodeHighlightConfigKeys = {
 	allowedLocales: 'editor.unicodeHighlight.allowedLocales',
 };
 
-class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting, InternalUnicodeHighlightOptions> {
+class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting, IUnicodeHighlightOptions, InternalUnicodeHighlightOptions> {
 	constructor() {
 		const defaults: InternalUnicodeHighlightOptions = {
 			nonBasicASCII: inUntrustedWorkspace,
@@ -3463,7 +3471,7 @@ export type InternalInlineSuggestOptions = Readonly<Required<IInlineSuggestOptio
 /**
  * Configuration options for inline suggestions
  */
-class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, InternalInlineSuggestOptions> {
+class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, IInlineSuggestOptions, InternalInlineSuggestOptions> {
 	constructor() {
 		const defaults: InternalInlineSuggestOptions = {
 			enabled: true,
@@ -3513,7 +3521,7 @@ export type InternalBracketPairColorizationOptions = Readonly<Required<IBracketP
 /**
  * Configuration options for inline suggestions
  */
-class BracketPairColorization extends BaseEditorOption<EditorOption.bracketPairColorization, InternalBracketPairColorizationOptions> {
+class BracketPairColorization extends BaseEditorOption<EditorOption.bracketPairColorization, IBracketPairColorizationOptions, InternalBracketPairColorizationOptions> {
 	constructor() {
 		const defaults: InternalBracketPairColorizationOptions = {
 			enabled: EDITOR_MODEL_DEFAULTS.bracketPairColorizationOptions.enabled
@@ -3586,7 +3594,7 @@ export type InternalGuidesOptions = Readonly<Required<IGuidesOptions>>;
 /**
  * Configuration options for inline suggestions
  */
-class GuideOptions extends BaseEditorOption<EditorOption.guides, InternalGuidesOptions> {
+class GuideOptions extends BaseEditorOption<EditorOption.guides, IGuidesOptions, InternalGuidesOptions> {
 	constructor() {
 		const defaults: InternalGuidesOptions = {
 			bracketPairs: false,
@@ -3832,7 +3840,7 @@ export interface ISuggestOptions {
  */
 export type InternalSuggestOptions = Readonly<Required<ISuggestOptions>>;
 
-class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSuggestOptions> {
+class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptions, InternalSuggestOptions> {
 
 	constructor() {
 		const defaults: InternalSuggestOptions = {
@@ -4146,7 +4154,7 @@ export interface ISmartSelectOptions {
  */
 export type SmartSelectOptions = Readonly<Required<ISmartSelectOptions>>;
 
-class SmartSelect extends BaseEditorOption<EditorOption.smartSelect, SmartSelectOptions> {
+class SmartSelect extends BaseEditorOption<EditorOption.smartSelect, ISmartSelectOptions, SmartSelectOptions> {
 
 	constructor() {
 		super(
@@ -4293,7 +4301,7 @@ export const EDITOR_MODEL_DEFAULTS = {
  */
 export const editorOptionsRegistry: IEditorOption<EditorOption, any>[] = [];
 
-function register<K1 extends EditorOption, V>(option: IEditorOption<K1, V>): IEditorOption<K1, V> {
+function register<K extends EditorOption, V>(option: IEditorOption<K, V>): IEditorOption<K, V> {
 	editorOptionsRegistry[option.id] = option;
 	return option;
 }
