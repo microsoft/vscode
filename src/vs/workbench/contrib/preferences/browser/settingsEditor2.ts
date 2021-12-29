@@ -506,9 +506,15 @@ export class SettingsEditor2 extends EditorPane {
 		const clearInputAction = new Action(SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, localize('clearInput', "Clear Settings Search Input"), ThemeIcon.asClassName(preferencesClearInputIcon), false, async () => this.clearSearchResults());
 
 		this.searchWidget = this._register(this.instantiationService.createInstance(SuggestEnabledInput, `${SettingsEditor2.ID}.searchbox`, searchContainer, {
-			triggerCharacters: ['@'],
+			triggerCharacters: ['@', ':'],
 			provideResults: (query: string) => {
-				return SettingsEditor2.SUGGESTIONS.filter(tag => query.indexOf(tag) === -1).map(tag => tag.endsWith(':') ? tag : tag + ' ');
+				// Based on testing, the trigger character is always at the end of the query.
+				// for the ':' trigger, only return suggestions if there was a '@' before it in the same word.
+				const queryParts = query.split(/\s/g);
+				if (queryParts[queryParts.length - 1].startsWith('@')) {
+					return SettingsEditor2.SUGGESTIONS.filter(tag => !query.includes(tag)).map(tag => tag.endsWith(':') ? tag : tag + ' ');
+				}
+				return [];
 			}
 		}, searchBoxLabel, 'settingseditor:searchinput' + SettingsEditor2.NUM_INSTANCES++, {
 			placeholderText: searchBoxLabel,
