@@ -21,7 +21,25 @@ import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { IConfiguration, IDimension } from 'vs/editor/common/editorCommon';
 import { AccessibilitySupport, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
-abstract class CommonEditorConfiguration extends Disposable implements IConfiguration {
+export class Configuration extends Disposable implements IConfiguration {
+
+	public static applyFontInfoSlow(domNode: HTMLElement, fontInfo: BareFontInfo): void {
+		domNode.style.fontFamily = fontInfo.getMassagedFontFamily(browser.isSafari ? EDITOR_FONT_DEFAULTS.fontFamily : null);
+		domNode.style.fontWeight = fontInfo.fontWeight;
+		domNode.style.fontSize = fontInfo.fontSize + 'px';
+		domNode.style.fontFeatureSettings = fontInfo.fontFeatureSettings;
+		domNode.style.lineHeight = fontInfo.lineHeight + 'px';
+		domNode.style.letterSpacing = fontInfo.letterSpacing + 'px';
+	}
+
+	public static applyFontInfo(domNode: FastDomNode<HTMLElement>, fontInfo: BareFontInfo): void {
+		domNode.setFontFamily(fontInfo.getMassagedFontFamily(browser.isSafari ? EDITOR_FONT_DEFAULTS.fontFamily : null));
+		domNode.setFontWeight(fontInfo.fontWeight);
+		domNode.setFontSize(fontInfo.fontSize);
+		domNode.setFontFeatureSettings(fontInfo.fontFeatureSettings);
+		domNode.setLineHeight(fontInfo.lineHeight);
+		domNode.setLetterSpacing(fontInfo.letterSpacing);
+	}
 
 	private _onDidChange = this._register(new Emitter<ConfigurationChangedEvent>());
 	public readonly onDidChange: Event<ConfigurationChangedEvent> = this._onDidChange.event;
@@ -42,7 +60,14 @@ abstract class CommonEditorConfiguration extends Disposable implements IConfigur
 	protected _validatedOptions: ValidatedEditorOptions;
 	private _reservedHeight: number = 0;
 
-	constructor(isSimpleWidget: boolean, _options: Readonly<IEditorOptions>) {
+	private readonly _elementSizeObserver: ElementSizeObserver;
+
+	constructor(
+		isSimpleWidget: boolean,
+		options: Readonly<IEditorConstructionOptions>,
+		referenceDomElement: HTMLElement | null,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
+	) {
 		super();
 		this.isSimpleWidget = isSimpleWidget;
 
@@ -51,18 +76,33 @@ abstract class CommonEditorConfiguration extends Disposable implements IConfigur
 		this._viewLineCount = 1;
 		this._lineNumbersDigitCount = 1;
 
-		this._rawOptions = deepCloneAndMigrateOptions(_options);
+		this._rawOptions = deepCloneAndMigrateOptions(options);
 		this._readOptions = EditorConfiguration2.readOptions(this._rawOptions);
 		this._validatedOptions = EditorConfiguration2.validateOptions(this._readOptions);
 
 		this._register(EditorZoom.onDidChangeZoomLevel(_ => this._recomputeOptions()));
 		this._register(TabFocus.onDidChangeTabFocus(_ => this._recomputeOptions()));
+
+		this._elementSizeObserver = this._register(new ElementSizeObserver(referenceDomElement, options.dimension, () => this._recomputeOptions()));
+
+		this._register(FontMeasurements.onDidChange(() => this._recomputeOptions()));
+
+		if (this._validatedOptions.get(EditorOption.automaticLayout)) {
+			this._elementSizeObserver.startObserving();
+		}
+
+		this._register(browser.onDidChangeZoomLevel(_ => this._recomputeOptions()));
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this._recomputeOptions()));
+
+		this._recomputeOptions();
 	}
 
 	public observeReferenceElement(dimension?: IDimension): void {
+		this._elementSizeObserver.observe(dimension);
 	}
 
 	public updatePixelRatio(): void {
+		this._recomputeOptions();
 	}
 
 	protected _recomputeOptions(): void {
@@ -132,7 +172,7 @@ abstract class CommonEditorConfiguration extends Disposable implements IConfigur
 	}
 
 	public setMaxLineNumber(maxLineNumber: number): void {
-		const lineNumbersDigitCount = CommonEditorConfiguration._digitCount(maxLineNumber);
+		const lineNumbersDigitCount = Configuration._digitCount(maxLineNumber);
 		if (this._lineNumbersDigitCount === lineNumbersDigitCount) {
 			return;
 		}
@@ -155,67 +195,6 @@ abstract class CommonEditorConfiguration extends Disposable implements IConfigur
 			r++;
 		}
 		return r ? r : 1;
-	}
-	protected abstract _getEnvConfiguration(): IEnvConfiguration;
-
-	protected abstract readConfiguration(styling: BareFontInfo): FontInfo;
-
-	public reserveHeight(height: number) {
-		this._reservedHeight = height;
-		this._recomputeOptions();
-	}
-}
-
-export class Configuration extends CommonEditorConfiguration {
-
-	public static applyFontInfoSlow(domNode: HTMLElement, fontInfo: BareFontInfo): void {
-		domNode.style.fontFamily = fontInfo.getMassagedFontFamily(browser.isSafari ? EDITOR_FONT_DEFAULTS.fontFamily : null);
-		domNode.style.fontWeight = fontInfo.fontWeight;
-		domNode.style.fontSize = fontInfo.fontSize + 'px';
-		domNode.style.fontFeatureSettings = fontInfo.fontFeatureSettings;
-		domNode.style.lineHeight = fontInfo.lineHeight + 'px';
-		domNode.style.letterSpacing = fontInfo.letterSpacing + 'px';
-	}
-
-	public static applyFontInfo(domNode: FastDomNode<HTMLElement>, fontInfo: BareFontInfo): void {
-		domNode.setFontFamily(fontInfo.getMassagedFontFamily(browser.isSafari ? EDITOR_FONT_DEFAULTS.fontFamily : null));
-		domNode.setFontWeight(fontInfo.fontWeight);
-		domNode.setFontSize(fontInfo.fontSize);
-		domNode.setFontFeatureSettings(fontInfo.fontFeatureSettings);
-		domNode.setLineHeight(fontInfo.lineHeight);
-		domNode.setLetterSpacing(fontInfo.letterSpacing);
-	}
-
-	private readonly _elementSizeObserver: ElementSizeObserver;
-
-	constructor(
-		isSimpleWidget: boolean,
-		options: Readonly<IEditorConstructionOptions>,
-		referenceDomElement: HTMLElement | null = null,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
-	) {
-		super(isSimpleWidget, options);
-
-		this._elementSizeObserver = this._register(new ElementSizeObserver(referenceDomElement, options.dimension, () => this._recomputeOptions()));
-
-		this._register(FontMeasurements.onDidChange(() => this._recomputeOptions()));
-
-		if (this._validatedOptions.get(EditorOption.automaticLayout)) {
-			this._elementSizeObserver.startObserving();
-		}
-
-		this._register(browser.onDidChangeZoomLevel(_ => this._recomputeOptions()));
-		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this._recomputeOptions()));
-
-		this._recomputeOptions();
-	}
-
-	public override observeReferenceElement(dimension?: IDimension): void {
-		this._elementSizeObserver.observe(dimension);
-	}
-
-	public override updatePixelRatio(): void {
-		this._recomputeOptions();
 	}
 
 	private static _getExtraEditorClassName(): string {
@@ -252,6 +231,11 @@ export class Configuration extends CommonEditorConfiguration {
 
 	protected readConfiguration(bareFontInfo: BareFontInfo): FontInfo {
 		return FontMeasurements.readFontInfo(bareFontInfo);
+	}
+
+	public reserveHeight(height: number) {
+		this._reservedHeight = height;
+		this._recomputeOptions();
 	}
 }
 
