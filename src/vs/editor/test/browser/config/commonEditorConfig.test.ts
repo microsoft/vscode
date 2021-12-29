@@ -54,7 +54,7 @@ suite('Common Editor Config', () => {
 	});
 
 	class TestWrappingConfiguration extends TestConfiguration {
-		protected override _getEnvConfiguration(): IEnvConfiguration {
+		protected override _readEnvConfiguration(): IEnvConfiguration {
 			return {
 				extraEditorClassName: '',
 				outerWidth: 1000,

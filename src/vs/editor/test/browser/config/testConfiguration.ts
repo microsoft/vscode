@@ -13,10 +13,9 @@ export class TestConfiguration extends Configuration {
 
 	constructor(opts: IEditorOptions) {
 		super(false, opts, null, new TestAccessibilityService());
-		this._recomputeOptions();
 	}
 
-	protected override _getEnvConfiguration(): IEnvConfiguration {
+	protected override _readEnvConfiguration(): IEnvConfiguration {
 		return {
 			extraEditorClassName: '',
 			outerWidth: 100,
@@ -28,7 +27,7 @@ export class TestConfiguration extends Configuration {
 		};
 	}
 
-	protected override readConfiguration(styling: BareFontInfo): FontInfo {
+	protected override _readFontInfo(styling: BareFontInfo): FontInfo {
 		return new FontInfo({
 			zoomLevel: 0,
 			pixelRatio: 1,

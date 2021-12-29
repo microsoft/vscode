@@ -374,7 +374,7 @@ export class ViewModel extends Disposable implements IViewModel {
 
 			// Update the configuration and reset the centered view line
 			this._viewportStartLine = -1;
-			this._configuration.setMaxLineNumber(this.model.getLineCount());
+			this._configuration.setModelLineCount(this.model.getLineCount());
 			this._updateConfigurationViewLineCountNow();
 
 			// Recover viewport

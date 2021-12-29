@@ -420,7 +420,7 @@ export class View extends ViewEventHandler {
 		// Try to detect browser zooming and paint again if necessary
 		if (Math.abs(browser.getPixelRatio() - this._configPixelRatio) > 0.001) {
 			// looks like the pixel ratio has changed
-			this._context.configuration.updatePixelRatio();
+			this._context.configuration.observePixelRatio();
 		}
 	}
 

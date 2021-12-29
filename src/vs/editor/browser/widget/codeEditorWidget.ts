@@ -62,7 +62,7 @@ let EDITOR_ID = 0;
 
 export interface ICodeEditorWidgetOptions {
 	/**
-	 * Is this a simple widget (not a real code editor) ?
+	 * Is this a simple widget (not a real code editor)?
 	 * Defaults to false.
 	 */
 	isSimpleWidget?: boolean;
@@ -213,7 +213,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	public readonly onDidChangeHiddenAreas: Event<void> = this._onDidChangeHiddenAreas.event;
 	//#endregion
 
-	public readonly isSimpleWidget: boolean;
+	public get isSimpleWidget(): boolean {
+		return this._configuration.isSimpleWidget;
+	}
+
 	private readonly _telemetryData?: object;
 
 	private readonly _domElement: HTMLElement;
@@ -270,10 +273,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._id = (++EDITOR_ID);
 		this._decorationTypeKeysToIds = {};
 		this._decorationTypeSubtypes = {};
-		this.isSimpleWidget = codeEditorWidgetOptions.isSimpleWidget || false;
 		this._telemetryData = codeEditorWidgetOptions.telemetryData;
 
-		this._configuration = this._register(this._createConfiguration(options, accessibilityService));
+		this._configuration = this._register(this._createConfiguration(codeEditorWidgetOptions.isSimpleWidget || false, options, accessibilityService));
 		this._register(this._configuration.onDidChange((e) => {
 			this._onDidChangeConfiguration.fire(e);
 
@@ -349,8 +351,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._codeEditorService.addCodeEditor(this);
 	}
 
-	protected _createConfiguration(options: Readonly<editorBrowser.IEditorConstructionOptions>, accessibilityService: IAccessibilityService): editorCommon.IConfiguration {
-		return new Configuration(this.isSimpleWidget, options, this._domElement, accessibilityService);
+	protected _createConfiguration(isSimpleWidget: boolean, options: Readonly<editorBrowser.IEditorConstructionOptions>, accessibilityService: IAccessibilityService): Configuration {
+		return new Configuration(isSimpleWidget, options, this._domElement, accessibilityService);
 	}
 
 	public getId(): string {
@@ -388,8 +390,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._instantiationService.invokeFunction(fn);
 	}
 
-	public updateOptions(newOptions: Readonly<IEditorOptions>): void {
-		this._configuration.updateOptions(newOptions);
+	public updateOptions(newOptions: Readonly<IEditorOptions> | undefined): void {
+		this._configuration.updateOptions(newOptions || {});
 	}
 
 	public getOptions(): IComputedEditorOptions {
@@ -1336,7 +1338,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public layout(dimension?: editorCommon.IDimension): void {
-		this._configuration.observeReferenceElement(dimension);
+		this._configuration.observeContainer(dimension);
 		this.render();
 	}
 
@@ -1500,7 +1502,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 
 		this._bannerDomNode = domNode;
-		this._configuration.reserveHeight(domNode ? domNodeHeight : 0);
+		this._configuration.setReservedHeight(domNode ? domNodeHeight : 0);
 
 		if (this._bannerDomNode) {
 			this._domElement.prepend(this._bannerDomNode);
@@ -1517,7 +1519,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		this._domElement.setAttribute('data-mode-id', model.getLanguageId());
 		this._configuration.setIsDominatedByLongLines(model.isDominatedByLongLines());
-		this._configuration.setMaxLineNumber(model.getLineCount());
+		this._configuration.setModelLineCount(model.getLineCount());
 
 		model.onBeforeAttached();
 

@@ -15,9 +15,9 @@ import { FontMeasurements } from 'vs/editor/browser/config/fontMeasurements';
 import { migrateOptions } from 'vs/editor/browser/config/migrateOptions';
 import { TabFocus } from 'vs/editor/browser/config/tabFocus';
 import { IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
-import { ComputeOptionsMemory, ConfigurationChangedEvent, EditorOption, editorOptionsRegistry, EDITOR_FONT_DEFAULTS, FindComputedEditorOptionValueById, IComputedEditorOptions, IEditorOptions, IEnvironmentalOptions, ValidatedEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { ComputeOptionsMemory, ConfigurationChangedEvent, EditorOption, editorOptionsRegistry, EDITOR_FONT_DEFAULTS, FindComputedEditorOptionValueById, IComputedEditorOptions, IEditorOptions, IEnvironmentalOptions } from 'vs/editor/common/config/editorOptions';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
-import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
+import { BareFontInfo, FontInfo, IValidatedEditorOptions } from 'vs/editor/common/config/fontInfo';
 import { IConfiguration, IDimension } from 'vs/editor/common/editorCommon';
 import { AccessibilitySupport, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
@@ -48,95 +48,75 @@ export class Configuration extends Disposable implements IConfiguration {
 	public readonly onDidChangeFast: Event<ConfigurationChangedEvent> = this._onDidChangeFast.event;
 
 	public readonly isSimpleWidget: boolean;
-	private _computeOptionsMemory: ComputeOptionsMemory;
-	public options!: ComputedEditorOptions;
+	private readonly _containerObserver: ElementSizeObserver;
 
-	private _isDominatedByLongLines: boolean;
-	private _viewLineCount: number;
-	private _lineNumbersDigitCount: number;
-
-	private _rawOptions: IEditorOptions;
-	private _readOptions: RawEditorOptions;
-	protected _validatedOptions: ValidatedEditorOptions;
+	private _isDominatedByLongLines: boolean = false;
+	private _viewLineCount: number = 1;
+	private _lineNumbersDigitCount: number = 1;
 	private _reservedHeight: number = 0;
 
-	private readonly _elementSizeObserver: ElementSizeObserver;
+	private readonly _computeOptionsMemory: ComputeOptionsMemory = new ComputeOptionsMemory();
+	/**
+	 * Raw options as they were passed in and merged with all calls to `updateOptions`.
+	 */
+	private readonly _rawOptions: IEditorOptions;
+	/**
+	 * Validated version of `_rawOptions`.
+	 */
+	private _validatedOptions: ValidatedEditorOptions;
+	/**
+	 * Complete options which are a combination of passed in options and env values.
+	 */
+	public options: ComputedEditorOptions;
 
 	constructor(
 		isSimpleWidget: boolean,
 		options: Readonly<IEditorConstructionOptions>,
-		referenceDomElement: HTMLElement | null,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
+		container: HTMLElement | null,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super();
 		this.isSimpleWidget = isSimpleWidget;
-
-		this._isDominatedByLongLines = false;
-		this._computeOptionsMemory = new ComputeOptionsMemory();
-		this._viewLineCount = 1;
-		this._lineNumbersDigitCount = 1;
+		this._containerObserver = this._register(new ElementSizeObserver(container, options.dimension));
 
 		this._rawOptions = deepCloneAndMigrateOptions(options);
-		this._readOptions = EditorConfiguration2.readOptions(this._rawOptions);
-		this._validatedOptions = EditorConfiguration2.validateOptions(this._readOptions);
+		this._validatedOptions = EditorOptionsUtil.validateOptions(this._rawOptions);
+		this.options = this._computeOptions();
 
-		this._register(EditorZoom.onDidChangeZoomLevel(_ => this._recomputeOptions()));
-		this._register(TabFocus.onDidChangeTabFocus(_ => this._recomputeOptions()));
+		if (this.options.get(EditorOption.automaticLayout)) {
+			this._containerObserver.startObserving();
+		}
 
-		this._elementSizeObserver = this._register(new ElementSizeObserver(referenceDomElement, options.dimension, () => this._recomputeOptions()));
-
+		this._register(EditorZoom.onDidChangeZoomLevel(() => this._recomputeOptions()));
+		this._register(TabFocus.onDidChangeTabFocus(() => this._recomputeOptions()));
+		this._register(this._containerObserver.onDidChange(() => this._recomputeOptions()));
 		this._register(FontMeasurements.onDidChange(() => this._recomputeOptions()));
+		this._register(browser.onDidChangeZoomLevel(() => this._recomputeOptions()));
+		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => this._recomputeOptions()));
+	}
 
-		if (this._validatedOptions.get(EditorOption.automaticLayout)) {
-			this._elementSizeObserver.startObserving();
+	private _recomputeOptions(): void {
+		const newOptions = this._computeOptions();
+		const changeEvent = EditorOptionsUtil.checkEquals(this.options, newOptions);
+		if (changeEvent === null) {
+			// nothing changed!
+			return;
 		}
 
-		this._register(browser.onDidChangeZoomLevel(_ => this._recomputeOptions()));
-		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this._recomputeOptions()));
-
-		this._recomputeOptions();
+		this.options = newOptions;
+		this._onDidChangeFast.fire(changeEvent);
+		this._onDidChange.fire(changeEvent);
 	}
 
-	public observeReferenceElement(dimension?: IDimension): void {
-		this._elementSizeObserver.observe(dimension);
-	}
-
-	public updatePixelRatio(): void {
-		this._recomputeOptions();
-	}
-
-	protected _recomputeOptions(): void {
-		const oldOptions = this.options;
-		const newOptions = this._computeInternalOptions();
-
-		if (!oldOptions) {
-			this.options = newOptions;
-		} else {
-			const changeEvent = EditorConfiguration2.checkEquals(oldOptions, newOptions);
-
-			if (changeEvent === null) {
-				// nothing changed!
-				return;
-			}
-
-			this.options = newOptions;
-			this._onDidChangeFast.fire(changeEvent);
-			this._onDidChange.fire(changeEvent);
-		}
-	}
-
-	public getRawOptions(): IEditorOptions {
-		return this._rawOptions;
-	}
-
-	private _computeInternalOptions(): ComputedEditorOptions {
-		const partialEnv = this._getEnvConfiguration();
+	private _computeOptions(): ComputedEditorOptions {
+		const partialEnv = this._readEnvConfiguration();
 		const bareFontInfo = BareFontInfo.createFromValidatedSettings(this._validatedOptions, partialEnv.zoomLevel, partialEnv.pixelRatio, this.isSimpleWidget);
+		const fontInfo = this._readFontInfo(bareFontInfo);
 		const env: IEnvironmentalOptions = {
 			memory: this._computeOptionsMemory,
 			outerWidth: partialEnv.outerWidth,
 			outerHeight: partialEnv.outerHeight - this._reservedHeight,
-			fontInfo: this.readConfiguration(bareFontInfo),
+			fontInfo: fontInfo,
 			extraEditorClassName: partialEnv.extraEditorClassName,
 			isDominatedByLongLines: this._isDominatedByLongLines,
 			viewLineCount: this._viewLineCount,
@@ -146,33 +126,63 @@ export class Configuration extends Disposable implements IConfiguration {
 			tabFocusMode: TabFocus.getTabFocusMode(),
 			accessibilitySupport: partialEnv.accessibilitySupport
 		};
-		return EditorConfiguration2.computeOptions(this._validatedOptions, env);
+		return EditorOptionsUtil.computeOptions(this._validatedOptions, env);
+	}
+
+	protected _readEnvConfiguration(): IEnvConfiguration {
+		return {
+			extraEditorClassName: getExtraEditorClassName(),
+			outerWidth: this._containerObserver.getWidth(),
+			outerHeight: this._containerObserver.getHeight(),
+			emptySelectionClipboard: browser.isWebKit || browser.isFirefox,
+			pixelRatio: browser.getPixelRatio(),
+			zoomLevel: browser.getZoomLevel(),
+			accessibilitySupport: (
+				this._accessibilityService.isScreenReaderOptimized()
+					? AccessibilitySupport.Enabled
+					: this._accessibilityService.getAccessibilitySupport()
+			)
+		};
+	}
+
+	protected _readFontInfo(bareFontInfo: BareFontInfo): FontInfo {
+		return FontMeasurements.readFontInfo(bareFontInfo);
+	}
+
+	public getRawOptions(): IEditorOptions {
+		return this._rawOptions;
 	}
 
 	public updateOptions(_newOptions: Readonly<IEditorOptions>): void {
-		if (typeof _newOptions === 'undefined') {
-			return;
-		}
 		const newOptions = deepCloneAndMigrateOptions(_newOptions);
 
-		const didChange = EditorConfiguration2.applyUpdate(this._rawOptions, newOptions);
+		const didChange = EditorOptionsUtil.applyUpdate(this._rawOptions, newOptions);
 		if (!didChange) {
 			return;
 		}
 
-		this._readOptions = EditorConfiguration2.readOptions(this._rawOptions);
-		this._validatedOptions = EditorConfiguration2.validateOptions(this._readOptions);
+		this._validatedOptions = EditorOptionsUtil.validateOptions(this._rawOptions);
+		this._recomputeOptions();
+	}
 
+	public observeContainer(dimension?: IDimension): void {
+		this._containerObserver.observe(dimension);
+	}
+
+	public observePixelRatio(): void {
 		this._recomputeOptions();
 	}
 
 	public setIsDominatedByLongLines(isDominatedByLongLines: boolean): void {
+		if (this._isDominatedByLongLines === isDominatedByLongLines) {
+			return;
+		}
 		this._isDominatedByLongLines = isDominatedByLongLines;
 		this._recomputeOptions();
 	}
 
-	public setMaxLineNumber(maxLineNumber: number): void {
-		const lineNumbersDigitCount = Configuration._digitCount(maxLineNumber);
+	public setModelLineCount(modelLineCount: number): void {
+		const lineNumbersDigitCount = digitCount(modelLineCount);
 		if (this._lineNumbersDigitCount === lineNumbersDigitCount) {
 			return;
 		}
@@ -188,55 +198,38 @@ export class Configuration extends Disposable implements IConfiguration {
 		this._recomputeOptions();
 	}
 
-	private static _digitCount(n: number): number {
-		let r = 0;
-		while (n) {
-			n = Math.floor(n / 10);
-			r++;
+	public setReservedHeight(reservedHeight: number) {
+		if (this._reservedHeight === reservedHeight) {
+			return;
 		}
-		return r ? r : 1;
-	}
-
-	private static _getExtraEditorClassName(): string {
-		let extra = '';
-		if (!browser.isSafari && !browser.isWebkitWebView) {
-			// Use user-select: none in all browsers except Safari and native macOS WebView
-			extra += 'no-user-select ';
-		}
-		if (browser.isSafari) {
-			// See https://github.com/microsoft/vscode/issues/108822
-			extra += 'no-minimap-shadow ';
-		}
-		if (platform.isMacintosh) {
-			extra += 'mac ';
-		}
-		return extra;
-	}
-
-	protected _getEnvConfiguration(): IEnvConfiguration {
-		return {
-			extraEditorClassName: Configuration._getExtraEditorClassName(),
-			outerWidth: this._elementSizeObserver.getWidth(),
-			outerHeight: this._elementSizeObserver.getHeight(),
-			emptySelectionClipboard: browser.isWebKit || browser.isFirefox,
-			pixelRatio: browser.getPixelRatio(),
-			zoomLevel: browser.getZoomLevel(),
-			accessibilitySupport: (
-				this.accessibilityService.isScreenReaderOptimized()
-					? AccessibilitySupport.Enabled
-					: this.accessibilityService.getAccessibilitySupport()
-			)
-		};
-	}
-
-	protected readConfiguration(bareFontInfo: BareFontInfo): FontInfo {
-		return FontMeasurements.readFontInfo(bareFontInfo);
-	}
-
-	public reserveHeight(height: number) {
-		this._reservedHeight = height;
+		this._reservedHeight = reservedHeight;
 		this._recomputeOptions();
 	}
+}
+
+function digitCount(n: number): number {
+	let r = 0;
+	while (n) {
+		n = Math.floor(n / 10);
+		r++;
+	}
+	return r ? r : 1;
+}
+
+function getExtraEditorClassName(): string {
+	let extra = '';
+	if (!browser.isSafari && !browser.isWebkitWebView) {
+		// Use user-select: none in all browsers except Safari and native macOS WebView
+		extra += 'no-user-select ';
+	}
+	if (browser.isSafari) {
+		// See https://github.com/microsoft/vscode/issues/108822
+		extra += 'no-minimap-shadow ';
+	}
+	if (platform.isMacintosh) {
+		extra += 'mac ';
+	}
+	return extra;
 }
 
 export interface IEnvConfiguration {
@@ -247,6 +240,19 @@ export interface IEnvConfiguration {
 	pixelRatio: number;
 	zoomLevel: number;
 	accessibilitySupport: AccessibilitySupport;
+}
+
+class ValidatedEditorOptions implements IValidatedEditorOptions {
+	private readonly _values: any[] = [];
+	public _read<T>(option: EditorOption): T {
+		return this._values[option];
+	}
+	public get<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T> {
+		return this._values[id];
+	}
+	public _write<T>(option: EditorOption, value: T): void {
+		this._values[option] = value;
+	}
 }
 
 export class ComputedEditorOptions implements IComputedEditorOptions {
@@ -265,31 +271,13 @@ export class ComputedEditorOptions implements IComputedEditorOptions {
 	}
 }
 
-class RawEditorOptions {
-	private readonly _values: any[] = [];
-	public _read<T>(id: EditorOption): T | undefined {
-		return this._values[id];
-	}
-	public _write<T>(id: EditorOption, value: T | undefined): void {
-		this._values[id] = value;
-	}
-}
+class EditorOptionsUtil {
 
-class EditorConfiguration2 {
-	public static readOptions(_options: IEditorOptions): RawEditorOptions {
-		const options: { [key: string]: any; } = _options;
-		const result = new RawEditorOptions();
-		for (const editorOption of editorOptionsRegistry) {
-			const value = (editorOption.name === '_never_' ? undefined : options[editorOption.name]);
-			result._write(editorOption.id, value);
-		}
-		return result;
-	}
-
-	public static validateOptions(options: RawEditorOptions): ValidatedEditorOptions {
+	public static validateOptions(rawOptions: IEditorOptions): ValidatedEditorOptions {
 		const result = new ValidatedEditorOptions();
 		for (const editorOption of editorOptionsRegistry) {
-			result._write(editorOption.id, editorOption.validate(options._read(editorOption.id)));
+			const value = (editorOption.name === '_never_' ? undefined : (rawOptions as any)[editorOption.name]);
+			result._write(editorOption.id, editorOption.validate(value));
 		}
 		return result;
 	}
@@ -313,7 +301,7 @@ class EditorConfiguration2 {
 			return false;
 		}
 		for (let key in a) {
-			if (!EditorConfiguration2._deepEquals(a[key], b[key])) {
+			if (!EditorOptionsUtil._deepEquals(a[key], b[key])) {
 				return false;
 			}
 		}
@@ -324,7 +312,7 @@ class EditorConfiguration2 {
 		const result: boolean[] = [];
 		let somethingChanged = false;
 		for (const editorOption of editorOptionsRegistry) {
-			const changed = !EditorConfiguration2._deepEquals(a._read(editorOption.id), b._read(editorOption.id));
+			const changed = !EditorOptionsUtil._deepEquals(a._read(editorOption.id), b._read(editorOption.id));
 			result[editorOption.id] = changed;
 			if (changed) {
 				somethingChanged = true;
