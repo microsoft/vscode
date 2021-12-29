@@ -57,6 +57,7 @@ import { WordOperations } from 'vs/editor/common/controller/cursorWordOperations
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { OutgoingViewModelEventKind } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
 import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 
 let EDITOR_ID = 0;
 
@@ -1493,7 +1494,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public applyFontInfo(target: HTMLElement): void {
-		Configuration.applyFontInfoSlow(target, this._configuration.options.get(EditorOption.fontInfo));
+		applyFontInfo(target, this._configuration.options.get(EditorOption.fontInfo));
 	}
 
 	public setBanner(domNode: HTMLElement | null, domNodeHeight: number): void {
