@@ -132,13 +132,13 @@ export class FindModel extends Disposable {
 		this.research();
 	}
 
-	research() {
+	async research() {
 		if (!this._state.isRevealed || !this._notebookEditor.hasModel()) {
 			this.set([], false);
 			return;
 		}
 
-		const findMatches = this._getFindMatches();
+		const findMatches = await this._getFindMatches();
 		if (!findMatches) {
 			return;
 		}
@@ -246,7 +246,7 @@ export class FindModel extends Disposable {
 		);
 	}
 
-	private _getFindMatches(): CellFindMatchWithIndex[] | null {
+	private async _getFindMatches(): Promise<CellFindMatchWithIndex[] | null> {
 		const val = this._state.searchString;
 		const wordSeparators = this._configurationService.inspect<string>('editor.wordSeparators').value;
 
@@ -259,10 +259,7 @@ export class FindModel extends Disposable {
 			return null;
 		}
 
-		const vm = this._notebookEditor._getViewModel();
-
-		const findMatches = vm.find(val, options).filter(match => match.matches.length > 0);
-		return findMatches;
+		return this._notebookEditor.find(val, options);
 	}
 
 	private _updateCurrentMatch(findMatches: CellFindMatchWithIndex[], currentMatchesPosition: number) {
