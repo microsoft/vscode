@@ -5,31 +5,31 @@
 
 import 'vs/css!./standalone-tokens';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { splitLines } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
+import { FontMeasurements } from 'vs/editor/browser/config/fontMeasurements';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { DiffNavigator, IDiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
-import { EditorOptions, ConfigurationChangedEvent, ApplyUpdateResult } from 'vs/editor/common/config/editorOptions';
+import { ApplyUpdateResult, ConfigurationChangedEvent, EditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Token } from 'vs/editor/common/core/token';
 import { EditorType } from 'vs/editor/common/editorCommon';
 import { FindMatch, ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
+import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NullState, nullTokenize } from 'vs/editor/common/modes/nullMode';
 import { ILanguageService } from 'vs/editor/common/services/language';
-import { IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebWorker } from 'vs/editor/common/services/webWorker';
+import { IModelService } from 'vs/editor/common/services/model';
+import { createWebWorker as actualCreateWebWorker, IWebWorkerOptions, MonacoWebWorker } from 'vs/editor/common/services/webWorker';
 import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
 import { Colorizer, IColorizerElementOptions, IColorizerOptions } from 'vs/editor/standalone/browser/colorizer';
-import { IStandaloneEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor, StandaloneDiffEditor, StandaloneEditor, createTextModel, IStandaloneDiffEditorConstructionOptions } from 'vs/editor/standalone/browser/standaloneCodeEditor';
+import { createTextModel, IStandaloneCodeEditor, IStandaloneDiffEditor, IStandaloneDiffEditorConstructionOptions, IStandaloneEditorConstructionOptions, StandaloneDiffEditor, StandaloneEditor } from 'vs/editor/standalone/browser/standaloneCodeEditor';
 import { IEditorOverrideServices, StandaloneServices } from 'vs/editor/standalone/browser/standaloneServices';
+import { StandaloneThemeService } from 'vs/editor/standalone/browser/standaloneThemeService';
 import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IMarker, IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';
-import { clearAllFontInfos } from 'vs/editor/browser/config/configuration';
-import { StandaloneThemeService } from 'vs/editor/standalone/browser/standaloneThemeService';
-import { splitLines } from 'vs/base/common/strings';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 /**
  * Create a new editor under `domElement`.
@@ -267,7 +267,7 @@ export function setTheme(themeName: string): void {
  * Clears all cached font measurements and triggers re-measurement.
  */
 export function remeasureFonts(): void {
-	clearAllFontInfos();
+	FontMeasurements.clearAllFontInfos();
 }
 
 /**
