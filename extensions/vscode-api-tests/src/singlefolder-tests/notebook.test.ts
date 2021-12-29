@@ -884,12 +884,12 @@ suite('Notebook API tests', function () {
 			}
 
 			override async _execute(cells: vscode.NotebookCell[]) {
-				console.log(`execute`);
 				const [cell] = cells;
 				const exe = this.controller.createNotebookCellExecution(cell);
 				exe.token.onCancellationRequested(() => executionWasCancelled = true);
 			}
 		};
+		testDisposables.push(cancelledKernel.controller);
 
 		const notebook = await openRandomNotebookDocument();
 		await vscode.window.showNotebookDocument(notebook);
@@ -913,7 +913,6 @@ suite('Notebook API tests', function () {
 			}
 
 			override async _execute(cells: vscode.NotebookCell[]) {
-				console.log(`execute`);
 				const [cell] = cells;
 				const exe = this.controller.createNotebookCellExecution(cell);
 				exe.token.onCancellationRequested(() => executionWasCancelled = true);
@@ -922,10 +921,12 @@ suite('Notebook API tests', function () {
 
 		const notebook = await openRandomNotebookDocument();
 		await vscode.window.showNotebookDocument(notebook);
+		testDisposables.push(cancelledKernel.controller);
 		await assertKernel(cancelledKernel, notebook);
 		await vscode.commands.executeCommand('notebook.cell.execute');
 
 		const newKernel = new Kernel('newKernel', 'kernel');
+		testDisposables.push(newKernel.controller);
 		await assertKernel(newKernel, notebook);
 		assert.strictEqual(executionWasCancelled, true);
 	});
