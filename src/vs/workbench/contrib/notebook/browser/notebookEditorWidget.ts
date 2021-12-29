@@ -60,7 +60,7 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { editorGutterModifiedBackground } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
 import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
 import { mark } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
-import { readFontInfo } from 'vs/editor/browser/config/configuration';
+import { FontMeasurements } from 'vs/editor/browser/config/fontMeasurements';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookOptions, OutputInnerContainerTopPadding } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
@@ -610,7 +610,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	private _generateFontInfo(): void {
 		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
-		this._fontInfo = readFontInfo(BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel(), getPixelRatio()));
+		this._fontInfo = FontMeasurements.readFontInfo(BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel(), getPixelRatio()));
 	}
 
 	private _createBody(parent: HTMLElement): void {

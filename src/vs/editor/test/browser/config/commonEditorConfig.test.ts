@@ -2,11 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
-import { IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { IEditorHoverOptions, EditorOption, ConfigurationChangedEvent, IQuickSuggestionsOptions } from 'vs/editor/common/config/editorOptions';
+import { IEnvConfiguration } from 'vs/editor/browser/config/configuration';
+import { ConfigurationChangedEvent, EditorOption, IEditorHoverOptions, IQuickSuggestionsOptions } from 'vs/editor/common/config/editorOptions';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
-import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
+import { TestConfiguration } from 'vs/editor/test/browser/config/testConfiguration';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 suite('Common Editor Config', () => {
@@ -53,7 +54,7 @@ suite('Common Editor Config', () => {
 	});
 
 	class TestWrappingConfiguration extends TestConfiguration {
-		protected override _getEnvConfiguration(): IEnvConfiguration {
+		protected override _readEnvConfiguration(): IEnvConfiguration {
 			return {
 				extraEditorClassName: '',
 				outerWidth: 1000,

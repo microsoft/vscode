@@ -25,23 +25,23 @@ import { BinaryResourceDiffEditor } from 'vs/workbench/browser/parts/editor/bina
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFileService, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILanguageService, ILanguageSelection } from 'vs/editor/common/services/languageService';
+import { ILanguageService, ILanguageSelection } from 'vs/editor/common/services/language';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
+import { TabFocus } from 'vs/editor/browser/config/tabFocus';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { EncodingMode, IEncodingSupport, IModeSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/encoding';
 import { ConfigurationChangedEvent, IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { deepClone } from 'vs/base/common/objects';
 import { ICodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Schemas } from 'vs/base/common/network';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { getIconClassesForModeId } from 'vs/editor/common/services/getIconClasses';
+import { getIconClassesForLanguageId } from 'vs/editor/common/services/getIconClasses';
 import { Promises, timeout } from 'vs/base/common/async';
 import { INotificationHandle, INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { Event } from 'vs/base/common/event';
@@ -1104,11 +1104,11 @@ export class ChangeModeAction extends Action {
 		const resource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
 		// Compute mode
+		let currentLanguageName: string | undefined;
 		let currentLanguageId: string | undefined;
-		let currentModeId: string | undefined;
 		if (textModel) {
-			currentModeId = textModel.getLanguageId();
-			currentLanguageId = withNullAsUndefined(this.languageService.getLanguageName(currentModeId));
+			currentLanguageId = textModel.getLanguageId();
+			currentLanguageName = withNullAsUndefined(this.languageService.getLanguageName(currentLanguageId));
 		}
 
 		let hasLanguageSupport = !!resource;
@@ -1117,22 +1117,21 @@ export class ChangeModeAction extends Action {
 		}
 
 		// All languages are valid picks
-		const languages = this.languageService.getRegisteredLanguageNames();
-		const picks: QuickPickInput[] = languages.sort()
-			.map(lang => {
-				const languageId = this.languageService.getLanguageIdForLanguageName(lang.toLowerCase()) || 'unknown';
-				const extensions = this.languageService.getExtensions(lang).join(' ');
+		const languages = this.languageService.getSortedRegisteredLanguageNames();
+		const picks: QuickPickInput[] = languages
+			.map(({ languageName, languageId }) => {
+				const extensions = this.languageService.getExtensions(languageId).join(' ');
 				let description: string;
-				if (currentLanguageId === lang) {
+				if (currentLanguageName === languageName) {
 					description = localize('languageDescription', "({0}) - Configured Language", languageId);
 				} else {
 					description = localize('languageDescriptionConfigured', "({0})", languageId);
 				}
 
 				return {
-					label: lang,
+					label: languageName,
 					meta: extensions,
-					iconClasses: getIconClassesForModeId(languageId),
+					iconClasses: getIconClassesForLanguageId(languageId),
 					description
 				};
 			});
@@ -1151,7 +1150,7 @@ export class ChangeModeAction extends Action {
 				picks.unshift(galleryAction);
 			}
 
-			configureModeSettings = { label: localize('configureModeSettings', "Configure '{0}' language based settings...", currentLanguageId) };
+			configureModeSettings = { label: localize('configureModeSettings', "Configure '{0}' language based settings...", currentLanguageName) };
 			picks.unshift(configureModeSettings);
 			configureModeAssociations = { label: localize('configureAssociationsExt', "Configure File Association for '{0}'...", ext) };
 			picks.unshift(configureModeAssociations);
@@ -1183,7 +1182,7 @@ export class ChangeModeAction extends Action {
 
 		// User decided to configure settings for current language
 		if (pick === configureModeSettings) {
-			this.preferencesService.openUserSettings({ jsonEditor: true, revealSetting: { key: `[${withUndefinedAsNull(currentModeId)}]`, edit: true } });
+			this.preferencesService.openUserSettings({ jsonEditor: true, revealSetting: { key: `[${withUndefinedAsNull(currentLanguageId)}]`, edit: true } });
 			return;
 		}
 
@@ -1201,7 +1200,7 @@ export class ChangeModeAction extends Action {
 						const resource = EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 						if (resource) {
 							// Detect languages since we are in an untitled file
-							let languageId: string | undefined = withNullAsUndefined(this.languageService.getLanguageIdByFilepathOrFirstLine(resource, textModel.getLineContent(1)));
+							let languageId: string | undefined = withNullAsUndefined(this.languageService.guessLanguageIdByFilepathOrFirstLine(resource, textModel.getLineContent(1)));
 							if (!languageId) {
 								detectedLanguage = await this.languageDetectionService.detectLanguage(resource);
 								languageId = detectedLanguage;
@@ -1212,18 +1211,18 @@ export class ChangeModeAction extends Action {
 						}
 					}
 				} else {
-					const languageId = this.languageService.getLanguageIdForLanguageName(pick.label.toLowerCase());
+					const languageId = this.languageService.getLanguageIdByLanguageName(pick.label);
 					languageSelection = this.languageService.createById(languageId);
 
 					if (resource) {
 						// fire and forget to not slow things down
-						this.languageDetectionService.detectLanguage(resource).then(detectedModeId => {
-							const chosenLanguageId = this.languageService.getLanguageIdForLanguageName(pick.label.toLowerCase()) || 'unknown';
-							if (detectedModeId === currentModeId && currentModeId !== chosenLanguageId) {
+						this.languageDetectionService.detectLanguage(resource).then(detectedLanguageId => {
+							const chosenLanguageId = this.languageService.getLanguageIdByLanguageName(pick.label) || 'unknown';
+							if (detectedLanguageId === currentLanguageId && currentLanguageId !== chosenLanguageId) {
 								// If they didn't choose the detected language (which should also be the active language if automatic detection is enabled)
 								// then the automatic language detection was likely wrong and the user is correcting it. In this case, we want telemetry.
 								this.telemetryService.publicLog2<IAutomaticLanguageDetectionLikelyWrongData, AutomaticLanguageDetectionLikelyWrongClassification>(AutomaticLanguageDetectionLikelyWrongId, {
-									currentLanguageId: currentLanguageId ?? 'unknown',
+									currentLanguageId: currentLanguageName ?? 'unknown',
 									nextLanguageId: pick.label
 								});
 							}
@@ -1248,17 +1247,15 @@ export class ChangeModeAction extends Action {
 	private configureFileAssociation(resource: URI): void {
 		const extension = extname(resource);
 		const base = basename(resource);
-		const currentAssociation = this.languageService.getLanguageIdByFilepathOrFirstLine(URI.file(base));
+		const currentAssociation = this.languageService.guessLanguageIdByFilepathOrFirstLine(URI.file(base));
 
-		const languages = this.languageService.getRegisteredLanguageNames();
-		const picks: IQuickPickItem[] = languages.sort().map((lang, index) => {
-			const id = withNullAsUndefined(this.languageService.getLanguageIdForLanguageName(lang.toLowerCase())) || 'unknown';
-
+		const languages = this.languageService.getSortedRegisteredLanguageNames();
+		const picks: IQuickPickItem[] = languages.map(({ languageName, languageId }) => {
 			return {
-				id,
-				label: lang,
-				iconClasses: getIconClassesForModeId(id),
-				description: (id === currentAssociation) ? localize('currentAssociation', "Current Association") : undefined
+				id: languageId,
+				label: languageName,
+				iconClasses: getIconClassesForLanguageId(languageId),
+				description: (languageId === currentAssociation) ? localize('currentAssociation', "Current Association") : undefined
 			};
 		});
 

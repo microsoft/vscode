@@ -27,7 +27,7 @@ import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/strin
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { IDiffComputationResult, IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { IDiffComputationResult, IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
@@ -325,7 +325,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._isVisible = true;
 		this._isHandlingScrollEvent = false;
 
-		this._elementSizeObserver = this._register(new ElementSizeObserver(this._containerDomElement, options.dimension, () => this._onDidContainerSizeChanged()));
+		this._elementSizeObserver = this._register(new ElementSizeObserver(this._containerDomElement, options.dimension));
+		this._register(this._elementSizeObserver.onDidChange(() => this._onDidContainerSizeChanged()));
 		if (options.automaticLayout) {
 			this._elementSizeObserver.startObserving();
 		}
@@ -747,7 +748,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._layoutOverviewViewport();
 	}
 
-	public getDomNode(): HTMLElement {
+	public getContainerDomNode(): HTMLElement {
 		return this._domElement;
 	}
 

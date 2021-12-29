@@ -39,7 +39,7 @@ import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent
 import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
 import { BackLayerWebView, INotebookDelegateForWebview } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 import { NotebookDiffEditorEventDispatcher, NotebookDiffLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/diff/eventDispatcher';
-import { readFontInfo } from 'vs/editor/browser/config/configuration';
+import { FontMeasurements } from 'vs/editor/browser/config/fontMeasurements';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 
 const $ = DOM.$;
@@ -103,7 +103,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._notebookOptions = new NotebookOptions(this.configurationService);
 		this._register(this._notebookOptions);
 		const editorOptions = this.configurationService.getValue<ICodeEditorOptions>('editor');
-		this._fontInfo = readFontInfo(BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel(), getPixelRatio()));
+		this._fontInfo = FontMeasurements.readFontInfo(BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel(), getPixelRatio()));
 		this._revealFirst = true;
 		this._outputRenderer = this.instantiationService.createInstance(OutputRenderer, this);
 	}

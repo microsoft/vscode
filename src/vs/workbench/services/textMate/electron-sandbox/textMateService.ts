@@ -6,13 +6,13 @@
 import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { AbstractTextMateService } from 'vs/workbench/services/textMate/browser/abstractTextMateService';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { createWebWorker, MonacoWebWorker } from 'vs/editor/common/services/webWorker';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import type { IRawTheme } from 'vscode-textmate';
 import { IValidGrammarDefinition } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
 import { TextMateWorker } from 'vs/workbench/services/textMate/electron-sandbox/textMateWorker';

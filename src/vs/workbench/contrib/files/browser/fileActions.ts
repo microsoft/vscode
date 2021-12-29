@@ -23,8 +23,8 @@ import { REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, NEW_UNTITL
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { ILanguageService } from 'vs/editor/common/services/language';
+import { IModelService } from 'vs/editor/common/services/model';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Schemas } from 'vs/base/common/network';

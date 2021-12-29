@@ -13,7 +13,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { CompletionItemInsertTextRule, CompletionItemKind, CompletionProviderRegistry } from 'vs/editor/common/modes';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';

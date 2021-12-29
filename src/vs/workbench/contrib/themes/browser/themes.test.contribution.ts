@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchThemeService, IWorkbenchColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -216,7 +216,7 @@ class Snapper {
 	}
 
 	public captureSyntaxTokens(fileName: string, content: string): Promise<IToken[]> {
-		const languageId = this.languageService.getLanguageIdByFilepathOrFirstLine(URI.file(fileName));
+		const languageId = this.languageService.guessLanguageIdByFilepathOrFirstLine(URI.file(fileName));
 		return this.textMateService.createGrammar(languageId!).then((grammar) => {
 			if (!grammar) {
 				return [];

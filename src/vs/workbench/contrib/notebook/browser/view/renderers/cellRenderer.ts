@@ -47,6 +47,7 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
 
 const $ = DOM.$;
 
@@ -360,7 +361,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		@IKeybindingService keybindingService: IKeybindingService,
 		@INotificationService notificationService: INotificationService,
 	) {
-		super(instantiationService, notebookEditor, contextMenuService, menuService, configurationService, keybindingService, notificationService, contextKeyServiceProvider, 'plaintext', dndController);
+		super(instantiationService, notebookEditor, contextMenuService, menuService, configurationService, keybindingService, notificationService, contextKeyServiceProvider, PLAINTEXT_LANGUAGE_ID, dndController);
 	}
 
 	get templateId() {

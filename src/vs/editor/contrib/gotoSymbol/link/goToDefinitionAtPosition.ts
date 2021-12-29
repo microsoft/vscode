@@ -21,7 +21,7 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel, IWordAtPosition } from 'vs/editor/common/model';
 import { IFoundBracket } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairs';
 import { DefinitionProviderRegistry, LocationLink } from 'vs/editor/common/modes';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ClickLinkGesture, ClickLinkKeyboardEvent, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/link/clickLinkGesture';
 import { PeekContext } from 'vs/editor/contrib/peekView/peekView';
@@ -204,7 +204,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 						wordRange = new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
 					}
 
-					const languageId = this.languageService.getLanguageIdByFilepathOrFirstLine(textEditorModel.uri);
+					const languageId = this.languageService.guessLanguageIdByFilepathOrFirstLine(textEditorModel.uri);
 					this.addDecoration(
 						wordRange,
 						new MarkdownString().appendCodeblock(languageId ? languageId : '', previewValue)

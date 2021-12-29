@@ -347,10 +347,10 @@ export class ExtHostNotebookDocument {
 		this._emitter.emitCellOutputsChange(deepFreeze({ document: this.apiNotebook, cells: [cell.apiCell] }));
 	}
 
-	private _changeCellLanguage(index: number, newModeId: string): void {
+	private _changeCellLanguage(index: number, newLanguageId: string): void {
 		const cell = this._cells[index];
-		if (cell.apiCell.document.languageId !== newModeId) {
-			this._textDocuments.$acceptModelModeChanged(cell.uri, newModeId);
+		if (cell.apiCell.document.languageId !== newLanguageId) {
+			this._textDocuments.$acceptModelLanguageChanged(cell.uri, newLanguageId);
 		}
 	}
 

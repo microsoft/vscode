@@ -6,10 +6,10 @@
 import { URI } from 'vs/base/common/uri';
 import { dirname, isEqual, basenameOrAuthority } from 'vs/base/common/resources';
 import { IconLabel, IIconLabelValueOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IDecoration, IDecorationsService, IResourceDecorationChangeEvent } from 'vs/workbench/services/decorations/common/decorations';
 import { Schemas } from 'vs/base/common/network';
@@ -133,10 +133,10 @@ export class ResourceLabels extends Disposable {
 		}));
 
 		// notify when extensions are registered with potentially new languages
-		this._register(this.languageService.onLanguagesMaybeChanged(() => this.widgets.forEach(widget => widget.notifyExtensionsRegistered())));
+		this._register(this.languageService.onDidChange(() => this.widgets.forEach(widget => widget.notifyExtensionsRegistered())));
 
 		// notify when model mode changes
-		this._register(this.modelService.onModelModeChanged(e => {
+		this._register(this.modelService.onModelLanguageChanged(e => {
 			if (!e.model.uri) {
 				return; // we need the resource to compare
 			}
@@ -276,7 +276,7 @@ class ResourceLabelWidget extends IconLabel {
 	private decoration = this._register(new MutableDisposable<IDecoration>());
 	private options?: IResourceLabelOptions;
 	private computedIconClasses?: string[];
-	private lastKnownDetectedModeId?: string;
+	private lastKnownDetectedLanguageId?: string;
 	private computedPathLabel?: string;
 
 	private needsRedraw?: Redraw;
@@ -325,8 +325,8 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		if (isEqual(model.uri, resource)) {
-			if (this.lastKnownDetectedModeId !== model.getLanguageId()) {
-				this.lastKnownDetectedModeId = model.getLanguageId();
+			if (this.lastKnownDetectedLanguageId !== model.getLanguageId()) {
+				this.lastKnownDetectedLanguageId = model.getLanguageId();
 				this.render({ updateIcon: true, updateDecoration: false }); // update if the language id of the model has changed from our last known state
 			}
 		}
@@ -485,7 +485,7 @@ class ResourceLabelWidget extends IconLabel {
 	clear(): void {
 		this.label = undefined;
 		this.options = undefined;
-		this.lastKnownDetectedModeId = undefined;
+		this.lastKnownDetectedLanguageId = undefined;
 		this.computedIconClasses = undefined;
 		this.computedPathLabel = undefined;
 
@@ -583,7 +583,7 @@ class ResourceLabelWidget extends IconLabel {
 
 		this.label = undefined;
 		this.options = undefined;
-		this.lastKnownDetectedModeId = undefined;
+		this.lastKnownDetectedLanguageId = undefined;
 		this.computedIconClasses = undefined;
 		this.computedPathLabel = undefined;
 	}

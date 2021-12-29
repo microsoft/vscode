@@ -29,7 +29,7 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 		disposeOnReturn(store => {
 			const doc = new AnnotatedDocument(`{ ( [] ¹ ) [ ² { } ] () } []`);
 			const model = store.add(
-				createTextModel(doc.text, {}, store.add(createLang()).id)
+				createTextModel(doc.text, store.add(createLang()).id)
 			);
 			assert.deepStrictEqual(
 				model.bracketPairs
@@ -63,7 +63,7 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 		disposeOnReturn(store => {
 			const doc = new AnnotatedDocument(`{ ( [] ¹ ²) [  { } ] () } []`);
 			const model = store.add(
-				createTextModel(doc.text, {}, store.add(createLang()).id)
+				createTextModel(doc.text, store.add(createLang()).id)
 			);
 			assert.deepStrictEqual(
 				model.bracketPairs
@@ -91,7 +91,7 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 		disposeOnReturn(store => {
 			const doc = new AnnotatedDocument(`¹ ² { ( [] ) [  { } ] () } []`);
 			const model = store.add(
-				createTextModel(doc.text, {}, store.add(createLang()).id)
+				createTextModel(doc.text, store.add(createLang()).id)
 			);
 			assert.deepStrictEqual(
 				model.bracketPairs
@@ -106,7 +106,7 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 		disposeOnReturn(store => {
 			const doc = new AnnotatedDocument(`¹ { ( [] ) [  { } ] () } [] ²`);
 			const model = store.add(
-				createTextModel(doc.text, {}, store.add(createLang()).id)
+				createTextModel(doc.text, store.add(createLang()).id)
 			);
 			assert.deepStrictEqual(
 				model.bracketPairs

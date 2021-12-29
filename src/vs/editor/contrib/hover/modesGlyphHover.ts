@@ -10,7 +10,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';

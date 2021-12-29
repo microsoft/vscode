@@ -12,14 +12,15 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
+import { TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/core/token';
 import * as model from 'vs/editor/common/model';
 import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
-import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
+import { TokenizationRegistry as TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+
 /**
  * Open ended enum at runtime
  * @internal
@@ -200,10 +201,9 @@ export interface ITokenizationSupport {
 
 	getInitialState(): IState;
 
-	// add offsetDelta to each of the returned indices
-	tokenize(line: string, hasEOL: boolean, state: IState, offsetDelta: number): TokenizationResult;
+	tokenize(line: string, hasEOL: boolean, state: IState): TokenizationResult;
 
-	tokenize2(line: string, hasEOL: boolean, state: IState, offsetDelta: number): TokenizationResult2;
+	tokenizeEncoded(line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult;
 }
 
 /**
@@ -1915,6 +1915,13 @@ export interface ITokenizationSupportChangedEvent {
 /**
  * @internal
  */
+export interface ITokenizationSupportFactory {
+	createTokenizationSupport(): ProviderResult<ITokenizationSupport>;
+}
+
+/**
+ * @internal
+ */
 export interface ITokenizationRegistry {
 
 	/**
@@ -1928,29 +1935,34 @@ export interface ITokenizationRegistry {
 	 * Fire a change event for a language.
 	 * This is useful for languages that embed other languages.
 	 */
-	fire(languages: string[]): void;
+	fire(languageIds: string[]): void;
 
 	/**
 	 * Register a tokenization support.
 	 */
-	register(language: string, support: ITokenizationSupport): IDisposable;
+	register(languageId: string, support: ITokenizationSupport): IDisposable;
 
 	/**
-	 * Register a promise for a tokenization support.
+	 * Register a tokenization support factory.
 	 */
-	registerPromise(language: string, promise: Thenable<ITokenizationSupport>): IDisposable;
+	registerFactory(languageId: string, factory: ITokenizationSupportFactory): IDisposable;
+
+	/**
+	 * Get or create the tokenization support for a language.
+	 * Returns `null` if not found.
+	 */
+	getOrCreate(languageId: string): Promise<ITokenizationSupport | null>;
 
 	/**
 	 * Get the tokenization support for a language.
 	 * Returns `null` if not found.
 	 */
-	get(language: string): ITokenizationSupport | null;
+	get(languageId: string): ITokenizationSupport | null;
 
 	/**
-	 * Get the promise of a tokenization support for a language.
-	 * `null` is returned if no support is available and no promise for the support has been registered yet.
+	 * Returns false if a factory is still pending.
 	 */
-	getPromise(language: string): Thenable<ITokenizationSupport> | null;
+	isResolved(languageId: string): boolean;
 
 	/**
 	 * Set the new color map that all tokens will use in their ColorId binary encoded bits for foreground and background.
@@ -1965,7 +1977,7 @@ export interface ITokenizationRegistry {
 /**
  * @internal
  */
-export const TokenizationRegistry = new TokenizationRegistryImpl();
+export const TokenizationRegistry: ITokenizationRegistry = new TokenizationRegistryImpl();
 
 
 /**

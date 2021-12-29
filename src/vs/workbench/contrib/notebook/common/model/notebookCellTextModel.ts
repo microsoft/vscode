@@ -13,7 +13,8 @@ import * as model from 'vs/editor/common/model';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel';
 import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellOutput, IOutputDto, IOutputItemDto, NotebookCellCollapseState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
@@ -79,13 +80,13 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	set language(newLanguage: string) {
 		if (this._textModel
 			// 1. the language update is from workspace edit, checking if it's the same as text model's mode
-			&& this._textModel.getLanguageId() === this._languageService.getLanguageIdForLanguageName(newLanguage)
+			&& this._textModel.getLanguageId() === this._languageService.getLanguageIdByLanguageName(newLanguage)
 			// 2. the text model's mode might be the same as the `this.language`, even if the language friendly name is not the same, we should not trigger an update
-			&& this._textModel.getLanguageId() === this._languageService.getLanguageIdForLanguageName(this.language)) {
+			&& this._textModel.getLanguageId() === this._languageService.getLanguageIdByLanguageName(this.language)) {
 			return;
 		}
 
-		const newLanguageId = this._languageService.getLanguageIdForLanguageName(newLanguage);
+		const newLanguageId = this._languageService.getLanguageIdByLanguageName(newLanguage);
 
 		if (newLanguageId === null) {
 			return;
@@ -168,7 +169,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			// Init language from text model
 			// The language defined in the cell might not be supported in the editor so the text model might be using the default fallback
 			// If so let's not modify the language
-			if (!(this._languageService.isRegisteredLanguageId(this.language) === false && (this._textModel.getLanguageId() === 'plaintext' || this._textModel.getLanguageId() === 'jupyter'))) {
+			if (!(this._languageService.isRegisteredLanguageId(this.language) === false && (this._textModel.getLanguageId() === PLAINTEXT_LANGUAGE_ID || this._textModel.getLanguageId() === 'jupyter'))) {
 				this.language = this._textModel.getLanguageId();
 			}
 

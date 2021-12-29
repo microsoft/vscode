@@ -7,9 +7,8 @@ import * as nls from 'vs/nls';
 import * as mime from 'vs/base/common/mime';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { ILanguageExtensionPoint, ILanguageService } from 'vs/editor/common/services/languageService';
-import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
+import { ILanguageExtensionPoint, ILanguageService } from 'vs/editor/common/services/language';
+import { LanguageService } from 'vs/editor/common/services/languageService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FILES_ASSOCIATIONS_CONFIG, IFilesConfiguration } from 'vs/platform/files/common/files';
@@ -136,7 +135,7 @@ export class WorkbenchLanguageService extends LanguageService {
 				}
 			}
 
-			ModesRegistry.setDynamicLanguages(allValidLanguages);
+			this._registry.setDynamicLanguages(allValidLanguages);
 
 		});
 
@@ -165,13 +164,13 @@ export class WorkbenchLanguageService extends LanguageService {
 		if (configuration.files?.associations) {
 			Object.keys(configuration.files.associations).forEach(pattern => {
 				const langId = configuration.files.associations[pattern];
-				const mimeType = this.getMimeTypeForLanguageId(langId) || `text/x-${langId}`;
+				const mimeType = this.getMimeType(langId) || `text/x-${langId}`;
 
 				mime.registerTextMime({ id: langId, mime: mimeType, filepattern: pattern, userConfigured: true });
 			});
 		}
 
-		this._onLanguagesMaybeChanged.fire();
+		this._onDidChange.fire();
 	}
 }
 

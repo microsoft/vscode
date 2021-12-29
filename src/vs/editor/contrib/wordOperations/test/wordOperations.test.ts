@@ -750,7 +750,7 @@ suite('WordOperations', () => {
 		}
 
 		const mode = new TestMode();
-		const model = createTextModel('a ""', undefined, languageId);
+		const model = createTextModel('a ""', languageId, undefined);
 
 		withTestCodeEditor(null, {
 			model,

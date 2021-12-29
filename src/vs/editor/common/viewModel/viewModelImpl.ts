@@ -24,7 +24,7 @@ import { ModelDecorationMinimapOptions, ModelDecorationOptions, ModelDecorationO
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { ColorId, TokenizationRegistry } from 'vs/editor/common/modes';
 import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { EditorTheme } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
@@ -374,7 +374,7 @@ export class ViewModel extends Disposable implements IViewModel {
 
 			// Update the configuration and reset the centered view line
 			this._viewportStartLine = -1;
-			this._configuration.setMaxLineNumber(this.model.getLineCount());
+			this._configuration.setModelLineCount(this.model.getLineCount());
 			this._updateConfigurationViewLineCountNow();
 
 			// Recover viewport
@@ -860,7 +860,7 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	public getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string, mode: string } | null {
 		const languageId = this.model.getLanguageId();
-		if (languageId === PLAINTEXT_MODE_ID) {
+		if (languageId === PLAINTEXT_LANGUAGE_ID) {
 			return null;
 		}
 

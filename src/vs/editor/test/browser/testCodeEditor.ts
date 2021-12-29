@@ -7,21 +7,21 @@ import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifec
 import { ICodeEditor, IActiveCodeEditor, IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { IEditorContributionCtor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { View } from 'vs/editor/browser/view/viewImpl';
+import { View } from 'vs/editor/browser/view/view';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
-import { IConfiguration, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
 import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
-import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ModelService } from 'vs/editor/common/services/modelService';
+import { ILanguageService } from 'vs/editor/common/services/language';
+import { LanguageService } from 'vs/editor/common/services/languageService';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { TestCodeEditorService, TestCommandService } from 'vs/editor/test/browser/editorTestServices';
 import { createTextModel2 } from 'vs/editor/test/common/editorTestUtils';
-import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
+import { TestConfiguration } from 'vs/editor/test/browser/config/testConfiguration';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -44,6 +44,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
+import { Configuration } from 'vs/editor/browser/config/configuration';
 
 export interface ITestCodeEditor extends IActiveCodeEditor {
 	getViewModel(): ViewModel | undefined;
@@ -54,7 +55,7 @@ export interface ITestCodeEditor extends IActiveCodeEditor {
 export class TestCodeEditor extends CodeEditorWidget implements ICodeEditor {
 
 	//#region testing overrides
-	protected override _createConfiguration(options: Readonly<IEditorConstructionOptions>): IConfiguration {
+	protected override _createConfiguration(isSimpleWidget: boolean, options: Readonly<IEditorConstructionOptions>): Configuration {
 		return new TestConfiguration(options);
 	}
 	protected override _createView(viewModel: ViewModel): [View, boolean] {
@@ -188,7 +189,7 @@ export function createCodeEditorServices(disposables: DisposableStore, services:
 	define(ITextResourcePropertiesService, TestTextResourcePropertiesService);
 	define(IThemeService, TestThemeService);
 	define(ILogService, NullLogService);
-	define(IModelService, ModelServiceImpl);
+	define(IModelService, ModelService);
 	define(ICodeEditorService, TestCodeEditorService);
 	define(IContextKeyService, MockContextKeyService);
 	define(ICommandService, TestCommandService);

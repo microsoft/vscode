@@ -20,7 +20,7 @@ import { RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBracke
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 /**
@@ -86,14 +86,14 @@ export class LanguageConfigurationService extends Disposable implements ILanguag
 				.filter(([overrideLangName, keys]) =>
 					keys.some((k) => languageConfigKeys.has(k))
 				)
-				.map(([overrideLangName]) => this.languageService.validateLanguageId(overrideLangName));
+				.map(([overrideLangName]) => overrideLangName);
 
 			if (globalConfigChanged) {
 				this.configurations.clear();
 				this.onDidChangeEmitter.fire(new LanguageConfigurationServiceChangeEvent(undefined));
 			} else {
 				for (const languageId of localConfigChanged) {
-					if (languageId) {
+					if (this.languageService.isRegisteredLanguageId(languageId)) {
 						this.configurations.delete(languageId);
 						this.onDidChangeEmitter.fire(new LanguageConfigurationServiceChangeEvent(languageId));
 					}
@@ -125,11 +125,10 @@ function computeConfig(
 	let languageConfig = LanguageConfigurationRegistry.getLanguageConfiguration(languageId);
 
 	if (!languageConfig) {
-		const validLanguageId = languageService.validateLanguageId(languageId);
-		if (!validLanguageId) {
+		if (!languageService.isRegisteredLanguageId(languageId)) {
 			throw new Error('Unexpected languageId');
 		}
-		languageConfig = new ResolvedLanguageConfiguration(validLanguageId, {});
+		languageConfig = new ResolvedLanguageConfiguration(languageId, {});
 	}
 
 	const customizedConfig = getCustomizedLanguageConfig(languageConfig.languageId, configurationService);

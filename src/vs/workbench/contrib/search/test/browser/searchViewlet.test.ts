@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { URI as uri } from 'vs/base/common/uri';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ModelService } from 'vs/editor/common/services/modelService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -116,6 +116,6 @@ suite('Search - Viewlet', () => {
 	function stubModelService(instantiationService: TestInstantiationService): IModelService {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IThemeService, new TestThemeService());
-		return instantiationService.createInstance(ModelServiceImpl);
+		return instantiationService.createInstance(ModelService);
 	}
 });

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { ILanguageService } from 'vs/editor/common/services/language';
+import { IModelService } from 'vs/editor/common/services/model';
 import { MainThreadLanguagesShape, MainContext, IExtHostContext, ExtHostContext, ExtHostLanguagesShape } from '../common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { IPosition } from 'vs/editor/common/core/position';
@@ -33,7 +33,7 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 		this._proxy = _extHostContext.getProxy(ExtHostContext.ExtHostLanguages);
 
 		this._proxy.$acceptLanguageIds(_languageService.getRegisteredLanguageIds());
-		this._disposables.add(_languageService.onLanguagesMaybeChanged(e => {
+		this._disposables.add(_languageService.onDidChange(_ => {
 			this._proxy.$acceptLanguageIds(_languageService.getRegisteredLanguageIds());
 		}));
 	}
@@ -49,8 +49,7 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 
 	async $changeLanguage(resource: UriComponents, languageId: string): Promise<void> {
 
-		const validLanguageId = this._languageService.validateLanguageId(languageId);
-		if (!validLanguageId || validLanguageId !== languageId) {
+		if (!this._languageService.isRegisteredLanguageId(languageId)) {
 			return Promise.reject(new Error(`Unknown language id: ${languageId}`));
 		}
 

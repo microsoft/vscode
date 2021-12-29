@@ -16,7 +16,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ILanguageIdCodec } from 'vs/editor/common/modes';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { ghostTextBackground, ghostTextBorder, ghostTextForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';

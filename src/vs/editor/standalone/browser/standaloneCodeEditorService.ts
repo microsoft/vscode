@@ -7,25 +7,26 @@ import { windowOpenNoOpener } from 'vs/base/browser/dom';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { CodeEditorServiceImpl, GlobalStyleSheet } from 'vs/editor/browser/services/codeEditorServiceImpl';
+import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IRange } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IResourceEditorInput, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
-export class StandaloneCodeEditorServiceImpl extends CodeEditorServiceImpl {
+export class StandaloneCodeEditorService extends AbstractCodeEditorService {
 
 	private readonly _editorIsOpen: IContextKey<boolean>;
 	private _activeCodeEditor: ICodeEditor | null;
 
 	constructor(
-		styleSheet: GlobalStyleSheet | null,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 	) {
-		super(styleSheet, themeService);
+		super(null, themeService);
 		this.onCodeEditorAdd(() => this._checkContextKey());
 		this.onCodeEditorRemove(() => this._checkContextKey());
 		this._editorIsOpen = contextKeyService.createKey('editorIsOpen', false);
@@ -101,3 +102,5 @@ export class StandaloneCodeEditorServiceImpl extends CodeEditorServiceImpl {
 		return model;
 	}
 }
+
+registerSingleton(ICodeEditorService, StandaloneCodeEditorService);

@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CommonEditorConfiguration, IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { IEditorOptions, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
+import { Configuration, IEnvConfiguration } from 'vs/editor/browser/config/configuration';
+import { EditorFontLigatures, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
 
-export class TestConfiguration extends CommonEditorConfiguration {
+export class TestConfiguration extends Configuration {
 
 	constructor(opts: IEditorOptions) {
-		super(false, opts);
-		this._recomputeOptions();
+		super(false, opts, null, new TestAccessibilityService());
 	}
 
-	protected _getEnvConfiguration(): IEnvConfiguration {
+	protected override _readEnvConfiguration(): IEnvConfiguration {
 		return {
 			extraEditorClassName: '',
 			outerWidth: 100,
@@ -27,7 +27,7 @@ export class TestConfiguration extends CommonEditorConfiguration {
 		};
 	}
 
-	protected readConfiguration(styling: BareFontInfo): FontInfo {
+	protected override _readFontInfo(styling: BareFontInfo): FontInfo {
 		return new FontInfo({
 			zoomLevel: 0,
 			pixelRatio: 1,

@@ -6,7 +6,7 @@
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { renderMarkdown, MarkdownRenderOptions, MarkedOptions } from 'vs/base/browser/markdownRenderer';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -15,6 +15,7 @@ import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { URI } from 'vs/base/common/uri';
 import { Configuration } from 'vs/editor/browser/config/configuration';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
 
 export interface IMarkdownRenderResult extends IDisposable {
 	element: HTMLElement;
@@ -74,12 +75,12 @@ export class MarkdownRenderer {
 				// it is possible no alias is given in which case we fall back to the current editor lang
 				let languageId: string | undefined | null;
 				if (languageAlias) {
-					languageId = this._languageService.getLanguageIdForLanguageName(languageAlias);
+					languageId = this._languageService.getLanguageIdByLanguageName(languageAlias);
 				} else if (this._options.editor) {
 					languageId = this._options.editor.getModel()?.getLanguageId();
 				}
 				if (!languageId) {
-					languageId = 'plaintext';
+					languageId = PLAINTEXT_LANGUAGE_ID;
 				}
 				const html = await tokenizeToString(this._languageService, value, languageId);
 

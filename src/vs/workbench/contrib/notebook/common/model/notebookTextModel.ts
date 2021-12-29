@@ -14,10 +14,10 @@ import { MoveCellEdit, SpliceCellsEdit, CellMetadataEdit } from 'vs/workbench/co
 import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
 import { hash } from 'vs/base/common/hash';
 import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { isDefined } from 'vs/base/common/types';

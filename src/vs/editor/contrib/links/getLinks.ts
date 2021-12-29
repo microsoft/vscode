@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILink, ILinksList, LinkProvider, LinkProviderRegistry } from 'vs/editor/common/modes';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 export class Link implements ILink {

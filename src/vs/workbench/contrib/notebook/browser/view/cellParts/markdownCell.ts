@@ -23,7 +23,7 @@ import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { tokenizeToStringSync } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';

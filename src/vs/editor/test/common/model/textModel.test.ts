@@ -13,6 +13,7 @@ import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 function testGuessIndentation(defaultInsertSpaces: boolean, defaultTabSize: number, expectedInsertSpaces: boolean, expectedTabSize: number, text: string[], msg?: string): void {
 	let m = createTextModel(
 		text.join('\n'),
+		undefined,
 		{
 			tabSize: defaultTabSize,
 			insertSpaces: defaultInsertSpaces,
@@ -885,6 +886,7 @@ suite('Editor Model - TextModel', () => {
 
 	test('normalizeIndentation 1', () => {
 		let model = createTextModel('',
+			undefined,
 			{
 				insertSpaces: false
 			}

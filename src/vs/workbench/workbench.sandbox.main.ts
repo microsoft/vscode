@@ -72,7 +72,7 @@ import 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentServi
 import 'vs/workbench/services/integrity/electron-sandbox/integrityService';
 import 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyBackupService';
 import 'vs/platform/remote/electron-sandbox/sharedProcessTunnelService';
-import 'vs/workbench/services/remote/electron-sandbox/tunnelServiceImpl';
+import 'vs/workbench/services/remote/electron-sandbox/tunnelService';
 import 'vs/platform/diagnostics/electron-sandbox/diagnosticsService';
 import 'vs/platform/checksum/electron-sandbox/checksumService';
 import 'vs/platform/telemetry/electron-sandbox/customEndpointTelemetryService';

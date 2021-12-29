@@ -15,7 +15,7 @@ import { RemoteFileSystemProviderClient } from 'vs/workbench/services/remote/com
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
-import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentServiceImpl';
+import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentService';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';

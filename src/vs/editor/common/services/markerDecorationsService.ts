@@ -10,9 +10,9 @@ import { IModelDeltaDecoration, ITextModel, IModelDecorationOptions, TrackedRang
 import { ClassName } from 'vs/editor/common/model/intervalTree';
 import { themeColorFromId, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { overviewRulerWarning, overviewRulerInfo, overviewRulerError } from 'vs/editor/common/view/editorColorRegistry';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { Range } from 'vs/editor/common/core/range';
-import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
+import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecorations';
 import { Schemas } from 'vs/base/common/network';
 import { Emitter, Event } from 'vs/base/common/event';
 import { minimapWarning, minimapError } from 'vs/platform/theme/common/colorRegistry';

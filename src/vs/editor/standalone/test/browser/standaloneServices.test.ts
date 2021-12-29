@@ -2,9 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { SimpleConfigurationService, SimpleNotificationService, StandaloneCommandService, StandaloneKeybindingService } from 'vs/editor/standalone/browser/simpleServices';
+import { StandaloneConfigurationService, StandaloneNotificationService, StandaloneCommandService, StandaloneKeybindingService } from 'vs/editor/standalone/browser/standaloneServices';
+import { StandaloneCodeEditorService } from 'vs/editor/standalone/browser/standaloneCodeEditorService';
+import { StandaloneThemeService } from 'vs/editor/standalone/browser/standaloneThemeService';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -22,20 +25,15 @@ suite('StandaloneKeybindingService', () => {
 
 	test('issue microsoft/monaco-editor#167', () => {
 
-		let serviceCollection = new ServiceCollection();
+		const serviceCollection = new ServiceCollection();
 		const instantiationService = new InstantiationService(serviceCollection, true);
-
-		let configurationService = new SimpleConfigurationService();
-
-		let contextKeyService = new ContextKeyService(configurationService);
-
-		let commandService = new StandaloneCommandService(instantiationService);
-
-		let notificationService = new SimpleNotificationService();
-
-		let domElement = document.createElement('div');
-
-		let keybindingService = new TestStandaloneKeybindingService(contextKeyService, commandService, NullTelemetryService, notificationService, new NullLogService(), domElement);
+		const configurationService = new StandaloneConfigurationService();
+		const contextKeyService = new ContextKeyService(configurationService);
+		const commandService = new StandaloneCommandService(instantiationService);
+		const notificationService = new StandaloneNotificationService();
+		const standaloneThemeService = new StandaloneThemeService();
+		const codeEditorService = new StandaloneCodeEditorService(contextKeyService, standaloneThemeService);
+		const keybindingService = new TestStandaloneKeybindingService(contextKeyService, commandService, NullTelemetryService, notificationService, new NullLogService(), codeEditorService);
 
 		let commandInvoked = false;
 		keybindingService.addDynamicKeybinding('testCommand', KeyCode.F9, () => {

@@ -27,6 +27,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { UnknownErrorEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
 
 suite('EditorService', () => {
 
@@ -2012,7 +2013,7 @@ suite('EditorService', () => {
 
 		assert.strictEqual(service.activeEditorPane, editor);
 		assert.strictEqual(service.activeTextEditorControl, editor?.getControl());
-		assert.strictEqual(service.activeTextEditorMode, 'plaintext');
+		assert.strictEqual(service.activeTextEditorMode, PLAINTEXT_LANGUAGE_ID);
 	});
 
 	test('openEditor returns NULL when opening fails or is inactive', async function () {

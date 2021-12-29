@@ -7,7 +7,7 @@ import { SemanticTokensLegend, TokenMetadata, FontStyle, MetadataConsts, Semanti
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { MultilineTokens2, SparseEncodedTokens } from 'vs/editor/common/model/tokensStore';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 
 export const enum SemanticTokensProviderStylingConstants {
 	NO_STYLING = 0b01111111111111111111111111111111

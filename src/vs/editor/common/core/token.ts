@@ -35,8 +35,8 @@ export class TokenizationResult {
 	}
 }
 
-export class TokenizationResult2 {
-	_tokenizationResult2Brand: void = undefined;
+export class EncodedTokenizationResult {
+	_encodedTokenizationResultBrand: void = undefined;
 
 	/**
 	 * The tokens in binary format. Each token occupies two array indices. For token i:

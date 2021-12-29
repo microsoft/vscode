@@ -10,7 +10,7 @@ import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
 import { CodeLens, CodeLensList, CodeLensProvider, CodeLensProviderRegistry } from 'vs/editor/common/modes';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 export interface CodeLensItem {

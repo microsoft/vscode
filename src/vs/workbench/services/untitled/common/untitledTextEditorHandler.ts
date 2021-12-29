@@ -10,7 +10,7 @@ import { IEditorSerializer } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
 import { isEqual, toLocalResource } from 'vs/base/common/resources';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
@@ -56,7 +56,7 @@ export class UntitledTextEditorInputSerializer implements IEditorSerializer {
 		// this is the case.
 		let modeId: string | undefined;
 		const modeIdCandidate = untitledTextEditorInput.getMode();
-		if (modeIdCandidate !== PLAINTEXT_MODE_ID) {
+		if (modeIdCandidate !== PLAINTEXT_LANGUAGE_ID) {
 			modeId = modeIdCandidate;
 		} else if (untitledTextEditorInput.model.hasModeSetExplicitly) {
 			modeId = modeIdCandidate;

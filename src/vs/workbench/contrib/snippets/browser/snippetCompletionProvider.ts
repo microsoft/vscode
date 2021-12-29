@@ -9,7 +9,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, CompletionItemInsertTextRule, CompletionContext, CompletionTriggerKind, CompletionItemLabel } from 'vs/editor/common/modes';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { localize } from 'vs/nls';
 import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
@@ -177,9 +177,8 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		// facing language with a name and the chance to have
 		// snippets, else fall back to the outer language
 		model.tokenizeIfCheap(position.lineNumber);
-		let languageId: string | null = model.getLanguageIdAtPosition(position.lineNumber, position.column);
-		languageId = this._languageService.validateLanguageId(languageId);
-		if (!languageId || !this._languageService.getLanguageName(languageId)) {
+		let languageId = model.getLanguageIdAtPosition(position.lineNumber, position.column);
+		if (!this._languageService.getLanguageName(languageId)){
 			languageId = model.getLanguageId();
 		}
 		return languageId;

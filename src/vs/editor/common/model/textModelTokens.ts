@@ -8,9 +8,9 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { EncodedTokenizationResult } from 'vs/editor/common/core/token';
 import { ILanguageIdCodec, IState, ITokenizationSupport, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/modes';
-import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
+import { nullTokenizeEncoded } from 'vs/editor/common/modes/nullMode';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -506,19 +506,19 @@ function initializeTokenization(textModel: TextModel): [ITokenizationSupport | n
 	return [tokenizationSupport, initialState];
 }
 
-function safeTokenize(languageIdCodec: ILanguageIdCodec, languageId: string, tokenizationSupport: ITokenizationSupport | null, text: string, hasEOL: boolean, state: IState): TokenizationResult2 {
-	let r: TokenizationResult2 | null = null;
+function safeTokenize(languageIdCodec: ILanguageIdCodec, languageId: string, tokenizationSupport: ITokenizationSupport | null, text: string, hasEOL: boolean, state: IState): EncodedTokenizationResult {
+	let r: EncodedTokenizationResult | null = null;
 
 	if (tokenizationSupport) {
 		try {
-			r = tokenizationSupport.tokenize2(text, hasEOL, state.clone(), 0);
+			r = tokenizationSupport.tokenizeEncoded(text, hasEOL, state.clone());
 		} catch (e) {
 			onUnexpectedError(e);
 		}
 	}
 
 	if (!r) {
-		r = nullTokenize2(languageIdCodec.encodeLanguageId(languageId), text, state, 0);
+		r = nullTokenizeEncoded(languageIdCodec.encodeLanguageId(languageId), state);
 	}
 
 	LineTokens.convertToEndOffset(r.tokens, text.length);

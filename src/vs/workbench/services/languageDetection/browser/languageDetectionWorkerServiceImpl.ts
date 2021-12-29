@@ -8,15 +8,15 @@ import { ILanguageDetectionService, ILanguageDetectionStats, LanguageDetectionSt
 import { FileAccess } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { URI } from 'vs/base/common/uri';
 import { isWeb } from 'vs/base/common/platform';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { LanguageDetectionSimpleWorker } from 'vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { EditorWorkerClient, EditorWorkerHost } from 'vs/editor/common/services/editorWorkerServiceImpl';
+import { EditorWorkerClient, EditorWorkerHost } from 'vs/editor/common/services/editorWorkerService';
 import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 const moduleLocation = '../../../../../../node_modules/@vscode/vscode-languagedetection';
@@ -59,17 +59,17 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 		return !!languageId && this._configurationService.getValue<boolean>(LanguageDetectionService.enablementSettingKey, { overrideIdentifier: languageId });
 	}
 
-	private getModeId(language: string | undefined): string | undefined {
+	private getLanguageId(language: string | undefined): string | undefined {
 		if (!language) {
 			return undefined;
 		}
-		return this._languageService.getLanguageIdByFilepathOrFirstLine(URI.file(`file.${language}`)) ?? undefined;
+		return this._languageService.guessLanguageIdByFilepathOrFirstLine(URI.file(`file.${language}`)) ?? undefined;
 	}
 
 	async detectLanguage(resource: URI): Promise<string | undefined> {
 		const language = await this._languageDetectionWorkerClient.detectLanguage(resource);
 		if (language) {
-			return this.getModeId(language);
+			return this.getLanguageId(language);
 		}
 		return undefined;
 	}

@@ -734,22 +734,6 @@ export class ConfigurationChangedEvent {
 }
 
 /**
- * @internal
- */
-export class ValidatedEditorOptions {
-	private readonly _values: any[] = [];
-	public _read<T>(option: EditorOption): T {
-		return this._values[option];
-	}
-	public get<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T> {
-		return this._values[id];
-	}
-	public _write<T>(option: EditorOption, value: T): void {
-		this._values[option] = value;
-	}
-}
-
-/**
  * All computed editor options.
  */
 export interface IComputedEditorOptions {

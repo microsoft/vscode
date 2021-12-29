@@ -24,7 +24,7 @@ import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { getIconClassesForModeId } from 'vs/editor/common/services/getIconClasses';
+import { getIconClassesForLanguageId } from 'vs/editor/common/services/getIconClasses';
 import { IWorkbenchDataTreeOptions } from 'vs/platform/list/browser/listService';
 import { localize } from 'vs/nls';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
@@ -166,7 +166,7 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 
 		if (node.element.cell.cellKind === CellKind.Code && this._themeService.getFileIconTheme().hasFileIcons) {
 			template.iconClass.className = '';
-			options.extraClasses?.push(...getIconClassesForModeId(node.element.cell.language ?? ''));
+			options.extraClasses?.push(...getIconClassesForLanguageId(node.element.cell.language ?? ''));
 		} else {
 			template.iconClass.className = 'element-icon ' + ThemeIcon.asClassNameArray(node.element.icon).join(' ');
 		}
@@ -252,7 +252,7 @@ class NotebookQuickPickProvider implements IQuickPickDataSource<OutlineEntry> {
 				element,
 				label: hasFileIcons ? element.label : `$(${element.icon.id}) ${element.label}`,
 				ariaLabel: element.label,
-				iconClasses: hasFileIcons ? getIconClassesForModeId(element.cell.language ?? '') : undefined,
+				iconClasses: hasFileIcons ? getIconClassesForLanguageId(element.cell.language ?? '') : undefined,
 			});
 		}
 		return result;

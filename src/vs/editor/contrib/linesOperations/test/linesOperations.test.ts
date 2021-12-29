@@ -1081,6 +1081,7 @@ suite('Editor Contrib - Line Operations', () => {
 			[
 				'function baz() {'
 			].join('\n'),
+			undefined,
 			{
 				insertSpaces: false,
 			}
@@ -1106,6 +1107,7 @@ suite('Editor Contrib - Line Operations', () => {
 			[
 				'Some text'
 			].join('\n'),
+			undefined,
 			{
 				insertSpaces: false,
 			}

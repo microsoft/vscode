@@ -1224,7 +1224,7 @@ export interface IModelAddedData {
 	isDirty: boolean;
 }
 export interface ExtHostDocumentsShape {
-	$acceptModelModeChanged(strURL: UriComponents, newModeId: string): void;
+	$acceptModelLanguageChanged(strURL: UriComponents, newLanguageId: string): void;
 	$acceptModelSaved(strURL: UriComponents): void;
 	$acceptDirtyStateChanged(strURL: UriComponents, isDirty: boolean): void;
 	$acceptModelChanged(strURL: UriComponents, e: IModelChangedEvent, isDirty: boolean): void;

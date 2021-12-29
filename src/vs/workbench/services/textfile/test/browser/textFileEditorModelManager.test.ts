@@ -11,7 +11,7 @@ import { workbenchInstantiationService, TestServiceAccessor, TestTextFileEditorM
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { toResource } from 'vs/base/test/common/utils';
-import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { ModesRegistry, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { timeout } from 'vs/base/common/async';
@@ -422,7 +422,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		assert.strictEqual(model.textEditorModel!.getLanguageId(), mode);
 
 		model = await manager.resolve(resource, { mode: 'text' });
-		assert.strictEqual(model.textEditorModel!.getLanguageId(), PLAINTEXT_MODE_ID);
+		assert.strictEqual(model.textEditorModel!.getLanguageId(), PLAINTEXT_LANGUAGE_ID);
 
 		model.dispose();
 		manager.dispose();

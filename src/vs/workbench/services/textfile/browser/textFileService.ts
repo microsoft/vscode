@@ -17,26 +17,25 @@ import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/commo
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Schemas } from 'vs/base/common/network';
 import { createTextBufferFactoryFromSnapshot, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { joinPath, dirname, basename, toLocalResource, extname, isEqual } from 'vs/base/common/resources';
 import { IDialogService, IFileDialogService, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
 import { VSBuffer, VSBufferReadable, bufferToStream, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { ITextSnapshot, ITextModel } from 'vs/editor/common/model';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { isValidBasename } from 'vs/base/common/extpath';
 import { IWorkingCopyFileService, IFileOperationUndoRedoInfo, ICreateFileOperation } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, toEncodeReadable, toDecodeStream, IDecodeStreamResult, DecodeStreamError, DecodeStreamErrorKind } from 'vs/workbench/services/textfile/common/encoding';
 import { consumeStream, ReadableStream } from 'vs/base/common/stream';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
@@ -525,7 +524,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			// mode
 			const sourceMode = sourceTextModel.getLanguageId();
 			const targetMode = targetTextModel.getLanguageId();
-			if (sourceMode !== PLAINTEXT_MODE_ID && targetMode === PLAINTEXT_MODE_ID) {
+			if (sourceMode !== PLAINTEXT_LANGUAGE_ID && targetMode === PLAINTEXT_LANGUAGE_ID) {
 				targetTextModel.setMode(sourceMode); // only use if more specific than plain/text
 			}
 
@@ -561,6 +560,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		const remoteAuthority = this.environmentService.remoteAuthority;
+		const defaultFilePath = await this.fileDialogService.defaultFilePath();
 
 		// Otherwise try to suggest a path that can be saved
 		let suggestedFilename: string | undefined = undefined;
@@ -574,15 +574,16 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				}
 
 				// Untitled without associated file path: use name
-				// of untitled model if it is a valid path name
+				// of untitled model if it is a valid path name,
+				// otherwise fallback to `basename`.
 				let untitledName = model.name;
-				if (!isValidBasename(untitledName)) {
+				if (!(await this.pathService.hasValidBasename(joinPath(defaultFilePath, untitledName)))) {
 					untitledName = basename(resource);
 				}
 
 				// Add mode file extension if specified
 				const mode = model.getMode();
-				if (mode && mode !== PLAINTEXT_MODE_ID) {
+				if (mode && mode !== PLAINTEXT_LANGUAGE_ID) {
 					suggestedFilename = this.suggestFilename(mode, untitledName);
 				} else {
 					suggestedFilename = untitledName;
@@ -597,7 +598,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		// Try to place where last active file was if any
 		// Otherwise fallback to user home
-		return joinPath(await this.fileDialogService.defaultFilePath(), suggestedFilename);
+		return joinPath(defaultFilePath, suggestedFilename);
 	}
 
 	suggestFilename(mode: string, untitledName: string) {
@@ -606,14 +607,14 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			return untitledName;
 		}
 
-		const extension = this.languageService.getExtensions(languageName)[0];
+		const extension = this.languageService.getExtensions(mode)[0];
 		if (extension) {
 			if (!untitledName.endsWith(extension)) {
 				return untitledName + extension;
 			}
 		}
 
-		const filename = this.languageService.getFilenames(languageName)[0];
+		const filename = this.languageService.getFilenames(mode)[0];
 		return filename || untitledName;
 	}
 

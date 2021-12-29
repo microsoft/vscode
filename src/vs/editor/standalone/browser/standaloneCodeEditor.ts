@@ -13,15 +13,14 @@ import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/edit
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { IModelChangedEvent } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { StandaloneKeybindingService, updateConfigurationService } from 'vs/editor/standalone/browser/simpleServices';
-import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
+import { StandaloneKeybindingService, updateConfigurationService } from 'vs/editor/standalone/browser/standaloneServices';
+import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
 import { IMenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -30,12 +29,12 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { StandaloneCodeEditorNLS } from 'vs/editor/common/standaloneStrings';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
-import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standaloneThemeServiceImpl';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ILanguageSelection, ILanguageService } from 'vs/editor/common/services/languageService';
+import { StandaloneThemeService } from 'vs/editor/standalone/browser/standaloneThemeService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageSelection, ILanguageService } from 'vs/editor/common/services/language';
 import { URI } from 'vs/base/common/uri';
-import { StandaloneCodeEditorServiceImpl } from 'vs/editor/standalone/browser/standaloneCodeServiceImpl';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { StandaloneCodeEditorService } from 'vs/editor/standalone/browser/standaloneCodeEditorService';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 /**
@@ -380,7 +379,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 	}
 
 	protected override _triggerCommand(handlerId: string, payload: any): void {
-		if (this._codeEditorService instanceof StandaloneCodeEditorServiceImpl) {
+		if (this._codeEditorService instanceof StandaloneCodeEditorService) {
 			// Help commands find this editor as the active editor
 			try {
 				this._codeEditorService.setActiveCodeEditor(this);
@@ -396,7 +395,6 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 
 export class StandaloneEditor extends StandaloneCodeEditor implements IStandaloneCodeEditor {
 
-	private readonly _contextViewService: ContextViewService;
 	private readonly _configurationService: IConfigurationService;
 	private readonly _standaloneThemeService: IStandaloneThemeService;
 	private _ownsModel: boolean;
@@ -404,13 +402,11 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 	constructor(
 		domElement: HTMLElement,
 		_options: Readonly<IStandaloneEditorConstructionOptions> | undefined,
-		toDispose: IDisposable,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextViewService contextViewService: IContextViewService,
 		@IStandaloneThemeService themeService: IStandaloneThemeService,
 		@INotificationService notificationService: INotificationService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -421,7 +417,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 	) {
 		const options = { ..._options };
 		updateConfigurationService(configurationService, options, false);
-		const themeDomRegistration = (<StandaloneThemeServiceImpl>themeService).registerEditorContainer(domElement);
+		const themeDomRegistration = (<StandaloneThemeService>themeService).registerEditorContainer(domElement);
 		if (typeof options.theme === 'string') {
 			themeService.setTheme(options.theme);
 		}
@@ -432,15 +428,13 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		delete options.model;
 		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService, themeService, notificationService, accessibilityService, languageConfigurationService);
 
-		this._contextViewService = <ContextViewService>contextViewService;
 		this._configurationService = configurationService;
 		this._standaloneThemeService = themeService;
-		this._register(toDispose);
 		this._register(themeDomRegistration);
 
 		let model: ITextModel | null;
 		if (typeof _model === 'undefined') {
-			const languageId = languageService.getLanguageIdForMimeType(options.language) || options.language || PLAINTEXT_MODE_ID;
+			const languageId = languageService.getLanguageIdByMimeType(options.language) || options.language || PLAINTEXT_LANGUAGE_ID;
 			model = createTextModel(modelService, languageService, options.value || '', languageId, undefined);
 			this._ownsModel = true;
 		} else {
@@ -473,13 +467,6 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		super.updateOptions(newOptions);
 	}
 
-	override _attachModel(model: ITextModel | null): void {
-		super._attachModel(model);
-		if (this._modelData) {
-			this._contextViewService.setContainer(this._modelData.view.domNode.domNode);
-		}
-	}
-
 	override _postDetachModelCleanup(detachedModel: ITextModel): void {
 		super._postDetachModelCleanup(detachedModel);
 		if (detachedModel && this._ownsModel) {
@@ -491,18 +478,14 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 
 export class StandaloneDiffEditor extends DiffEditorWidget implements IStandaloneDiffEditor {
 
-	private readonly _contextViewService: ContextViewService;
 	private readonly _configurationService: IConfigurationService;
 	private readonly _standaloneThemeService: IStandaloneThemeService;
 
 	constructor(
 		domElement: HTMLElement,
 		_options: Readonly<IStandaloneDiffEditorConstructionOptions> | undefined,
-		toDispose: IDisposable,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextViewService contextViewService: IContextViewService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IStandaloneThemeService themeService: IStandaloneThemeService,
@@ -514,7 +497,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 	) {
 		const options = { ..._options };
 		updateConfigurationService(configurationService, options, true);
-		const themeDomRegistration = (<StandaloneThemeServiceImpl>themeService).registerEditorContainer(domElement);
+		const themeDomRegistration = (<StandaloneThemeService>themeService).registerEditorContainer(domElement);
 		if (typeof options.theme === 'string') {
 			themeService.setTheme(options.theme);
 		}
@@ -524,14 +507,10 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 
 		super(domElement, options, {}, clipboardService, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, editorProgressService);
 
-		this._contextViewService = <ContextViewService>contextViewService;
 		this._configurationService = configurationService;
 		this._standaloneThemeService = themeService;
 
-		this._register(toDispose);
 		this._register(themeDomRegistration);
-
-		this._contextViewService.setContainer(this._containerDomElement);
 	}
 
 	public override dispose(): void {

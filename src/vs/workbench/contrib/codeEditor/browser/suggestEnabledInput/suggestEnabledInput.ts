@@ -20,7 +20,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';

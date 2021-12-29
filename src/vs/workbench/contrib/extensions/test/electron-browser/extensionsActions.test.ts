@@ -33,7 +33,7 @@ import { NativeURLService } from 'vs/platform/url/common/urlService';
 import { URI } from 'vs/base/common/uri';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbox/remoteAgentServiceImpl';
+import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbox/remoteAgentService';
 import { ExtensionIdentifier, IExtensionContributions, ExtensionType, IExtensionDescription, IExtension } from 'vs/platform/extensions/common/extensions';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { CancellationToken } from 'vs/base/common/cancellation';

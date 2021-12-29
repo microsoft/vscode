@@ -3,31 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
+import { Token, TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/core/token';
 import { ColorId, FontStyle, IState, LanguageId, MetadataConsts, StandardTokenType } from 'vs/editor/common/modes';
 
-class NullStateImpl implements IState {
-
+export const NullState: IState = new class implements IState {
 	public clone(): IState {
 		return this;
 	}
-
 	public equals(other: IState): boolean {
 		return (this === other);
 	}
+};
+
+export function nullTokenize(languageId: string, state: IState): TokenizationResult {
+	return new TokenizationResult([new Token(0, '', languageId)], state);
 }
 
-export const NULL_STATE: IState = new NullStateImpl();
-
-export const NULL_MODE_ID = 'vs.editor.nullMode';
-
-export function nullTokenize(languageId: string, buffer: string, state: IState, deltaOffset: number): TokenizationResult {
-	return new TokenizationResult([new Token(deltaOffset, '', languageId)], state);
-}
-
-export function nullTokenize2(languageId: LanguageId, buffer: string, state: IState | null, deltaOffset: number): TokenizationResult2 {
+export function nullTokenizeEncoded(languageId: LanguageId, state: IState | null): EncodedTokenizationResult {
 	let tokens = new Uint32Array(2);
-	tokens[0] = deltaOffset;
+	tokens[0] = 0;
 	tokens[1] = (
 		(languageId << MetadataConsts.LANGUAGEID_OFFSET)
 		| (StandardTokenType.Other << MetadataConsts.TOKEN_TYPE_OFFSET)
@@ -36,5 +30,5 @@ export function nullTokenize2(languageId: LanguageId, buffer: string, state: ISt
 		| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
 	) >>> 0;
 
-	return new TokenizationResult2(tokens, state === null ? NULL_STATE : state);
+	return new EncodedTokenizationResult(tokens, state === null ? NullState : state);
 }

@@ -15,16 +15,16 @@ import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/u
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ScrollType, IEditor, ICodeEditorViewState } from 'vs/editor/common/editorCommon';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/services/language';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { EditorOption, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ModelConstants } from 'vs/editor/common/model';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
@@ -182,7 +182,7 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		}
 
 		const currentLanguageId = textModel.getLanguageId();
-		if (currentLanguageId !== PLAINTEXT_MODE_ID) {
+		if (currentLanguageId !== PLAINTEXT_LANGUAGE_ID) {
 			return; // require current languageId to be unspecific
 		}
 
@@ -198,11 +198,11 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		// We can still try to guess a good languageId from the first line if
 		// the paste changed the first line
 		else {
-			candidateLanguageId = withNullAsUndefined(this.languageService.getLanguageIdByFilepathOrFirstLine(textModel.uri, textModel.getLineContent(1).substr(0, ModelConstants.FIRST_LINE_DETECTION_LENGTH_LIMIT)));
+			candidateLanguageId = withNullAsUndefined(this.languageService.guessLanguageIdByFilepathOrFirstLine(textModel.uri, textModel.getLineContent(1).substr(0, ModelConstants.FIRST_LINE_DETECTION_LENGTH_LIMIT)));
 		}
 
 		// Finally apply languageId to model if specified
-		if (candidateLanguageId !== PLAINTEXT_MODE_ID) {
+		if (candidateLanguageId !== PLAINTEXT_LANGUAGE_ID) {
 			this.modelService.setMode(textModel, this.languageService.createById(candidateLanguageId));
 		}
 	}

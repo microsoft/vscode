@@ -9,48 +9,48 @@ import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
 
 suite('LanguagesRegistry', () => {
 
-	test('output mode does not have a name', () => {
+	test('output language does not have a name', () => {
 		let registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
-			id: 'outputModeId',
+			id: 'outputLangId',
 			extensions: [],
 			aliases: [],
-			mimetypes: ['outputModeMimeType'],
+			mimetypes: ['outputLanguageMimeType'],
 		}]);
 
-		assert.deepStrictEqual(registry.getRegisteredLanguageNames(), []);
+		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), []);
 
 		registry.dispose();
 	});
 
-	test('mode with alias does have a name', () => {
+	test('language with alias does have a name', () => {
 		let registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
-			id: 'modeId',
+			id: 'langId',
 			extensions: [],
-			aliases: ['ModeName'],
+			aliases: ['LangName'],
 			mimetypes: ['bla'],
 		}]);
 
-		assert.deepStrictEqual(registry.getRegisteredLanguageNames(), ['ModeName']);
-		assert.deepStrictEqual(registry.getLanguageName('modeId'), 'ModeName');
+		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), [{ languageName: 'LangName', languageId: 'langId' }]);
+		assert.deepStrictEqual(registry.getLanguageName('langId'), 'LangName');
 
 		registry.dispose();
 	});
 
-	test('mode without alias gets a name', () => {
+	test('language without alias gets a name', () => {
 		let registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
-			id: 'modeId',
+			id: 'langId',
 			extensions: [],
 			mimetypes: ['bla'],
 		}]);
 
-		assert.deepStrictEqual(registry.getRegisteredLanguageNames(), ['modeId']);
-		assert.deepStrictEqual(registry.getLanguageName('modeId'), 'modeId');
+		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), [{ languageName: 'langId', languageId: 'langId' }]);
+		assert.deepStrictEqual(registry.getLanguageName('langId'), 'langId');
 
 		registry.dispose();
 	});
@@ -59,21 +59,21 @@ suite('LanguagesRegistry', () => {
 		let registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
-			id: 'modeId',
+			id: 'langId',
 			extensions: ['.ext1'],
-			aliases: ['ModeName'],
+			aliases: ['LangName'],
 			mimetypes: ['bla'],
 		}]);
 
 		registry._registerLanguages([{
-			id: 'modeId',
+			id: 'langId',
 			extensions: ['.ext2'],
 			aliases: [],
 			mimetypes: ['bla'],
 		}]);
 
-		assert.deepStrictEqual(registry.getRegisteredLanguageNames(), ['ModeName']);
-		assert.deepStrictEqual(registry.getLanguageName('modeId'), 'ModeName');
+		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), [{ languageName: 'LangName', languageId: 'langId' }]);
+		assert.deepStrictEqual(registry.getLanguageName('langId'), 'LangName');
 
 		registry.dispose();
 	});
@@ -82,21 +82,21 @@ suite('LanguagesRegistry', () => {
 		let registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
-			id: 'modeId',
+			id: 'langId',
 			extensions: ['.ext1'],
-			aliases: ['ModeName'],
+			aliases: ['LangName'],
 			mimetypes: ['bla'],
 		}]);
 
 		registry._registerLanguages([{
-			id: 'modeId',
+			id: 'langId',
 			extensions: ['.ext2'],
-			aliases: ['BetterModeName'],
+			aliases: ['BetterLanguageName'],
 			mimetypes: ['bla'],
 		}]);
 
-		assert.deepStrictEqual(registry.getRegisteredLanguageNames(), ['BetterModeName']);
-		assert.deepStrictEqual(registry.getLanguageName('modeId'), 'BetterModeName');
+		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), [{ languageName: 'BetterLanguageName', languageId: 'langId' }]);
+		assert.deepStrictEqual(registry.getLanguageName('langId'), 'BetterLanguageName');
 
 		registry.dispose();
 	});
@@ -105,10 +105,10 @@ suite('LanguagesRegistry', () => {
 		let registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
-			id: 'modeId'
+			id: 'langId'
 		}]);
 
-		assert.deepStrictEqual(registry.getMimeTypeForLanguageId('modeId'), 'text/x-modeId');
+		assert.deepStrictEqual(registry.getMimeType('langId'), 'text/x-langId');
 
 		registry.dispose();
 	});
@@ -117,11 +117,11 @@ suite('LanguagesRegistry', () => {
 		let registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
-			id: 'modeId',
-			mimetypes: ['text/modeId', 'text/modeId2']
+			id: 'langId',
+			mimetypes: ['text/langId', 'text/langId2']
 		}]);
 
-		assert.deepStrictEqual(registry.getMimeTypeForLanguageId('modeId'), 'text/modeId');
+		assert.deepStrictEqual(registry.getMimeType('langId'), 'text/langId');
 
 		registry.dispose();
 	});
@@ -130,15 +130,15 @@ suite('LanguagesRegistry', () => {
 		let registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
-			id: 'modeId'
+			id: 'langId'
 		}]);
 
 		registry._registerLanguages([{
-			id: 'modeId',
-			mimetypes: ['text/modeId']
+			id: 'langId',
+			mimetypes: ['text/langId']
 		}]);
 
-		assert.deepStrictEqual(registry.getMimeTypeForLanguageId('modeId'), 'text/x-modeId');
+		assert.deepStrictEqual(registry.getMimeType('langId'), 'text/x-langId');
 
 		registry.dispose();
 	});
@@ -150,9 +150,8 @@ suite('LanguagesRegistry', () => {
 			id: 'a'
 		}]);
 
-		assert.deepStrictEqual(registry.getRegisteredLanguageNames(), ['a']);
-		assert.deepStrictEqual(registry.getModeIdFromLanguageName('a'), 'a');
-		assert.deepStrictEqual(registry.getLanguageIdForLanguageName('a'), 'a');
+		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), [{ languageName: 'a', languageId: 'a' }]);
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a'), 'a');
 		assert.deepStrictEqual(registry.getLanguageName('a'), 'a');
 
 		registry._registerLanguages([{
@@ -160,13 +159,10 @@ suite('LanguagesRegistry', () => {
 			aliases: ['A1', 'A2']
 		}]);
 
-		assert.deepStrictEqual(registry.getRegisteredLanguageNames(), ['A1']);
-		assert.deepStrictEqual(registry.getModeIdFromLanguageName('a'), null);
-		assert.deepStrictEqual(registry.getModeIdFromLanguageName('A1'), 'a');
-		assert.deepStrictEqual(registry.getModeIdFromLanguageName('A2'), null);
-		assert.deepStrictEqual(registry.getLanguageIdForLanguageName('a'), 'a');
-		assert.deepStrictEqual(registry.getLanguageIdForLanguageName('a1'), 'a');
-		assert.deepStrictEqual(registry.getLanguageIdForLanguageName('a2'), 'a');
+		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), [{ languageName: 'A1', languageId: 'a' }]);
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a'), 'a');
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a1'), 'a');
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a2'), 'a');
 		assert.deepStrictEqual(registry.getLanguageName('a'), 'A1');
 
 		registry._registerLanguages([{
@@ -174,17 +170,12 @@ suite('LanguagesRegistry', () => {
 			aliases: ['A3', 'A4']
 		}]);
 
-		assert.deepStrictEqual(registry.getRegisteredLanguageNames(), ['A3']);
-		assert.deepStrictEqual(registry.getModeIdFromLanguageName('a'), null);
-		assert.deepStrictEqual(registry.getModeIdFromLanguageName('A1'), null);
-		assert.deepStrictEqual(registry.getModeIdFromLanguageName('A2'), null);
-		assert.deepStrictEqual(registry.getModeIdFromLanguageName('A3'), 'a');
-		assert.deepStrictEqual(registry.getModeIdFromLanguageName('A4'), null);
-		assert.deepStrictEqual(registry.getLanguageIdForLanguageName('a'), 'a');
-		assert.deepStrictEqual(registry.getLanguageIdForLanguageName('a1'), 'a');
-		assert.deepStrictEqual(registry.getLanguageIdForLanguageName('a2'), 'a');
-		assert.deepStrictEqual(registry.getLanguageIdForLanguageName('a3'), 'a');
-		assert.deepStrictEqual(registry.getLanguageIdForLanguageName('a4'), 'a');
+		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), [{ languageName: 'A3', languageId: 'a' }]);
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a'), 'a');
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a1'), 'a');
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a2'), 'a');
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a3'), 'a');
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a4'), 'a');
 		assert.deepStrictEqual(registry.getLanguageName('a'), 'A3');
 
 		registry.dispose();
@@ -197,9 +188,8 @@ suite('LanguagesRegistry', () => {
 			id: 'a'
 		}]);
 
-		assert.deepStrictEqual(registry.getRegisteredLanguageNames(), ['a']);
-		assert.deepStrictEqual(registry.getModeIdFromLanguageName('a'), 'a');
-		assert.deepStrictEqual(registry.getLanguageIdForLanguageName('a'), 'a');
+		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), [{ languageName: 'a', languageId: 'a' }]);
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a'), 'a');
 		assert.deepStrictEqual(registry.getLanguageName('a'), 'a');
 
 		registry._registerLanguages([{
@@ -207,11 +197,9 @@ suite('LanguagesRegistry', () => {
 			aliases: []
 		}]);
 
-		assert.deepStrictEqual(registry.getRegisteredLanguageNames(), ['a']);
-		assert.deepStrictEqual(registry.getModeIdFromLanguageName('a'), 'a');
-		assert.deepStrictEqual(registry.getModeIdFromLanguageName('b'), null);
-		assert.deepStrictEqual(registry.getLanguageIdForLanguageName('a'), 'a');
-		assert.deepStrictEqual(registry.getLanguageIdForLanguageName('b'), 'b');
+		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), [{ languageName: 'a', languageId: 'a' }]);
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a'), 'a');
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('b'), 'b');
 		assert.deepStrictEqual(registry.getLanguageName('a'), 'a');
 		assert.deepStrictEqual(registry.getLanguageName('b'), null);
 
@@ -227,18 +215,14 @@ suite('LanguagesRegistry', () => {
 			extensions: ['aExt']
 		}]);
 
-		assert.deepStrictEqual(registry.getExtensions('a'), []);
-		assert.deepStrictEqual(registry.getExtensions('aname'), []);
-		assert.deepStrictEqual(registry.getExtensions('aName'), ['aExt']);
+		assert.deepStrictEqual(registry.getExtensions('a'), ['aExt']);
 
 		registry._registerLanguages([{
 			id: 'a',
 			extensions: ['aExt2']
 		}]);
 
-		assert.deepStrictEqual(registry.getExtensions('a'), []);
-		assert.deepStrictEqual(registry.getExtensions('aname'), []);
-		assert.deepStrictEqual(registry.getExtensions('aName'), ['aExt', 'aExt2']);
+		assert.deepStrictEqual(registry.getExtensions('a'), ['aExt', 'aExt2']);
 
 		registry.dispose();
 	});
@@ -280,18 +264,14 @@ suite('LanguagesRegistry', () => {
 			filenames: ['aFilename']
 		}]);
 
-		assert.deepStrictEqual(registry.getFilenames('a'), []);
-		assert.deepStrictEqual(registry.getFilenames('aname'), []);
-		assert.deepStrictEqual(registry.getFilenames('aName'), ['aFilename']);
+		assert.deepStrictEqual(registry.getFilenames('a'), ['aFilename']);
 
 		registry._registerLanguages([{
 			id: 'a',
 			filenames: ['aFilename2']
 		}]);
 
-		assert.deepStrictEqual(registry.getFilenames('a'), []);
-		assert.deepStrictEqual(registry.getFilenames('aname'), []);
-		assert.deepStrictEqual(registry.getFilenames('aName'), ['aFilename', 'aFilename2']);
+		assert.deepStrictEqual(registry.getFilenames('a'), ['aFilename', 'aFilename2']);
 
 		registry.dispose();
 	});

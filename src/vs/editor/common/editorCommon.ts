@@ -150,19 +150,53 @@ export interface ILineChange extends IChange {
  * @internal
  */
 export interface IConfiguration extends IDisposable {
-	onDidChangeFast(listener: (e: ConfigurationChangedEvent) => void): IDisposable;
-	onDidChange(listener: (e: ConfigurationChangedEvent) => void): IDisposable;
 
+	/**
+	 * Is this a simple widget (not a real code editor)?
+	 */
+	readonly isSimpleWidget: boolean;
+	/**
+	 * Computed editor options.
+	 */
 	readonly options: IComputedEditorOptions;
 
-	setMaxLineNumber(maxLineNumber: number): void;
-	setViewLineCount(viewLineCount: number): void;
-	updateOptions(newOptions: Readonly<IEditorOptions>): void;
+	onDidChangeFast: Event<ConfigurationChangedEvent>;
+	onDidChange: Event<ConfigurationChangedEvent>;
+
+	/**
+	 * Get the raw options as they were passed in to the editor
+	 * and merged with all calls to `updateOptions`.
+	 */
 	getRawOptions(): IEditorOptions;
-	observeReferenceElement(dimension?: IDimension): void;
-	updatePixelRatio(): void;
+	/**
+	 * Update the options with new partial options. All previous
+	 * options will be kept and only present keys will be overwritten.
+	 */
+	updateOptions(newOptions: Readonly<IEditorOptions>): void;
+	/**
+	 * Recompute options with new reference element dimensions.
+	 */
+	observeContainer(dimension?: IDimension): void;
+	/**
+	 * Recompute options with new pixel ratio.
+	 */
+	observePixelRatio(): void;
+	/**
+	 * Set if the current model is dominated by long lines.
+	 */
 	setIsDominatedByLongLines(isDominatedByLongLines: boolean): void;
-	reserveHeight(height: number): void;
+	/**
+	 * Set the current model line count.
+	 */
+	setModelLineCount(modelLineCount: number): void;
+	/**
+	 * Set the current view model line count.
+	 */
+	setViewLineCount(viewLineCount: number): void;
+	/**
+	 * Set reserved height above.
+	 */
+	setReservedHeight(reservedHeight: number): void;
 }
 
 // --- view

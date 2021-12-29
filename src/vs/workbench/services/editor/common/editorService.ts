@@ -9,7 +9,7 @@ import { IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResour
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { Event } from 'vs/base/common/event';
 import { IEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IEditorGroup, IEditorReplacement, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { URI } from 'vs/base/common/uri';
 import { IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
 
@@ -44,7 +44,15 @@ export interface ISaveEditorsOptions extends ISaveOptions {
 }
 
 export interface IUntypedEditorReplacement {
+
+	/**
+	 * The editor to replace.
+	 */
 	readonly editor: EditorInput;
+
+	/**
+	 * The replacement for the editor.
+	 */
 	readonly replacement: IUntypedEditorInput;
 
 	/**
@@ -200,6 +208,19 @@ export interface IEditorService {
 	openEditor(editor: ITextResourceEditorInput | IUntitledTextResourceEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
 	openEditor(editor: IResourceDiffEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextDiffEditorPane | undefined>;
 	openEditor(editor: IUntypedEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
+
+	/**
+	 * @deprecated using this method is a sign that your editor has not adopted the editor
+	 * resolver yet. Please use `IEditorResolverService.registerEditor` to make your editor
+	 * known to the workbench and then use untyped editor inputs for opening:
+	 *
+	 * ```ts
+	 * editorService.openEditor({ resource });
+	 * ```
+	 *
+	 * If you already have an `EditorInput` in hand and must use it for opening, use `group.openEditor`
+	 * instead, via `IEditorGroupService`.
+	 */
 	openEditor(editor: EditorInput, options?: IEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
 
 	/**
@@ -225,11 +246,6 @@ export interface IEditorService {
 	 * editor (if any) has finished loading.
 	 */
 	replaceEditors(replacements: IUntypedEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
-
-	/**
-	 * @deprecated when using `EditorInput`, please call `group.replaceEditors` directly.
-	 */
-	replaceEditors(replacements: IEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
 
 	/**
 	 * Find out if the provided editor is opened in any editor group.

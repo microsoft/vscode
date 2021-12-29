@@ -10,7 +10,7 @@ import { TextResourceEditorModel } from 'vs/workbench/common/editor/textResource
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
-import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { ModesRegistry, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('TextResourceEditorInput', () => {
@@ -31,7 +31,7 @@ suite('TextResourceEditorInput', () => {
 
 	test('basics', async () => {
 		const resource = URI.from({ scheme: 'inmemory', authority: null!, path: 'thePath' });
-		accessor.modelService.createModel('function test() {}', accessor.languageService.createById(PLAINTEXT_MODE_ID), resource);
+		accessor.modelService.createModel('function test() {}', accessor.languageService.createById(PLAINTEXT_LANGUAGE_ID), resource);
 
 		const input = instantiationService.createInstance(TextResourceEditorInput, resource, 'The Name', 'The Description', undefined, undefined);
 
@@ -47,7 +47,7 @@ suite('TextResourceEditorInput', () => {
 		});
 
 		const resource = URI.from({ scheme: 'inmemory', authority: null!, path: 'thePath' });
-		accessor.modelService.createModel('function test() {}', accessor.languageService.createById(PLAINTEXT_MODE_ID), resource);
+		accessor.modelService.createModel('function test() {}', accessor.languageService.createById(PLAINTEXT_LANGUAGE_ID), resource);
 
 		const input = instantiationService.createInstance(TextResourceEditorInput, resource, 'The Name', 'The Description', 'resource-input-test', undefined);
 
@@ -56,10 +56,10 @@ suite('TextResourceEditorInput', () => {
 		assert.strictEqual(model.textEditorModel?.getLanguageId(), 'resource-input-test');
 
 		input.setMode('text');
-		assert.strictEqual(model.textEditorModel?.getLanguageId(), PLAINTEXT_MODE_ID);
+		assert.strictEqual(model.textEditorModel?.getLanguageId(), PLAINTEXT_LANGUAGE_ID);
 
 		await input.resolve();
-		assert.strictEqual(model.textEditorModel?.getLanguageId(), PLAINTEXT_MODE_ID);
+		assert.strictEqual(model.textEditorModel?.getLanguageId(), PLAINTEXT_LANGUAGE_ID);
 	});
 
 	test('preferred mode (via setPreferredMode)', async () => {
@@ -68,7 +68,7 @@ suite('TextResourceEditorInput', () => {
 		});
 
 		const resource = URI.from({ scheme: 'inmemory', authority: null!, path: 'thePath' });
-		accessor.modelService.createModel('function test() {}', accessor.languageService.createById(PLAINTEXT_MODE_ID), resource);
+		accessor.modelService.createModel('function test() {}', accessor.languageService.createById(PLAINTEXT_LANGUAGE_ID), resource);
 
 		const input = instantiationService.createInstance(TextResourceEditorInput, resource, 'The Name', 'The Description', undefined, undefined);
 		input.setPreferredMode('resource-input-test');
@@ -80,7 +80,7 @@ suite('TextResourceEditorInput', () => {
 
 	test('preferred contents (via ctor)', async () => {
 		const resource = URI.from({ scheme: 'inmemory', authority: null!, path: 'thePath' });
-		accessor.modelService.createModel('function test() {}', accessor.languageService.createById(PLAINTEXT_MODE_ID), resource);
+		accessor.modelService.createModel('function test() {}', accessor.languageService.createById(PLAINTEXT_LANGUAGE_ID), resource);
 
 		const input = instantiationService.createInstance(TextResourceEditorInput, resource, 'The Name', 'The Description', undefined, 'My Resource Input Contents');
 
@@ -97,7 +97,7 @@ suite('TextResourceEditorInput', () => {
 
 	test('preferred contents (via setPreferredContents)', async () => {
 		const resource = URI.from({ scheme: 'inmemory', authority: null!, path: 'thePath' });
-		accessor.modelService.createModel('function test() {}', accessor.languageService.createById(PLAINTEXT_MODE_ID), resource);
+		accessor.modelService.createModel('function test() {}', accessor.languageService.createById(PLAINTEXT_LANGUAGE_ID), resource);
 
 		const input = instantiationService.createInstance(TextResourceEditorInput, resource, 'The Name', 'The Description', undefined, undefined);
 		input.setPreferredContents('My Resource Input Contents');

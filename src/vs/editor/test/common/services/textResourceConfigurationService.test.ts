@@ -6,10 +6,10 @@
 import * as assert from 'assert';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { IConfigurationValue, IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { TextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationServiceImpl';
+import { TextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { URI } from 'vs/base/common/uri';
 
 
@@ -32,7 +32,7 @@ suite('TextResourceConfigurationService - Update', () => {
 	setup(() => {
 		const instantiationService = new TestInstantiationService();
 		instantiationService.stub(IModelService, <Partial<IModelService>>{ getModel() { return null; } });
-		instantiationService.stub(ILanguageService, <Partial<ILanguageService>>{ getLanguageIdByFilepathOrFirstLine() { return language; } });
+		instantiationService.stub(ILanguageService, <Partial<ILanguageService>>{ guessLanguageIdByFilepathOrFirstLine() { return language; } });
 		instantiationService.stub(IConfigurationService, configurationService);
 		testObject = instantiationService.createInstance(TextResourceConfigurationService);
 	});

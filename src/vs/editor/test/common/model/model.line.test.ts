@@ -6,7 +6,6 @@
 import * as assert from 'assert';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Range } from 'vs/editor/common/core/range';
-import { TextModel } from 'vs/editor/common/model/textModel';
 import { computeIndentLevel } from 'vs/editor/common/model/utils';
 import { MetadataConsts } from 'vs/editor/common/modes';
 import { ViewLineToken, ViewLineTokenFactory } from 'vs/editor/test/common/core/viewLineToken';
@@ -108,7 +107,7 @@ suite('ModelLinesTokens', () => {
 
 	function testApplyEdits(initial: IBufferLineState[], edits: IEdit[], expected: IBufferLineState[]): void {
 		const initialText = initial.map(el => el.text).join('\n');
-		const model = createTextModel(initialText, TextModel.DEFAULT_CREATION_OPTIONS, 'test');
+		const model = createTextModel(initialText, 'test');
 		for (let lineIndex = 0; lineIndex < initial.length; lineIndex++) {
 			const lineTokens = initial[lineIndex].tokens;
 			const lineTextLength = model.getLineMaxColumn(lineIndex + 1) - 1;
@@ -446,7 +445,7 @@ suite('ModelLinesTokens', () => {
 	}
 
 	test('insertion on empty line', () => {
-		const model = createTextModel('some text', TextModel.DEFAULT_CREATION_OPTIONS, 'test');
+		const model = createTextModel('some text', 'test');
 		const tokens = TestToken.toTokens([new TestToken(0, 1)]);
 		LineTokens.convertToEndOffset(tokens, model.getLineMaxColumn(1) - 1);
 		model.setLineTokens(1, tokens);

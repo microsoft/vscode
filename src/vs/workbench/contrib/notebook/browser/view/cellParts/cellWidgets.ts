@@ -5,7 +5,6 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { IDimension } from 'vs/editor/common/editorCommon';
 
 export interface IClickTarget {
@@ -19,8 +18,6 @@ export const enum ClickTargetType {
 	ContributedCommandItem = 2
 }
 
-declare const ResizeObserver: any;
-
 export interface IResizeObserver {
 	startObserving: () => void;
 	stopObserving: () => void;
@@ -32,7 +29,7 @@ export interface IResizeObserver {
 export class BrowserResizeObserver extends Disposable implements IResizeObserver {
 	private readonly referenceDomElement: HTMLElement | null;
 
-	private readonly observer: any;
+	private readonly observer: ResizeObserver;
 	private width: number;
 	private height: number;
 
@@ -81,9 +78,5 @@ export class BrowserResizeObserver extends Disposable implements IResizeObserver
 }
 
 export function getResizesObserver(referenceDomElement: HTMLElement | null, dimension: IDimension | undefined, changeCallback: () => void): IResizeObserver {
-	if (ResizeObserver) {
-		return new BrowserResizeObserver(referenceDomElement, dimension, changeCallback);
-	} else {
-		return new ElementSizeObserver(referenceDomElement, dimension, changeCallback);
-	}
+	return new BrowserResizeObserver(referenceDomElement, dimension, changeCallback);
 }

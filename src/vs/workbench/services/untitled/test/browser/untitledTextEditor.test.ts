@@ -10,7 +10,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
-import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { ModesRegistry, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
@@ -288,9 +288,9 @@ suite('Untitled text editors', () => {
 		const model = await input.resolve();
 		assert.strictEqual(model.getMode(), mode);
 
-		input.setMode('plaintext');
+		input.setMode(PLAINTEXT_LANGUAGE_ID);
 
-		assert.strictEqual(input.getMode(), PLAINTEXT_MODE_ID);
+		assert.strictEqual(input.getMode(), PLAINTEXT_LANGUAGE_ID);
 
 		input.dispose();
 		model.dispose();
@@ -308,10 +308,10 @@ suite('Untitled text editors', () => {
 		const input = instantiationService.createInstance(UntitledTextEditorInput, model);
 
 		assert.ok(!input.model.hasModeSetExplicitly);
-		input.setMode('plaintext');
+		input.setMode(PLAINTEXT_LANGUAGE_ID);
 		assert.ok(input.model.hasModeSetExplicitly);
 
-		assert.strictEqual(input.getMode(), PLAINTEXT_MODE_ID);
+		assert.strictEqual(input.getMode(), PLAINTEXT_LANGUAGE_ID);
 
 		input.dispose();
 		model.dispose();

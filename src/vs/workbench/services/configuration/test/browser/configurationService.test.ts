@@ -41,7 +41,7 @@ import { Event } from 'vs/base/common/event';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentServiceImpl';
+import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentService';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
 import { hash } from 'vs/base/common/hash';
 

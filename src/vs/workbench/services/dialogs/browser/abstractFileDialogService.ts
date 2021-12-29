@@ -20,8 +20,8 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import Severity from 'vs/base/common/severity';
 import { coalesce, distinct } from 'vs/base/common/arrays';
-import { compareIgnoreCase, trim } from 'vs/base/common/strings';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { trim } from 'vs/base/common/strings';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { Schemas } from 'vs/base/common/network';
@@ -301,10 +301,10 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		const ext: string | undefined = defaultUri ? resources.extname(defaultUri) : undefined;
 		let matchingFilter: IFilter | undefined;
 
-		const registeredLanguageNames = this.languageService.getRegisteredLanguageNames().sort((a, b) => compareIgnoreCase(a, b));
-		const registeredLanguageFilters: IFilter[] = coalesce(registeredLanguageNames.map(languageName => {
-			const extensions = this.languageService.getExtensions(languageName);
-			if (!extensions || !extensions.length) {
+		const registeredLanguageNames = this.languageService.getSortedRegisteredLanguageNames();
+		const registeredLanguageFilters: IFilter[] = coalesce(registeredLanguageNames.map(({ languageName, languageId }) => {
+			const extensions = this.languageService.getExtensions(languageId);
+			if (!extensions.length) {
 				return null;
 			}
 

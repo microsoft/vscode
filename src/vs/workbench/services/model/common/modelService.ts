@@ -5,10 +5,10 @@
 
 import { URI } from 'vs/base/common/uri';
 import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ModelService } from 'vs/editor/common/services/modelService';
+import { ILanguageService } from 'vs/editor/common/services/language';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -16,7 +16,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
-export class WorkbenchModelServiceImpl extends ModelServiceImpl {
+export class WorkbenchModelService extends ModelService {
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITextResourcePropertiesService resourcePropertiesService: ITextResourcePropertiesService,
@@ -38,4 +38,4 @@ export class WorkbenchModelServiceImpl extends ModelServiceImpl {
 	}
 }
 
-registerSingleton(IModelService, WorkbenchModelServiceImpl, true);
+registerSingleton(IModelService, WorkbenchModelService, true);

@@ -8,7 +8,7 @@ import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
 import { DocumentSymbol } from 'vs/editor/common/modes';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { OutlineModel } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';

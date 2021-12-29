@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/services/language';
 import * as nls from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
