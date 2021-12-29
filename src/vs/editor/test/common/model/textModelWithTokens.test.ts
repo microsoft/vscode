@@ -17,7 +17,7 @@ import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { NullState } from 'vs/editor/common/modes/nullMode';
 import { ILanguageService } from 'vs/editor/common/services/language';
 import { ViewLineToken } from 'vs/editor/test/common/core/viewLineToken';
-import { createModelServices, createTextModel, createTextModel2 } from 'vs/editor/test/common/editorTestUtils';
+import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 
 suite('TextModelWithTokens', () => {
 
@@ -427,7 +427,7 @@ suite('TextModelWithTokens', () => {
 			],
 		}));
 
-		const model = disposables.add(createTextModel2(
+		const model = disposables.add(instantiateTextModel(
 			instantiationService,
 			[
 				'function f() {',
@@ -505,7 +505,7 @@ suite('TextModelWithTokens', () => {
 			],
 		}));
 
-		const model = disposables.add(createTextModel2(
+		const model = disposables.add(instantiateTextModel(
 			instantiationService,
 			[
 				'function hello() {',
@@ -688,7 +688,7 @@ suite('TextModelWithTokens regression tests', () => {
 
 		disposables.add(TokenizationRegistry.register(outerMode, tokenizationSupport));
 
-		const model = disposables.add(createTextModel2(instantiationService, 'A model with one line', outerMode));
+		const model = disposables.add(instantiateTextModel(instantiationService, 'A model with one line', outerMode));
 
 		model.forceTokenization(1);
 		assert.strictEqual(model.getLanguageIdAtPosition(1, 1), innerMode);

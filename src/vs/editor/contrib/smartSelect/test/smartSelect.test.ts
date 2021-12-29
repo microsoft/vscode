@@ -14,7 +14,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/bracketSelections';
 import { provideSelectionRanges } from 'vs/editor/contrib/smartSelect/smartSelect';
 import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/wordSelections';
-import { createModelServices } from 'vs/editor/test/common/editorTestUtils';
+import { createModelServices } from 'vs/editor/test/common/testTextModel';
 import { MockMode, StaticLanguageSelector } from 'vs/editor/test/common/mocks/mockMode';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
 

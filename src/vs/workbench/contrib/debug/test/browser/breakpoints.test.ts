@@ -13,7 +13,7 @@ import { IBreakpointData, IBreakpointUpdateData, State } from 'vs/workbench/cont
 import { createBreakpointDecorations } from 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
 import { OverviewRulerLane } from 'vs/editor/common/model';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { createMockSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
 import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
 

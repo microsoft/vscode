@@ -10,7 +10,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { getEditOperation } from 'vs/editor/test/browser/testCommand';
-import { withEditorModel } from 'vs/editor/test/common/editorTestUtils';
+import { withEditorModel } from 'vs/editor/test/common/testTextModel';
 
 /**
  * Create single edit operation

@@ -9,7 +9,7 @@ import { EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation 
 import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { assertSyncedModels, testApplyEditsWithSyncedModels } from 'vs/editor/test/common/model/editableTextModelTestUtils';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
 suite('EditorModel - EditableTextModel.applyEdits updates mightContainRTL', () => {
 

@@ -9,7 +9,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { computeIndentLevel } from 'vs/editor/common/model/utils';
 import { MetadataConsts } from 'vs/editor/common/modes';
 import { ViewLineToken, ViewLineTokenFactory } from 'vs/editor/test/common/core/viewLineToken';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
 interface ILineEdit {
 	startColumn: number;

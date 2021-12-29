@@ -18,8 +18,8 @@ import { IState, ITokenizationSupport, MetadataConsts, StandardTokenType, Tokeni
 import { IndentAction, IndentationRule } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NullState } from 'vs/editor/common/modes/nullMode';
-import { withTestCodeEditor, TestCodeEditorCreationOptions, ITestCodeEditor, createCodeEditorServices } from 'vs/editor/test/browser/testCodeEditor';
-import { IRelaxedTextModelCreationOptions, createTextModel, createTextModel2 } from 'vs/editor/test/common/editorTestUtils';
+import { withTestCodeEditor, TestCodeEditorInstantiationOptions, ITestCodeEditor, createCodeEditorServices } from 'vs/editor/test/browser/testCodeEditor';
+import { IRelaxedTextModelCreationOptions, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
@@ -1284,7 +1284,7 @@ suite('Editor Controller - Regression tests', () => {
 			},
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			viewModel.setSelections('test', [new Selection(1, 1, 1, 13)]);
 
 			// Check that indenting maintains the selection start at column 1
@@ -1307,7 +1307,7 @@ suite('Editor Controller - Regression tests', () => {
 			},
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			viewModel.type('\n', 'keyboard');
 			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\n', 'assert1');
 
@@ -1390,7 +1390,7 @@ suite('Editor Controller - Regression tests', () => {
 		const mode = new MyMode();
 		const model = createTextModel('\'👁\'', languageId);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			editor.setSelection(new Selection(1, 1, 1, 2));
 
 			viewModel.type('%', 'keyboard');
@@ -1407,7 +1407,7 @@ suite('Editor Controller - Regression tests', () => {
 	test('issue #46208: Allow empty selections in the undo/redo stack', () => {
 		let model = createTextModel('');
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			viewModel.type('Hello', 'keyboard');
 			viewModel.type(' ', 'keyboard');
 			viewModel.type('world', 'keyboard');
@@ -1471,7 +1471,7 @@ suite('Editor Controller - Regression tests', () => {
 			mode.languageId
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			moveTo(editor, viewModel, 1, 6, false);
 			assertCursor(viewModel, new Selection(1, 6, 1, 6));
 
@@ -1491,7 +1491,7 @@ suite('Editor Controller - Regression tests', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			moveTo(editor, viewModel, 1, 7, false);
 			assertCursor(viewModel, new Selection(1, 7, 1, 7));
 
@@ -1510,10 +1510,7 @@ suite('Editor Controller - Regression tests', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, {
-			model: model,
-			useTabStops: false
-		}, (editor, viewModel) => {
+		withTestCodeEditor(model, { useTabStops: false }, (editor, viewModel) => {
 			moveTo(editor, viewModel, 1, 9, false);
 			assertCursor(viewModel, new Selection(1, 9, 1, 9));
 
@@ -1542,7 +1539,7 @@ suite('Editor Controller - Regression tests', () => {
 			},
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			moveTo(editor, viewModel, 7, 1, false);
 			assertCursor(viewModel, new Selection(7, 1, 7, 1));
 
@@ -1643,7 +1640,7 @@ suite('Editor Controller - Regression tests', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			moveTo(editor, viewModel, 3, 2, false);
 			moveTo(editor, viewModel, 1, 14, true);
 			assertCursor(viewModel, new Selection(3, 2, 1, 14));
@@ -1855,7 +1852,7 @@ suite('Editor Controller - Regression tests', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			moveTo(editor, viewModel, 1, 1, false);
 			moveTo(editor, viewModel, 3, 4, true);
 
@@ -1929,7 +1926,7 @@ suite('Editor Controller - Regression tests', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			moveTo(editor, viewModel, 3, 2, false);
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.strictEqual(model.getLineContent(3), '\t    \tx: 3');
@@ -1950,7 +1947,7 @@ suite('Editor Controller - Regression tests', () => {
 			}
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			moveTo(editor, viewModel, 1, 15, false);
 			moveTo(editor, viewModel, 1, 22, true);
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
@@ -2046,7 +2043,7 @@ suite('Editor Controller - Regression tests', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 8) });
 			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 6, 1, 10));
 
@@ -2064,7 +2061,7 @@ suite('Editor Controller - Regression tests', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 5) });
 			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 5, 1, 8));
 		});
@@ -2387,7 +2384,7 @@ suite('Editor Controller - Regression tests', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { readOnly: true, model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, { readOnly: true }, (editor, viewModel) => {
 			model.pushEditOperations([new Selection(1, 1, 1, 1)], [{
 				range: new Range(1, 1, 1, 1),
 				text: 'Hello world!'
@@ -2415,8 +2412,8 @@ suite('Editor Controller - Regression tests', () => {
 		const languageRegistration = TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
 		let model = createTextModel('Just text', LANGUAGE_ID);
 
-		withTestCodeEditor(null, { model: model }, (editor1, cursor1) => {
-			withTestCodeEditor(null, { model: model }, (editor2, cursor2) => {
+		withTestCodeEditor(model, {}, (editor1, cursor1) => {
+			withTestCodeEditor(model, {}, (editor2, cursor2) => {
 
 				editor1.onDidChangeCursorPosition(() => {
 					model.tokenizeIfCheap(1);
@@ -2438,7 +2435,7 @@ suite('Editor Controller - Regression tests', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { multiCursorMergeOverlapping: false, model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, { multiCursorMergeOverlapping: false }, (editor, viewModel) => {
 			editor.setSelections([
 				new Selection(1, 12, 1, 12),
 				new Selection(1, 16, 1, 16),
@@ -2471,7 +2468,7 @@ suite('Editor Controller - Regression tests', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			editor.setSelections([
 				new Selection(1, 4, 1, 4)
 			]);
@@ -2506,7 +2503,7 @@ suite('Editor Controller - Regression tests', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			editor.setSelections([
 				new Selection(1, 1, 1, 1)
 			]);
@@ -2544,7 +2541,7 @@ suite('Editor Controller - Regression tests', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			editor.setSelections([
 				new Selection(2, 1, 2, 1)
 			]);
@@ -2567,7 +2564,7 @@ suite('Editor Controller - Regression tests', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			editor.setSelections([
 				new Selection(1, 7, 1, 7)
 			]);
@@ -2601,7 +2598,7 @@ suite('Editor Controller - Regression tests', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model, useTabStops: false }, (editor, viewModel) => {
+		withTestCodeEditor(model, { useTabStops: false }, (editor, viewModel) => {
 			editor.setSelections([
 				new Selection(1, 7, 1, 7)
 			]);
@@ -2635,7 +2632,7 @@ suite('Editor Controller - Regression tests', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model, useTabStops: false }, (editor, viewModel) => {
+		withTestCodeEditor(model, { useTabStops: false }, (editor, viewModel) => {
 			const len = model.getValueLength();
 			editor.setSelections([
 				new Selection(1, 1 + len, 1, 1 + len)
@@ -2655,7 +2652,7 @@ suite('Editor Controller - Regression tests', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model, useTabStops: false }, (editor, viewModel) => {
+		withTestCodeEditor(model, { useTabStops: false }, (editor, viewModel) => {
 			const len = model.getValueLength();
 			editor.setSelections([
 				new Selection(1, 1 + len, 1, 1 + len)
@@ -2681,9 +2678,8 @@ suite('Editor Controller - Regression tests', () => {
 		const model = createTextModel('asdfghjkl, asdfghjkl, asdfghjkl, ');
 
 		withTestCodeEditor(
-			null,
+			model,
 			{
-				model: model,
 				wordWrap: 'wordWrapColumn',
 				wordWrapColumn: 24
 			},
@@ -2720,9 +2716,8 @@ suite('Editor Controller - Regression tests', () => {
 		const model = createTextModel('asdfghjkl, asdfghjkl, asdfghjkl, \nasdfghjkl,');
 
 		withTestCodeEditor(
-			null,
+			model,
 			{
-				model: model,
 				wordWrap: 'wordWrapColumn',
 				wordWrapColumn: 24
 			},
@@ -2754,9 +2749,8 @@ suite('Editor Controller - Regression tests', () => {
 		const model = createTextModel('    aaaa        aaaa', undefined, { tabSize: 4 });
 
 		withTestCodeEditor(
-			null,
+			model,
 			{
-				model: model,
 				wordWrap: 'wordWrapColumn',
 				wordWrapColumn: 8,
 				stickyTabStops: true,
@@ -2816,7 +2810,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			}
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			// Tab on column 1
 			CoreNavigationCommands.MoveTo.runCoreEditorCommand(viewModel, { position: new Position(2, 1) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
@@ -3051,7 +3045,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			languageId
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 
 			moveTo(editor, viewModel, 3, 1);
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
@@ -3089,7 +3083,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 
 			// Move cursor to the end, verify that we do not trim whitespaces if line has values
 			moveTo(editor, viewModel, 1, model.getLineContent(1).length + 1);
@@ -3149,7 +3143,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 
 			moveTo(editor, viewModel, 3, model.getLineMaxColumn(3));
 			viewModel.type('\n', 'keyboard');
@@ -3189,7 +3183,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 
 			editor.setSelections([new Selection(4, 10, 4, 10)]);
 			viewModel.paste('        // I\'m gonna copy this line\n', true);
@@ -3217,7 +3211,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model, useTabStops: false }, (editor, viewModel) => {
+		withTestCodeEditor(model, { useTabStops: false }, (editor, viewModel) => {
 			// DeleteLeft removes just one whitespace
 			moveTo(editor, viewModel, 2, 9);
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
@@ -3236,7 +3230,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model, useTabStops: true }, (editor, viewModel) => {
+		withTestCodeEditor(model, { useTabStops: true }, (editor, viewModel) => {
 			// DeleteLeft does not remove tab size, because some text exists before
 			moveTo(editor, viewModel, 2, model.getLineContent(2).length + 1);
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
@@ -3304,7 +3298,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			}
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			viewModel.type('\n', 'keyboard');
 			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\n', 'assert1');
 
@@ -3371,7 +3365,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			}
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			const beforeVersion = model.getVersionId();
 			const beforeAltVersion = model.getAlternativeVersionId();
 			viewModel.type('Hello', 'keyboard');
@@ -3497,7 +3491,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			}
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: 'full' }, (editor, viewModel) => {
+		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel) => {
 			moveTo(editor, viewModel, 2, 11, false);
 			assertCursor(viewModel, new Selection(2, 11, 2, 11));
 
@@ -3965,7 +3959,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			}
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			moveTo(editor, viewModel, 4, 1, false);
 			assertCursor(viewModel, new Selection(4, 1, 4, 1));
 
@@ -3993,7 +3987,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			}
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			moveTo(editor, viewModel, 4, 2, false);
 			assertCursor(viewModel, new Selection(4, 2, 4, 2));
 
@@ -4021,7 +4015,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			}
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			moveTo(editor, viewModel, 4, 1, false);
 			assertCursor(viewModel, new Selection(4, 1, 4, 1));
 
@@ -4048,7 +4042,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			}
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			moveTo(editor, viewModel, 4, 3, false);
 			assertCursor(viewModel, new Selection(4, 3, 4, 3));
 
@@ -4075,7 +4069,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			}
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			moveTo(editor, viewModel, 4, 4, false);
 			assertCursor(viewModel, new Selection(4, 4, 4, 4));
 
@@ -4099,7 +4093,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.languageId
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 
 			moveTo(editor, viewModel, 3, 1);
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
@@ -4128,7 +4122,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			rubyMode.languageId
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: 'full' }, (editor, viewModel) => {
+		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel) => {
 			moveTo(editor, viewModel, 4, 7, false);
 			assertCursor(viewModel, new Selection(4, 7, 4, 7));
 
@@ -4237,7 +4231,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.languageId
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: 'advanced' }, (editor, viewModel) => {
+		withTestCodeEditor(model, { autoIndent: 'advanced' }, (editor, viewModel) => {
 			moveTo(editor, viewModel, 7, 6, false);
 			assertCursor(viewModel, new Selection(7, 6, 7, 6));
 
@@ -4282,7 +4276,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.languageId
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: 'advanced' }, (editor, viewModel) => {
+		withTestCodeEditor(model, { autoIndent: 'advanced' }, (editor, viewModel) => {
 			moveTo(editor, viewModel, 1, 4, false);
 			assertCursor(viewModel, new Selection(1, 4, 1, 4));
 
@@ -4341,7 +4335,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			}
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: 'advanced' }, (editor, viewModel) => {
+		withTestCodeEditor(model, { autoIndent: 'advanced' }, (editor, viewModel) => {
 			moveTo(editor, viewModel, 8, 1, false);
 			assertCursor(viewModel, new Selection(8, 1, 8, 1));
 
@@ -4431,7 +4425,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			}
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: 'full' }, (editor, viewModel) => {
+		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel) => {
 			moveTo(editor, viewModel, 3, 19, false);
 			assertCursor(viewModel, new Selection(3, 19, 3, 19));
 
@@ -4464,7 +4458,7 @@ suite('Editor Controller - Indentation Rules', () => {
 
 	test('issue #111128: Multicursor `Enter` issue with indentation', () => {
 		const model = createTextModel('    let a, b, c;', mode.languageId, { detectIndentation: false, insertSpaces: false, tabSize: 4 });
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			editor.setSelections([
 				new Selection(1, 11, 1, 11),
 				new Selection(1, 14, 1, 14),
@@ -4486,7 +4480,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			{ tabSize: 1 }
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: 'full' }, (editor, viewModel) => {
+		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel) => {
 			moveTo(editor, viewModel, 1, 5, false);
 			assertCursor(viewModel, new Selection(1, 5, 1, 5));
 
@@ -4508,9 +4502,8 @@ interface ICursorOpts {
 
 function usingCursor(opts: ICursorOpts, callback: (editor: ITestCodeEditor, model: TextModel, viewModel: ViewModel) => void): void {
 	const model = createTextModel(opts.text.join('\n'), opts.languageId, opts.modelOpts);
-	const editorOptions: TestCodeEditorCreationOptions = opts.editorOpts || {};
-	editorOptions.model = model;
-	withTestCodeEditor(null, editorOptions, (editor, viewModel) => {
+	const editorOptions: TestCodeEditorInstantiationOptions = opts.editorOpts || {};
+	withTestCodeEditor(model, editorOptions, (editor, viewModel) => {
 		callback(editor, model, viewModel);
 	});
 	model.dispose();
@@ -4987,10 +4980,8 @@ suite('autoClosingPairs', () => {
 		const languageService = instantiationService.invokeFunction((accessor) => accessor.get(ILanguageService));
 		const mode = disposables.add(new AutoClosingMode(languageService));
 		withTestCodeEditor(
-			null,
-			{
-				model: disposables.add(createTextModel2(instantiationService, 'const t2 = `something ${t1}', mode.languageId))
-			},
+			disposables.add(instantiateTextModel(instantiationService, 'const t2 = `something ${t1}', mode.languageId)),
+			{},
 			(editor, viewModel) => {
 				const model = viewModel.model;
 				model.forceTokenization(1);
@@ -6089,7 +6080,7 @@ suite('autoClosingPairs', () => {
 		const mode = new MyMode();
 		const model = createTextModel('var x = \'hi\';', languageId);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			editor.setSelections([
 				new Selection(1, 9, 1, 10),
 				new Selection(1, 12, 1, 13)
@@ -6118,7 +6109,7 @@ suite('autoClosingPairs', () => {
 			mode.languageId
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			viewModel.setSelections('test', [
 				new Selection(1, 4, 1, 4),
 				new Selection(1, 10, 1, 10),
@@ -6147,7 +6138,7 @@ suite('autoClosingPairs', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			CoreNavigationCommands.WordSelect.runEditorCommand(null, editor, {
 				position: new Position(3, 7)
 			});
@@ -6173,7 +6164,7 @@ suite('Undo stops', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			viewModel.setSelections('test', [new Selection(1, 3, 1, 3)]);
 			viewModel.type('first', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), 'A first line');
@@ -6204,7 +6195,7 @@ suite('Undo stops', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			viewModel.setSelections('test', [new Selection(1, 3, 1, 3)]);
 			viewModel.type('first', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), 'A first line');
@@ -6235,7 +6226,7 @@ suite('Undo stops', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			viewModel.setSelections('test', [new Selection(2, 8, 2, 8)]);
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
@@ -6271,7 +6262,7 @@ suite('Undo stops', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			viewModel.setSelections('test', [new Selection(2, 8, 2, 8)]);
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
@@ -6311,7 +6302,7 @@ suite('Undo stops', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			viewModel.setSelections('test', [new Selection(2, 9, 2, 9)]);
 			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
 			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
@@ -6344,7 +6335,7 @@ suite('Undo stops', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			viewModel.setSelections('test', [new Selection(2, 9, 2, 9)]);
 			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
 			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
@@ -6382,7 +6373,7 @@ suite('Undo stops', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			viewModel.setSelections('test', [new Selection(1, 3, 1, 3)]);
 			viewModel.type('first and interesting', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), 'A first and interesting line');
@@ -6412,7 +6403,7 @@ suite('Undo stops', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			viewModel.setSelections('test', [new Selection(1, 3, 1, 3)]);
 			viewModel.type('first', 'keyboard');
 			assert.strictEqual(model.getValue(), 'A first line\nAnother line');
@@ -6438,7 +6429,7 @@ suite('Undo stops', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			viewModel.setSelections('test', [
 				new Selection(2, 7, 2, 12),
 				new Selection(1, 7, 1, 12),
@@ -6464,7 +6455,7 @@ suite('Undo stops', () => {
 			}
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			viewModel.type('a', 'keyboard');
 			viewModel.type('b', 'keyboard');
 			viewModel.type(' ', 'keyboard');
@@ -6498,7 +6489,7 @@ suite('Undo stops', () => {
 			}
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			viewModel.type('a', 'keyboard');
 			viewModel.type('b', 'keyboard');
 			viewModel.type(' ', 'keyboard');

@@ -18,7 +18,7 @@ import { ViewModelLinesFromProjectedModel } from 'vs/editor/common/viewModel/vie
 import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { TestConfiguration } from 'vs/editor/test/browser/config/testConfiguration';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { ISimpleModel, IModelLineProjection, createModelLineProjection } from 'vs/editor/common/viewModel/modelLineProjection';
 import { ModelLineProjectionData } from 'vs/editor/common/viewModel/modelLineProjectionData';
 

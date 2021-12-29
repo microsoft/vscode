@@ -14,7 +14,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import * as modes from 'vs/editor/common/modes';
 import { CodeActionModel, CodeActionsState } from 'vs/editor/contrib/codeAction/codeActionModel';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 
@@ -42,7 +42,7 @@ suite('CodeActionModel', () => {
 		disposables.clear();
 		markerService = new MarkerService();
 		model = createTextModel('foobar  foo bar\nfarboo far boo', languageId, undefined, uri);
-		editor = createTestCodeEditor({ model: model });
+		editor = createTestCodeEditor(model);
 		editor.setPosition({ lineNumber: 1, column: 1 });
 	});
 

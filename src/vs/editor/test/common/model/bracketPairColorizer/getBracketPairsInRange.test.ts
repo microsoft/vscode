@@ -10,7 +10,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { BracketPairInfo } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairs';
 import { LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
 suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 	function createLang() {

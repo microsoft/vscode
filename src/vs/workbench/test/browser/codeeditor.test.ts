@@ -21,7 +21,7 @@ import { ModelService } from 'vs/editor/common/services/modelService';
 import { CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -44,7 +44,7 @@ suite('Editor - Range decorations', () => {
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		text = 'LINE1' + '\n' + 'LINE2' + '\n' + 'LINE3' + '\n' + 'LINE4' + '\r\n' + 'LINE5';
 		model = aModel(URI.file('some_file'));
-		codeEditor = createTestCodeEditor({ model: model });
+		codeEditor = createTestCodeEditor(model);
 
 		instantiationService.stub(IEditorService, 'activeEditor', { get resource() { return codeEditor.getModel()!.uri; } });
 		instantiationService.stub(IEditorService, 'activeTextEditorControl', codeEditor);
