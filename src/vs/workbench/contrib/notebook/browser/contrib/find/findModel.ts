@@ -25,7 +25,7 @@ export class FindModel extends Disposable {
 	protected _findMatchesStarts: PrefixSumComputer | null = null;
 	private _currentMatch: number = -1;
 	private _allMatchesDecorations: ICellModelDecorations[] = [];
-	private _currentMatchDecorations: ICellModelDecorations[] = [];
+	private _currentMatchDecorations: { kind: 'input'; decorations: ICellModelDecorations[]; } | { kind: 'output'; index: number } | null = null;
 	private readonly _throttledDelayer: Delayer<void>;
 	private _computePromise: CancelablePromise<CellFindMatchWithIndex[] | null> | null = null;
 	private readonly _modelDisposable = this._register(new DisposableStore());
@@ -199,22 +199,32 @@ export class FindModel extends Disposable {
 		if ((cell.cellKind === CellKind.Markup && cell.getEditState() === CellEditState.Editing) || cell.cellKind === CellKind.Code) {
 			// check if there is monaco editor selection and find the first match, otherwise find the first match above current cell
 			// this._findMatches[cellIndex].matches[matchIndex].range
-			const currentMatchDecorationId = this._currentMatchDecorations.find(decoration => decoration.ownerId === cell.handle);
+			if (this._currentMatchDecorations) {
+				if (this._currentMatchDecorations.kind === 'input') {
+					const currentMatchDecorationId = this._currentMatchDecorations.decorations.find(decoration => decoration.ownerId === cell.handle);
 
-			if (currentMatchDecorationId) {
-				const currMatchRangeInEditor = (cell.editorAttached && currentMatchDecorationId.decorations[0] ? cell.getCellDecorationRange(currentMatchDecorationId.decorations[0]) : null)
-					?? this._findMatches[oldCurrIndex.index].matches[oldCurrIndex.remainder].range;
+					if (currentMatchDecorationId) {
+						const matchAfterSelection = findFirstInSorted(findMatches, match => match.index >= oldCurrMatchCellIndex) % findMatches.length;
+						if (findMatches[matchAfterSelection].index > oldCurrMatchCellIndex) {
+							// there is no search result in curr cell anymore
+							this._updateCurrentMatch(findMatches, this._matchesCountBeforeIndex(findMatches, matchAfterSelection));
+						} else {
+							const currMatchRangeInEditor = (cell.editorAttached && currentMatchDecorationId.decorations[0] ? cell.getCellDecorationRange(currentMatchDecorationId.decorations[0]) : null)
+								?? this._findMatches[oldCurrIndex.index].matches[oldCurrIndex.remainder].range;
 
-				// not attached, just use the range
-				const matchAfterSelection = findFirstInSorted(findMatches, match => match.index >= oldCurrMatchCellIndex) % findMatches.length;
-				if (findMatches[matchAfterSelection].index > oldCurrMatchCellIndex) {
-					// there is no search result in curr cell anymore
-					this._updateCurrentMatch(findMatches, this._matchesCountBeforeIndex(findMatches, matchAfterSelection));
+							const cellMatch = findMatches[matchAfterSelection];
+							const matchAfterOldSelection = findFirstInSorted(cellMatch.matches, match => Range.compareRangesUsingStarts(match.range, currMatchRangeInEditor) >= 0);
+							this._updateCurrentMatch(findMatches, this._matchesCountBeforeIndex(findMatches, matchAfterSelection) + matchAfterOldSelection);
+						}
+					} else {
+						// can't find the decoration
+						const matchAfterSelection = findFirstInSorted(findMatches.map(match => match.index), index => index >= oldCurrMatchCellIndex);
+						this._updateCurrentMatch(findMatches, this._matchesCountBeforeIndex(findMatches, matchAfterSelection));
+					}
 				} else {
-					// findMatches[matchAfterSelection].index === currMatchCellIndex
-					const cellMatch = findMatches[matchAfterSelection];
-					const matchAfterOldSelection = findFirstInSorted(cellMatch.matches, match => Range.compareRangesUsingStarts(match.range, currMatchRangeInEditor) >= 0);
-					this._updateCurrentMatch(findMatches, this._matchesCountBeforeIndex(findMatches, matchAfterSelection) + matchAfterOldSelection);
+					// output now has the highlight
+					const matchAfterSelection = findFirstInSorted(findMatches.map(match => match.index), index => index >= oldCurrMatchCellIndex);
+					this._updateCurrentMatch(findMatches, this._matchesCountBeforeIndex(findMatches, matchAfterSelection));
 				}
 			} else {
 				const matchAfterSelection = findFirstInSorted(findMatches.map(match => match.index), index => index >= oldCurrMatchCellIndex);
@@ -331,14 +341,20 @@ export class FindModel extends Disposable {
 				decorations: decorations
 			};
 
-			this._currentMatchDecorations = accessor.deltaDecorations(this._currentMatchDecorations, [deltaDecoration]);
+			this._currentMatchDecorations = {
+				kind: 'input',
+				decorations: accessor.deltaDecorations(this._currentMatchDecorations?.kind === 'input' ? this._currentMatchDecorations.decorations : [], [deltaDecoration])
+			};
 		});
 	}
 
 	private clearCurrentFindMatchDecoration() {
-		this._notebookEditor.changeModelDecorations(accessor => {
-			this._currentMatchDecorations = accessor.deltaDecorations(this._currentMatchDecorations, []);
-		});
+		if (this._currentMatchDecorations?.kind === 'input') {
+			this._notebookEditor.changeModelDecorations(accessor => {
+				accessor.deltaDecorations(this._currentMatchDecorations?.kind === 'input' ? this._currentMatchDecorations.decorations : [], []);
+				this._currentMatchDecorations = null;
+			});
+		}
 	}
 
 	private setAllFindMatchesDecorations(cellFindMatches: CellFindMatch[]) {
