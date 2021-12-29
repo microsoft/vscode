@@ -187,25 +187,6 @@ export class TextAreaState {
 		}
 
 		if (currentSelectionStart === currentSelectionEnd) {
-			// composition accept case (noticed in FF + Japanese)
-			// [something] => something|
-			if (
-				previousValue === currentValue
-				&& previousSelectionStart === 0
-				&& previousSelectionEnd === previousValue.length
-				&& currentSelectionStart === currentValue.length
-				&& currentValue.indexOf('\n') === -1
-			) {
-				if (strings.containsFullWidthCharacter(currentValue)) {
-					return {
-						text: '',
-						replacePrevCharCnt: 0,
-						replaceNextCharCnt: 0,
-						positionDelta: 0
-					};
-				}
-			}
-
 			// no current selection
 			const replacePreviousCharacters = (previousPrefix.length - prefixLength);
 			if (_debugComposition) {

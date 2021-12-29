@@ -610,15 +610,6 @@ export function containsUnusualLineTerminators(str: string): boolean {
 	return UNUSUAL_LINE_TERMINATORS.test(str);
 }
 
-export function containsFullWidthCharacter(str: string): boolean {
-	for (let i = 0, len = str.length; i < len; i++) {
-		if (isFullWidthCharacter(str.charCodeAt(i))) {
-			return true;
-		}
-	}
-	return false;
-}
-
 export function isFullWidthCharacter(charCode: number): boolean {
 	// Do a cheap trick to better support wrapping of wide characters, treat them as 2 columns
 	// http://jrgraphix.net/research/unicode_blocks.php
