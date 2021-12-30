@@ -920,7 +920,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				);
 			},
 			get fs() {
-				return extHostConsumerFileSystem.value;
+				return extHostConsumerFileSystem.getFs(extension);
 			},
 			registerFileSearchProvider: (scheme: string, provider: vscode.FileSearchProvider) => {
 				checkProposedApiEnabled(extension, 'fileSearchProvider');

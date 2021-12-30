@@ -12,24 +12,33 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 export class ExtHostConsumerFileSystem {
 
 	readonly _serviceBrand: undefined;
 
-	readonly value: vscode.FileSystem;
+	readonly value = this.createFs(undefined);
 
 	private readonly _proxy: MainThreadFileSystemShape;
 	private readonly _fileSystemProvider = new Map<string, vscode.FileSystemProvider>();
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		@IExtHostFileSystemInfo fileSystemInfo: IExtHostFileSystemInfo,
+		@IExtHostFileSystemInfo private readonly fileSystemInfo: IExtHostFileSystemInfo,
 	) {
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadFileSystem);
+	}
+
+	getFs(extension: IExtensionDescription): vscode.FileSystem {
+		return this.createFs(extension);
+	}
+
+	private createFs(extension: IExtensionDescription | undefined): vscode.FileSystem {
 		const that = this;
 
-		this.value = Object.freeze({
+		return Object.freeze({
 			async stat(uri: vscode.Uri): Promise<vscode.FileStat> {
 				try {
 					const provider = that._fileSystemProvider.get(uri.scheme);
@@ -126,13 +135,17 @@ export class ExtHostConsumerFileSystem {
 				}
 			},
 			isWritableFileSystem(scheme: string): boolean | undefined {
-				const capabilities = fileSystemInfo.getCapabilities(scheme);
+				const capabilities = that.fileSystemInfo.getCapabilities(scheme);
 				if (typeof capabilities === 'number') {
 					return !(capabilities & files.FileSystemProviderCapabilities.Readonly);
 				}
 				return undefined;
 			},
 			watch(uri: vscode.Uri, options: { recursive: boolean; excludes: string[] } = { recursive: false, excludes: [] }): vscode.Disposable {
+				if (extension) {
+					checkProposedApiEnabled(extension, 'fsWatch');
+				}
+
 				const session = Math.random();
 				that._proxy.$watch(session, uri, options);
 				return toDisposable(() => {
