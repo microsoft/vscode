@@ -55,7 +55,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 		);
 	}
 
-	public isEnabledForMode(languageId: string): boolean {
+	public isEnabledForLanguage(languageId: string): boolean {
 		return !!languageId && this._configurationService.getValue<boolean>(LanguageDetectionService.enablementSettingKey, { overrideIdentifier: languageId });
 	}
 

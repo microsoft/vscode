@@ -75,7 +75,7 @@ export const FILE_EDITOR_INPUT_ID = 'workbench.editors.files.fileEditorInput';
 export const BINARY_FILE_EDITOR_ID = 'workbench.editors.files.binaryFileEditor';
 
 /**
- * Language mode for binary files opened as text.
+ * Language identifier for binary files opened as text.
  */
 export const BINARY_TEXT_FILE_MODE = 'code-text-binary';
 

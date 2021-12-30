@@ -131,7 +131,7 @@ class SimpleModel implements IResolvedTextEditorModel {
 		return true;
 	}
 
-	public getMode(): string | undefined {
+	public getLanguageId(): string | undefined {
 		return this.model.getLanguageId();
 	}
 }

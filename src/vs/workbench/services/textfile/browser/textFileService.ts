@@ -512,7 +512,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			targetTextModel = targetModel.textEditorModel;
 		}
 
-		// take over model value, encoding and mode (only if more specific) from source model
+		// take over model value, encoding and language (only if more specific) from source model
 		if (sourceTextModel && targetTextModel) {
 
 			// encoding
@@ -521,11 +521,11 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			// content
 			this.modelService.updateModel(targetTextModel, createTextBufferFactoryFromSnapshot(sourceTextModel.createSnapshot()));
 
-			// mode
-			const sourceMode = sourceTextModel.getLanguageId();
-			const targetMode = targetTextModel.getLanguageId();
-			if (sourceMode !== PLAINTEXT_LANGUAGE_ID && targetMode === PLAINTEXT_LANGUAGE_ID) {
-				targetTextModel.setMode(sourceMode); // only use if more specific than plain/text
+			// language
+			const sourceLanguageId = sourceTextModel.getLanguageId();
+			const targetLanguageId = targetTextModel.getLanguageId();
+			if (sourceLanguageId !== PLAINTEXT_LANGUAGE_ID && targetLanguageId === PLAINTEXT_LANGUAGE_ID) {
+				targetTextModel.setMode(sourceLanguageId); // only use if more specific than plain/text
 			}
 
 			// transient properties
@@ -581,10 +581,10 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 					untitledName = basename(resource);
 				}
 
-				// Add mode file extension if specified
-				const mode = model.getMode();
-				if (mode && mode !== PLAINTEXT_LANGUAGE_ID) {
-					suggestedFilename = this.suggestFilename(mode, untitledName);
+				// Add language file extension if specified
+				const languageId = model.getLanguageId();
+				if (languageId && languageId !== PLAINTEXT_LANGUAGE_ID) {
+					suggestedFilename = this.suggestFilename(languageId, untitledName);
 				} else {
 					suggestedFilename = untitledName;
 				}
@@ -601,20 +601,20 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return joinPath(defaultFilePath, suggestedFilename);
 	}
 
-	suggestFilename(mode: string, untitledName: string) {
-		const languageName = this.languageService.getLanguageName(mode);
+	suggestFilename(languageId: string, untitledName: string) {
+		const languageName = this.languageService.getLanguageName(languageId);
 		if (!languageName) {
 			return untitledName;
 		}
 
-		const extension = this.languageService.getExtensions(mode)[0];
+		const extension = this.languageService.getExtensions(languageId)[0];
 		if (extension) {
 			if (!untitledName.endsWith(extension)) {
 				return untitledName + extension;
 			}
 		}
 
-		const filename = this.languageService.getFilenames(mode)[0];
+		const filename = this.languageService.getFilenames(languageId)[0];
 		return filename || untitledName;
 	}
 
