@@ -39,7 +39,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable {
 			return this.watchRecursive(resource, opts);
 		}
 
-		return this.watchNonRecursive(resource);
+		return this.watchNonRecursive(resource, opts);
 	}
 
 	private watchRecursive(resource: URI, opts: IWatchOptions): IDisposable {
@@ -100,9 +100,10 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable {
 		verboseLogging: boolean
 	): AbstractRecursiveWatcherClient;
 
-	private watchNonRecursive(resource: URI): IDisposable {
+	private watchNonRecursive(resource: URI, opts: IWatchOptions): IDisposable {
 		const watcher = this.createNonRecursiveWatcher(
 			this.toFilePath(resource),
+			opts.excludes,
 			changes => this._onDidChangeFile.fire(toFileChanges(changes)),
 			msg => this.onWatcherLogMessage(msg),
 			this.logService.getLevel() === LogLevel.Trace
@@ -125,6 +126,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable {
 
 	protected abstract createNonRecursiveWatcher(
 		path: string,
+		excludes: string[],
 		onChange: (changes: IDiskFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
