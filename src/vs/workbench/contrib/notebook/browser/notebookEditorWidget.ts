@@ -72,6 +72,7 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 import { editorGutterModifiedBackground } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
 import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
+import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 
 const $ = DOM.$;
 
@@ -383,6 +384,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private readonly instantiationService: IInstantiationService;
 	private readonly _notebookOptions: NotebookOptions;
 
+	private _currentProgress: IProgressRunner | undefined;
+
 	get notebookOptions() {
 		return this._notebookOptions;
 	}
@@ -402,6 +405,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INotebookExecutionService private readonly notebookExecutionService: INotebookExecutionService,
 		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
+		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
 	) {
 		super();
 		this.isEmbedded = creationOptions.isEmbedded ?? false;
@@ -583,6 +587,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	hasModel(): this is IActiveNotebookEditorDelegate {
 		return !!this._notebookViewModel;
+	}
+
+	showProgress(): void {
+		this._currentProgress = this.editorProgressService.show(true);
+	}
+
+	hideProgress(): void {
+		if (this._currentProgress) {
+			this._currentProgress.done();
+			this._currentProgress = undefined;
+		}
 	}
 
 	//#region Editor Core

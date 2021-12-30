@@ -627,6 +627,9 @@ export interface INotebookEditor {
 	getCellByHandle(handle: number): ICellViewModel | undefined;
 	getCellIndex(cell: ICellViewModel): number | undefined;
 	getNextVisibleCellIndex(index: number): number | undefined;
+
+	showProgress(): void;
+	hideProgress(): void;
 }
 
 export interface IActiveNotebookEditor extends INotebookEditor {
