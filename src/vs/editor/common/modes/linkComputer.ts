@@ -67,7 +67,7 @@ export class StateMachine {
 		let maxCharCode = 0;
 		let maxState = State.Invalid;
 		for (let i = 0, len = edges.length; i < len; i++) {
-			let [from, chCode, to] = edges[i];
+			const [from, chCode, to] = edges[i];
 			if (chCode > maxCharCode) {
 				maxCharCode = chCode;
 			}
@@ -82,9 +82,9 @@ export class StateMachine {
 		maxCharCode++;
 		maxState++;
 
-		let states = new Uint8Matrix(maxState, maxCharCode, State.Invalid);
+		const states = new Uint8Matrix(maxState, maxCharCode, State.Invalid);
 		for (let i = 0, len = edges.length; i < len; i++) {
-			let [from, chCode, to] = edges[i];
+			const [from, chCode, to] = edges[i];
 			states.set(from, chCode, to);
 		}
 
@@ -213,7 +213,7 @@ export class LinkComputer {
 	public static computeLinks(model: ILinkComputerTarget, stateMachine: StateMachine = getStateMachine()): ILink[] {
 		const classifier = getClassifier();
 
-		let result: ILink[] = [];
+		const result: ILink[] = [];
 		for (let i = 1, lineCount = model.getLineCount(); i <= lineCount; i++) {
 			const line = model.getLineContent(i);
 			const len = line.length;

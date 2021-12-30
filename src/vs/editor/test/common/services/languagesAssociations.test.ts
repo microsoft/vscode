@@ -101,7 +101,7 @@ suite('LanguagesAssociations', () => {
 		registerLanguageAssociation({ id: 'monaco', extension: '.monaco.xnl', mime: 'text/monaco', userConfigured: true });
 		registerLanguageAssociation({ id: 'monaco', extension: '.monaco.xml', mime: 'text/monaco-xml' });
 
-		let guess = getMimeTypes(URI.file('foo.monaco.xnl'));
+		const guess = getMimeTypes(URI.file('foo.monaco.xnl'));
 		assert.deepStrictEqual(guess, ['text/monaco', 'text/plain']);
 	});
 
@@ -109,7 +109,7 @@ suite('LanguagesAssociations', () => {
 		registerLanguageAssociation({ id: 'monaco', filepattern: '**/dot.monaco.xml', mime: 'text/monaco' });
 		registerLanguageAssociation({ id: 'other', filepattern: '*ot.other.xml', mime: 'text/other' });
 
-		let guess = getMimeTypes(URI.file('/some/path/dot.monaco.xml'));
+		const guess = getMimeTypes(URI.file('/some/path/dot.monaco.xml'));
 		assert.deepStrictEqual(guess, ['text/monaco', 'text/plain']);
 	});
 
@@ -117,7 +117,7 @@ suite('LanguagesAssociations', () => {
 		registerLanguageAssociation({ id: 'monaco', filepattern: '**/dot.monaco.xml', mime: 'text/monaco' });
 		registerLanguageAssociation({ id: 'other', filepattern: '**/dot.monaco.xml', mime: 'text/other' });
 
-		let guess = getMimeTypes(URI.file('/some/path/dot.monaco.xml'));
+		const guess = getMimeTypes(URI.file('/some/path/dot.monaco.xml'));
 		assert.deepStrictEqual(guess, ['text/other', 'text/plain']);
 	});
 

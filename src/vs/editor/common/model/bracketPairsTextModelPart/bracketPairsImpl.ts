@@ -107,17 +107,17 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 	}
 
 	public findMatchingBracketUp(_bracket: string, _position: IPosition): Range | null {
-		let bracket = _bracket.toLowerCase();
-		let position = this.textModel.validatePosition(_position);
+		const bracket = _bracket.toLowerCase();
+		const position = this.textModel.validatePosition(_position);
 
 		const languageId = this.textModel.getLanguageIdAtPosition(position.lineNumber, position.column);
-		let bracketsSupport = this.languageConfigurationService.getLanguageConfiguration(languageId).brackets;
+		const bracketsSupport = this.languageConfigurationService.getLanguageConfiguration(languageId).brackets;
 
 		if (!bracketsSupport) {
 			return null;
 		}
 
-		let data = bracketsSupport.textIsBracket[bracket];
+		const data = bracketsSupport.textIsBracket[bracket];
 
 		if (!data) {
 			return null;
@@ -217,7 +217,7 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 			// check that previous token is not to be ignored
 			if (prevModeBrackets && !ignoreBracketsInToken(lineTokens.getStandardTokenType(prevTokenIndex))) {
 
-				let { searchStartOffset, searchEndOffset } = this._establishBracketSearchOffsets(position, lineTokens, prevModeBrackets, prevTokenIndex);
+				const { searchStartOffset, searchEndOffset } = this._establishBracketSearchOffsets(position, lineTokens, prevModeBrackets, prevTokenIndex);
 
 				const foundBracket = BracketsUtils.findPrevBracketInRange(prevModeBrackets.reversedRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
 
@@ -606,7 +606,7 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 		let counts: number[] = [];
 		const resetCounts = (languageId: string, modeBrackets: RichEditBrackets | null) => {
 			if (!savedCounts.has(languageId)) {
-				let tmp = [];
+				const tmp = [];
 				for (let i = 0, len = modeBrackets ? modeBrackets.brackets.length : 0; i < len; i++) {
 					tmp[i] = 0;
 				}
@@ -728,7 +728,7 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 		let text = this.textModel.getValueInRange(r);
 		text = text.toLowerCase();
 
-		let data = modeBrackets.textIsBracket[text];
+		const data = modeBrackets.textIsBracket[text];
 		if (!data) {
 			return null;
 		}

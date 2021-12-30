@@ -46,7 +46,7 @@ export class MinimapTokensColorTracker extends Disposable {
 			// Use a VM friendly data-type
 			this._colors[colorId] = new RGBA8(source.r, source.g, source.b, Math.round(source.a * 255));
 		}
-		let backgroundLuminosity = colorMap[ColorId.DefaultBackground].getRelativeLuminance();
+		const backgroundLuminosity = colorMap[ColorId.DefaultBackground].getRelativeLuminance();
 		this._backgroundIsLight = backgroundLuminosity >= 0.5;
 		this._onDidChange.fire(undefined);
 	}

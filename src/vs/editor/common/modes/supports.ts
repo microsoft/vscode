@@ -7,9 +7,9 @@ import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { StandardTokenType } from 'vs/editor/common/modes';
 
 export function createScopedLineTokens(context: LineTokens, offset: number): ScopedLineTokens {
-	let tokenCount = context.getCount();
-	let tokenIndex = context.findTokenIndexAtOffset(offset);
-	let desiredLanguageId = context.getLanguageId(tokenIndex);
+	const tokenCount = context.getCount();
+	const tokenIndex = context.findTokenIndexAtOffset(offset);
+	const desiredLanguageId = context.getLanguageId(tokenIndex);
 
 	let lastTokenIndex = tokenIndex;
 	while (lastTokenIndex + 1 < tokenCount && context.getLanguageId(lastTokenIndex + 1) === desiredLanguageId) {

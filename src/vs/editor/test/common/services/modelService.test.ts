@@ -525,7 +525,7 @@ suite('ModelSemanticColoring', () => {
 		}));
 
 		function toArr(arr: Uint32Array): number[] {
-			let result: number[] = [];
+			const result: number[] = [];
 			for (let i = 0; i < arr.length; i++) {
 				result[i] = arr[i];
 			}
@@ -585,8 +585,8 @@ function getRandomInt(min: number, max: number): number {
 }
 
 function getRandomString(minLength: number, maxLength: number): string {
-	let length = getRandomInt(minLength, maxLength);
-	let t = createStringBuilder(length);
+	const length = getRandomInt(minLength, maxLength);
+	const t = createStringBuilder(length);
 	for (let i = 0; i < length; i++) {
 		t.appendASCII(getRandomInt(CharCode.a, CharCode.z));
 	}
@@ -594,8 +594,8 @@ function getRandomString(minLength: number, maxLength: number): string {
 }
 
 function generateFile(small: boolean): string[] {
-	let lineCount = getRandomInt(1, small ? 3 : 10000);
-	let lines: string[] = [];
+	const lineCount = getRandomInt(1, small ? 3 : 10000);
+	const lines: string[] = [];
 	for (let i = 0; i < lineCount; i++) {
 		lines.push(getRandomString(0, small ? 3 : 10000));
 	}

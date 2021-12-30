@@ -17,7 +17,7 @@ import { Position } from 'vs/editor/common/core/position';
 export class DeleteOperations {
 
 	public static deleteRight(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[]): [boolean, Array<ICommand | null>] {
-		let commands: Array<ICommand | null> = [];
+		const commands: Array<ICommand | null> = [];
 		let shouldPushStackElementBefore = (prevEditOperationType !== EditOperationType.DeletingRight);
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
@@ -25,8 +25,8 @@ export class DeleteOperations {
 			let deleteSelection: Range = selection;
 
 			if (deleteSelection.isEmpty()) {
-				let position = selection.getPosition();
-				let rightOfPosition = MoveOperations.right(config, model, position);
+				const position = selection.getPosition();
+				const rightOfPosition = MoveOperations.right(config, model, position);
 				deleteSelection = new Range(
 					rightOfPosition.lineNumber,
 					rightOfPosition.column,
@@ -127,7 +127,7 @@ export class DeleteOperations {
 	}
 
 	private static _runAutoClosingPairDelete(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[]): [boolean, ICommand[]] {
-		let commands: ICommand[] = [];
+		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const position = selections[i].getPosition();
 			const deleteSelection = new Range(
@@ -149,7 +149,7 @@ export class DeleteOperations {
 		const commands: Array<ICommand | null> = [];
 		let shouldPushStackElementBefore = (prevEditOperationType !== EditOperationType.DeletingLeft);
 		for (let i = 0, len = selections.length; i < len; i++) {
-			let deleteRange = DeleteOperations.getDeleteRange(selections[i], model, config);
+			const deleteRange = DeleteOperations.getDeleteRange(selections[i], model, config);
 
 			// Ignore empty delete ranges, as they have no effect
 			// They happen if the cursor is at the beginning of the file.
@@ -211,7 +211,7 @@ export class DeleteOperations {
 	}
 
 	public static cut(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[]): EditOperationResult {
-		let commands: Array<ICommand | null> = [];
+		const commands: Array<ICommand | null> = [];
 		let lastCutRange: Range | null = null;
 		selections.sort((a, b) => Position.compare(a.getStartPosition(), b.getEndPosition()));
 		for (let i = 0, len = selections.length; i < len; i++) {
@@ -221,7 +221,7 @@ export class DeleteOperations {
 				if (config.emptySelectionClipboard) {
 					// This is a full line cut
 
-					let position = selection.getPosition();
+					const position = selection.getPosition();
 
 					let startLineNumber: number,
 						startColumn: number,
@@ -248,7 +248,7 @@ export class DeleteOperations {
 						endColumn = model.getLineMaxColumn(position.lineNumber);
 					}
 
-					let deleteSelection = new Range(
+					const deleteSelection = new Range(
 						startLineNumber,
 						startColumn,
 						endLineNumber,

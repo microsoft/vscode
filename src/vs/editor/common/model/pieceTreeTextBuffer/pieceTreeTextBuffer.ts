@@ -96,7 +96,7 @@ export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
 	}
 
 	public getRangeAt(start: number, length: number): Range {
-		let end = start + length;
+		const end = start + length;
 		const startPosition = this.getPositionAt(start);
 		const endPosition = this.getPositionAt(end);
 		return new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
@@ -120,8 +120,8 @@ export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
 			return (range.endColumn - range.startColumn);
 		}
 
-		let startOffset = this.getOffsetAt(range.startLineNumber, range.startColumn);
-		let endOffset = this.getOffsetAt(range.endLineNumber, range.endColumn);
+		const startOffset = this.getOffsetAt(range.startLineNumber, range.startColumn);
+		const endOffset = this.getOffsetAt(range.endLineNumber, range.endColumn);
 		return endOffset - startOffset;
 	}
 
@@ -233,11 +233,11 @@ export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
 
 		let operations: IValidatedEditOperation[] = [];
 		for (let i = 0; i < rawOperations.length; i++) {
-			let op = rawOperations[i];
+			const op = rawOperations[i];
 			if (canReduceOperations && op._isTracked) {
 				canReduceOperations = false;
 			}
-			let validatedRange = op.range;
+			const validatedRange = op.range;
 			if (op.text) {
 				let textMightContainNonBasicASCII = true;
 				if (!mightContainNonBasicASCII) {
@@ -291,8 +291,8 @@ export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
 
 		let hasTouchingRanges = false;
 		for (let i = 0, count = operations.length - 1; i < count; i++) {
-			let rangeEnd = operations[i].range.getEndPosition();
-			let nextRangeStart = operations[i + 1].range.getStartPosition();
+			const rangeEnd = operations[i].range.getEndPosition();
+			const nextRangeStart = operations[i + 1].range.getStartPosition();
 
 			if (nextRangeStart.isBeforeOrEqual(rangeEnd)) {
 				if (nextRangeStart.isBefore(rangeEnd)) {
@@ -308,12 +308,12 @@ export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
 		}
 
 		// Delta encode operations
-		let reverseRanges = (computeUndoEdits || recordTrimAutoWhitespace ? PieceTreeTextBuffer._getInverseEditRanges(operations) : []);
-		let newTrimAutoWhitespaceCandidates: { lineNumber: number, oldContent: string }[] = [];
+		const reverseRanges = (computeUndoEdits || recordTrimAutoWhitespace ? PieceTreeTextBuffer._getInverseEditRanges(operations) : []);
+		const newTrimAutoWhitespaceCandidates: { lineNumber: number, oldContent: string }[] = [];
 		if (recordTrimAutoWhitespace) {
 			for (let i = 0; i < operations.length; i++) {
-				let op = operations[i];
-				let reverseRange = reverseRanges[i];
+				const op = operations[i];
+				const reverseRange = reverseRanges[i];
 
 				if (op.isAutoWhitespaceEdit && op.range.isEmpty()) {
 					// Record already the future line numbers that might be auto whitespace removal candidates on next edit
@@ -372,14 +372,14 @@ export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
 
 			trimAutoWhitespaceLineNumbers = [];
 			for (let i = 0, len = newTrimAutoWhitespaceCandidates.length; i < len; i++) {
-				let lineNumber = newTrimAutoWhitespaceCandidates[i].lineNumber;
+				const lineNumber = newTrimAutoWhitespaceCandidates[i].lineNumber;
 				if (i > 0 && newTrimAutoWhitespaceCandidates[i - 1].lineNumber === lineNumber) {
 					// Do not have the same line number twice
 					continue;
 				}
 
-				let prevContent = newTrimAutoWhitespaceCandidates[i].oldContent;
-				let lineContent = this.getLineContent(lineNumber);
+				const prevContent = newTrimAutoWhitespaceCandidates[i].oldContent;
+				const lineContent = this.getLineContent(lineNumber);
 
 				if (lineContent.length === 0 || lineContent === prevContent || strings.firstNonWhitespaceIndex(lineContent) !== -1) {
 					continue;
@@ -464,11 +464,11 @@ export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
 	private _doApplyEdits(operations: IValidatedEditOperation[]): IInternalModelContentChange[] {
 		operations.sort(PieceTreeTextBuffer._sortOpsDescending);
 
-		let contentChanges: IInternalModelContentChange[] = [];
+		const contentChanges: IInternalModelContentChange[] = [];
 
 		// operations are from bottom to top
 		for (let i = 0; i < operations.length; i++) {
-			let op = operations[i];
+			const op = operations[i];
 
 			const startLineNumber = op.range.startLineNumber;
 			const startColumn = op.range.startColumn;
@@ -515,8 +515,8 @@ export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
 	}
 
 	public static _getInverseEditRange(range: Range, text: string) {
-		let startLineNumber = range.startLineNumber;
-		let startColumn = range.startColumn;
+		const startLineNumber = range.startLineNumber;
+		const startColumn = range.startColumn;
 		const [eolCount, firstLineLength, lastLineLength] = countEOL(text);
 		let resultRange: Range;
 
@@ -543,13 +543,13 @@ export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
 	 * Assumes `operations` are validated and sorted ascending
 	 */
 	public static _getInverseEditRanges(operations: IValidatedEditOperation[]): Range[] {
-		let result: Range[] = [];
+		const result: Range[] = [];
 
 		let prevOpEndLineNumber: number = 0;
 		let prevOpEndColumn: number = 0;
 		let prevOp: IValidatedEditOperation | null = null;
 		for (let i = 0, len = operations.length; i < len; i++) {
-			let op = operations[i];
+			const op = operations[i];
 
 			let startLineNumber: number;
 			let startColumn: number;
@@ -596,7 +596,7 @@ export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
 	}
 
 	private static _sortOpsAscending(a: IValidatedEditOperation, b: IValidatedEditOperation): number {
-		let r = Range.compareRangesUsingEnds(a.range, b.range);
+		const r = Range.compareRangesUsingEnds(a.range, b.range);
 		if (r === 0) {
 			return a.sortIndex - b.sortIndex;
 		}
@@ -604,7 +604,7 @@ export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
 	}
 
 	private static _sortOpsDescending(a: IValidatedEditOperation, b: IValidatedEditOperation): number {
-		let r = Range.compareRangesUsingEnds(a.range, b.range);
+		const r = Range.compareRangesUsingEnds(a.range, b.range);
 		if (r === 0) {
 			return b.sortIndex - a.sortIndex;
 		}

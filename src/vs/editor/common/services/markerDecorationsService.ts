@@ -50,7 +50,7 @@ class MarkerDecorations extends Disposable {
 	getMarkers(): [Range, IMarker][] {
 		const res: [Range, IMarker][] = [];
 		this._markersData.forEach((marker, id) => {
-			let range = this.model.getDecorationRange(id);
+			const range = this.model.getDecorationRange(id);
 			if (range) {
 				res.push([range, marker]);
 			}
@@ -130,7 +130,7 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 	private _updateDecorations(markerDecorations: MarkerDecorations): void {
 		// Limit to the first 500 errors/warnings
 		const markers = this._markerService.read({ resource: markerDecorations.model.uri, take: 500 });
-		let newModelDecorations: IModelDeltaDecoration[] = markers.map((marker) => {
+		const newModelDecorations: IModelDeltaDecoration[] = markers.map((marker) => {
 			return {
 				range: this._createDecorationRange(markerDecorations.model, marker),
 				options: this._createDecorationOption(marker)

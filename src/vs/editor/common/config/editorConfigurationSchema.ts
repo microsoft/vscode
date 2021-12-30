@@ -185,7 +185,7 @@ for (const editorOption of editorOptionsRegistry) {
 			// This is a single schema contribution
 			editorConfiguration.properties![`editor.${editorOption.name}`] = schema;
 		} else {
-			for (let key in schema) {
+			for (const key in schema) {
 				if (Object.hasOwnProperty.call(schema, key)) {
 					editorConfiguration.properties![key] = schema[key];
 				}

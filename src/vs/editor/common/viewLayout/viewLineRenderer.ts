@@ -294,7 +294,7 @@ export class CharacterMapping {
 			return 0;
 		}
 
-		let searchEntry = (
+		const searchEntry = (
 			(partIndex << CharacterMappingConstants.PART_INDEX_OFFSET)
 			| (charIndex << CharacterMappingConstants.CHAR_INDEX_OFFSET)
 		) >>> 0;
@@ -302,8 +302,8 @@ export class CharacterMapping {
 		let min = 0;
 		let max = this.length - 1;
 		while (min + 1 < max) {
-			let mid = ((min + max) >>> 1);
-			let midEntry = this._data[mid];
+			const mid = ((min + max) >>> 1);
+			const midEntry = this._data[mid];
 			if (midEntry === searchEntry) {
 				return mid;
 			} else if (midEntry > searchEntry) {
@@ -317,8 +317,8 @@ export class CharacterMapping {
 			return min;
 		}
 
-		let minEntry = this._data[min];
-		let maxEntry = this._data[max];
+		const minEntry = this._data[min];
+		const maxEntry = this._data[max];
 
 		if (minEntry === searchEntry) {
 			return min;
@@ -327,10 +327,10 @@ export class CharacterMapping {
 			return max;
 		}
 
-		let minPartIndex = CharacterMapping.getPartIndex(minEntry);
-		let minCharIndex = CharacterMapping.getCharIndex(minEntry);
+		const minPartIndex = CharacterMapping.getPartIndex(minEntry);
+		const minCharIndex = CharacterMapping.getCharIndex(minEntry);
 
-		let maxPartIndex = CharacterMapping.getPartIndex(maxEntry);
+		const maxPartIndex = CharacterMapping.getPartIndex(maxEntry);
 		let maxCharIndex: number;
 
 		if (minPartIndex !== maxPartIndex) {
@@ -340,8 +340,8 @@ export class CharacterMapping {
 			maxCharIndex = CharacterMapping.getCharIndex(maxEntry);
 		}
 
-		let minEntryDistance = charIndex - minCharIndex;
-		let maxEntryDistance = maxCharIndex - charIndex;
+		const minEntryDistance = charIndex - minCharIndex;
+		const maxEntryDistance = maxCharIndex - charIndex;
 
 		if (minEntryDistance <= maxEntryDistance) {
 			return min;
@@ -432,8 +432,8 @@ export class RenderLineOutput2 {
 }
 
 export function renderViewLine2(input: RenderLineInput): RenderLineOutput2 {
-	let sb = createStringBuilder(10000);
-	let out = renderViewLine(input, sb);
+	const sb = createStringBuilder(10000);
+	const out = renderViewLine(input, sb);
 	return new RenderLineOutput2(out.characterMapping, sb.build(), out.containsRTL, out.containsForeignElements);
 }
 
@@ -530,7 +530,8 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
  * Ensure that all tokens end before `len` and the last one ends precisely at `len`.
  */
 function transformAndRemoveOverflowing(tokens: IViewLineTokens, fauxIndentLength: number, len: number): LinePart[] {
-	let result: LinePart[] = [], resultLen = 0;
+	const result: LinePart[] = [];
+	let resultLen = 0;
 
 	// The faux indent part of the line should have no token type
 	if (fauxIndentLength > 0) {
@@ -568,7 +569,8 @@ const enum Constants {
  */
 function splitLargeTokens(lineContent: string, tokens: LinePart[], onlyAtSpaces: boolean): LinePart[] {
 	let lastTokenEndIndex = 0;
-	let result: LinePart[] = [], resultLen = 0;
+	const result: LinePart[] = [];
+	let resultLen = 0;
 
 	if (onlyAtSpaces) {
 		// Split only at spaces => we need to walk each character
@@ -606,13 +608,13 @@ function splitLargeTokens(lineContent: string, tokens: LinePart[], onlyAtSpaces:
 		for (let i = 0, len = tokens.length; i < len; i++) {
 			const token = tokens[i];
 			const tokenEndIndex = token.endIndex;
-			let diff = (tokenEndIndex - lastTokenEndIndex);
+			const diff = (tokenEndIndex - lastTokenEndIndex);
 			if (diff > Constants.LongToken) {
 				const tokenType = token.type;
 				const tokenMetadata = token.metadata;
 				const piecesCount = Math.ceil(diff / Constants.LongToken);
 				for (let j = 1; j < piecesCount; j++) {
-					let pieceEndIndex = lastTokenEndIndex + (j * Constants.LongToken);
+					const pieceEndIndex = lastTokenEndIndex + (j * Constants.LongToken);
 					result[resultLen++] = new LinePart(pieceEndIndex, tokenType, tokenMetadata);
 				}
 				result[resultLen++] = new LinePart(tokenEndIndex, tokenType, tokenMetadata);
@@ -661,7 +663,7 @@ function isControlCharacter(charCode: number): boolean {
 }
 
 function extractControlCharacters(lineContent: string, tokens: LinePart[]): LinePart[] {
-	let result: LinePart[] = [];
+	const result: LinePart[] = [];
 	let lastLinePart: LinePart = new LinePart(0, '', 0);
 	let charOffset = 0;
 	for (const token of tokens) {
@@ -704,7 +706,8 @@ function _applyRenderWhitespace(input: RenderLineInput, lineContent: string, len
 	const onlyTrailing = (input.renderWhitespace === RenderWhitespace.Trailing);
 	const generateLinePartForEachWhitespace = (input.renderSpaceWidth !== input.spaceWidth);
 
-	let result: LinePart[] = [], resultLen = 0;
+	const result: LinePart[] = [];
+	let resultLen = 0;
 	let tokenIndex = 0;
 	let tokenType = tokens[tokenIndex].type;
 	let tokenEndIndex = tokens[tokenIndex].endIndex;
@@ -814,9 +817,9 @@ function _applyRenderWhitespace(input: RenderLineInput, lineContent: string, len
 	if (wasInWhitespace) {
 		// was in whitespace token
 		if (continuesWithWrappedLine && onlyBoundary) {
-			let lastCharCode = (len > 0 ? lineContent.charCodeAt(len - 1) : CharCode.Null);
-			let prevCharCode = (len > 1 ? lineContent.charCodeAt(len - 2) : CharCode.Null);
-			let isSingleTrailingSpace = (lastCharCode === CharCode.Space && (prevCharCode !== CharCode.Space && prevCharCode !== CharCode.Tab));
+			const lastCharCode = (len > 0 ? lineContent.charCodeAt(len - 1) : CharCode.Null);
+			const prevCharCode = (len > 1 ? lineContent.charCodeAt(len - 2) : CharCode.Null);
+			const isSingleTrailingSpace = (lastCharCode === CharCode.Space && (prevCharCode !== CharCode.Space && prevCharCode !== CharCode.Tab));
 			if (!isSingleTrailingSpace) {
 				generateWhitespace = true;
 			}
@@ -851,7 +854,9 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: LineP
 	const lineDecorationsLen = lineDecorations.length;
 
 	let lineDecorationIndex = 0;
-	let result: LinePart[] = [], resultLen = 0, lastResultEndIndex = 0;
+	const result: LinePart[] = [];
+	let resultLen = 0;
+	let lastResultEndIndex = 0;
 	for (let tokenIndex = 0, len = tokens.length; tokenIndex < len; tokenIndex++) {
 		const token = tokens[tokenIndex];
 		const tokenEndIndex = token.endIndex;

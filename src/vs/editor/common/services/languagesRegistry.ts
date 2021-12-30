@@ -130,7 +130,7 @@ export class LanguagesRegistry extends Disposable {
 		this._nameMap = {};
 		this._lowercaseNameMap = {};
 		Object.keys(this._languages).forEach((langId) => {
-			let language = this._languages[langId];
+			const language = this._languages[langId];
 			if (language.name) {
 				this._nameMap[language.name] = language.identifier;
 			}
@@ -216,7 +216,7 @@ export class LanguagesRegistry extends Disposable {
 				firstLineRegexStr = '^' + firstLineRegexStr;
 			}
 			try {
-				let firstLineRegex = new RegExp(firstLineRegexStr);
+				const firstLineRegex = new RegExp(firstLineRegexStr);
 				if (!regExpLeadsToEndlessLoop(firstLineRegex)) {
 					registerLanguageAssociation({ id: langId, mime: primaryMime, firstline: firstLineRegex }, this._warnOnOverwrite);
 				}
@@ -247,11 +247,11 @@ export class LanguagesRegistry extends Disposable {
 			}
 		}
 
-		let containsAliases = (langAliases !== null && langAliases.length > 0);
+		const containsAliases = (langAliases !== null && langAliases.length > 0);
 		if (containsAliases && langAliases![0] === null) {
 			// signal that this language should not get a name
 		} else {
-			let bestName = (containsAliases ? langAliases![0] : null) || langId;
+			const bestName = (containsAliases ? langAliases![0] : null) || langId;
 			if (containsAliases || !resolvedLanguage.name) {
 				resolvedLanguage.name = bestName;
 			}

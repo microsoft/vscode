@@ -48,12 +48,12 @@ function parseTest(fileName: string): ITest {
 		assertions: []
 	};
 
-	let parsedTest: ILineWithAssertions[] = [];
+	const parsedTest: ILineWithAssertions[] = [];
 	for (let i = 2; i < lines.length; i++) {
-		let line = lines[i];
+		const line = lines[i];
 		if (line.substr(0, magicToken.length) === magicToken) {
 			// this is an assertion line
-			let m1 = line.substr(magicToken.length).match(/^( +)([\^]+) (\w+)\\?$/);
+			const m1 = line.substr(magicToken.length).match(/^( +)([\^]+) (\w+)\\?$/);
 			if (m1) {
 				currentElement.assertions.push({
 					testLineNumber: i + 1,
@@ -62,7 +62,7 @@ function parseTest(fileName: string): ITest {
 					expectedTokenType: toStandardTokenType(m1[3])
 				});
 			} else {
-				let m2 = line.substr(magicToken.length).match(/^( +)<(-+) (\w+)\\?$/);
+				const m2 = line.substr(magicToken.length).match(/^( +)<(-+) (\w+)\\?$/);
 				if (m2) {
 					currentElement.assertions.push({
 						testLineNumber: i + 1,
@@ -85,7 +85,7 @@ function parseTest(fileName: string): ITest {
 	}
 	parsedTest.push(currentElement);
 
-	let assertions: IAssertion[] = [];
+	const assertions: IAssertion[] = [];
 
 	let offset = 0;
 	for (let i = 0; i < parsedTest.length; i++) {
@@ -102,7 +102,7 @@ function parseTest(fileName: string): ITest {
 		offset += parsedTestLine.line.length + 1;
 	}
 
-	let content: string = parsedTest.map(parsedTestLine => parsedTestLine.line).join('\n');
+	const content: string = parsedTest.map(parsedTestLine => parsedTestLine.line).join('\n');
 
 	return { content, assertions };
 }
@@ -112,7 +112,8 @@ function executeTest(fileName: string, parseFunc: IParseFunc): void {
 	const { content, assertions } = parseTest(fileName);
 	const actual = parseFunc(content);
 
-	let actualIndex = 0, actualCount = actual.length / 3;
+	let actualIndex = 0;
+	const actualCount = actual.length / 3;
 	for (let i = 0; i < assertions.length; i++) {
 		const assertion = assertions[i];
 		while (actualIndex < actualCount && actual[3 * actualIndex] + actual[3 * actualIndex + 1] <= assertion.startOffset) {

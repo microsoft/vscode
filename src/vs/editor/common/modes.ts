@@ -140,10 +140,10 @@ export class TokenMetadata {
 	}
 
 	public static getClassNameFromMetadata(metadata: number): string {
-		let foreground = this.getForeground(metadata);
+		const foreground = this.getForeground(metadata);
 		let className = 'mtk' + foreground;
 
-		let fontStyle = this.getFontStyle(metadata);
+		const fontStyle = this.getFontStyle(metadata);
 		if (fontStyle & FontStyle.Italic) {
 			className += ' mtki';
 		}

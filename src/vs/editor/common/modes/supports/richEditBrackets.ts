@@ -163,8 +163,8 @@ function groupFuzzyBrackets(brackets: readonly CharacterPair[]): InternalBracket
 
 	const result: InternalBracket[] = [];
 	for (let g = 0; g < N; g++) {
-		let currentOpen: string[] = [];
-		let currentClose: string[] = [];
+		const currentOpen: string[] = [];
+		const currentClose: string[] = [];
 		for (let i = 0; i < N; i++) {
 			if (group[i] === g) {
 				const [open, close] = brackets[i];
@@ -409,7 +409,7 @@ function prepareBracketForRegExp(str: string): string {
 }
 
 function createBracketOrRegExp(pieces: string[]): RegExp {
-	let regexStr = `(${pieces.map(prepareBracketForRegExp).join(')|(')})`;
+	const regexStr = `(${pieces.map(prepareBracketForRegExp).join(')|(')})`;
 	return strings.createRegExp(regexStr, true);
 }
 
@@ -425,7 +425,8 @@ const toReversedString = (function () {
 			}
 			return stringBuilder.getPlatformTextDecoder().decode(arr);
 		} else {
-			let result: string[] = [], resultLen = 0;
+			const result: string[] = [];
+			let resultLen = 0;
 			for (let i = str.length - 1; i >= 0; i--) {
 				result[resultLen++] = str.charAt(i);
 			}
@@ -447,15 +448,15 @@ const toReversedString = (function () {
 export class BracketsUtils {
 
 	private static _findPrevBracketInText(reversedBracketRegex: RegExp, lineNumber: number, reversedText: string, offset: number): Range | null {
-		let m = reversedText.match(reversedBracketRegex);
+		const m = reversedText.match(reversedBracketRegex);
 
 		if (!m) {
 			return null;
 		}
 
-		let matchOffset = reversedText.length - (m.index || 0);
-		let matchLength = m[0].length;
-		let absoluteMatchOffset = offset + matchOffset;
+		const matchOffset = reversedText.length - (m.index || 0);
+		const matchLength = m[0].length;
+		const absoluteMatchOffset = offset + matchOffset;
 
 		return new Range(lineNumber, absoluteMatchOffset - matchLength + 1, lineNumber, absoluteMatchOffset + 1);
 	}
@@ -468,18 +469,18 @@ export class BracketsUtils {
 	}
 
 	public static findNextBracketInText(bracketRegex: RegExp, lineNumber: number, text: string, offset: number): Range | null {
-		let m = text.match(bracketRegex);
+		const m = text.match(bracketRegex);
 
 		if (!m) {
 			return null;
 		}
 
-		let matchOffset = m.index || 0;
-		let matchLength = m[0].length;
+		const matchOffset = m.index || 0;
+		const matchLength = m[0].length;
 		if (matchLength === 0) {
 			return null;
 		}
-		let absoluteMatchOffset = offset + matchOffset;
+		const absoluteMatchOffset = offset + matchOffset;
 
 		return new Range(lineNumber, absoluteMatchOffset + 1, lineNumber, absoluteMatchOffset + 1 + matchLength);
 	}

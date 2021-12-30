@@ -88,7 +88,7 @@ class InspectTokens extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let controller = InspectTokensController.get(editor);
+		const controller = InspectTokensController.get(editor);
 		if (controller) {
 			controller.launch();
 		}
@@ -113,7 +113,7 @@ interface IDecodedMetadata {
 function renderTokenText(tokenText: string): string {
 	let result: string = '';
 	for (let charIndex = 0, len = tokenText.length; charIndex < len; charIndex++) {
-		let charCode = tokenText.charCodeAt(charIndex);
+		const charCode = tokenText.charCodeAt(charIndex);
 		switch (charCode) {
 			case CharCode.Tab:
 				result += '\u2192'; // &rarr;
@@ -182,11 +182,11 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 	}
 
 	private _compute(position: Position): void {
-		let data = this._getTokensAtLine(position.lineNumber);
+		const data = this._getTokensAtLine(position.lineNumber);
 
 		let token1Index = 0;
 		for (let i = data.tokens1.length - 1; i >= 0; i--) {
-			let t = data.tokens1[i];
+			const t = data.tokens1[i];
 			if (position.column - 1 >= t.offset) {
 				token1Index = i;
 				break;
@@ -201,11 +201,11 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 			}
 		}
 
-		let lineContent = this._model.getLineContent(position.lineNumber);
+		const lineContent = this._model.getLineContent(position.lineNumber);
 		let tokenText = '';
 		if (token1Index < data.tokens1.length) {
-			let tokenStartIndex = data.tokens1[token1Index].offset;
-			let tokenEndIndex = token1Index + 1 < data.tokens1.length ? data.tokens1[token1Index + 1].offset : lineContent.length;
+			const tokenStartIndex = data.tokens1[token1Index].offset;
+			const tokenEndIndex = token1Index + 1 < data.tokens1.length ? data.tokens1[token1Index + 1].offset : lineContent.length;
 			tokenText = lineContent.substring(tokenStartIndex, tokenEndIndex);
 		}
 		reset(this._domNode,
@@ -249,12 +249,12 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 	}
 
 	private _decodeMetadata(metadata: number): IDecodedMetadata {
-		let colorMap = TokenizationRegistry.getColorMap()!;
-		let languageId = TokenMetadata.getLanguageId(metadata);
-		let tokenType = TokenMetadata.getTokenType(metadata);
-		let fontStyle = TokenMetadata.getFontStyle(metadata);
-		let foreground = TokenMetadata.getForeground(metadata);
-		let background = TokenMetadata.getBackground(metadata);
+		const colorMap = TokenizationRegistry.getColorMap()!;
+		const languageId = TokenMetadata.getLanguageId(metadata);
+		const tokenType = TokenMetadata.getTokenType(metadata);
+		const fontStyle = TokenMetadata.getFontStyle(metadata);
+		const foreground = TokenMetadata.getForeground(metadata);
+		const background = TokenMetadata.getBackground(metadata);
 		return {
 			languageId: this._languageService.languageIdCodec.decodeLanguageId(languageId),
 			tokenType: tokenType,
@@ -295,10 +295,10 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 	}
 
 	private _getTokensAtLine(lineNumber: number): ICompleteLineTokenization {
-		let stateBeforeLine = this._getStateBeforeLine(lineNumber);
+		const stateBeforeLine = this._getStateBeforeLine(lineNumber);
 
-		let tokenizationResult1 = this._tokenizationSupport.tokenize(this._model.getLineContent(lineNumber), true, stateBeforeLine);
-		let tokenizationResult2 = this._tokenizationSupport.tokenizeEncoded(this._model.getLineContent(lineNumber), true, stateBeforeLine);
+		const tokenizationResult1 = this._tokenizationSupport.tokenize(this._model.getLineContent(lineNumber), true, stateBeforeLine);
+		const tokenizationResult2 = this._tokenizationSupport.tokenizeEncoded(this._model.getLineContent(lineNumber), true, stateBeforeLine);
 
 		return {
 			startState: stateBeforeLine,
@@ -312,7 +312,7 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 		let state: IState = this._tokenizationSupport.getInitialState();
 
 		for (let i = 1; i < lineNumber; i++) {
-			let tokenizationResult = this._tokenizationSupport.tokenize(this._model.getLineContent(i), true, state);
+			const tokenizationResult = this._tokenizationSupport.tokenize(this._model.getLineContent(i), true, state);
 			state = tokenizationResult.endState;
 		}
 
@@ -337,7 +337,7 @@ registerEditorAction(InspectTokens);
 registerThemingParticipant((theme, collector) => {
 	const border = theme.getColor(editorHoverBorder);
 	if (border) {
-		let borderWidth = theme.type === ColorScheme.HIGH_CONTRAST ? 2 : 1;
+		const borderWidth = theme.type === ColorScheme.HIGH_CONTRAST ? 2 : 1;
 		collector.addRule(`.monaco-editor .tokens-inspect-widget { border: ${borderWidth}px solid ${border}; }`);
 		collector.addRule(`.monaco-editor .tokens-inspect-widget .tokens-inspect-separator { background-color: ${border}; }`);
 	}

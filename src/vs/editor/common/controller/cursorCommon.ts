@@ -146,7 +146,7 @@ export class CursorConfiguration {
 
 		this.autoClosingPairs = this.languageConfigurationService.getLanguageConfiguration(languageId).getAutoClosingPairs();
 
-		let surroundingPairs = this.languageConfigurationService.getLanguageConfiguration(languageId).getSurroundingPairs();
+		const surroundingPairs = this.languageConfigurationService.getLanguageConfiguration(languageId).getSurroundingPairs();
 		if (surroundingPairs) {
 			for (const pair of surroundingPairs) {
 				this.surroundingPairs[pair.open] = pair.close;
@@ -171,8 +171,8 @@ export class CursorConfiguration {
 	 * Should return opening bracket type to match indentation with
 	 */
 	public onElectricCharacter(character: string, context: LineTokens, column: number): IElectricAction | null {
-		let scopedLineTokens = createScopedLineTokens(context, column - 1);
-		let electricCharacterSupport = this.languageConfigurationService.getLanguageConfiguration(scopedLineTokens.languageId).electricCharacter;
+		const scopedLineTokens = createScopedLineTokens(context, column - 1);
+		const electricCharacterSupport = this.languageConfigurationService.getLanguageConfiguration(scopedLineTokens.languageId).electricCharacter;
 		if (!electricCharacterSupport) {
 			return null;
 		}
@@ -289,7 +289,7 @@ export class CursorState {
 	}
 
 	public static fromModelSelections(modelSelections: readonly ISelection[]): PartialModelCursorState[] {
-		let states: PartialModelCursorState[] = [];
+		const states: PartialModelCursorState[] = [];
 		for (let i = 0, len = modelSelections.length; i < len; i++) {
 			states[i] = this.fromModelSelection(modelSelections[i]);
 		}

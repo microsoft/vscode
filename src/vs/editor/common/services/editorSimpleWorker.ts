@@ -119,7 +119,7 @@ export class MirrorModel extends BaseMirrorModel implements ICommonModel {
 
 	public getWordAtPosition(position: IPosition, wordDefinition: RegExp): Range | null {
 
-		let wordAtText = getWordAtText(
+		const wordAtText = getWordAtText(
 			position.column,
 			ensureValidWordDefinition(wordDefinition),
 			this._lines[position.lineNumber - 1],
@@ -183,9 +183,9 @@ export class MirrorModel extends BaseMirrorModel implements ICommonModel {
 	}
 
 	public getLineWords(lineNumber: number, wordDefinition: RegExp): IWordAtPosition[] {
-		let content = this._lines[lineNumber - 1];
-		let ranges = this._wordenize(content, wordDefinition);
-		let words: IWordAtPosition[] = [];
+		const content = this._lines[lineNumber - 1];
+		const ranges = this._wordenize(content, wordDefinition);
+		const words: IWordAtPosition[] = [];
 		for (const range of ranges) {
 			words.push({
 				word: content.substring(range.start, range.end),
@@ -219,10 +219,10 @@ export class MirrorModel extends BaseMirrorModel implements ICommonModel {
 			return this._lines[range.startLineNumber - 1].substring(range.startColumn - 1, range.endColumn - 1);
 		}
 
-		let lineEnding = this._eol;
-		let startLineIndex = range.startLineNumber - 1;
-		let endLineIndex = range.endLineNumber - 1;
-		let resultLines: string[] = [];
+		const lineEnding = this._eol;
+		const startLineIndex = range.startLineNumber - 1;
+		const endLineIndex = range.endLineNumber - 1;
+		const resultLines: string[] = [];
 
 		resultLines.push(this._lines[startLineIndex].substring(range.startColumn - 1));
 		for (let i = startLineIndex + 1; i < endLineIndex; i++) {
@@ -244,8 +244,8 @@ export class MirrorModel extends BaseMirrorModel implements ICommonModel {
 		offset = Math.max(0, offset);
 
 		this._ensureLineStarts();
-		let out = this._lineStarts!.getIndexOf(offset);
-		let lineLength = this._lines[out.index].length;
+		const out = this._lineStarts!.getIndexOf(offset);
+		const lineLength = this._lines[out.index].length;
 
 		// Ensure we return a valid position
 		return {
@@ -293,7 +293,7 @@ export class MirrorModel extends BaseMirrorModel implements ICommonModel {
 			hasChanged = true;
 
 		} else {
-			let maxCharacter = this._lines[lineNumber - 1].length + 1;
+			const maxCharacter = this._lines[lineNumber - 1].length + 1;
 			if (column < 1) {
 				column = 1;
 				hasChanged = true;
@@ -348,7 +348,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 	}
 
 	private _getModels(): ICommonModel[] {
-		let all: MirrorModel[] = [];
+		const all: MirrorModel[] = [];
 		Object.keys(this._models).forEach((key) => all.push(this._models[key]));
 		return all;
 	}
@@ -361,7 +361,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 		if (!this._models[strURL]) {
 			return;
 		}
-		let model = this._models[strURL];
+		const model = this._models[strURL];
 		model.onEvents(e);
 	}
 
@@ -425,15 +425,15 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 	}
 
 	public async computeDirtyDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean): Promise<IChange[] | null> {
-		let original = this._getModel(originalUrl);
-		let modified = this._getModel(modifiedUrl);
+		const original = this._getModel(originalUrl);
+		const modified = this._getModel(modifiedUrl);
 		if (!original || !modified) {
 			return null;
 		}
 
-		let originalLines = original.getLinesContent();
-		let modifiedLines = modified.getLinesContent();
-		let diffComputer = new DiffComputer(originalLines, modifiedLines, {
+		const originalLines = original.getLinesContent();
+		const modifiedLines = modified.getLinesContent();
+		const diffComputer = new DiffComputer(originalLines, modifiedLines, {
 			shouldComputeCharChanges: false,
 			shouldPostProcessCharChanges: false,
 			shouldIgnoreTrimWhitespace: ignoreTrimWhitespace,
@@ -464,8 +464,8 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 				return Range.compareRangesUsingStarts(a.range, b.range);
 			}
 			// eol only changes should go to the end
-			let aRng = a.range ? 0 : 1;
-			let bRng = b.range ? 0 : 1;
+			const aRng = a.range ? 0 : 1;
+			const bRng = b.range ? 0 : 1;
 			return aRng - bRng;
 		});
 
@@ -522,7 +522,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 	// ---- END minimal edits ---------------------------------------------------------------
 
 	public async computeLinks(modelUrl: string): Promise<ILink[] | null> {
-		let model = this._getModel(modelUrl);
+		const model = this._getModel(modelUrl);
 		if (!model) {
 			return null;
 		}
@@ -566,14 +566,14 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 	//#region -- word ranges --
 
 	public async computeWordRanges(modelUrl: string, range: IRange, wordDef: string, wordDefFlags: string): Promise<{ [word: string]: IRange[] }> {
-		let model = this._getModel(modelUrl);
+		const model = this._getModel(modelUrl);
 		if (!model) {
 			return Object.create(null);
 		}
 		const wordDefRegExp = new RegExp(wordDef, wordDefFlags);
 		const result: { [word: string]: IRange[] } = Object.create(null);
 		for (let line = range.startLineNumber; line < range.endLineNumber; line++) {
-			let words = model.getLineWords(line, wordDefRegExp);
+			const words = model.getLineWords(line, wordDefRegExp);
 			for (const word of words) {
 				if (!isNaN(Number(word.word))) {
 					continue;
@@ -597,12 +597,12 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 	//#endregion
 
 	public async navigateValueSet(modelUrl: string, range: IRange, up: boolean, wordDef: string, wordDefFlags: string): Promise<IInplaceReplaceSupportResult | null> {
-		let model = this._getModel(modelUrl);
+		const model = this._getModel(modelUrl);
 		if (!model) {
 			return null;
 		}
 
-		let wordDefRegExp = new RegExp(wordDef, wordDefFlags);
+		const wordDefRegExp = new RegExp(wordDef, wordDefFlags);
 
 		if (range.startColumn === range.endColumn) {
 			range = {
@@ -613,14 +613,14 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			};
 		}
 
-		let selectionText = model.getValueInRange(range);
+		const selectionText = model.getValueInRange(range);
 
-		let wordRange = model.getWordAtPosition({ lineNumber: range.startLineNumber, column: range.startColumn }, wordDefRegExp);
+		const wordRange = model.getWordAtPosition({ lineNumber: range.startLineNumber, column: range.startColumn }, wordDefRegExp);
 		if (!wordRange) {
 			return null;
 		}
-		let word = model.getValueInRange(wordRange);
-		let result = BasicInplaceReplace.INSTANCE.navigateValueSet(range, selectionText, wordRange, word, up);
+		const word = model.getValueInRange(wordRange);
+		const result = BasicInplaceReplace.INSTANCE.navigateValueSet(range, selectionText, wordRange, word, up);
 		return result;
 	}
 
@@ -633,7 +633,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 
 		const foreignHost = types.createProxyObject(foreignHostMethods, proxyMethodRequest);
 
-		let ctx: IWorkerContext<any> = {
+		const ctx: IWorkerContext<any> = {
 			host: foreignHost,
 			getMirrorModels: (): IMirrorModel[] => {
 				return this._getModels();

@@ -26,7 +26,7 @@ export class BracketElectricCharacterSupport {
 	}
 
 	public getElectricCharacters(): string[] {
-		let result: string[] = [];
+		const result: string[] = [];
 
 		if (this._richEditBrackets) {
 			for (const bracket of this._richEditBrackets.brackets) {

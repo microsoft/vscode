@@ -10,7 +10,7 @@ import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
 suite('LanguagesRegistry', () => {
 
 	test('output language does not have a name', () => {
-		let registry = new LanguagesRegistry(false);
+		const registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
 			id: 'outputLangId',
@@ -25,7 +25,7 @@ suite('LanguagesRegistry', () => {
 	});
 
 	test('language with alias does have a name', () => {
-		let registry = new LanguagesRegistry(false);
+		const registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
 			id: 'langId',
@@ -41,7 +41,7 @@ suite('LanguagesRegistry', () => {
 	});
 
 	test('language without alias gets a name', () => {
-		let registry = new LanguagesRegistry(false);
+		const registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
 			id: 'langId',
@@ -56,7 +56,7 @@ suite('LanguagesRegistry', () => {
 	});
 
 	test('bug #4360: f# not shown in status bar', () => {
-		let registry = new LanguagesRegistry(false);
+		const registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
 			id: 'langId',
@@ -79,7 +79,7 @@ suite('LanguagesRegistry', () => {
 	});
 
 	test('issue #5278: Extension cannot override language name anymore', () => {
-		let registry = new LanguagesRegistry(false);
+		const registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
 			id: 'langId',
@@ -102,7 +102,7 @@ suite('LanguagesRegistry', () => {
 	});
 
 	test('mimetypes are generated if necessary', () => {
-		let registry = new LanguagesRegistry(false);
+		const registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
 			id: 'langId'
@@ -114,7 +114,7 @@ suite('LanguagesRegistry', () => {
 	});
 
 	test('first mimetype wins', () => {
-		let registry = new LanguagesRegistry(false);
+		const registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
 			id: 'langId',
@@ -127,7 +127,7 @@ suite('LanguagesRegistry', () => {
 	});
 
 	test('first mimetype wins 2', () => {
-		let registry = new LanguagesRegistry(false);
+		const registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
 			id: 'langId'
@@ -144,7 +144,7 @@ suite('LanguagesRegistry', () => {
 	});
 
 	test('aliases', () => {
-		let registry = new LanguagesRegistry(false);
+		const registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
 			id: 'a'
@@ -182,7 +182,7 @@ suite('LanguagesRegistry', () => {
 	});
 
 	test('empty aliases array means no alias', () => {
-		let registry = new LanguagesRegistry(false);
+		const registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
 			id: 'a'
@@ -207,7 +207,7 @@ suite('LanguagesRegistry', () => {
 	});
 
 	test('extensions', () => {
-		let registry = new LanguagesRegistry(false);
+		const registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
 			id: 'a',
@@ -228,7 +228,7 @@ suite('LanguagesRegistry', () => {
 	});
 
 	test('extensions of primary language registration come first', () => {
-		let registry = new LanguagesRegistry(false);
+		const registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
 			id: 'a',
@@ -256,7 +256,7 @@ suite('LanguagesRegistry', () => {
 	});
 
 	test('filenames', () => {
-		let registry = new LanguagesRegistry(false);
+		const registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
 			id: 'a',
@@ -277,7 +277,7 @@ suite('LanguagesRegistry', () => {
 	});
 
 	test('configuration', () => {
-		let registry = new LanguagesRegistry(false);
+		const registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
 			id: 'a',

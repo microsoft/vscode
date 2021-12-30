@@ -403,7 +403,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 
 			toDispose.add(toDisposable(() => {
 				for (let i = 0; i < this._dynamicKeybindings.length; i++) {
-					let kb = this._dynamicKeybindings[i];
+					const kb = this._dynamicKeybindings[i];
 					if (kb.command === commandId) {
 						this._dynamicKeybindings.splice(i, 1);
 						this.updateResolver({ source: KeybindingSource.Default });
@@ -439,7 +439,8 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	}
 
 	private _toNormalizedKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
-		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
+		const result: ResolvedKeybindingItem[] = [];
+		let resultLen = 0;
 		for (const item of items) {
 			const when = item.when || undefined;
 			const keybinding = item.keybinding;
@@ -463,7 +464,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	}
 
 	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {
-		let keybinding = new SimpleKeybinding(
+		const keybinding = new SimpleKeybinding(
 			keyboardEvent.ctrlKey,
 			keyboardEvent.shiftKey,
 			keyboardEvent.altKey,
@@ -533,7 +534,7 @@ export class StandaloneConfigurationService implements IConfigurationService {
 	public updateValues(values: [string, any][]): Promise<void> {
 		const previous = { data: this._configuration.toData() };
 
-		let changedKeys: string[] = [];
+		const changedKeys: string[] = [];
 
 		for (const entry of values) {
 			const [key, value] = entry;
@@ -730,7 +731,7 @@ export function updateConfigurationService(configurationService: IConfigurationS
 	if (!(configurationService instanceof StandaloneConfigurationService)) {
 		return;
 	}
-	let toUpdate: [string, any][] = [];
+	const toUpdate: [string, any][] = [];
 	Object.keys(source).forEach((key) => {
 		if (isEditorConfigurationKey(key)) {
 			toUpdate.push([`editor.${key}`, source[key]]);

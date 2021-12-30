@@ -97,7 +97,7 @@ export class EncodedTokenizationSupportAdapter implements modes.ITokenizationSup
 	}
 
 	public tokenizeEncoded(line: string, hasEOL: boolean, state: modes.IState): EncodedTokenizationResult {
-		let result = this._actual.tokenizeEncoded(line, state);
+		const result = this._actual.tokenizeEncoded(line, state);
 		return new EncodedTokenizationResult(result.tokens, result.endState);
 	}
 }
@@ -120,7 +120,7 @@ export class TokenizationSupportAdapter implements modes.ITokenizationSupport {
 	}
 
 	private static _toClassicTokens(tokens: IToken[], language: string): Token[] {
-		let result: Token[] = [];
+		const result: Token[] = [];
 		let previousStartIndex: number = 0;
 		for (let i = 0, len = tokens.length; i < len; i++) {
 			const t = tokens[i];
@@ -143,8 +143,8 @@ export class TokenizationSupportAdapter implements modes.ITokenizationSupport {
 	}
 
 	public static adaptTokenize(language: string, actual: { tokenize(line: string, state: modes.IState): ILineTokens; }, line: string, state: modes.IState): TokenizationResult {
-		let actualResult = actual.tokenize(line, state);
-		let tokens = TokenizationSupportAdapter._toClassicTokens(actualResult.tokens, language);
+		const actualResult = actual.tokenize(line, state);
+		const tokens = TokenizationSupportAdapter._toClassicTokens(actualResult.tokens, language);
 
 		let endState: modes.IState;
 		// try to save an object if possible
@@ -165,7 +165,8 @@ export class TokenizationSupportAdapter implements modes.ITokenizationSupport {
 		const languageId = languageIdCodec.encodeLanguageId(this._languageId);
 		const tokenTheme = this._standaloneThemeService.getColorTheme().tokenTheme;
 
-		let result: number[] = [], resultLen = 0;
+		const result: number[] = [];
+		let resultLen = 0;
 		let previousStartIndex: number = 0;
 		for (let i = 0, len = tokens.length; i < len; i++) {
 			const t = tokens[i];
@@ -192,7 +193,7 @@ export class TokenizationSupportAdapter implements modes.ITokenizationSupport {
 			previousStartIndex = startIndex;
 		}
 
-		let actualResult = new Uint32Array(resultLen);
+		const actualResult = new Uint32Array(resultLen);
 		for (let i = 0; i < resultLen; i++) {
 			actualResult[i] = result[i];
 		}
@@ -200,8 +201,8 @@ export class TokenizationSupportAdapter implements modes.ITokenizationSupport {
 	}
 
 	public tokenizeEncoded(line: string, hasEOL: boolean, state: modes.IState): EncodedTokenizationResult {
-		let actualResult = this._actual.tokenize(line, state);
-		let tokens = this._toBinaryTokens(this._languageService.languageIdCodec, actualResult.tokens);
+		const actualResult = this._actual.tokenize(line, state);
+		const tokens = this._toBinaryTokens(this._languageService.languageIdCodec, actualResult.tokens);
 
 		let endState: modes.IState;
 		// try to save an object if possible
@@ -435,7 +436,7 @@ export function registerSignatureHelpProvider(languageId: string, provider: mode
 export function registerHoverProvider(languageId: string, provider: modes.HoverProvider): IDisposable {
 	return modes.HoverProviderRegistry.register(languageId, {
 		provideHover: (model: model.ITextModel, position: Position, token: CancellationToken): Promise<modes.Hover | undefined> => {
-			let word = model.getWordAtPosition(position);
+			const word = model.getWordAtPosition(position);
 
 			return Promise.resolve<modes.Hover | null | undefined>(provider.provideHover(model, position, token)).then((value): modes.Hover | undefined => {
 				if (!value) {

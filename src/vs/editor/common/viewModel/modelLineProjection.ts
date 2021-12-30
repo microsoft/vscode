@@ -216,7 +216,7 @@ class ModelLineProjection implements IModelLineProjection {
 		}
 
 		for (let outputLineIndex = outputLineIdx; outputLineIndex < outputLineIdx + lineCount; outputLineIndex++) {
-			let globalIndex = globalStartIndex + outputLineIndex - outputLineIdx;
+			const globalIndex = globalStartIndex + outputLineIndex - outputLineIdx;
 			if (!needed[globalIndex]) {
 				result[globalIndex] = null;
 				continue;
@@ -262,7 +262,7 @@ class ModelLineProjection implements IModelLineProjection {
 
 	public getViewPositionOfModelPosition(deltaLineNumber: number, inputColumn: number, affinity: PositionAffinity = PositionAffinity.None): Position {
 		this._assertVisible();
-		let r = this._projectionData.translateToOutputPosition(inputColumn - 1, affinity);
+		const r = this._projectionData.translateToOutputPosition(inputColumn - 1, affinity);
 		return r.toPosition(deltaLineNumber);
 	}
 
@@ -334,8 +334,8 @@ class IdentityModelLineProjection implements IModelLineProjection {
 	}
 
 	public getViewLineData(model: ISimpleModel, modelLineNumber: number, _outputLineIndex: number): ViewLineData {
-		let lineTokens = model.getLineTokens(modelLineNumber);
-		let lineContent = lineTokens.getLineContent();
+		const lineTokens = model.getLineTokens(modelLineNumber);
+		const lineContent = lineTokens.getLineContent();
 		return new ViewLineData(
 			lineContent,
 			false,

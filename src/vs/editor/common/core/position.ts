@@ -129,12 +129,12 @@ export class Position {
 	 * A function that compares positions, useful for sorting
 	 */
 	public static compare(a: IPosition, b: IPosition): number {
-		let aLineNumber = a.lineNumber | 0;
-		let bLineNumber = b.lineNumber | 0;
+		const aLineNumber = a.lineNumber | 0;
+		const bLineNumber = b.lineNumber | 0;
 
 		if (aLineNumber === bLineNumber) {
-			let aColumn = a.column | 0;
-			let bColumn = b.column | 0;
+			const aColumn = a.column | 0;
+			const bColumn = b.column | 0;
 			return aColumn - bColumn;
 		}
 

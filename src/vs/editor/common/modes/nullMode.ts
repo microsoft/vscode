@@ -20,7 +20,7 @@ export function nullTokenize(languageId: string, state: IState): TokenizationRes
 }
 
 export function nullTokenizeEncoded(languageId: LanguageId, state: IState | null): EncodedTokenizationResult {
-	let tokens = new Uint32Array(2);
+	const tokens = new Uint32Array(2);
 	tokens[0] = 0;
 	tokens[1] = (
 		(languageId << MetadataConsts.LANGUAGEID_OFFSET)

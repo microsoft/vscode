@@ -13,7 +13,7 @@ export class BasicInplaceReplace {
 	public navigateValueSet(range1: IRange, text1: string, range2: IRange, text2: string | null, up: boolean): IInplaceReplaceSupportResult | null {
 
 		if (range1 && text1) {
-			let result = this.doNavigateValueSet(text1, up);
+			const result = this.doNavigateValueSet(text1, up);
 			if (result) {
 				return {
 					range: range1,
@@ -23,7 +23,7 @@ export class BasicInplaceReplace {
 		}
 
 		if (range2 && text2) {
-			let result = this.doNavigateValueSet(text2, up);
+			const result = this.doNavigateValueSet(text2, up);
 			if (result) {
 				return {
 					range: range2,
@@ -36,7 +36,7 @@ export class BasicInplaceReplace {
 	}
 
 	private doNavigateValueSet(text: string, up: boolean): string | null {
-		let numberResult = this.numberReplace(text, up);
+		const numberResult = this.numberReplace(text, up);
 		if (numberResult !== null) {
 			return numberResult;
 		}
@@ -44,7 +44,7 @@ export class BasicInplaceReplace {
 	}
 
 	private numberReplace(value: string, up: boolean): string | null {
-		let precision = Math.pow(10, value.length - (value.lastIndexOf('.') + 1));
+		const precision = Math.pow(10, value.length - (value.lastIndexOf('.') + 1));
 		let n1 = Number(value);
 		let n2 = parseFloat(value);
 

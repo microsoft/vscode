@@ -216,7 +216,7 @@ export function colorizeModelLine(model: ITextModel, lineNumber: number, tabSize
  * @internal
  */
 function getSafeTokenizationSupport(language: string): Omit<modes.ITokenizationSupport, 'tokenizeEncoded'> {
-	let tokenizationSupport = modes.TokenizationRegistry.get(language);
+	const tokenizationSupport = modes.TokenizationRegistry.get(language);
 	if (tokenizationSupport) {
 		return tokenizationSupport;
 	}
@@ -233,13 +233,13 @@ export function tokenize(text: string, languageId: string): Token[][] {
 	// Needed in order to get the mode registered for subsequent look-ups
 	modes.TokenizationRegistry.getOrCreate(languageId);
 
-	let tokenizationSupport = getSafeTokenizationSupport(languageId);
-	let lines = splitLines(text);
-	let result: Token[][] = [];
+	const tokenizationSupport = getSafeTokenizationSupport(languageId);
+	const lines = splitLines(text);
+	const result: Token[][] = [];
 	let state = tokenizationSupport.getInitialState();
 	for (let i = 0, len = lines.length; i < len; i++) {
-		let line = lines[i];
-		let tokenizationResult = tokenizationSupport.tokenize(line, true, state);
+		const line = lines[i];
+		const tokenizationResult = tokenizationSupport.tokenize(line, true, state);
 
 		result[i] = tokenizationResult.tokens;
 		state = tokenizationResult.endState;

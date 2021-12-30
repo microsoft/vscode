@@ -10,22 +10,22 @@ import { Range } from 'vs/editor/common/core/range';
 export class ColumnSelection {
 
 	public static columnSelect(config: CursorConfiguration, model: ICursorSimpleModel, fromLineNumber: number, fromVisibleColumn: number, toLineNumber: number, toVisibleColumn: number): IColumnSelectResult {
-		let lineCount = Math.abs(toLineNumber - fromLineNumber) + 1;
-		let reversed = (fromLineNumber > toLineNumber);
-		let isRTL = (fromVisibleColumn > toVisibleColumn);
-		let isLTR = (fromVisibleColumn < toVisibleColumn);
+		const lineCount = Math.abs(toLineNumber - fromLineNumber) + 1;
+		const reversed = (fromLineNumber > toLineNumber);
+		const isRTL = (fromVisibleColumn > toVisibleColumn);
+		const isLTR = (fromVisibleColumn < toVisibleColumn);
 
-		let result: SingleCursorState[] = [];
+		const result: SingleCursorState[] = [];
 
 		// console.log(`fromVisibleColumn: ${fromVisibleColumn}, toVisibleColumn: ${toVisibleColumn}`);
 
 		for (let i = 0; i < lineCount; i++) {
-			let lineNumber = fromLineNumber + (reversed ? -i : i);
+			const lineNumber = fromLineNumber + (reversed ? -i : i);
 
-			let startColumn = config.columnFromVisibleColumn(model, lineNumber, fromVisibleColumn);
-			let endColumn = config.columnFromVisibleColumn(model, lineNumber, toVisibleColumn);
-			let visibleStartColumn = config.visibleColumnFromColumn(model, new Position(lineNumber, startColumn));
-			let visibleEndColumn = config.visibleColumnFromColumn(model, new Position(lineNumber, endColumn));
+			const startColumn = config.columnFromVisibleColumn(model, lineNumber, fromVisibleColumn);
+			const endColumn = config.columnFromVisibleColumn(model, lineNumber, toVisibleColumn);
+			const visibleStartColumn = config.visibleColumnFromColumn(model, new Position(lineNumber, startColumn));
+			const visibleEndColumn = config.visibleColumnFromColumn(model, new Position(lineNumber, endColumn));
 
 			// console.log(`lineNumber: ${lineNumber}: visibleStartColumn: ${visibleStartColumn}, visibleEndColumn: ${visibleEndColumn}`);
 

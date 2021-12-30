@@ -362,7 +362,8 @@ export class View extends ViewEventHandler {
 	}
 
 	private _getViewPartsToRender(): ViewPart[] {
-		let result: ViewPart[] = [], resultLen = 0;
+		const result: ViewPart[] = [];
+		let resultLen = 0;
 		for (const viewPart of this._viewParts) {
 			if (viewPart.shouldRender()) {
 				result[resultLen++] = viewPart;

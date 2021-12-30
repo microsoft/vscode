@@ -54,7 +54,7 @@ export class LanguageFeatureRegistry<T> {
 
 		return toDisposable(() => {
 			if (entry) {
-				let idx = this._entries.indexOf(entry);
+				const idx = this._entries.indexOf(entry);
 				if (idx >= 0) {
 					this._entries.splice(idx, 1);
 					this._lastCandidate = undefined;
@@ -130,7 +130,7 @@ export class LanguageFeatureRegistry<T> {
 
 	private _updateScores(model: ITextModel): void {
 
-		let candidate = {
+		const candidate = {
 			uri: model.uri.toString(),
 			language: model.getLanguageId()
 		};

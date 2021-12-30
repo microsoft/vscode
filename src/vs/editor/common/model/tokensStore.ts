@@ -92,7 +92,7 @@ export class MultilineTokensBuilder {
 	public static deserialize(buff: Uint8Array): MultilineTokens[] {
 		let offset = 0;
 		const count = readUInt32BE(buff, offset); offset += 4;
-		let result: MultilineTokens[] = [];
+		const result: MultilineTokens[] = [];
 		for (let i = 0; i < count; i++) {
 			offset = MultilineTokens.deserialize(buff, offset, result);
 		}
@@ -141,7 +141,7 @@ export class SparseEncodedTokens {
 	}
 
 	public toString(startLineNumber: number): string {
-		let pieces: string[] = [];
+		const pieces: string[] = [];
 		for (let i = 0; i < this._tokenCount; i++) {
 			pieces.push(`(${this._getDeltaLine(i) + startLineNumber},${this._getStartCharacter(i)}-${this._getEndCharacter(i)})`);
 		}
@@ -265,8 +265,8 @@ export class SparseEncodedTokens {
 	public split(startDeltaLine: number, startChar: number, endDeltaLine: number, endChar: number): [SparseEncodedTokens, SparseEncodedTokens, number] {
 		const tokens = this._tokens;
 		const tokenCount = this._tokenCount;
-		let aTokens: number[] = [];
-		let bTokens: number[] = [];
+		const aTokens: number[] = [];
+		const bTokens: number[] = [];
 		let destTokens: number[] = aTokens;
 		let destOffset = 0;
 		let destFirstDeltaLine: number = 0;
@@ -702,7 +702,7 @@ export class MultilineTokens {
 		const view32 = new Uint32Array(buff.buffer);
 		const startLineNumber = readUInt32BE(buff, offset); offset += 4;
 		const count = readUInt32BE(buff, offset); offset += 4;
-		let tokens: Uint32Array[] = [];
+		const tokens: Uint32Array[] = [];
 		for (let i = 0; i < count; i++) {
 			const byteCount = readUInt32BE(buff, offset); offset += 4;
 			tokens.push(view32.subarray(offset / 4, offset / 4 + byteCount / 4));
@@ -853,7 +853,7 @@ export class MultilineTokens {
 		if (insertCount === 0) {
 			return;
 		}
-		let lineTokens: (Uint32Array | ArrayBuffer | null)[] = [];
+		const lineTokens: (Uint32Array | ArrayBuffer | null)[] = [];
 		for (let i = 0; i < insertCount; i++) {
 			lineTokens[i] = null;
 		}
@@ -997,7 +997,8 @@ export class TokensStore2 {
 		const bLen = bTokens.getCount();
 
 		let aIndex = 0;
-		let result: number[] = [], resultLen = 0;
+		const result: number[] = [];
+		let resultLen = 0;
 		let lastEndOffset = 0;
 
 		const emitToken = (endOffset: number, metadata: number) => {
@@ -1183,7 +1184,7 @@ export class TokensStore {
 		if (insertCount === 0) {
 			return;
 		}
-		let lineTokens: (Uint32Array | ArrayBuffer | null)[] = [];
+		const lineTokens: (Uint32Array | ArrayBuffer | null)[] = [];
 		for (let i = 0; i < insertCount; i++) {
 			lineTokens[i] = null;
 		}
@@ -1354,7 +1355,7 @@ export class TokensStore {
 			return lineTokens;
 		}
 
-		let tmp = new Uint32Array(dest);
+		const tmp = new Uint32Array(dest);
 		tmp.set(tokens.subarray(0, dest), 0);
 		return tmp.buffer;
 	}
@@ -1377,7 +1378,7 @@ export class TokensStore {
 		const otherTokens = toUint32Array(_otherTokens);
 		const otherTokensCount = (otherTokens.length >>> 1);
 
-		let result = new Uint32Array(myTokens.length + otherTokens.length);
+		const result = new Uint32Array(myTokens.length + otherTokens.length);
 		result.set(myTokens, 0);
 		let dest = myTokens.length;
 		const delta = myTokens[myTokens.length - 2];

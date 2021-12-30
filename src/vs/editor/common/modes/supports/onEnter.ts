@@ -53,7 +53,7 @@ export class OnEnterSupport {
 		// (1): `regExpRules`
 		if (autoIndent >= EditorAutoIndentStrategy.Advanced) {
 			for (let i = 0, len = this._regExpRules.length; i < len; i++) {
-				let rule = this._regExpRules[i];
+				const rule = this._regExpRules[i];
 				const regResult = [{
 					reg: rule.beforeText,
 					text: beforeEnterText
@@ -82,7 +82,7 @@ export class OnEnterSupport {
 		if (autoIndent >= EditorAutoIndentStrategy.Brackets) {
 			if (beforeEnterText.length > 0 && afterEnterText.length > 0) {
 				for (let i = 0, len = this._brackets.length; i < len; i++) {
-					let bracket = this._brackets[i];
+					const bracket = this._brackets[i];
 					if (bracket.openRegExp.test(beforeEnterText) && bracket.closeRegExp.test(afterEnterText)) {
 						return { indentAction: IndentAction.IndentOutdent };
 					}
@@ -95,7 +95,7 @@ export class OnEnterSupport {
 		if (autoIndent >= EditorAutoIndentStrategy.Brackets) {
 			if (beforeEnterText.length > 0) {
 				for (let i = 0, len = this._brackets.length; i < len; i++) {
-					let bracket = this._brackets[i];
+					const bracket = this._brackets[i];
 					if (bracket.openRegExp.test(beforeEnterText)) {
 						return { indentAction: IndentAction.Indent };
 					}
