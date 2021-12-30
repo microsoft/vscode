@@ -14,7 +14,7 @@ import { ILanguageService } from 'vs/editor/common/services/language';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
+import { ITextMateService } from 'vs/workbench/services/textMate/browser/textMate';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 

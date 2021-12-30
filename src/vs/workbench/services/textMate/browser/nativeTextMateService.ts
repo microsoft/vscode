@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
+import { ITextMateService } from 'vs/workbench/services/textMate/browser/textMate';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { AbstractTextMateService } from 'vs/workbench/services/textMate/browser/abstractTextMateService';
 import { ILanguageService } from 'vs/editor/common/services/language';
@@ -15,7 +15,7 @@ import { createWebWorker, MonacoWebWorker } from 'vs/editor/common/services/webW
 import { IModelService } from 'vs/editor/common/services/model';
 import type { IRawTheme } from 'vscode-textmate';
 import { IValidGrammarDefinition } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
-import { TextMateWorker } from 'vs/workbench/services/textMate/electron-sandbox/textMateWorker';
+import { TextMateWorker } from 'vs/workbench/services/textMate/browser/textMateWorker';
 import { ITextModel } from 'vs/editor/common/model';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { UriComponents, URI } from 'vs/base/common/uri';
@@ -207,7 +207,7 @@ export class TextMateService extends AbstractTextMateService {
 					grammarDefinitions
 				},
 				label: 'textMateWorker',
-				moduleId: 'vs/workbench/services/textMate/electron-browser/textMateWorker',
+				moduleId: 'vs/workbench/services/textMate/browser/textMateWorker',
 				host: workerHost
 			});
 

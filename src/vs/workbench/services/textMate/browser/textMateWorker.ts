@@ -9,7 +9,7 @@ import { LanguageId } from 'vs/editor/common/modes';
 import { IValidEmbeddedLanguagesMap, IValidTokenTypeMap, IValidGrammarDefinition } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
 import { TMGrammarFactory, ICreateGrammarResult } from 'vs/workbench/services/textMate/common/TMGrammarFactory';
 import { IModelChangedEvent, MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
-import { TextMateWorkerHost } from 'vs/workbench/services/textMate/electron-sandbox/textMateService';
+import { TextMateWorkerHost } from 'vs/workbench/services/textMate/browser/nativeTextMateService';
 import { TokenizationStateStore } from 'vs/editor/common/model/textModelTokens';
 import type { IGrammar, StackElement, IRawTheme, IOnigLib } from 'vscode-textmate';
 import { MultilineTokensBuilder, countEOL } from 'vs/editor/common/model/tokensStore';
