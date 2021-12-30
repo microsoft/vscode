@@ -176,7 +176,7 @@ export class MoveOperations {
 				column = Math.min(model.getLineMaxColumn(lineNumber), column);
 			}
 		} else {
-			column = CursorColumns.columnFromVisibleColumn2(config, model, lineNumber, currentVisibleColumn);
+			column = config.columnFromVisibleColumn(model, lineNumber, currentVisibleColumn);
 		}
 
 		if (wasAtEdgePosition) {

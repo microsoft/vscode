@@ -9,7 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { SurroundSelectionCommand } from 'vs/editor/common/commands/surroundSelectionCommand';
-import { CursorColumns, CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from 'vs/editor/common/controller/cursorCommon';
+import { CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from 'vs/editor/common/controller/cursorCommon';
 import { WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/controller/wordCharacterClassifier';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -203,7 +203,7 @@ export class TypeOperations {
 
 		let position = selection.getStartPosition();
 		if (config.insertSpaces) {
-			let visibleColumnFromColumn = CursorColumns.visibleColumnFromColumn2(config, model, position);
+			let visibleColumnFromColumn = config.visibleColumnFromColumn(model, position);
 			let indentSize = config.indentSize;
 			let spacesCnt = indentSize - (visibleColumnFromColumn % indentSize);
 			for (let i = 0; i < spacesCnt; i++) {
@@ -349,7 +349,7 @@ export class TypeOperations {
 			});
 
 			if (ir) {
-				let oldEndViewColumn = CursorColumns.visibleColumnFromColumn2(config, model, range.getEndPosition());
+				let oldEndViewColumn = config.visibleColumnFromColumn(model, range.getEndPosition());
 				const oldEndColumn = range.endColumn;
 				const newLineContent = model.getLineContent(range.endLineNumber);
 				const firstNonWhitespace = strings.firstNonWhitespaceIndex(newLineContent);

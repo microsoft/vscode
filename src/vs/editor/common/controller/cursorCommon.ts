@@ -17,6 +17,7 @@ import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageCo
 import { createScopedLineTokens } from 'vs/editor/common/modes/supports';
 import { IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
 import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
+import { CursorColumns } from 'vs/editor/common/controller/cursorColumns';
 export { CursorColumns } from './cursorColumns';
 
 export interface IColumnSelectData {
@@ -198,6 +199,34 @@ export class CursorConfiguration {
 	private _getLanguageDefinedShouldAutoClose(languageId: string): (ch: string) => boolean {
 		const autoCloseBeforeSet = this.languageConfigurationService.getLanguageConfiguration(languageId).getAutoCloseBeforeSet();
 		return c => autoCloseBeforeSet.indexOf(c) !== -1;
+	}
+
+	/**
+	 * Returns a visible column from a column.
+	 * @see {@link CursorColumns}
+	 */
+	public visibleColumnFromColumn(model: ICursorSimpleModel, position: Position): number {
+		return CursorColumns.visibleColumnFromColumn(model.getLineContent(position.lineNumber), position.column, this.tabSize);
+	}
+
+	/**
+	 * Returns a visible column from a column.
+	 * @see {@link CursorColumns}
+	 */
+	public columnFromVisibleColumn(model: ICursorSimpleModel, lineNumber: number, visibleColumn: number): number {
+		const result = CursorColumns.columnFromVisibleColumn(model.getLineContent(lineNumber), visibleColumn, this.tabSize);
+
+		const minColumn = model.getLineMinColumn(lineNumber);
+		if (result < minColumn) {
+			return minColumn;
+		}
+
+		const maxColumn = model.getLineMaxColumn(lineNumber);
+		if (result > maxColumn) {
+			return maxColumn;
+		}
+
+		return result;
 	}
 }
 

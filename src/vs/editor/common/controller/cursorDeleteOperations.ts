@@ -187,9 +187,9 @@ export class DeleteOperations {
 			);
 
 			if (position.column <= lastIndentationColumn) {
-				const fromVisibleColumn = CursorColumns.visibleColumnFromColumn2(config, model, position);
+				const fromVisibleColumn = config.visibleColumnFromColumn(model, position);
 				const toVisibleColumn = CursorColumns.prevIndentTabStop(fromVisibleColumn, config.indentSize);
-				const toColumn = CursorColumns.columnFromVisibleColumn2(config, model, position.lineNumber, toVisibleColumn);
+				const toColumn = config.columnFromVisibleColumn(model, position.lineNumber, toVisibleColumn);
 				return new Range(position.lineNumber, toColumn, position.lineNumber, position.column);
 			}
 		}
