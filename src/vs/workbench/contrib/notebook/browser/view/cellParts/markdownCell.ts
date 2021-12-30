@@ -62,7 +62,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 		this.cellEditorOptions = this._register(new CellEditorOptions(this.notebookEditor, this.notebookEditor.notebookOptions, this.configurationService, this.viewCell.language));
 		this.cellEditorOptions.setLineNumbers(this.viewCell.lineNumbers);
-		this.editorOptions = this.cellEditorOptions.getValue(this.viewCell.internalMetadata);
+		this.editorOptions = this.cellEditorOptions.getValue(this.viewCell.internalMetadata, this.viewCell.uri);
 
 		this._register(toDisposable(() => renderedEditors.delete(this.viewCell)));
 		this.registerListeners();
@@ -172,7 +172,7 @@ export class StatefulMarkdownCell extends Disposable {
 		}));
 
 		this._register(this.cellEditorOptions.onDidChange(() => {
-			this.updateEditorOptions(this.cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata));
+			this.updateEditorOptions(this.cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata, this.viewCell.uri));
 		}));
 	}
 
@@ -298,7 +298,7 @@ export class StatefulMarkdownCell extends Disposable {
 			const width = this.notebookEditor.notebookOptions.computeMarkdownCellEditorWidth(this.notebookEditor.getLayoutInfo().width);
 			const lineNum = this.viewCell.lineCount;
 			const lineHeight = this.viewCell.layoutInfo.fontInfo?.lineHeight || 17;
-			const editorPadding = this.notebookEditor.notebookOptions.computeEditorPadding(this.viewCell.internalMetadata);
+			const editorPadding = this.notebookEditor.notebookOptions.computeEditorPadding(this.viewCell.internalMetadata, this.viewCell.uri);
 			editorHeight = Math.max(lineNum, 1) * lineHeight + editorPadding.top + editorPadding.bottom;
 
 			this.templateData.editorContainer.innerText = '';

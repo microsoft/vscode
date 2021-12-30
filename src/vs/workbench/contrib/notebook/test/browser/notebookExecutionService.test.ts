@@ -5,25 +5,25 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
+import { Event } from 'vs/base/common/event';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { mock } from 'vs/base/test/common/mock';
 import { assertThrowsAsync } from 'vs/base/test/common/utils';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { NotebookEditorKernelManager } from 'vs/workbench/contrib/notebook/browser/notebookEditorKernelManager';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { insertCellAtIndex } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
+import { NotebookExecutionService } from 'vs/workbench/contrib/notebook/browser/notebookExecutionServiceImpl';
+import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/notebookKernelServiceImpl';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellKind, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { setupInstantiationService, withTestNotebook as _withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
-import { Event } from 'vs/base/common/event';
-import { ISelectedNotebooksChangeEvent, INotebookKernelService, INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/notebookKernelServiceImpl';
+import { INotebookKernel, INotebookKernelService, ISelectedNotebooksChangeEvent } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { mock } from 'vs/base/test/common/mock';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { insertCellAtIndex } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
+import { setupInstantiationService, withTestNotebook as _withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 
-suite('NotebookEditorKernelManager', () => {
+suite('NotebookExecutionService', () => {
 
 	let instantiationService: TestInstantiationService;
 	let kernelService: INotebookKernelService;
@@ -65,10 +65,10 @@ suite('NotebookEditorKernelManager', () => {
 		await withTestNotebook(
 			[],
 			async (viewModel) => {
-				const kernelManager = instantiationService.createInstance(NotebookEditorKernelManager);
+				const executionService = instantiationService.createInstance(NotebookExecutionService);
 
 				const cell = insertCellAtIndex(viewModel, 1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true);
-				await assertThrowsAsync(async () => await kernelManager.executeNotebookCell(cell));
+				await assertThrowsAsync(async () => await executionService.executeNotebookCell(cell));
 			});
 	});
 
@@ -78,9 +78,9 @@ suite('NotebookEditorKernelManager', () => {
 			async (viewModel) => {
 
 				kernelService.registerKernel(new TestNotebookKernel({ languages: ['testlang'] }));
-				const kernelManager = instantiationService.createInstance(NotebookEditorKernelManager);
+				const executionService = instantiationService.createInstance(NotebookExecutionService);
 				const cell = insertCellAtIndex(viewModel, 1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true);
-				await assertThrowsAsync(async () => await kernelManager.executeNotebookCell(cell));
+				await assertThrowsAsync(async () => await executionService.executeNotebookCell(cell));
 
 			});
 	});
@@ -91,12 +91,12 @@ suite('NotebookEditorKernelManager', () => {
 			async (viewModel) => {
 				const kernel = new TestNotebookKernel({ languages: ['javascript'] });
 				kernelService.registerKernel(kernel);
-				const kernelManager = instantiationService.createInstance(NotebookEditorKernelManager);
+				const executionService = instantiationService.createInstance(NotebookExecutionService);
 				const executeSpy = sinon.spy();
 				kernel.executeNotebookCellsRequest = executeSpy;
 
 				const cell = insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true);
-				await kernelManager.executeNotebookCells(viewModel.notebookDocument, [cell]);
+				await executionService.executeNotebookCells(viewModel.notebookDocument, [cell]);
 				assert.strictEqual(executeSpy.calledOnce, true);
 			});
 	});
@@ -121,13 +121,13 @@ suite('NotebookEditorKernelManager', () => {
 			};
 
 			kernelService.registerKernel(kernel);
-			const kernelManager = instantiationService.createInstance(NotebookEditorKernelManager);
+			const executionService = instantiationService.createInstance(NotebookExecutionService);
 
 			let event: ISelectedNotebooksChangeEvent | undefined;
 			kernelService.onDidChangeSelectedNotebooks(e => event = e);
 
 			const cell = insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
-			await kernelManager.executeNotebookCells(viewModel.notebookDocument, [cell]);
+			await executionService.executeNotebookCells(viewModel.notebookDocument, [cell]);
 
 			assert.strictEqual(didExecute, true);
 			assert.ok(event !== undefined);

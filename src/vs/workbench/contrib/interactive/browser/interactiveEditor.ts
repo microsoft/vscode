@@ -57,6 +57,7 @@ import { INotebookEditorViewState } from 'vs/workbench/contrib/notebook/browser/
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
@@ -102,6 +103,7 @@ export class InteractiveEditor extends EditorPane {
 	#menuService: IMenuService;
 	#contextMenuService: IContextMenuService;
 	#editorGroupService: IEditorGroupsService;
+	#notebookExecutionStateService: INotebookExecutionStateService;
 	#widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
 	#dimension?: DOM.Dimension;
 	#notebookOptions: NotebookOptions;
@@ -127,7 +129,8 @@ export class InteractiveEditor extends EditorPane {
 		@IMenuService menuService: IMenuService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
+		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService
 	) {
 		super(
 			InteractiveEditor.ID,
@@ -145,8 +148,9 @@ export class InteractiveEditor extends EditorPane {
 		this.#menuService = menuService;
 		this.#contextMenuService = contextMenuService;
 		this.#editorGroupService = editorGroupService;
+		this.#notebookExecutionStateService = notebookExecutionStateService;
 
-		this.#notebookOptions = new NotebookOptions(configurationService, { cellToolbarInteraction: 'hover', globalToolbar: true, defaultCellCollapseConfig: { codeCell: { inputCollapsed: true } } });
+		this.#notebookOptions = new NotebookOptions(configurationService, notebookExecutionStateService, { cellToolbarInteraction: 'hover', globalToolbar: true, defaultCellCollapseConfig: { codeCell: { inputCollapsed: true } } });
 		this.#editorMemento = this.getEditorMemento<InteractiveEditorViewState>(editorGroupService, textResourceConfigurationService, INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 
 		codeEditorService.registerDecorationType('interactive-decoration', DECORATION_KEY, {});
@@ -566,8 +570,12 @@ export class InteractiveEditor extends EditorPane {
 				return;
 			}
 
-			if (this.#lastCell?.internalMetadata.runState === NotebookCellExecutionState.Executing) {
-				return;
+			if (this.#lastCell) {
+				const runState = this.#notebookExecutionStateService.getCellExecutionState(this.#lastCell.uri)?.state;
+				if (runState === NotebookCellExecutionState.Executing) {
+					return;
+				}
+
 			}
 
 			// scroll to bottom

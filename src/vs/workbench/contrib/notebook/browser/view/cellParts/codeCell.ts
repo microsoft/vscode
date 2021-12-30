@@ -5,9 +5,9 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { raceCancellation } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon, CSSIcon } from 'vs/base/common/codicons';
+import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IDimension } from 'vs/editor/common/editorCommon';
@@ -15,18 +15,19 @@ import { IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { tokenizeToStringSync } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ILanguageService } from 'vs/editor/common/services/language';
 import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { CellFocusMode, EXPAND_CELL_INPUT_COMMAND_ID, IActiveNotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CodeCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
 import { CellOutputContainer } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellOutput';
+import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
 import { ClickTargetType } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellWidgets';
+import { CodeCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
-import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 
 export class CodeCell extends Disposable {
@@ -49,6 +50,7 @@ export class CodeCell extends Disposable {
 		@IOpenerService readonly openerService: IOpenerService,
 		@ILanguageService readonly languageService: ILanguageService,
 		@IConfigurationService private configurationService: IConfigurationService,
+		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService
 	) {
 		super();
 
@@ -63,6 +65,14 @@ export class CodeCell extends Disposable {
 		this.registerCellEditorEventListeners();
 		this.registerDecorations();
 		this.registerMouseListener();
+
+		this._register(notebookExecutionStateService.onDidChangeCellExecution(e => {
+			if (e.affectsCell(this.viewCell.model)) {
+				this.cellParts.forEach(cellPart => {
+					cellPart.updateForExecutionState(this.viewCell, e);
+				});
+			}
+		}));
 
 		this._register(this.viewCell.onDidChangeState(e => {
 			this.cellParts.forEach(cellPart => {
@@ -121,8 +131,8 @@ export class CodeCell extends Disposable {
 		this._register(Event.runAndSubscribe(viewCell.onDidChangeOutputs, this.updateForOutputs.bind(this)));
 		this._register(Event.runAndSubscribe(viewCell.onDidChangeLayout, this.updateForLayout.bind(this)));
 
-		this._register(cellEditorOptions.onDidChange(() => templateData.editor.updateOptions(cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata))));
-		templateData.editor.updateOptions(cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata));
+		this._register(cellEditorOptions.onDidChange(() => templateData.editor.updateOptions(cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata, this.viewCell.uri))));
+		templateData.editor.updateOptions(cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata, this.viewCell.uri));
 		cellEditorOptions.setLineNumbers(this.viewCell.lineNumbers);
 	}
 
@@ -148,7 +158,7 @@ export class CodeCell extends Disposable {
 	private calculateInitEditorHeight() {
 		const lineNum = this.viewCell.lineCount;
 		const lineHeight = this.viewCell.layoutInfo.fontInfo?.lineHeight || 17;
-		const editorPadding = this.notebookEditor.notebookOptions.computeEditorPadding(this.viewCell.internalMetadata);
+		const editorPadding = this.notebookEditor.notebookOptions.computeEditorPadding(this.viewCell.internalMetadata, this.viewCell.uri);
 		const editorHeight = this.viewCell.layoutInfo.editorHeight === 0
 			? lineNum * lineHeight + editorPadding.top + editorPadding.bottom
 			: this.viewCell.layoutInfo.editorHeight;
@@ -210,10 +220,10 @@ export class CodeCell extends Disposable {
 		}
 
 		const isReadonly = this.notebookEditor.isReadOnly;
-		const padding = this.notebookEditor.notebookOptions.computeEditorPadding(this.viewCell.internalMetadata);
+		const padding = this.notebookEditor.notebookOptions.computeEditorPadding(this.viewCell.internalMetadata, this.viewCell.uri);
 		const options = editor.getOptions();
 		if (options.get(EditorOption.readOnly) !== isReadonly || options.get(EditorOption.padding) !== padding) {
-			editor.updateOptions({ readOnly: this.notebookEditor.isReadOnly, padding: this.notebookEditor.notebookOptions.computeEditorPadding(this.viewCell.internalMetadata) });
+			editor.updateOptions({ readOnly: this.notebookEditor.isReadOnly, padding: this.notebookEditor.notebookOptions.computeEditorPadding(this.viewCell.internalMetadata, this.viewCell.uri) });
 		}
 	}
 
@@ -316,7 +326,7 @@ export class CodeCell extends Disposable {
 		// Mouse click handlers
 		this._register(this.templateData.statusBar.onDidClick(e => {
 			if (e.type !== ClickTargetType.ContributedCommandItem) {
-				const target = this.templateData.editor.getTargetAtClientPoint(e.event.clientX, e.event.clientY - this.notebookEditor.notebookOptions.computeEditorStatusbarHeight(this.viewCell.internalMetadata));
+				const target = this.templateData.editor.getTargetAtClientPoint(e.event.clientX, e.event.clientY - this.notebookEditor.notebookOptions.computeEditorStatusbarHeight(this.viewCell.internalMetadata, this.viewCell.uri));
 				if (target?.position) {
 					this.templateData.editor.setPosition(target.position);
 					this.templateData.editor.focus();

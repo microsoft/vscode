@@ -25,6 +25,7 @@ import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CellEditType, CellKind, ICellEditOperation, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
+import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'notebook.clearAllCellsOutputs';
 const EDIT_CELL_COMMAND_ID = 'notebook.cell.edit';
@@ -197,6 +198,7 @@ registerAction2(class ClearCellOutputsAction extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+		const notebookExecutionStateService = accessor.get(INotebookExecutionStateService);
 		const editor = context.notebookEditor;
 		if (!editor.hasModel() || !editor.textModel.length) {
 			return;
@@ -211,10 +213,10 @@ registerAction2(class ClearCellOutputsAction extends NotebookCellAction {
 
 		editor.textModel.applyEdits([{ editType: CellEditType.Output, index, outputs: [] }], true, undefined, () => undefined, undefined);
 
-		if (context.cell.internalMetadata.runState !== NotebookCellExecutionState.Executing) {
+		const runState = notebookExecutionStateService.getCellExecutionState(context.cell.uri)?.state;
+		if (runState !== NotebookCellExecutionState.Executing) {
 			context.notebookEditor.textModel.applyEdits([{
 				editType: CellEditType.PartialInternalMetadata, index, internalMetadata: {
-					runState: null,
 					runStartTime: null,
 					runStartTimeAdjustment: null,
 					runEndTime: null,
@@ -258,6 +260,7 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
+		const notebookExecutionStateService = accessor.get(INotebookExecutionStateService);
 		const editor = context.notebookEditor;
 		if (!editor.hasModel() || !editor.textModel.length) {
 			return;
@@ -269,10 +272,10 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 			})), true, undefined, () => undefined, undefined);
 
 		const clearExecutionMetadataEdits = editor.textModel.cells.map((cell, index) => {
-			if (cell.internalMetadata.runState !== NotebookCellExecutionState.Executing) {
+			const runState = notebookExecutionStateService.getCellExecutionState(cell.uri)?.state;
+			if (runState !== NotebookCellExecutionState.Executing) {
 				return {
 					editType: CellEditType.PartialInternalMetadata, index, internalMetadata: {
-						runState: null,
 						runStartTime: null,
 						runStartTimeAdjustment: null,
 						runEndTime: null,
