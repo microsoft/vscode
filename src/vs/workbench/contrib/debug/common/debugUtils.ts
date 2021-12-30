@@ -310,7 +310,7 @@ function compareOrders(first: number | undefined, second: number | undefined): n
 }
 
 export async function saveAllBeforeDebugStart(configurationService: IConfigurationService, editorService: IEditorService): Promise<void> {
-	const saveBeforeStartConfig: string = configurationService.getValue('debug.saveBeforeStart', { overrideIdentifier: editorService.activeTextEditorMode });
+	const saveBeforeStartConfig: string = configurationService.getValue('debug.saveBeforeStart', { overrideIdentifier: editorService.activeTextEditorLanguageId });
 	if (saveBeforeStartConfig !== 'none') {
 		await editorService.saveAll();
 		if (saveBeforeStartConfig === 'allEditorsInActiveGroup') {

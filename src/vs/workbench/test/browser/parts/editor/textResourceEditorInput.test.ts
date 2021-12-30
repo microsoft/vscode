@@ -41,7 +41,7 @@ suite('TextResourceEditorInput', () => {
 		assert.strictEqual(snapshotToString(((model as TextResourceEditorModel).createSnapshot()!)), 'function test() {}');
 	});
 
-	test('preferred mode (via ctor)', async () => {
+	test('preferred language (via ctor)', async () => {
 		ModesRegistry.registerLanguage({
 			id: 'resource-input-test',
 		});
@@ -55,14 +55,14 @@ suite('TextResourceEditorInput', () => {
 		assert.ok(model);
 		assert.strictEqual(model.textEditorModel?.getLanguageId(), 'resource-input-test');
 
-		input.setMode('text');
+		input.setLanguageId('text');
 		assert.strictEqual(model.textEditorModel?.getLanguageId(), PLAINTEXT_LANGUAGE_ID);
 
 		await input.resolve();
 		assert.strictEqual(model.textEditorModel?.getLanguageId(), PLAINTEXT_LANGUAGE_ID);
 	});
 
-	test('preferred mode (via setPreferredMode)', async () => {
+	test('preferred language (via setPreferredLanguageId)', async () => {
 		ModesRegistry.registerLanguage({
 			id: 'resource-input-test',
 		});
@@ -71,7 +71,7 @@ suite('TextResourceEditorInput', () => {
 		accessor.modelService.createModel('function test() {}', accessor.languageService.createById(PLAINTEXT_LANGUAGE_ID), resource);
 
 		const input = instantiationService.createInstance(TextResourceEditorInput, resource, 'The Name', 'The Description', undefined, undefined);
-		input.setPreferredMode('resource-input-test');
+		input.setPreferredLanguageId('resource-input-test');
 
 		const model = await input.resolve();
 		assert.ok(model);

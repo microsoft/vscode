@@ -67,7 +67,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 	private preferredName: string | undefined;
 	private preferredDescription: string | undefined;
 	private preferredEncoding: string | undefined;
-	private preferredMode: string | undefined;
+	private preferredLanguageId: string | undefined;
 	private preferredContents: string | undefined;
 
 	private forceOpenAs: ForceOpenAs = ForceOpenAs.None;
@@ -83,7 +83,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		preferredName: string | undefined,
 		preferredDescription: string | undefined,
 		preferredEncoding: string | undefined,
-		preferredMode: string | undefined,
+		preferredLanguageId: string | undefined,
 		preferredContents: string | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextFileService textFileService: ITextFileService,
@@ -111,8 +111,8 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 			this.setPreferredEncoding(preferredEncoding);
 		}
 
-		if (preferredMode) {
-			this.setPreferredMode(preferredMode);
+		if (preferredLanguageId) {
+			this.setPreferredLanguageId(preferredLanguageId);
 		}
 
 		if (typeof preferredContents === 'string') {
@@ -232,28 +232,28 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		this.setForceOpenAsText();
 	}
 
-	getMode(): string | undefined {
+	getLanguageId(): string | undefined {
 		if (this.model) {
-			return this.model.getMode();
+			return this.model.getLanguageId();
 		}
 
-		return this.preferredMode;
+		return this.preferredLanguageId;
 	}
 
-	getPreferredMode(): string | undefined {
-		return this.preferredMode;
+	getPreferredLanguageId(): string | undefined {
+		return this.preferredLanguageId;
 	}
 
-	setMode(mode: string): void {
-		this.setPreferredMode(mode);
+	setLanguageId(languageId: string): void {
+		this.setPreferredLanguageId(languageId);
 
-		this.model?.setMode(mode);
+		this.model?.setLanguageId(languageId);
 	}
 
-	setPreferredMode(mode: string): void {
-		this.preferredMode = mode;
+	setPreferredLanguageId(languageId: string): void {
+		this.preferredLanguageId = languageId;
 
-		// mode is a good hint to open the file as text
+		// languages are a good hint to open the file as text
 		this.setForceOpenAsText();
 	}
 
@@ -324,7 +324,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 			// Resolve resource via text file service and only allow
 			// to open binary files if we are instructed so
 			await this.textFileService.files.resolve(this.resource, {
-				mode: this.preferredMode,
+				languageId: this.preferredLanguageId,
 				encoding: this.preferredEncoding,
 				contents: typeof preferredContents === 'string' ? createTextBufferFactory(preferredContents) : undefined,
 				reload: { async: true }, // trigger a reload of the model if it exists already but do not wait to show the model
@@ -399,7 +399,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 
 		if (typeof options?.preserveViewState === 'number') {
 			untypedInput.encoding = this.getEncoding();
-			untypedInput.mode = this.getMode();
+			untypedInput.languageId = this.getLanguageId();
 			untypedInput.contents = (() => {
 				const model = this.textFileService.files.get(this.resource);
 				if (model && model.isDirty()) {

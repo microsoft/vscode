@@ -89,7 +89,7 @@ function detectLanguageId(modelService: IModelService, languageService: ILanguag
 		}
 	}
 
-	// only take if the mode is specific (aka no just plain text)
+	// only take if the language id is specific (aka no just plain text)
 	if (languageId && languageId !== PLAINTEXT_LANGUAGE_ID) {
 		return languageId;
 	}

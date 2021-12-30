@@ -109,7 +109,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		if (!data) {
 			throw new Error('unknown document');
 		}
-		// Treat a mode change as a remove + add
+		// Treat a language change as a remove + add
 
 		this._onDidRemoveDocument.fire(data.document);
 		data._acceptLanguageId(newLanguageId);

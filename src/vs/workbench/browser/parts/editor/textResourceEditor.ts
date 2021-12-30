@@ -154,7 +154,7 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		const control = super.createEditorControl(parent, configuration);
 
 		// Install a listener for paste to update this editors
-		// language mode if the paste includes a specific mode
+		// language if the paste includes a specific language
 		const codeEditor = getCodeEditor(control);
 		if (codeEditor) {
 			this._register(codeEditor.onDidPaste(e => this.onDidEditorPaste(e, codeEditor)));
@@ -164,8 +164,8 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 	}
 
 	private onDidEditorPaste(e: IPasteEvent, codeEditor: ICodeEditor): void {
-		if (this.input instanceof UntitledTextEditorInput && this.input.model.hasModeSetExplicitly) {
-			return; // do not override mode if it was set explicitly
+		if (this.input instanceof UntitledTextEditorInput && this.input.model.hasLanguageSetExplicitly) {
+			return; // do not override language if it was set explicitly
 		}
 
 		if (e.range.startLineNumber !== 1 || e.range.startColumn !== 1) {

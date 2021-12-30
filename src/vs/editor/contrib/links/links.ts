@@ -174,8 +174,8 @@ export class LinkDetector implements IEditorContribution {
 		}));
 		this.listenersToRemove.add(editor.onDidChangeModelContent((e) => this.onChange()));
 		this.listenersToRemove.add(editor.onDidChangeModel((e) => this.onModelChanged()));
-		this.listenersToRemove.add(editor.onDidChangeModelLanguage((e) => this.onModelModeChanged()));
-		this.listenersToRemove.add(LinkProviderRegistry.onDidChange((e) => this.onModelModeChanged()));
+		this.listenersToRemove.add(editor.onDidChangeModelLanguage((e) => this.onModelLanguageChanged()));
+		this.listenersToRemove.add(LinkProviderRegistry.onDidChange((e) => this.onModelLanguageChanged()));
 
 		this.timeout = new async.TimeoutTimer();
 		this.computePromise = null;
@@ -192,7 +192,7 @@ export class LinkDetector implements IEditorContribution {
 		this.beginCompute();
 	}
 
-	private onModelModeChanged(): void {
+	private onModelLanguageChanged(): void {
 		this.stop();
 		this.beginCompute();
 	}

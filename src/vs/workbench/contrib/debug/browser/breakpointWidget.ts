@@ -169,7 +169,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 
 	private setInputMode(): void {
 		if (this.editor.hasModel()) {
-			// Use plaintext language mode for log messages, otherwise respect underlying editor mode #125619
+			// Use plaintext language for log messages, otherwise respect underlying editor language #125619
 			const languageId = this.context === Context.LOG_MESSAGE ? PLAINTEXT_LANGUAGE_ID : this.editor.getModel().getLanguageId();
 			this.input.getModel().setMode(languageId);
 		}

@@ -38,8 +38,8 @@ suite('EditorModel', () => {
 
 	class MyEditorModel extends EditorModel { }
 	class MyTextEditorModel extends BaseTextEditorModel {
-		override createTextEditorModel(value: ITextBufferFactory, resource?: URI, preferredMode?: string) {
-			return super.createTextEditorModel(value, resource, preferredMode);
+		override createTextEditorModel(value: ITextBufferFactory, resource?: URI, preferredLanguageId?: string) {
+			return super.createTextEditorModel(value, resource, preferredLanguageId);
 		}
 
 		override isReadonly(): boolean {

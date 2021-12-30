@@ -296,17 +296,17 @@ suite('Files - TextFileEditorModel', () => {
 		model.dispose();
 	});
 
-	test('create with mode', async function () {
-		const mode = 'text-file-model-test';
+	test('create with language', async function () {
+		const languageId = 'text-file-model-test';
 		ModesRegistry.registerLanguage({
-			id: mode,
+			id: languageId,
 		});
 
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', mode);
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', languageId);
 
 		await model.resolve();
 
-		assert.strictEqual(model.textEditorModel!.getLanguageId(), mode);
+		assert.strictEqual(model.textEditorModel!.getLanguageId(), languageId);
 
 		model.dispose();
 		assert.ok(!accessor.modelService.getModel(model.resource));
