@@ -20,7 +20,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { LinkProviderRegistry } from 'vs/editor/common/modes';
+import { LinkProviderRegistry } from 'vs/editor/common/languages';
 import { ClickLinkGesture, ClickLinkKeyboardEvent, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/link/clickLinkGesture';
 import { getLinks, Link, LinksList } from 'vs/editor/contrib/links/getLinks';
 import * as nls from 'vs/nls';

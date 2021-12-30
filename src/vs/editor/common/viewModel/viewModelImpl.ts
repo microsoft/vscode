@@ -23,10 +23,10 @@ import { EndOfLinePreference, ICursorStateComputer, IIdentifiedSingleEditOperati
 import { IActiveIndentGuideInfo, BracketGuideOptions, IndentGuide } from 'vs/editor/common/model/guidesTextModelPart';
 import { ModelDecorationMinimapOptions, ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
-import { ColorId, TokenizationRegistry } from 'vs/editor/common/modes';
-import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { ColorId, TokenizationRegistry } from 'vs/editor/common/languages';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { tokenizeLineToHTML } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import { EditorTheme } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';

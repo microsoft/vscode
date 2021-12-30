@@ -25,7 +25,7 @@ import { ILanguageService } from 'vs/editor/common/services/language';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { Schemas } from 'vs/base/common/network';
-import { PLAINTEXT_EXTENSION } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_EXTENSION } from 'vs/editor/common/languages/modesRegistry';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';

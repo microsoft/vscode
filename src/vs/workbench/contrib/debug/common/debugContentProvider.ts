@@ -17,7 +17,7 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 
 /**
  * Debug URI format

@@ -21,7 +21,7 @@ import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/com
 import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IReadonlyTextBuffer } from 'vs/editor/common/model';
-import { tokenizeToStringSync } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { tokenizeToStringSync } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import { MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { ILanguageService } from 'vs/editor/common/services/language';
 import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';

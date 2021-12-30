@@ -12,9 +12,9 @@ import { BracketPairsTree } from 'vs/editor/common/model/bracketPairsTextModelPa
 import { BracketInfo, BracketPairInfo, BracketPairWithMinIndentationInfo, IBracketPairsTextModelPart, IFoundBracket } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairs';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
-import { RichEditBrackets, BracketsUtils, RichEditBracket } from 'vs/editor/common/modes/supports/richEditBrackets';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ignoreBracketsInToken } from 'vs/editor/common/languages/supports';
+import { RichEditBrackets, BracketsUtils, RichEditBracket } from 'vs/editor/common/languages/supports/richEditBrackets';
 
 export class BracketPairsTextModelPart extends Disposable implements IBracketPairsTextModelPart {
 	private readonly bracketPairsTree = this._register(new MutableDisposable<IReference<BracketPairsTree>>());

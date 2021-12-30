@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { ILanguageIdCodec } from 'vs/editor/common/modes';
+import { ILanguageIdCodec } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const ILanguageService = createDecorator<ILanguageService>('languageService');

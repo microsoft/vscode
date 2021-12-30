@@ -6,8 +6,8 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITextModel } from 'vs/editor/common/model';
 import { computeIndentLevel } from 'vs/editor/common/model/utils';
-import { FoldingMarkers } from 'vs/editor/common/modes/languageConfiguration';
-import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { FoldingMarkers } from 'vs/editor/common/languages/languageConfiguration';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { FoldingRegions, MAX_LINE_NUMBER } from 'vs/editor/contrib/folding/foldingRanges';
 import { RangeProvider } from './folding';
 

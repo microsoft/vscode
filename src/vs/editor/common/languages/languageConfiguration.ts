@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from 'vs/base/common/charCode';
-import { StandardTokenType } from 'vs/editor/common/modes';
-import { ScopedLineTokens } from 'vs/editor/common/modes/supports';
+import { StandardTokenType } from 'vs/editor/common/languages';
+import { ScopedLineTokens } from 'vs/editor/common/languages/supports';
 
 /**
  * Describes how comments for a language work.

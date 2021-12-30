@@ -10,8 +10,8 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { EncodedTokenizationResult } from 'vs/editor/common/core/token';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import * as modes from 'vs/editor/common/modes';
-import { NullState } from 'vs/editor/common/modes/nullMode';
+import * as modes from 'vs/editor/common/languages';
+import { NullState } from 'vs/editor/common/languages/nullMode';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
 // --------- utils

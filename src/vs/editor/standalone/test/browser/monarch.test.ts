@@ -9,9 +9,9 @@ import { ILanguageService } from 'vs/editor/common/services/language';
 import { MonarchTokenizer } from 'vs/editor/standalone/common/monarch/monarchLexer';
 import { compile } from 'vs/editor/standalone/common/monarch/monarchCompile';
 import { Token } from 'vs/editor/common/core/token';
-import { TokenizationRegistry } from 'vs/editor/common/modes';
+import { TokenizationRegistry } from 'vs/editor/common/languages';
 import { IMonarchLanguage } from 'vs/editor/standalone/common/monarch/monarchTypes';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
+import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 
 suite('Monarch', () => {
 

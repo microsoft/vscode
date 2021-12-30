@@ -11,7 +11,7 @@ import { MoveOperations } from 'vs/editor/common/controller/cursorMoveOperations
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand } from 'vs/editor/common/editorCommon';
-import { StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
+import { StandardAutoClosingPairConditional } from 'vs/editor/common/languages/languageConfiguration';
 import { Position } from 'vs/editor/common/core/position';
 
 export class DeleteOperations {

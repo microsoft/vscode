@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { StandardTokenType } from 'vs/editor/common/modes';
+import { StandardTokenType } from 'vs/editor/common/languages';
 import * as fs from 'fs';
 // import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 // import { parse } from 'vs/editor/common/modes/tokenization/typescript';
-import { toStandardTokenType } from 'vs/editor/common/modes/supports/tokenization';
+import { toStandardTokenType } from 'vs/editor/common/languages/supports/tokenization';
 
 interface IParseFunc {
 	(text: string): number[];

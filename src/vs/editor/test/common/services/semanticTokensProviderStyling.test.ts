@@ -6,8 +6,8 @@
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { SparseMultilineTokens } from 'vs/editor/common/model/tokens/sparseMultilineTokens';
-import { MetadataConsts } from 'vs/editor/common/modes';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
+import { MetadataConsts } from 'vs/editor/common/languages';
+import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { SemanticTokensProviderStyling, toMultilineTokens2 } from 'vs/editor/common/services/semanticTokensProviderStyling';
 import { createModelServices } from 'vs/editor/test/common/testTextModel';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';

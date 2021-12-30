@@ -5,7 +5,7 @@
 
 import { CharCode } from 'vs/base/common/charCode';
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
-import { ILink } from 'vs/editor/common/modes';
+import { ILink } from 'vs/editor/common/languages';
 
 export interface ILinkComputerTarget {
 	getLineCount(): number;

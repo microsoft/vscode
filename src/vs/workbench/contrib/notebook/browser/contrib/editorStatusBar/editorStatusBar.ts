@@ -7,7 +7,7 @@ import { groupBy } from 'vs/base/common/arrays';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { compareIgnoreCase, uppercaseFirstLetter } from 'vs/base/common/strings';
-import { HoverProviderRegistry } from 'vs/editor/common/modes';
+import { HoverProviderRegistry } from 'vs/editor/common/languages';
 import * as nls from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LineTokens } from 'vs/editor/common/model/tokens/lineTokens';
-import { MetadataConsts, StandardTokenType } from 'vs/editor/common/modes';
-import { ScopedLineTokens, createScopedLineTokens } from 'vs/editor/common/modes/supports';
+import { MetadataConsts, StandardTokenType } from 'vs/editor/common/languages';
+import { ScopedLineTokens, createScopedLineTokens } from 'vs/editor/common/languages/supports';
 import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
 
 export interface TokenText {

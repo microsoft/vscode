@@ -12,8 +12,8 @@ import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IChange } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/modes';
-import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import * as modes from 'vs/editor/common/languages';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
 import { IDiffComputationResult, IEditorWorkerService, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -23,7 +23,7 @@ import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { canceled } from 'vs/base/common/errors';
-import { UnicodeHighlighterOptions } from 'vs/editor/common/modes/unicodeTextModelHighlighter';
+import { UnicodeHighlighterOptions } from 'vs/editor/common/languages/unicodeTextModelHighlighter';
 
 /**
  * Stop syncing a model to the worker if it was not needed for 1 min.

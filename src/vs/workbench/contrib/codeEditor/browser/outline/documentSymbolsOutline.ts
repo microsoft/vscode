@@ -13,7 +13,7 @@ import { IEditorPane } from 'vs/workbench/common/editor';
 import { DocumentSymbolComparator, DocumentSymbolAccessibilityProvider, DocumentSymbolRenderer, DocumentSymbolFilter, DocumentSymbolGroupRenderer, DocumentSymbolIdentityProvider, DocumentSymbolNavigationLabelProvider, DocumentSymbolVirtualDelegate } from 'vs/workbench/contrib/codeEditor/browser/outline/documentSymbolsTree';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { OutlineGroup, OutlineElement, OutlineModel, TreeElement, IOutlineMarker } from 'vs/editor/contrib/documentSymbols/outlineModel';
-import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
+import { DocumentSymbolProviderRegistry } from 'vs/editor/common/languages';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { raceCancellation, TimeoutTimer, timeout, Barrier } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';

@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
 import { ILanguageSelection } from 'vs/editor/common/services/language';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider } from 'vs/editor/common/modes';
+import { DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider } from 'vs/editor/common/languages';
 import { SemanticTokensProviderStyling } from 'vs/editor/common/services/semanticTokensProviderStyling';
 
 export const IModelService = createDecorator<IModelService>('modelService');

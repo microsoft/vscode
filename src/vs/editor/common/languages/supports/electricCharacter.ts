@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { distinct } from 'vs/base/common/arrays';
-import { ScopedLineTokens, ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
-import { BracketsUtils, RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
+import { ScopedLineTokens, ignoreBracketsInToken } from 'vs/editor/common/languages/supports';
+import { BracketsUtils, RichEditBrackets } from 'vs/editor/common/languages/supports/richEditBrackets';
 
 /**
  * Interface used to support electric characters

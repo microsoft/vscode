@@ -9,7 +9,7 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
 import { MovingAverage } from 'vs/base/common/numbers';
 import { ITextModel } from 'vs/editor/common/model';
-import { LanguageFilter, LanguageSelector, score } from 'vs/editor/common/modes/languageSelector';
+import { LanguageFilter, LanguageSelector, score } from 'vs/editor/common/languages/languageSelector';
 import { shouldSynchronizeModel } from 'vs/editor/common/services/model';
 
 interface Entry<T> {

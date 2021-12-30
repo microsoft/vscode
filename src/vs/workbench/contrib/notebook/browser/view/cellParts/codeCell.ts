@@ -12,7 +12,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { IReadonlyTextBuffer } from 'vs/editor/common/model';
-import { tokenizeToStringSync } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { tokenizeToStringSync } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import { ILanguageService } from 'vs/editor/common/services/language';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';

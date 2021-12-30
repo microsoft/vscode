@@ -11,7 +11,7 @@ import { ITextEditorModel, IResolvedTextEditorModel } from 'vs/editor/common/ser
 import { ILanguageService, ILanguageSelection } from 'vs/editor/common/services/language';
 import { IModelService } from 'vs/editor/common/services/model';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { ThrottledDelayer } from 'vs/base/common/async';

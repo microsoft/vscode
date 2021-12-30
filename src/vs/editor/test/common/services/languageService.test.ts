@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { throwIfDisposablesAreLeaked } from 'vs/base/test/common/utils';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 
 suite('LanguageService', () => {

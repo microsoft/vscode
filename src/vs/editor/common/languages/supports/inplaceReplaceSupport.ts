@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IRange } from 'vs/editor/common/core/range';
-import { IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
+import { IInplaceReplaceSupportResult } from 'vs/editor/common/languages';
 
 export class BasicInplaceReplace {
 

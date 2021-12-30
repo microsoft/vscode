@@ -28,7 +28,7 @@ import { ILanguageDetectionService } from 'vs/workbench/services/languageDetecti
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { extUri } from 'vs/base/common/resources';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 interface IBackupMetaData extends IWorkingCopyBackupMeta {

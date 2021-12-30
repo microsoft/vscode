@@ -21,7 +21,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel } from 'vs/editor/common/model';
-import { Rejection, RenameLocation, RenameProvider, RenameProviderRegistry, WorkspaceEdit } from 'vs/editor/common/modes';
+import { Rejection, RenameLocation, RenameProvider, RenameProviderRegistry, WorkspaceEdit } from 'vs/editor/common/languages';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
 import * as nls from 'vs/nls';

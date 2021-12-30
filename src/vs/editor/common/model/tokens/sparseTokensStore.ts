@@ -7,7 +7,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { LineTokens } from 'vs/editor/common/model/tokens/lineTokens';
 import { SparseMultilineTokens } from 'vs/editor/common/model/tokens/sparseMultilineTokens';
-import { ILanguageIdCodec, MetadataConsts } from 'vs/editor/common/modes';
+import { ILanguageIdCodec, MetadataConsts } from 'vs/editor/common/languages';
 
 /**
  * Represents sparse tokens in a text model.

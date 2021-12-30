@@ -34,8 +34,8 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageSelection, ILanguageService } from 'vs/editor/common/services/language';
 import { URI } from 'vs/base/common/uri';
 import { StandaloneCodeEditorService } from 'vs/editor/standalone/browser/standaloneCodeEditorService';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 
 /**
  * Description of an action contribution

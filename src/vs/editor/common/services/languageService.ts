@@ -9,8 +9,8 @@ import { URI } from 'vs/base/common/uri';
 import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
 import { ILanguageNameIdPair, ILanguageSelection, ILanguageService } from 'vs/editor/common/services/language';
 import { firstOrDefault } from 'vs/base/common/arrays';
-import { ILanguageIdCodec, TokenizationRegistry } from 'vs/editor/common/modes';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { ILanguageIdCodec, TokenizationRegistry } from 'vs/editor/common/languages';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 
 export class LanguageService extends Disposable implements ILanguageService {
 	public _serviceBrand: undefined;

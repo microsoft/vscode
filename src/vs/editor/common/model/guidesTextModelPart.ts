@@ -12,7 +12,7 @@ import { BracketPairInfo } from 'vs/editor/common/model/bracketPairsTextModelPar
 import type { TextModel } from 'vs/editor/common/model/textModel';
 import { TextModelPart } from 'vs/editor/common/model/textModelPart';
 import { computeIndentLevel } from 'vs/editor/common/model/utils';
-import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
 
 export interface IGuidesTextModelPart {
 	/**

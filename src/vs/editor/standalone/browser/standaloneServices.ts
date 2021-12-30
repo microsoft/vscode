@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/editor/common/modes/languageConfigurationRegistry';
+import 'vs/editor/common/languages/languageConfigurationRegistry';
 import 'vs/editor/standalone/browser/standaloneCodeEditorService';
 import 'vs/editor/standalone/browser/standaloneLayoutService';
 import 'vs/platform/undoRedo/common/undoRedoService';

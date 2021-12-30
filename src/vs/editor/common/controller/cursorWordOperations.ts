@@ -13,7 +13,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
-import { AutoClosingPairs } from 'vs/editor/common/modes/languageConfiguration';
+import { AutoClosingPairs } from 'vs/editor/common/languages/languageConfiguration';
 
 interface IFindWordResult {
 	/**

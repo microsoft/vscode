@@ -10,9 +10,9 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Token, TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/core/token';
-import * as modes from 'vs/editor/common/modes';
-import { NullState } from 'vs/editor/common/modes/nullMode';
-import { TokenTheme } from 'vs/editor/common/modes/supports/tokenization';
+import * as modes from 'vs/editor/common/languages';
+import { NullState } from 'vs/editor/common/languages/nullMode';
+import { TokenTheme } from 'vs/editor/common/languages/supports/tokenization';
 import { ILanguageService } from 'vs/editor/common/services/language';
 import * as monarchCommon from 'vs/editor/standalone/common/monarch/monarchCommon';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';

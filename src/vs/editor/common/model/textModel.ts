@@ -41,8 +41,8 @@ import { SparseMultilineTokens } from 'vs/editor/common/model/tokens/sparseMulti
 import { ContiguousTokensStore } from 'vs/editor/common/model/tokens/contiguousTokensStore';
 import { SparseTokensStore } from 'vs/editor/common/model/tokens/sparseTokensStore';
 import { getWordAtText } from 'vs/editor/common/model/wordHelper';
-import { FormattingOptions, StandardTokenType } from 'vs/editor/common/modes';
-import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { FormattingOptions, StandardTokenType } from 'vs/editor/common/languages';
+import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ILanguageService } from 'vs/editor/common/services/language';
 import { EditorTheme } from 'vs/editor/common/view/viewContext';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';

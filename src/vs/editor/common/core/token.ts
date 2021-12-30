@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IState } from 'vs/editor/common/modes';
+import { IState } from 'vs/editor/common/languages';
 
 export class Token {
 	_tokenBrand: void = undefined;

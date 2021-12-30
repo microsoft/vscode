@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Color } from 'vs/base/common/color';
-import { ColorId, FontStyle, LanguageId, MetadataConsts, StandardTokenType } from 'vs/editor/common/modes';
+import { ColorId, FontStyle, LanguageId, MetadataConsts, StandardTokenType } from 'vs/editor/common/languages';
 
 export interface ITokenThemeRule {
 	token: string;
