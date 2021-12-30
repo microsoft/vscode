@@ -10,6 +10,7 @@ import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileSer
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, ExtHostFileSystemShape, IExtHostContext, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../common/extHost.protocol';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 @extHostNamedCustomer(MainContext.MainThreadFileSystem)
 export class MainThreadFileSystem implements MainThreadFileSystemShape {
@@ -22,6 +23,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IFileService private readonly _fileService: IFileService,
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystem);
 
@@ -156,7 +158,12 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	}
 
 	$watch(session: number, resource: UriComponents, opts: IWatchOptions): void {
-		const subscription = this._fileService.watch(URI.revive(resource), opts);
+		const uri = URI.revive(resource);
+		if (this._contextService.isInsideWorkspace(uri)) {
+			return; // refuse to watch anything that is already watched
+		}
+
+		const subscription = this._fileService.watch(uri, opts);
 		this._watches.set(session, subscription);
 	}
 
