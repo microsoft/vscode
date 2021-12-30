@@ -426,7 +426,6 @@ export interface INotebookEditor {
 	getFocus(): ICellRange;
 	setFocus(focus: ICellRange): void;
 	getId(): string;
-	hasEditorFocus(): boolean;
 
 	cursorNavigationMode: boolean;
 
