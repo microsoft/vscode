@@ -7,11 +7,12 @@ import { disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ICellVisibilityChangeEvent, NotebookVisibleCellObserver } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/notebookVisibleCellObserver';
 import { formatCellDuration, ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { cellStatusIconError, cellStatusIconSuccess } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
+import { errorStateIcon, executingStateIcon, pendingStateIcon, successStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellStatusbarAlignment, INotebookCellStatusBarItem, NotebookCellExecutionState, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellExecutionEntry, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
@@ -136,7 +137,7 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 		const { lastRunSuccess, isPaused } = internalMetadata;
 		if (!state && lastRunSuccess) {
 			return <INotebookCellStatusBarItem>{
-				text: '$(notebook-state-success)',
+				text: `$(${successStateIcon.id})`,
 				color: themeColorFromId(cellStatusIconSuccess),
 				tooltip: localize('notebook.cell.status.success', "Success"),
 				alignment: CellStatusbarAlignment.Left,
@@ -144,7 +145,7 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 			};
 		} else if (!state && lastRunSuccess === false) {
 			return <INotebookCellStatusBarItem>{
-				text: '$(notebook-state-error)',
+				text: `$(${errorStateIcon.id})`,
 				color: themeColorFromId(cellStatusIconError),
 				tooltip: localize('notebook.cell.status.failed', "Failed"),
 				alignment: CellStatusbarAlignment.Left,
@@ -152,14 +153,17 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 			};
 		} else if (state === NotebookCellExecutionState.Pending) {
 			return <INotebookCellStatusBarItem>{
-				text: '$(notebook-state-pending)',
+				text: `$(${pendingStateIcon.id})`,
 				tooltip: localize('notebook.cell.status.pending', "Pending"),
 				alignment: CellStatusbarAlignment.Left,
 				priority: Number.MAX_SAFE_INTEGER
 			};
 		} else if (state === NotebookCellExecutionState.Executing) {
+			const icon = isPaused ?
+				executingStateIcon :
+				ThemeIcon.modify(executingStateIcon, 'spin');
 			return <INotebookCellStatusBarItem>{
-				text: `$(notebook-state-executing${isPaused ? '' : '~spin'})`,
+				text: `$(${icon.id})`,
 				tooltip: localize('notebook.cell.status.executing', "Executing"),
 				alignment: CellStatusbarAlignment.Left,
 				priority: Number.MAX_SAFE_INTEGER
